@@ -27,7 +27,12 @@ interface Group {
 }
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
-const uid = () => crypto.randomUUID();
+/** Stable ids for seeded data (so they survive a restart of the demo server). */
+const uid = (seedName?: string) => {
+  if (!seedName) return crypto.randomUUID();
+  const h = crypto.createHash('sha256').update(seedName).digest('hex');
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
+};
 
 function seed() {
   const people: [string, string, number | null][] = [
@@ -50,7 +55,7 @@ function seed() {
   const users = new Map<string, User>();
   for (const [g, f, d] of people) {
     const u: User = {
-      id: uid(),
+      id: uid(`user:${g}.${f}`),
       userName: `${g}.${f}@example.com`.toLowerCase(),
       name: { givenName: g, familyName: f },
       emails: [{ value: `${g}.${f}@example.com`.toLowerCase() }],
@@ -63,7 +68,7 @@ function seed() {
   const groups = new Map<string, Group>();
   const mk = (displayName: string, description: string, memberIdx: number[]) => {
     const all = [...users.values()];
-    const g: Group = { id: uid(), displayName, description, members: new Set(memberIdx.map((i) => all[i]!.id)) };
+    const g: Group = { id: uid(`group:${displayName}`), displayName, description, members: new Set(memberIdx.map((i) => all[i]!.id)) };
     groups.set(g.id, g);
   };
   mk('mdsp:core:StandardUser', 'Standard user role', [...Array(people.length).keys()]);
@@ -87,7 +92,7 @@ function seed() {
     { id: 'demo.LegacyCompressor', name: 'LegacyCompressor', variables: [v('serial')], aspects: [{ name: 'Energy', aspectType: aspectTypes.energy }] },
   ];
   const assets: { assetId: string; name: string; typeId: string; description: string }[] = [];
-  const add = (name: string, typeId: string) => assets.push({ assetId: crypto.randomBytes(16).toString('hex'), name, typeId, description: '' });
+  const add = (name: string, typeId: string) => assets.push({ assetId: crypto.createHash('md5').update(`asset:${name}`).digest('hex'), name, typeId, description: '' });
   for (let i = 1; i <= 6; i++) add(`Motor M${i}`, 'demo.Motor');
   for (let i = 1; i <= 2; i++) add(`Hall ${i}`, 'demo.Hall');
   for (let i = 1; i <= 4; i++) add(`Pump P${i}`, 'demo.Pump');

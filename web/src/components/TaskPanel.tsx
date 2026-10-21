@@ -1,0 +1,189 @@
+import { useMemo, useState } from 'react';
+import { Alert, Anchor, Badge, Button, Checkbox, Group, Paper, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { IconCheck, IconSearch, IconX } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import type { TaskRecord } from '@sm/shared';
+import { notifyError, notifyOk, post } from '../api';
+import { fmtDate } from '../format';
+import { Markdown, StatusBadge } from './common';
+
+const MAX_ROWS = 1000;
+
+export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; showRunLink?: boolean }) {
+  const qc = useQueryClient();
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(task.items.filter((i) => i.preselected).map((i) => i.key)));
+  const [filter, setFilter] = useState('');
+  const [comment, setComment] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const open = task.status === 'open';
+  const decided = new Set(task.decision?.selectedKeys ?? []);
+
+  const visible = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    return f ? task.items.filter((i) => i.cells.some((c) => c.toLowerCase().includes(f))) : task.items;
+  }, [filter, task.items]);
+
+  const allVisibleSelected = visible.length > 0 && visible.every((i) => selected.has(i.key));
+  const someVisibleSelected = visible.some((i) => selected.has(i.key));
+
+  const toggleAll = () => {
+    const next = new Set(selected);
+    if (allVisibleSelected) visible.forEach((i) => next.delete(i.key));
+    else visible.forEach((i) => next.add(i.key));
+    setSelected(next);
+  };
+
+  const submit = async (approved: boolean) => {
+    setBusy(approved ? 'approve' : 'reject');
+    try {
+      await post(`/tasks/${task.id}/complete`, {
+        approved,
+        selectedKeys: task.mode === 'select' ? [...selected] : [],
+        comment: comment || undefined,
+      });
+      notifyOk(task.mode === 'select' ? `Submitted: ${selected.size} selected` : approved ? 'Approved' : 'Rejected');
+      await qc.invalidateQueries();
+    } catch (e) {
+      notifyError(e, 'Could not submit decision');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Paper withBorder p="md">
+      <Stack gap="sm">
+        <Group justify="space-between" align="flex-start" wrap="wrap">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <Group gap="xs">
+              <Title order={4}>{task.title}</Title>
+              <StatusBadge status={task.status} />
+              {task.dryRun && (
+                <Badge color="yellow" variant="light">
+                  dry run
+                </Badge>
+              )}
+            </Group>
+            <Text size="xs" c="dimmed">
+              {task.processName}
+              {showRunLink && (
+                <>
+                  {' · '}
+                  <Anchor component={Link} to={`/runs/${task.runId}`} size="xs">
+                    open run
+                  </Anchor>
+                </>
+              )}
+              {' · '}created {fmtDate(task.createdAt)}
+            </Text>
+          </div>
+        </Group>
+        <Markdown text={task.instructions} />
+
+        {task.mode === 'select' && (
+          <>
+            <Group justify="space-between" wrap="wrap" gap="xs">
+              <TextInput
+                size="xs"
+                placeholder="Filter…"
+                leftSection={<IconSearch size={14} />}
+                value={filter}
+                onChange={(e) => setFilter(e.currentTarget.value)}
+                w={220}
+              />
+              <Text size="sm" c="dimmed">
+                {open ? `${selected.size} of ${task.items.length} selected` : `${decided.size} of ${task.items.length} were selected`}
+              </Text>
+            </Group>
+            <div className="table-scroll">
+              <Table striped highlightOnHover withTableBorder verticalSpacing={4} fz="sm">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th w={36}>
+                      {open && (
+                        <Checkbox
+                          size="xs"
+                          checked={allVisibleSelected}
+                          indeterminate={!allVisibleSelected && someVisibleSelected}
+                          onChange={toggleAll}
+                          aria-label="Select all"
+                        />
+                      )}
+                    </Table.Th>
+                    {task.columns.map((c) => (
+                      <Table.Th key={c.label}>{c.label}</Table.Th>
+                    ))}
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {visible.slice(0, MAX_ROWS).map((i) => (
+                    <Table.Tr
+                      key={i.key}
+                      className={open ? 'clickable' : undefined}
+                      onClick={() => {
+                        if (!open) return;
+                        const next = new Set(selected);
+                        if (next.has(i.key)) next.delete(i.key);
+                        else next.add(i.key);
+                        setSelected(next);
+                      }}
+                    >
+                      <Table.Td>
+                        {open ? (
+                          <Checkbox size="xs" checked={selected.has(i.key)} readOnly aria-label="Select" />
+                        ) : decided.has(i.key) ? (
+                          <IconCheck size={14} color="var(--mantine-color-green-6)" />
+                        ) : (
+                          <IconX size={14} color="var(--mantine-color-gray-5)" />
+                        )}
+                      </Table.Td>
+                      {i.cells.map((c, j) => (
+                        <Table.Td key={j}>{c}</Table.Td>
+                      ))}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </div>
+            {visible.length > MAX_ROWS && (
+              <Text size="xs" c="dimmed">
+                Showing the first {MAX_ROWS} of {visible.length} rows – use the filter to narrow down.
+              </Text>
+            )}
+          </>
+        )}
+
+        {open ? (
+          <>
+            <Textarea label="Comment (stored in the protocol)" autosize minRows={1} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+            <Group justify="flex-end">
+              {task.mode === 'approve' ? (
+                <>
+                  <Button color="red" variant="light" leftSection={<IconX size={16} />} loading={busy === 'reject'} onClick={() => submit(false)}>
+                    Reject
+                  </Button>
+                  <Button color="green" leftSection={<IconCheck size={16} />} loading={busy === 'approve'} onClick={() => submit(true)}>
+                    Approve
+                  </Button>
+                </>
+              ) : (
+                <Button leftSection={<IconCheck size={16} />} loading={busy === 'approve'} onClick={() => submit(true)}>
+                  Submit selection ({selected.size})
+                </Button>
+              )}
+            </Group>
+          </>
+        ) : task.status === 'completed' ? (
+          <Alert color={task.mode === 'approve' && !task.decision?.approved ? 'red' : 'green'} variant="light">
+            {task.mode === 'approve' ? (task.decision?.approved ? 'Approved' : 'Rejected') : `${decided.size} item(s) selected`} by{' '}
+            <strong>{task.decidedBy}</strong> on {fmtDate(task.decidedAt)}
+            {task.decision?.comment ? ` – “${task.decision.comment}”` : ''}
+          </Alert>
+        ) : (
+          <Alert color="gray">Cancelled</Alert>
+        )}
+      </Stack>
+    </Paper>
+  );
+}

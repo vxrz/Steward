@@ -80,7 +80,7 @@ steps:
     itemKey: id
     columns:
       - { label: User, value: userName }
-      - { label: Last login, value: "$exists(lastLogonTime) ? lastLogonTime : 'never'" }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
       - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
       - { label: Groups, value: "$join(groups[display != $inputs.reviewGroup].display, ', ')" }
     preselect: "$exists(lastLogonTime) and $daysSince(lastLogonTime) <= $inputs.activeWithinDays"

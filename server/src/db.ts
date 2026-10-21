@@ -1,6 +1,10 @@
-import { DatabaseSync } from 'node:sqlite';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 import { config } from './config.js';
+
+// Loaded lazily so the ExperimentalWarning filter in bootstrap.ts is active first.
+const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 type Row = Record<string, unknown>;
 
@@ -179,7 +183,7 @@ const MIGRATIONS: string[] = [
 ];
 
 export class Db {
-  readonly raw: DatabaseSync;
+  readonly raw: DatabaseSyncType;
 
   constructor(file: string) {
     this.raw = new DatabaseSync(file);

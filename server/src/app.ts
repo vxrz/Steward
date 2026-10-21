@@ -59,9 +59,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(registerRoutes, { prefix: '/api' });
 
   if (fs.existsSync(config.webDist)) {
-    await app.register(fastifyStatic, { root: config.webDist, wildcard: false });
+    await app.register(fastifyStatic, { root: config.webDist });
     app.setNotFoundHandler((req, reply) => {
-      if (req.url.startsWith('/api/') || req.method !== 'GET') return reply.code(404).send({ error: 'Not found' });
+      const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(req.url) && !/\.[a-z0-9]+(\?|$)/i.test(req.url);
+      if (!isPage) return reply.code(404).send({ error: 'Not found' });
       return reply.type('text/html').send(fs.readFileSync(path.join(config.webDist, 'index.html')));
     });
   } else {

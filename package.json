@@ -4,15 +4,22 @@
   "version": "0.1.0",
   "description": "Local service & platform management tool for Insights Hub, Industrial Edge and any REST platform",
   "type": "module",
-  "workspaces": ["shared", "server", "web"],
-  "engines": { "node": ">=22.13" },
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "npm run build -w web",
     "start": "npm run start -w server",
     "demo": "npm run build && cross-env SM_DEMO=1 npm run start -w server",
     "test": "npm run test -w server",
-    "typecheck": "tsc -p shared && tsc -p server && tsc -p web"
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p web",
+    "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
