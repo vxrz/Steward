@@ -1,0 +1,48 @@
+name: "Industrial Edge – Device status check"
+description: |
+  Lists all devices onboarded in Industrial Edge Management and flags devices
+  that are not connected. The status field name differs between IEM versions
+  (verify with the API explorer); configure it via the inputs.
+tags: [status, health, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+inputs:
+  - name: statusField
+    label: Field holding the connection state
+    type: string
+    default: connectionState
+  - name: onlineValue
+    label: Value meaning "online"
+    type: string
+    default: ONLINE
+steps:
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    saveAs: devices
+  - id: evaluate
+    type: set
+    name: Evaluate device states
+    values:
+      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      offline: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue]] }}"
+  - id: allOnline
+    type: check
+    name: All devices online
+    severity: warning
+    condition: "$count(vars.offline) = 0"
+    message: "{{ $count(vars.offline) }} of {{ $count(vars.all) }} device(s) not {{ inputs.onlineValue }}: {{ $join(vars.offline.name, ', ') }}"
+  - id: report
+    type: report
+    name: Device overview
+    title: Device status
+    rows: vars.all
+    columns:
+      - { label: Device, value: name }
+      - { label: State, value: "$lookup($, $inputs.statusField)" }
+      - { label: Status, value: deviceStatus }
+      - { label: Last seen, value: lastSeen }

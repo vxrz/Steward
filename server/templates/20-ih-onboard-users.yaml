@@ -1,0 +1,150 @@
+name: "Insights Hub – Onboard users with group bundles"
+description: |
+  Creates users (if they do not exist yet) and assigns a predefined
+  combination of roles/user groups ("bundle"). Paste a CSV with the columns
+  email, givenName, familyName and optionally bundle. Bundles are defined
+  under constants and can be edited in the process editor.
+tags: [onboarding, users, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: users
+    label: Users (CSV)
+    type: table
+    columns: [email, givenName, familyName, bundle]
+    required: true
+    default: |
+      email,givenName,familyName,bundle
+      new.operator@example.com,New,Operator,Operator
+  - name: defaultBundle
+    label: Bundle for rows without a bundle
+    type: select
+    options: [Operator, Engineer, Viewer]
+    default: Operator
+  - name: createMissing
+    label: Create users that do not exist
+    type: boolean
+    default: true
+constants:
+  bundles:
+    Operator: [mdsp:core:StandardUser, mdsp_usergroup:Operators]
+    Engineer: [mdsp:core:StandardUser, mdsp_usergroup:Engineers, mdsp_usergroup:Operators]
+    Viewer: [mdsp:core:StandardUser, mdsp_usergroup:Viewers]
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: listGroups
+    type: http
+    name: List groups and roles
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    paginate: { mode: scim, pageSize: 200 }
+    saveAs: groups
+  - id: plan
+    type: set
+    name: Build onboarding plan
+    values:
+      plan: >-
+        {{ [inputs.users.(
+          $b := $trim(bundle) ? $trim(bundle) : $inputs.defaultBundle;
+          {
+            "email": $lowercase($trim(email)),
+            "givenName": $trim(givenName),
+            "familyName": $trim(familyName),
+            "bundle": $b,
+            "groups": [$lookup($const.bundles, $b)]
+          })] }}
+      unknownBundles: "{{ [vars.plan[$count(groups) = 0].bundle] }}"
+      missingGroups: "{{ [$distinct(vars.plan.groups)[$not($ in $vars.groups.body.displayName)]] }}"
+  - id: bundlesValid
+    type: check
+    name: All bundles are defined
+    condition: "$count(vars.unknownBundles) = 0"
+    message: "{{ $count(vars.unknownBundles) = 0 ? 'All bundles known' : 'Unknown bundle(s): ' & $join(vars.unknownBundles, ', ') }}"
+    failRun: true
+  - id: groupsExist
+    type: check
+    name: All groups of the bundles exist
+    condition: "$count(vars.missingGroups) = 0"
+    message: "{{ $count(vars.missingGroups) = 0 ? 'All groups exist' : 'Missing group(s): ' & $join(vars.missingGroups, ', ') }}"
+    failRun: true
+  - id: approve
+    type: userTask
+    name: Approve onboarding
+    mode: approve
+    title: "Onboard {{ $count(vars.plan) }} user(s)?"
+    instructions: |
+      {{ $join(vars.plan.('- **' & email & '** → ' & bundle & ' (' & $join(groups, ', ') & ')'), '\n') }}
+  - id: onboard
+    type: forEach
+    name: Onboard each user
+    items: vars.plan
+    as: p
+    steps:
+      - id: reset
+        type: set
+        name: Reset per-user variables
+        values:
+          created: "{{ null }}"
+          userId: "{{ null }}"
+      - id: lookup
+        type: http
+        name: Look up user
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users"
+        query:
+          filter: 'userName eq "{{ vars.p.email }}"'
+        saveAs: existing
+      - id: create
+        type: http
+        name: Create user
+        when: "$count(vars.existing.body.resources) = 0 and $inputs.createMissing"
+        connection: hub
+        method: POST
+        path: "{{ vars.idm }}/Users"
+        body:
+          userName: "{{ vars.p.email }}"
+          name:
+            givenName: "{{ vars.p.givenName }}"
+            familyName: "{{ vars.p.familyName }}"
+          active: true
+        expectStatus: [200, 201]
+        saveAs: created
+      - id: resolve
+        type: set
+        name: Resolve user id
+        values:
+          userId: "{{ $count(vars.existing.body.resources) > 0 ? vars.existing.body.resources[0].id : (vars.created.dryRun ? 'dry-run-user' : vars.created.body.id) }}"
+          currentGroups: "{{ [vars.existing.body.resources[0].groups.display] }}"
+      - id: assign
+        type: forEach
+        name: Assign bundle groups
+        when: "vars.userId != null"
+        items: "vars.p.groups[$not($ in $vars.currentGroups)]"
+        as: groupName
+        steps:
+          - id: addMember
+            type: http
+            name: Add membership
+            connection: hub
+            method: POST
+            path: "{{ vars.idm }}/Groups/{{ vars.groups.body[displayName = $vars.groupName].id }}/members"
+            body:
+              type: USER
+              value: "{{ vars.userId }}"
+            expectStatus: [200, 201, 409]
+  - id: summary
+    type: report
+    name: Summary
+    title: Onboarding result
+    rows: vars.plan
+    columns:
+      - { label: User, value: email }
+      - { label: Bundle, value: bundle }
+      - { label: Groups, value: "$join(groups, ', ')" }

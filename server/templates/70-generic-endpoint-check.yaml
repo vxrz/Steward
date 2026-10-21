@@ -1,0 +1,40 @@
+name: "Generic – Endpoint availability check"
+description: |
+  Calls a list of GET endpoints on any connected platform and records one
+  check per endpoint (status code and response time). Useful as a quick
+  ad-hoc status test for any API.
+tags: [status, health, generic]
+connections:
+  - slot: target
+inputs:
+  - name: paths
+    label: Paths to call (one per line)
+    type: list
+    required: true
+    default: |
+      /
+  - name: maxLatencyMs
+    label: Max. response time (ms)
+    type: number
+    default: 3000
+steps:
+  - id: loop
+    type: forEach
+    name: Each endpoint
+    items: inputs.paths
+    as: path
+    steps:
+      - id: call
+        type: http
+        name: Call endpoint
+        connection: target
+        method: GET
+        path: "{{ vars.path }}"
+        expectStatus: [200, 201, 202, 204, 301, 302, 304]
+        onError: continue
+        saveAs: res
+      - id: ok
+        type: check
+        name: Endpoint healthy
+        condition: "$exists(vars.res.status) and vars.res.durationMs <= $inputs.maxLatencyMs"
+        message: "{{ vars.path }}: {{ vars.res.error ? vars.res.error : 'HTTP ' & vars.res.status & ' in ' & vars.res.durationMs & ' ms' }}"

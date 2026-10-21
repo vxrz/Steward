@@ -1,0 +1,158 @@
+name: "Insights Hub – Access review 2: decide and clean up"
+description: |
+  Phase 2 of the user housekeeping procedure. Lists everyone in the review
+  group and asks you who still needs access (users who logged in again
+  recently are preselected). Kept users are removed from the review group;
+  for all others access is revoked after a final approval – either by
+  removing all their group/role memberships or by deleting the user.
+tags: [housekeeping, users, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: reviewGroup
+    label: Review group (display name)
+    type: string
+    default: mdsp_usergroup:AccessReview
+    required: true
+  - name: activeWithinDays
+    label: Preselect users who logged in within (days)
+    type: number
+    default: 14
+  - name: revokeMode
+    label: How to revoke access
+    type: select
+    options: [removeFromAllGroups, deleteUser]
+    default: removeFromAllGroups
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: findGroup
+    type: http
+    name: Find review group
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    query:
+      filter: 'displayName eq "{{ inputs.reviewGroup }}"'
+    saveAs: groupResult
+  - id: groupExists
+    type: check
+    name: Review group exists
+    condition: "$count(vars.groupResult.body.resources) = 1"
+    failRun: true
+  - id: members
+    type: http
+    name: List review group members
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups/{{ vars.groupResult.body.resources[0].id }}/members"
+    saveAs: members
+  - id: listUsers
+    type: http
+    name: List all users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate: { mode: scim, pageSize: 100 }
+    saveAs: users
+  - id: flagged
+    type: set
+    name: Resolve flagged users
+    values:
+      group: "{{ vars.groupResult.body.resources[0] }}"
+      memberIds: "{{ [vars.members.body.value] }}"
+      flagged: "{{ vars.users.body[id in $vars.memberIds][] }}"
+  - id: decide
+    type: userTask
+    name: Who still needs access?
+    when: "$count(vars.flagged) > 0"
+    mode: select
+    title: "Access review: tick the {{ $count(vars.flagged) }} user(s) who still need access"
+    instructions: |
+      **Ticked** users keep their access and are removed from `{{ inputs.reviewGroup }}`.
+      **Unticked** users lose access ({{ inputs.revokeMode = 'deleteUser' ? 'user is deleted' : 'all group and role memberships are removed' }}) – you will be asked to confirm once more.
+      Users who logged in within the last {{ inputs.activeWithinDays }} days are preselected.
+    items: vars.flagged
+    itemKey: id
+    columns:
+      - { label: User, value: userName }
+      - { label: Last login, value: "$exists(lastLogonTime) ? lastLogonTime : 'never'" }
+      - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
+      - { label: Groups, value: "$join(groups[display != $inputs.reviewGroup].display, ', ')" }
+    preselect: "$exists(lastLogonTime) and $daysSince(lastLogonTime) <= $inputs.activeWithinDays"
+    saveAs: decision
+  - id: keep
+    type: forEach
+    name: Clear review flag for kept users
+    when: "$count(vars.decision.selected) > 0"
+    items: vars.decision.selected
+    as: user
+    steps:
+      - id: unflag
+        type: http
+        name: Remove from review group
+        connection: hub
+        method: DELETE
+        path: "{{ vars.idm }}/Groups/{{ vars.group.id }}/members/{{ vars.user.id }}"
+        expectStatus: [200, 204, 404]
+  - id: approveRevoke
+    type: userTask
+    name: Confirm revocation
+    when: "$count(vars.decision.unselected) > 0"
+    mode: approve
+    title: "Revoke access for {{ $count(vars.decision.unselected) }} user(s)?"
+    instructions: |
+      Mode: **{{ inputs.revokeMode }}**
+
+      {{ $join(vars.decision.unselected.('- ' & userName), '\n') }}
+    onReject: continue
+    saveAs: revokeApproval
+  - id: revoke
+    type: forEach
+    name: Revoke access
+    when: "vars.revokeApproval.approved = true"
+    items: vars.decision.unselected
+    as: user
+    steps:
+      - id: mode
+        type: if
+        name: Revoke mode
+        condition: "$inputs.revokeMode = 'deleteUser'"
+        then:
+          - id: deleteUser
+            type: http
+            name: Delete user
+            connection: hub
+            method: DELETE
+            path: "{{ vars.idm }}/Users/{{ vars.user.id }}"
+            expectStatus: [200, 204, 404]
+        else:
+          - id: memberships
+            type: forEach
+            name: Remove all memberships
+            items: "vars.user.groups[$not(type = 'INDIRECT')]"
+            as: grp
+            steps:
+              - id: removeMembership
+                type: http
+                name: Remove membership
+                connection: hub
+                method: DELETE
+                path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.user.id }}"
+                expectStatus: [200, 204, 404]
+  - id: summary
+    type: report
+    name: Summary
+    title: Access review result
+    text: |
+      - Users under review: **{{ $count(vars.flagged) }}**
+      - Kept (review flag cleared): **{{ $count(vars.decision.selected) }}**
+      - Access revoked ({{ inputs.revokeMode }}): **{{ vars.revokeApproval.approved = true ? $count(vars.decision.unselected) : 0 }}**{{ vars.revokeApproval.approved = false ? ' – revocation was rejected, users stay in the review group' : '' }}
+    rows: "$append(vars.decision.selected.{'user': userName, 'result': 'kept'}, vars.decision.unselected.{'user': userName, 'result': $vars.revokeApproval.approved = true ? 'revoked' : 'still under review'})"
+    columns:
+      - { label: User, value: user }
+      - { label: Result, value: result }

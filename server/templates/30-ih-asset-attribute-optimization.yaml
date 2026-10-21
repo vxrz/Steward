@@ -1,0 +1,215 @@
+name: "Insights Hub – Asset attribute optimization check"
+description: |
+  Looks for optimization potential in asset attribute consumption (the
+  Insights Hub billing unit: static variables of the asset type plus the
+  variables of its aspects, counted per asset).
+
+  Reads all asset types (exploded) and assets, then samples the latest
+  time series record per asset and aspect and reports:
+  - variables that never received data on any sampled asset of a type
+    (candidates to remove from the aspect type),
+  - assets without any recent data (candidates to delete),
+  - aspects whose data is stale.
+
+  Read-only. Large tenants: limit the number of sampled assets.
+tags: [optimization, assets, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: staleDays
+    label: Data older than (days) counts as stale
+    type: number
+    default: 30
+  - name: maxAssets
+    label: Max. assets to sample
+    type: number
+    default: 200
+  - name: excludeTypes
+    label: Asset types to ignore (type ids, one per line)
+    type: list
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
+      ts: "{{ $pvar('hub', 'tsPath', '/api/iottimeseries/v3') }}"
+      findings: "{{ [] }}"
+  - id: listTypes
+    type: http
+    name: List asset types (exploded)
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assettypes"
+    query:
+      exploded: "true"
+    paginate: { mode: page, pageSize: 100, itemsPath: "_embedded.assetTypes" }
+    saveAs: types
+  - id: listAssets
+    type: http
+    name: List assets
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assets"
+    paginate: { mode: page, pageSize: 200, itemsPath: "_embedded.assets" }
+    saveAs: assets
+  - id: typeStats
+    type: set
+    name: Attribute count per asset type
+    values:
+      typeStats: >-
+        {{ [vars.types.body[$not(id in $inputs.excludeTypes)].(
+          $t := $;
+          $inst := $count($vars.assets.body[typeId = $t.id]);
+          $attrs := $count($t.variables) + $sum([$t.aspects.$count(aspectType.variables), 0]);
+          {
+            "id": $t.id,
+            "name": $t.name,
+            "instances": $inst,
+            "attributesPerAsset": $attrs,
+            "totalAttributes": $inst * ($attrs > 0 ? $attrs : 1),
+            "aspects": [$t.aspects.{ "name": name, "variables": [aspectType.variables.name] }]
+          })] }}
+  - id: sample
+    type: forEach
+    name: Sample latest data per asset
+    items: "vars.assets.body[typeId in $vars.typeStats.id][[0..($inputs.maxAssets - 1)]]"
+    as: asset
+    steps:
+      - id: assetType
+        type: set
+        name: Resolve type
+        values:
+          assetType: "{{ vars.typeStats[id = $vars.asset.typeId] }}"
+      - id: aspects
+        type: forEach
+        name: Each aspect
+        items: vars.assetType.aspects
+        as: aspect
+        steps:
+          - id: latest
+            type: http
+            name: Latest time series record
+            connection: hub
+            method: GET
+            path: "{{ vars.ts }}/timeseries/{{ vars.asset.assetId }}/{{ vars.aspect.name }}"
+            onError: continue
+            saveAs: latest
+          - id: record
+            type: set
+            name: Record finding
+            values:
+              findings: >-
+                {{ $append($vars.findings, [(
+                  $rec := vars.latest.body[0];
+                  $present := [$vars.aspect.variables[$ in $keys($rec)]];
+                  {
+                    "assetId": vars.asset.assetId,
+                    "asset": vars.asset.name,
+                    "typeId": vars.asset.typeId,
+                    "aspect": vars.aspect.name,
+                    "variables": $count(vars.aspect.variables),
+                    "present": $present,
+                    "missing": [$vars.aspect.variables[$not($ in $present)]],
+                    "lastTime": $rec._time,
+                    "ageDays": $daysSince($rec._time),
+                    "error": vars.latest.error
+                  })]) }}
+  - id: analyse
+    type: set
+    name: Analyse
+    values:
+      unusedVariables: >-
+        {{ [vars.typeStats[instances > 0].(
+          $t := $;
+          $f := $vars.findings[typeId = $t.id];
+          $unused := [$t.aspects.(
+            $a := $;
+            $a.variables[$not($ in $f[aspect = $a.name].present)].($a.name & '.' & $)
+          )];
+          $count($f) > 0 and $count($unused) > 0 ? {
+            "type": $t.name,
+            "instances": $t.instances,
+            "sampled": $count($distinct($f.assetId)),
+            "unused": $unused,
+            "saving": $t.instances * $count($unused)
+          }
+        )] }}
+      silentAssets: >-
+        {{ [$distinct(vars.findings.assetId)[(
+          $id := $;
+          $count($vars.findings[assetId = $id and $count(present) > 0]) = 0
+        )].(
+          $id := $;
+          $a := $vars.assets.body[assetId = $id];
+          $t := $vars.typeStats[id = $a.typeId];
+          { "asset": $a.name, "type": $t.name, "attributes": $t.attributesPerAsset }
+        )] }}
+      staleAspects: "{{ [vars.findings[ageDays > $inputs.staleDays]] }}"
+  - id: totals
+    type: set
+    name: Totals
+    values:
+      totalAttributes: "{{ $sum([vars.typeStats.totalAttributes, 0]) }}"
+      potentialVariables: "{{ $sum([vars.unusedVariables.saving, 0]) }}"
+      potentialAssets: "{{ $sum([vars.silentAssets.attributes, 0]) }}"
+  - id: checkSilent
+    type: check
+    name: No assets without data
+    severity: warning
+    condition: "$count(vars.silentAssets) = 0"
+    message: "{{ $count(vars.silentAssets) }} sampled asset(s) without any data"
+  - id: checkUnused
+    type: check
+    name: No unused variables
+    severity: warning
+    condition: "$count(vars.unusedVariables) = 0"
+    message: "{{ vars.potentialVariables }} attribute(s) belong to variables that never received data"
+  - id: overview
+    type: report
+    name: Overview
+    title: Asset attribute consumption
+    text: |
+      - Asset types analysed: **{{ $count(vars.typeStats) }}**, assets: **{{ $count(vars.assets.body) }}** (sampled {{ $count($distinct(vars.findings.assetId)) }})
+      - Estimated attributes in use: **{{ vars.totalAttributes }}**
+      - Potential saving from unused variables: **{{ vars.potentialVariables }}** attributes
+      - Potential saving from assets without data: **{{ vars.potentialAssets }}** attributes
+
+      Estimates are based on sampled latest values; verify against the Asset Manager attribute calculator before changing models.
+    rows: "vars.typeStats^(>totalAttributes)"
+    columns:
+      - { label: Asset type, value: name }
+      - { label: Assets, value: instances }
+      - { label: Attributes / asset, value: attributesPerAsset }
+      - { label: Total attributes, value: totalAttributes }
+  - id: reportUnused
+    type: report
+    name: Unused variables
+    title: Variables without data (candidates to remove)
+    rows: "vars.unusedVariables^(>saving)"
+    columns:
+      - { label: Asset type, value: type }
+      - { label: Assets, value: instances }
+      - { label: Sampled, value: sampled }
+      - { label: Variables without data, value: "$join(unused, ', ')" }
+      - { label: Attribute saving, value: saving }
+  - id: reportSilent
+    type: report
+    name: Silent assets
+    title: Assets without data (candidates to delete)
+    rows: vars.silentAssets
+    columns:
+      - { label: Asset, value: asset }
+      - { label: Type, value: type }
+      - { label: Attributes, value: attributes }
+  - id: reportStale
+    type: report
+    name: Stale data
+    title: "Aspects with data older than {{ inputs.staleDays }} days"
+    rows: vars.staleAspects
+    columns:
+      - { label: Asset, value: asset }
+      - { label: Aspect, value: aspect }
+      - { label: Last value, value: lastTime }
+      - { label: Age (days), value: ageDays }
