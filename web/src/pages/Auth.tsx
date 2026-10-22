@@ -8,7 +8,7 @@ import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 import { AppFooter } from '../components/brand/AppFooter';
 import { Logo } from '../components/brand/Logo';
-import { LanguageSelect } from '../components/LanguageSwitcher';
+import { LanguageMenu } from '../components/LanguageSwitcher';
 import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 
@@ -21,11 +21,10 @@ function policyError(pw: string): PolicyError | null {
 }
 
 function Card({ icon, title, intro, children }: { icon: ReactNode; title: string; intro?: ReactNode; children: ReactNode }) {
-  const { t } = useTranslation('nav');
   return (
     <Stack mih="100vh" p="md" gap={0} justify="space-between" align="center">
       <Group w="100%" justify="flex-end">
-        <LanguageSelect size="xs" w={150} label={null} aria-label={t('language')} />
+        <LanguageMenu />
       </Group>
       <Paper withBorder shadow="sm" p="xl" w="100%" maw={440}>
         <Stack>

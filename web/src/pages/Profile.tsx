@@ -27,7 +27,7 @@ import { useMe } from '../auth';
 import { Hint, PageHeader } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { ChangePasswordForm } from './Auth';
-import { LanguageSelect } from '../components/LanguageSwitcher';
+import { LanguageSelect } from '../components/LanguageSelect';
 import {
   browserNotificationsSupported,
   getBrowserNotifyOptIn,

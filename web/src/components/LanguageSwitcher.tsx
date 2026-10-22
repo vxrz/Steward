@@ -1,12 +1,12 @@
-import { Select, type SelectProps } from '@mantine/core';
+import { Button, Menu } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconLanguage } from '@tabler/icons-react';
+import { IconCheck, IconLanguage } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AuthStatus, UserInfo } from '@sm/shared';
 import { notifyError, patch } from '../api';
 import { useMe } from '../auth';
 import { currentLanguage, setLanguage } from '../i18n';
-import { LANGUAGES, isLocale, type Locale } from '../i18n/languages';
+import { LANGUAGES, type Locale } from '../i18n/languages';
 
 /**
  * Switches the UI language. Signed in, the choice is also stored in the profile
@@ -28,21 +28,31 @@ export function useChangeLanguage(): (code: Locale) => Promise<void> {
   };
 }
 
-/** Language picker (native language names, so everyone finds their own). */
-export function LanguageSelect(props: Omit<SelectProps, 'data' | 'value' | 'onChange'>) {
-  const { t, i18n } = useTranslation('nav');
+/** Compact language menu for the sign-in pages (Menu is part of the app shell already – no extra download). */
+export function LanguageMenu() {
+  const { t } = useTranslation('nav');
   const change = useChangeLanguage();
+  const active = currentLanguage();
   return (
-    <Select
-      label={t('language')}
-      leftSection={<IconLanguage size={16} />}
-      allowDeselect={false}
-      comboboxProps={{ withinPortal: true }}
-      {...props}
-      data={LANGUAGES.map((l) => ({ value: l.code, label: l.nativeName }))}
-      // i18n.language keeps this in sync when the language changes elsewhere
-      value={i18n.language ? currentLanguage() : null}
-      onChange={(v) => isLocale(v) && void change(v)}
-    />
+    <Menu position="bottom-end" width={180}>
+      <Menu.Target>
+        <Button variant="subtle" color="gray" size="xs" leftSection={<IconLanguage size={16} />} aria-label={t('language')}>
+          {LANGUAGES.find((l) => l.code === active)?.nativeName}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{t('language')}</Menu.Label>
+        {LANGUAGES.map((l) => (
+          <Menu.Item
+            key={l.code}
+            lang={l.code}
+            leftSection={active === l.code ? <IconCheck size={14} /> : <span style={{ width: 14, display: 'inline-block' }} />}
+            onClick={() => void change(l.code)}
+          >
+            {l.nativeName}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
