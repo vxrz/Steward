@@ -20,7 +20,7 @@ test.describe('navigation (admin)', () => {
       await expect(nav.getByRole('group', { name })).toBeVisible();
     }
     const automate = nav.getByRole('group', { name: 'Automate' });
-    await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers']);
+    await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Updates from Git']);
     await expect(nav.getByRole('group', { name: 'Service management' }).getByRole('link')).toHaveText([
       'Services',
       'Platforms',
@@ -128,6 +128,7 @@ test.describe('navigation (viewer)', () => {
     await settle(page);
     const admin = sidebar(page).getByRole('group', { name: 'Administration' });
     await expect(admin.getByRole('link')).toHaveText(['Settings']);
+    await expect(sidebar(page).getByRole('link', { name: 'Updates from Git' })).toHaveCount(0);
     await page.keyboard.press('Control+K');
     await page.getByRole('textbox', { name: 'Search', exact: true }).fill('new monitor');
     await expect(page.getByRole('button', { name: 'New monitor', exact: true })).toHaveCount(0);

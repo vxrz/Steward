@@ -39,6 +39,7 @@ import {
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
+import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
@@ -200,6 +201,7 @@ export function ProcessesPage() {
               <Badge size="xs" variant="outline">
                 v{p.currentVersion}
               </Badge>
+              <GitOriginBadge kind="process" id={p.id} size="xs" />
               {p.acl.length > 0 && (
                 <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
                   {t('card.restricted')}

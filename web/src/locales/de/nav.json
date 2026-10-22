@@ -16,7 +16,8 @@
     "credentials": "Zugangsdaten",
     "reports": "Berichte",
     "records": "Dokumente",
-    "services": "Services"
+    "services": "Services",
+    "gitUpdates": "Änderungen aus Git"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

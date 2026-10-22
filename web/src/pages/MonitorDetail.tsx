@@ -47,6 +47,7 @@ import {
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { JsonView, PageHeader } from '../components/common';
+import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
@@ -98,6 +99,7 @@ export function MonitorDetailPage() {
           <Group gap="sm" wrap="wrap">
             <span>{m.name}</span>
             {m.isTemplate ? <Badge variant="outline">{t('detail.template')}</Badge> : <MonitorStatusBadge status={m.status} size="lg" />}
+            <GitOriginBadge kind="monitor" id={m.id} />
           </Group>
         }
         description={

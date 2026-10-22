@@ -37,6 +37,7 @@ import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard'
 import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
+import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const { t } = useTranslation(['settings', 'common']);
@@ -285,6 +286,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <CredentialReminderSettingsCard />}
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
+        {!readOnly && <GitSyncSettingsCard />}
         <Card withBorder>
           <Title order={5} mb="xs">
             {t('unattended.title')}

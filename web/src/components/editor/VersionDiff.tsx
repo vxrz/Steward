@@ -57,7 +57,8 @@ export function summarize(a: Def, b: Def): DiffSummary {
 
 type Change = 'added' | 'removed' | 'changed';
 
-function SummaryView({ s }: { s: DiffSummary }) {
+/** Node-level summary of a change (also used by the Updates from Git review). */
+export function SummaryView({ s }: { s: DiffSummary }) {
   const { t } = useTranslation('editor');
   const nothing = !s.added.length && !s.removed.length && !s.changed.length && !s.moved.length && !s.wiresAdded && !s.wiresRemoved && !s.settings.length;
   if (nothing) return <Text size="sm">{t('diff.none')}</Text>;

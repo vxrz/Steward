@@ -16,7 +16,8 @@
     "credentials": "Credentials",
     "reports": "Reports",
     "records": "Records",
-    "services": "Services"
+    "services": "Services",
+    "gitUpdates": "Updates from Git"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",

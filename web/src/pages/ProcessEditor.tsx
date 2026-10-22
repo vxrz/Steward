@@ -7,6 +7,7 @@ import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconDeviceFloppy,
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
 import { PageHeader } from '../components/common';
+import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
 import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
@@ -130,6 +131,7 @@ export function ProcessEditorPage() {
           <Group gap="xs" wrap="wrap">
             <span>{def.name || p.name}</span>
             <Badge variant="light">v{p.currentVersion}</Badge>
+            <GitOriginBadge kind="process" id={p.id} />
             {dirty && (
               <Badge color="orange" variant="light">
                 {t('page.unsaved')}

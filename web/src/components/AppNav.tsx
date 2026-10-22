@@ -4,6 +4,7 @@ import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, S
 import { useTranslation } from 'react-i18next';
 import {
   IconCalendarTime,
+  IconBrandGit,
   IconChartBar,
   IconChevronDown,
   IconFileCertificate,
@@ -34,6 +35,7 @@ export type NavKey =
   | 'processes'
   | 'schedules'
   | 'triggers'
+  | 'gitUpdates'
   | 'monitors'
   | 'platforms'
   | 'records'
@@ -79,6 +81,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/processes', key: 'processes', icon: IconSitemap },
       { to: '/schedules', key: 'schedules', icon: IconCalendarTime },
       { to: '/triggers', key: 'triggers', icon: IconWebhook },
+      { to: '/git-updates', key: 'gitUpdates', icon: IconBrandGit, cap: 'createProcesses' },
     ],
   },
   {

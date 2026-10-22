@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { RECORD_FIELD_KINDS, RECORD_WORKFLOW_KEYS, RECORD_WORKFLOWS, type RecordFieldDef, type RecordType, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
+import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { useRecordTypes, useTypeName } from '../components/records/common';
 
 /** Record types (administrators): number prefix, name, workflow, template and fields. */
@@ -62,7 +63,7 @@ export function RecordTypesPage() {
               <Table.Tr key={x.id} data-inactive={x.archived || undefined}>
                 <Table.Td className="mono">{x.key}</Table.Td>
                 <Table.Td>
-                  {typeName(x)}
+                  {typeName(x)} <GitOriginBadge kind="recordType" id={x.id} size="xs" />
                   {x.archived && (
                     <Badge ml={6} size="xs" variant="outline" color="gray">
                       {t('types.archived')}

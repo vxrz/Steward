@@ -57,6 +57,9 @@ const RecordEditorPage = page(() => import('./pages/RecordEditor'), 'RecordEdito
 const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
+const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
+const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
+const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
 
 function PageLoader() {
   return (
@@ -188,6 +191,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/processes/:id" element={<ProcessEditorPage />} />
                 <Route path="/schedules" element={<SchedulesPage />} />
                 <Route path="/triggers" element={<TriggersPage />} />
+                <Route path="/git-updates" element={<GitUpdatesPage />} />
+                <Route path="/git-updates/:id" element={<GitUpdateDetailPage />} />
                 <Route path="/monitors" element={<MonitorsPage />} />
                 <Route path="/monitors/new" element={<MonitorEditorPage />} />
                 <Route path="/monitors/wall" element={<MonitorWallPage />} />
@@ -206,6 +211,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                 {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                 <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                <Route path="/settings/git-sync" element={<GitSyncPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}

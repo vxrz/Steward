@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Alert, Anchor, Button, Menu, Paper, Text } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
@@ -8,6 +8,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
 import { PageHeader } from '../components/common';
+import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
 import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
@@ -78,7 +79,12 @@ export function DashboardViewPage() {
     <DashboardContext.Provider value={ctx}>
       <PageHeader
         back="dashboards"
-        title={def.name}
+        title={
+          <Group gap="xs" wrap="wrap">
+            <span>{def.name}</span>
+            <GitOriginBadge kind="dashboard" id={id} />
+          </Group>
+        }
         description={
           <>
             {def.description && <>{def.description} · </>}
