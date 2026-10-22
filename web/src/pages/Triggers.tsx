@@ -38,10 +38,11 @@ import type {
   WebhookTriggerSecret,
   WebhookTriggerSettings,
 } from '@sm/shared';
+import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { Hint, PageHeader, StatusBadge } from '../components/common';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -62,23 +63,23 @@ const emptyDraft = (): Draft => ({
   skipIfRunning: true,
 });
 
-const toDraft = (t: WebhookTrigger): Draft => ({
-  id: t.id,
-  owner: t.owner,
-  name: t.name,
-  description: t.description ?? '',
-  processId: t.processId,
-  processVersion: t.processVersion ?? null,
-  enabled: t.enabled,
-  dryRun: t.dryRun,
-  inputMapping: t.inputMapping,
-  bindings: t.bindings,
-  authMode: t.authMode,
-  allowedCidrs: t.allowedCidrs,
-  allowedHeaders: t.allowedHeaders,
-  rateLimitPerMinute: t.rateLimitPerMinute,
-  dedupeSeconds: t.dedupeSeconds,
-  skipIfRunning: t.skipIfRunning,
+const toDraft = (tr: WebhookTrigger): Draft => ({
+  id: tr.id,
+  owner: tr.owner,
+  name: tr.name,
+  description: tr.description ?? '',
+  processId: tr.processId,
+  processVersion: tr.processVersion ?? null,
+  enabled: tr.enabled,
+  dryRun: tr.dryRun,
+  inputMapping: tr.inputMapping,
+  bindings: tr.bindings,
+  authMode: tr.authMode,
+  allowedCidrs: tr.allowedCidrs,
+  allowedHeaders: tr.allowedHeaders,
+  rateLimitPerMinute: tr.rateLimitPerMinute,
+  dedupeSeconds: tr.dedupeSeconds,
+  skipIfRunning: tr.skipIfRunning,
 });
 
 /** The JSON body of the Gatus custom alert in docs/GATUS.md (placeholders already replaced). */
@@ -100,11 +101,12 @@ const GATUS_MAPPING: Record<string, string> = {
   description: 'body.description',
 };
 
-const AUTH_LABEL: Record<WebhookAuthMode, string> = { token: 'static token', hmac: 'HMAC signature', either: 'token or HMAC' };
+const AUTH_MODES: WebhookAuthMode[] = ['token', 'hmac', 'either'];
 
-const hookUrl = (t: Pick<WebhookTrigger, 'path'>) => `${window.location.origin}${t.path}`;
+const hookUrl = (tr: Pick<WebhookTrigger, 'path'>) => `${window.location.origin}${tr.path}`;
 
 export function TriggersPage() {
+  const { t } = useTranslation(['triggers', 'common']);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const triggers = useQuery({ queryKey: ['triggers'], queryFn: () => get<WebhookTrigger[]>('/triggers'), refetchInterval: 10000 });
@@ -122,15 +124,15 @@ export function TriggersPage() {
       refresh();
       return true;
     } catch (e) {
-      notifyError(e, 'Trigger not saved');
+      notifyError(e, t('notSaved'));
       return false;
     }
   };
 
-  const rotate = async (t: WebhookTrigger) => {
-    if (!confirm(`Rotate the secret of "${t.name}"? The current secret stops working immediately – update the caller (e.g. Gatus) right away.`)) return;
+  const rotate = async (tr: WebhookTrigger) => {
+    if (!confirm(t('rotateConfirm', { name: tr.name }))) return;
     try {
-      setSecret(await post<WebhookTriggerSecret>(`/triggers/${t.id}/rotate`));
+      setSecret(await post<WebhookTriggerSecret>(`/triggers/${tr.id}/rotate`));
       refresh();
     } catch (e) {
       notifyError(e);
@@ -140,17 +142,17 @@ export function TriggersPage() {
   return (
     <>
       <PageHeader
-        title="Triggers"
-        description="Webhook triggers start a process when another system calls an URL, e.g. a Gatus alert starts a diagnosis runbook. Each trigger has its own secret; runs use the rights of the trigger's owner and are skipped and logged if the owner loses access."
+        title={t('title')}
+        description={t('description')}
         actions={
           <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
-            New webhook trigger
+            {t('new')}
           </Button>
         }
       />
       {triggers.data?.length === 0 && (
         <Text c="dimmed" size="sm">
-          No webhook triggers yet.
+          {t('none')}
         </Text>
       )}
       {!!triggers.data?.length && (
@@ -158,108 +160,108 @@ export function TriggersPage() {
           <Table highlightOnHover fz="sm">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Active</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Security</Table.Th>
-                <Table.Th>Last call</Table.Th>
-                <Table.Th>Runs started</Table.Th>
-                <Table.Th>Last result</Table.Th>
+                <Table.Th>{t('table.active')}</Table.Th>
+                <Table.Th>{t('table.name')}</Table.Th>
+                <Table.Th>{t('table.security')}</Table.Th>
+                <Table.Th>{t('table.lastCall')}</Table.Th>
+                <Table.Th>{t('table.runsStarted')}</Table.Th>
+                <Table.Th>{t('table.lastResult')}</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {triggers.data.map((t) => (
-                <Table.Tr key={t.id}>
+              {triggers.data.map((tr) => (
+                <Table.Tr key={tr.id}>
                   <Table.Td>
                     <Switch
                       size="xs"
-                      checked={t.enabled}
-                      disabled={!t.canEdit}
-                      onChange={(e) => save({ ...toDraft(t), enabled: e.currentTarget.checked })}
-                      aria-label="Enabled"
+                      checked={tr.enabled}
+                      disabled={!tr.canEdit}
+                      onChange={(e) => save({ ...toDraft(tr), enabled: e.currentTarget.checked })}
+                      aria-label={t('enabled')}
                     />
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
-                      {t.name}
+                      {tr.name}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      <Link to={`/processes/${t.processId}`}>{t.processName ?? t.processId}</Link>
-                      {t.processVersion ? ` v${t.processVersion}` : ''} · runs as {t.owner}
-                      {t.dryRun && (
+                      <Link to={`/processes/${tr.processId}`}>{tr.processName ?? tr.processId}</Link>
+                      {tr.processVersion ? ` v${tr.processVersion}` : ''} · {t('runsAs', { owner: tr.owner })}
+                      {tr.dryRun && (
                         <Badge ml={4} size="xs" color="yellow" variant="light">
-                          dry run
+                          {t('common:status.dryrun')}
                         </Badge>
                       )}
                     </Text>
                     <Text size="xs" c="dimmed" className="mono">
-                      POST {t.path}
+                      POST {tr.path}
                     </Text>
                   </Table.Td>
                   <Table.Td>
                     <Text size="xs" fw={500} className="nowrap">
-                      {AUTH_LABEL[t.authMode]}
+                      {t(`auth.short.${tr.authMode}`)}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      secret {t.secretPrefix}… · {t.rateLimitPerMinute}/min
-                      {t.dedupeSeconds ? ` · dedupe ${t.dedupeSeconds} s` : ''}
-                      {t.allowedCidrs.length ? ` · ${t.allowedCidrs.join(', ')}` : ''}
+                      {t('secretLine', { prefix: tr.secretPrefix, rate: tr.rateLimitPerMinute })}
+                      {tr.dedupeSeconds ? ` · ${t('dedupeLine', { seconds: tr.dedupeSeconds })}` : ''}
+                      {tr.allowedCidrs.length ? ` · ${tr.allowedCidrs.join(', ')}` : ''}
                     </Text>
                   </Table.Td>
                   <Table.Td className="nowrap">
-                    {t.lastRunId ? (
-                      <Stack gap={2} align="flex-start" className="clickable" onClick={() => navigate(`/runs/${t.lastRunId}`)}>
-                        {t.lastRunStatus && <StatusBadge status={t.lastRunStatus} size="xs" />}
-                        <Text size="xs">{fmtRelative(t.lastFiredAt)}</Text>
+                    {tr.lastRunId ? (
+                      <Stack gap={2} align="flex-start" className="clickable" onClick={() => navigate(`/runs/${tr.lastRunId}`)}>
+                        {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
+                        <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
                       </Stack>
                     ) : (
-                      <Text size="xs">{fmtRelative(t.lastFiredAt)}</Text>
+                      <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm">{t.fireCount}</Text>
-                    {t.rejectedCount > 0 && (
-                      <Tooltip label={`Last rejection ${fmtDate(t.lastRejectedAt)}: ${t.lastRejectedReason ?? ''}`}>
+                    <Text size="sm">{fmtNumber(tr.fireCount)}</Text>
+                    {tr.rejectedCount > 0 && (
+                      <Tooltip label={t('lastRejection', { date: fmtDate(tr.lastRejectedAt), reason: tr.lastRejectedReason ?? '' })}>
                         <Text size="xs" c="orange">
-                          {t.rejectedCount} rejected
+                          {t('rejected', { count: tr.rejectedCount })}
                         </Text>
                       </Tooltip>
                     )}
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs" c={t.lastResult && t.lastResult !== 'started' ? 'orange' : 'dimmed'} lineClamp={2} maw={260}>
-                      {t.lastResult ?? '–'}
+                    <Text size="xs" c={tr.lastResult && tr.lastResult !== 'started' ? 'orange' : 'dimmed'} lineClamp={2} maw={260}>
+                      {tr.lastResult ?? '–'}
                     </Text>
                   </Table.Td>
                   <Table.Td>
                     <Group gap={2} wrap="nowrap" justify="flex-end">
-                      <Tooltip label="Recent calls">
-                        <ActionIcon variant="subtle" onClick={() => setHistory(t)} aria-label="Recent calls">
+                      <Tooltip label={t('history.action')}>
+                        <ActionIcon variant="subtle" onClick={() => setHistory(tr)} aria-label={t('history.actionFor', { name: tr.name })}>
                           <IconHistory size={16} />
                         </ActionIcon>
                       </Tooltip>
-                      {t.canEdit && (
+                      {tr.canEdit && (
                         <>
-                          <Tooltip label="Send a test call">
-                            <ActionIcon variant="subtle" onClick={() => setTesting(t)} aria-label="Send a test call" disabled={!t.enabled}>
+                          <Tooltip label={t('test.action')}>
+                            <ActionIcon variant="subtle" onClick={() => setTesting(tr)} aria-label={t('test.actionFor', { name: tr.name })} disabled={!tr.enabled}>
                               <IconSend size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <Tooltip label="Rotate secret">
-                            <ActionIcon variant="subtle" onClick={() => rotate(t)} aria-label="Rotate secret">
+                          <Tooltip label={t('rotate')}>
+                            <ActionIcon variant="subtle" onClick={() => rotate(tr)} aria-label={t('rotateFor', { name: tr.name })}>
                               <IconKey size={16} />
                             </ActionIcon>
                           </Tooltip>
-                          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(t))} aria-label="Edit">
+                          <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
                             <IconEdit size={16} />
                           </ActionIcon>
                           <ActionIcon
                             variant="subtle"
                             color="red"
-                            aria-label="Delete"
+                            aria-label={t('deleteFor', { name: tr.name })}
                             onClick={async () => {
-                              if (!confirm(`Delete webhook trigger "${t.name}"? Calls to its URL will be answered with 404.`)) return;
-                              await del(`/triggers/${t.id}`).catch(notifyError);
+                              if (!confirm(t('deleteConfirm', { name: tr.name }))) return;
+                              await del(`/triggers/${tr.id}`).catch(notifyError);
                               refresh();
                             }}
                           >
@@ -281,7 +283,7 @@ export function TriggersPage() {
           onClose={() => setDraft(null)}
           onSave={async (d) => {
             if (await save(d)) {
-              if (d.id) notifyOk('Trigger saved');
+              if (d.id) notifyOk(t('saved'));
               setDraft(null);
             }
           }}
@@ -303,6 +305,7 @@ function parseJson(text: string): { value?: unknown; error?: string } {
 }
 
 function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () => void; onSave: (d: Draft) => void }) {
+  const { t } = useTranslation(['triggers', 'common']);
   const [d, setD] = useState<Draft>(draft);
   const [sample, setSample] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
@@ -315,7 +318,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
 
   useEffect(() => {
     if (proc.data && !draft.id && d.processId === proc.data.id && !Object.keys(d.bindings).length) {
-      setD((x) => ({ ...x, bindings: loadBindings(proc.data.id), name: x.name || `${proc.data.name} (webhook)` }));
+      setD((x) => ({ ...x, bindings: loadBindings(proc.data.id), name: x.name || t('form.defaultName', { process: proc.data.name }) }));
     }
   }, [proc.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -336,11 +339,11 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
   };
 
   return (
-    <Modal opened onClose={onClose} title={draft.id ? 'Edit webhook trigger' : 'New webhook trigger'} size="xl">
+    <Modal opened onClose={onClose} title={draft.id ? t('form.editTitle') : t('new')} size="xl">
       <Stack>
         <Group grow align="flex-start">
           <Select
-            label="Process"
+            label={t('form.process')}
             required
             searchable
             data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
@@ -348,24 +351,23 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             onChange={(v) => setD({ ...d, processId: v ?? '', inputMapping: {}, bindings: {}, processVersion: null })}
           />
           <NumberInput
-            label="Pin version"
-            description="Empty: always the current version"
+            label={t('form.pinVersion')}
+            description={t('form.pinVersionHint')}
             min={1}
             max={proc.data?.currentVersion}
             value={d.processVersion ?? ''}
             onChange={(v) => setD({ ...d, processVersion: typeof v === 'number' ? v : null })}
           />
         </Group>
-        <TextInput label="Name" required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
-        <Textarea label="Description" autosize minRows={1} value={d.description ?? ''} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
+        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
+        <Textarea label={t('form.description')} autosize minRows={1} value={d.description ?? ''} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
         {proc.data && (
           <>
-            <Divider label="Connections" labelPosition="left" />
+            <Divider label={t('form.connections')} labelPosition="left" />
             <BindingsForm process={proc.data} value={d.bindings} onChange={(b) => setD({ ...d, bindings: b })} />
-            <Divider label="Inputs from the request" labelPosition="left" />
+            <Divider label={t('form.inputs')} labelPosition="left" />
             <Text size="xs" c="dimmed">
-              One JSONata expression per input, evaluated against <Code>body</Code> (the JSON payload), <Code>headers</Code> (allow-listed headers only) and{' '}
-              <Code>query</Code> (URL parameters). Strings need quotes, e.g. <Code>"fixed value"</Code>. Inputs without an expression use their default.
+              <Trans t={t} i18nKey="form.inputsHint" values={{ example: '"fixed value"' }} components={{ c: <Code /> }} />
             </Text>
             {gatusFits && (
               <Group>
@@ -379,31 +381,31 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
                     })
                   }
                 >
-                  Map a Gatus alert
+                  {t('form.mapGatus')}
                 </Button>
               </Group>
             )}
-            {inputs.length === 0 && <Text size="sm" c="dimmed">This process has no inputs.</Text>}
+            {inputs.length === 0 && <Text size="sm" c="dimmed">{t('form.noInputs')}</Text>}
             {inputs.map((i) => (
               <Group key={i.name} align="flex-start" wrap="nowrap" gap="xs">
                 <TextInput
                   style={{ flex: 1 }}
                   size="xs"
-                  label={`${i.label ?? i.name} (${i.type}${i.required ? ', required' : ''})`}
-                  placeholder={`e.g. body.${i.name}`}
+                  label={t(i.required ? 'form.inputLabelRequired' : 'form.inputLabel', { name: i.label ?? i.name, type: i.type })}
+                  placeholder={t('form.inputPlaceholder', { name: i.name })}
                   classNames={{ input: 'mono' }}
                   value={d.inputMapping[i.name] ?? ''}
                   onChange={(e) => setMapping(i.name, e.currentTarget.value)}
                   error={preview.data?.errors[i.name]}
                 />
                 <Text size="xs" c="dimmed" mt={26} w={200} truncate title={JSON.stringify(preview.data?.inputs[i.name])}>
-                  {d.inputMapping[i.name] ? `→ ${preview.data && i.name in preview.data.inputs ? JSON.stringify(preview.data.inputs[i.name]) : '–'}` : 'default'}
+                  {d.inputMapping[i.name] ? `→ ${preview.data && i.name in preview.data.inputs ? JSON.stringify(preview.data.inputs[i.name]) : '–'}` : t('form.default')}
                 </Text>
               </Group>
             ))}
             <JsonInput
-              label="Sample payload (for the preview only)"
-              description="Pre-filled with a Gatus custom alert as configured in docs/GATUS.md"
+              label={t('form.sample')}
+              description={t('form.sampleHint')}
               autosize
               minRows={4}
               maxRows={12}
@@ -414,51 +416,46 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             />
           </>
         )}
-        <Divider label="Security" labelPosition="left" />
+        <Divider label={t('form.security')} labelPosition="left" />
         <div>
           <Text size="sm" fw={500} mb={4}>
-            Authentication
+            {t('form.authentication')}
           </Text>
           <SegmentedControl
             size="xs"
             value={d.authMode}
             onChange={(v) => setD({ ...d, authMode: v as WebhookAuthMode })}
-            data={[
-              { value: 'token', label: 'Static token' },
-              { value: 'hmac', label: 'HMAC signature' },
-              { value: 'either', label: 'Either' },
-            ]}
+            data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
           />
           <Text size="xs" c="dimmed" mt={4}>
-            Static token: <Code>Authorization: Bearer &lt;secret&gt;</Code> or <Code>X-Steward-Token</Code> (what Gatus can send). HMAC:{' '}
-            <Code>X-Steward-Signature: sha256=&lt;hex HMAC-SHA256 of the raw body&gt;</Code> (GitHub-style; the secret never travels).
+            <Trans t={t} i18nKey="form.authHint" components={{ bearer: <Code>{'Authorization: Bearer <secret>'}</Code>, token: <Code>X-Steward-Token</Code>, sig: <Code>{t('form.sigHeader')}</Code> }} />
           </Text>
         </div>
         <TagsInput
-          label="Allowed source addresses"
-          description="IP addresses or CIDR ranges (IPv4/IPv6), e.g. 10.20.0.0/16. Empty: any address. Behind a reverse proxy, the proxy's address is seen."
+          label={t('form.cidrs')}
+          description={t('form.cidrsHint')}
           value={d.allowedCidrs}
           onChange={(v) => setD({ ...d, allowedCidrs: v })}
           clearable
         />
         <TagsInput
-          label="Headers available to the mapping"
-          description="Lower-case names, e.g. x-gatus-instance. Credential headers can never be mapped."
+          label={t('form.headers')}
+          description={t('form.headersHint')}
           value={d.allowedHeaders}
           onChange={(v) => setD({ ...d, allowedHeaders: v.map((h) => h.toLowerCase()) })}
           clearable
         />
         <Group grow align="flex-start">
           <NumberInput
-            label="Rate limit (calls per minute)"
+            label={t('form.rateLimit')}
             min={1}
             max={600}
             value={d.rateLimitPerMinute}
             onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })}
           />
           <NumberInput
-            label="Ignore identical payloads for (s)"
-            description="0 = off. Gatus re-sends the same alert as a reminder."
+            label={t('form.dedupe')}
+            description={t('form.dedupeHint')}
             min={0}
             max={86400}
             value={d.dedupeSeconds}
@@ -466,22 +463,25 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
           />
         </Group>
         <Switch
-          label="Skip while the previous run is still running or waiting"
+          label={t('form.skipIfRunning')}
           checked={d.skipIfRunning}
           onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })}
         />
-        <Switch label="Dry run (simulate changes)" checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
-        <Switch label="Enabled" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
+        <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
+        <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Hint>
-          Runs execute with the rights of {draft.owner ? <b>{draft.owner}</b> : 'you (the owner)'}. The secret is shown once after saving; it is stored encrypted and
-          can be rotated at any time.
+          {draft.owner ? (
+            <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} />
+          ) : (
+            t('form.rightsOfYou')
+          )}
         </Hint>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button onClick={() => onSave(d)} disabled={!d.processId || !d.name}>
-            {draft.id ? 'Save' : 'Create and show secret'}
+            {draft.id ? t('common:save') : t('form.create')}
           </Button>
         </Group>
       </Stack>
@@ -490,6 +490,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
 }
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
+  const { t } = useTranslation('common');
   return (
     <div>
       <Group justify="space-between" mb={2}>
@@ -499,7 +500,7 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
         <CopyButton value={text}>
           {({ copied, copy }) => (
             <Button size="compact-xs" variant="subtle" leftSection={copied ? <IconCheck size={12} /> : <IconCopy size={12} />} onClick={copy}>
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('copied') : t('copy')}
             </Button>
           )}
         </CopyButton>
@@ -512,11 +513,12 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
 }
 
 function SecretModal({ created, onClose }: { created: WebhookTriggerSecret; onClose: () => void }) {
-  const t = created.trigger;
-  const url = hookUrl(t);
+  const { t } = useTranslation('triggers');
+  const tr = created.trigger;
+  const url = hookUrl(tr);
   const sample = JSON.stringify({ event: 'TRIGGERED', name: 'Historian API', group: 'plant', url: 'https://apps.example.com/historian/health', errors: 'test' });
   const curl =
-    t.authMode === 'hmac'
+    tr.authMode === 'hmac'
       ? `BODY='${sample}'\nSIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STEWARD_WEBHOOK_SECRET" | sed 's/^.* //')\ncurl -sS -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -H "X-Steward-Signature: sha256=$SIG" \\\n  --data "$BODY"`
       : `curl -sS -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -H "Authorization: Bearer $STEWARD_WEBHOOK_SECRET" \\\n  --data '${sample}'`;
   const gatus = `alerting:
@@ -549,25 +551,28 @@ endpoints:
     alerts:
       - type: custom`;
   return (
-    <Modal opened onClose={onClose} title={`Secret of "${t.name}"`} size="xl" closeOnClickOutside={false}>
+    <Modal opened onClose={onClose} title={t('secret.title', { name: tr.name })} size="xl" closeOnClickOutside={false}>
       <Stack>
-        <Alert color="orange" title="Copy the secret now">
-          It is shown only once and cannot be recovered. Store it in the calling system's secret store (for Gatus: an environment variable such as{' '}
-          <Code>STEWARD_WEBHOOK_SECRET</Code>). If it is lost or leaked, rotate it.
+        <Alert color="orange" title={t('secret.copyNow')}>
+          <Trans t={t} i18nKey="secret.copyNowText" values={{ name: 'STEWARD_WEBHOOK_SECRET' }} components={{ c: <Code /> }} />
         </Alert>
-        <CopyBlock label="Secret" text={created.secret} />
-        <CopyBlock label="Webhook URL" text={url} />
-        <CopyBlock label={t.authMode === 'hmac' ? 'Test with curl (HMAC signature)' : 'Test with curl'} text={curl} />
-        {t.authMode !== 'hmac' && <CopyBlock label="Gatus: custom alerting provider (config.yaml)" text={gatus} />}
+        <CopyBlock label={t('secret.secret')} text={created.secret} />
+        <CopyBlock label={t('secret.url')} text={url} />
+        <CopyBlock label={tr.authMode === 'hmac' ? t('secret.curlHmac') : t('secret.curl')} text={curl} />
+        {tr.authMode !== 'hmac' && <CopyBlock label={t('secret.gatus')} text={gatus} />}
         <Text size="xs" c="dimmed">
-          The host name of the URL must be listed in <Code>SM_ALLOWED_HOSTS</Code> when Gatus runs on another machine. More in{' '}
-          <Anchor href="https://github.com/TwiN/gatus#configuring-custom-alerts" target="_blank" rel="noreferrer" size="xs">
-            Gatus custom alerts
-          </Anchor>{' '}
-          and docs/GATUS.md.
+          <Trans
+            t={t}
+            i18nKey="secret.hostsHint"
+            values={{ name: 'SM_ALLOWED_HOSTS', doc: 'docs/GATUS.md' }}
+            components={{
+              c: <Code />,
+              a: <Anchor href="https://github.com/TwiN/gatus#configuring-custom-alerts" target="_blank" rel="noreferrer" size="xs" />,
+            }}
+          />
         </Text>
         <Group justify="flex-end">
-          <Button onClick={onClose}>I have stored the secret</Button>
+          <Button onClick={onClose}>{t('secret.stored')}</Button>
         </Group>
       </Stack>
     </Modal>
@@ -575,6 +580,7 @@ endpoints:
 }
 
 function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () => void }) {
+  const { t } = useTranslation(['triggers', 'common']);
   const navigate = useNavigate();
   const [payload, setPayload] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
   const [dryRun, setDryRun] = useState(true);
@@ -586,34 +592,33 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
     try {
       setResult(await post<WebhookTestResult>(`/triggers/${trigger.id}/test`, { payload: parsed.value, dryRun }));
     } catch (e) {
-      notifyError(e, 'Test call failed');
+      notifyError(e, t('test.failed'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened onClose={onClose} title={`Test call – ${trigger.name}`} size="lg">
+    <Modal opened onClose={onClose} title={t('test.title', { name: trigger.name })} size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          Sends the payload through the real endpoint (secret, content type, rate limit, de-duplication and input mapping are checked as for any caller; the
-          source address check is skipped). The call and the run are marked as a test.
+          {t('test.intro')}
         </Text>
-        <JsonInput label="Payload" autosize minRows={6} maxRows={16} value={payload} onChange={setPayload} error={parsed.error} classNames={{ input: 'mono' }} />
-        <Switch label="Dry run (simulate changes)" checked={dryRun || trigger.dryRun} disabled={trigger.dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} />
+        <JsonInput label={t('test.payload')} autosize minRows={6} maxRows={16} value={payload} onChange={setPayload} error={parsed.error} classNames={{ input: 'mono' }} />
+        <Switch label={t('form.dryRun')} checked={dryRun || trigger.dryRun} disabled={trigger.dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} />
         {result && (
           <Alert color={result.status === 202 && result.response.runId ? 'green' : 'orange'} title={`HTTP ${result.status}`}>
             <Stack gap={4}>
               <Text size="sm">
                 {result.response.runId ? (
                   <>
-                    Run started: <Anchor onClick={() => navigate(`/runs/${result.response.runId}`)}>{result.response.runId}</Anchor>
+                    {t('test.runStarted')} <Anchor onClick={() => navigate(`/runs/${result.response.runId}`)}>{result.response.runId}</Anchor>
                   </>
                 ) : (
-                  (result.response.skipped && `Skipped: ${result.response.skipped}`) || result.response.error
+                  (result.response.skipped && t('test.skipped', { reason: result.response.skipped })) || result.response.error
                 )}
               </Text>
               <Text size="xs" c="dimmed">
-                Mapped inputs:
+                {t('test.mappedInputs')}
               </Text>
               <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
                 {JSON.stringify(result.inputs, null, 2)}
@@ -623,10 +628,10 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
         )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Close
+            {t('common:close')}
           </Button>
           <Button leftSection={<IconSend size={14} />} onClick={send} loading={busy} disabled={!!parsed.error}>
-            Send test call
+            {t('test.send')}
           </Button>
         </Group>
       </Stack>
@@ -635,25 +640,25 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
 }
 
 function HistoryModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () => void }) {
+  const { t } = useTranslation('triggers');
   const fires = useQuery({ queryKey: ['trigger-fires', trigger.id], queryFn: () => get<WebhookFire[]>(`/triggers/${trigger.id}/fires?limit=100`) });
   const rows = useMemo(() => fires.data ?? [], [fires.data]);
   return (
-    <Modal opened onClose={onClose} title={`Recent calls – ${trigger.name}`} size="xl">
+    <Modal opened onClose={onClose} title={t('history.title', { name: trigger.name })} size="xl">
       <Text size="xs" c="dimmed" mb="xs">
-        Accepted calls (run started, skipped or failed). Rejected calls – wrong secret, address, rate limit, duplicates – are only counted
-        {trigger.rejectedCount ? ` (${trigger.rejectedCount} so far)` : ''} and recorded in the audit log.
+        {trigger.rejectedCount ? t('history.introCount', { count: trigger.rejectedCount }) : t('history.intro')}
       </Text>
-      {rows.length === 0 && <Text size="sm" c="dimmed">No calls yet.</Text>}
+      {rows.length === 0 && <Text size="sm" c="dimmed">{t('history.none')}</Text>}
       {rows.length > 0 && (
         <div className="table-scroll">
           <Table fz="xs">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Time</Table.Th>
-                <Table.Th>From</Table.Th>
-                <Table.Th>Outcome</Table.Th>
-                <Table.Th>Run</Table.Th>
-                <Table.Th>Payload SHA-256</Table.Th>
+                <Table.Th>{t('history.time')}</Table.Th>
+                <Table.Th>{t('history.from')}</Table.Th>
+                <Table.Th>{t('history.outcome')}</Table.Th>
+                <Table.Th>{t('history.run')}</Table.Th>
+                <Table.Th>{t('history.payloadHash')}</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -663,11 +668,11 @@ function HistoryModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: 
                   <Table.Td className="mono">{f.sourceIp}</Table.Td>
                   <Table.Td>
                     <Badge size="xs" variant="light" color={f.outcome === 'started' ? 'green' : f.outcome === 'skipped' ? 'gray' : 'red'}>
-                      {f.outcome}
+                      {t(`history.outcomes.${f.outcome}`)}
                     </Badge>
                     {f.test && (
                       <Badge ml={4} size="xs" variant="outline">
-                        test
+                        {t('history.test')}
                       </Badge>
                     )}
                     {f.reason && (

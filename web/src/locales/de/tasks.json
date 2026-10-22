@@ -1,7 +1,11 @@
 {
   "title": "Meine Aufgaben",
   "description": "Entscheidungen und Freigaben, die laufende Prozesse anfordern. „Meine“ zeigt, worüber Sie entscheiden dürfen; jede Entscheidung wird im Ausführungsprotokoll und im Audit-Log festgehalten.",
-  "filter": { "mine": "Meine", "open": "Alle offenen", "completed": "Erledigt" },
+  "filter": {
+    "mine": "Meine",
+    "open": "Alle offenen",
+    "completed": "Erledigt"
+  },
   "emptyMine": "Zurzeit gibt es nichts zu entscheiden.",
   "empty": "Keine Aufgaben.",
   "panel": {
@@ -37,6 +41,7 @@
     "decidedSelected_one": "{{count}} Eintrag ausgewählt von <b>{{user}}</b> am {{date}}",
     "decidedSelected_other": "{{count}} Einträge ausgewählt von <b>{{user}}</b> am {{date}}",
     "quoted": "„{{text}}“",
-    "cancelled": "Abgebrochen"
+    "cancelled": "Abgebrochen",
+    "selectItem": "{{name}} auswählen"
   }
 }

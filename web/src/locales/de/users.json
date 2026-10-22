@@ -24,8 +24,8 @@
     "title": "Teams",
     "new": "Neues Team",
     "none": "Noch keine Teams. Teams fassen Benutzer zusammen, damit Zugriffslisten und Aufgabenzuweisungen auf sie verweisen können (z. B. team:service desk).",
-    "edit": "Team bearbeiten",
-    "delete": "Team löschen",
+    "edit": "Team {{name}} bearbeiten",
+    "delete": "Team {{name}} löschen",
     "deleteConfirm": "Team „{{name}}“ löschen? Zugriffseinträge, die es nennen, gelten dann für niemanden mehr.",
     "noMembers": "keine Mitglieder"
   },

@@ -21,14 +21,17 @@
     "restricted": "restricted",
     "restrictedHint": "Access restricted by an access list",
     "readOnly": "read-only",
-    "lastRun": "last run {{when}}"
+    "lastRun": "last run {{when}}",
+    "runNamed": "Run {{name}}",
+    "moreFor": "More actions for {{name}}"
   },
   "templates": {
     "title": "Start from a template",
     "steps_one": "{{count}} step",
     "steps_other": "{{count}} steps",
     "created": "Created “{{name}}”",
-    "use": "Use"
+    "use": "Use",
+    "useNamed": "Use template {{name}}"
   },
   "import": {
     "title": "Import process (YAML or JSON)",

@@ -190,6 +190,7 @@
     "noStatusRows": "No rows with a status.",
     "segment": "{{status}}: {{count}} ({{share}})",
     "segmentFilter": "{{status}}: {{count}} ({{share}}) – click to filter tables",
-    "share": "Share"
+    "share": "Share",
+    "valuesOf": "Values of {{names}}"
   }
 }

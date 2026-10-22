@@ -8,21 +8,39 @@
       "label": "Kommentar",
       "description": "Ein Kommentar auf der Arbeitsfläche. Wird nicht ausgeführt.",
       "fields": {
-        "text": { "label": "Text (Markdown)" }
+        "text": {
+          "label": "Text (Markdown)"
+        }
       }
     },
     "http": {
       "label": "API-Aufruf",
       "description": "Ruft einen Endpunkt einer verbundenen Plattform auf. Schreibende Aufrufe (POST/PUT/PATCH/DELETE) werden im Probelauf übersprungen. Den Ausgang „Fehler“ verbinden, um Fehler zu behandeln, statt die Ausführung abzubrechen.",
       "fields": {
-        "connection": { "label": "Verbindung" },
-        "method": { "label": "Methode" },
-        "path": { "label": "Pfad oder URL" },
-        "query": { "label": "Query-Parameter" },
-        "headers": { "label": "Header" },
-        "body": { "label": "Body (JSON / YAML, Vorlagen erlaubt)" },
-        "bodyType": { "label": "Body-Kodierung" },
-        "paginate": { "label": "Paginierung" },
+        "connection": {
+          "label": "Verbindung"
+        },
+        "method": {
+          "label": "Methode"
+        },
+        "path": {
+          "label": "Pfad oder URL"
+        },
+        "query": {
+          "label": "Query-Parameter"
+        },
+        "headers": {
+          "label": "Header"
+        },
+        "body": {
+          "label": "Body (JSON / YAML, Vorlagen erlaubt)"
+        },
+        "bodyType": {
+          "label": "Body-Kodierung"
+        },
+        "paginate": {
+          "label": "Paginierung"
+        },
         "expectStatus": {
           "label": "Akzeptierte Statuscodes",
           "help": "Durch Komma getrennt. Leer = jeder 2xx-Code."
@@ -37,17 +55,27 @@
       "label": "Variablen setzen",
       "description": "Werte mit JSONata-Ausdrücken berechnen und in vars.<name> speichern.",
       "fields": {
-        "values": { "label": "Variablen (Name → Vorlage)" }
+        "values": {
+          "label": "Variablen (Name → Vorlage)"
+        }
       }
     },
     "forEach": {
       "label": "Für jedes Element",
       "description": "Führt die mit „je Element“ verbundenen Knoten einmal pro Element aus (das Element ist vars.<as>) und fährt dann mit „fertig“ fort. Den letzten Knoten des Schleifenrumpfs nicht weiter verbinden.",
       "fields": {
-        "items": { "label": "Elemente (Ausdruck)" },
-        "as": { "label": "Name der Elementvariable" },
-        "delayMs": { "label": "Pause zwischen Elementen (ms)" },
-        "maxItems": { "label": "Max. Elemente (Sicherheitsgrenze)" },
+        "items": {
+          "label": "Elemente (Ausdruck)"
+        },
+        "as": {
+          "label": "Name der Elementvariable"
+        },
+        "delayMs": {
+          "label": "Pause zwischen Elementen (ms)"
+        },
+        "maxItems": {
+          "label": "Max. Elemente (Sicherheitsgrenze)"
+        },
         "concurrency": {
           "label": "Parallele Elemente (1 = nacheinander)",
           "help": "Bis zu 20. Im Parallelbetrieb sind in der Schleife gesetzte Variablen pro Element lokal; das Schleifenergebnis (Ergebnis speichern als) enthält sie pro Element in results[]."
@@ -58,63 +86,109 @@
       "label": "Wenn / sonst",
       "description": "Fährt je nach Bedingung mit „wahr“ oder „falsch“ fort.",
       "fields": {
-        "condition": { "label": "Bedingung (Ausdruck)" }
+        "condition": {
+          "label": "Bedingung (Ausdruck)"
+        }
       }
     },
     "userTask": {
       "label": "Benutzeraufgabe / Freigabe",
       "description": "Hält die Ausführung an und bittet eine Person, Einträge aus einer Liste auszuwählen (Auswahl) oder freizugeben bzw. abzulehnen (Freigabe, mit den Ausgängen „freigegeben“ und „abgelehnt“ – ein nicht verbundener Ausgang „abgelehnt“ lässt die Ausführung fehlschlagen). Die Entscheidung wird im Protokoll festgehalten.",
       "fields": {
-        "mode": { "label": "Modus" },
-        "title": { "label": "Titel" },
-        "instructions": { "label": "Anleitung (Markdown, Vorlagen erlaubt)" },
-        "items": { "label": "Einträge (Ausdruck, Auswahlmodus)" },
-        "itemKey": { "label": "Schlüsselfeld der Einträge" },
-        "columns": { "label": "Spalten" },
-        "preselect": { "label": "Vorauswahl (Ausdruck pro Eintrag, $item)" },
+        "mode": {
+          "label": "Modus"
+        },
+        "title": {
+          "label": "Titel"
+        },
+        "instructions": {
+          "label": "Anleitung (Markdown, Vorlagen erlaubt)"
+        },
+        "items": {
+          "label": "Einträge (Ausdruck, Auswahlmodus)"
+        },
+        "itemKey": {
+          "label": "Schlüsselfeld der Einträge"
+        },
+        "columns": {
+          "label": "Spalten"
+        },
+        "preselect": {
+          "label": "Vorauswahl (Ausdruck pro Eintrag, $item)"
+        },
         "assignees": {
           "label": "Wer entscheiden darf",
           "help": "Benutzer, Teams oder Rollen. Leer = alle, die diesen Prozess ausführen oder freigeben dürfen."
         },
-        "fourEyes": { "label": "Vier-Augen-Prinzip: Wer die Ausführung gestartet hat, darf nicht entscheiden" }
+        "fourEyes": {
+          "label": "Vier-Augen-Prinzip: Wer die Ausführung gestartet hat, darf nicht entscheiden"
+        }
       }
     },
     "check": {
       "label": "Prüfung / Zusicherung",
       "description": "Ein Prüfergebnis (bestanden/fehlgeschlagen) festhalten, z. B. für Statustests und Health Checks.",
       "fields": {
-        "condition": { "label": "Bestanden, wenn (Ausdruck)" },
-        "severity": { "label": "Schweregrad" },
-        "message": { "label": "Meldung" },
-        "failRun": { "label": "Ausführung abbrechen, wenn die Prüfung fehlschlägt" }
+        "condition": {
+          "label": "Bestanden, wenn (Ausdruck)"
+        },
+        "severity": {
+          "label": "Schweregrad"
+        },
+        "message": {
+          "label": "Meldung"
+        },
+        "failRun": {
+          "label": "Ausführung abbrechen, wenn die Prüfung fehlschlägt"
+        }
       }
     },
     "log": {
       "label": "Log-Meldung",
       "description": "Eine Meldung (und optionale Daten) in das Ausführungsprotokoll schreiben.",
       "fields": {
-        "level": { "label": "Stufe" },
-        "message": { "label": "Meldung" },
-        "data": { "label": "Daten (Ausdruck)" }
+        "level": {
+          "label": "Stufe"
+        },
+        "message": {
+          "label": "Meldung"
+        },
+        "data": {
+          "label": "Daten (Ausdruck)"
+        }
       }
     },
     "report": {
       "label": "Berichtsabschnitt",
       "description": "Einen Abschnitt mit Text und/oder Tabelle zum Ausführungsprotokoll hinzufügen.",
       "fields": {
-        "title": { "label": "Titel" },
-        "text": { "label": "Text (Markdown, Vorlagen erlaubt)" },
-        "rows": { "label": "Tabellenzeilen (Ausdruck)" },
-        "columns": { "label": "Spalten" }
+        "title": {
+          "label": "Titel"
+        },
+        "text": {
+          "label": "Text (Markdown, Vorlagen erlaubt)"
+        },
+        "rows": {
+          "label": "Tabellenzeilen (Ausdruck)"
+        },
+        "columns": {
+          "label": "Spalten"
+        }
       }
     },
     "browser": {
       "label": "Browser-Automatisierung",
       "description": "Steuert einen echten Browser (Playwright): Seiten öffnen, Formulare ausfüllen, klicken, Text auslesen und Screenshots als Nachweis erstellen. Alle Browser-Schritte einer Ausführung teilen sich eine Browser-Sitzung.",
       "fields": {
-        "connection": { "label": "Verbindung (für Basis-URL & Geheimnisse)" },
-        "actions": { "label": "Aktionen" },
-        "mutating": { "label": "Ändert Daten (im Probelauf überspringen)" }
+        "connection": {
+          "label": "Verbindung (für Basis-URL & Geheimnisse)"
+        },
+        "actions": {
+          "label": "Aktionen"
+        },
+        "mutating": {
+          "label": "Ändert Daten (im Probelauf überspringen)"
+        }
       }
     },
     "publish": {
@@ -125,30 +199,50 @@
           "label": "Schlüssel der Datenquelle",
           "help": "Dashboards verweisen auf diesen Schlüssel"
         },
-        "title": { "label": "Titel" },
-        "rows": { "label": "Zeilen (Ausdruck → Liste)" },
-        "columns": { "label": "Spalten (nur das, was das Dashboard braucht)" },
-        "key": { "label": "Zeilenschlüssel (Ausdruck pro Eintrag)" },
+        "title": {
+          "label": "Titel"
+        },
+        "rows": {
+          "label": "Zeilen (Ausdruck → Liste)"
+        },
+        "columns": {
+          "label": "Spalten (nur das, was das Dashboard braucht)"
+        },
+        "key": {
+          "label": "Zeilenschlüssel (Ausdruck pro Eintrag)"
+        },
         "status": {
           "label": "Status (Ausdruck pro Eintrag)",
           "help": "good | warning | serious | critical | unknown"
         },
-        "statusText": { "label": "Statusbegründung (Ausdruck pro Eintrag)" },
+        "statusText": {
+          "label": "Statusbegründung (Ausdruck pro Eintrag)"
+        },
         "metrics": {
           "label": "Kennzahlen (Name → Zahlenausdruck)",
           "help": "Werden für Trenddiagramme an den Verlauf angehängt"
         },
-        "staleAfterMinutes": { "label": "Veraltet nach (Minuten)" },
-        "maxRows": { "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)" }
+        "staleAfterMinutes": {
+          "label": "Veraltet nach (Minuten)"
+        },
+        "maxRows": {
+          "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)"
+        }
       }
     },
     "subprocess": {
       "label": "Unterprozess ausführen",
       "description": "Führt einen anderen Prozess als einen Schritt aus (wiederverwendbare Bausteine). Die untergeordnete Ausführung erhält ein eigenes, mit dieser Ausführung verknüpftes Protokoll; ihre Ausgaben (Prozesseinstellung „Ausgaben“) werden zum Ergebnis dieses Knotens. „Fehler“ verbinden, um eine fehlgeschlagene untergeordnete Ausführung zu behandeln.",
       "fields": {
-        "process": { "label": "Prozess" },
-        "version": { "label": "Version (leer = aktuelle)" },
-        "inputs": { "label": "Eingaben (Eingabe des Unterprozesses → Vorlage)" },
+        "process": {
+          "label": "Prozess"
+        },
+        "version": {
+          "label": "Version (leer = aktuelle)"
+        },
+        "inputs": {
+          "label": "Eingaben (Eingabe des Unterprozesses → Vorlage)"
+        },
         "connections": {
           "label": "Verbindungen (Verbindung des Unterprozesses → Verbindung dieses Prozesses)",
           "help": "Leer = gleiche Namen"
@@ -159,14 +253,18 @@
       "label": "Warten",
       "description": "Für eine Anzahl von Sekunden pausieren.",
       "fields": {
-        "seconds": { "label": "Sekunden" }
+        "seconds": {
+          "label": "Sekunden"
+        }
       }
     },
     "fail": {
       "label": "Mit Fehler beenden",
       "description": "Beendet die Ausführung mit einer Fehlermeldung.",
       "fields": {
-        "message": { "label": "Meldung" }
+        "message": {
+          "label": "Meldung"
+        }
       }
     }
   },
@@ -175,8 +273,12 @@
       "label": "Nur ausführen, wenn (Ausdruck)",
       "help": "Wird übersprungen, wenn falsch"
     },
-    "saveAs": { "label": "Ergebnis speichern als vars." },
-    "onError": { "label": "Bei Fehler" }
+    "saveAs": {
+      "label": "Ergebnis speichern als vars."
+    },
+    "onError": {
+      "label": "Bei Fehler"
+    }
   },
   "browserActions": {
     "goto": "URL öffnen",
@@ -252,10 +354,18 @@
     "parallelHint": "Bis zu {{count}} Elemente laufen gleichzeitig"
   },
   "defaults": {
-    "note": { "text": "Kommentar" },
-    "userTask": { "title": "Bitte bestätigen" },
-    "report": { "title": "Zusammenfassung" },
-    "fail": { "message": "Gestoppt" }
+    "note": {
+      "text": "Kommentar"
+    },
+    "userTask": {
+      "title": "Bitte bestätigen"
+    },
+    "report": {
+      "title": "Zusammenfassung"
+    },
+    "fail": {
+      "message": "Gestoppt"
+    }
   },
   "flow": {
     "copied_one": "{{count}} Knoten kopiert – mit {{key}} einfügen, auch in einem anderen Prozess",
@@ -422,7 +532,13 @@
     "inputs_other": "Eingaben ({{count}})",
     "constants": "Konstanten",
     "outputs_one": "Ausgaben ({{count}})",
-    "outputs_other": "Ausgaben ({{count}})"
+    "outputs_other": "Ausgaben ({{count}})",
+    "report": {
+      "title": "PDF-Bericht",
+      "auto": "PDF-Bericht automatisch erstellen, wenn eine Ausführung endet",
+      "autoHint": "Praktisch für geplante Ausführungen: Der Bericht wird mit der Ausführung archiviert, sein SHA-256 steht im Audit-Log. Berichte lassen sich jederzeit auch von Hand auf der Seite der Ausführung erstellen.",
+      "language": "Sprache des Berichts"
+    }
   },
   "general": {
     "name": "Name",

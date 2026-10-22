@@ -17,5 +17,11 @@
     "SSO_MANAGED_PROFILE": "Name and e-mail of this account are managed by single sign-on.",
     "INVALID_EMAIL": "Enter a valid e-mail address.",
     "UNSUPPORTED_LOCALE": "This language is not supported."
+  },
+  "boundary": {
+    "title": "Something went wrong on this page",
+    "text": "The page could not be displayed. Your data is not affected. Try again, go to another page or reload the application.",
+    "retry": "Try again",
+    "reload": "Reload"
   }
 }

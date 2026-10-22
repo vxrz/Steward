@@ -39,7 +39,8 @@
     "expiresAfter": "Expires after (days)",
     "expiresHint": "Leave empty for a token that never expires",
     "create": "Create token",
-    "createdTitle": "Token created"
+    "createdTitle": "Token created",
+    "exampleReadOnly": "Example (a read-only token is enough):"
   },
   "title": "Profile",
   "description": "Your account, language, notifications and API tokens.",

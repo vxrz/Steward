@@ -41,6 +41,7 @@
     "decidedSelected_one": "{{count}} item selected by <b>{{user}}</b> on {{date}}",
     "decidedSelected_other": "{{count}} items selected by <b>{{user}}</b> on {{date}}",
     "quoted": "“{{text}}”",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "selectItem": "Select {{name}}"
   }
 }

@@ -2,9 +2,13 @@ import { useState } from 'react';
 import { Alert, Anchor, Badge, Button, Group, Modal, SegmentedControl, Stack, Table, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDownload, IconFileCertificate, IconFileTypePdf } from '@tabler/icons-react';
-import type { ReportLang, ReportRecord, RunStatus } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
+import { REPORT_LANGS, type ReportLang, type ReportRecord, type RunStatus } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../../api';
-import { fmtDate } from '../../format';
+import { errorText } from '../../i18n/errors';
+import { currentLanguage } from '../../i18n';
+import { LANGUAGES } from '../../i18n/languages';
+import { fmtBytes, fmtDate } from '../../format';
 
 export const FINISHED_STATUSES: RunStatus[] = ['succeeded', 'failed', 'cancelled'];
 const INTERIM_STATUSES: RunStatus[] = ['waiting', 'interrupted'];
@@ -20,27 +24,29 @@ export const browserTimeZone = (): string | undefined => {
   }
 };
 
-export const defaultReportLang = (): ReportLang => (navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en');
+const isReportLang = (v: string): v is ReportLang => (REPORT_LANGS as readonly string[]).includes(v);
 
-export function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+/** Report language preselected in the dialogs: the UI language when reports exist in it, else English. */
+export const defaultReportLang = (): ReportLang => {
+  const lang = currentLanguage();
+  return isReportLang(lang) ? lang : 'en';
+};
 
-export function LangControl({ value, onChange }: { value: ReportLang; onChange: (v: ReportLang) => void }) {
+/** Native name of a report language ("Deutsch"), from the one list of languages. */
+export const reportLangName = (code: string): string => LANGUAGES.find((l) => l.code === code)?.nativeName ?? code.toUpperCase();
+
+export function LangControl({ value, onChange, disabled, label }: { value: ReportLang; onChange: (v: ReportLang) => void; disabled?: boolean; label?: string }) {
+  const { t } = useTranslation('reports');
   return (
     <Stack gap={4}>
       <Text size="sm" fw={500}>
-        Language
+        {label ?? t('language')}
       </Text>
       <SegmentedControl
         value={value}
-        onChange={(v) => onChange(v as ReportLang)}
-        data={[
-          { value: 'en', label: 'English' },
-          { value: 'de', label: 'Deutsch' },
-        ]}
+        disabled={disabled}
+        onChange={(v) => isReportLang(v) && onChange(v)}
+        data={REPORT_LANGS.map((code) => ({ value: code, label: reportLangName(code) }))}
       />
     </Stack>
   );
@@ -48,6 +54,7 @@ export function LangControl({ value, onChange }: { value: ReportLang; onChange: 
 
 /** "Generate PDF report" dialog of a run. */
 export function GenerateReportDialog({ runId, status, opened, onClose }: { runId: string; status: RunStatus; opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation(['reports', 'common']);
   const qc = useQueryClient();
   const [lang, setLang] = useState<ReportLang>(defaultReportLang);
   const [comment, setComment] = useState('');
@@ -69,20 +76,20 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
         timeZone: browserTimeZone(),
       });
       await qc.invalidateQueries({ queryKey: ['run-reports', runId] });
-      notifyOk(`${rec.filename} was archived.`, 'PDF report generated');
+      notifyOk(t('archived', { file: rec.filename }), t('run.generated'));
       setComment('');
       setDone(rec);
     } catch (e) {
-      notifyError(e, 'The report could not be generated');
+      notifyError(e, t('run.failed'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened={opened} onClose={close} title="Generate PDF report" size="lg">
+    <Modal opened={opened} onClose={close} title={t('run.dialogTitle')} size="lg">
       {done ? (
         <Stack>
-          <Alert color="green" variant="light" title="The report was generated and archived">
+          <Alert color="green" variant="light" title={t('run.doneTitle')}>
             <Text size="sm">{done.filename}</Text>
             <Text size="xs" c="dimmed" className="mono" style={{ wordBreak: 'break-all' }}>
               SHA-256 {done.sha256}
@@ -90,28 +97,27 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
           </Alert>
           <Group justify="flex-end">
             <Button variant="default" onClick={close}>
-              Close
+              {t('common:close')}
             </Button>
             <Button component="a" href={`/api/reports/${done.id}/download`} leftSection={<IconDownload size={16} />}>
-              Download PDF
+              {t('downloadPdf')}
             </Button>
           </Group>
         </Stack>
       ) : (
       <Stack>
         <Text size="sm" c="dimmed">
-          Creates an archivable PDF/A report of this run: what was done and when, results, decisions, checks and evidence, with a sign-off block and empty digital
-          signature fields. Every report is stored unchanged, and its SHA-256 is recorded in the audit log.
+          {t('run.intro')}
         </Text>
         {interim && (
           <Alert color="blue" variant="light" p="xs">
-            This run has not finished yet. The report will be marked as an interim report.
+            {t('run.interimHint')}
           </Alert>
         )}
         <LangControl value={lang} onChange={setLang} />
         <Textarea
-          label="Reviewer comment"
-          description="Optional. Printed in the report with your name and the time, e.g. the result of your review."
+          label={t('comment')}
+          description={t('run.commentHint')}
           autosize
           minRows={3}
           maxRows={10}
@@ -120,19 +126,19 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
           onChange={(e) => setComment(e.currentTarget.value)}
         />
         <TextInput
-          label="Classification"
-          description="Optional. Leave empty to use the default from the report branding settings."
-          placeholder="e.g. Confidential"
+          label={t('run.classification')}
+          description={t('run.classificationHint')}
+          placeholder={t('run.classificationPlaceholder')}
           maxLength={60}
           value={classification}
           onChange={(e) => setClassification(e.currentTarget.value)}
         />
         <Group justify="flex-end">
           <Button variant="default" onClick={close}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button leftSection={<IconFileTypePdf size={16} />} loading={busy} onClick={generate}>
-            Generate PDF
+            {t('generatePdf')}
           </Button>
         </Group>
       </Stack>
@@ -143,6 +149,7 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
 
 /** Generated PDF reports of a run (tab on the run page). */
 export function RunReportsPanel({ runId, status }: { runId: string; status: RunStatus }) {
+  const { t } = useTranslation('reports');
   const [open, setOpen] = useState(false);
   const reports = useQuery({ queryKey: ['run-reports', runId], queryFn: () => get<ReportRecord[]>(`/runs/${runId}/reports`) });
   const list = reports.data ?? [];
@@ -150,30 +157,29 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
     <Stack>
       <Group justify="space-between" wrap="wrap">
         <Text size="sm" c="dimmed" maw={620}>
-          Archived PDF reports of this run. Files are never changed; generating again creates a new version. The SHA-256 of each file is recorded in the audit log, so an
-          archived copy can be verified later.
+          {t('panel.intro')}
         </Text>
-        <Tooltip label="Reports can be generated when the run has finished or is waiting for a decision" disabled={canReport(status)}>
+        <Tooltip label={t('panel.notYet')} disabled={canReport(status)}>
           <Button leftSection={<IconFileCertificate size={16} />} disabled={!canReport(status)} onClick={() => setOpen(true)}>
-            Generate PDF report
+            {t('panel.generate')}
           </Button>
         </Tooltip>
       </Group>
-      {reports.error && <Alert color="red">{(reports.error as Error).message}</Alert>}
+      {reports.error && <Alert color="red">{errorText(reports.error)}</Alert>}
       {list.length === 0 && !reports.isLoading ? (
         <Text size="sm" c="dimmed">
-          No PDF reports yet.
+          {t('panel.none')}
         </Text>
       ) : (
         <div className="table-scroll">
           <Table fz="sm" striped withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Generated</Table.Th>
-                <Table.Th>By</Table.Th>
-                <Table.Th>Language</Table.Th>
-                <Table.Th>Comment</Table.Th>
+                <Table.Th>{t('panel.version')}</Table.Th>
+                <Table.Th>{t('panel.generatedAt')}</Table.Th>
+                <Table.Th>{t('panel.by')}</Table.Th>
+                <Table.Th>{t('language')}</Table.Th>
+                <Table.Th>{t('panel.comment')}</Table.Th>
                 <Table.Th>SHA-256</Table.Th>
                 <Table.Th />
               </Table.Tr>
@@ -186,12 +192,12 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
                       <Text size="sm">v{r.version}</Text>
                       {r.interim && (
                         <Badge size="xs" color="blue" variant="light">
-                          interim
+                          {t('panel.interim')}
                         </Badge>
                       )}
                       {r.auto && (
                         <Badge size="xs" color="gray" variant="light">
-                          automatic
+                          {t('panel.automatic')}
                         </Badge>
                       )}
                     </Group>

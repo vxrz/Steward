@@ -190,6 +190,7 @@
     "noStatusRows": "Keine Zeilen mit Status.",
     "segment": "{{status}}: {{count}} ({{share}})",
     "segmentFilter": "{{status}}: {{count}} ({{share}}) – klicken, um Tabellen zu filtern",
-    "share": "Anteil"
+    "share": "Anteil",
+    "valuesOf": "Werte von {{names}}"
   }
 }

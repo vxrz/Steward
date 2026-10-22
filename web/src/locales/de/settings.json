@@ -108,5 +108,21 @@
     },
     "routesHint": "Jedes Ereignis geht an die betroffenen Personen. E-Mails erhalten nur Benutzer, die E-Mail-Benachrichtigungen in ihrem Profil eingeschaltet haben.",
     "save": "Benachrichtigungen speichern"
+  },
+  "publicApi": {
+    "title": "REST-API",
+    "docs": "API-Dokumentation",
+    "off": "Die REST-API (<c>{{path}}</c>) ist auf diesem Server ausgeschaltet.",
+    "baseUrl": "Basis-URL der REST-API: <c>{{url}}</c> (nur lesend, OpenAPI 3.1, Version {{version}})",
+    "docsAccess": "Wer die API-Dokumentation öffnen darf",
+    "docsModes": {
+      "off": "Aus",
+      "authenticated": "Angemeldete Benutzer",
+      "public": "Öffentlich"
+    },
+    "docsFromEnv": "Festgelegt durch die Umgebungsvariable <c>{{name}}</c> auf dem Server.",
+    "docsHint": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite).",
+    "docsHintRateLimit_one": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite) und erlaubt {{count}} Anfrage pro Minute und Token.",
+    "docsHintRateLimit_other": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite) und erlaubt {{count}} Anfragen pro Minute und Token."
   }
 }

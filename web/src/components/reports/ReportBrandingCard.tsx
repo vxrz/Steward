@@ -2,14 +2,18 @@ import { useEffect, useState } from 'react';
 import { Button, Card, ColorInput, FileButton, Group, Image, Paper, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconEye, IconRestore, IconUpload } from '@tabler/icons-react';
-import { REPORT_LOGO_MAX_BYTES, type ReportBranding, type ReportLang } from '@sm/shared';
+import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportBranding, type ReportLang } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
+import { BRAND } from '../../../../shared/src/brand';
 import { api, getOptional, notifyError, notifyOk, put } from '../../api';
-import { browserTimeZone } from './RunReports';
+import { browserTimeZone, reportLangName } from './RunReports';
 
 type Draft = Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>;
 
 /** Settings → Report branding (administrators): company name, logo, colour, classification, footer note. */
 export function ReportBrandingCard() {
+  const { t } = useTranslation('reports');
+  const brand = BRAND.name;
   const qc = useQueryClient();
   const branding = useQuery({ queryKey: ['report-branding'], queryFn: () => getOptional<ReportBranding | null>('/reports/branding', null) });
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -27,7 +31,7 @@ export function ReportBrandingCard() {
     try {
       const next = await put<ReportBranding>('/reports/branding', draft);
       qc.setQueryData(['report-branding'], next);
-      notifyOk('Report branding saved');
+      notifyOk(t('branding.saved'));
     } catch (e) {
       notifyError(e);
     } finally {
@@ -38,7 +42,7 @@ export function ReportBrandingCard() {
   const upload = async (file: File | null) => {
     if (!file) return;
     if (file.size > REPORT_LOGO_MAX_BYTES) {
-      notifyError(new Error('The logo must not be larger than 1 MB.'), 'Logo not uploaded');
+      notifyError(new Error(t('branding.logoTooLarge')), t('branding.logoNotUploaded'));
       return;
     }
     setBusy('logo');
@@ -47,9 +51,9 @@ export function ReportBrandingCard() {
       form.append('file', file, file.name);
       const next = await api<ReportBranding>('POST', '/reports/branding/logo', form);
       qc.setQueryData(['report-branding'], next);
-      notifyOk('Logo uploaded');
+      notifyOk(t('branding.logoUploaded'));
     } catch (e) {
-      notifyError(e, 'Logo not uploaded');
+      notifyError(e, t('branding.logoNotUploaded'));
     } finally {
       setBusy(null);
     }
@@ -60,7 +64,7 @@ export function ReportBrandingCard() {
     try {
       const next = await api<ReportBranding>('DELETE', '/reports/branding/logo');
       qc.setQueryData(['report-branding'], next);
-      notifyOk('The Steward logo is used again');
+      notifyOk(t('branding.logoReset', { brand }));
     } catch (e) {
       notifyError(e);
     } finally {
@@ -88,7 +92,7 @@ export function ReportBrandingCard() {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
-      notifyError(e, 'Preview failed');
+      notifyError(e, t('branding.previewFailed'));
     } finally {
       setBusy(null);
     }
@@ -96,31 +100,31 @@ export function ReportBrandingCard() {
 
   return (
     <Card withBorder>
-      <Title order={5}>Report branding</Title>
+      <Title order={5}>{t('branding.title')}</Title>
       <Text size="sm" c="dimmed" mb="sm">
-        Used for all new PDF reports (run reports and summaries). Reports that were already generated are not changed.
+        {t('branding.intro')}
       </Text>
       <Stack>
         <Group align="flex-start" wrap="nowrap" gap="md">
           <Paper withBorder p="xs" w={132} h={84} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Image src={logoUrl} alt="Report logo" fit="contain" mah={64} maw={112} />
+            <Image src={logoUrl} alt={t('branding.logoAlt')} fit="contain" mah={64} maw={112} />
           </Paper>
           <Stack gap={6}>
-            <Text size="sm">{b.customLogo ? 'Custom logo' : 'Default: Steward logo'}</Text>
+            <Text size="sm">{b.customLogo ? t('branding.customLogo') : t('branding.defaultLogo', { brand })}</Text>
             <Text size="xs" c="dimmed">
-              PNG or JPEG, up to 1 MB. A wide logo with a transparent background works best.
+              {t('branding.logoHint')}
             </Text>
             <Group gap="xs">
               <FileButton onChange={upload} accept="image/png,image/jpeg">
                 {(props) => (
                   <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} loading={busy === 'logo'}>
-                    Upload logo
+                    {t('branding.uploadLogo')}
                   </Button>
                 )}
               </FileButton>
               {b.customLogo && (
                 <Button size="xs" variant="subtle" color="gray" leftSection={<IconRestore size={14} />} loading={busy === 'reset'} onClick={resetLogo}>
-                  Use Steward logo
+                  {t('branding.useDefaultLogo', { brand })}
                 </Button>
               )}
             </Group>
@@ -128,32 +132,32 @@ export function ReportBrandingCard() {
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <TextInput
-            label="Company name"
-            description="Shown next to the logo. Empty: Steward"
+            label={t('branding.companyName')}
+            description={t('branding.companyNameHint', { brand })}
             maxLength={120}
             value={draft.companyName}
             onChange={(e) => setDraft({ ...draft, companyName: e.currentTarget.value })}
           />
           <ColorInput
-            eyeDropperButtonProps={{ 'aria-label': 'Pick colour from screen' }}
-            label="Accent colour"
-            description="Lines, headings and highlights"
+            eyeDropperButtonProps={{ 'aria-label': t('branding.eyeDropper') }}
+            label={t('branding.accent')}
+            description={t('branding.accentHint')}
             format="hex"
             swatches={['#1c7ed6', '#0b7285', '#2f9e44', '#e8590c', '#c2410c', '#862e9c', '#343a40']}
             value={draft.accentColor}
-            error={validColor ? undefined : 'Use a hex colour like #1c7ed6'}
+            error={validColor ? undefined : t('branding.accentInvalid')}
             onChange={(v) => setDraft({ ...draft, accentColor: v })}
           />
           <TextInput
-            label="Default classification"
-            description="Printed on every page, e.g. Internal or Confidential. It can be changed per report."
+            label={t('branding.classification')}
+            description={t('branding.classificationHint')}
             maxLength={60}
             value={draft.classification}
             onChange={(e) => setDraft({ ...draft, classification: e.currentTarget.value })}
           />
           <TextInput
-            label="Footer note"
-            description="Optional, e.g. Confidential – for internal use only"
+            label={t('branding.footerNote')}
+            description={t('branding.footerNoteHint')}
             maxLength={200}
             value={draft.footerNote}
             onChange={(e) => setDraft({ ...draft, footerNote: e.currentTarget.value })}
@@ -161,14 +165,13 @@ export function ReportBrandingCard() {
         </SimpleGrid>
         <Group>
           <Button onClick={save} loading={busy === 'save'} disabled={!validColor}>
-            Save branding
+            {t('branding.save')}
           </Button>
-          <Button variant="default" leftSection={<IconEye size={16} />} loading={busy === 'preview-en'} disabled={!validColor} onClick={() => preview('en')}>
-            Preview (English)
-          </Button>
-          <Button variant="default" leftSection={<IconEye size={16} />} loading={busy === 'preview-de'} disabled={!validColor} onClick={() => preview('de')}>
-            Preview (German)
-          </Button>
+          {REPORT_LANGS.map((lang) => (
+            <Button key={lang} variant="default" leftSection={<IconEye size={16} />} loading={busy === `preview-${lang}`} disabled={!validColor} onClick={() => preview(lang)}>
+              {t('branding.preview', { language: reportLangName(lang) })}
+            </Button>
+          ))}
         </Group>
       </Stack>
     </Card>

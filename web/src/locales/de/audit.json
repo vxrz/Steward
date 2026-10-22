@@ -20,7 +20,8 @@
     "platform": "Plattformen",
     "process": "Prozesse",
     "schedule": "Zeitpläne",
-    "vault": "Tresor"
+    "vault": "Tresor",
+    "report": "Berichte"
   },
   "table": {
     "time": "Zeit",

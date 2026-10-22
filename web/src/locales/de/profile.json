@@ -39,7 +39,8 @@
     "fullHint": "Kann alles, was Sie dürfen, einschließlich Ausführungen starten und Daten ändern.",
     "expiresAfter": "Läuft ab nach (Tagen)",
     "expiresHint": "Leer lassen für ein Token, das nie abläuft",
-    "create": "Token erstellen"
+    "create": "Token erstellen",
+    "exampleReadOnly": "Beispiel (ein Token mit Lesezugriff genügt):"
   },
   "title": "Profil",
   "description": "Ihr Konto, Ihre Sprache, Benachrichtigungen und API-Token.",

@@ -3,7 +3,8 @@
     "title": "Ausführungen",
     "description": "Jede Ausführung eines Prozesses mit vollständigem Protokoll.",
     "allProcesses": "Alle Prozesse",
-    "anyStatus": "Jeder Status"
+    "anyStatus": "Jeder Status",
+    "summaryReport": "Zusammenfassender Bericht"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
@@ -24,7 +25,8 @@
     "simulated_other": "{{count}} simuliert",
     "checksOk": "Prüfungen {{passed}}/{{total}} ok",
     "failedSteps_one": "{{count}} Schritt fehlgeschlagen",
-    "failedSteps_other": "{{count}} Schritte fehlgeschlagen"
+    "failedSteps_other": "{{count}} Schritte fehlgeschlagen",
+    "webhook": "Webhook"
   },
   "bindings": {
     "noPermission": "{{name}} (keine Berechtigung zur Nutzung)",
@@ -56,7 +58,14 @@
     "csvHintColumns": "CSV mit Kopfzeile: {{columns}} (durch Komma, Semikolon oder Tabulator getrennt)",
     "loadCsv": "CSV-Datei laden"
   },
-  "trigger": { "manual": "manuell", "schedule": "Zeitplan", "resume": "fortgesetzt", "subprocess": "Unterprozess" },
+  "trigger": {
+    "manual": "manuell",
+    "schedule": "Zeitplan",
+    "resume": "fortgesetzt",
+    "subprocess": "Unterprozess",
+    "webhook": "Webhook",
+    "webhookNamed": "Webhook-Auslöser „{{name}}“"
+  },
   "detail": {
     "description": "Ausführung <id>{{id}}</id> · <version>Version {{version}}</version> · gestartet von {{actor}} ({{trigger}}) {{date}} · {{duration}}",
     "cancel": "Abbrechen",
@@ -96,7 +105,8 @@
       "log_one": "Log ({{count}})",
       "log_other": "Log ({{count}})",
       "inputs": "Eingaben",
-      "audit": "Audit"
+      "audit": "Audit",
+      "pdf": "PDF-Berichte"
     },
     "noSteps": "Noch keine Schritte.",
     "noRows": "Keine Zeilen",
@@ -121,6 +131,21 @@
       "result": "Ergebnis",
       "loadFull": "Vollständiges Ergebnis laden"
     },
-    "audit": { "time": "Zeit", "actor": "Akteur", "action": "Aktion", "summary": "Zusammenfassung" }
+    "audit": {
+      "time": "Zeit",
+      "actor": "Akteur",
+      "action": "Aktion",
+      "summary": "Zusammenfassung"
+    },
+    "generatePdf": "PDF-Bericht erstellen …",
+    "showMore": {
+      "steps_one": "{{shown}} von {{total}} Schritt",
+      "steps_other": "{{shown}} von {{total}} Schritten",
+      "logLines_one": "{{shown}} von {{total}} Protokollzeile",
+      "logLines_other": "{{shown}} von {{total}} Protokollzeilen",
+      "more_one": "{{count}} weitere anzeigen",
+      "more_other": "{{count}} weitere anzeigen",
+      "all": "Alle anzeigen"
+    }
   }
 }

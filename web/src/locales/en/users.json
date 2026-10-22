@@ -24,8 +24,8 @@
     "title": "Teams",
     "new": "New team",
     "none": "No teams yet. Teams group users so that access lists and task assignments can refer to them (e.g. team:service desk).",
-    "edit": "Edit team",
-    "delete": "Delete team",
+    "edit": "Edit team {{name}}",
+    "delete": "Delete team {{name}}",
     "deleteConfirm": "Delete team “{{name}}”? Access entries that name it stop matching anyone.",
     "noMembers": "no members"
   },

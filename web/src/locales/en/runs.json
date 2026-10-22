@@ -3,7 +3,8 @@
     "title": "Runs",
     "description": "Every execution of a process with its full protocol.",
     "allProcesses": "All processes",
-    "anyStatus": "Any status"
+    "anyStatus": "Any status",
+    "summaryReport": "Summary report"
   },
   "table": {
     "empty": "No runs yet.",
@@ -24,7 +25,8 @@
     "simulated_other": "{{count}} simulated",
     "checksOk": "checks {{passed}}/{{total}} ok",
     "failedSteps_one": "{{count}} failed step",
-    "failedSteps_other": "{{count}} failed steps"
+    "failedSteps_other": "{{count}} failed steps",
+    "webhook": "webhook"
   },
   "bindings": {
     "noPermission": "{{name}} (no permission to use)",
@@ -60,7 +62,9 @@
     "manual": "manual",
     "schedule": "schedule",
     "resume": "resume",
-    "subprocess": "sub-process"
+    "subprocess": "sub-process",
+    "webhook": "webhook",
+    "webhookNamed": "webhook trigger “{{name}}”"
   },
   "detail": {
     "description": "Run <id>{{id}}</id> · <version>version {{version}}</version> · started by {{actor}} ({{trigger}}) {{date}} · {{duration}}",
@@ -101,7 +105,8 @@
       "log_one": "Log ({{count}})",
       "log_other": "Log ({{count}})",
       "inputs": "Inputs",
-      "audit": "Audit"
+      "audit": "Audit",
+      "pdf": "PDF reports"
     },
     "noSteps": "No steps yet.",
     "noRows": "No rows",
@@ -131,6 +136,16 @@
       "actor": "Actor",
       "action": "Action",
       "summary": "Summary"
+    },
+    "generatePdf": "Generate PDF report…",
+    "showMore": {
+      "steps_one": "Showing {{shown}} of {{total}} step",
+      "steps_other": "Showing {{shown}} of {{total}} steps",
+      "logLines_one": "Showing {{shown}} of {{total}} log line",
+      "logLines_other": "Showing {{shown}} of {{total}} log lines",
+      "more_one": "Show {{count}} more",
+      "more_other": "Show {{count}} more",
+      "all": "Show all"
     }
   }
 }

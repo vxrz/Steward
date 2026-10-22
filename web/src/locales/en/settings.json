@@ -108,5 +108,21 @@
     },
     "routesHint": "Each event goes to the people it concerns. E-mails are only sent to users who turned e-mail notifications on in their profile.",
     "save": "Save notification settings"
+  },
+  "publicApi": {
+    "title": "REST API",
+    "docs": "API documentation",
+    "off": "The REST API (<c>{{path}}</c>) is turned off on this server.",
+    "baseUrl": "REST API base URL: <c>{{url}}</c> (read-only, OpenAPI 3.1, version {{version}})",
+    "docsAccess": "Who can open the API documentation",
+    "docsModes": {
+      "off": "Off",
+      "authenticated": "Signed-in users",
+      "public": "Public"
+    },
+    "docsFromEnv": "Set by the environment variable <c>{{name}}</c> on the server.",
+    "docsHint": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page).",
+    "docsHintRateLimit_one": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page) and allows {{count}} request per minute and token.",
+    "docsHintRateLimit_other": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page) and allows {{count}} requests per minute and token."
   }
 }

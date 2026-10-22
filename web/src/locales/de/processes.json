@@ -21,14 +21,17 @@
     "restricted": "eingeschränkt",
     "restrictedHint": "Zugriff durch eine Zugriffsliste eingeschränkt",
     "readOnly": "schreibgeschützt",
-    "lastRun": "zuletzt ausgeführt {{when}}"
+    "lastRun": "zuletzt ausgeführt {{when}}",
+    "runNamed": "{{name}} ausführen",
+    "moreFor": "Weitere Aktionen für {{name}}"
   },
   "templates": {
     "title": "Mit einer Vorlage beginnen",
     "steps_one": "{{count}} Schritt",
     "steps_other": "{{count}} Schritte",
     "created": "„{{name}}“ angelegt",
-    "use": "Verwenden"
+    "use": "Verwenden",
+    "useNamed": "Vorlage {{name}} verwenden"
   },
   "import": {
     "title": "Prozess importieren (YAML oder JSON)",

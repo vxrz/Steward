@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Alert, Button, Code, Group, Stack, Text } from '@mantine/core';
 import { IconAlertTriangle } from '@tabler/icons-react';
 import { reportError } from '../errorReporting';
+import i18n from '../i18n';
 
 interface Props {
   children: ReactNode;
@@ -33,20 +34,22 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     const { error } = this.state;
     if (!error) return this.props.children;
+    // i18n.t (not the hook): this class component may render before React's i18n context exists.
+    const t = i18n.t.bind(i18n);
     return (
       <Stack p="md" maw={720}>
-        <Alert color="red" variant="light" icon={<IconAlertTriangle />} title="Something went wrong on this page">
+        <Alert color="red" variant="light" icon={<IconAlertTriangle />} title={t('errors:boundary.title')}>
           <Stack gap="sm">
             <Text size="sm">
-              The page could not be displayed. Your data is not affected. Try again, go to another page or reload the application.
+              {t('errors:boundary.text')}
             </Text>
             <Code block>{error.message || String(error)}</Code>
             <Group gap="sm">
               <Button size="xs" variant="light" onClick={() => this.setState({ error: null })}>
-                Try again
+                {t('errors:boundary.retry')}
               </Button>
               <Button size="xs" variant="default" onClick={() => window.location.reload()}>
-                Reload
+                {t('errors:boundary.reload')}
               </Button>
             </Group>
           </Stack>

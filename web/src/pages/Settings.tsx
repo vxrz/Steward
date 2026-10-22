@@ -140,14 +140,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {publicApi.data && (
           <Card withBorder>
             <Title order={5} mb="sm">
-              REST API
+              {t('publicApi.title')}
             </Title>
             <Stack gap="xs">
               <PublicApiInfo status={publicApi.data} />
               {publicApi.data.enabled && (
                 <>
                   <Text size="sm" fw={500}>
-                    Who can open the API documentation
+                    {t('publicApi.docsAccess')}
                   </Text>
                   <SegmentedControl
                     disabled={readOnly || publicApi.data.docsSource === 'env'}
@@ -155,19 +155,20 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                     value={publicApi.data.docsSource === 'env' ? publicApi.data.docs : (s.apiDocs ?? 'authenticated')}
                     onChange={(v) => setS({ ...s, apiDocs: v as Settings['apiDocs'] })}
                     data={[
-                      { value: 'off', label: 'Off' },
-                      { value: 'authenticated', label: 'Signed-in users' },
-                      { value: 'public', label: 'Public' },
+                      { value: 'off', label: t('publicApi.docsModes.off') },
+                      { value: 'authenticated', label: t('publicApi.docsModes.authenticated') },
+                      { value: 'public', label: t('publicApi.docsModes.public') },
                     ]}
                   />
                   <Text size="xs" c="dimmed">
                     {publicApi.data.docsSource === 'env' ? (
                       <>
-                        Set by the environment variable <Code>SM_API_DOCS</Code> on the server.{' '}
+                        <Trans t={t} i18nKey="publicApi.docsFromEnv" values={{ name: 'SM_API_DOCS' }} components={{ c: <Code /> }} />{' '}
                       </>
                     ) : null}
-                    Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token
-                    (created on the profile page){publicApi.data.rateLimitPerMinute ? ` and allows ${publicApi.data.rateLimitPerMinute} requests per minute and token` : ''}.
+                    {publicApi.data.rateLimitPerMinute
+                      ? t('publicApi.docsHintRateLimit', { count: publicApi.data.rateLimitPerMinute })
+                      : t('publicApi.docsHint')}
                   </Text>
                 </>
               )}

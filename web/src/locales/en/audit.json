@@ -20,7 +20,8 @@
     "platform": "Platforms",
     "process": "Processes",
     "schedule": "Schedules",
-    "vault": "Vault"
+    "vault": "Vault",
+    "report": "Reports"
   },
   "table": {
     "time": "Time",

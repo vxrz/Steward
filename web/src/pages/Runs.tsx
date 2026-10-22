@@ -44,7 +44,7 @@ export function RunsPage() {
               w={160}
             />
             <Button size="xs" variant="light" leftSection={<IconReportAnalytics size={14} />} onClick={() => setSummaryOpen(true)}>
-              Summary report
+              {t('list.summaryReport')}
             </Button>
           </Group>
         }

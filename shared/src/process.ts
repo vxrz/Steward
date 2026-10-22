@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { stepsToGraph } from './graph.js';
+import { REPORT_LANGS } from './reports.js';
 
 /**
  * Process definition model.
@@ -504,7 +505,7 @@ const definitionBase = {
   report: z
     .object({
       auto: z.boolean().optional(),
-      lang: z.enum(['en', 'de']).optional(),
+      lang: z.enum(REPORT_LANGS).optional(),
     })
     .strict()
     .optional(),

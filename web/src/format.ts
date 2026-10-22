@@ -25,6 +25,12 @@ export function fmtDate(s?: string | null): string {
   return dateTimeFormat({ dateStyle: 'medium', timeStyle: 'short' }).format(new Date(s));
 }
 
+/** Calendar date without time. */
+export function fmtDay(s?: string | number | Date | null): string {
+  if (s === null || s === undefined || s === '') return '–';
+  return dateTimeFormat({ dateStyle: 'medium' }).format(new Date(s));
+}
+
 /** Time of day with seconds (logs). */
 export function fmtTime(s: string | number | Date): string {
   return dateTimeFormat({ timeStyle: 'medium' }).format(new Date(s));

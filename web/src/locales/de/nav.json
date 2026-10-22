@@ -10,7 +10,8 @@
     "audit": "Audit-Log",
     "users": "Benutzer & Teams",
     "settings": "Einstellungen",
-    "profile": "Profil & API-Token"
+    "profile": "Profil & API-Token",
+    "triggers": "Auslöser"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
