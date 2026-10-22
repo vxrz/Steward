@@ -87,5 +87,11 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 - Platform credentials are no longer sent to hosts outside the platform when a step calls an absolute URL.
 - The vault rejects shortened AES-GCM authentication tags.
+- Every process expression now runs under guard rails by default — a time limit (`SM_EXPR_TIMEOUT_MS`, default 5 s), stack-depth and sequence-size limits (`SM_EXPR_MAX_DEPTH`, `SM_EXPR_MAX_SEQUENCE`), a heap watchdog and regular expressions that cannot backtrack catastrophically — and long evaluations yield to the event loop, so a single expression can no longer freeze the server (DoS).
+- Resolved secret values (`$secret()` and platform credentials) may only leave Steward towards the platform's own allowed origins: outbound requests are scanned for any bound platform's secret (also base64/URL-encoded) and the step fails if one would reach another origin. Secrets are masked in their encoded forms in logs too.
+- Credentials are re-evaluated on each redirect hop: custom-named API-key headers, default headers and any header carrying a secret are dropped when a redirect leaves the allowed origins, and `https → http` downgrades that would carry credentials are refused (redirects are followed manually, max 5 hops).
+- New outbound destination policy (SSRF protection) for process-controlled requests — `http` node, pagination, browser navigation and sub-requests, OpenAPI import by URL — configurable under *Settings → Outbound access* (`platforms` / `allowList` / `open`, `SM_OUTBOUND_POLICY`). Cloud-metadata and link-local addresses and the server's own API port are always blocked, and the resolved IP is pinned for the connection (no DNS rebinding).
+- Dashboard datasets are owned by the process that first publishes a key; another process can no longer overwrite it or hijack its dashboard visibility.
+- Dry runs can be made read-only for a browser step (`dryRunReadOnly`), and a dry run now warns in the protocol when a browser step performs page interactions that could change data.
 
 [Unreleased]: https://github.com/vxrz/service-manager/commits/HEAD
