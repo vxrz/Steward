@@ -60,5 +60,13 @@
   "edit": "Edit",
   "back": "Back",
   "yes": "Yes",
-  "no": "No"
+  "no": "No",
+  "permissions": {
+    "view": "view",
+    "run": "run",
+    "edit": "edit",
+    "approve": "approve",
+    "manage": "manage",
+    "use": "use"
+  }
 }

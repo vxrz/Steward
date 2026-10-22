@@ -2,17 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Group, Paper, Select, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
 import { get } from '../api';
+import i18n from '../i18n';
 
-const PERMISSION_HELP: Record<string, string> = {
-  view: 'See the process and its runs',
-  run: 'Start and schedule runs, make selection decisions',
-  edit: 'Change the flow (creates new versions)',
-  approve: 'Decide approvals and user tasks',
-  manage: 'Change access, archive (processes) · change configuration, credentials and access, write calls in the explorer (platforms)',
-  use: 'Use the platform in runs and schedules, read-only explorer calls',
-};
+type Perm = 'view' | 'run' | 'edit' | 'approve' | 'manage' | 'use';
+
+/** Translated label of a subject from /subjects (users keep the server label "Name (login)"). */
+export function subjectOptionLabel(s: Subject): string {
+  if (s.kind === 'team') return i18n.t('common:subjects.team', { name: s.name ?? s.value.slice(5) });
+  if (s.kind === 'role') {
+    const role = s.name ?? s.value.slice(5);
+    return i18n.t('access:everyoneWithRole', { role: i18n.t(`common:roles.${role}` as 'common:roles.admin', { defaultValue: role }) });
+  }
+  return s.label;
+}
 
 export interface AccessEditorProps {
   kind: 'process' | 'platform';
@@ -25,6 +30,7 @@ export interface AccessEditorProps {
 
 /** Edit an access list: subjects (users, teams, roles) with permissions. */
 export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEditorProps) {
+  const { t } = useTranslation(['access', 'common']);
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects') });
   const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : PLATFORM_PERMISSIONS;
   const [rows, setRows] = useState<AclEntry[]>(acl);
@@ -36,7 +42,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
     setOwn(owner ?? null);
   }, [acl, owner]);
 
-  const labelOf = useMemo(() => new Map((subjects.data ?? []).map((s) => [s.value, s.label])), [subjects.data]);
+  const labelOf = useMemo(() => new Map((subjects.data ?? []).map((s) => [s.value, subjectOptionLabel(s)])), [subjects.data, t]);
   const dirty = JSON.stringify(rows) !== JSON.stringify(acl) || (own ?? null) !== (owner ?? null);
   const kindColor = (s: string) => (s.startsWith('user:') ? 'blue' : s.startsWith('team:') ? 'grape' : 'gray');
   const users = (subjects.data ?? []).filter((s) => s.kind === 'user').map((s) => ({ value: s.value.slice(5), label: s.label }));
@@ -60,23 +66,17 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Alert variant="light" color={rows.length ? 'orange' : 'blue'} p="sm">
         <Text size="sm">
           {rows.length ? (
-            <>
-              <b>Restricted:</b> only the subjects below get the listed rights{kind === 'process' ? ', plus administrators and the owner' : ', plus administrators'}.
-              Auditors can always read.
-            </>
+            <Trans t={t} i18nKey={kind === 'process' ? 'restrictedProcess' : 'restrictedPlatform'} components={{ b: <b /> }} />
           ) : (
-            <>
-              <b>Default role rights apply</b> (e.g. {kind === 'process' ? 'designers edit & run, operators run, approvers decide, viewers read' : 'designers and operators may use it, only administrators manage it'}).
-              Add entries to restrict access to specific users, teams or roles.
-            </>
+            <Trans t={t} i18nKey={kind === 'process' ? 'defaultsProcess' : 'defaultsPlatform'} components={{ b: <b /> }} />
           )}
         </Text>
       </Alert>
 
       {kind === 'process' && (
         <Select
-          label="Owner"
-          description="The owner always has all rights on this process."
+          label={t('owner')}
+          description={t('ownerHint')}
           data={users}
           value={own}
           onChange={setOwn}
@@ -92,11 +92,11 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
           <Table fz="sm" verticalSpacing={6}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Who</Table.Th>
+                <Table.Th>{t('who')}</Table.Th>
                 {perms.map((p) => (
                   <Table.Th key={p} ta="center">
-                    <Tooltip label={PERMISSION_HELP[p]} multiline w={240} withArrow>
-                      <span style={{ cursor: 'help', borderBottom: '1px dotted' }}>{p}</span>
+                    <Tooltip label={t(`help.${p as Perm}`)} multiline w={240} withArrow>
+                      <span style={{ cursor: 'help', borderBottom: '1px dotted' }}>{t(`common:permissions.${p as Perm}`)}</span>
                     </Tooltip>
                   </Table.Th>
                 ))}
@@ -108,7 +108,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
                 <Table.Tr>
                   <Table.Td colSpan={perms.length + 2}>
                     <Text size="sm" c="dimmed">
-                      No entries – default role rights apply.
+                      {t('noEntries')}
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -118,7 +118,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
                   <Table.Td>
                     <Group gap={6} wrap="nowrap">
                       <Badge size="xs" variant="light" color={kindColor(r.subject)}>
-                        {r.subject.split(':')[0]}
+                        {t(`kinds.${r.subject.split(':')[0] as 'user' | 'team' | 'role'}`, { defaultValue: r.subject.split(':')[0] })}
                       </Badge>
                       <Text size="sm">{labelOf.get(r.subject) ?? r.subject.split(':').slice(1).join(':')}</Text>
                     </Group>
@@ -131,13 +131,13 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
                         checked={r.permissions.includes(p)}
                         disabled={readOnly}
                         onChange={(e) => toggle(i, p, e.currentTarget.checked)}
-                        aria-label={`${r.subject} ${p}`}
+                        aria-label={`${labelOf.get(r.subject) ?? r.subject}: ${t(`common:permissions.${p as Perm}`)}`}
                       />
                     </Table.Td>
                   ))}
                   <Table.Td w={40}>
                     {!readOnly && (
-                      <ActionIcon variant="subtle" color="red" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label="Remove">
+                      <ActionIcon variant="subtle" color="red" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label={t('common:remove')}>
                         <IconTrash size={14} />
                       </ActionIcon>
                     )}
@@ -151,9 +151,9 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
           <Group mt="sm" gap="xs" align="flex-end">
             <Autocomplete
               size="xs"
-              label="Add user, team or role"
-              placeholder="user:alice · team:service desk · role:operator"
-              data={(subjects.data ?? []).filter((s) => !rows.some((r) => r.subject === s.value)).map((s) => ({ value: s.value, label: s.label }))}
+              label={t('addLabel')}
+              placeholder={t('addPlaceholder')}
+              data={(subjects.data ?? []).filter((s) => !rows.some((r) => r.subject === s.value)).map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
               value={draft}
               onChange={setDraft}
               onOptionSubmit={(v) => setDraft(v)}
@@ -161,7 +161,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               limit={50}
             />
             <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={add} disabled={!/^(user|team|role):.+/i.test(draft.trim())}>
-              Add
+              {t('common:add')}
             </Button>
           </Group>
         )}
@@ -170,7 +170,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Stack gap={2}>
         {perms.map((p) => (
           <Text key={p} size="xs" c="dimmed">
-            <b>{p}</b> – {PERMISSION_HELP[p]}
+            <b>{t(`common:permissions.${p as Perm}`)}</b> – {t(`help.${p as Perm}`)}
           </Text>
         ))}
       </Stack>
@@ -179,7 +179,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
         <Group justify="flex-end">
           {dirty && (
             <Button variant="default" onClick={() => (setRows(acl), setOwn(owner ?? null))}>
-              Reset
+              {t('reset')}
             </Button>
           )}
           <Button
@@ -195,7 +195,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               }
             }}
           >
-            Save access
+            {t('save')}
           </Button>
         </Group>
       )}

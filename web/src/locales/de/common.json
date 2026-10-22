@@ -60,5 +60,13 @@
   "edit": "Bearbeiten",
   "back": "Zurück",
   "yes": "Ja",
-  "no": "Nein"
+  "no": "Nein",
+  "permissions": {
+    "view": "Ansehen",
+    "run": "Ausführen",
+    "edit": "Bearbeiten",
+    "approve": "Freigeben",
+    "manage": "Verwalten",
+    "use": "Nutzen"
+  }
 }

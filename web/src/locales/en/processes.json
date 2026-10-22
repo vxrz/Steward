@@ -1,1 +1,65 @@
-{}
+{
+  "title": "Processes",
+  "description": "Reusable procedures: API calls, loops, decisions, approvals, checks and browser steps. Every save creates a new version.",
+  "newProcessName": "New process",
+  "newProcess": "New process",
+  "importYaml": "Import YAML",
+  "fromTemplate": "From template",
+  "search": "Search by name or tag",
+  "empty": {
+    "title": "No processes yet",
+    "text": "Start from a template – user onboarding, access reviews, attribute optimization, health checks – or build your own.",
+    "browse": "Browse templates",
+    "askForAccess": "Ask a designer or administrator to create processes or to give you access."
+  },
+  "card": {
+    "run": "Run",
+    "more": "More",
+    "exportYaml": "Export YAML",
+    "archive": "Archive",
+    "archiveConfirm": "Archive “{{name}}”? Its schedules are disabled; runs and versions are kept.",
+    "restricted": "restricted",
+    "restrictedHint": "Access restricted by an access list",
+    "readOnly": "read-only",
+    "lastRun": "last run {{when}}"
+  },
+  "templates": {
+    "title": "Start from a template",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps",
+    "created": "Created “{{name}}”",
+    "use": "Use"
+  },
+  "import": {
+    "title": "Import process (YAML or JSON)",
+    "hint": "Paste a definition or load one file to review it first. Selecting several files imports each of them directly (e.g. the files in the repository's examples/processes folder).",
+    "created": "created “{{name}}”",
+    "imported_one": "Imported {{count}} of {{total}} file",
+    "imported_other": "Imported {{count}} of {{total}} files",
+    "result": "Import result",
+    "failedItem": "failed – {{message}}",
+    "loadFiles": "Load file(s)",
+    "failed": "Import failed",
+    "submit": "Import"
+  },
+  "bundle": {
+    "button": "Bundle",
+    "exportAll": "Export all processes & dashboards",
+    "importMenu": "Import bundle…",
+    "importTitle": "Import bundle",
+    "hint": "A bundle (JSON, created with “Export all processes & dashboards”) contains several processes and dashboards. Credentials and platforms are never part of a bundle.",
+    "choose": "Choose bundle file",
+    "notABundle": "Not a {{brand}} bundle",
+    "cannotRead": "Cannot read bundle",
+    "summary": "{{processes}}, {{dashboards}}, exported {{when}}.",
+    "processes_one": "{{count}} process",
+    "processes_other": "{{count}} processes",
+    "dashboards_one": "{{count}} dashboard",
+    "dashboards_other": "{{count}} dashboards",
+    "conflict": "When an item with the same id already exists",
+    "newVersion": "Save as new version",
+    "skip": "Skip",
+    "copy": "Import as copy",
+    "result": "{{created}} created, {{updated}} updated, {{skipped}} skipped"
+  }
+}

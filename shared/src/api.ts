@@ -144,8 +144,11 @@ export interface AuthStatus {
 
 export interface Subject {
   value: string;
+  /** English display label (the web UI builds a translated one from kind + name) */
   label: string;
   kind: 'user' | 'team' | 'role';
+  /** Team name (original spelling) or role id */
+  name?: string;
 }
 
 // ---------- Platforms ----------

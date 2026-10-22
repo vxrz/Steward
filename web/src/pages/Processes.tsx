@@ -3,15 +3,19 @@ import { Alert, Badge, Button, Card, Group, List, Modal, SegmentedControl, Simpl
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport, IconPackage, IconPackageExport, IconPackageImport } from '@tabler/icons-react';
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
 import { fmtRelative } from '../format';
+import { errorText } from '../i18n/errors';
+import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
 
 export function ProcessesPage() {
+  const { t } = useTranslation(['processes', 'common']);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
@@ -25,7 +29,7 @@ export function ProcessesPage() {
   const createBlank = async () => {
     try {
       const p = await post<ProcessDetail>('/processes', {
-        definition: { name: 'New process', description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
+        definition: { name: t('newProcessName'), description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
       });
       navigate(`/processes/${p.id}`);
     } catch (e) {
@@ -34,28 +38,28 @@ export function ProcessesPage() {
   };
 
   const f = filter.toLowerCase();
-  const list = (processes.data ?? []).filter((p) => !f || p.name.toLowerCase().includes(f) || p.tags.some((t) => t.includes(f)));
+  const list = (processes.data ?? []).filter((p) => !f || p.name.toLowerCase().includes(f) || p.tags.some((tag) => tag.includes(f)));
 
   return (
     <>
       <PageHeader
-        title="Processes"
-        description="Reusable procedures: API calls, loops, decisions, approvals, checks and browser steps. Every save creates a new version."
+        title={t('title')}
+        description={t('description')}
         actions={
           <>
             <Menu position="bottom-end">
               <Menu.Target>
                 <Button size="xs" variant="default" leftSection={<IconPackage size={14} />}>
-                  Bundle
+                  {t('bundle.button')}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href="/api/bundle/export">
-                  Export all processes &amp; dashboards
+                  {t('bundle.exportAll')}
                 </Menu.Item>
                 {caps.createProcesses && (
                   <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
-                    Import bundle…
+                    {t('bundle.importMenu')}
                   </Menu.Item>
                 )}
               </Menu.Dropdown>
@@ -63,35 +67,35 @@ export function ProcessesPage() {
             {caps.createProcesses && (
           <>
             <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-              Import YAML
+              {t('importYaml')}
             </Button>
             <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-              From template
+              {t('fromTemplate')}
             </Button>
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
-              New process
+              {t('newProcess')}
             </Button>
           </>
             )}
           </>
         }
       />
-      <TextInput mb="md" placeholder="Search by name or tag" leftSection={<IconSearch size={14} />} value={filter} onChange={(e) => setFilter(e.currentTarget.value)} maw={360} />
+      <TextInput mb="md" placeholder={t('search')} leftSection={<IconSearch size={14} />} value={filter} onChange={(e) => setFilter(e.currentTarget.value)} maw={360} />
       {processes.data?.length === 0 && (
         <Card withBorder p="lg">
-          <Text fw={600}>No processes yet</Text>
+          <Text fw={600}>{t('empty.title')}</Text>
           <Text size="sm" c="dimmed" mb="sm">
-            Start from a template – user onboarding, access reviews, attribute optimization, health checks – or build your own.
+            {t('empty.text')}
           </Text>
           {caps.createProcesses ? (
             <Group>
               <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
-                Browse templates
+                {t('empty.browse')}
               </Button>
             </Group>
           ) : (
             <Text size="sm" c="dimmed">
-              Ask a designer or administrator to create processes or to give you access.
+              {t('empty.askForAccess')}
             </Text>
           )}
         </Card>
@@ -105,32 +109,32 @@ export function ProcessesPage() {
               </Text>
               <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 {p.permissions.includes('run') && (
-                  <Tooltip label="Run">
-                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label="Run">
+                  <Tooltip label={t('card.run')}>
+                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={t('card.run')}>
                       <IconPlayerPlay size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Menu position="bottom-end">
                   <Menu.Target>
-                    <ActionIcon variant="subtle" aria-label="More">
+                    <ActionIcon variant="subtle" aria-label={t('card.more')}>
                       <IconDots size={16} />
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={`/api/processes/${p.id}/export`}>
-                      Export YAML
+                      {t('card.exportYaml')}
                     </Menu.Item>
                     {p.permissions.includes('manage') && <Menu.Item
                       color="red"
                       leftSection={<IconArchive size={14} />}
                       onClick={async () => {
-                        if (!confirm(`Archive "${p.name}"? Its schedules are disabled; runs and versions are kept.`)) return;
+                        if (!confirm(t('card.archiveConfirm', { name: p.name }))) return;
                         await del(`/processes/${p.id}`).catch(notifyError);
                         qc.invalidateQueries({ queryKey: ['processes'] });
                       }}
                     >
-                      Archive
+                      {t('card.archive')}
                     </Menu.Item>}
                   </Menu.Dropdown>
                 </Menu>
@@ -144,24 +148,24 @@ export function ProcessesPage() {
                 v{p.currentVersion}
               </Badge>
               {p.acl.length > 0 && (
-                <Badge size="xs" variant="light" color="orange" title="Access restricted by an access list">
-                  restricted
+                <Badge size="xs" variant="light" color="orange" title={t('card.restrictedHint')}>
+                  {t('card.restricted')}
                 </Badge>
               )}
               {!p.permissions.includes('edit') && (
                 <Badge size="xs" variant="light" color="gray">
-                  read-only
+                  {t('card.readOnly')}
                 </Badge>
               )}
-              {p.tags.map((t) => (
-                <Badge key={t} size="xs" variant="light" color="gray">
-                  {t}
+              {p.tags.map((tag) => (
+                <Badge key={tag} size="xs" variant="light" color="gray">
+                  {tag}
                 </Badge>
               ))}
               {p.lastRun && (
                 <>
                   <Text size="xs" c="dimmed" ml="auto">
-                    last run {fmtRelative(p.lastRun.startedAt)}
+                    {t('card.lastRun', { when: fmtRelative(p.lastRun.startedAt) })}
                   </Text>
                   <StatusBadge status={p.lastRun.status} size="xs" />
                 </>
@@ -179,41 +183,42 @@ export function ProcessesPage() {
 }
 
 function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation('processes');
   const navigate = useNavigate();
   const qc = useQueryClient();
   const templates = useQuery({ queryKey: ['templates'], queryFn: () => get<ProcessTemplate[]>('/templates'), enabled: opened });
   const [busy, setBusy] = useState<string | null>(null);
   return (
-    <Modal opened={opened} onClose={onClose} title="Start from a template" size="xl">
+    <Modal opened={opened} onClose={onClose} title={t('templates.title')} size="xl">
       <Stack>
-        {templates.data?.map((t) => (
-          <Card key={t.id} withBorder padding="sm">
+        {templates.data?.map((tpl) => (
+          <Card key={tpl.id} withBorder padding="sm">
             <Group justify="space-between" wrap="nowrap" align="flex-start">
               <div style={{ minWidth: 0 }}>
-                <Text fw={600}>{t.name}</Text>
+                <Text fw={600}>{tpl.name}</Text>
                 <Text size="sm" c="dimmed" lineClamp={4} style={{ whiteSpace: 'pre-line' }}>
-                  {t.description}
+                  {tpl.description}
                 </Text>
                 <Group gap={4} mt={6}>
-                  {t.tags.map((tag) => (
+                  {tpl.tags.map((tag) => (
                     <Badge key={tag} size="xs" variant="light" color="gray">
                       {tag}
                     </Badge>
                   ))}
                   <Badge size="xs" variant="outline">
-                    {(t.definition.nodes ?? []).filter((n) => n.type !== 'start' && n.type !== 'note').length} steps
+                    {t('templates.steps', { count: (tpl.definition.nodes ?? []).filter((n) => n.type !== 'start' && n.type !== 'note').length })}
                   </Badge>
                 </Group>
               </div>
               <Button
                 size="xs"
-                loading={busy === t.id}
+                loading={busy === tpl.id}
                 onClick={async () => {
-                  setBusy(t.id);
+                  setBusy(tpl.id);
                   try {
-                    const p = await post<ProcessDetail>('/processes', { templateId: t.id });
+                    const p = await post<ProcessDetail>('/processes', { templateId: tpl.id });
                     qc.invalidateQueries({ queryKey: ['processes'] });
-                    notifyOk(`Created "${p.name}"`);
+                    notifyOk(t('templates.created', { name: p.name }));
                     onClose();
                     navigate(`/processes/${p.id}`);
                   } catch (e) {
@@ -223,7 +228,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
                   }
                 }}
               >
-                Use
+                {t('templates.use')}
               </Button>
             </Group>
           </Card>
@@ -234,6 +239,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
 }
 
 function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation('processes');
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [text, setText] = useState('');
@@ -250,30 +256,30 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
     for (const f of files) {
       try {
         const p = await post<ProcessDetail>('/processes', { text: await f.text() });
-        out.push({ file: f.name, ok: true, message: `created "${p.name}"` });
+        out.push({ file: f.name, ok: true, message: t('import.created', { name: p.name }) });
       } catch (e) {
-        out.push({ file: f.name, ok: false, message: (e as Error).message });
+        out.push({ file: f.name, ok: false, message: errorText(e) });
       }
     }
     setResults(out);
     setBusy(false);
     qc.invalidateQueries({ queryKey: ['processes'] });
     const okCount = out.filter((r) => r.ok).length;
-    if (okCount) notifyOk(`Imported ${okCount} of ${out.length} file(s)`);
+    if (okCount) notifyOk(t('import.imported', { count: okCount, total: out.length }));
   };
   return (
-    <Modal opened={opened} onClose={onClose} title="Import process (YAML or JSON)" size="lg">
+    <Modal opened={opened} onClose={onClose} title={t('import.title')} size="lg">
       <Stack>
         <Text size="xs" c="dimmed">
-          Paste a definition or load one file to review it first. Selecting several files imports each of them directly (e.g. the files in the repository's examples/processes folder).
+          {t('import.hint')}
         </Text>
         <Textarea classNames={{ input: 'mono' }} autosize minRows={10} maxRows={24} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder="name: My process&#10;steps: []" />
         {results && (
-          <Alert color={results.every((r) => r.ok) ? 'green' : 'orange'} title="Import result" withCloseButton onClose={() => setResults(null)}>
+          <Alert color={results.every((r) => r.ok) ? 'green' : 'orange'} title={t('import.result')} withCloseButton onClose={() => setResults(null)}>
             <List size="sm" spacing={2}>
               {results.map((r) => (
                 <List.Item key={r.file}>
-                  <b>{r.file}</b>: {r.ok ? r.message : `failed – ${r.message}`}
+                  <b>{r.file}</b>: {r.ok ? r.message : t('import.failedItem', { message: r.message })}
                 </List.Item>
               ))}
             </List>
@@ -286,7 +292,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
             component="label"
             leftSection={<IconUpload size={14} />}
           >
-            Load file(s)
+            {t('import.loadFiles')}
             <input
               type="file"
               accept=".yaml,.yml,.json"
@@ -309,13 +315,13 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
                 onClose();
                 navigate(`/processes/${p.id}`);
               } catch (e) {
-                notifyError(e, 'Import failed');
+                notifyError(e, t('import.failed'));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            Import
+            {t('import.submit')}
           </Button>
         </Group>
       </Stack>
@@ -324,6 +330,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
 }
 
 function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation('processes');
   const qc = useQueryClient();
   const [bundle, setBundle] = useState<ExportBundle | null>(null);
   const [fileName, setFileName] = useState('');
@@ -342,16 +349,16 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
         reset();
         onClose();
       }}
-      title="Import bundle"
+      title={t('bundle.importTitle')}
       size="lg"
     >
       <Stack>
         <Text size="sm" c="dimmed">
-          A bundle (JSON, created with "Export all processes &amp; dashboards") contains several processes and dashboards. Credentials and platforms are never part of a bundle.
+          {t('bundle.hint')}
         </Text>
         <Group>
           <Button variant="default" size="xs" component="label" leftSection={<IconUpload size={14} />}>
-            Choose bundle file
+            {t('bundle.choose')}
             <input
               type="file"
               accept=".json,application/json"
@@ -362,12 +369,12 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
                 if (!f) return;
                 try {
                   const parsed = JSON.parse(await f.text()) as ExportBundle;
-                  if (!(BUNDLE_FORMATS as readonly string[]).includes(parsed.format)) throw new Error('Not a Steward bundle');
+                  if (!(BUNDLE_FORMATS as readonly string[]).includes(parsed.format)) throw new Error(t('bundle.notABundle', { brand: BRAND.name }));
                   setBundle(parsed);
                   setFileName(f.name);
                   setResult(null);
                 } catch (err) {
-                  notifyError(err, 'Cannot read bundle');
+                  notifyError(err, t('bundle.cannotRead'));
                 }
               }}
             />
@@ -377,30 +384,32 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
         {bundle && (
           <>
             <Text size="sm">
-              {bundle.processes.length} process(es), {bundle.dashboards.length} dashboard(s), exported {fmtRelative(bundle.exportedAt)}.
+              {t('bundle.summary', {
+                processes: t('bundle.processes', { count: bundle.processes.length }),
+                dashboards: t('bundle.dashboards', { count: bundle.dashboards.length }),
+                when: fmtRelative(bundle.exportedAt),
+              })}
             </Text>
             <div>
               <Text size="sm" fw={500} mb={4}>
-                When an item with the same id already exists
+                {t('bundle.conflict')}
               </Text>
               <SegmentedControl
                 size="xs"
                 value={onConflict}
                 onChange={(v) => setOnConflict(v as typeof onConflict)}
                 data={[
-                  { value: 'newVersion', label: 'Save as new version' },
-                  { value: 'skip', label: 'Skip' },
-                  { value: 'copy', label: 'Import as copy' },
+                  { value: 'newVersion', label: t('bundle.newVersion') },
+                  { value: 'skip', label: t('bundle.skip') },
+                  { value: 'copy', label: t('bundle.copy') },
                 ]}
               />
             </div>
           </>
         )}
         {result && (
-          <Alert color={result.skipped.length ? 'orange' : 'green'} title="Import result">
-            <Text size="sm">
-              {result.created.length} created, {result.updated.length} updated, {result.skipped.length} skipped
-            </Text>
+          <Alert color={result.skipped.length ? 'orange' : 'green'} title={t('import.result')}>
+            <Text size="sm">{t('bundle.result', { created: result.created.length, updated: result.updated.length, skipped: result.skipped.length })}</Text>
             {result.skipped.length > 0 && (
               <List size="sm" mt={4}>
                 {result.skipped.map((x) => (
@@ -424,13 +433,13 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
                 qc.invalidateQueries({ queryKey: ['processes'] });
                 qc.invalidateQueries({ queryKey: ['dashboards'] });
               } catch (e) {
-                notifyError(e, 'Import failed');
+                notifyError(e, t('import.failed'));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            Import
+            {t('import.submit')}
           </Button>
         </Group>
       </Stack>
