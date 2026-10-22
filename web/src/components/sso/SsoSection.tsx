@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ActionIcon, Badge, Button, Card, Code, CopyButton, Group, SimpleGrid, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconBrandWindows, IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { SsoProvider, SsoProviderInput } from '@sm/shared';
+import { BRAND } from '../../../../shared/src/brand';
 import { del, get, notifyError, put } from '../../api';
 import { ProviderEditor } from './ProviderEditor';
 
@@ -18,6 +20,7 @@ function toInput(p: SsoProvider): SsoProviderInput {
 }
 
 export function SsoSection() {
+  const { t } = useTranslation(['users', 'common']);
   const qc = useQueryClient();
   const providers = useSsoProviders();
   const redirect = useQuery({ queryKey: ['sso-redirect-uri'], queryFn: () => get<{ redirectUri: string }>('/sso/redirect-uri') });
@@ -38,7 +41,7 @@ export function SsoSection() {
   };
 
   const remove = async (p: SsoProvider) => {
-    if (!confirm(`Remove single sign-on "${p.displayName}"? Users of this provider can no longer sign in (their accounts and history stay).`)) return;
+    if (!confirm(t('sso.removeConfirm', { name: p.displayName }))) return;
     try {
       await del(`/sso/providers/${p.id}`);
       refresh();
@@ -50,22 +53,22 @@ export function SsoSection() {
   return (
     <>
       <Group justify="space-between" mt="md">
-        <Title order={4}>Single sign-on</Title>
+        <Title order={4}>{t('sso.title')}</Title>
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
-          Add provider
+          {t('sso.add')}
         </Button>
       </Group>
       <Card withBorder p="sm">
         <Text size="xs" c="dimmed">
-          Register this as redirect URI (type <b>Web</b>) in your identity provider / Entra app registration:
+          <Trans t={t} i18nKey="sso.redirectHint" components={{ b: <b /> }} />
         </Text>
         <Group gap={4} wrap="nowrap" mt={4}>
           <Code style={{ wordBreak: 'break-all', flex: 1, minWidth: 0 }}>{redirect.data?.redirectUri ?? '…'}</Code>
           {redirect.data && (
             <CopyButton value={redirect.data.redirectUri}>
               {({ copied, copy }) => (
-                <Tooltip label={copied ? 'Copied' : 'Copy'}>
-                  <ActionIcon variant="subtle" onClick={copy} aria-label="Copy redirect URI">
+                <Tooltip label={copied ? t('common:copied') : t('common:copy')}>
+                  <ActionIcon variant="subtle" onClick={copy} aria-label={t('sso.copyRedirect')}>
                     {copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
                   </ActionIcon>
                 </Tooltip>
@@ -74,12 +77,12 @@ export function SsoSection() {
           )}
         </Group>
         <Text size="xs" c="dimmed" mt={4}>
-          It must match exactly how users open Steward (host name and http/https). Entra ID only accepts http for localhost.
+          {t('sso.redirectMatch', { brand: BRAND.name })}
         </Text>
       </Card>
       {providers.data?.length === 0 && (
         <Text size="sm" c="dimmed">
-          No single sign-on configured. Add Microsoft Entra ID or any OpenID Connect provider (Okta, Keycloak, Google Workspace, ADFS …).
+          {t('sso.none')}
         </Text>
       )}
       <SimpleGrid cols={{ base: 1, md: 2 }}>
@@ -98,11 +101,11 @@ export function SsoSection() {
                 </div>
               </Group>
               <Group gap={2} wrap="nowrap">
-                <Switch size="xs" checked={p.enabled} onChange={(e) => toggle(p, e.currentTarget.checked)} aria-label="Enabled" />
-                <ActionIcon variant="subtle" onClick={() => setEditing(p)} aria-label="Edit">
+                <Switch size="xs" checked={p.enabled} onChange={(e) => toggle(p, e.currentTarget.checked)} aria-label={t('sso.enabled')} />
+                <ActionIcon variant="subtle" onClick={() => setEditing(p)} aria-label={t('common:edit')}>
                   <IconEdit size={16} />
                 </ActionIcon>
-                <ActionIcon variant="subtle" color="red" onClick={() => remove(p)} aria-label="Delete">
+                <ActionIcon variant="subtle" color="red" onClick={() => remove(p)} aria-label={t('common:delete')}>
                   <IconTrash size={16} />
                 </ActionIcon>
               </Group>
@@ -113,30 +116,30 @@ export function SsoSection() {
               </Badge>
               {!p.enabled && (
                 <Badge size="xs" color="gray">
-                  disabled
+                  {t('sso.badges.disabled')}
                 </Badge>
               )}
               <Badge size="xs" variant="outline">
-                {p.mappings.length} mapping(s)
+                {t('sso.badges.mappings', { count: p.mappings.length })}
               </Badge>
               {p.autoProvision && (
                 <Badge size="xs" variant="light" color="teal">
-                  auto-provision
+                  {t('sso.badges.autoProvision')}
                 </Badge>
               )}
               {p.syncRoles && (
                 <Badge size="xs" variant="light" color="violet">
-                  role sync
+                  {t('sso.badges.syncRoles')}
                 </Badge>
               )}
               {p.requireMapping && (
                 <Badge size="xs" variant="light" color="orange">
-                  mapping required
+                  {t('sso.badges.requireMapping')}
                 </Badge>
               )}
               {p.clientAuth !== 'none' && !p.hasClientSecret && (
                 <Badge size="xs" color="red">
-                  secret missing
+                  {t('sso.badges.secretMissing')}
                 </Badge>
               )}
             </Group>

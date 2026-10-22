@@ -23,7 +23,10 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { IconBrandWindows, IconChevronDown, IconChevronRight, IconKey, IconPlus, IconPlugConnected, IconTrash } from '@tabler/icons-react';
 import { ROLES, type Role, type SsoDiscoveryResult, type SsoProvider, type SsoProviderInput, type SsoRoleMapping, type Team } from '@sm/shared';
+import { Trans, useTranslation } from 'react-i18next';
 import { get, notifyError, notifyOk, post, put } from '../../api';
+import { errorText } from '../../i18n/errors';
+import i18n from '../../i18n';
 
 type Kind = 'entra' | 'oidc';
 
@@ -71,9 +74,10 @@ const DEFAULTS: Record<Kind, Omit<SsoProviderInput, 'type'>> = {
   },
 };
 
-const roleOptions = ROLES.map((r) => ({ value: r, label: r }));
+const roleOptions = () => ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
 
 export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoProvider | null; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation(['users', 'common', 'auth']);
   const [kind, setKind] = useState<Kind>(provider?.type ?? 'entra');
   const [form, setForm] = useState<Omit<SsoProviderInput, 'type'>>(() => {
     if (!provider) return { ...DEFAULTS.entra };
@@ -88,7 +92,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   const [testing, setTesting] = useState(false);
   const [busy, setBusy] = useState(false);
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams') });
-  const teamOptions = useMemo(() => (teams.data ?? []).map((t) => t.name), [teams.data]);
+  const teamOptions = useMemo(() => (teams.data ?? []).map((team) => team.name), [teams.data]);
 
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -106,7 +110,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
     try {
       setDiscovery(await post<SsoDiscoveryResult>('/sso/discover', { issuer: form.issuer.trim() }));
     } catch (e) {
-      setDiscovery({ ok: false, message: (e as Error).message });
+      setDiscovery({ ok: false, message: errorText(e) });
     } finally {
       setTesting(false);
     }
@@ -126,10 +130,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
     try {
       if (provider) await put(`/sso/providers/${provider.id}`, body);
       else await post('/sso/providers', body);
-      notifyOk(`Single sign-on "${body.displayName}" saved`);
+      notifyOk(t('provider.saved', { name: body.displayName }));
       onSaved();
     } catch (e) {
-      notifyError(e, 'Not saved');
+      notifyError(e, t('provider.notSaved'));
     } finally {
       setBusy(false);
     }
@@ -139,7 +143,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   const valid = form.displayName.trim() && /^https?:\/\//.test(form.issuer.trim()) && form.clientId.trim();
 
   return (
-    <Modal opened onClose={onClose} title={provider ? `Edit ${provider.displayName}` : 'Add single sign-on'} size="xl">
+    <Modal opened onClose={onClose} title={provider ? t('provider.edit', { name: provider.displayName }) : t('provider.add')} size="xl">
       <Stack>
         {!provider && (
           <SegmentedControl
@@ -158,7 +162,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                 value: 'oidc',
                 label: (
                   <Group gap={6} justify="center" wrap="nowrap">
-                    <IconKey size={16} /> Generic OIDC
+                    <IconKey size={16} /> {t('provider.genericOidc')}
                   </Group>
                 ),
               },
@@ -166,28 +170,28 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           />
         )}
         <TextInput
-          label="Button label"
-          description={`Shown as "Sign in with ${form.displayName || '…'}"`}
+          label={t('provider.buttonLabel')}
+          description={t('provider.buttonLabelHint', { button: t('auth:sso.signInWith', { provider: form.displayName || '…' }) })}
           required
           value={form.displayName}
           onChange={(e) => set('displayName', e.currentTarget.value)}
         />
         {kind === 'entra' && (
           <TextInput
-            label="Directory (tenant) ID"
-            description="From the app registration overview in Entra ID"
+            label={t('provider.tenant')}
+            description={t('provider.tenantHint')}
             placeholder="00000000-0000-0000-0000-000000000000"
             value={tenant}
             onChange={(e) => {
-              const t = e.currentTarget.value;
-              setTenant(t);
-              set('issuer', t.trim() ? entraIssuer(t) : '');
+              const value = e.currentTarget.value;
+              setTenant(value);
+              set('issuer', value.trim() ? entraIssuer(value) : '');
             }}
           />
         )}
         <TextInput
-          label="Issuer URL"
-          description={kind === 'entra' ? 'Computed from the tenant ID; edit only for special clouds' : 'The OpenID Connect issuer; /.well-known/openid-configuration must be reachable below it'}
+          label={t('provider.issuer')}
+          description={kind === 'entra' ? t('provider.issuerEntraHint') : t('provider.issuerHint')}
           required
           placeholder="https://idp.example.com/realms/company"
           value={form.issuer}
@@ -195,10 +199,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             set('issuer', e.currentTarget.value);
             if (kind === 'entra') setTenant(tenantFromIssuer(e.currentTarget.value));
           }}
-          rightSectionWidth={130}
+          rightSectionWidth={150}
           rightSection={
             <Button size="compact-xs" variant="light" leftSection={<IconPlugConnected size={12} />} loading={testing} disabled={!form.issuer.trim()} onClick={testDiscovery}>
-              Test discovery
+              {t('provider.testDiscovery')}
             </Button>
           }
         />
@@ -209,39 +213,47 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
               <Stack gap={2} mt={4}>
                 {discovery.issuer && (
                   <Text size="xs">
-                    Issuer: <Code>{discovery.issuer}</Code>
+                    {t('provider.discovery.issuer')} <Code>{discovery.issuer}</Code>
                   </Text>
                 )}
                 {discovery.authorizationEndpoint && (
                   <Text size="xs" style={{ wordBreak: 'break-all' }}>
-                    Authorization: <Code>{discovery.authorizationEndpoint}</Code>
+                    {t('provider.discovery.authorization')} <Code>{discovery.authorizationEndpoint}</Code>
                   </Text>
                 )}
                 {discovery.tokenEndpoint && (
                   <Text size="xs" style={{ wordBreak: 'break-all' }}>
-                    Token: <Code>{discovery.tokenEndpoint}</Code>
+                    {t('provider.discovery.token')} <Code>{discovery.tokenEndpoint}</Code>
                   </Text>
                 )}
-                {!!discovery.scopesSupported?.length && <Text size="xs">Scopes: {discovery.scopesSupported.join(', ')}</Text>}
-                {!!discovery.claimsSupported?.length && <Text size="xs">Claims: {discovery.claimsSupported.join(', ')}</Text>}
+                {!!discovery.scopesSupported?.length && (
+                  <Text size="xs">
+                    {t('provider.discovery.scopes')} {discovery.scopesSupported.join(', ')}
+                  </Text>
+                )}
+                {!!discovery.claimsSupported?.length && (
+                  <Text size="xs">
+                    {t('provider.discovery.claims')} {discovery.claimsSupported.join(', ')}
+                  </Text>
+                )}
               </Stack>
             )}
           </Alert>
         )}
         <Group grow align="flex-start">
           <TextInput
-            label={kind === 'entra' ? 'Application (client) ID' : 'Client ID'}
+            label={kind === 'entra' ? t('provider.appClientId') : t('provider.clientId')}
             required
             value={form.clientId}
             onChange={(e) => set('clientId', e.currentTarget.value)}
           />
           {kind === 'oidc' && (
             <Select
-              label="Client authentication"
+              label={t('provider.clientAuth')}
               data={[
-                { value: 'client_secret_basic', label: 'Secret (Basic header)' },
-                { value: 'client_secret_post', label: 'Secret (form body)' },
-                { value: 'none', label: 'None – public client (PKCE)' },
+                { value: 'client_secret_basic', label: t('provider.authBasic') },
+                { value: 'client_secret_post', label: t('provider.authPost') },
+                { value: 'none', label: t('provider.authNone') },
               ]}
               value={form.clientAuth}
               onChange={(v) => v && set('clientAuth', v as SsoProviderInput['clientAuth'])}
@@ -252,16 +264,16 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
         {needsSecret && (
           <Stack gap={4}>
             <PasswordInput
-              label="Client secret"
-              description="Stored encrypted with the master passphrase"
-              placeholder={provider?.hasClientSecret ? '•••• stored – leave empty to keep' : undefined}
+              label={t('provider.secret')}
+              description={t('provider.secretHint')}
+              placeholder={provider?.hasClientSecret ? t('provider.secretStored') : undefined}
               value={secret}
               disabled={removeSecret}
               onChange={(e) => setSecret(e.currentTarget.value)}
               autoComplete="new-password"
             />
             {provider?.hasClientSecret && (
-              <Checkbox size="xs" label="Remove the stored secret" checked={removeSecret} onChange={(e) => setRemoveSecret(e.currentTarget.checked)} />
+              <Checkbox size="xs" label={t('provider.removeSecret')} checked={removeSecret} onChange={(e) => setRemoveSecret(e.currentTarget.checked)} />
             )}
           </Stack>
         )}
@@ -270,7 +282,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           <Group gap={4}>
             {advanced ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
             <Text size="sm" fw={500}>
-              Scopes and claims
+              {t('provider.scopesClaims')}
             </Text>
           </Group>
         </UnstyledButton>
@@ -278,27 +290,27 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           <Stack gap="xs">
             {kind === 'entra' && (
               <Select
-                label="Client authentication"
+                label={t('provider.clientAuth')}
                 data={[
-                  { value: 'client_secret_post', label: 'Secret (form body) – Entra default' },
-                  { value: 'client_secret_basic', label: 'Secret (Basic header)' },
-                  { value: 'none', label: 'None – public client (PKCE)' },
+                  { value: 'client_secret_post', label: t('provider.authPostEntra') },
+                  { value: 'client_secret_basic', label: t('provider.authBasic') },
+                  { value: 'none', label: t('provider.authNone') },
                 ]}
                 value={form.clientAuth}
                 onChange={(v) => v && set('clientAuth', v as SsoProviderInput['clientAuth'])}
                 allowDeselect={false}
               />
             )}
-            <TextInput label="Scopes" value={form.scopes} onChange={(e) => set('scopes', e.currentTarget.value)} />
+            <TextInput label={t('provider.scopes')} value={form.scopes} onChange={(e) => set('scopes', e.currentTarget.value)} />
             <Group grow align="flex-start">
-              <TextInput label="User name claim" value={form.usernameClaim} onChange={(e) => set('usernameClaim', e.currentTarget.value)} />
-              <TextInput label="Display name claim" value={form.displayNameClaim} onChange={(e) => set('displayNameClaim', e.currentTarget.value)} />
+              <TextInput label={t('provider.usernameClaim')} value={form.usernameClaim} onChange={(e) => set('usernameClaim', e.currentTarget.value)} />
+              <TextInput label={t('provider.displayNameClaim')} value={form.displayNameClaim} onChange={(e) => set('displayNameClaim', e.currentTarget.value)} />
             </Group>
             <Group grow align="flex-start">
-              <TextInput label="E-mail claim" value={form.emailClaim} onChange={(e) => set('emailClaim', e.currentTarget.value)} />
+              <TextInput label={t('provider.emailClaim')} value={form.emailClaim} onChange={(e) => set('emailClaim', e.currentTarget.value)} />
               <TextInput
-                label="Roles / groups claim"
-                description="Used for the mappings below"
+                label={t('provider.groupsClaim')}
+                description={t('provider.groupsClaimHint')}
                 value={form.groupsClaim}
                 onChange={(e) => set('groupsClaim', e.currentTarget.value)}
               />
@@ -306,21 +318,19 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Stack>
         </Collapse>
 
-        <Divider label="Roles and teams" labelPosition="left" />
+        <Divider label={t('provider.rolesTeams')} labelPosition="left" />
         {kind === 'entra' && (
           <Text size="xs" c="dimmed">
-            In the Entra app registration define <b>App roles</b> (e.g. SM.Operators), assign users/groups to them in Enterprise applications, and map
-            the role values here (claim <Code>roles</Code>). Alternatively emit the <Code>groups</Code> claim and map group object IDs (max. 200 groups
-            per token).
+            <Trans t={t} i18nKey="provider.entraHint" components={{ b: <b />, c: <Code /> }} />
           </Text>
         )}
         <div className="table-scroll">
           <Table fz="sm" verticalSpacing={4} withTableBorder>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th miw={160}>Claim value ({form.groupsClaim || 'claim'})</Table.Th>
-                <Table.Th miw={180}>Roles</Table.Th>
-                <Table.Th miw={160}>Teams</Table.Th>
+                <Table.Th miw={160}>{t('provider.claimValue', { claim: form.groupsClaim || 'claim' })}</Table.Th>
+                <Table.Th miw={180}>{t('table.roles')}</Table.Th>
+                <Table.Th miw={160}>{t('table.teams')}</Table.Th>
                 <Table.Th w={36} />
               </Table.Tr>
             </Table.Thead>
@@ -329,7 +339,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                 <Table.Tr>
                   <Table.Td colSpan={4}>
                     <Text size="xs" c="dimmed">
-                      No mappings – users only get the default roles below.
+                      {t('provider.noMappings')}
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -340,13 +350,13 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     <TextInput
                       size="xs"
                       classNames={{ input: 'mono' }}
-                      placeholder={kind === 'entra' ? 'SM.Operators' : 'group name'}
+                      placeholder={kind === 'entra' ? 'SM.Operators' : t('provider.groupName')}
                       value={m.claimValue}
                       onChange={(e) => setMapping(i, { claimValue: e.currentTarget.value })}
                     />
                   </Table.Td>
                   <Table.Td>
-                    <MultiSelect size="xs" data={roleOptions} value={m.roles} onChange={(v) => setMapping(i, { roles: v as Role[] })} comboboxProps={{ withinPortal: true }} />
+                    <MultiSelect size="xs" data={roleOptions()} value={m.roles} onChange={(v) => setMapping(i, { roles: v as Role[] })} comboboxProps={{ withinPortal: true }} />
                   </Table.Td>
                   <Table.Td>
                     <MultiSelect
@@ -354,12 +364,12 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                       data={teamOptions}
                       value={m.teams}
                       onChange={(v) => setMapping(i, { teams: v })}
-                      placeholder={teamOptions.length ? undefined : 'no teams yet'}
+                      placeholder={teamOptions.length ? undefined : t('provider.noTeams')}
                       comboboxProps={{ withinPortal: true }}
                     />
                   </Table.Td>
                   <Table.Td>
-                    <ActionIcon variant="subtle" color="red" onClick={() => set('mappings', form.mappings.filter((_, j) => j !== i))} aria-label="Remove mapping">
+                    <ActionIcon variant="subtle" color="red" onClick={() => set('mappings', form.mappings.filter((_, j) => j !== i))} aria-label={t('provider.removeMapping')}>
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -370,13 +380,13 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
         </div>
         <Group>
           <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => set('mappings', [...form.mappings, { claimValue: '', roles: [], teams: [] }])}>
-            Add mapping
+            {t('provider.addMapping')}
           </Button>
         </Group>
         <MultiSelect
-          label="Default roles"
-          description="Every user signing in with this provider gets these roles (in addition to mapped ones)"
-          data={roleOptions}
+          label={t('provider.defaultRoles')}
+          description={t('provider.defaultRolesHint')}
+          data={roleOptions()}
           value={form.defaultRoles}
           onChange={(v) => set('defaultRoles', v as Role[])}
           comboboxProps={{ withinPortal: true }}
@@ -384,21 +394,21 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
 
         <Divider />
         <Stack gap="xs">
-          <Switch label="Enabled" checked={form.enabled} onChange={(e) => set('enabled', e.currentTarget.checked)} />
+          <Switch label={t('sso.enabled')} checked={form.enabled} onChange={(e) => set('enabled', e.currentTarget.checked)} />
           <Switch
-            label="Create accounts on first sign-in"
-            description="Otherwise an administrator has to create the user first (same user name); it is linked on the first sign-in."
+            label={t('provider.autoProvision')}
+            description={t('provider.autoProvisionHint')}
             checked={form.autoProvision}
             onChange={(e) => set('autoProvision', e.currentTarget.checked)}
           />
           <Switch
-            label="Sync roles and mapped teams at every sign-in"
-            description="Roles come from the identity provider; changes made here are overwritten at the next sign-in."
+            label={t('provider.syncRoles')}
+            description={t('provider.syncRolesHint')}
             checked={form.syncRoles}
             onChange={(e) => set('syncRoles', e.currentTarget.checked)}
           />
           <Switch
-            label="Deny sign-in when no mapping matches"
+            label={t('provider.requireMapping')}
             checked={form.requireMapping}
             onChange={(e) => set('requireMapping', e.currentTarget.checked)}
           />
@@ -406,10 +416,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button onClick={save} loading={busy} disabled={!valid}>
-            Save
+            {t('common:save')}
           </Button>
         </Group>
       </Stack>
