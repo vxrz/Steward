@@ -44,8 +44,8 @@ export function ApiTokenTable({ tokens, showOwner, onRevoke }: { tokens: ApiToke
                   <Code>{tk.prefix}…</Code>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" variant="light" color={tk.scope === 'full' ? 'orange' : 'blue'}>
-                    {tk.scope === 'full' ? t('tokens.full') : t('tokens.read')}
+                  <Badge size="sm" variant="light" color={tk.scope === 'full' ? 'orange' : tk.scope === 'mcp' ? 'grape' : 'blue'}>
+                    {tk.scope === 'full' ? t('tokens.full') : tk.scope === 'mcp' ? t('tokens.mcp') : t('tokens.read')}
                   </Badge>
                 </Table.Td>
                 <Table.Td className="nowrap">

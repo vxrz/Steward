@@ -1,0 +1,39 @@
+{
+  "settings": {
+    "title": "MCP-Server (KI-Assistenten)",
+    "intro": "Ermöglicht KI-Assistenten wie Claude Desktop oder VS Code, Prozesse, Ausführungen, Monitore, Zeitpläne, Dashboards und das Audit-Log über das Model Context Protocol (MCP) zu lesen. Nur lesend: Ein Assistent kann keine Ausführungen starten und nichts ändern.",
+    "enable": "MCP-Server einschalten",
+    "enableHint": "Standardmäßig aus. Jede Person braucht zusätzlich ein eigenes Token mit dem Umfang „MCP-Client“; die Werkzeuge handeln mit den Rechten dieser Person.",
+    "forcedOff": "Durch die Umgebungsvariable <c>{{name}}</c> auf dem Server ausgeschaltet.",
+    "turnedOn": "MCP-Server eingeschaltet",
+    "turnedOff": "MCP-Server ausgeschaltet",
+    "endpoint": "Endpunkt: <c>{{url}}</c> (Streamable HTTP, Protokollversionen {{versions}})",
+    "token": "Erstellen Sie auf Ihrer <a>Profilseite</a> ein Token mit dem Umfang „MCP-Client“ und tragen Sie es in die Client-Konfiguration ein:",
+    "limits": "Grenzen: {{requests}} Anfragen pro Minute und Token; {{gateway}} Plattformaufrufe pro Minute, Token und Plattform.",
+    "security": "Ergebnisse der Werkzeuge sind Daten aus Steward und angebundenen Systemen. Assistenten sollten sie als Daten behandeln, nie als Anweisungen. Plattformen sind für MCP-Clients nur erreichbar, wenn ein Administrator das MCP-Gateway eingeschaltet hat (Plattform → MCP)."
+  },
+  "config": {
+    "kind": "Art des Clients",
+    "stdio": "Desktop-App (stdio)",
+    "http": "HTTP",
+    "tokenFile": "/pfad/zu/steward-mcp-token",
+    "tokenPrompt": "Steward-MCP-Token",
+    "stdioHint": "Für Claude Desktop und andere Desktop-Clients, z. B. in <c>{{file}}</c>. Speichern Sie das Token in einer Datei, die nur Sie lesen können (<c>{{token}}</c>); die Steward-Desktop-App startet die Brücke mit <c>steward mcp</c>.",
+    "stdioSource": "Aus dem Quellcode verwenden Sie <c>{{cmd}}</c> als Befehl (--silent beibehalten: npm darf nichts auf stdout schreiben).",
+    "httpHint": "Für Clients mit Streamable HTTP, z. B. in <c>{{file}}</c>: Endpunkt <c>{{url}}</c> mit dem Header <c>Authorization: Bearer …</c>."
+  },
+  "gateway": {
+    "intro": "Über das MCP-Gateway können KI-Assistenten die API dieser Plattform über Steward aufrufen – nur lesend (GET und HEAD) und mit den hier gespeicherten Zugangsdaten, die der Assistent nie sieht. Jeder Aufruf wird im Audit-Log festgehalten.",
+    "serverOff": "Der MCP-Server ist ausgeschaltet (Einstellungen → MCP-Server). Das Gateway funktioniert nur, solange er eingeschaltet ist.",
+    "enable": "Lesenden Zugriff für MCP-Clients erlauben",
+    "enableHint": "Personen brauchen außerdem das Recht „verwenden“ auf dieser Plattform. Daten über MCP zu ändern ist nicht möglich.",
+    "operations_one": "API-Spezifikationen: {{read}} lesende Operation für MCP-Clients verfügbar ({{write}} ändernde Operationen werden nie angeboten).",
+    "operations_other": "API-Spezifikationen: {{read}} lesende Operationen für MCP-Clients verfügbar ({{write}} ändernde Operationen werden nie angeboten).",
+    "prefixes": "Erlaubte GET-Pfadpräfixe (optional, eines pro Zeile)",
+    "prefixesHint": "Für Plattformen ohne API-Spezifikation: MCP-Clients dürfen Pfade unterhalb dieser Präfixe lesen. Leer lassen, um nur die Operationen der API-Spezifikationen zu erlauben.",
+    "security": "Anfragen gehen immer an die Basis-URL der Plattform und folgen der Richtlinie für ausgehende Verbindungen. Weiterleitungen werden nicht verfolgt, Antworten sind auf 512 kB begrenzt und Zugangsdaten darin werden maskiert.",
+    "save": "Speichern",
+    "saved": "MCP-Gateway gespeichert",
+    "notSaved": "MCP-Gateway nicht gespeichert"
+  }
+}

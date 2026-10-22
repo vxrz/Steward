@@ -6,6 +6,7 @@ import type audit from '../locales/en/audit.json';
 import type dashboard from '../locales/en/dashboard.json';
 import type dashboards from '../locales/en/dashboards.json';
 import type editor from '../locales/en/editor.json';
+import type mcp from '../locales/en/mcp.json';
 import type monitors from '../locales/en/monitors.json';
 import type platforms from '../locales/en/platforms.json';
 import type processes from '../locales/en/processes.json';
@@ -49,4 +50,5 @@ export interface Resources {
   users: typeof users;
   profile: typeof profile;
   system: typeof system;
+  mcp: typeof mcp;
 }

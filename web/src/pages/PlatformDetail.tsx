@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ActionIcon, Alert, Anchor, Badge, Button, Center, Collapse, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
-import { IconApi, IconBook, IconDots, IconKey, IconLock, IconPlug, IconPlugConnected, IconSettings, IconTerminal2, IconTrash } from '@tabler/icons-react';
+import { IconApi, IconBook, IconDots, IconKey, IconLock, IconPlug, IconPlugConnected, IconRobot, IconSettings, IconTerminal2, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AclEntry, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
@@ -18,6 +18,7 @@ import { CredentialsTab } from '../components/platform/CredentialsTab';
 import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
+import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 
 interface TestResult {
   ok: boolean;
@@ -193,6 +194,9 @@ export function PlatformDetailPage() {
           <Tabs.Tab value="access" leftSection={<IconLock size={16} />}>
             {t('detail.tabs.access')}
           </Tabs.Tab>
+          <Tabs.Tab value="mcp" leftSection={<IconRobot size={16} />}>
+            {t('detail.tabs.mcp')}
+          </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />
@@ -219,6 +223,9 @@ export function PlatformDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="access">
           <AccessEditor kind="platform" acl={p.acl} onSave={(acl) => saveAccess(acl)} readOnly={!canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="mcp">
+          <McpGatewayTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
       </Tabs>
 
