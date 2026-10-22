@@ -68,6 +68,7 @@ test('operator can rename her schedule', async ({ page, loginAs }) => {
 Rules of thumb:
 - Use roles and labels for selectors. If an important control has no accessible name, add an `aria-label` in `web/src`; this helps screen-reader users too.
 - Do not sign out with a shared stored session, because that would end it for all other tests. Sign in yourself in a fresh context instead (see `auth.spec.ts`).
+- Tests that change installation-wide state (e.g. the theme) start their own empty server with `startIsolatedServer()` from `e2e/support/server.ts` instead of using the shared demo server (see `theme.spec.ts`, which also runs axe with a bright yellow primary colour in light and dark mode).
 - Do not match the product name literally. Import `BRAND` from `shared/src/brand.ts` if you need it.
 - Read-only checks of server state are faster through `apiAs('<user>')` than through the UI.
 - Put "real" writes on data that only your test uses. For example, the real-run test flags users into the empty demo group `mdsp_usergroup:LegacyProjects`.

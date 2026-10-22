@@ -80,8 +80,9 @@ docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for brows
   - put it behind a reverse proxy with TLS, or set `SM_TLS_CERT`/`SM_TLS_KEY`;
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
   - configure single sign-on.
-- `/api/health` (liveness) and `/api/ready` (readiness: vault unlocked, database writable, scheduler running) are available for orchestrators. `/api/metrics` serves Prometheus metrics.
+- `/api/health` (liveness) and `/api/ready` (readiness) are available for orchestrators, see [Health and readiness](#health-and-readiness). `/api/metrics` serves Prometheus metrics.
 - Set `SM_MASTER_PASSPHRASE` from a secret so schedules run after restarts.
+- Build information for the About page: `docker build --build-arg SM_BUILD_COMMIT=$(git rev-parse HEAD) --build-arg SM_BUILD_DATE=$(date -u +%FT%TZ) -t steward .` (the container workflow does this). Without it the image reports a "development" build.
 
 ## 5. Database: SQLite or PostgreSQL
 
@@ -134,6 +135,47 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
 - Size on the *Settings → Maintenance* page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
+
+## Health and readiness
+
+Every installation answers two public endpoints, without signing in:
+
+| Endpoint | Answers | Use it for |
+| --- | --- | --- |
+| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check |
+| `GET /api/ready` | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}` | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
+
+```yaml
+# Kubernetes
+livenessProbe:  { httpGet: { path: /api/health, port: 4310 }, periodSeconds: 30 }
+readinessProbe: { httpGet: { path: /api/ready,  port: 4310 }, periodSeconds: 15 }
+```
+
+```yaml
+# Gatus
+endpoints:
+  - name: steward
+    url: https://steward.example.com/api/ready
+    conditions: ["[STATUS] == 200", "[BODY].ready == true"]
+```
+
+For Zabbix, use an *HTTP agent* item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.
+
+**Version in `/api/health`.** The health endpoint keeps returning the version: monitoring and rollout checks use it to confirm which version runs, and the version is public anyway (the web UI's code and footer contain it), so hiding it here would add no protection. There is no separate `/api/version`. Signed-in users see the build details on the **About** page (`GET /api/about`).
+
+**System status page.** *Settings → System status* (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the two URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
+
+## Version and build information
+
+The **About** page (user menu or footer) shows the version, build commit and build date of the web UI and of the server, and warns when a tab still runs an older web UI than the server ("Reload").
+
+| Installation | Where commit and date come from |
+| --- | --- |
+| Desktop executable | `scripts/build-exe.mjs` compiles them in (`SM_BUILD_COMMIT`/`SM_BUILD_DATE`, else `git rev-parse HEAD` and the build time). |
+| Container | Build arguments `SM_BUILD_COMMIT` and `SM_BUILD_DATE` (set by the container workflow). |
+| Node.js from a checkout | The web build reads the commit from git; the server reports a "development" build unless `SM_BUILD_COMMIT`/`SM_BUILD_DATE` are set. |
+
+The installation type (desktop executable, container, Node.js) is detected automatically; the container image also sets `SM_DEPLOYMENT=container`.
 
 ## Why not Electron or Tauri?
 

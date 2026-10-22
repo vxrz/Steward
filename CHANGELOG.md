@@ -68,6 +68,15 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Public read-only REST API (`/api/v1`) with an OpenAPI 3.1 description:
   - API-token authentication, rate limiting, RFC 9457 errors;
   - an optional Swagger UI.
+- System status page (*Settings → System status*, administrators; auditors get a view without paths and host names): readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention and last cleanup, runtime (Node.js, platform, uptime, memory, time zone, installation type). Health and readiness URLs with copy buttons and monitoring hints (`GET /api/system/status`).
+
+**Appearance and product information**
+
+- Theming for the whole installation (*Settings → Appearance*, administrators): primary and accent colour, default colour scheme (users keep their own light/dark choice), corner radius, a display name for the header, window title and sign-in page (e.g. "ACME Steward") and a header logo (PNG, JPEG or WebP up to 512 KB, checked by its content; no SVG).
+  - Ten-shade palettes generated from each colour (OKLCH); text on filled buttons and badges switches between black and white, and links use a darker or lighter shade where needed, so text stays at WCAG AA in light and dark mode. The settings explain each adjustment and show a live preview in both colour schemes; *Reset to Steward defaults*.
+  - Applied before sign-in through the public, cacheable `GET /api/theme` (ETag), polled by open pages; the web app manifest (`/manifest.webmanifest`) uses the display name and colour. Changes are audited.
+- About page (user menu and footer): version and build (commit, date) of the web UI and of the server with a reload hint when they differ, licence, documentation, changelog, security policy, source code, API documentation, language and theme in use, browser support, and the third-party licences of all production dependencies (generated at build time).
+- The footer shows the version. Container images (`SM_BUILD_COMMIT`/`SM_BUILD_DATE` build arguments), release builds and the desktop executable carry their build commit and date; other builds report "development".
 
 **Running and packaging**
 
