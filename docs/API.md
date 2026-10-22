@@ -86,6 +86,11 @@ Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly
 | `GET /audit` | auditor, admin | Filters `action` (prefix), `actor`, `entityType`, `entityId`, `runId`, `q`, `from`, `to`. Newest first. Others may read the entries of a run they can view with `runId` |
 | `GET /audit/verify` | auditor, admin | Verifies the HMAC hash chain; the verification is itself audited |
 | `GET /users`, `/users/{userId}`, `/teams` | admin | No password hashes, no tokens |
+| `GET /monitors` | token | Monitors you may view, with status, status code, root causes and uptime. Filters `status`, `tag`, `q` |
+| `GET /monitors/{monitorId}` | token | Id or key; with the definition (never heartbeat secrets) |
+| `GET /monitors/{monitorId}/status` | token | Monitor and check statuses with status codes (0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance) – for Zabbix HTTP agent items, see [MONITORS.md](MONITORS.md#zabbix-pull) |
+| `GET /monitors/{monitorId}/history` | token | Status changes, newest first. Filter `check` |
+| `GET /monitors/discovery` | token | Zabbix low-level discovery: `{"data":[{"{#MONITOR}":…,"{#CHECK}":…}]}`; `level=monitors` for one entry per monitor |
 
 Visibility follows the web UI: runs, tasks, schedules and datasets of a process you may not view do not exist for you (`404`, or left out of lists). Sub-process runs of hidden processes are left out of `children`.
 

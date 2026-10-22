@@ -130,6 +130,10 @@ describe('monitor logic', () => {
     const roots = [{ monitorId: 'mon_x', monitorKey: 'x', monitorName: 'X', checkId: 'hb', checkName: 'Heartbeat' }];
     a = analyze(m, st({ pm: 'up', pmData: 'up', ih: 'up', sub: 'down' }), { subRoots: () => roots });
     expect(a.rootCauses).toEqual(roots);
+    // a parent whose latest result failed (not confirmed yet) already explains its children
+    a = analyze(m, st({ pm: 'up', pmData: 'unknown', ih: 'down', sub: 'up' }), { pendingDown: new Set(['pmData']) });
+    expect(a.checks.get('ih')!.causedBy.map((c) => c.checkId)).toEqual(['pmData']);
+    expect(a.rootCauses.map((r) => r.checkId)).toEqual(['pmData']);
     // maintenance overrides the aggregated status
     expect(analyze(m, st({ pm: 'down' }), { maintenance: true }).status).toBe('maintenance');
   });

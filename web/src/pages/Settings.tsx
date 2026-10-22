@@ -109,9 +109,17 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                 value={s.retentionNotificationDays ?? 30}
                 onChange={(v) => setS({ ...s, retentionNotificationDays: typeof v === 'number' ? v : 30 })}
               />
+              <NumberInput
+                disabled={readOnly}
+                label="Keep monitor history (days)"
+                description="Status changes, uptime samples and check results of monitors."
+                min={1}
+                value={s.retentionMonitorDays ?? 30}
+                onChange={(v) => setS({ ...s, retentionMonitorDays: typeof v === 'number' ? v : 30 })}
+              />
             </SimpleGrid>
             <Text size="xs" c="dimmed">
-              Older runs and read notifications are deleted automatically. The audit log is never pruned.
+              Older runs, read notifications and monitor history are deleted automatically. The audit log is never pruned.
             </Text>
             {!readOnly && <MaintenanceStatusView />}
           </Stack>
