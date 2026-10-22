@@ -74,12 +74,18 @@ Bridge options (`steward mcp --help`):
 | `--api-key-file <file>` | File with the MCP token. Default: the environment variable `STEWARD_API_KEY`.           |
 | `--data-dir <path>`     | Data folder of a local Steward (see below).                                             |
 | `--allow-http`          | Allow plain `http://` to another computer. The token then travels unencrypted.          |
+| `--wait <s>`            | For a local URL: how long to wait for Steward to start and prove itself (default 10).   |
+| `--no-instance-check`   | Skip the local identity check (less safe, see below).                                   |
 | `--timeout <s>`         | Time limit per request (default 60).                                                    |
 
 Safety checks of the bridge:
 
 - It refuses plain `http://` to a host other than this computer unless you pass `--allow-http`.
-- For a local URL it checks that the server is really _your_ Steward before it sends the token: when the data folder has an `instance.json`, the server has to prove it knows its secret (the same check the desktop launcher uses). A different program on the port gets nothing.
+- For a local URL (`localhost`, `127.x.x.x`, `::1`) it checks that the server is really _your_ Steward before it sends the token: the server has to prove that it knows the secret in the `instance.json` of the data folder (the same check the desktop launcher uses). A different program on the port gets nothing.
+  - No `instance.json` yet (Steward is not running, or still starting): the bridge waits up to `--wait` seconds, then stops with an error. It never sends the token without the proof.
+  - After a lost connection (Steward stopped or restarted) the bridge checks the proof again before the next request.
+  - Give `--data-dir` when Steward uses another data folder than the default.
+- **Steward in Docker on `localhost`, or another setup where the check cannot work** (the bridge cannot read the server's data folder): prefer `https://` to the server. If that is not possible, `--no-instance-check` turns the check off. This is less safe: whatever program listens on the port gets the token, for example while the container is stopped. The bridge prints a warning when you use it.
 - It never follows redirects and never prints the token.
 
 ### HTTP clients (VS Code and others)
@@ -166,12 +172,13 @@ Platforms **without an API specification** can still be read: list GET path pref
 ### Rules
 
 - **Read-only.** Only GET and HEAD. Every other method is refused – also when the specification lists it – and the refusal is audited.
-- **Paths come from the specification.** Path parameters are checked against their schema and URL-encoded. Values with `/`, `\`, `%`, control characters, `.` or `..` are refused. A literal path (prefix mode) must start with a single `/`, may not contain `..` segments, encoded separators, `?`, `#`, `@` or `://`, and must lie below an allowed prefix (segment boundary). The request always goes to the platform's base URL; the gateway checks that the final URL has the base URL's origin and path.
+- **Paths come from the specification.** Path parameters are checked against their schema and URL-encoded. Values with `/`, `\`, `%`, `;`, control characters, `.` or `..` are refused. A literal path (prefix mode) must start with a single `/`, may not contain `..` segments, `;` (path parameters – `..;/` is a dot segment for Tomcat, Jetty and Spring), encoded separators, `?`, `#`, `@` or `://`, and must lie below an allowed prefix (segment boundary). The request always goes to the platform's base URL; the gateway checks that the final URL has the base URL's origin and path.
 - **Query parameters** must be declared by the operation and match their type and enum. Header and cookie parameters, request bodies and custom headers are not supported.
 - **Outbound policy.** The URL goes through the same outbound (SSRF) policy as processes (_Settings → Outbound access_), including the always-blocked metadata and link-local addresses. Credentials are only attached for the platform's own origins.
 - **Redirects** are not followed; the 3xx answer is returned as it is.
 - **Responses** are read up to 512 kB (the rest is cut and marked `truncated`). Credential values – also in encoded forms – and fields such as `authorization`, `password`, `access_token` are masked. Only harmless response headers are returned (`content-type`, `etag`, `link`, …), never cookies.
 - **Integrity.** If the platform's connection settings were changed outside Steward, the gateway refuses the call until an administrator confirms them.
+- **Fair use.** Gateway calls are rate-limited per user and platform (more tokens do not raise the limit). At most 2 gateway calls per platform run at the same time (`SM_MCP_GATEWAY_CONCURRENCY`, never more than half of the platform's _max. concurrent requests_), so MCP clients cannot block runs and monitors.
 
 ### Phase 2 extension point
 
@@ -186,19 +193,20 @@ All non-read methods go through one function, `writeDecision()` in `server/src/m
 - **Input limits.** Request bodies up to 64 kB, one JSON-RPC message per request (no batches), strict argument schemas (unknown arguments are errors), cursor and string length limits.
 - **Output limits.** Pages of at most 100–200 items, long texts shortened, results above about 200 kB refused with a hint to page.
 - **Time limits.** 30 s per tool call, 20 s per gateway call; a client that closes the connection cancels its request.
-- **Rate limits** per token (and per IP address without a valid token), and per token and platform for gateway calls.
+- **Rate limits** per token (and per IP address without a valid token), and per user and platform for gateway calls; a concurrency cap per platform for gateway calls.
 - **No sessions, no server-initiated messages.** The server keeps no state between requests and never sends requests to the client.
 
 ## Limits
 
-| What                                         | Default          | Setting                     |
-| -------------------------------------------- | ---------------- | --------------------------- |
-| Requests per minute and token                | 120              | `SM_MCP_RATE_LIMIT`         |
-| Gateway calls per minute, token and platform | 30               | `SM_MCP_GATEWAY_RATE_LIMIT` |
-| Request body                                 | 64 kB            | –                           |
-| Tool result                                  | ≈ 200 kB of JSON | –                           |
-| Gateway response read                        | 512 kB           | –                           |
-| Tool call / gateway call                     | 30 s / 20 s      | –                           |
+| What                                        | Default          | Setting                      |
+| ------------------------------------------- | ---------------- | ---------------------------- |
+| Requests per minute and token               | 120              | `SM_MCP_RATE_LIMIT`          |
+| Gateway calls per minute, user and platform | 30               | `SM_MCP_GATEWAY_RATE_LIMIT`  |
+| Gateway calls at the same time per platform | 2                | `SM_MCP_GATEWAY_CONCURRENCY` |
+| Request body                                | 64 kB            | –                            |
+| Tool result                                 | ≈ 200 kB of JSON | –                            |
+| Gateway response read                       | 512 kB           | –                            |
+| Tool call / gateway call                    | 30 s / 20 s      | –                            |
 
 Above the rate limit the endpoint answers `429` with `Retry-After` and `RateLimit-*` headers.
 
@@ -206,14 +214,14 @@ Above the rate limit the endpoint answers `429` with `Retry-After` and `RateLimi
 
 To keep the audit log meaningful, not every read is audited:
 
-| Event                                                                                                                                                 | Where                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| MCP turned on or off                                                                                                                                  | audit log `mcp.settings_changed`                        |
-| Gateway turned on or off for a platform                                                                                                               | audit log `platform.mcp_gateway_changed`                |
-| First use of a token per UTC day                                                                                                                      | audit log `mcp.token_used`                              |
-| **Every gateway call** – platform, operation id, method, path template, status, duration, token id, owner, names (not values) of the query parameters | audit log `mcp.gateway_call`                            |
-| **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason                                           | audit log `mcp.gateway_refused`                         |
-| Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                | operational log (JSON, `info`, message `MCP tool call`) |
+| Event                                                                                                                                                                                                  | Where                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| MCP turned on or off                                                                                                                                                                                   | audit log `mcp.settings_changed`                        |
+| Gateway turned on or off for a platform                                                                                                                                                                | audit log `platform.mcp_gateway_changed`                |
+| First use of a token per UTC day                                                                                                                                                                       | audit log `mcp.token_used`                              |
+| **Every gateway call** – platform, operation id, method, path template, status, duration, token id, owner, names (not values) of the query parameters                                                  | audit log `mcp.gateway_call`                            |
+| **Every refused gateway call** (write method, path, parameters, outbound policy, integrity) with the reason; an invalid literal path is logged as `(invalid)`, control characters in names are escaped | audit log `mcp.gateway_refused`                         |
+| Every tool call: tool, token id, owner, short argument summary (values cut to 60 characters, objects by their keys), outcome, duration                                                                 | operational log (JSON, `info`, message `MCP tool call`) |
 
 Prometheus metrics (`/api/metrics`): `steward_mcp_requests_total{method,outcome}`, `steward_mcp_tool_calls_total{tool,outcome}`, `steward_mcp_gateway_calls_total{platform,outcome}`.
 
@@ -223,7 +231,8 @@ Prometheus metrics (`/api/metrics`): `steward_mcp_requests_total{method,outcome}
 | -------------------------------- | ------- | ------------------------------------------------------------------------------- |
 | `SM_MCP`                         | –       | `off` turns the MCP server off, whatever the setting says                       |
 | `SM_MCP_RATE_LIMIT`              | `120`   | Requests per minute and token                                                   |
-| `SM_MCP_GATEWAY_RATE_LIMIT`      | `30`    | Gateway calls per minute, token and platform                                    |
+| `SM_MCP_GATEWAY_RATE_LIMIT`      | `30`    | Gateway calls per minute, user and platform                                     |
+| `SM_MCP_GATEWAY_CONCURRENCY`     | `2`     | Gateway calls at the same time per platform                                     |
 | `SM_MCP_ALLOWED_ORIGINS`         | –       | Comma-separated origins of browser-based MCP clients that may call the endpoint |
 | `STEWARD_URL`, `STEWARD_API_KEY` | –       | Defaults of the stdio bridge (`steward mcp`)                                    |
 
