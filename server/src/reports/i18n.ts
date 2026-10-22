@@ -150,7 +150,7 @@ const en = {
   hash: 'Entry hash',
   auditTruncated: '{n} further audit entries are not listed.',
   howToVerify: 'How to verify this document',
-  verify1: '1. Compute the SHA-256 of this PDF file and compare it with the value in the audit log entry “report.generated” for report {reportId}.',
+  verify1: '1. Compute the SHA-256 of this PDF file and compare it with the value in the audit log entry “report.generated” for report {reportId}. Signing adds an incremental update: for a signed copy, hash only as many leading bytes as the size recorded in the same entry.',
   verify2: '2. Verify the audit chain (Audit log → Verify chain, or GET /api/audit/verify). A valid chain proves that the recorded hash has not been altered.',
   verify3: '3. The protocol hash printed in the footer is the sealed fingerprint of the run journal; the run page shows whether the journal is still intact.',
 
@@ -359,7 +359,7 @@ const de: Record<MsgKey, string> = {
   hash: 'Eintrags-Hash',
   auditTruncated: '{n} weitere Audit-Einträge sind nicht aufgeführt.',
   howToVerify: 'So prüfen Sie dieses Dokument',
-  verify1: '1. Berechnen Sie den SHA-256 dieser PDF-Datei und vergleichen Sie ihn mit dem Wert im Audit-Log-Eintrag „report.generated“ für Bericht {reportId}.',
+  verify1: '1. Berechnen Sie den SHA-256 dieser PDF-Datei und vergleichen Sie ihn mit dem Wert im Audit-Log-Eintrag „report.generated“ für Bericht {reportId}. Eine Signatur wird als inkrementelle Aktualisierung angehängt: Bei einer signierten Kopie bilden Sie den Hash nur über so viele Bytes vom Dateianfang, wie die im selben Eintrag vermerkte Größe angibt.',
   verify2: '2. Prüfen Sie die Audit-Kette (Audit-Log → Kette prüfen oder GET /api/audit/verify). Eine gültige Kette belegt, dass der eingetragene Hash nicht verändert wurde.',
   verify3: '3. Der Protokoll-Hash in der Fußzeile ist der versiegelte Fingerabdruck des Ausführungsjournals; die Seite der Ausführung zeigt, ob das Journal unverändert ist.',
 

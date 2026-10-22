@@ -640,8 +640,9 @@ export class ReportWriter {
 
   private signatureField(name: string, tooltip: string, x: number, y: number, w: number, h: number): void {
     const d = internals(this.doc);
+    // PDF/A: every widget needs a real appearance stream (an empty one is not a stream); "q Q" draws nothing.
     const ap = d.ref({ Type: 'XObject', Subtype: 'Form', BBox: [0, 0, w, h], Resources: {} });
-    ap.end('');
+    ap.end('q Q');
     const H = this.doc.page.height;
     const widget = d.ref({
       Type: 'Annot',
