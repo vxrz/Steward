@@ -50,6 +50,10 @@ const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
 const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 const CredentialsPage = page(() => import('./pages/Credentials'), 'CredentialsPage');
+const ComplianceControlsPage = page(() => import('./pages/ComplianceControls'), 'ComplianceControlsPage');
+const AccessChangesPage = page(() => import('./pages/AccessChanges'), 'AccessChangesPage');
+const AccessReconciliationPage = page(() => import('./pages/AccessReconciliation'), 'AccessReconciliationPage');
+const EvidencePacksPage = page(() => import('./pages/EvidencePacks'), 'EvidencePacksPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
 const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
 const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
@@ -202,6 +206,10 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/services/:id" element={<ServiceDetailPage />} />
                 <Route path="/credentials" element={<CredentialsPage />} />
+                <Route path="/compliance/controls" element={<ComplianceControlsPage />} />
+                <Route path="/compliance/access-changes" element={<AccessChangesPage />} />
+                <Route path="/compliance/reconciliation" element={<AccessReconciliationPage />} />
+                <Route path="/compliance/evidence-packs" element={<EvidencePacksPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                 {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}

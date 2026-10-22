@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { IconExternalLink, IconLink, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  ACCESS_RECORD_TYPE,
   DEFAULT_RECORD_TYPES,
   LINK_KINDS,
   RECORD_STATUS_COLORS,
@@ -26,7 +27,7 @@ export function useTypeName() {
   const { t } = useTranslation('records');
   return (type: Pick<RecordType, 'key' | 'name' | 'builtin'> | undefined | null, fallback = ''): string => {
     if (!type) return fallback;
-    const def = DEFAULT_RECORD_TYPES.find((d) => d.key === type.key);
+    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE].find((d) => d.key === type.key);
     if (type.builtin && def && def.name === type.name) return t(`builtinTypes.${type.key as 'CR'}`, { defaultValue: type.name });
     return type.name;
   };

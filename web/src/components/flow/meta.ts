@@ -14,6 +14,7 @@ import {
   IconVariable,
   IconX,
   IconBoxMultiple,
+  IconUserShield,
 } from '@tabler/icons-react';
 import { STEP_META, type FlowNode, type NodeType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -32,6 +33,7 @@ export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   report: IconReport,
   browser: IconBrowser,
   publish: IconChartBar,
+  accessChange: IconUserShield,
   wait: IconClock,
   fail: IconX,
   note: IconNote,
