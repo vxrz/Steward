@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
-import { audit } from '../audit.js';
+import { audit, verifyAudit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
@@ -20,6 +20,7 @@ import { initAutoReports } from '../reports/auto.js';
  *   POST /reports/summary             periodic summary       {processIds, from, to, lang, comment, …}
  *   GET  /reports?kind=summary        summary reports the user may see
  *   GET  /reports/:id(/download)      record / file
+ *   POST /reports/verify              is this PDF (or a signed copy of it) a report generated here?
  *   /reports/branding…                branding settings, logo, preview (administrators)
  */
 
@@ -202,6 +203,44 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     const { lang, timeZone, ...draft } = b;
     const res = await reports.previewReport({ lang: reports.resolveLang(lang, userLocale()), timeZone, actor: me().username, branding: draft });
     return sendPdf(reply, res.pdf, `report-preview-${lang ?? 'en'}.pdf`, true);
+  });
+
+  // ---------- verification of an archived (and possibly signed) copy ----------
+  app.post('/reports/verify', async (req) => {
+    const u = me();
+    let data: Buffer;
+    if (req.isMultipart()) {
+      const file = await req.file({ limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+      if (!file) throw new HttpError(400, 'No file');
+      data = await file.toBuffer();
+    } else {
+      const b = z.object({ contentBase64: z.string().min(1) }).parse(req.body ?? {});
+      data = Buffer.from(b.contentBase64, 'base64');
+    }
+    const found = reports.findGenerated(data);
+    if (found) {
+      // only reveal details of reports the user may see (deleted ones: auditors/administrators)
+      const rec = (() => {
+        try {
+          return reports.getReport(found.entry.entity_id);
+        } catch {
+          return null;
+        }
+      })();
+      if (rec) requireReportAccess(rec);
+      else if (!capabilities(u).viewAudit) return reports.verificationOf(data, null);
+    }
+    const chain = verifyAudit();
+    const result = reports.verificationOf(data, found, { ok: chain.ok, checked: chain.checked, message: chain.message });
+    audit({
+      action: 'report.verified',
+      entityType: 'report',
+      entityId: result.report?.id ?? null,
+      runId: result.report?.runId ?? null,
+      summary: result.report ? `PDF verified: ${result.match === 'exact' ? 'unchanged' : 'signed copy of'} report ${result.report.id}` : 'PDF verified: not a report generated here',
+      details: { sha256: result.sha256, match: result.match, auditChainOk: chain.ok },
+    });
+    return result;
   });
 
   // ---------- single report ----------

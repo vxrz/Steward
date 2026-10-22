@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BRAND, type ReportBranding, type ReportLang, type ReportRecord, type RunStatus } from '@sm/shared';
+import { BRAND, type ReportBranding, type ReportLang, type ReportRecord, type ReportVerification, type RunStatus } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -301,6 +301,66 @@ export async function generateSummaryReport(o: SummaryOptions): Promise<ReportRe
     `PDF summary report (${rec.lang}) generated for ${model.processes.length} process(es), ${model.totals.runs} run(s) – sha256 ${rec.sha256.slice(0, 16)}…`,
   );
   return { ...rec, texts: res.texts };
+}
+
+// ---------- verification ----------
+
+interface GeneratedEntry {
+  seq: number;
+  ts: string;
+  actor: string;
+  entity_id: string;
+  run_id: string | null;
+  details: string;
+}
+
+/**
+ * Finds the report.generated audit entry of a PDF: by its SHA-256, or – for a
+ * copy that was signed later (signatures are appended as incremental
+ * updates) – by the SHA-256 of its first <recorded size> bytes.
+ */
+export function findGenerated(data: Buffer): { match: 'exact' | 'signed-copy'; entry: GeneratedEntry } | null {
+  const q = "SELECT seq, ts, actor, entity_id, run_id, details FROM audit_log WHERE action = 'report.generated' AND json_extract(details, '$.sha256') = ? ORDER BY seq LIMIT 1";
+  const exact = db().get<GeneratedEntry>(q, sha256(data));
+  if (exact) return { match: 'exact', entry: exact };
+  if (!data.subarray(0, 5).equals(Buffer.from('%PDF-'))) return null;
+  const sizes = db()
+    .all<{ size: number }>(
+      "SELECT DISTINCT CAST(json_extract(details, '$.size') AS INTEGER) AS size FROM audit_log WHERE action = 'report.generated' AND CAST(json_extract(details, '$.size') AS INTEGER) < ?",
+      data.length,
+    )
+    .map((r) => r.size)
+    .filter((n) => n > 0);
+  for (const size of sizes) {
+    // the original ends with %%EOF; an incremental update follows it
+    if (!data.subarray(Math.max(0, size - 7), size).toString('latin1').includes('%%EOF')) continue;
+    const entry = db().get<GeneratedEntry>(q, sha256(data.subarray(0, size)));
+    if (entry) return { match: 'signed-copy', entry };
+  }
+  return null;
+}
+
+export function verificationOf(data: Buffer, found: ReturnType<typeof findGenerated>, chain?: ReportVerification['auditChain']): ReportVerification {
+  if (!found) return { match: 'unknown', sha256: sha256(data), auditChain: chain };
+  const d = parseJson<{ kind?: string; filename?: string; sha256: string; size: number }>(found.entry.details, { sha256: '', size: 0 });
+  const stored = !!db().get('SELECT 1 FROM reports WHERE id = ?', found.entry.entity_id);
+  return {
+    match: found.match,
+    sha256: sha256(data),
+    report: {
+      id: found.entry.entity_id,
+      kind: d.kind ?? 'run',
+      runId: found.entry.run_id,
+      filename: d.filename,
+      sha256: d.sha256,
+      size: d.size,
+      generatedAt: found.entry.ts,
+      generatedBy: found.entry.actor,
+      auditSeq: found.entry.seq,
+      stored,
+    },
+    auditChain: chain,
+  };
 }
 
 // ---------- branding preview ----------
