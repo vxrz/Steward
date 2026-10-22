@@ -403,6 +403,12 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   await get('/audit/verify', '/audit/verify');
   for (const x of (await listAll('/users', '/users')).slice(0, 5)) await get('/users/{userId}', `/users/${x.id}`);
   await listAll('/teams', '/teams');
+  await get('/monitors/discovery', '/monitors/discovery');
+  for (const x of (await listAll('/monitors', '/monitors')).slice(0, 5)) {
+    await get('/monitors/{monitorId}', `/monitors/${x.id}`);
+    await get('/monitors/{monitorId}/status', `/monitors/${x.key}/status`);
+    await listAll('/monitors/{monitorId}/history', `/monitors/${x.id}/history`);
+  }
   return out;
 }
 
