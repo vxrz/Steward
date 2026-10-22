@@ -1,4 +1,5 @@
 import './bootstrap.js';
+import type { AddressInfo } from 'node:net';
 import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';
 import { config, ensureDataDirs, securityWarnings } from './config.js';
@@ -48,6 +49,9 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });
   await app.listen({ host: config.host, port: config.port });
+  // SM_PORT=0: the system picks a free port; everything that needs the real port (the instance proof,
+  // the own-API outbound guard, links) reads config.port, and the start line below shows it.
+  if (config.port === 0) config.port = (app.server.address() as AddressInfo).port;
   await unlockFromEnv().catch((e) => {
     logger.error({ err: e }, 'automatic unlock failed');
     if (isUnexpected(e)) reportError(e, { tags: { phase: 'unlock' } });

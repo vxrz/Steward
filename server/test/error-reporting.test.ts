@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import os from 'node:os';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -20,17 +21,16 @@ const exporter = new InMemorySpanExporter();
 beforeAll(async () => {
   sentry = await startFakeSentry();
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
-  const port = 20000 + Math.floor(Math.random() * 20000);
   Object.assign(process.env, {
     SM_DATA_DIR: dataDir,
-    SM_PORT: String(port),
+    SM_PORT: '0', // the real port is assigned on listen (see helpers.ts startTestServer)
     SM_SENTRY_DSN: sentry.dsn,
     SM_SENTRY_ENVIRONMENT: 'test',
     SM_SENTRY_TRACES_SAMPLE_RATE: '0.5', // must be ignored: OpenTelemetry export is on below
     SM_SMTP_PASSWORD: ENV_SECRET,
   });
   await import('../src/bootstrap.js');
-  const { ensureDataDirs } = await import('../src/config.js');
+  const { config, ensureDataDirs } = await import('../src/config.js');
   ensureDataDirs();
   // OpenTelemetry tracing and error reporting at the same time
   const { initTelemetry } = await import('../src/telemetry.js');
@@ -53,8 +53,9 @@ beforeAll(async () => {
   app.get('/__test/not-found', async () => {
     throw new HttpError(404, 'Platform not found');
   });
-  await app.listen({ host: '127.0.0.1', port });
-  base = `http://127.0.0.1:${port}`;
+  await app.listen({ host: '127.0.0.1', port: 0 });
+  config.port = (app.server.address() as AddressInfo).port;
+  base = `http://127.0.0.1:${config.port}`;
 });
 
 afterAll(async () => {

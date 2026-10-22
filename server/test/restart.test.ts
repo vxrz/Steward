@@ -3,12 +3,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { startedUrl } from './helpers.js';
 import { freshDbEnv } from './pg-env.js';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-restart-'));
-const port = 40000 + Math.floor(Math.random() * 10000);
-const base = `http://127.0.0.1:${port}`;
+// The first start gets a free port from the system (SM_PORT=0); the restart reuses it, because the
+// demo platforms stored in the database point at it.
+let port = 0;
+let base = '';
 let proc: ChildProcess | undefined;
 const dbEnv = freshDbEnv(); // both starts use the same database
 
@@ -30,7 +33,12 @@ function startServer(): Promise<ChildProcess> {
     let out = '';
     const onData = (d: Buffer) => {
       out += d.toString();
-      if (out.includes('service manager started')) resolve(child);
+      const url = startedUrl(out);
+      if (url) {
+        base = url;
+        port = Number(new URL(url).port);
+        resolve(child);
+      }
     };
     child.stdout!.on('data', onData);
     child.stderr!.on('data', (d) => (out += d.toString()));

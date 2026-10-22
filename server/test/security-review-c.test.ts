@@ -8,7 +8,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let gatus: string;
@@ -614,14 +614,13 @@ describe('M7 – behind a reverse proxy (separate server process)', () => {
     const { spawn } = await import('node:child_process');
     const { freshDbEnv } = await import('./pg-env.js');
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-proxy-'));
-    const port = 41000 + Math.floor(Math.random() * 8000);
     const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
       cwd: path.resolve(__dirname, '..'),
       env: {
         ...process.env,
         ...freshDbEnv(),
         SM_DATA_DIR: dataDir,
-        SM_PORT: String(port),
+        SM_PORT: '0', // a free port assigned by the system; the start line names it
         SM_TRUST_PROXY: '1',
         SM_PUBLIC_URL: 'https://steward.example.com',
         SM_LOG_LEVEL: 'info',
@@ -629,13 +628,16 @@ describe('M7 – behind a reverse proxy (separate server process)', () => {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     try {
-      await new Promise<void>((resolve, reject) => {
+      const base = await new Promise<string>((resolve, reject) => {
         let out = '';
-        child.stdout!.on('data', (d: Buffer) => ((out += d.toString()), out.includes('service manager started') && resolve()));
+        child.stdout!.on('data', (d: Buffer) => {
+          out += d.toString();
+          const url = startedUrl(out);
+          if (url) resolve(url);
+        });
         child.on('exit', (c) => reject(new Error(`exited ${c}: ${out}`)));
         setTimeout(() => reject(new Error('start timeout')), 30000);
       });
-      const base = `http://127.0.0.1:${port}`;
       const login = (ip: string) =>
         fetch(base + '/api/auth/login', {
           method: 'POST',

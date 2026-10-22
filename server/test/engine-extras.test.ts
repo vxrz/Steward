@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startedUrl, startTestServer, type Client, type TestServer } from './helpers.js';
 import { freshDbEnv } from './pg-env.js';
 
 let s: TestServer;
@@ -523,8 +523,9 @@ describe('contract check', () => {
 
 describe('sub-process after a restart', () => {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-subflow-restart-'));
-  const port = 40000 + Math.floor(Math.random() * 10000);
-  const base = `http://127.0.0.1:${port}`;
+  // a free port from the system at the first start (SM_PORT=0), kept for the restart
+  let port = 0;
+  let base = '';
   let proc: ChildProcess | undefined;
   let cookie = '';
   let sessionKey = '';
@@ -551,7 +552,12 @@ describe('sub-process after a restart', () => {
       let out = '';
       child.stdout!.on('data', (d: Buffer) => {
         out += d.toString();
-        if (out.includes('service manager started')) resolve(child);
+        const url = startedUrl(out);
+        if (url) {
+          base = url;
+          port = Number(new URL(url).port);
+          resolve(child);
+        }
       });
       child.stderr!.on('data', (d) => (out += d.toString()));
       child.on('exit', (code) => reject(new Error(`server exited ${code}: ${out}`)));

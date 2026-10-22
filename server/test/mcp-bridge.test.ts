@@ -191,7 +191,8 @@ describe('MCP stdio bridge', () => {
         const srv = http.createServer((req, res) => {
           const u = new URL(req.url!, 'http://x');
           if (u.pathname === '/api/instance') {
-            const proof = who === 'steward' ? proofOf(secret, u.searchParams.get('challenge')!, port) : 'nope';
+            // the proof binds the port the server really listens on
+            const proof = who === 'steward' ? proofOf(secret, u.searchParams.get('challenge')!, (srv.address() as AddressInfo).port) : 'nope';
             res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ instanceId: 'i1', proof }));
             return;
           }
@@ -204,10 +205,8 @@ describe('MCP stdio bridge', () => {
         });
         srv.listen(port, '127.0.0.1', () => resolve(srv));
       });
-    let steward = await serve('steward', 0);
+    const steward = await serve('steward', 0);
     const port = (steward.address() as AddressInfo).port;
-    steward.close();
-    steward = await serve('steward', port);
     fs.writeFileSync(path.join(dir, 'instance.json'), JSON.stringify({ v: 1, product: 'steward', instanceId: 'i1', secret, pid: 1, url: '', startedAt: '' }));
 
     const child = spawn(process.execPath, ['--import', 'tsx', 'server/src/cli/mcp.ts', '--url', `http://127.0.0.1:${port}`, '--data-dir', dir, '--wait', '1'], {
