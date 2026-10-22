@@ -85,7 +85,7 @@ export function RunDetailPage() {
         }
         description={
           <>
-            Run <span className="mono">{r.id}</span> · <Anchor component={Link} to={`/processes/${r.processId}`} size="sm">version {r.processVersion}</Anchor> · started by {r.actor} ({r.trigger === 'subprocess' ? 'sub-process' : r.trigger}) {fmtDate(r.startedAt)} · {runDuration(r.startedAt, r.finishedAt)}
+            Run <span className="mono">{r.id}</span> · <Anchor component={Link} to={`/processes/${r.processId}`} size="sm">version {r.processVersion}</Anchor> · started by {r.actor} ({r.trigger === 'subprocess' ? 'sub-process' : r.trigger === 'webhook' ? `webhook trigger "${r.triggerName ?? r.triggerId}"` : r.trigger}) {fmtDate(r.startedAt)} · {runDuration(r.startedAt, r.finishedAt)}
           </>
         }
         actions={
