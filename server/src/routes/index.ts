@@ -36,6 +36,8 @@ import { opsRoutes } from './ops.js';
 import { engineExtrasRoutes } from './engine-extras.js';
 import { reportRoutes } from './reports.js';
 import { triggerRoutes } from './triggers.js';
+import { monitorRoutes } from '../monitors/routes.js';
+import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -51,6 +53,7 @@ async function onUnlocked(): Promise<void> {
   started = true;
   await recoverRuns();
   scheduler.startScheduler();
+  startMonitorEngine();
 }
 
 export async function unlockFromEnv(): Promise<void> {
@@ -282,6 +285,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (vault().unlocked) {
       audit({ action: 'vault.locked', entityType: 'vault', summary: `Vault locked by ${me().username}` });
       scheduler.stopScheduler();
+      void stopMonitorEngine();
       started = false;
       vault().lock();
     }
@@ -352,6 +356,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+        retentionMonitorDays: z.number().int().min(1).max(3650).optional(),
         apiDocs: z.enum(API_DOCS_MODES).optional(),
       })
       .parse(req.body);
@@ -748,6 +753,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await engineExtrasRoutes(app);
   await reportRoutes(app);
   await triggerRoutes(app);
+  await monitorRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

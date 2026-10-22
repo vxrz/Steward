@@ -7,6 +7,7 @@ import { audit } from './audit.js';
 import { logger } from './log.js';
 import { getSettings, readSetting, writeSetting } from './settings.js';
 import { deleteReadOlderThan } from './notifications/store.js';
+import { deleteMonitorDataBefore } from './monitors/retention.js';
 
 /**
  * Retention: removes finished runs (with steps, logs, tasks and artifacts) and
@@ -121,6 +122,8 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
     const now = Date.now();
     const removed = s.retentionRunDays > 0 ? deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
     const notificationsDeleted = s.retentionNotificationDays > 0 ? deleteReadOlderThan(s.retentionNotificationDays) : 0;
+    const monitorDays = s.retentionMonitorDays ?? 30;
+    const monitorData = monitorDays > 0 ? deleteMonitorDataBefore(new Date(now - monitorDays * DAY_MS).toISOString()) : null;
     const result: LastCleanup = { at: new Date(now).toISOString(), runsDeleted: removed.runs, artifactsDeleted: removed.artifacts, notificationsDeleted };
     if (removed.runs) db().compact();
     writeSetting(LAST_KEY, result);
@@ -130,7 +133,7 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
         action: 'maintenance.cleanup',
         entityType: 'maintenance',
         summary: `Cleanup: ${removed.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
-        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays },
+        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays, retentionMonitorDays: monitorDays, monitorData },
       });
     }
     logger.info(result, 'maintenance cleanup finished');
