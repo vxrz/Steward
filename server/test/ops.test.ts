@@ -147,6 +147,8 @@ describe('in-app notifications', () => {
   });
 
   it('marks notifications as read', async () => {
+    // deliveries from earlier tests are asynchronous: let them land first so the unread count is stable
+    await flush();
     const before = await notifications(olivia);
     expect(before.unread).toBeGreaterThan(0);
     await olivia('POST', `/notifications/${before.items[0].id}/read`, {});
