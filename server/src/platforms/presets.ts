@@ -1,4 +1,5 @@
 import type { PlatformPreset } from '@sm/shared';
+import { gatusOpenApiSpec } from './gatusSpec.js';
 
 /**
  * Starting points for new platforms. Everything is editable afterwards –
@@ -115,6 +116,30 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'gatus',
+    label: 'Gatus (status monitoring)',
+    description:
+      'Gatus uptime monitor (github.com/TwiN/gatus): read endpoint statuses and uptime, push results to external endpoints. Gatus protects its status API only with HTTP Basic auth (security.basic) – pick "basic" and set username/password if configured; OIDC is browser-only. Use "bearer" only when a reverse proxy in front of Gatus expects a token. The token for pushing results is per external endpoint (credential externalToken). See docs/GATUS.md.',
+    baseUrl: 'https://status.example.com',
+    config: {
+      auth: { type: 'none' },
+      variables: {},
+      http: {},
+      testPath: '/api/v1/endpoints/statuses?pageSize=1',
+    },
+    secretFields: [
+      { key: 'username', label: 'Username (security.basic)', help: 'Only when Gatus has security.basic configured' },
+      { key: 'password', label: 'Password (security.basic)' },
+      { key: 'token', label: 'Bearer token (reverse proxy)', help: 'Only for a proxy in front of Gatus that expects a bearer token' },
+      { key: 'externalToken', label: 'External endpoint token', help: 'external-endpoints[].token, used by "Gatus – report Steward check to Gatus"' },
+    ],
+    docs: [
+      { title: 'Gatus README', url: 'https://github.com/TwiN/gatus#readme' },
+      { title: 'Gatus external endpoints', url: 'https://github.com/TwiN/gatus#external-endpoints' },
+      { title: 'Gatus custom alerts (webhook to Steward)', url: 'https://github.com/TwiN/gatus#configuring-custom-alerts' },
+    ],
+  },
+  {
     kind: 'generic',
     label: 'Generic REST API',
     description: 'Any HTTP API. Pick the auth type and add an OpenAPI specification for operation lookup.',
@@ -131,3 +156,8 @@ export const PRESETS: PlatformPreset[] = [
     docs: [],
   },
 ];
+
+/** API specifications attached to platforms created from a built-in preset of this kind. */
+export const PRESET_SPECS: Record<string, () => { name: string; content: string }[]> = {
+  gatus: () => [{ name: 'Gatus API', content: JSON.stringify(gatusOpenApiSpec(), null, 2) }],
+};
