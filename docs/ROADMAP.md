@@ -12,7 +12,9 @@ This document collects what makes sense next: improvements to the tool, standard
 | Evidence | HMAC-chained audit log, run protocols (HTML/PDF/JSON) with a sealed fingerprint, screenshots. |
 | Dashboards | Fed by *Publish to dashboard* nodes: dataset snapshots and metric history, KPI/trend/status/table widgets. |
 | Import / export | Single process (YAML), dashboard (YAML), connector type (JSON), bundles of processes and dashboards (JSON), example library in `examples/`, `npm run validate` for CI. |
-| Observability | Structured JSON logs (pino) with request, run and trace correlation. Optional OpenTelemetry traces (runs → nodes → HTTP calls, W3C `traceparent` propagation). |
+| Observability | Structured JSON logs (pino) with request, run and trace correlation. Optional OpenTelemetry traces (runs → nodes → HTTP calls, W3C `traceparent` propagation). Prometheus metrics and readiness probe. |
+| Operations | Notifications (in-app, e-mail, Teams, webhook), API tokens, CSP/HSTS headers, retention of runs and notifications, contract checks. |
+| Distribution | Desktop executable (Windows/macOS/Linux), installable PWA, container image, release workflow with SBOM. See [INSTALL.md](INSTALL.md). |
 
 ## 2. Import and export – how to work "as code"
 
@@ -175,6 +177,6 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 | When | Item |
 | --- | --- |
-| **Now** (small, high value) | Notifications for decisions and failed checks (e-mail/Teams). CSP and HSTS headers. Retry-After/backoff. API tokens. Retention policy for runs and evidence. |
-| **Next** | Expression assistant and flow debugger. Subflows. OTel metrics + `/metrics`. Sandbox contract tests. Parallel for-each. PWA approvals. |
-| **Later** | Hosted mode (Postgres, workers, KMS). Optional Temporal backend. SCIM provisioning. ITSM integration (ServiceNow/Jira tickets per run). Process marketplace via Git repositories. |
+| **Done** | Notifications for decisions and failed checks (e-mail/Teams/webhook). CSP and HSTS headers. Retry-After/backoff and per-platform concurrency. API tokens. Retention policy. Expression assistant, node inspector, undo/redo, version diff. Subflows. Prometheus `/metrics`, `/ready`. Contract checks. Parallel for-each. PWA with browser notifications. Command palette, lazy-loaded UI. Desktop executable, container, release workflow. |
+| **Next** | Step-through debugging and "run this node with sample data". Quiet hours for notifications. Run comparison. First-run checklist. ESLint/Prettier and Playwright UI tests in CI. German UI. |
+| **Later** (bigger projects) | Hosted mode (Postgres, separate workers, KMS-backed vault). Optional Temporal backend. SCIM provisioning. ITSM integration (ServiceNow/Jira tickets per run). Process marketplace via Git repositories. Audit anchoring (RFC 3161). Signed releases and auto-update. |

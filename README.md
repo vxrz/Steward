@@ -12,7 +12,12 @@ A local tool for running standard service and platform procedures against **Siem
 - **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/PDF/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
 - **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
 - **Example library.** [`examples/`](examples/README.md) contains service-management and housekeeping procedures for Insights Hub and Industrial Edge, plus dashboards, all importable.
-- **Observability.** Structured JSON logs and optional OpenTelemetry tracing.
+- **Sub-processes and parallel loops.** A *Run sub-process* node calls another process as a reusable building block (inputs in, outputs back, linked child runs). *For each* can process items in parallel. Platform calls retry on 429/5xx with backoff and honour `Retry-After`.
+- **Editor help.** Expression autocomplete with a live preview using the data of the last run, a *Last run* inspector per node, undo/redo, copy/paste between processes, and a YAML diff between versions.
+- **Notifications.** In-app notification centre, plus e-mail (SMTP), Microsoft Teams and generic webhooks for decisions waiting, failed runs and checks, stale dashboard data and skipped schedules. Optional browser notifications.
+- **Automation API.** Personal API tokens (read-only or full) for scripts and CI, e.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/runs`.
+- **Observability.** Structured JSON logs, optional OpenTelemetry tracing, Prometheus metrics (`/api/metrics`), readiness probe (`/api/ready`).
+- **Runs anywhere.** A single-file desktop executable (no Node.js needed), an installable web app (PWA), Node.js, or a container. See [docs/INSTALL.md](docs/INSTALL.md).
 - **Durable.** Runs are journaled step by step. If the app stops while a run waits for a decision, it resumes after a restart without repeating finished steps.
 - **Local and safe.** The server binds to `127.0.0.1` and stores credentials AES-256-GCM encrypted with your master passphrase. It has CSRF and DNS-rebinding protection.
 
@@ -38,6 +43,15 @@ Then:
 
    All of them have the password `Demo-password-1`. Olivia and Adam are in the team *Service Desk*.
 3. Open **Processes → "Insights Hub – Access review 1"** and click *Run*. Keep *Dry run* on the first time.
+
+## Ways to run it
+
+- **Desktop executable:** download, double-click; it opens as an app window. `npm run build && npm run build:exe` builds it yourself.
+- **Installed web app:** in Edge/Chrome choose *Install* (or *Install app* in the user menu).
+- **Node.js:** see below.
+- **Container:** `docker compose up -d`.
+
+Details, autostart for schedules and code-signing notes are in [docs/INSTALL.md](docs/INSTALL.md). Naming ideas and how to rebrand are in [docs/BRANDING.md](docs/BRANDING.md).
 
 ## Everyday use
 
@@ -65,6 +79,9 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | – | Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`. |
 | `SM_OTEL_PROPAGATE` | `1` | `0` stops adding `traceparent` headers to platform calls |
 | `SM_METRIC_RETENTION_DAYS` | `400` | How long dashboard metric history is kept |
+| `SM_METRICS_PUBLIC` | – | `1` serves `/api/metrics` without sign-in (otherwise admins, auditors or an API token) |
+
+Retention of runs and notifications, and the notification channels, are set under **Settings**.
 
 ## Concepts
 
@@ -319,8 +336,7 @@ Where things live:
 ### Ideas for next steps
 
 - SCIM provisioning (deactivate accounts automatically when people leave).
-- Sub-flows (call another process as a node).
 - Import a Postman collection as a platform spec.
-- E-mail or Teams notification for open tasks and failed checks.
-- Parallel `forEach` with a concurrency limit for very large tenants.
-- Data retention policy (archiving old runs and evidence).
+- See [docs/ROADMAP.md](docs/ROADMAP.md).
+
+Contract checks against a sandbox tenant (for CI): `npm run contract -- --url http://127.0.0.1:4310 --token smt_… --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec.
