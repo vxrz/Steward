@@ -16,9 +16,10 @@ import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
+import { themeRoutes } from './theme/routes.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config'];
+const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config', '/api/theme', '/api/theme/logo'];
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
@@ -183,6 +184,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   await app.register(publicApi, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
+  // theme (/api/theme, /api/settings/theme, /manifest.webmanifest)
+  await app.register(themeRoutes);
 
   if (fs.existsSync(config.webDist)) {
     await app.register(fastifyStatic, {

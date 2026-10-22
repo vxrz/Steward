@@ -13,6 +13,7 @@ import type reports from '../locales/en/reports.json';
 import type runs from '../locales/en/runs.json';
 import type schedules from '../locales/en/schedules.json';
 import type settings from '../locales/en/settings.json';
+import type system from '../locales/en/system.json';
 import type tasks from '../locales/en/tasks.json';
 import type triggers from '../locales/en/triggers.json';
 import type users from '../locales/en/users.json';
@@ -45,4 +46,5 @@ export interface Resources {
   settings: typeof settings;
   users: typeof users;
   profile: typeof profile;
+  system: typeof system;
 }

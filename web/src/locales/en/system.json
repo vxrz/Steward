@@ -1,0 +1,80 @@
+{
+  "theme": {
+    "title": "Appearance",
+    "intro": "Colors, corner radius, name and logo for everyone – also on the sign-in page. Text colors are adjusted automatically so they stay readable (WCAG AA) in the light and dark color scheme.",
+    "primary": "Primary color",
+    "primaryHint": "Buttons, links, active navigation",
+    "accent": "Accent color",
+    "accentHint": "Counters and highlights",
+    "invalidColor": "Use a hex color like #1c7ed6",
+    "eyeDropper": "Pick a color from the screen",
+    "colors": {
+      "primary": "Primary color",
+      "accent": "Accent color"
+    },
+    "colorScheme": "Default color scheme",
+    "colorSchemeHint": "For users who have not chosen one. Everyone can still switch between light and dark.",
+    "schemes": {
+      "auto": "Like the system",
+      "light": "Light",
+      "dark": "Dark",
+      "both": "light and dark"
+    },
+    "radius": "Corner radius",
+    "radii": {
+      "sm": "Small",
+      "md": "Medium",
+      "lg": "Large"
+    },
+    "appName": "Display name",
+    "appNameHint": "Shown in the header, the window title and on the sign-in page, e.g. “ACME {{brand}}”. Empty = {{brand}}. The footer and the About page keep the product name.",
+    "logoAlt": "Header logo",
+    "defaultLogo": "{{brand}} logo",
+    "customLogo": "Custom logo ({{width}} × {{height}} px)",
+    "logoHint": "PNG, JPEG or WebP, at most {{kb}} KB and 4096 × 4096 pixels. Wide logos are fine. SVG is not accepted because it can contain scripts. Prefer a transparent background so the logo works in the light and the dark color scheme.",
+    "uploadLogo": "Upload logo",
+    "removeLogo": "Remove logo",
+    "logoUploaded": "Logo uploaded",
+    "logoRemoved": "Logo removed",
+    "logoNotUploaded": "Logo not uploaded",
+    "preview": "Preview (not saved yet)",
+    "previewOf": "Preview in the {{scheme}} color scheme",
+    "save": "Save appearance",
+    "discard": "Discard changes",
+    "saved": "Appearance saved – open pages update within a minute",
+    "reset": "Reset to {{brand}} defaults",
+    "resetConfirm": "Reset colors, color scheme, corner radius, display name and logo to the {{brand}} defaults?",
+    "resetDone": "Appearance reset to the {{brand}} defaults",
+    "lastChange": "Last changed {{when}} by {{who}}",
+    "contrast": {
+      "title": "Readability",
+      "textAdjusted": "{{color}}: too light for text on a white page, so links and text use the darker {{used}} (contrast {{ratio}}:1).",
+      "darkTextOnFilled": "{{color}} ({{scheme}}): buttons and badges use dark text, which is easier to read on this color (contrast {{ratio}}:1).",
+      "filledAdjusted": "{{color}}: white text is hard to read on it, so buttons use the darker {{used}} (contrast {{ratio}}:1).",
+      "lowSurfaceContrast": "{{color}} ({{scheme}}): buttons stand out little from the page (contrast {{ratio}}:1). Their text stays readable, but consider a stronger color."
+    },
+    "errors": {
+      "THEME_INVALID": "Check the colors and the display name.",
+      "THEME_LOGO_EMPTY": "The file is empty.",
+      "THEME_LOGO_TOO_LARGE": "The logo is too large (max. {{kb}} KB).",
+      "THEME_LOGO_SVG": "SVG logos are not accepted because they can contain scripts. Use a PNG, JPEG or WebP image.",
+      "THEME_LOGO_TYPE": "The logo must be a PNG, JPEG or WebP image.",
+      "THEME_LOGO_DIMENSIONS": "The logo can be at most 4096 × 4096 pixels."
+    },
+    "sample": {
+      "navActive": "Dashboard",
+      "nav": "Platforms",
+      "primary": "Primary",
+      "light": "Secondary",
+      "outline": "Outline",
+      "accent": "Accent",
+      "badge": "New",
+      "badgeLight": "Draft",
+      "accentLight": "Highlight",
+      "text": "Running text with a",
+      "link": "link",
+      "alertTitle": "Note",
+      "alert": "Alerts and notices use the primary color."
+    }
+  }
+}

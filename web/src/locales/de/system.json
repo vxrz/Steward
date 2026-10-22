@@ -1,0 +1,80 @@
+{
+  "theme": {
+    "title": "Erscheinungsbild",
+    "intro": "Farben, Eckenradius, Name und Logo für alle – auch auf der Anmeldeseite. Textfarben werden automatisch angepasst, damit sie im hellen und dunklen Farbschema gut lesbar bleiben (WCAG AA).",
+    "primary": "Hauptfarbe",
+    "primaryHint": "Schaltflächen, Links, aktive Navigation",
+    "accent": "Akzentfarbe",
+    "accentHint": "Zähler und Hervorhebungen",
+    "invalidColor": "Hex-Farbe angeben, z. B. #1c7ed6",
+    "eyeDropper": "Farbe vom Bildschirm übernehmen",
+    "colors": {
+      "primary": "Hauptfarbe",
+      "accent": "Akzentfarbe"
+    },
+    "colorScheme": "Standard-Farbschema",
+    "colorSchemeHint": "Für alle, die selbst keines gewählt haben. Jede Person kann weiterhin zwischen hell und dunkel wechseln.",
+    "schemes": {
+      "auto": "Wie das System",
+      "light": "Hell",
+      "dark": "Dunkel",
+      "both": "hell und dunkel"
+    },
+    "radius": "Eckenradius",
+    "radii": {
+      "sm": "Klein",
+      "md": "Mittel",
+      "lg": "Groß"
+    },
+    "appName": "Anzeigename",
+    "appNameHint": "Erscheint in der Kopfzeile, im Fenstertitel und auf der Anmeldeseite, z. B. „ACME {{brand}}“. Leer = {{brand}}. Fußzeile und Info-Seite behalten den Produktnamen.",
+    "logoAlt": "Logo in der Kopfzeile",
+    "defaultLogo": "{{brand}}-Logo",
+    "customLogo": "Eigenes Logo ({{width}} × {{height}} px)",
+    "logoHint": "PNG, JPEG oder WebP, höchstens {{kb}} KB und 4096 × 4096 Pixel. Breite Logos sind möglich. SVG wird nicht angenommen, weil es Skripte enthalten kann. Am besten mit transparentem Hintergrund, damit das Logo im hellen und dunklen Farbschema wirkt.",
+    "uploadLogo": "Logo hochladen",
+    "removeLogo": "Logo entfernen",
+    "logoUploaded": "Logo hochgeladen",
+    "logoRemoved": "Logo entfernt",
+    "logoNotUploaded": "Logo nicht hochgeladen",
+    "preview": "Vorschau (noch nicht gespeichert)",
+    "previewOf": "Vorschau im Farbschema {{scheme}}",
+    "save": "Erscheinungsbild speichern",
+    "discard": "Änderungen verwerfen",
+    "saved": "Erscheinungsbild gespeichert – geöffnete Seiten übernehmen es innerhalb einer Minute",
+    "reset": "Auf {{brand}}-Standard zurücksetzen",
+    "resetConfirm": "Farben, Farbschema, Eckenradius, Anzeigename und Logo auf den {{brand}}-Standard zurücksetzen?",
+    "resetDone": "Erscheinungsbild auf den {{brand}}-Standard zurückgesetzt",
+    "lastChange": "Zuletzt geändert {{when}} von {{who}}",
+    "contrast": {
+      "title": "Lesbarkeit",
+      "textAdjusted": "{{color}}: zu hell für Text auf weißem Hintergrund, deshalb verwenden Links und Texte das dunklere {{used}} (Kontrast {{ratio}}:1).",
+      "darkTextOnFilled": "{{color}} ({{scheme}}): Schaltflächen und Badges verwenden dunkle Schrift, die auf dieser Farbe besser lesbar ist (Kontrast {{ratio}}:1).",
+      "filledAdjusted": "{{color}}: weiße Schrift ist darauf schlecht lesbar, deshalb verwenden Schaltflächen das dunklere {{used}} (Kontrast {{ratio}}:1).",
+      "lowSurfaceContrast": "{{color}} ({{scheme}}): Schaltflächen heben sich kaum von der Seite ab (Kontrast {{ratio}}:1). Ihre Beschriftung bleibt lesbar, eine kräftigere Farbe wäre aber besser."
+    },
+    "errors": {
+      "THEME_INVALID": "Bitte Farben und Anzeigenamen prüfen.",
+      "THEME_LOGO_EMPTY": "Die Datei ist leer.",
+      "THEME_LOGO_TOO_LARGE": "Das Logo ist zu groß (max. {{kb}} KB).",
+      "THEME_LOGO_SVG": "SVG-Logos werden nicht angenommen, weil sie Skripte enthalten können. Bitte ein PNG-, JPEG- oder WebP-Bild verwenden.",
+      "THEME_LOGO_TYPE": "Das Logo muss ein PNG-, JPEG- oder WebP-Bild sein.",
+      "THEME_LOGO_DIMENSIONS": "Das Logo darf höchstens 4096 × 4096 Pixel groß sein."
+    },
+    "sample": {
+      "navActive": "Übersicht",
+      "nav": "Plattformen",
+      "primary": "Primär",
+      "light": "Sekundär",
+      "outline": "Kontur",
+      "accent": "Akzent",
+      "badge": "Neu",
+      "badgeLight": "Entwurf",
+      "accentLight": "Hervorhebung",
+      "text": "Fließtext mit einem",
+      "link": "Link",
+      "alertTitle": "Hinweis",
+      "alert": "Hinweise und Meldungen verwenden die Hauptfarbe."
+    }
+  }
+}

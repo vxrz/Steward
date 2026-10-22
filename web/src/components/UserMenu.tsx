@@ -27,7 +27,8 @@ export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<vo
  */
 async function resetToAuth(qc: ReturnType<typeof useQueryClient>): Promise<void> {
   await qc.cancelQueries();
-  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
+  // (the theme is public and stays: it also styles the sign-in page)
+  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' && q.queryKey[0] !== 'theme' });
   await qc.invalidateQueries({ queryKey: ['auth'] });
 }
 
@@ -53,7 +54,7 @@ export function UserMenu() {
         <Menu.Target>
           <UnstyledButton aria-label={t('userMenu.label')}>
             <Group gap={6} wrap="nowrap">
-              <Avatar size={28} radius="xl" color="blue">
+              <Avatar size={28} radius="xl" color="brand">
                 {initials}
               </Avatar>
               <Text size="sm" visibleFrom="xs" truncate maw={160}>

@@ -7,10 +7,10 @@ import type { AuthStatus } from '@sm/shared';
 import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 import { AppFooter } from '../components/brand/AppFooter';
-import { Logo } from '../components/brand/Logo';
+import { AppLogo } from '../components/brand/AppLogo';
 import { LanguageMenu } from '../components/LanguageSwitcher';
 import { errorText } from '../i18n/errors';
-import { BRAND } from '../../../shared/src/brand';
+import { useAppName } from '../theme';
 
 type PolicyError = 'policyTooShort' | 'policyCharacters';
 
@@ -52,6 +52,7 @@ function useRefreshAuth() {
 
 export function SetupPage({ status }: { status: AuthStatus }) {
   const { t } = useTranslation('auth');
+  const appName = useAppName();
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
   const [passphrase2, setPassphrase2] = useState('');
@@ -83,7 +84,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   return (
     <Card
       icon={<IconShieldLock size={40} stroke={1.4} />}
-      title={t('setup.title', { brand: BRAND.name })}
+      title={t('setup.title', { brand: appName })}
       intro={existingVault ? t('setup.introExistingVault') : t('setup.intro')}
     >
       <form
@@ -148,6 +149,7 @@ function lastUser(): string {
 
 export function LoginPage({ status }: { status: AuthStatus }) {
   const { t } = useTranslation('auth');
+  const appName = useAppName();
   const refresh = useRefreshAuth();
   const [username, setUsername] = useState(lastUser);
   const [password, setPassword] = useState('');
@@ -210,7 +212,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
   );
 
   return (
-    <Card icon={<Logo size={48} title={BRAND.name} />} title={t('login.title', { brand: BRAND.name })}>
+    <Card icon={<AppLogo size={48} title={appName} />} title={t('login.title', { brand: appName })}>
       <SsoErrorAlert error={ssoError} onClose={clearSsoError} />
       {ssoFirst ? (
         <>
@@ -323,6 +325,7 @@ export function ForcedPasswordChangePage({ status, onSignOut }: { status: AuthSt
 
 export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onSignOut: () => void }) {
   const { t } = useTranslation(['auth', 'common']);
+  const appName = useAppName();
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -331,7 +334,7 @@ export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onS
 
   if (!isAdmin) {
     return (
-      <Card icon={<IconClockHour4 size={40} stroke={1.4} />} title={t('vault.waitingTitle')} intro={t('vault.waitingIntro', { brand: BRAND.name })}>
+      <Card icon={<IconClockHour4 size={40} stroke={1.4} />} title={t('vault.waitingTitle')} intro={t('vault.waitingIntro', { brand: appName })}>
         <Group justify="center">
           <Button variant="light" onClick={() => refresh()}>
             {t('vault.checkAgain')}

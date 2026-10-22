@@ -10,3 +10,4 @@ export * from './reports.js';
 export * from './triggers.js';
 export * from './monitors.js';
 export * from './scrub.js';
+export * from './theme.js';
