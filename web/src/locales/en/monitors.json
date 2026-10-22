@@ -58,7 +58,6 @@
     "lastReport": "Last report",
     "accepted": "Accepted",
     "line": "secret {{prefix}}… · {{auth}} · {{rate}}/min · owner {{owner}}",
-    "anyKey": "any",
     "rejected_one": "{{count}} rejected",
     "rejected_other": "{{count}} rejected",
     "rotate": "Rotate secret",
@@ -79,7 +78,8 @@
     "cidrs": "Allowed source addresses",
     "cidrsHint": "IP or CIDR; empty: any",
     "callsPerMinute": "Calls per minute",
-    "create": "Create and show secret"
+    "create": "Create and show secret",
+    "noKeys": "none – nothing is accepted"
   },
   "auth": {
     "short": {

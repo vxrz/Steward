@@ -311,7 +311,7 @@ function GatewaysTab() {
                       {t('gateways.line', { prefix: g.secretPrefix, auth: t(`auth.short.${g.authMode}`), rate: g.rateLimitPerMinute, owner: g.owner })}
                     </Text>
                   </Table.Td>
-                  <Table.Td className="mono">{g.allowedKeys.join(', ') || t('gateways.anyKey')}</Table.Td>
+                  <Table.Td className="mono">{g.allowedKeys.join(', ') || t('gateways.noKeys')}</Table.Td>
                   <Table.Td>{fmtRelative(g.lastSeenAt)}</Table.Td>
                   <Table.Td>
                     {fmtNumber(g.acceptedCount)}

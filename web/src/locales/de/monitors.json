@@ -58,7 +58,6 @@
     "lastReport": "Letzte Meldung",
     "accepted": "Angenommen",
     "line": "Secret {{prefix}}… · {{auth}} · {{rate}}/min · Eigentümer {{owner}}",
-    "anyKey": "alle",
     "rejected_one": "{{count}} abgewiesen",
     "rejected_other": "{{count}} abgewiesen",
     "rotate": "Secret erneuern",
@@ -79,7 +78,8 @@
     "cidrs": "Erlaubte Quelladressen",
     "cidrsHint": "IP oder CIDR; leer: alle",
     "callsPerMinute": "Aufrufe pro Minute",
-    "create": "Anlegen und Secret anzeigen"
+    "create": "Anlegen und Secret anzeigen",
+    "noKeys": "keine – nichts wird angenommen"
   },
   "auth": {
     "short": {
