@@ -85,3 +85,15 @@ The flows were built against the documented Insights Hub APIs and the simulated 
 - **Your own YAML:** use **Processes → Import YAML**, or the YAML/import option on the Dashboards page.
 - **Many at once:** use a bundle (`GET /api/bundle/export` / `POST /api/bundle/import`). A bundle carries processes and dashboards together, e.g. from a test to a production instance.
 - **Share with the team:** drop files into `examples/processes` or `examples/dashboards` and commit them. They show up as templates after a restart.
+
+## Monitors
+
+`monitors/*.yaml` are monitor definitions (`kind: monitor`) and templates (`kind: monitorTemplate`), importable under **Monitors → Import → From the example library** and checked by `npm run validate`. Import them in file order (a sub-monitor before the monitor that includes it). See [docs/MONITORS.md](../docs/MONITORS.md).
+
+| # | Monitor | What it shows |
+| --- | --- | --- |
+| 10 | Machine 17 – machine data | Heartbeat of on-change machine data (maximum age) and its freshness in Insights Hub |
+| 11 | Machine 17 – PowerMeter | PowerMeter reachable → data reported by the gateway → data in Insights Hub; the machine data as a sub-monitor |
+| 20 | Plant services | Steward's own HTTP and platform checks next to Gatus endpoints, with a dependency between two Gatus endpoints |
+| 30 | PowerMeter with machine data (template) | Parameters for IP address, assets, cadence; create one monitor per machine from a CSV |
+

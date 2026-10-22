@@ -67,6 +67,7 @@
     "edit": "edit",
     "approve": "approve",
     "manage": "manage",
-    "use": "use"
+    "use": "use",
+    "acknowledge": "acknowledge"
   }
 }

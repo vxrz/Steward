@@ -140,6 +140,24 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'zabbix',
+    label: 'Zabbix (monitor outputs)',
+    description:
+      'Zabbix server or proxy as a target of monitor outputs. "sender" pushes values to trapper items over TCP (port 10051, variables trapperHost/trapperPort); "api" uses the JSON-RPC method history.push (Zabbix 7.0+) with an API token (credential token, sent as Authorization: Bearer). The variable "host" is the Zabbix host name the items belong to. See docs/MONITORS.md.',
+    baseUrl: 'https://zabbix.example.com',
+    config: {
+      auth: { type: 'bearer' },
+      variables: { host: 'steward', trapperHost: 'zabbix.example.com', trapperPort: '10051', apiPath: '/api_jsonrpc.php' },
+      http: {},
+    },
+    secretFields: [{ key: 'token', label: 'API token (history.push)', help: 'Only needed for the "api" mode: Users → API tokens in Zabbix' }],
+    docs: [
+      { title: 'Zabbix sender protocol', url: 'https://www.zabbix.com/documentation/current/en/manual/appendix/protocols/zabbix_sender' },
+      { title: 'Zabbix API history.push', url: 'https://www.zabbix.com/documentation/current/en/manual/api/reference/history/push' },
+      { title: 'Zabbix trapper items', url: 'https://www.zabbix.com/documentation/current/en/manual/config/items/itemtypes/trapper' },
+    ],
+  },
+  {
     kind: 'generic',
     label: 'Generic REST API',
     description: 'Any HTTP API. Pick the auth type and add an OpenAPI specification for operation lookup.',

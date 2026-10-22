@@ -4,7 +4,7 @@
     "title": "Steward API",
     "version": "1.0.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams, and monitors (status, history, Zabbix low-level discovery).\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -2207,6 +2207,1228 @@
           "createdAt"
         ],
         "additionalProperties": false
+      },
+      "Monitor": {
+        "title": "Monitor",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Stable key, e.g. machine-17-powermeter (used in item keys, LLD and Prometheus labels)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down",
+              "unknown",
+              "blocked",
+              "maintenance"
+            ]
+          },
+          "statusCode": {
+            "type": "integer",
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the status last changed"
+          },
+          "rootCauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitorId": {
+                  "type": "string"
+                },
+                "monitorKey": {
+                  "type": "string"
+                },
+                "monitorName": {
+                  "type": "string"
+                },
+                "checkId": {
+                  "type": "string"
+                },
+                "checkName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitorId",
+                "monitorKey",
+                "monitorName",
+                "checkId",
+                "checkName"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Failing checks that explain the status (sub-monitor nodes are expanded)"
+          },
+          "checkCount": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Checks per status"
+          },
+          "uptime": {
+            "type": "object",
+            "properties": {
+              "h24": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          },
+          "maintenance": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "startsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "startsAt",
+                  "endsAt",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The active maintenance window"
+          },
+          "acknowledged": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "by": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "by",
+                  "at",
+                  "comment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "templateId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastEvaluatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "tags",
+          "owner",
+          "enabled",
+          "status",
+          "statusCode",
+          "since",
+          "rootCauses",
+          "checkCount",
+          "counts",
+          "uptime",
+          "maintenance",
+          "acknowledged",
+          "templateId",
+          "updatedAt",
+          "lastEvaluatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "MonitorDetail": {
+        "title": "MonitorDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Stable key, e.g. machine-17-powermeter (used in item keys, LLD and Prometheus labels)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down",
+              "unknown",
+              "blocked",
+              "maintenance"
+            ]
+          },
+          "statusCode": {
+            "type": "integer",
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the status last changed"
+          },
+          "rootCauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitorId": {
+                  "type": "string"
+                },
+                "monitorKey": {
+                  "type": "string"
+                },
+                "monitorName": {
+                  "type": "string"
+                },
+                "checkId": {
+                  "type": "string"
+                },
+                "checkName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitorId",
+                "monitorKey",
+                "monitorName",
+                "checkId",
+                "checkName"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Failing checks that explain the status (sub-monitor nodes are expanded)"
+          },
+          "checkCount": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Checks per status"
+          },
+          "uptime": {
+            "type": "object",
+            "properties": {
+              "h24": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          },
+          "maintenance": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "startsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "startsAt",
+                  "endsAt",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The active maintenance window"
+          },
+          "acknowledged": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "by": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "by",
+                  "at",
+                  "comment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "templateId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastEvaluatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Definition: checks, links, outputs (no secrets)"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "tags",
+          "owner",
+          "enabled",
+          "status",
+          "statusCode",
+          "since",
+          "rootCauses",
+          "checkCount",
+          "counts",
+          "uptime",
+          "maintenance",
+          "acknowledged",
+          "templateId",
+          "updatedAt",
+          "lastEvaluatedAt",
+          "definition"
+        ],
+        "additionalProperties": false
+      },
+      "MonitorCheckStatus": {
+        "title": "MonitorCheckStatus",
+        "type": "object",
+        "properties": {
+          "checkId": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Check key (heartbeat key for gateway reports)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "ping",
+              "tcp",
+              "http",
+              "platform",
+              "freshness",
+              "heartbeat",
+              "gatus",
+              "monitor"
+            ]
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down",
+              "unknown",
+              "blocked",
+              "maintenance"
+            ]
+          },
+          "statusCode": {
+            "type": "integer",
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastOkAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Message of the latest result"
+          },
+          "durationMs": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "causedBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitorId": {
+                  "type": "string"
+                },
+                "monitorKey": {
+                  "type": "string"
+                },
+                "monitorName": {
+                  "type": "string"
+                },
+                "checkId": {
+                  "type": "string"
+                },
+                "checkName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitorId",
+                "monitorKey",
+                "monitorName",
+                "checkId",
+                "checkName"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Failing parents that likely cause this check to fail"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uptime": {
+            "type": "object",
+            "properties": {
+              "h24": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          }
+        },
+        "required": [
+          "checkId",
+          "key",
+          "name",
+          "type",
+          "critical",
+          "enabled",
+          "status",
+          "statusCode",
+          "since",
+          "lastCheckedAt",
+          "lastOkAt",
+          "message",
+          "durationMs",
+          "causedBy",
+          "note",
+          "uptime"
+        ],
+        "additionalProperties": false
+      },
+      "MonitorStatusReport": {
+        "title": "MonitorStatusReport",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Stable key, e.g. machine-17-powermeter (used in item keys, LLD and Prometheus labels)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down",
+              "unknown",
+              "blocked",
+              "maintenance"
+            ]
+          },
+          "statusCode": {
+            "type": "integer",
+            "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the status last changed"
+          },
+          "rootCauses": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitorId": {
+                  "type": "string"
+                },
+                "monitorKey": {
+                  "type": "string"
+                },
+                "monitorName": {
+                  "type": "string"
+                },
+                "checkId": {
+                  "type": "string"
+                },
+                "checkName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitorId",
+                "monitorKey",
+                "monitorName",
+                "checkId",
+                "checkName"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Failing checks that explain the status (sub-monitor nodes are expanded)"
+          },
+          "checkCount": {
+            "type": "integer"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Checks per status"
+          },
+          "uptime": {
+            "type": "object",
+            "properties": {
+              "h24": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+          },
+          "maintenance": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "startsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "startsAt",
+                  "endsAt",
+                  "reason"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The active maintenance window"
+          },
+          "acknowledged": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "by": {
+                    "type": "string"
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "by",
+                  "at",
+                  "comment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "templateId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastEvaluatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "checkId": {
+                  "type": "string"
+                },
+                "key": {
+                  "type": "string",
+                  "description": "Check key (heartbeat key for gateway reports)"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "ping",
+                    "tcp",
+                    "http",
+                    "platform",
+                    "freshness",
+                    "heartbeat",
+                    "gatus",
+                    "monitor"
+                  ]
+                },
+                "critical": {
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "up",
+                    "degraded",
+                    "down",
+                    "unknown",
+                    "blocked",
+                    "maintenance"
+                  ]
+                },
+                "statusCode": {
+                  "type": "integer",
+                  "description": "0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance"
+                },
+                "since": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "lastCheckedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "lastOkAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "message": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Message of the latest result"
+                },
+                "durationMs": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "causedBy": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "monitorId": {
+                        "type": "string"
+                      },
+                      "monitorKey": {
+                        "type": "string"
+                      },
+                      "monitorName": {
+                        "type": "string"
+                      },
+                      "checkId": {
+                        "type": "string"
+                      },
+                      "checkName": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "monitorId",
+                      "monitorKey",
+                      "monitorName",
+                      "checkId",
+                      "checkName"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Failing parents that likely cause this check to fail"
+                },
+                "note": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "uptime": {
+                  "type": "object",
+                  "properties": {
+                    "h24": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    },
+                    "d7": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    },
+                    "d30": {
+                      "type": [
+                        "null",
+                        "number"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "h24",
+                    "d7",
+                    "d30"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count"
+                }
+              },
+              "required": [
+                "checkId",
+                "key",
+                "name",
+                "type",
+                "critical",
+                "enabled",
+                "status",
+                "statusCode",
+                "since",
+                "lastCheckedAt",
+                "lastOkAt",
+                "message",
+                "durationMs",
+                "causedBy",
+                "note",
+                "uptime"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server time of this answer"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "tags",
+          "owner",
+          "enabled",
+          "status",
+          "statusCode",
+          "since",
+          "rootCauses",
+          "checkCount",
+          "counts",
+          "uptime",
+          "maintenance",
+          "acknowledged",
+          "templateId",
+          "updatedAt",
+          "lastEvaluatedAt",
+          "checks",
+          "time"
+        ],
+        "additionalProperties": false
+      },
+      "MonitorHistoryEntry": {
+        "title": "MonitorHistoryEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "checkId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null: the monitor itself"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down",
+              "unknown",
+              "blocked",
+              "maintenance"
+            ]
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "degraded",
+                  "down",
+                  "unknown",
+                  "blocked",
+                  "maintenance"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "causedBy": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "monitorId": {
+                  "type": "string"
+                },
+                "monitorKey": {
+                  "type": "string"
+                },
+                "monitorName": {
+                  "type": "string"
+                },
+                "checkId": {
+                  "type": "string"
+                },
+                "checkName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "monitorId",
+                "monitorKey",
+                "monitorName",
+                "checkId",
+                "checkName"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "checkId",
+          "status",
+          "previous",
+          "message",
+          "causedBy"
+        ],
+        "additionalProperties": false
+      },
+      "MonitorDiscovery": {
+        "title": "MonitorDiscovery",
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "description": "One object per check (or monitor) with {#MONITOR}, {#MONITORNAME}, {#CHECK}, {#CHECKNAME}, {#CHECKTYPE}, {#CHECKKEY}"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "description": "Zabbix low-level discovery (LLD) format"
       }
     },
     "securitySchemes": {
@@ -5089,6 +6311,470 @@
           }
         }
       }
+    },
+    "/monitors": {
+      "get": {
+        "operationId": "listMonitors",
+        "summary": "List monitors with their status",
+        "tags": [
+          "Monitors"
+        ],
+        "description": "Monitors you may view (templates are left out), ordered by name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "up",
+                  "degraded",
+                  "down",
+                  "unknown",
+                  "blocked",
+                  "maintenance"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only monitors with these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Case-insensitive search in key and name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of monitors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of monitors",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Monitor"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/monitors/discovery": {
+      "get": {
+        "operationId": "discoverMonitors",
+        "summary": "Zabbix low-level discovery (LLD) of monitors and checks",
+        "tags": [
+          "Monitors"
+        ],
+        "description": "Returns `{\"data\":[{\"{#MONITOR}\":\"machine-17-powermeter\",\"{#CHECK}\":\"pm-reachable\",…}]}` for a Zabbix HTTP agent discovery rule. Use the macros in item prototypes, e.g. a dependent item on `/monitors/{#MONITOR}/status` with JSONPath `$.checks[?(@.checkId==\"{#CHECK}\")].statusCode.first()`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "checks",
+                "monitors"
+              ],
+              "default": "checks"
+            },
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "description": "checks: one entry per check; monitors: one per monitor"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorDiscovery"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/monitors/{monitorId}": {
+      "get": {
+        "operationId": "getMonitor",
+        "summary": "Get a monitor with its definition",
+        "tags": [
+          "Monitors"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "monitorId",
+            "required": true,
+            "description": "Monitor id or key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/monitors/{monitorId}/status": {
+      "get": {
+        "operationId": "getMonitorStatus",
+        "summary": "Current status of a monitor and all its checks",
+        "tags": [
+          "Monitors"
+        ],
+        "description": "For pull integrations (Zabbix HTTP agent, scripts). Status codes: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "monitorId",
+            "required": true,
+            "description": "Monitor id or key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStatusReport"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/monitors/{monitorId}/history": {
+      "get": {
+        "operationId": "listMonitorHistory",
+        "summary": "Status changes of a monitor and its checks",
+        "tags": [
+          "Monitors"
+        ],
+        "description": "Newest first. Kept for the monitor retention period (default 30 days).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "check",
+            "required": false,
+            "description": "Only this check id; \"\" (empty) = the monitor itself"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "monitorId",
+            "required": true,
+            "description": "Monitor id or key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of status changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of status changes",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MonitorHistoryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -5133,6 +6819,10 @@
     {
       "name": "Users",
       "description": "Accounts and teams (administrators)"
+    },
+    {
+      "name": "Monitors",
+      "description": "Monitor and check status, history and Zabbix low-level discovery"
     }
   ],
   "externalDocs": {

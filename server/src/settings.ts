@@ -8,6 +8,7 @@ const DEFAULTS = (): Settings => ({
   retentionRunDays: 0,
   retentionNotificationDays: 30,
   defaultLocale: DEFAULT_LOCALE,
+  retentionMonitorDays: 30,
   apiDocs: 'authenticated',
   outboundPolicy: (['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
     ? (process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
@@ -16,7 +17,7 @@ const DEFAULTS = (): Settings => ({
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
-const INTERNAL = ['notifications.', 'maintenance.', 'reports.'];
+const INTERNAL = ['notifications.', 'maintenance.', 'reports.', 'monitors.'];
 
 export function getSettings(): Settings {
   const rows = db().all<{ key: string; value: string }>('SELECT key, value FROM settings');
@@ -37,7 +38,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'defaultLocale', 'apiDocs', 'outboundPolicy', 'outboundAllowList'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'retentionMonitorDays', 'defaultLocale', 'apiDocs', 'outboundPolicy', 'outboundAllowList'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

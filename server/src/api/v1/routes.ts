@@ -19,6 +19,8 @@ import * as scheduler from '../../scheduler.js';
 import * as platforms from '../../platforms/service.js';
 import * as datasets from '../../dashboards/datasets.js';
 import * as dashboards from '../../dashboards/service.js';
+import { monitorDatasetVisible } from '../../monitors/datasets.js';
+import { monitorApiRoutes } from '../../monitors/api-v1.js';
 import { HttpError } from '../../util.js';
 import { API_VERSION } from './config.js';
 import { ProblemError } from './problem.js';
@@ -74,7 +76,7 @@ function visibleDataset(key: string) {
   } catch {
     throw notFound(`Dataset ${key}`);
   }
-  if (!processes.permissionsFor(meta.processId).includes('view')) throw notFound(`Dataset ${key}`);
+  if (!(monitorDatasetVisible(meta.processId) ?? processes.permissionsFor(meta.processId).includes('view'))) throw notFound(`Dataset ${key}`);
   return meta;
 }
 
@@ -258,7 +260,7 @@ const mapUser = (u: ReturnType<typeof users.getUser>) => ({
 
 const ERR = { 400: 'Bad request', 401: 'Missing or invalid token', 403: 'Not allowed', 404: 'Not found', 409: 'Conflict', 429: 'Rate limit exceeded' } as const;
 
-interface Op {
+export interface Op {
   operationId: string;
   tag: string;
   summary: string;
@@ -279,7 +281,7 @@ export const PAGINATED_OPERATIONS = new Set<string>();
 /** Operations and their extra documented error statuses. */
 export const OPERATION_ERRORS = new Map<string, number[]>();
 
-function schemaOf(op: Op) {
+export function schemaOf(op: Op) {
   if (op.paginated) PAGINATED_OPERATIONS.add(op.operationId);
   const errs = new Set<number>([401, 403, 429, ...(op.errors ?? [])]);
   if (op.query) errs.add(400);
@@ -748,7 +750,10 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     async (req, reply) => {
       const q = query<{ cursor?: string; limit: number }>(req);
       const visible = new Set(visibleProcessIds());
-      const list = datasets.listDatasets().filter((d) => visible.has(d.processId)).map(mapDataset);
+      const list = datasets
+        .listDatasets()
+        .filter((d) => monitorDatasetVisible(d.processId) ?? visible.has(d.processId))
+        .map(mapDataset);
       return paged(req, reply, pageArray(list, (d) => [d.key], q, q));
     },
   );
@@ -944,4 +949,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       return paged(req, reply, pageArray(users.listTeams(), (t) => [t.name.toLowerCase(), t.id], q, q));
     },
   );
+
+  // ---------- monitors ----------
+  await monitorApiRoutes(app, get);
 }

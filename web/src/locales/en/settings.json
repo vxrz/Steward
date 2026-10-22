@@ -44,7 +44,9 @@
     "runsHint": "Includes logs and evidence files. 0 = forever.",
     "notifications": "Keep read notifications (days)",
     "notificationsHint": "Unread ones are always kept.",
-    "hint": "Older runs and read notifications are deleted automatically. The audit log is never pruned."
+    "hint": "Older runs, read notifications and monitor history are deleted automatically. The audit log is never pruned.",
+    "monitors": "Keep monitor history (days)",
+    "monitorsHint": "Status changes, uptime samples and check results of monitors."
   },
   "unattended": {
     "title": "Unattended operation",

@@ -10,6 +10,7 @@ import { BRAND } from '@sm/shared';
 import { startNotificationJobs, stopNotificationJobs, flushNotifications } from './notifications/service.js';
 import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 import { db } from './db.js';
+import { stopMonitorEngine } from './monitors/engine.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
 import { listPlatforms, getSecrets } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
@@ -61,6 +62,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     if (active.length) logger.info({ activeRuns: active.length }, 'stopping with active runs; they are resumed or marked interrupted on next start');
     stopNotificationJobs();
     stopMaintenanceJobs();
+    await stopMonitorEngine();
     await app.close();
     await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 5000))]);
     await shutdownTelemetry();

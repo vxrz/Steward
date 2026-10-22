@@ -1,6 +1,7 @@
 import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 import { db } from './db.js';
 import { on } from './events.js';
+import { registerMonitorMetrics } from './monitors/metrics.js';
 
 /**
  * Prometheus metrics (GET /api/metrics). Counters and histograms are fed by
@@ -114,6 +115,7 @@ export function initMetrics(): Registry {
       }
     },
   });
+  registerMonitorMetrics(registry);
   return registry;
 }
 

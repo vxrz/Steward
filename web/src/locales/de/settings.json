@@ -44,7 +44,9 @@
     "runsHint": "Einschließlich Logs und Nachweisdateien. 0 = unbegrenzt.",
     "notifications": "Gelesene Benachrichtigungen aufbewahren (Tage)",
     "notificationsHint": "Ungelesene bleiben immer erhalten.",
-    "hint": "Ältere Ausführungen und gelesene Benachrichtigungen werden automatisch gelöscht. Das Audit-Log wird nie gekürzt."
+    "hint": "Ältere Ausführungen, gelesene Benachrichtigungen und der Monitor-Verlauf werden automatisch gelöscht. Das Audit-Log wird nie gekürzt.",
+    "monitors": "Monitor-Verlauf aufbewahren (Tage)",
+    "monitorsHint": "Statuswechsel, Verfügbarkeitswerte und Prüfergebnisse der Monitore."
   },
   "unattended": {
     "title": "Unbeaufsichtigter Betrieb",

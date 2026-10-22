@@ -47,5 +47,14 @@
   "test": {
     "title": "Test notification",
     "body": "If you can read this, notifications from {{brand}} reach this channel."
+  },
+  "monitor": {
+    "up": "Recovered: {{where}}",
+    "degraded": "Warning: {{where}}",
+    "down": "Down: {{where}}",
+    "unknown": "Status unknown: {{where}}",
+    "blocked": "Blocked: {{where}}",
+    "maintenance": "Maintenance: {{where}}",
+    "rootCause": "Root cause: {{causes}}."
   }
 }

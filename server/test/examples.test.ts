@@ -134,8 +134,9 @@ describe('example library', () => {
     expect((await s.api('GET', '/datasets/iem.firmware')).metrics.outdated).toBe(4);
 
     const uptime = await s.api('GET', '/datasets/gatus-uptime');
-    expect(uptime.rowCount).toBe(6);
-    expect(uptime.metrics).toMatchObject({ endpoints: 6, down: 1 });
+    // six monitored endpoints plus the external endpoint the demo monitors report to
+    expect(uptime.rowCount).toBe(7);
+    expect(uptime.metrics).toMatchObject({ endpoints: 7, down: 1 });
     expect(uptime.metrics.avgUptime).toBeGreaterThan(90);
     const byEndpoint = Object.fromEntries(uptime.rows.map((r: any) => [r.Endpoint, r]));
     expect(byEndpoint['Historian API']).toMatchObject({ _status: 'critical', Healthy: 'no', Group: 'plant' });

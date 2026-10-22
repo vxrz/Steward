@@ -186,6 +186,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                 value={s.retentionNotificationDays ?? 30}
                 onChange={(v) => setS({ ...s, retentionNotificationDays: typeof v === 'number' ? v : 30 })}
               />
+              <NumberInput
+                disabled={readOnly}
+                label={t('retention.monitors')}
+                description={t('retention.monitorsHint')}
+                min={1}
+                value={s.retentionMonitorDays ?? 30}
+                onChange={(v) => setS({ ...s, retentionMonitorDays: typeof v === 'number' ? v : 30 })}
+              />
             </SimpleGrid>
             <Text size="xs" c="dimmed">
               {t('retention.hint')}

@@ -595,6 +595,8 @@ export interface Settings {
   retentionRunDays: number;
   /** Delete read notifications older than this many days */
   retentionNotificationDays: number;
+  /** Keep monitor status history, hourly samples and recent results this many days (default 30) */
+  retentionMonitorDays: number;
   browserTimeoutMs: number;
   /** Language of messages that go to a channel rather than a person (Teams, webhook), and for users without a chosen language */
   defaultLocale: Locale;

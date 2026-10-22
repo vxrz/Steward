@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { logger } from '../log.js';
 import { db } from '../db.js';
 import { addSpec, createPlatform } from '../platforms/service.js';
 import { mockIdentitySpec } from '../mock/mockSpec.js';
@@ -15,6 +16,7 @@ import { createDashboard, listDashboardTemplates } from '../dashboards/service.j
 import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
 import { getProcess } from '../processes/service.js';
+import { setupMonitorDemo } from '../monitors/demo.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -51,6 +53,7 @@ export async function setupDemo(): Promise<{
   dashboards: number;
   schedules: number;
   runs: number;
+  monitors: number;
 }> {
   const base = `http://127.0.0.1:${config.port}/mock`;
   const existing = new Set(db().all<{ name: string }>('SELECT name FROM platforms').map((r) => r.name));
@@ -217,10 +220,18 @@ export async function setupDemo(): Promise<{
     }
   }
 
+  // ---- example monitors (machines with PowerMeters) and the IoT gateway simulator ----
+  let monitors = 0;
+  try {
+    monitors = await setupMonitorDemo();
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'demo monitors not created');
+  }
+
   audit({
     action: 'demo.setup',
     entityType: 'settings',
-    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${schedules} schedules, ${runs} feeder runs started)`,
+    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${schedules} schedules, ${runs} feeder runs started, ${monitors} monitors)`,
   });
-  return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD, dashboards, schedules, runs };
+  return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD, dashboards, schedules, runs, monitors };
 }

@@ -1,6 +1,6 @@
 // ---------- Notifications ----------
 
-export const NOTIFICATION_EVENTS = ['task.assigned', 'run.failed', 'check.failed', 'dataset.stale', 'schedule.skipped'] as const;
+export const NOTIFICATION_EVENTS = ['task.assigned', 'run.failed', 'check.failed', 'dataset.stale', 'schedule.skipped', 'monitor.status'] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
@@ -9,6 +9,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'check.failed': 'A check failed in a run you started or a process you own',
   'dataset.stale': 'Dashboard data you feed is older than its freshness limit',
   'schedule.skipped': 'A schedule you own was skipped (missing rights, still running …)',
+  'monitor.status': 'A monitor you own or subscribed to changed its status (root causes only)',
 };
 
 export interface AppNotification {

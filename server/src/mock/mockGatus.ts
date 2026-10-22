@@ -114,6 +114,10 @@ function seed(): Endpoint[] {
       ...mk('steward', 'Steward checks', '', ['external'], (i) => ({ ok: true, ms: jitter(i, 400) }), { '1h': 1, '24h': 1, '7d': 1, '30d': 1 }),
       external: true,
     },
+    {
+      ...mk('steward', 'Machine monitors', '', ['external'], (i) => ({ ok: true, ms: jitter(i, 20) }), { '1h': 1, '24h': 1, '7d': 1, '30d': 1 }),
+      external: true,
+    },
   ].map((e) => {
     // failed results carry the condition text as Gatus does, e.g. "[STATUS] (503) == 200"
     for (const r of e.results) {
