@@ -83,6 +83,58 @@ docker build --build-arg WITH_BROWSER=1 -t service-manager .   # with Chromium f
 - `/api/health` (liveness) and `/api/ready` (readiness: vault unlocked, database writable, scheduler running) are available for orchestrators. `/api/metrics` serves Prometheus metrics.
 - Set `SM_MASTER_PASSPHRASE` from a secret so schedules run after restarts.
 
+## 5. Database: SQLite or PostgreSQL
+
+Steward keeps its data in **SQLite** by default: one file, `service-manager.db`, in the data directory. Nothing to set up, which is right for the desktop executable and for laptops.
+
+For a shared installation, such as an internal VM, it can use **PostgreSQL** instead. Set `SM_DATABASE_URL`:
+
+```bash
+SM_DATABASE_URL=postgres://steward:secret@db.corp.example:5432/steward npm start
+docker compose -f docker-compose.postgres.yml up -d    # app + postgres:16, see the file's header
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `SM_DATABASE_URL` | `postgres://user:password@host:5432/database`. URL-encode special characters in the password. TLS: add `?sslmode=verify-full` (or `require`, which `pg` currently treats like `verify-full`). `sslmode=no-verify` encrypts without checking the certificate. The standard `PG*` variables (e.g. `PGPASSWORD`) fill in missing parts. |
+| `SM_DATABASE_SCHEMA` | Schema for all tables. Default `public`. It is created if it does not exist, so one database can host several installations, or test runs. |
+| `SM_DATABASE_CA` | Path to the CA certificate (PEM) of the database server. Adds `sslrootcert` and, unless the URL sets one, `sslmode=verify-full`. |
+
+**Requirements.** You need PostgreSQL 12 or later; it was tested with 16. The server must be built with ICU, as the official images and the Debian, Ubuntu and RHEL packages are. ICU provides the case-insensitive collation for user and team names. The database user needs to be able to create tables in the schema: the database owner can, and with another schema `CREATE` on the database is enough. Tables are created and upgraded automatically at start-up, the same way as on SQLite.
+
+**One instance per database schema.** The scheduler and the run engine keep state in memory, so two instances on the same data would run schedules twice. At start-up the app takes a PostgreSQL advisory lock for its schema. If another instance holds the lock, the app refuses to start and says which database session has it. After a hard crash of the VM, the old session can linger until the database notices that it is gone. End it with `SELECT pg_terminate_backend(<pid>)`.
+
+**The data directory is still needed.** It holds `vault.json` (the encrypted key material: without it, the credentials stored in the database cannot be decrypted), screenshots and files of runs (`artifacts/`), reports and uploaded docs. Give the app a persistent `SM_DATA_DIR`. In the compose file this is the `steward-data` volume.
+
+**Backup.** Back up both parts together:
+
+```bash
+pg_dump -Fc -d steward -f steward-$(date +%F).dump    # database
+tar czf steward-data-$(date +%F).tgz -C /data .        # data directory (vault.json, artifacts, reports, docs)
+```
+
+To restore, use `pg_restore -d steward --clean steward-….dump` and unpack the data directory. With SQLite, copying the data directory while the app is stopped is enough.
+
+**Moving existing data.** `npm run db:copy` copies everything from one database to another: SQLite to PostgreSQL, or back. Stop the app first:
+
+```bash
+npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://steward:secret@db:5432/steward
+# --to-schema <name>   target schema (default SM_DATABASE_SCHEMA or public)
+# --force              replace data already in the target (otherwise a non-empty target is refused)
+```
+
+- Both databases are first brought to the current schema version.
+- Rows are copied verbatim, in foreign-key order and in batches, in one transaction on the target, and the row counts are checked before the commit. So the tamper-evident audit chain still verifies (Admin → Audit → Verify).
+- Afterwards, start the app with `SM_DATABASE_URL` and the same data directory.
+- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward npm run db:copy -- --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
+
+**Things to know.**
+
+- The **desktop executable always uses SQLite**. If `SM_DATABASE_URL` is set there, it refuses to start. Use the Node.js or container version for PostgreSQL.
+- The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
+- Size on the *Settings → Maintenance* page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
+- `/api/ready` checks that the database is reachable and writable, for both kinds.
+
 ## Why not Electron or Tauri?
 
 Both are possible and would add a native tray icon and auto-update. They also add a second toolchain:

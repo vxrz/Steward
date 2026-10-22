@@ -61,13 +61,16 @@ npm run build      # builds the web UI once (again after updates)
 npm start          # http://127.0.0.1:4310
 ```
 
-All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up. Use `SM_DATA_DIR` to keep it somewhere else.
+All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up. Use `SM_DATA_DIR` to keep it somewhere else. A shared installation can keep the database in PostgreSQL instead; see [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SM_PORT` | `4310` | HTTP port |
 | `SM_HOST` | `127.0.0.1` | Bind address. Keep it local unless you know what you are doing. |
 | `SM_DATA_DIR` | `./data` | Data directory |
+| `SM_DATABASE_URL` | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql). |
+| `SM_DATABASE_SCHEMA` | `public` | PostgreSQL schema (created if missing) |
+| `SM_DATABASE_CA` | – | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate |
 | `SM_MASTER_PASSPHRASE` | – | Unlock automatically at start-up, so schedules run after a reboot. |
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
@@ -316,6 +319,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 npm install
 npm run dev:demo   # API with auto-reload + Vite UI on http://127.0.0.1:5173 (with mock platforms)
 npm test           # end-to-end tests against the mock platforms (incl. browser + crash/resume)
+npm run test:pg    # the same suite on PostgreSQL (SM_TEST_DATABASE_URL, default postgres://postgres@127.0.0.1:5432/postgres)
 npm run typecheck
 ```
 
@@ -323,7 +327,7 @@ Code layout:
 
 ```
 shared/   process model (zod schemas), step metadata for the editor, API types
-server/   Fastify API, SQLite (node:sqlite), engine, platforms, audit, scheduler, reports, mock platforms, templates
+server/   Fastify API, SQLite (node:sqlite) or PostgreSQL (server/src/database), engine, platforms, audit, scheduler, reports, mock platforms, templates
 web/      React + Mantine UI
 ```
 
