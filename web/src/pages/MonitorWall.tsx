@@ -66,7 +66,7 @@ export function MonitorWallPage() {
               <Text fw={700} size="lg" lineClamp={2}>
                 {m.name}
               </Text>
-              <Text fw={800} size="sm" tt="uppercase" c={`${MONITOR_COLORS[m.status]}.9`} style={{ flexShrink: 0 }}>
+              <Text fw={800} size="sm" tt="uppercase" style={{ flexShrink: 0 }}>
                 {MONITOR_LABELS[m.status]}
               </Text>
             </Group>
