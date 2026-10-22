@@ -55,7 +55,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/theme': PUBLIC,
   'GET /api/theme/logo': PUBLIC,
   'GET /manifest.webmanifest': PUBLIC,
+  // the web UI: static files (GET /*) when web/dist is built, otherwise a hint page (GET /)
   'GET /': PUBLIC,
+  'GET /*': PUBLIC,
   'GET /api/auth/status': PUBLIC,
   'GET /api/vault/status': PUBLIC,
   'POST /api/auth/setup': PUBLIC,
@@ -724,8 +726,14 @@ describe('route permission matrix', () => {
       [...registered].filter((k) => !(k in EXPECT)),
       'routes missing from EXPECT in route-matrix.test.ts',
     ).toEqual([]);
+    // which of the two web UI routes exists depends on whether web/dist is built
+    const WEB_UI = new Set(['GET /', 'GET /*']);
     expect(
-      Object.keys(EXPECT).filter((k) => !registered.has(k)),
+      [...WEB_UI].some((k) => registered.has(k)),
+      'one of the web UI routes',
+    ).toBe(true);
+    expect(
+      Object.keys(EXPECT).filter((k) => !registered.has(k) && !WEB_UI.has(k)),
       'EXPECT entries without a route',
     ).toEqual([]);
   });
