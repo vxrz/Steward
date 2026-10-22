@@ -10,6 +10,7 @@ import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
 import { logger } from './log.js';
+import { isUnexpected, reportError } from './errorReporting.js';
 import { emit } from './events.js';
 
 interface ScheduleRow {
@@ -169,7 +170,10 @@ function arm(id: string) {
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r || !r.enabled) return;
   const job = new Cron(r.cron, { timezone: r.timezone || undefined, protect: true }, () => {
-    fire(id).catch((e) => logger.error({ err: e, scheduleId: id }, 'schedule failed'));
+    fire(id).catch((e) => {
+      logger.error({ err: e, scheduleId: id }, 'schedule failed');
+      if (isUnexpected(e)) reportError(e, { tags: { phase: 'schedule' } });
+    });
   });
   jobs.set(id, job);
 }

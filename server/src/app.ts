@@ -9,34 +9,38 @@ import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
-import { requestContext } from './auth/context.js';
+import { currentUser, requestContext } from './auth/context.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
+import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready'];
+const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config'];
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
 
-/** Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only). */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "worker-src 'self'",
-  "manifest-src 'self'",
-].join('; ');
-/** The single sign-on callback page finishes with a small inline script. */
-const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
+/**
+ * Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only).
+ * connect-src additionally allows the error reporting host when browser error reporting is configured.
+ */
+function contentSecurityPolicy(connectExtra: string[] = []): string {
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    ["connect-src 'self'", ...connectExtra].join(' '),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
+  ].join('; ');
+}
 
 const isRead = (method: string) => method === 'GET' || method === 'HEAD';
 
@@ -48,6 +52,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) } } : {}),
   }) as unknown as FastifyInstance;
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+  const CSP = contentSecurityPolicy(cspConnectSources());
+  /** The single sign-on callback page finishes with a small inline script. */
+  const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 
   // --- local-only safety net ---
   app.addHook('onRequest', async (req, reply) => {
@@ -128,7 +135,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     else logger.debug(entry, 'request');
   });
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
       return reply.code(err.statusCode).send({ error: err.message, issues: (err as HttpError & { issues?: unknown }).issues });
     }
@@ -138,7 +145,18 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const e = err as Error & { statusCode?: number };
     if (e.statusCode && e.statusCode < 500) return reply.code(e.statusCode).send({ error: e.message });
     logger.error({ err }, 'unhandled error');
+    reportError(err, {
+      tags: { route: req.routeOptions?.url ?? 'unknown', method: req.method, request_id: req.id },
+      userId: currentUser()?.id,
+      request: { method: req.method, url: req.url },
+    });
     return reply.code(500).send({ error: e.message || 'Internal error' });
+  });
+
+  // Runtime settings for the web UI (one build works with and without error reporting).
+  app.get('/api/client-config', async (_req, reply) => {
+    reply.header('cache-control', 'no-store');
+    return clientConfig();
   });
 
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
