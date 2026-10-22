@@ -85,7 +85,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
 | `SM_PUBLIC_URL` | – | External URL (e.g. `https://steward.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI; an `https://` URL also makes the session cookie `Secure` and turns on HSTS. |
-| `SM_TRUST_PROXY` | – (off) | Behind a reverse proxy: the number of proxies (`1`) or their addresses/CIDRs (`10.0.0.5,10.1.0.0/16`) whose `X-Forwarded-For/-Proto/-Host` are believed. Client addresses in the audit log, sign-in lockouts and webhook CIDR checks then are the real ones. |
+| `SM_TRUST_PROXY` | – (off) | Behind a reverse proxy: the proxies' addresses/CIDRs (`10.0.0.5,10.1.0.0/16`, `loopback`) or the number of proxies (`1`, only for a proxy on a loopback/private address) whose `X-Forwarded-For/-Proto/-Host` are believed. Client addresses in the audit log, sign-in lockouts and webhook CIDR checks then are the real ones. |
 | `SM_TLS_CIPHERS` | modern list | OpenSSL cipher list for TLS 1.2 with the built-in HTTPS (TLS 1.3 suites are always on; TLS 1.0/1.1 are off) |
 | `SM_AUDIT_ANCHOR` / `SM_AUDIT_ANCHOR_FILE` | – | A signed audit checkpoint kept outside Steward (or a file with one, e.g. on a write-once share). Every verification fails if the log is shorter than it or differs. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence). |
 | `SM_AUDIT_CHECKPOINT_MINUTES` | `60` | Interval of signed audit checkpoints |

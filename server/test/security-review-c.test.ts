@@ -558,6 +558,56 @@ describe('M7 – reverse proxy settings', () => {
     expect(() => parseTrustProxy('true')).toThrow(/hop|number/);
     expect(() => parseTrustProxy('proxy.example.com')).toThrow(/not an IP/);
   });
+
+  it('honours a hop count only for a proxy on loopback or a private network', async () => {
+    const Fastify = (await import('fastify')).default;
+    const { trustProxyFn } = await import('../src/app.js');
+    const app = Fastify({ trustProxy: trustProxyFn(1) as never });
+    app.get('/', async (req) => req.ip);
+    const ip = async (remoteAddress: string, xff: string) => (await app.inject({ url: '/', remoteAddress, headers: { 'x-forwarded-for': xff } })).body;
+    expect(await ip('127.0.0.1', '203.0.113.7')).toBe('203.0.113.7');
+    expect(await ip('10.1.2.3', '198.51.100.1, 203.0.113.7')).toBe('203.0.113.7'); // one hop: the proxy's own view
+    expect(await ip('198.51.100.9', '203.0.113.7')).toBe('198.51.100.9'); // a direct client from outside cannot fake it
+  });
+});
+
+describe('M7 – behind a reverse proxy (separate server process)', () => {
+  it('uses the forwarded client address and marks the cookie Secure with an https public URL', async () => {
+    const { spawn } = await import('node:child_process');
+    const { freshDbEnv } = await import('./pg-env.js');
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-proxy-'));
+    const port = 41000 + Math.floor(Math.random() * 8000);
+    const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+      cwd: path.resolve(__dirname, '..'),
+      env: { ...process.env, ...freshDbEnv(), SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_TRUST_PROXY: '1', SM_PUBLIC_URL: 'https://steward.example.com', SM_LOG_LEVEL: 'info' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        let out = '';
+        child.stdout!.on('data', (d: Buffer) => ((out += d.toString()), out.includes('service manager started') && resolve()));
+        child.on('exit', (c) => reject(new Error(`exited ${c}: ${out}`)));
+        setTimeout(() => reject(new Error('start timeout')), 30000);
+      });
+      const base = `http://127.0.0.1:${port}`;
+      const login = (ip: string) =>
+        fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sm-client': '1', 'x-forwarded-for': ip }, body: JSON.stringify({ username: 'ghost', password: 'x' }) });
+      for (let i = 0; i < 5; i++) expect((await login('203.0.113.7')).status).toBe(401);
+      expect((await login('203.0.113.7')).status).toBe(429); // that client is locked out …
+      expect((await login('203.0.113.8')).status).toBe(401); // … not everyone behind the proxy
+      const setup = await fetch(base + '/api/auth/setup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
+        body: JSON.stringify({ passphrase: 'proxy test passphrase', username: 'admin', password: 'Admin-password-1' }),
+      });
+      expect(setup.headers.get('set-cookie')).toMatch(/; Secure/);
+      expect(setup.headers.get('strict-transport-security')).toBe('max-age=31536000');
+    } finally {
+      child.kill('SIGTERM');
+      await new Promise((r) => child.once('exit', r));
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('M8 – privacy', () => {

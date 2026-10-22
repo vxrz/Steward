@@ -378,7 +378,8 @@ function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
     const message = `The log ends at entry #${last}, but the ${a.source} proves that entry #${a.seq} existed – entries were removed`;
     return { ...fail(last, last + 1, message), anchors: [...anchorResults, { source: a.source, seq: a.seq, ok: false, message }] };
   }
-  if (!o.from && total !== last) return fail(last, last + 1, `The log holds ${total} rows but only ${last} form the chain – unexpected rows were inserted`);
+  // (entries written during the walk are part of it, so only "fewer in the chain than in the table" is a finding)
+  if (!o.from && last < total) return fail(last, last + 1, `The log holds ${total} rows but only ${last} form the chain – unexpected rows were inserted`);
   if (lastWritten && last < lastWritten.seq) {
     return fail(last, last + 1, `Entries after #${last} were removed while the server was running (it wrote entry #${lastWritten.seq})`);
   }

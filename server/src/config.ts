@@ -46,8 +46,10 @@ export function readPassphraseFile(file: string): string {
 
 /**
  * SM_TRUST_PROXY: behind a reverse proxy, which X-Forwarded-For / -Proto / -Host to believe.
- * Off by default. A hop count ("1") or a comma-separated list of proxy addresses/CIDRs
- * ("10.0.0.5, 10.1.0.0/16"); "true" (trust everyone) is refused – anyone could then fake their address.
+ * Off by default. A comma-separated list of proxy addresses/CIDRs ("10.0.0.5, 10.1.0.0/16", also
+ * "loopback", "linklocal", "uniquelocal") – preferred – or a hop count ("1"); a hop count is only
+ * honoured when the direct peer has a loopback or private address (see app.ts), so a client that
+ * reaches Steward directly from outside cannot fake its address. "true" (trust everyone) is refused.
  */
 export function parseTrustProxy(v: string | undefined): number | string[] | undefined {
   const s = v?.trim();

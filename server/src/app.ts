@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
@@ -58,6 +59,32 @@ const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/a
 export const TLS_CIPHERS =
   'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
 
+/** Loopback and private networks (RFC 1918, RFC 4193, link-local): where a reverse proxy in front of Steward lives. */
+const PRIVATE_PEERS = (() => {
+  const b = new BlockList();
+  for (const [net, prefix] of [['127.0.0.0', 8], ['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16]] as const) b.addSubnet(net, prefix, 'ipv4');
+  for (const [net, prefix] of [['::1', 128], ['fc00::', 7], ['fe80::', 10]] as const) b.addSubnet(net, prefix, 'ipv6');
+  return b;
+})();
+
+/**
+ * Fastify's trust function for SM_TRUST_PROXY. Addresses/CIDRs: the usual proxy-addr matching. A hop count
+ * (Fastify refuses those, as they cannot check the peer): the nearest n hops are trusted, but only when the
+ * direct peer is on loopback or a private network – a client from outside cannot forge X-Forwarded-For.
+ */
+export function trustProxyFn(tp: number | string[]): string[] | ((addr: string, i: number) => boolean) {
+  if (Array.isArray(tp)) return tp;
+  let peerOk = false;
+  return (addr: string, i: number) => {
+    if (i === 0) {
+      const a = addr.replace(/^::ffff:/, '');
+      peerOk = PRIVATE_PEERS.check(a, isIPv6(a) ? 'ipv6' : 'ipv4');
+      return peerOk && tp > 0;
+    }
+    return peerOk && i < tp;
+  };
+}
+
 /** Requests without any credentials may only send small bodies (sign-in, setup); everything else needs a session or token first. */
 const ANONYMOUS_BODY_LIMIT = 64 * 1024;
 
@@ -68,7 +95,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     disableRequestLogging: true,
     bodyLimit: 25 * 1024 * 1024,
     // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
-    ...(config.trustProxy !== undefined ? { trustProxy: config.trustProxy as string[] } : {}), // a number (hop count) is supported at runtime
+    ...(config.trustProxy !== undefined ? { trustProxy: trustProxyFn(config.trustProxy) } : {}),
     ...(config.tls
       ? {
           https: {
