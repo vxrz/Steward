@@ -26,7 +26,7 @@
     "none": "No teams yet. Teams group users so that access lists and task assignments can refer to them (e.g. team:service desk).",
     "edit": "Edit team {{name}}",
     "delete": "Delete team {{name}}",
-    "deleteConfirm": "Delete team “{{name}}”? Access entries that name it stop matching anyone.",
+    "deleteConfirm": "Delete team \"{{name}}\"? Access entries that name it stop matching anyone.",
     "noMembers": "no members"
   },
   "roles": {
@@ -47,14 +47,14 @@
     "adminWarning": "Administrators can manage users, platforms and credentials and see everything."
   },
   "teamModal": {
-    "saved": "Team “{{name}}” saved",
+    "saved": "Team \"{{name}}\" saved",
     "notSaved": "Team not saved",
     "edit": "Edit team {{name}}",
     "description": "Description",
     "members": "Members"
   },
   "sso": {
-    "removeConfirm": "Remove single sign-on “{{name}}”? Users of this provider can no longer sign in (their accounts and history stay).",
+    "removeConfirm": "Remove single sign-on \"{{name}}\"? Users of this provider can no longer sign in (their accounts and history stay).",
     "title": "Single sign-on",
     "add": "Add provider",
     "redirectHint": "Register this as redirect URI (type <b>Web</b>) in your identity provider / Entra app registration:",
@@ -73,13 +73,13 @@
     }
   },
   "provider": {
-    "saved": "Single sign-on “{{name}}” saved",
+    "saved": "Single sign-on \"{{name}}\" saved",
     "notSaved": "Not saved",
     "edit": "Edit {{name}}",
     "add": "Add single sign-on",
     "genericOidc": "Generic OIDC",
     "buttonLabel": "Button label",
-    "buttonLabelHint": "Shown as “{{button}}”",
+    "buttonLabelHint": "Shown as \"{{button}}\"",
     "tenant": "Directory (tenant) ID",
     "tenantHint": "From the app registration overview in Entra ID",
     "issuer": "Issuer URL",

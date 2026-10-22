@@ -5,8 +5,8 @@
   "none": "No webhook triggers yet.",
   "notSaved": "Trigger not saved",
   "saved": "Trigger saved",
-  "rotateConfirm": "Rotate the secret of “{{name}}”? The current secret stops working immediately – update the caller (e.g. Gatus) right away.",
-  "deleteConfirm": "Delete webhook trigger “{{name}}”? Calls to its URL will be answered with 404.",
+  "rotateConfirm": "Rotate the secret of \"{{name}}\"? The current secret stops working immediately – update the caller (e.g. Gatus) right away.",
+  "deleteConfirm": "Delete webhook trigger \"{{name}}\"? Calls to its URL will be answered with 404.",
   "enabled": "Enabled",
   "runsAs": "runs as {{owner}}",
   "secretLine": "secret {{prefix}}… · {{rate}}/min",
@@ -75,7 +75,7 @@
     "create": "Create and show secret"
   },
   "secret": {
-    "title": "Secret of “{{name}}”",
+    "title": "Secret of \"{{name}}\"",
     "copyNow": "Copy the secret now",
     "copyNowText": "It is shown only once and cannot be recovered. Store it in the calling system's secret store (for Gatus: an environment variable such as <c>{{name}}</c>). If it is lost or leaked, rotate it.",
     "secret": "Secret",

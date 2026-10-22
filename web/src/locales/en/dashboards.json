@@ -25,12 +25,12 @@
     "stale": "stale",
     "deleteHint": "Delete dataset and its history",
     "delete": "Delete dataset",
-    "deleteConfirm": "Delete dataset “{{key}}” and its metric history? It is recreated by the next run of {{process}}."
+    "deleteConfirm": "Delete dataset \"{{key}}\" and its metric history? It is recreated by the next run of {{process}}."
   },
   "templates": {
     "title": "Dashboard templates",
     "none": "No templates found in examples/dashboards.",
-    "created": "Created “{{name}}”",
+    "created": "Created \"{{name}}\"",
     "use": "Use"
   },
   "import": {
@@ -58,7 +58,7 @@
     "refresh": "Refresh data",
     "more": "More",
     "exportYaml": "Export YAML",
-    "deleteConfirm": "Delete dashboard “{{name}}”? The datasets stay.",
+    "deleteConfirm": "Delete dashboard \"{{name}}\"? The datasets stay.",
     "noWidgets": "No widgets yet",
     "clickEdit": "Click Edit and add widgets.",
     "widgetsHint": "Widgets show datasets published by processes with a “{{node}}” node – see <a>datasets</a>.",

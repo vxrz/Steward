@@ -33,7 +33,7 @@
     "kind": "Kind: {{kind}}",
     "platforms": "Platforms",
     "otherPlatforms": "Other platforms",
-    "connection": "Connection “{{slot}}”",
+    "connection": "Connection \"{{slot}}\"",
     "expects": "Expects a {{kind}} platform",
     "blocked": "platforms you may not use are disabled",
     "select": "Select platform",
@@ -64,7 +64,7 @@
     "resume": "resume",
     "subprocess": "sub-process",
     "webhook": "webhook",
-    "webhookNamed": "webhook trigger “{{name}}”"
+    "webhookNamed": "webhook trigger \"{{name}}\""
   },
   "detail": {
     "description": "Run <id>{{id}}</id> · <version>version {{version}}</version> · started by {{actor}} ({{trigger}}) {{date}} · {{duration}}",

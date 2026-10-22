@@ -68,7 +68,7 @@
     "hint": "A connector type is a reusable template for a kind of system: authentication, variables, HTTP options, which credentials are needed, documentation links and API specifications – never credential values. Create one from a configured platform (platform page → menu → “Save as connector type”), export it as a file and import it on another installation. New platforms of that type get its API specifications automatically.",
     "import": "Import connector file",
     "notAConnector": "Not a {{brand}} connector file",
-    "imported": "Connector type “{{name}}” imported",
+    "imported": "Connector type \"{{name}}\" imported",
     "importFailed": "Import failed",
     "none": "No custom connector types yet. Built-in presets: {{presets}}.",
     "connector": "Connector",
@@ -77,10 +77,10 @@
     "exportFile": "Export as file",
     "export": "Export",
     "deleteHint": "Delete connector type (existing platforms are not affected)",
-    "deleteConfirm": "Delete connector type “{{name}}”? Existing platforms keep working."
+    "deleteConfirm": "Delete connector type \"{{name}}\"? Existing platforms keep working."
   },
   "addModal": {
-    "created": "Platform “{{name}}” created",
+    "created": "Platform \"{{name}}\" created",
     "notCreated": "Platform not created",
     "title": "Add platform – choose a starting point",
     "titlePreset": "New platform – {{preset}}",
@@ -99,7 +99,7 @@
     "baseUrlHint": "May contain templates like {{example}}",
     "variables": "Variables",
     "credentials": "Credentials (encrypted at rest)",
-    "storedAs": "Stored as secret “{{key}}”",
+    "storedAs": "Stored as secret \"{{key}}\"",
     "credentialsHint": "Leave fields empty that you don't need. You can add or replace credentials later."
   },
   "detail": {
@@ -107,7 +107,7 @@
     "accessSaved": "Access saved",
     "accessNotSaved": "Access not saved",
     "testFailed": "Test failed",
-    "deleted": "Platform “{{name}}” deleted",
+    "deleted": "Platform \"{{name}}\" deleted",
     "notDeleted": "Not deleted",
     "test": "Test connection",
     "more": "More",
@@ -128,10 +128,10 @@
       "access": "Access"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
-    "typeToConfirm": "Type “{{name}}” to confirm"
+    "typeToConfirm": "Type \"{{name}}\" to confirm"
   },
   "saveType": {
-    "saved": "Connector type “{{name}}” saved – it appears under Add platform and can be exported under Platforms → Connector types",
+    "saved": "Connector type \"{{name}}\" saved – it appears under Add platform and can be exported under Platforms → Connector types",
     "notSaved": "Not saved",
     "hint": "Stores authentication, variables, HTTP options, the names of the required credentials, documentation links and all API specifications of “{{name}}” as a reusable template. Credential values are never included.",
     "kind": "Kind",
@@ -141,9 +141,9 @@
     "submit": "Save connector type"
   },
   "credentials": {
-    "stored": "Secret “{{key}}” stored",
+    "stored": "Secret \"{{key}}\" stored",
     "notStored": "Secret not stored",
-    "removed": "Secret “{{key}}” removed",
+    "removed": "Secret \"{{key}}\" removed",
     "notRemoved": "Not removed",
     "info": "Secrets are encrypted (AES-256-GCM) with a key derived from your master passphrase and never shown again or sent to the browser. Every change is recorded in the audit log (names only, never values). In processes they are available via <code/> and are masked in all logs.",
     "missing": "The configured authentication needs: {{keys}}",

@@ -7,7 +7,7 @@
   "notSaved": "Schedule not saved",
   "saved": "Schedule saved",
   "enabled": "Enabled",
-  "deleteConfirm": "Delete schedule “{{name}}”?",
+  "deleteConfirm": "Delete schedule \"{{name}}\"?",
   "table": {
     "active": "Active",
     "name": "Name",
