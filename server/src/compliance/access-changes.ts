@@ -181,6 +181,18 @@ export const accessChangeInput = z
   .strict();
 export type AccessChangeCreate = z.infer<typeof accessChangeInput> & { origin?: AccessChangeOrigin; runId?: string; findingId?: string };
 
+/** One right per line, within the size limit of a record field (a very long list ends with "… (n more)"). */
+function rightsText(list: string[]): string {
+  const rights = uniqueRights(list);
+  let text = '';
+  for (let n = 0; n < rights.length; n++) {
+    const next = text ? `${text}\n${rights[n]}` : rights[n]!;
+    if (next.length > 19000) return `${text}\n… (${rights.length - n} more)`;
+    text = next;
+  }
+  return text;
+}
+
 export function entryFields(i: AccessChangeCreate): Record<string, string> {
   return {
     platform: i.platformId,
@@ -188,8 +200,8 @@ export function entryFields(i: AccessChangeCreate): Record<string, string> {
     subjectName: i.subjectName ?? '',
     subjectType: i.subjectType ?? '',
     changeKind: i.kind,
-    rightsBefore: uniqueRights(i.rightsBefore).join('\n'),
-    rightsAfter: uniqueRights(i.rightsAfter).join('\n'),
+    rightsBefore: rightsText(i.rightsBefore),
+    rightsAfter: rightsText(i.rightsAfter),
     reason: i.reason,
     requestedBy: i.requestedBy ?? '',
     requestRef: i.requestRef ?? '',
