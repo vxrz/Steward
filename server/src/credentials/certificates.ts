@@ -1,6 +1,6 @@
 import crypto, { X509Certificate } from 'node:crypto';
 import { CERTIFICATE_MAX_BYTES, type CertificateInfo, type CertificateSummary } from '@sm/shared';
-import { HttpError } from '../util.js';
+import { HttpError, type ErrorParams } from '../util.js';
 
 /**
  * Public certificates for the credentials register: PEM (one certificate or a
@@ -19,8 +19,8 @@ const MAX_CERTS = 20;
 const PRIVATE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|-----BEGIN PKCS12-----/;
 
 export class CertificateError extends HttpError {
-  constructor(message: string, code = 'CERTIFICATE_INVALID') {
-    super(400, message, code);
+  constructor(message: string, code = 'CERTIFICATE_INVALID', params?: ErrorParams) {
+    super(400, message, code, params);
   }
 }
 
@@ -35,7 +35,8 @@ function pemCertificates(text: string): string[] {
   const blocks: string[] = [];
   let begins = 0;
   for (let i = text.indexOf('-----BEGIN '); i !== -1;) {
-    if (++begins > MAX_CERTS + 1) throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`);
+    if (++begins > MAX_CERTS + 1)
+      throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`, 'CERTIFICATE_TOO_MANY', { max: MAX_CERTS });
     const labelEnd = text.indexOf('-----', i + 11);
     if (labelEnd === -1) break;
     const label = text.slice(i + 11, labelEnd);
@@ -88,28 +89,33 @@ function looksLikePkcs12(der: Buffer): boolean {
 
 /** Parses an uploaded certificate (chain). The leaf is the first certificate. */
 export function parseCertificate(data: Buffer): CertificateInfo {
-  if (!data.length) throw new CertificateError('The file is empty');
-  if (data.length > CERTIFICATE_MAX_BYTES) throw new CertificateError(`The file is too large (max. ${CERTIFICATE_MAX_BYTES / 1024} KB)`);
+  if (!data.length) throw new CertificateError('The file is empty', 'FILE_EMPTY');
+  if (data.length > CERTIFICATE_MAX_BYTES)
+    throw new CertificateError(`The file is too large (max. ${CERTIFICATE_MAX_BYTES / 1024} KB)`, 'FILE_TOO_LARGE_KIB', {
+      maxKib: CERTIFICATE_MAX_BYTES / 1024,
+    });
   const text = data.toString('latin1');
   if (PRIVATE.test(text)) {
     throw new CertificateError(
       'The file contains a private key. Steward only documents certificates: upload the public certificate (PEM/CRT/DER) and keep the key where it belongs (e.g. KeePass).',
       'PRIVATE_KEY_REJECTED',
+      { context: 'pem' },
     );
   }
   let certs: X509Certificate[];
   if (text.includes('-----BEGIN')) {
     const blocks = pemCertificates(text);
-    if (!blocks.length) throw new CertificateError('No certificate found – expected a PEM block "-----BEGIN CERTIFICATE-----"');
-    if (blocks.length > MAX_CERTS) throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`);
+    if (!blocks.length) throw new CertificateError('No certificate found – expected a PEM block "-----BEGIN CERTIFICATE-----"', 'CERTIFICATE_NOT_FOUND');
+    if (blocks.length > MAX_CERTS)
+      throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`, 'CERTIFICATE_TOO_MANY', { max: MAX_CERTS });
     try {
       certs = blocks.map((b) => new X509Certificate(b));
     } catch {
-      throw new CertificateError('The certificate could not be read (invalid PEM)');
+      throw new CertificateError('The certificate could not be read (invalid PEM)', 'CERTIFICATE_INVALID', { context: 'pem' });
     }
   } else {
     if (derIsPrivateKey(data)) {
-      throw new CertificateError('The file is a private key. Upload the public certificate only.', 'PRIVATE_KEY_REJECTED');
+      throw new CertificateError('The file is a private key. Upload the public certificate only.', 'PRIVATE_KEY_REJECTED', { context: 'der' });
     }
     try {
       certs = [new X509Certificate(data)];
@@ -118,9 +124,10 @@ export function parseCertificate(data: Buffer): CertificateInfo {
         throw new CertificateError(
           'This looks like a PKCS#12 (.pfx/.p12) file, which contains the private key. Export the public certificate only (e.g. openssl pkcs12 -in file.pfx -nokeys -clcerts).',
           'PRIVATE_KEY_REJECTED',
+          { context: 'pkcs12' },
         );
       }
-      throw new CertificateError('The file is not a certificate (expected PEM, CRT or DER)');
+      throw new CertificateError('The file is not a certificate (expected PEM, CRT or DER)', 'CERTIFICATE_INVALID');
     }
   }
   const [leaf, ...rest] = certs as [X509Certificate, ...X509Certificate[]];
@@ -152,5 +159,5 @@ export function parseCertificate(data: Buffer): CertificateInfo {
 export function certificateBytes(input: { contentBase64?: string; pem?: string }): Buffer {
   if (input.pem) return Buffer.from(input.pem, 'utf8');
   if (input.contentBase64) return Buffer.from(input.contentBase64, 'base64');
-  throw new CertificateError('No certificate given');
+  throw new CertificateError('No certificate given', 'CERTIFICATE_NOT_FOUND', { context: 'none' });
 }

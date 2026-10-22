@@ -299,13 +299,13 @@
     "path": "Pfad (relativ zur Basis-URL)",
     "query": "Query-Parameter",
     "headers": "Header",
-    "body": "Body (JSON)",
+    "body": "Anfrageinhalt (JSON)",
     "confirm": "Mir ist bewusst, dass dies Daten auf {{name}} ändert",
     "send": "Senden",
     "failed": "Anfrage fehlgeschlagen",
     "hideHeaders": "Antwort-Header ausblenden",
     "showHeaders": "Antwort-Header anzeigen",
-    "responseBody": "Body"
+    "responseBody": "Antwortinhalt"
   },
   "integrity": {
     "title": "Verbindungseinstellungen außerhalb von Steward geändert",

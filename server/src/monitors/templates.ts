@@ -15,17 +15,18 @@ export function coerceParams(defs: TemplateParam[], given: Record<string, unknow
     let v = given[p.name];
     if (v === undefined || v === null || v === '') v = p.default;
     if (v === undefined || v === null || v === '') {
-      if (p.required) throw new HttpError(400, `Parameter "${p.label ?? p.name}" is required`);
+      if (p.required) throw new HttpError(400, `Parameter "${p.label ?? p.name}" is required`, 'TEMPLATE_PARAM_REQUIRED', { name: p.label ?? p.name });
       continue;
     }
     if (p.type === 'number') {
       const n = typeof v === 'number' ? v : Number(String(v).trim());
-      if (!Number.isFinite(n)) throw new HttpError(400, `Parameter "${p.label ?? p.name}" must be a number`);
+      if (!Number.isFinite(n))
+        throw new HttpError(400, `Parameter "${p.label ?? p.name}" must be a number`, 'TEMPLATE_PARAM_NUMBER', { name: p.label ?? p.name });
       out[p.name] = n;
     } else out[p.name] = String(v);
   }
   const unknown = Object.keys(given).filter((k) => !defs.some((p) => p.name === k) && !['name', 'key'].includes(k));
-  if (unknown.length) throw new HttpError(400, `Unknown parameter(s): ${unknown.join(', ')}`);
+  if (unknown.length) throw new HttpError(400, `Unknown parameter(s): ${unknown.join(', ')}`, 'TEMPLATE_PARAM_UNKNOWN', { names: unknown });
   return out;
 }
 
@@ -39,7 +40,7 @@ export async function renderTemplate(def: Record<string, unknown>, params: Recor
   try {
     return (await render(rest, { params }, {}, { timeoutMs: 1000, maxDepth: 100 })) as Record<string, unknown>;
   } catch (e) {
-    throw new HttpError(400, `Template could not be rendered: ${(e as Error).message}`);
+    throw new HttpError(400, `Template could not be rendered: ${(e as Error).message}`, 'TEMPLATE_RENDER', { detail: (e as Error).message });
   }
 }
 
@@ -73,11 +74,11 @@ export function parseCsv(text: string): Record<string, string>[] {
   }
   row.push(cell);
   if (row.some((c) => c.trim() !== '')) rows.push(row);
-  if (rows.length < 2) throw new HttpError(400, 'The CSV needs a header line and at least one row');
+  if (rows.length < 2) throw new HttpError(400, 'The CSV needs a header line and at least one row', 'CSV_EMPTY');
   const header = rows[0]!.map((h) => h.trim());
-  if (rows.length > 501) throw new HttpError(400, 'At most 500 rows per upload');
+  if (rows.length > 501) throw new HttpError(400, 'At most 500 rows per upload', 'CSV_TOO_MANY_ROWS', { max: 500 });
   return rows.slice(1).map((r, i) => {
-    if (r.length > header.length) throw new HttpError(400, `CSV line ${i + 2} has more cells than the header`);
+    if (r.length > header.length) throw new HttpError(400, `CSV line ${i + 2} has more cells than the header`, 'CSV_TOO_MANY_CELLS', { line: i + 2 });
     return Object.fromEntries(header.map((h, j) => [h, (r[j] ?? '').trim()]));
   });
 }

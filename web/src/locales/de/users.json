@@ -125,6 +125,7 @@
     "autoProvisionHint": "Andernfalls muss ein Administrator den Benutzer vorher anlegen (gleicher Benutzername); er wird bei der ersten Anmeldung verknüpft.",
     "syncRoles": "Rollen und zugeordnete Teams bei jeder Anmeldung abgleichen",
     "syncRolesHint": "Rollen kommen vom Identity Provider; hier vorgenommene Änderungen werden bei der nächsten Anmeldung überschrieben.",
-    "requireMapping": "Anmeldung verweigern, wenn keine Zuordnung passt"
+    "requireMapping": "Anmeldung verweigern, wenn keine Zuordnung passt",
+    "defaultOidcName": "Firmenanmeldung"
   }
 }

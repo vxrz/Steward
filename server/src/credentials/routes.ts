@@ -29,7 +29,7 @@ import { parseCertificate, certificateBytes } from './certificates.js';
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const me = () => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -99,11 +99,13 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     let data: Buffer;
     if (req.isMultipart()) {
       const file = await req.file({ limits: { fileSize: CERTIFICATE_MAX_BYTES + 1, files: 1 } });
-      if (!file) throw new HttpError(400, 'No file');
+      if (!file) throw new HttpError(400, 'No file', 'NO_FILE');
       try {
         data = await file.toBuffer();
       } catch {
-        throw new HttpError(400, `The file is too large (max. ${CERTIFICATE_MAX_BYTES / 1024} KB)`);
+        throw new HttpError(400, `The file is too large (max. ${CERTIFICATE_MAX_BYTES / 1024} KB)`, 'FILE_TOO_LARGE_KIB', {
+          maxKib: CERTIFICATE_MAX_BYTES / 1024,
+        });
       }
     } else data = certificateBytes(certBody.parse(req.body ?? {}));
     return parseCertificate(data);

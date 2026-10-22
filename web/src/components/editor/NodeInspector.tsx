@@ -8,6 +8,7 @@ import i18n from '../../i18n';
 import { JsonView, StatusBadge, statusLabel } from '../common';
 import { fmtDate, fmtDuration, fmtRelative } from '../../format';
 import { inspectNode, isNotFound, useLatestRun, useRunDetail } from './editorApi';
+import { errorText } from '../../i18n/errors';
 
 type Activation = NodeInspection['activations'][number];
 
@@ -134,7 +135,7 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
       </Text>
     );
   }
-  const hardError = inspect.error && !fallback ? (inspect.error as Error).message : detail.error ? (detail.error as Error).message : null;
+  const hardError = inspect.error && !fallback ? errorText(inspect.error) : detail.error ? errorText(detail.error) : null;
   const limit = showAll ? activations.length : 20;
   const varsBefore = inspect.data?.varsBefore;
 

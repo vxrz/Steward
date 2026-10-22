@@ -20,7 +20,7 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 const me = () => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -30,12 +30,14 @@ function gatusPlatform(id: string, need?: 'use' | 'manage') {
   try {
     p = platforms.getPlatform(id);
   } catch {
-    throw new HttpError(404, `Platform ${id} not found`);
+    throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   }
-  if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`);
-  if (p.kind !== 'gatus') throw new HttpError(400, 'Metrics mode is only available for Gatus platforms');
+  if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
+  if (p.kind !== 'gatus') throw new HttpError(400, 'Metrics mode is only available for Gatus platforms', 'GATUS_PLATFORM_REQUIRED', { context: 'metrics' });
   if (need && !p.permissions.includes(need))
-    throw new HttpError(403, `You are not allowed to ${need === 'manage' ? 'configure' : 'use'} this platform`, 'FORBIDDEN');
+    throw new HttpError(403, `You are not allowed to ${need === 'manage' ? 'configure' : 'use'} this platform`, 'FORBIDDEN', {
+      context: need === 'manage' ? 'managePlatform' : 'usePlatform',
+    });
   return p;
 }
 
@@ -73,7 +75,7 @@ export async function gatusRoutes(app: FastifyInstance): Promise<void> {
     const p = gatusPlatform(params(req).platformId!, 'manage');
     const b = sourceBody.parse(req.body ?? {});
     const before = gatus.sourceRow(p.id);
-    if (b.rawRetentionDays > b.retentionDays) throw new HttpError(400, 'Raw samples cannot be kept longer than the hourly data');
+    if (b.rawRetentionDays > b.retentionDays) throw new HttpError(400, 'Raw samples cannot be kept longer than the hourly data', 'GATUS_RETENTION');
     const after = gatus.saveSource(p.id, b, me().username);
     audit({
       action: before ? 'gatus.metrics_updated' : 'gatus.metrics_enabled',
@@ -87,7 +89,7 @@ export async function gatusRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete('/gatus/sources/:platformId', async (req) => {
     const p = gatusPlatform(params(req).platformId!, 'manage');
-    if (!gatus.sourceRow(p.id)) throw new HttpError(404, 'Metrics mode is not configured for this platform');
+    if (!gatus.sourceRow(p.id)) throw new HttpError(404, 'Metrics mode is not configured for this platform', 'GATUS_METRICS_OFF');
     gatus.deleteSource(p.id);
     audit({ action: 'gatus.metrics_removed', entityType: 'platform', entityId: p.id, summary: `Gatus metrics mode removed for "${p.name}" (samples deleted)` });
     return { ok: true };

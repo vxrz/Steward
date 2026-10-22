@@ -47,6 +47,7 @@ export interface FnHint {
 }
 
 /** Built-in helpers plus the most used JSONata functions (merged with the server's list when available). */
+// i18n-ignore: English defaults of editor:functions.<name>, shown translated through fnHelp()
 export const STATIC_FUNCTIONS: FnHint[] = [
   { name: '$daysSince', signature: '$daysSince(timestamp)', help: 'Days since a timestamp (ISO or epoch). Empty → undefined.' },
   { name: '$daysAgo', signature: '$daysAgo(n)', help: 'ISO timestamp n days in the past.' },

@@ -117,7 +117,8 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
   - Use Mantine components, and make it work in light and dark mode, at 390 px width and with the keyboard.
   - Give icon buttons an `aria-label`.
   - Build pages from the shared pieces in `web/src/components/common.tsx`: `PageHeader` (with `back` on detail pages), `EmptyState` and `QueryState` for lists, `StatusBadge`/`TONE` for status colours. A new page goes into a sidebar section in `web/src/components/AppNav.tsx`. Clickable cards and rows need a real link inside. See [docs/UX-REVIEW.md](docs/UX-REVIEW.md).
-  - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check`. See [docs/I18N.md](docs/I18N.md).
+  - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check` and `npm run i18n:literals` (finds texts that do not go through `t()`). See [docs/I18N.md](docs/I18N.md).
+  - Give every error a person can see a code and its details: `new HttpError(400, 'English message', 'CODE', { details })`, plus `errors:codes.CODE` in the locale files ([docs/I18N.md](docs/I18N.md#server-errors)). Format dates and numbers with `web/src/format.ts`.
 - **CLIs** follow [clig.dev](https://clig.dev/): `--help`, exit codes 0/1/2, errors to stderr, `--json` for machine-readable output, respect `NO_COLOR`.
 - **Dependencies:**
   - Add them only with a good reason. Prefer Node.js built-ins.

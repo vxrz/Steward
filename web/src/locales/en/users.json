@@ -125,6 +125,7 @@
     "autoProvisionHint": "Otherwise an administrator has to create the user first (same user name); it is linked on the first sign-in.",
     "syncRoles": "Sync roles and mapped teams at every sign-in",
     "syncRolesHint": "Roles come from the identity provider; changes made here are overwritten at the next sign-in.",
-    "requireMapping": "Deny sign-in when no mapping matches"
+    "requireMapping": "Deny sign-in when no mapping matches",
+    "defaultOidcName": "Company login"
   }
 }

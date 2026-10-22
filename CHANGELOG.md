@@ -129,6 +129,16 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - ESLint, Prettier and EditorConfig for the whole repository (`npm run lint`, `npm run format:check`, checked in CI), with pre-commit hooks for staged files, a gitleaks scan and a Conventional Commits check of the message ([CONTRIBUTING.md](CONTRIBUTING.md#pre-commit-hooks)).
 - **Navigation and first steps** ([docs/UX-REVIEW.md](docs/UX-REVIEW.md)): the sidebar is grouped into _Operate_, _Automate_, _Service management_ and _Administration_; sections fold (remembered per browser) and the whole sidebar folds to icons on wide screens. Detail pages show a breadcrumb back to their list. Lists have empty states with guidance and the first action, skeletons while loading and an error message with _Try again_; filters fold behind a button on phones. Administrators get a getting-started checklist on the start page (`setup` counts in `GET /api/dashboard`, administrators only). The command palette finds monitors, services, records and credential entries and has "New …" actions. Runs, cards and start-page tiles are real links (keyboard access), and status badges share one colour vocabulary.
 
+### Fixed
+
+- **German UI** – everything is translated now, also on the _Dokumente_ pages:
+  - server errors of records, services, credentials, reports, report schedules, Gatus, MCP, monitors and gateways (about 240 messages) carry a `code` and `params`; the UI shows them in its language, with the details filled in, numbers formatted and lists joined in the UI language. Zod validation errors are shown inside a translated sentence;
+  - the four-eyes and other reasons why a record action is not possible (`reasonCode`), the errors and notes of the Markdown import (`errorCode`, `warningCodes`) and why a task cannot be decided (`cannotDecideCode`);
+  - the built-in record types: description, Markdown template, field labels and help, select options (_niedrig/mittel/hoch_) in the web UI, the record PDF and the records section of scheduled reports – as long as an administrator has not changed them. New records start with the template in the UI language (API/MCP: in the creator's profile language);
+  - a few hard-coded English texts (task panel, report language names, close buttons of dialogs, the default name of a new sign-in provider) and German texts that were still English (_Protokoll_, _Audit-Log_, _Anfrageinhalt_, …); dates and numbers in the theme settings follow the UI language;
+  - the PDF of a record is generated in the requester's profile language when the request names none (was English).
+- New checks: `npm run i18n:literals` finds texts in the web UI that do not go through `t()`; `npm run i18n:check` also reports texts that are still English (allow-list `scripts/i18n-allow.json`); both run in CI. A server test makes sure every error code has a text, and a UI test visits the main pages in German. See [docs/I18N.md](docs/I18N.md).
+
 ### Security
 
 - Holistic review (OWASP ASVS 4.0.3 level 2), see [docs/REVIEW-2026-10.md](docs/REVIEW-2026-10.md):

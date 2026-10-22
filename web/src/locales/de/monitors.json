@@ -290,7 +290,7 @@
     "inputs": "Eingaben (JSONata)",
     "input": "Eingabe",
     "connections": "Verbindungen (Slot → Plattform-ID)",
-    "slot": "Slot",
+    "slot": "Verbindung",
     "dryRun": "Probelauf",
     "send": "Senden",
     "onChange": "Bei Änderung",

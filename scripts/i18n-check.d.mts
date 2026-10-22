@@ -1,7 +1,7 @@
 export interface I18nProblem {
   lang: string;
   file: string;
-  type: 'missing' | 'extra' | 'empty' | 'placeholders' | 'tags' | 'type' | 'invalid';
+  type: 'missing' | 'extra' | 'empty' | 'placeholders' | 'tags' | 'type' | 'invalid' | 'untranslated';
   key: string;
   detail?: string;
 }

@@ -83,6 +83,7 @@ const toDraft = (tr: WebhookTrigger): Draft => ({
 });
 
 /** The JSON body of the Gatus custom alert in docs/GATUS.md (placeholders already replaced). */
+// i18n-ignore: sample payload as Gatus sends it
 const GATUS_SAMPLE = {
   event: 'TRIGGERED',
   name: 'Historian API',

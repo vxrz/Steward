@@ -9,6 +9,7 @@ import { get } from '../api';
 import { PageHeader } from '../components/common';
 import { shortCommit } from '../buildInfo';
 import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
+import { errorText } from '../i18n/errors';
 
 const doc = (p: string) => `${BRAND.repoUrl}/blob/HEAD/docs/${p}`;
 
@@ -106,7 +107,7 @@ export function SystemStatusPage() {
       />
       {q.isError && (
         <Alert color="red" mb="md">
-          {(q.error as Error).message}
+          {errorText(q.error)}
         </Alert>
       )}
       {s && (

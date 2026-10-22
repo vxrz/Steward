@@ -89,7 +89,7 @@ export function requireIntact(r: SealedPlatformRow): void {
 /** An administrator has reviewed the current settings: seal them again. */
 export function confirmPlatformConfig(id: string): void {
   const r = db().get<SealedPlatformRow>('SELECT id, name, kind, base_url, environment, config, secrets, config_mac FROM platforms WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Platform ${id} not found`);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   const before = platformIntegrity(r);
   db().tx(() => {
     sealPlatform(id);

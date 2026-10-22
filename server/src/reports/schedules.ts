@@ -192,7 +192,7 @@ function toSchedule(r: Row): ReportSchedule {
 
 function rowOf(id: string): Row {
   const r = db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', id);
-  if (!r || !canView(currentUser(), r)) throw new HttpError(404, `Report schedule ${id} not found`);
+  if (!r || !canView(currentUser(), r)) throw new HttpError(404, `Report schedule ${id} not found`, 'REPORT_SCHEDULE_NOT_FOUND', { id });
   return r;
 }
 
@@ -240,17 +240,21 @@ function checkCron(cron: string, tz: string): void {
   try {
     job = new Cron(cron, { paused: true, timezone: tz });
   } catch (e) {
-    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`);
+    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`, 'CRON_INVALID', { detail: (e as Error).message });
   }
   try {
     const fields = cron.trim().split(/\s+/);
     const nickname = /^@(yearly|annually|monthly|weekly|daily|midnight|hourly)$/i.test(cron.trim());
     if (!nickname && fields.length !== 5) {
-      throw new HttpError(400, 'Use a cron expression with five fields (minute hour day month weekday) – seconds are not supported for reports');
+      throw new HttpError(
+        400,
+        'Use a cron expression with five fields (minute hour day month weekday) – seconds are not supported for reports',
+        'CRON_FIVE_FIELDS',
+      );
     }
     const runs = job.nextRuns(48).map((d) => d.getTime());
     if ((!nickname && !/^\d{1,2}$/.test(fields[0]!)) || runs.some((t, i) => i > 0 && t - runs[i - 1]! < MIN_INTERVAL_MS)) {
-      throw new HttpError(400, 'A report schedule may run at most once an hour – use a single minute value, e.g. "0 6 * * 1"');
+      throw new HttpError(400, 'A report schedule may run at most once an hour – use a single minute value, e.g. "0 6 * * 1"', 'REPORT_SCHEDULE_TOO_OFTEN');
     }
   } finally {
     job.stop();
@@ -263,9 +267,9 @@ function normalize(
   before?: Row,
 ): Omit<Row, 'id' | 'owner' | 'created_at' | 'updated_at' | 'last_run_at' | 'last_report_id' | 'last_error'> {
   const tz = b.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  if (!validTz(tz)) throw new HttpError(400, `Unknown time zone "${tz}"`);
+  if (!validTz(tz)) throw new HttpError(400, `Unknown time zone "${tz}"`, 'TIME_ZONE_UNKNOWN', { tz });
   const cron = b.preset === 'custom' ? b.cron : PRESET_CRON[b.preset];
-  if (!cron) throw new HttpError(400, 'Enter a cron expression for a custom schedule');
+  if (!cron) throw new HttpError(400, 'Enter a cron expression for a custom schedule', 'CRON_REQUIRED');
   checkCron(cron, tz);
   const sections = parseSections(b.sections);
   // references must be visible to the owner (the report would silently miss them otherwise)
@@ -273,9 +277,9 @@ function normalize(
     for (const [id, cfg] of Object.entries(sections)) reportSection(id)?.validate?.(cfg);
   });
   const users = new Map(listUsers().map((u) => [u.username.toLowerCase(), u]));
-  for (const n of b.recipients.users) if (!users.has(n.toLowerCase())) throw new HttpError(400, `User "${n}" not found`);
+  for (const n of b.recipients.users) if (!users.has(n.toLowerCase())) throw new HttpError(400, `User "${n}" not found`, 'USER_NOT_FOUND', { name: n });
   const teams = new Set(listTeams().map((tm) => tm.name.toLowerCase()));
-  for (const n of b.recipients.teams) if (!teams.has(n.toLowerCase())) throw new HttpError(400, `Team "${n}" not found`);
+  for (const n of b.recipients.teams) if (!teams.has(n.toLowerCase())) throw new HttpError(400, `Team "${n}" not found`, 'TEAM_NOT_FOUND', { name: n });
   // new external addresses must have an allowed domain (notify() checks every address again when sending)
   const stored = new Set(before ? parseJson<ReportRecipients>(before.recipients, { users: [], teams: [], emails: [] }).emails : []);
   assertEmailsAllowed(b.recipients.emails.filter((e) => !stored.has(e)));
@@ -297,16 +301,20 @@ function normalize(
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
 export function createReportSchedule(b: ScheduleInput): ReportSchedule {
   const u = me();
-  if (!canCreateReportSchedules(u)) throw new HttpError(403, 'You are not allowed to create report schedules', 'FORBIDDEN');
+  if (!canCreateReportSchedules(u))
+    throw new HttpError(403, 'You are not allowed to create report schedules', 'FORBIDDEN', { context: 'createReportSchedule' });
   const own = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM report_schedules WHERE lower(owner) = lower(?)', u.username)!;
   if (Number(own.n) >= MAX_SCHEDULES_PER_OWNER) {
-    throw new HttpError(400, `You already own ${MAX_SCHEDULES_PER_OWNER} report schedules – delete one you no longer need first`, 'LIMIT_REACHED');
+    throw new HttpError(400, `You already own ${MAX_SCHEDULES_PER_OWNER} report schedules – delete one you no longer need first`, 'LIMIT_REACHED', {
+      context: 'reportSchedules',
+      max: MAX_SCHEDULES_PER_OWNER,
+    });
   }
   const v = normalize(b, u);
   const id = newId('rsc_');
@@ -333,7 +341,7 @@ export function createReportSchedule(b: ScheduleInput): ReportSchedule {
 export function updateReportSchedule(id: string, b: ScheduleInput): ReportSchedule {
   const u = me();
   const r = rowOf(id);
-  if (!canEdit(u, r)) throw new HttpError(403, 'Only the owner or an administrator can change this report schedule', 'FORBIDDEN');
+  if (!canEdit(u, r)) throw new HttpError(403, 'Only the owner or an administrator can change this report schedule', 'FORBIDDEN', { context: 'ownerOnly' });
   const owner = findUserByName(r.owner);
   const v = normalize(b, owner ? toAuthUser(owner) : u, r);
   const changed = (Object.keys(v) as (keyof typeof v)[]).filter((k) => String(r[k]) !== String(v[k]));
@@ -361,7 +369,7 @@ export function updateReportSchedule(id: string, b: ScheduleInput): ReportSchedu
 export function deleteReportSchedule(id: string): void {
   const u = me();
   const r = rowOf(id);
-  if (!canEdit(u, r)) throw new HttpError(403, 'Only the owner or an administrator can delete this report schedule', 'FORBIDDEN');
+  if (!canEdit(u, r)) throw new HttpError(403, 'Only the owner or an administrator can delete this report schedule', 'FORBIDDEN', { context: 'ownerOnly' });
   disarm(id);
   db().tx(() => {
     db().run('DELETE FROM report_schedules WHERE id = ?', id);
@@ -393,8 +401,8 @@ function recipientUsers(rec: ReportRecipients): UserInfo[] {
  */
 export async function runReportSchedule(id: string, o: { actor: string; at?: number; compress?: boolean }): Promise<ReportRecord & { texts: string[] }> {
   const r = db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Report schedule ${id} not found`);
-  if (runningNow.has(id)) throw new HttpError(409, 'This report is being generated right now');
+  if (!r) throw new HttpError(404, `Report schedule ${id} not found`, 'REPORT_SCHEDULE_NOT_FOUND', { id });
+  if (runningNow.has(id)) throw new HttpError(409, 'This report is being generated right now', 'REPORT_RUNNING');
   runningNow.add(id);
   try {
     const ownerInfo = findUserByName(r.owner);
@@ -408,7 +416,7 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
         entityId: id,
         summary: `Report schedule "${r.name}" skipped: ${msg}`,
       });
-      throw new HttpError(409, `The report was not generated: ${msg}`);
+      throw new HttpError(409, `The report was not generated: ${msg}`, 'REPORT_OWNER_MISSING', { owner: r.owner });
     }
     const owner = toAuthUser(ownerInfo);
     const at = o.at ?? Date.now();

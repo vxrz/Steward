@@ -9,6 +9,66 @@
     "DR": "Entscheidungsprotokoll",
     "SDR": "Sicherheitsentscheidung"
   },
+  "builtin": {
+    "types": {
+      "CR": {
+        "description": "Eine geplante Änderung an einem Service oder einer Plattform: Grund, Risiko, Rückfallplan und Umsetzungszeitraum. Freigegeben von jemand anderem als dem Antragsteller.",
+        "template": "## Beschreibung\n\n\n## Umsetzungsplan\n\n1. \n\n## Test und Verifikation\n\n\n## Kommunikation\n\n"
+      },
+      "ADR": {
+        "description": "Eine für die Architektur bedeutsame Entscheidung mit ihrem Kontext und ihren Konsequenzen (im Stil von MADR oder Nygard).",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n"
+      },
+      "DR": {
+        "description": "Eine Entscheidung des Service-Teams, die nicht die Architektur betrifft, z. B. eine Betriebsregel oder die Wahl eines Lieferanten.",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n"
+      },
+      "SDR": {
+        "description": "Eine Sicherheitsentscheidung, z. B. ein akzeptiertes Risiko, eine Ausnahme oder eine Härtungsmaßnahme. Wenn Ihr Team SDR für etwas anderes verwendet, ändern Sie Name und Beschreibung (das Kürzel lässt sich nicht mehr ändern, sobald es Dokumente gibt) oder archivieren Sie die Dokumentart.",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n"
+      }
+    },
+    "fields": {
+      "reason": {
+        "label": "Begründung"
+      },
+      "risk": {
+        "label": "Risiko"
+      },
+      "impact": {
+        "label": "Auswirkungen"
+      },
+      "rollbackPlan": {
+        "label": "Rückfallplan"
+      },
+      "plannedStart": {
+        "label": "Geplanter Beginn"
+      },
+      "plannedEnd": {
+        "label": "Geplantes Ende"
+      },
+      "decisionDate": {
+        "label": "Entscheidungsdatum"
+      },
+      "deciders": {
+        "label": "Entscheider",
+        "help": "Personen, die die Entscheidung getroffen haben"
+      },
+      "consulted": {
+        "label": "Konsultiert"
+      },
+      "informed": {
+        "label": "Informiert"
+      }
+    },
+    "options": {
+      "risk": {
+        "low": "niedrig",
+        "medium": "mittel",
+        "high": "hoch"
+      }
+    }
+  },
   "status": {
     "draft": "Entwurf",
     "submitted": "Eingereicht",
@@ -81,7 +141,7 @@
     "frozenHash": "Inhalts-Hash: {{hash}}",
     "contentHash": "Aktueller Inhalts-Hash (SHA-256): {{hash}}",
     "tamperedTitle": "Der Inhalt passt nicht zu seinem festgehaltenen Hash",
-    "tampered": "Das Dokument wurde nach dem Einfrieren außerhalb von Steward geändert. Es kann weder freigegeben noch weitergeführt werden. Prüfen Sie das Audit-Protokoll.",
+    "tampered": "Das Dokument wurde nach dem Einfrieren außerhalb von Steward geändert. Es kann weder freigegeben noch weitergeführt werden. Prüfen Sie das Audit-Log.",
     "supersededBy": "Diese Entscheidung wurde ersetzt durch",
     "importedStatus": "Aus {{file}} mit dem Status „{{status}}“ importiert. Importierte Dokumente beginnen als Entwurf und brauchen eine Freigabe in Steward.",
     "noBody": "Noch kein Text."
@@ -168,7 +228,7 @@
   "transition": {
     "title": "{{action}}: {{number}}",
     "to": "Neuer Status: {{status}}",
-    "approvalNote": "Sie geben genau diesen Inhalt frei oder lehnen ihn ab (Hash {{hash}}). Die Entscheidung wird im Audit-Protokoll festgehalten.",
+    "approvalNote": "Sie geben genau diesen Inhalt frei oder lehnen ihn ab (Hash {{hash}}). Die Entscheidung wird im Audit-Log festgehalten.",
     "freezeNote": "Der Inhalt ist ab jetzt eingefroren. Spätere Änderungen brauchen eine neue Revision.",
     "supersededBy": "Ersetzt durch",
     "comment": "Kommentar",
@@ -177,7 +237,7 @@
   },
   "revise": {
     "title": "Neue Revision von {{number}}",
-    "help": "Das Dokument wird als Revision {{revision}} wieder zum Entwurf. Der eingefrorene Inhalt bleibt im Versionsverlauf und im Audit-Protokoll. Es braucht eine neue Freigabe.",
+    "help": "Das Dokument wird als Revision {{revision}} wieder zum Entwurf. Der eingefrorene Inhalt bleibt im Versionsverlauf und im Audit-Log. Es braucht eine neue Freigabe.",
     "reason": "Warum ist eine neue Revision nötig?",
     "submit": "Neue Revision starten"
   },
@@ -227,7 +287,7 @@
     "write": "Schreiben",
     "preview": "Vorschau",
     "tags": "Schlagwörter",
-    "tagsHelp": "Nach jedem Schlagwort Enter drücken",
+    "tagsHelp": "Nach jedem Schlagwort die Eingabetaste drücken",
     "comment": "Änderungsnotiz",
     "commentPlaceholder": "Was haben Sie geändert? (erscheint im Versionsverlauf)",
     "requiredHint": "Mit * markierte Felder müssen ausgefüllt sein, bevor das Dokument eingereicht werden kann.",
@@ -313,6 +373,7 @@
       "date": "Datum",
       "datetime": "Datum und Uhrzeit",
       "select": "Auswahl"
-    }
+    },
+    "builtinHint": "Eingebaute Dokumentarten werden in der Sprache der jeweiligen Person angezeigt, solange ihre Texte unverändert sind. Texte, die Sie hier ändern, sehen alle so, wie Sie sie eingeben."
   }
 }

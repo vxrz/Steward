@@ -27,9 +27,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { REPORT_LANGS } from '@sm/shared';
 import type { GatusMetricsSource, MonitorSummary, ProcessSummary, RecordType, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { reportLangName } from '../components/reports/RunReports';
+import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
@@ -301,6 +304,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const recordTypes = useQuery({ queryKey: ['record-types', false], queryFn: () => get<RecordType[]>('/record-types'), enabled: sections.includes('records') });
+  const typeName = useTypeName();
   const gatus = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
@@ -373,10 +377,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           <Select
             label={t('form.lang')}
             allowDeselect={false}
-            data={[
-              { value: 'en', label: 'English' },
-              { value: 'de', label: 'Deutsch' },
-            ]}
+            data={REPORT_LANGS.map((l) => ({ value: l, label: reportLangName(l) }))}
             value={d.lang}
             onChange={(v) => set({ lang: (v as 'en' | 'de') ?? 'en' })}
           />
@@ -464,7 +465,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                     label={t('form.recordTypes')}
                     placeholder={t('form.allTypes')}
                     searchable
-                    data={(recordTypes.data ?? []).map((x) => ({ value: x.key, label: `${x.key} – ${x.name}` }))}
+                    data={(recordTypes.data ?? []).map((x) => ({ value: x.key, label: `${x.key} – ${typeName(x)}` }))}
                     value={cfg.types ?? []}
                     onChange={(v) => setSec(id, { ...cfg, types: v.length ? v : null })}
                   />

@@ -46,16 +46,18 @@ const updateBody = z
 
 /** One uploaded file (multipart), with a size limit. */
 async function uploadedFile(req: FastifyRequest, maxBytes: number): Promise<{ filename: string; data: Buffer; fields: Record<string, string> }> {
-  if (!req.isMultipart()) throw new HttpError(400, 'Send the file as multipart/form-data');
+  if (!req.isMultipart()) throw new HttpError(400, 'Send the file as multipart/form-data', 'MULTIPART_REQUIRED');
   const file = await req.file({ limits: { fileSize: maxBytes, files: 1 } });
-  if (!file) throw new HttpError(400, 'No file');
+  if (!file) throw new HttpError(400, 'No file', 'NO_FILE');
+  const tooLarge = () =>
+    new HttpError(413, `The file is too large (at most ${maxBytes / 1024 / 1024} MB)`, 'FILE_TOO_LARGE', { maxMb: maxBytes / 1024 / 1024 });
   let data: Buffer;
   try {
     data = await file.toBuffer();
   } catch {
-    throw new HttpError(413, `The file is too large (at most ${maxBytes / 1024 / 1024} MB)`);
+    throw tooLarge();
   }
-  if (file.file.truncated) throw new HttpError(413, `The file is too large (at most ${maxBytes / 1024 / 1024} MB)`);
+  if (file.file.truncated) throw tooLarge();
   const fields: Record<string, string> = {};
   for (const [k, v] of Object.entries(file.fields)) {
     const val = (v as { value?: unknown } | undefined)?.value;
@@ -93,7 +95,8 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.get('/records', async (req) => {
     const q = listQuery.parse(req.query);
     const status = csv(q.status);
-    if (status?.some((s) => !RECORD_STATUSES.includes(s))) throw new HttpError(400, `Unknown status – use ${RECORD_STATUSES.join(', ')}`);
+    if (status?.some((s) => !RECORD_STATUSES.includes(s)))
+      throw new HttpError(400, `Unknown status – use ${RECORD_STATUSES.join(', ')}`, 'RECORD_STATUS_UNKNOWN', { allowed: RECORD_STATUSES.join(', ') });
     return svc.listRecords({ type: q.type, status, tag: q.tag, q: q.q, owner: q.owner, limit: q.limit });
   });
   app.post('/records', async (req) => {
@@ -213,7 +216,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     me();
     const q = z.object({ kind: z.enum(LINK_KINDS), id: z.string().min(1).max(200) }).parse(req.query);
     // not for items the user cannot see (no probing which hidden items exist or are linked)
-    if (!targetVisible(q.kind, q.id)) throw new HttpError(404, `${q.kind} ${q.id} not found`);
+    if (!targetVisible(q.kind, q.id)) throw new HttpError(404, `${q.kind} ${q.id} not found`, 'LINK_TARGET_NOT_FOUND', { kind: q.kind, id: q.id });
     return listBacklinks(q.kind, q.id);
   });
 

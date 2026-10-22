@@ -7,6 +7,7 @@ import { JsonView } from '../common';
 import { useExprContext } from './ExprContext';
 import { compactJson, filterSuggestions, tokenAt, type Suggestion } from './exprAssist';
 import { evaluateExpression, isNotFound } from './editorApi';
+import { errorText } from '../../i18n/errors';
 
 const KIND_COLOR: Record<Suggestion['kind'], string> = {
   input: 'blue',
@@ -268,7 +269,7 @@ export function ExprPreview({ expression, template }: { expression: string; temp
     const timer = setTimeout(() => {
       evaluateExpression(processId, { expression, template, nodeId })
         .then((result) => mine === seq.current && setState({ loading: false, result }))
-        .catch((e) => mine === seq.current && setState({ loading: false, failure: (e as Error).message, unsupported: isNotFound(e) }));
+        .catch((e) => mine === seq.current && setState({ loading: false, failure: errorText(e), unsupported: isNotFound(e) }));
     }, 400);
     return () => clearTimeout(timer);
   }, [processId, expression, template, nodeId, blank]);

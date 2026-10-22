@@ -21,7 +21,7 @@ import { reportSectionIds } from '../reports/sections.js';
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const me = () => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -53,7 +53,7 @@ export async function reportScheduleRoutes(app: FastifyInstance): Promise<void> 
   app.post('/report-schedules/:id/run', async (req) => {
     const u = me();
     const s = schedules.getReportSchedule(params(req).id!);
-    if (!s.canEdit) throw new HttpError(403, 'Only the owner or an administrator can run this report schedule', 'FORBIDDEN');
+    if (!s.canEdit) throw new HttpError(403, 'Only the owner or an administrator can run this report schedule', 'FORBIDDEN', { context: 'ownerOnly' });
     const { texts: _t, ...rec } = await schedules.runReportSchedule(s.id, { actor: u.username });
     return rec;
   });

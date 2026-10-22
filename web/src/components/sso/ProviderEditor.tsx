@@ -99,7 +99,13 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   const switchKind = (k: Kind) => {
     setKind(k);
     if (!provider) {
-      setForm((f) => ({ ...DEFAULTS[k], issuer: k === 'entra' && tenant ? entraIssuer(tenant) : f.issuer, clientId: f.clientId }));
+      setForm((f) => ({
+        ...DEFAULTS[k],
+        // the button text on the sign-in page: a sensible default in the administrator's language (it stays as saved)
+        ...(k === 'oidc' ? { displayName: t('provider.defaultOidcName') } : {}),
+        issuer: k === 'entra' && tenant ? entraIssuer(tenant) : f.issuer,
+        clientId: f.clientId,
+      }));
     }
   };
 

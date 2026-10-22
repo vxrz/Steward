@@ -15,6 +15,7 @@ import { audit, queryAudit } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
 import { COLORS, ReportWriter } from '../reports/pdf/engine.js';
 import { getBranding, logo } from '../reports/branding.js';
+import { requestLang } from '../reports/service.js';
 import { translator, type Translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag } from '../reports/common.js';
 import { HttpError, newId, nowIso, sha256 } from '../util.js';
@@ -164,6 +165,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   const tr: Translator = translator(o.lang, o.timeZone);
   const R: Texts = recordTexts(o.lang);
   const { t } = R;
+  const typeName = R.typeName(rec.typeKey, rec.typeName);
   const branding = getBranding();
   const brand = { branding, logo: logo().data };
   const hash = rec.frozenHash ?? rec.contentHash;
@@ -194,8 +196,8 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     {
       title: `${rec.number} ${rec.title}`,
       author: personLabel(o.generatedBy),
-      subject: `${rec.typeName} ${rec.number} – ${R.status(rec.status)} – ${t('revisionVersion', { revision: rec.revision, version: rec.version })}`,
-      keywords: [PRODUCT.split(' ')[0]!, rec.typeName, rec.number, rec.status, ...rec.tags.slice(0, 10)],
+      subject: `${typeName} ${rec.number} – ${R.status(rec.status)} – ${t('revisionVersion', { revision: rec.revision, version: rec.version })}`,
+      keywords: [PRODUCT.split(' ')[0]!, typeName, rec.number, rec.status, ...rec.tags.slice(0, 10)],
       creator: PRODUCT,
       producer: `${PRODUCT} (PDFKit)`,
       lang: langTag(o.lang),
@@ -226,7 +228,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   );
 
   w.cover({
-    title: rec.typeName,
+    title: typeName,
     subtitle: `${rec.number} – ${rec.title}`,
     meta: [
       tr.t('generatedWith', { product: PRODUCT }),
@@ -244,7 +246,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   section(t('summary'));
   w.keyValues([
     { label: t('number'), value: rec.number, mono: true },
-    { label: t('type'), value: `${rec.typeName} (${rec.typeKey})` },
+    { label: t('type'), value: `${typeName} (${rec.typeKey})` },
     { label: t('status'), value: R.status(rec.status), tone: draft ? 'warning' : 'default' },
     { label: t('revision') + ' / ' + t('version'), value: `${rec.revision} / ${rec.version}` },
     { label: t('owner'), value: personLabel(rec.owner) },
@@ -262,8 +264,16 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     w.keyValues(
       rec.fieldDefs.map((f) => {
         const raw = rec.fields[f.key] ?? '';
-        const value = !raw ? '–' : f.kind === 'datetime' ? tr.dateTime(raw) : f.kind === 'date' ? tr.date(raw + 'T12:00:00Z') : raw;
-        return { label: f.label, value, span: f.kind === 'textarea' ? (2 as const) : (1 as const) };
+        const value = !raw
+          ? '–'
+          : f.kind === 'datetime'
+            ? tr.dateTime(raw)
+            : f.kind === 'date'
+              ? tr.date(raw + 'T12:00:00Z')
+              : f.kind === 'select'
+                ? R.option(rec.typeKey, f, raw)
+                : raw;
+        return { label: R.fieldLabel(rec.typeKey, f), value, span: f.kind === 'textarea' ? (2 as const) : (1 as const) };
       }),
     );
   }
@@ -378,7 +388,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   }
 
   // never a cut copy for signing
-  if (w.truncated) throw new HttpError(413, `${rec.number} is too large for a PDF – shorten its text or fields`, 'RECORD_TOO_LARGE');
+  if (w.truncated) throw new HttpError(413, `${rec.number} is too large for a PDF – shorten its text or fields`, 'RECORD_TOO_LARGE', { number: rec.number });
   const pdf = await w.finish();
   return { pdf, texts: w.texts };
 }
@@ -387,10 +397,11 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
 export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { compress?: boolean }): Promise<RecordAttachment & { texts: string[] }> {
   const u = me();
   const row = requireRecordRow(idOrNumber);
-  if (!canEditRecord(u, row) && !canApproveRecords(u)) forbid('generate PDFs of records');
+  if (!canEditRecord(u, row) && !canApproveRecords(u)) forbid('generate PDFs of records', 'generatePdf');
   checkPdfLimits(row.id, 'generated', 0);
   const rec = getRecord(row.id);
-  const lang: ReportLang = input.lang ?? 'en';
+  // without a language in the request: the requester's profile language (as for run reports)
+  const lang: ReportLang = requestLang(input.lang);
   const pdfId = newId('rpdf_');
   const generatedAt = nowIso();
   const { pdf, texts } = await renderRecordPdf({

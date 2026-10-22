@@ -48,7 +48,7 @@ export function listTokens(userId?: string): ApiToken[] {
 
 export function createToken(userId: string, input: { name: string; scope: ApiTokenScope; expiresInDays?: number }): ApiTokenCreated {
   const name = input.name.trim();
-  if (!name || name.length > 100) throw new HttpError(400, 'Token name: 1–100 characters');
+  if (!name || name.length > 100) throw new HttpError(400, 'Token name: 1–100 characters', 'TOKEN_NAME', { max: 100 });
   const owner = getUser(userId);
   const token = TOKEN_PREFIX + crypto.randomBytes(32).toString('base64url');
   const id = newId('tok_');
@@ -81,7 +81,7 @@ export function createToken(userId: string, input: { name: string; scope: ApiTok
 /** Revokes a token; `ownerId` restricts it to that user's tokens. */
 export function revokeToken(id: string, ownerId?: string): void {
   const r = db().get<TokenRow>(`${SELECT} WHERE t.id = ?`, id);
-  if (!r || (ownerId && r.user_id !== ownerId)) throw new HttpError(404, 'Token not found');
+  if (!r || (ownerId && r.user_id !== ownerId)) throw new HttpError(404, 'Token not found', 'TOKEN_NOT_FOUND');
   if (r.revoked_at) return;
   db().tx(() => {
     db().run('UPDATE api_tokens SET revoked_at = ? WHERE id = ?', nowIso(), id);

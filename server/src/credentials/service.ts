@@ -329,17 +329,17 @@ export function checkLocationUrl(u: string | null | undefined): string | null {
   const v = u?.trim();
   if (!v) return null;
   // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
-  if (/[\u0000-\u001f\u007f]/.test(v)) throw new HttpError(400, 'The location link contains control characters');
+  if (/[\u0000-\u001f\u007f]/.test(v)) throw new HttpError(400, 'The location link contains control characters', 'LOCATION_INVALID', { context: 'control' });
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v)?.[1]?.toLowerCase();
   // a single letter is a Windows drive (C:\…); no scheme = a path or a database name
   if (scheme && scheme.length > 1 && !['http', 'https', 'keepass', 'kdbx', 'file', 'smb'].includes(scheme)) {
-    throw new HttpError(400, `Links with "${scheme}:" are not allowed. Use an http(s) link, a keepass:// link or a file path.`, 'LOCATION_SCHEME');
+    throw new HttpError(400, `Links with "${scheme}:" are not allowed. Use an http(s) link, a keepass:// link or a file path.`, 'LOCATION_SCHEME', { scheme });
   }
   if (scheme === 'http' || scheme === 'https') {
     try {
       new URL(v);
     } catch {
-      throw new HttpError(400, 'The location link is not a valid URL');
+      throw new HttpError(400, 'The location link is not a valid URL', 'LOCATION_INVALID');
     }
   }
   return v;
@@ -361,7 +361,11 @@ function secretCheck(b: CredentialInput): void {
       'Gatus endpoint': b.gatus?.endpointKey ?? '',
     });
   } catch (e) {
-    if (e instanceof SecretFoundError) throw new HttpError(400, e.message, 'SECRET_DETECTED');
+    if (e instanceof SecretFoundError)
+      throw new HttpError(400, e.message, 'SECRET_DETECTED', {
+        field: e.field,
+        kind: { message: e.kind, code: 'SECRET_KIND', params: { context: e.kindId } },
+      });
     throw e;
   }
 }
@@ -370,27 +374,28 @@ function secretCheck(b: CredentialInput): void {
 function checkPlatform(id: string | null | undefined, unchanged: string | null): void {
   if (!id || id === unchanged) return;
   const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', id);
-  if (!p || !platformPermissions(currentUser(), { acl: parseJson(p.acl, []) }).length) throw new HttpError(400, `Platform ${id} not found`);
+  if (!p || !platformPermissions(currentUser(), { acl: parseJson(p.acl, []) }).length)
+    throw new HttpError(400, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
 }
 
 function checkGatus(g: CredentialInput['gatus']): void {
   if (!g) return;
   const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', g.platformId);
-  if (!p || p.kind !== 'gatus') throw new HttpError(400, 'Expiry sync needs a Gatus platform');
+  if (!p || p.kind !== 'gatus') throw new HttpError(400, 'Expiry sync needs a Gatus platform', 'GATUS_PLATFORM_REQUIRED');
   let perms: string[] = [];
   try {
     perms = platforms.getPlatform(g.platformId).permissions;
   } catch {
     /* not visible */
   }
-  if (!perms.length) throw new HttpError(400, 'Expiry sync needs a Gatus platform you have access to');
+  if (!perms.length) throw new HttpError(400, 'Expiry sync needs a Gatus platform you have access to', 'GATUS_PLATFORM_REQUIRED');
 }
 
 // ---------- queries ----------
 
 export function credentialRow(id: string): CredentialRow {
   const r = db().get<CredentialRow>('SELECT * FROM credentials WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Credential ${id} not found`);
+  if (!r) throw new HttpError(404, `Credential ${id} not found`, 'CREDENTIAL_NOT_FOUND', { id });
   return r;
 }
 
@@ -398,12 +403,13 @@ export function credentialRow(id: string): CredentialRow {
 export function requireCredential(id: string, perm: CredentialPermission = 'view'): CredentialRow {
   const r = db().get<CredentialRow>('SELECT * FROM credentials WHERE id = ?', id);
   const perms = r ? credentialPermissions(currentUser(), r) : [];
-  if (!r || !perms.includes('view')) throw new HttpError(404, `Credential ${id} not found`);
+  if (!r || !perms.includes('view')) throw new HttpError(404, `Credential ${id} not found`, 'CREDENTIAL_NOT_FOUND', { id });
   if (!perms.includes(perm)) {
     throw new HttpError(
       403,
       r.archived && perm === 'edit' ? 'Archived entries cannot be changed – restore it first' : `You are not allowed to ${perm} this entry`,
-      'FORBIDDEN',
+      r.archived && perm === 'edit' ? 'CREDENTIAL_ARCHIVED' : 'FORBIDDEN',
+      r.archived && perm === 'edit' ? undefined : { context: 'credential' },
     );
   }
   return r;
@@ -508,7 +514,7 @@ export function addEvent(
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -562,7 +568,8 @@ function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<s
 
 export function createCredential(b: CredentialInput): Credential {
   const u = me();
-  if (!canCreateCredentials(u)) throw new HttpError(403, 'You are not allowed to add entries to the credentials register', 'FORBIDDEN');
+  if (!canCreateCredentials(u))
+    throw new HttpError(403, 'You are not allowed to add entries to the credentials register', 'FORBIDDEN', { context: 'createCredential' });
   const { values, certificate } = prepare(b);
   const id = newId('cred_');
   const now = nowIso();
@@ -614,13 +621,16 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
   if (!u.roles.some((x) => EDIT_ROLES.includes(x))) {
     // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
     if (!isOwner(u, { owner_subjects: String(values.owner_subjects) }))
-      throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED');
+      throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED', {
+        context: 'credential',
+      });
     // … nor change who gets its reminders by e-mail
     if (emailsOf(parseJson(before.owners, [])).join('\n') !== emailsOf(b.owners).join('\n'))
       throw new HttpError(
         403,
         'You edit this entry as one of its owners: only designers, operators and administrators can change the owner e-mail addresses',
         'FORBIDDEN',
+        { context: 'credentialOwnerEmails' },
       );
   }
   if (certificate !== undefined) values.certificate = certificate ? JSON.stringify(certificate) : null;
@@ -673,7 +683,7 @@ export function markRotated(id: string, b: z.infer<typeof rotatedSchema>): Crede
   const r = requireCredential(id, 'edit');
   assertCommentSafe(b.comment);
   const at = b.rotatedAt ?? nowIso();
-  if (Date.parse(at) > Date.now() + DAY) throw new HttpError(400, 'The rotation date cannot be in the future');
+  if (Date.parse(at) > Date.now() + DAY) throw new HttpError(400, 'The rotation date cannot be in the future', 'DATE_IN_FUTURE', { context: 'rotation' });
   const certificate = b.certificate ? parseCertificate(certificateBytes(b.certificate)) : undefined;
   const expires = b.expiresAt !== undefined ? b.expiresAt : certificate ? certificate.chainNotAfter : r.expires_at;
   db().tx(() => {
@@ -714,7 +724,7 @@ export function markReviewed(id: string, b: z.infer<typeof reviewedSchema>): Cre
   const r = requireCredential(id, 'edit');
   assertCommentSafe(b.comment);
   const at = b.reviewedAt ?? nowIso();
-  if (Date.parse(at) > Date.now() + DAY) throw new HttpError(400, 'The review date cannot be in the future');
+  if (Date.parse(at) > Date.now() + DAY) throw new HttpError(400, 'The review date cannot be in the future', 'DATE_IN_FUTURE', { context: 'review' });
   db().tx(() => {
     db().run('UPDATE credentials SET last_reviewed_at = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?', at, nowIso(), u.username, id);
     addEvent(id, 'reviewed', u.username, b.comment, { reviewedAt: at });
@@ -733,7 +743,11 @@ function assertCommentSafe(comment: string): void {
   try {
     assertNoSecrets({ Comment: comment });
   } catch (e) {
-    if (e instanceof SecretFoundError) throw new HttpError(400, e.message, 'SECRET_DETECTED');
+    if (e instanceof SecretFoundError)
+      throw new HttpError(400, e.message, 'SECRET_DETECTED', {
+        field: e.field,
+        kind: { message: e.kind, code: 'SECRET_KIND', params: { context: e.kindId } },
+      });
     throw e;
   }
 }

@@ -82,10 +82,21 @@ export function findSecret(text: string | null | undefined): string | null {
   return null;
 }
 
+/** Id of the rule that found a secret (for the translated message in the web UI), e.g. "jwt". */
+export function findSecretId(text: string | null | undefined): string | null {
+  if (!text) return null;
+  for (const r of RULES) if (r.re.test(text)) return r.id;
+  if (assignedSecret(text)) return 'assigned';
+  if (randomToken(text)) return 'random';
+  return null;
+}
+
 export class SecretFoundError extends Error {
   constructor(
     public field: string,
     public kind: string,
+    /** Rule id (findSecretId) */
+    public kindId = '',
   ) {
     super(`"${field}" looks like it contains ${kind}. Do not enter passwords or keys – document where they are kept (e.g. the KeePass database and entry).`);
   }
@@ -96,7 +107,7 @@ export function assertNoSecrets(fields: Record<string, string | null | undefined
   for (const [field, value] of Object.entries(fields)) {
     for (const v of Array.isArray(value) ? value : [value]) {
       const kind = findSecret(v);
-      if (kind) throw new SecretFoundError(field, kind);
+      if (kind) throw new SecretFoundError(field, kind, findSecretId(v) ?? '');
     }
   }
 }

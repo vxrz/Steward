@@ -5,6 +5,7 @@ import { Alert, Badge, Box, Center, Group, Loader, Paper, Select, SimpleGrid, St
 import { useTranslation } from 'react-i18next';
 import type { FlowNode, ProcessDefinition, ProcessVersion } from '@sm/shared';
 import { useProcessVersion } from './editorApi';
+import { errorText } from '../../i18n/errors';
 
 type Def = ProcessDefinition;
 
@@ -243,7 +244,7 @@ export function VersionCompare({
         <Select size="xs" label={t('diff.from')} data={options} value={from} onChange={setFrom} allowDeselect={false} />
         <Select size="xs" label={t('diff.to')} data={options} value={to} onChange={setTo} allowDeselect={false} />
       </SimpleGrid>
-      {error && <Alert color="red">{t('diff.loadFailed', { error: error.message })}</Alert>}
+      {error && <Alert color="red">{t('diff.loadFailed', { error: errorText(error) })}</Alert>}
       {loading && (
         <Center py="sm">
           <Loader size="sm" />

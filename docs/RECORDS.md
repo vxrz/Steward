@@ -31,7 +31,7 @@ Steward creates four types on first start. Administrators change them under _Rec
 
 \* required before the record can be submitted.
 
-_SDR_ is read as "security decision record". If your team uses the abbreviation for something else, change the type's name, description and template (all editable), or archive it and create your own type. The key can change only while no records of the type exist. The German UI shows the built-in names translated until an administrator renames them.
+_SDR_ is read as "security decision record". If your team uses the abbreviation for something else, change the type's name, description and template (all editable), or archive it and create your own type. The key can change only while no records of the type exist. The built-in types are stored in English. Each person sees their names, descriptions, templates, field labels and select options in their own language, as long as an administrator has not changed the text; a changed text is shown to everyone as entered. A new record starts with the template in the language of the person who creates it. See [I18N.md](I18N.md#record-types).
 
 Notes:
 
@@ -208,7 +208,7 @@ MADR 2 files with `* Status: proposed`, `* Deciders: …`, `* Date: …` bullets
 
 ### Generating
 
-_More actions (…) → Generate PDF_ (or the _PDF & signatures_ tab): choose the language (English or German) and add up to 8 **signers** – name, role (e.g. _Business owner_, _Requester_) and optionally an e-mail address. Each generation is stored with the record (`data/records/<id>/`), never overwritten, and audited as `record.pdf_generated` with the file's SHA-256 and size.
+_More actions (…) → Generate PDF_ (or the _PDF & signatures_ tab): choose the language (English or German; without a choice, through the API: the language in your profile) and add up to 8 **signers** – name, role (e.g. _Business owner_, _Requester_) and optionally an e-mail address. Each generation is stored with the record (`data/records/<id>/`), never overwritten, and audited as `record.pdf_generated` with the file's SHA-256 and size.
 
 The PDF contains:
 

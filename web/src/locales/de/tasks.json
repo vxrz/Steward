@@ -44,5 +44,6 @@
     "cancelled": "Abgebrochen",
     "selectItem": "{{name}} auswählen"
   },
-  "emptyMineText": "Braucht ein laufender Prozess Ihre Freigabe oder Entscheidung, erscheint sie hier und in der Benachrichtigungsglocke."
+  "emptyMineText": "Braucht ein laufender Prozess Ihre Freigabe oder Entscheidung, erscheint sie hier und in der Benachrichtigungsglocke.",
+  "panelLabel": "Aufgabe: {{title}}"
 }

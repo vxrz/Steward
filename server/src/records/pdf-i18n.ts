@@ -1,4 +1,4 @@
-import type { ReportLang } from '@sm/shared';
+import { DEFAULT_RECORD_TYPES, type RecordFieldDef, type ReportLang } from '@sm/shared';
 
 /**
  * Texts of the record PDF (English and German). Like the run reports, the
@@ -103,7 +103,7 @@ const de: Record<RecordMsgKey, string> = {
     'Dieses Dokument wurde noch nicht eingereicht. Sein Inhalt ist nicht eingefroren und der Inhalts-Hash unten ändert sich mit der nächsten Bearbeitung. Unterschreiben Sie das PDF eines eingereichten oder freigegebenen Dokuments.',
   tamperedTitle: 'WARNUNG: Der Inhalt passt nicht zum Hash, der beim Einfrieren festgehalten wurde',
   tamperedBody:
-    'Das Dokument wurde außerhalb von Steward geändert, nachdem es den Entwurfsstatus verlassen hat. Prüfen Sie das Audit-Protokoll, bevor Sie sich auf dieses Dokument verlassen.',
+    'Das Dokument wurde außerhalb von Steward geändert, nachdem es den Entwurfsstatus verlassen hat. Prüfen Sie das Audit-Log, bevor Sie sich auf dieses Dokument verlassen.',
   summary: 'Übersicht',
   number: 'Nummer',
   type: 'Art',
@@ -143,8 +143,8 @@ const de: Record<RecordMsgKey, string> = {
   ev_imported: 'Importiert',
   ev_comment: 'Kommentar',
   ev_revision: 'Neue Revision {revision}',
-  auditExcerpt: 'Audit-Protokoll (Auszug)',
-  auditIntro: 'Einträge des manipulationssicheren Audit-Protokolls zu diesem Dokument (HMAC-Hash-Kette).',
+  auditExcerpt: 'Audit-Log (Auszug)',
+  auditIntro: 'Einträge des manipulationssicheren Audit-Logs zu diesem Dokument (HMAC-Hash-Kette).',
   auditTruncated: '{n} ältere Einträge werden nicht gezeigt.',
   seq: 'Nr.',
   actor: 'Akteur',
@@ -156,7 +156,7 @@ const de: Record<RecordMsgKey, string> = {
   signer: 'Unterzeichner {n}',
   footerRecord: 'Dokument {number} · Revision {revision}, Version {version} · erzeugt {date} von {user} · PDF {pdfId}',
   footerHash: 'Inhalts-Hash: {hash}',
-  footerVerify: 'Prüfen: Der SHA-256 dieser Datei steht im Audit-Protokoll (record.pdf_generated, {pdfId})',
+  footerVerify: 'Prüfen: Der SHA-256 dieser Datei steht im Audit-Log (record.pdf_generated, {pdfId})',
   none: 'Keine',
   yes: 'Ja',
   no: 'Nein',
@@ -185,6 +185,35 @@ const de: Record<RecordMsgKey, string> = {
 
 const CATALOG: Record<ReportLang, Record<RecordMsgKey, string>> = { en, de };
 
+/**
+ * Names, field labels and select options of the built-in record types in the PDF languages other than
+ * English. Like the web UI (records:builtinTypes / records:builtin), a PDF shows them translated only
+ * while they are the unchanged English defaults; texts an administrator entered are printed as entered.
+ * A test keeps them equal to the web translations.
+ */
+export const BUILTIN_TEXTS: Partial<
+  Record<ReportLang, { types: Record<string, string>; fields: Record<string, string>; options: Record<string, Record<string, string>> }>
+> = {
+  de: {
+    types: { CR: 'Änderungsantrag', ADR: 'Architekturentscheidung', DR: 'Entscheidungsprotokoll', SDR: 'Sicherheitsentscheidung' },
+    fields: {
+      reason: 'Begründung',
+      risk: 'Risiko',
+      impact: 'Auswirkungen',
+      rollbackPlan: 'Rückfallplan',
+      plannedStart: 'Geplanter Beginn',
+      plannedEnd: 'Geplantes Ende',
+      decisionDate: 'Entscheidungsdatum',
+      deciders: 'Entscheider',
+      consulted: 'Konsultiert',
+      informed: 'Informiert',
+    },
+    options: { risk: { low: 'niedrig', medium: 'mittel', high: 'hoch' } },
+  },
+};
+
+const defaultType = (key: string) => DEFAULT_RECORD_TYPES.find((d) => d.key === key);
+
 export function recordTexts(lang: ReportLang) {
   const cat = CATALOG[lang] ?? en;
   const t = (key: RecordMsgKey, vars?: Record<string, string | number>) =>
@@ -193,5 +222,15 @@ export function recordTexts(lang: ReportLang) {
     const key = `${prefix}_${v}` as RecordMsgKey;
     return key in cat ? cat[key] : v;
   };
-  return { t, status: (s: string) => lookup('st', s), action: (a: string) => lookup('act', a) };
+  const b = BUILTIN_TEXTS[lang];
+  /** Name of a type: translated while it is the built-in English default. */
+  const typeName = (key: string, name: string) => (b && defaultType(key)?.name === name ? (b.types[key] ?? name) : name);
+  const builtinField = (typeKey: string, f: Pick<RecordFieldDef, 'key'>) => defaultType(typeKey)?.fields.find((d) => d.key === f.key);
+  /** Label of a field: translated while it is the built-in English default. */
+  const fieldLabel = (typeKey: string, f: Pick<RecordFieldDef, 'key' | 'label'>) =>
+    b && builtinField(typeKey, f)?.label === f.label ? (b.fields[f.key] ?? f.label) : f.label;
+  /** A select value of a built-in field, translated (the stored value is the same in every language). */
+  const option = (typeKey: string, f: Pick<RecordFieldDef, 'key'>, v: string) =>
+    b && builtinField(typeKey, f)?.options?.includes(v) ? (b.options[f.key]?.[v] ?? v) : v;
+  return { t, status: (s: string) => lookup('st', s), action: (a: string) => lookup('act', a), typeName, fieldLabel, option };
 }

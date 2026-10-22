@@ -70,6 +70,7 @@
     "discover": "Auch nützlich:",
     "discoverTokens": "API-Token für Skripte und KI-Assistenten (MCP)",
     "discoverWall": "Statuswand der Monitore",
-    "discoverSearch": "alles durchsuchen mit"
+    "discoverSearch": "alles durchsuchen mit",
+    "shortcutCtrlK": "Strg K"
   }
 }

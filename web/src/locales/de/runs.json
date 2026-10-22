@@ -106,10 +106,10 @@
       "decisions_other": "Entscheidungen ({{count}})",
       "evidence_one": "Nachweise ({{count}})",
       "evidence_other": "Nachweise ({{count}})",
-      "log_one": "Log ({{count}})",
-      "log_other": "Log ({{count}})",
+      "log_one": "Protokoll ({{count}})",
+      "log_other": "Protokoll ({{count}})",
       "inputs": "Eingaben",
-      "audit": "Audit",
+      "audit": "Audit-Log",
       "pdf": "PDF-Berichte"
     },
     "noSteps": "Noch keine Schritte.",

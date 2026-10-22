@@ -5,7 +5,6 @@ import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shar
 import { audit } from '../audit.js';
 import { verifyWithAnchors } from '../audit-anchor.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { getUser } from '../auth/users.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -31,14 +30,14 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
 function requireRunView(runId: string) {
   const r = store.runRow(runId);
   const perms = processes.permissionsFor(r.process_id);
-  if (!perms.includes('view')) throw new HttpError(404, `Run ${runId} not found`);
+  if (!perms.includes('view')) throw new HttpError(404, `Run ${runId} not found`, 'RUN_NOT_FOUND', { id: runId });
   require(perms, 'view', 'view this run');
   return r;
 }
@@ -50,7 +49,7 @@ function canViewAll(processIds: string[]): boolean {
 
 function requireReportAccess(rec: ReportRecord): void {
   if (rec.kind === 'scheduled') {
-    if (!canViewScheduledReport(rec)) throw new HttpError(404, `Report ${rec.id} not found`);
+    if (!canViewScheduledReport(rec)) throw new HttpError(404, `Report ${rec.id} not found`, 'REPORT_NOT_FOUND', { id: rec.id });
     return;
   }
   if (rec.kind === 'run' && rec.runId) {
@@ -59,21 +58,11 @@ function requireReportAccess(rec: ReportRecord): void {
   }
   if (!canViewAll(rec.processIds)) {
     // processes that no longer exist: auditors/administrators may still open the archive
-    if (!capabilities(me()).viewAudit) throw new HttpError(404, `Report ${rec.id} not found`);
+    if (!capabilities(me()).viewAudit) throw new HttpError(404, `Report ${rec.id} not found`, 'REPORT_NOT_FOUND', { id: rec.id });
   }
 }
 
 const langSchema = z.enum(REPORT_LANGS).optional();
-/** Report language when the request names none: the requesting user's language (profile), else English. */
-const userLocale = (): string | undefined => {
-  const u = currentUser();
-  if (!u) return undefined;
-  try {
-    return getUser(u.id).locale ?? undefined;
-  } catch {
-    return undefined; // e.g. a user deleted while the request ran
-  }
-};
 
 const runReportBody = z.object({
   lang: langSchema,
@@ -116,7 +105,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     const id = params(req).id!;
     requireRunView(id);
     const b = runReportBody.parse(req.body ?? {});
-    const rec = await reports.generateRunReport(id, { ...b, lang: reports.resolveLang(b.lang, userLocale()), actor: me().username });
+    const rec = await reports.generateRunReport(id, { ...b, lang: reports.requestLang(b.lang), actor: me().username });
     return strip(rec);
   });
 
@@ -130,7 +119,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     const id = params(req).id!;
     requireRunView(id);
     const q = z.object({ lang: z.string().max(10).optional(), timeZone: z.string().max(64).optional() }).parse(req.query ?? {});
-    const rec = await reports.generateRunReport(id, { lang: reports.resolveLang(q.lang, userLocale()), timeZone: q.timeZone, actor: me().username });
+    const rec = await reports.generateRunReport(id, { lang: reports.requestLang(q.lang), timeZone: q.timeZone, actor: me().username });
     const r = reports.getReport(rec.id);
     return sendPdf(reply, fs.readFileSync(r.file), r.filename);
   });
@@ -139,15 +128,15 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   app.post('/reports/summary', async (req) => {
     const b = summaryBody.parse(req.body ?? {});
     for (const pid of new Set(b.processIds)) {
-      if (!processes.permissionsFor(pid).includes('view')) throw new HttpError(404, `Process ${pid} not found`);
+      if (!processes.permissionsFor(pid).includes('view')) throw new HttpError(404, `Process ${pid} not found`, 'PROCESS_NOT_FOUND', { id: pid });
     }
-    const rec = await reports.generateSummaryReport({ ...b, lang: reports.resolveLang(b.lang, userLocale()), actor: me().username });
+    const rec = await reports.generateSummaryReport({ ...b, lang: reports.requestLang(b.lang), actor: me().username });
     return strip(rec);
   });
 
   app.get('/reports', async (req) => {
     const q = z.object({ kind: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(1000).optional() }).parse(req.query ?? {});
-    if (q.kind && q.kind !== 'summary') throw new HttpError(400, 'Use /runs/:id/reports for run reports');
+    if (q.kind && q.kind !== 'summary') throw new HttpError(400, 'Use /runs/:id/reports for run reports', 'BAD_REQUEST');
     const caps = capabilities(me());
     return reports
       .listSummaryReports(q.limit ?? 200)
@@ -193,15 +182,20 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     let data: Buffer;
     if (req.isMultipart()) {
       const file = await req.file({ limits: { fileSize: REPORT_LOGO_MAX_BYTES + 1, files: 1 } });
-      if (!file) throw new HttpError(400, 'No file');
+      if (!file) throw new HttpError(400, 'No file', 'NO_FILE');
       try {
         data = await file.toBuffer();
       } catch {
-        throw new HttpError(400, `The logo is too large (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`);
+        throw new HttpError(400, `The logo is too large (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`, 'LOGO_TOO_LARGE', {
+          maxMb: REPORT_LOGO_MAX_BYTES / 1024 / 1024,
+        });
       }
     } else {
       const b = z.object({ contentBase64: z.string().max(Math.ceil((REPORT_LOGO_MAX_BYTES * 4) / 3) + 16) }).safeParse(req.body ?? {});
-      if (!b.success) throw new HttpError(400, `Upload a PNG or JPEG file (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`);
+      if (!b.success)
+        throw new HttpError(400, `Upload a PNG or JPEG file (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`, 'LOGO_TOO_LARGE', {
+          maxMb: REPORT_LOGO_MAX_BYTES / 1024 / 1024,
+        });
       data = Buffer.from(b.data.contentBase64, 'base64');
     }
     const after = branding.setLogo(data);
@@ -226,7 +220,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const b = brandingBody.extend({ lang: langSchema, timeZone: z.string().max(64).optional() }).parse(req.body ?? {});
     const { lang, timeZone, ...draft } = b;
-    const res = await reports.previewReport({ lang: reports.resolveLang(lang, userLocale()), timeZone, actor: me().username, branding: draft });
+    const res = await reports.previewReport({ lang: reports.requestLang(lang), timeZone, actor: me().username, branding: draft });
     return sendPdf(reply, res.pdf, `report-preview-${lang ?? 'en'}.pdf`, true);
   });
 
@@ -236,7 +230,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     let data: Buffer;
     if (req.isMultipart()) {
       const file = await req.file({ limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
-      if (!file) throw new HttpError(400, 'No file');
+      if (!file) throw new HttpError(400, 'No file', 'NO_FILE');
       data = await file.toBuffer();
     } else {
       const b = z.object({ contentBase64: z.string().min(1) }).parse(req.body ?? {});
@@ -286,11 +280,18 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     try {
       data = fs.readFileSync(rec.file);
     } catch {
-      throw new HttpError(410, 'The report file is no longer available');
+      throw new HttpError(410, 'The report file is no longer available', 'REPORT_FILE_GONE');
     }
     const actual = sha256(data);
     if (actual !== rec.sha256)
-      throw new HttpError(409, `The stored report file does not match its recorded SHA-256 (${rec.sha256.slice(0, 16)}…) – it was modified on disk`);
+      throw new HttpError(
+        409,
+        `The stored report file does not match its recorded SHA-256 (${rec.sha256.slice(0, 16)}…) – it was modified on disk`,
+        'REPORT_TAMPERED',
+        {
+          sha256: rec.sha256.slice(0, 16),
+        },
+      );
     audit({
       action: 'report.downloaded',
       entityType: 'report',
