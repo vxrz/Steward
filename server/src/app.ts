@@ -63,7 +63,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   // --- local-only safety net ---
   app.addHook('onRequest', async (req, reply) => {
-    const url = req.url;
+    // Only origin-form request targets ("/path"). Absolute-form ("GET http://host/api/…") would otherwise
+    // reach routes while looking like a non-API URL to the checks below.
+    if (!req.url.startsWith('/')) return reply.code(400).send({ error: 'Bad request target' });
+    // Decide by the route that actually matched (Fastify decodes and normalises the path for routing).
+    const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (url.startsWith('/mock/')) return;
     const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...(process.env.SM_ALLOWED_HOSTS?.split(',') ?? [])];
@@ -92,7 +96,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // Authentication: resolve the session and run the rest of the request "as" that user.
   // (Synchronous hook + AsyncLocalStorage.run keeps the user available to all services.)
   app.addHook('preHandler', (req, reply, done) => {
-    const url = req.url.split('?')[0]!;
+    // The matched route, not the raw URL: encoded or unusual spellings of a path can't skip authentication.
+    const url = req.routeOptions.url ?? req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
     // Public API and its documentation: own authentication (API tokens), see api/.
     if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();

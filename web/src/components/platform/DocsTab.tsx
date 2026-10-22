@@ -159,7 +159,7 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                       </Anchor>
                     )}
                     {d.kind === 'link' && (
-                      <Anchor size="sm" fw={500} href={d.url} target="_blank" rel="noreferrer">
+                      <Anchor size="sm" fw={500} href={/^https?:\/\//i.test(d.url ?? "") ? d.url : undefined} target="_blank" rel="noreferrer">
                         {d.title}
                       </Anchor>
                     )}

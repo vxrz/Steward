@@ -198,7 +198,8 @@ export function resetPassword(id: string): string {
   return temp;
 }
 
-export function changePassword(id: string, current: string, next: string): void {
+/** Changes the own password and signs out all other sessions of the user (keepSession: the current session cookie). */
+export function changePassword(id: string, current: string, next: string, keepSession?: string): void {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
   if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
@@ -208,7 +209,13 @@ export function changePassword(id: string, current: string, next: string): void 
   if (current === next) throw new HttpError(400, 'Choose a new password');
   db().tx(() => {
     db().run('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?', hashPassword(next), nowIso(), id);
-    audit({ action: 'user.password_changed', entityType: 'user', entityId: id, summary: `"${r.username}" changed their password` });
+    const signedOut = db().run('DELETE FROM sessions WHERE user_id = ? AND id <> ?', id, keepSession ? hashToken(keepSession) : '').changes;
+    audit({
+      action: 'user.password_changed',
+      entityType: 'user',
+      entityId: id,
+      summary: `"${r.username}" changed their password${signedOut ? ` – ${signedOut} other session(s) signed out` : ''}`,
+    });
   });
 }
 
@@ -274,6 +281,10 @@ export function deleteTeam(id: string): void {
 const SESSION_IDLE_MS = 12 * 3600 * 1000;
 const SESSION_MAX_MS = 7 * 86400 * 1000;
 const failures = new Map<string, { count: number; until: number }>();
+/** Failed sign-ins per account across all source addresses (sliding 15-minute window). */
+const accountFailures = new Map<string, number[]>();
+const ACCOUNT_WINDOW_MS = 15 * 60000;
+const ACCOUNT_MAX_FAILURES = 20;
 
 const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
 
@@ -281,12 +292,16 @@ export function login(username: string, password: string, meta: { ip?: string; u
   const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes');
+  const account = username.toLowerCase();
+  const recent = (accountFailures.get(account) ?? []).filter((t) => t > Date.now() - ACCOUNT_WINDOW_MS);
+  if (recent.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes');
   const r = db().get<UserRow>('SELECT * FROM users WHERE username = ?', username);
   // always run the hash to keep timing similar for unknown users
   const ok = r ? verifyPassword(password, r.password_hash) : (verifyPassword(password, hashPassword('x-dummy-password-1')), false);
   if (!r || !ok || !r.active) {
     const count = (f?.count ?? 0) + 1;
     failures.set(key, { count, until: count >= 5 ? Date.now() + 5 * 60000 : 0 });
+    accountFailures.set(account, [...recent, Date.now()]);
     audit({
       actor: username,
       action: 'auth.login_failed',
@@ -298,6 +313,7 @@ export function login(username: string, password: string, meta: { ip?: string; u
     throw new HttpError(401, 'Wrong user name or password');
   }
   failures.delete(key);
+  accountFailures.delete(account);
   const roles = parseJson<Role[]>(r.roles, []);
   if (getSettings().passwordLogin === 'adminsOnly' && !roles.includes('admin')) {
     throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on');

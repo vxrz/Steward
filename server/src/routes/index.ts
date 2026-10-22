@@ -100,6 +100,25 @@ function requireRun(runId: string, perm: 'view' | 'run', what: string) {
   return r;
 }
 
+/** A platform the current user has some permission on (404 otherwise, so ids can't be probed). */
+function visiblePlatform(id: string) {
+  const p = platforms.getPlatform(id);
+  if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`);
+  return p;
+}
+
+/** Content type for showing an uploaded document inline, or null to force a download. */
+function inlineDocType(data: Buffer, declared: string | undefined): string | null {
+  const head = data.subarray(0, 12);
+  if (head.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf';
+  if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg';
+  if (head.subarray(0, 6).toString('latin1').startsWith('GIF8')) return 'image/gif';
+  if (head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  if (/^text\/(plain|markdown|csv)$/.test(declared ?? '') && !data.includes(0)) return 'text/plain; charset=utf-8';
+  return null;
+}
+
 function requirePlatform(id: string, perm: 'use' | 'manage', what: string) {
   const p = platforms.getPlatform(id);
   require(p.permissions, perm, what);
@@ -264,7 +283,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/password', async (req) => {
     const b = z.object({ current: z.string(), next: z.string() }).parse(req.body);
-    users.changePassword(me().id, b.current, b.next);
+    users.changePassword(me().id, b.current, b.next, readCookie(req.headers.cookie, SESSION_COOKIE));
     return { ok: true };
   });
 
@@ -317,7 +336,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage users');
     return { temporaryPassword: users.resetPassword(params(req).id!) };
   });
-  app.get('/teams', async () => users.listTeams());
+  app.get('/teams', async () => {
+    requireCapability(me(), 'manageUsers', 'view teams');
+    return users.listTeams();
+  });
   const teamBody = z.object({ name: z.string(), description: z.string().optional(), members: z.array(z.string()).optional() });
   app.post('/teams', async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
@@ -332,17 +354,25 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     users.deleteTeam(params(req).id!);
     return { ok: true };
   });
-  app.get('/subjects', async (): Promise<Subject[]> => [
+  app.get('/subjects', async (): Promise<Subject[]> => {
+    // Used by access editors and assignee pickers – not needed by read-only accounts.
+    if (!me().roles.some((r) => r !== 'viewer' && r !== 'auditor')) throw new HttpError(403, 'You are not allowed to list users and teams');
+    return subjectList();
+  });
+  const subjectList = (): Subject[] => [
     ...users
       .listUsers()
       .filter((u: UserInfo) => u.active)
       .map((u) => ({ value: `user:${u.username.toLowerCase()}`, label: `${u.displayName} (${u.username})`, kind: 'user' as const })),
     ...users.listTeams().map((t) => ({ value: `team:${t.name.toLowerCase()}`, label: `Team ${t.name}`, kind: 'team' as const })),
     ...ROLES.map((r) => ({ value: `role:${r}`, label: `Everyone with role ${r}`, kind: 'role' as const })),
-  ]);
+  ];
 
   // ---------- settings ----------
-  app.get('/settings', async () => getSettings());
+  app.get('/settings', async () => {
+    requireCapability(me(), 'manageSettings', 'view settings');
+    return getSettings();
+  });
   app.put('/settings', async (req) => {
     requireCapability(me(), 'manageSettings', 'change settings');
     const b = z
@@ -383,12 +413,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     connectors.deleteType(params(req).kind!);
     return { ok: true };
   });
-  app.get('/platforms', async () => platforms.listPlatforms());
+  // Platforms (names, base URLs, docs) are only visible to users with some permission on them.
+  app.get('/platforms', async () => platforms.listPlatforms().filter((p) => p.permissions.length > 0));
   app.post('/platforms', async (req) => {
     requireCapability(me(), 'createPlatforms', 'add platforms');
     return connectors.createPlatformFromType(platformBody.extend({ typeKind: z.string().optional() }).parse(req.body));
   });
-  app.get('/platforms/:id', async (req) => platforms.getPlatform(params(req).id!));
+  app.get('/platforms/:id', async (req) => visiblePlatform(params(req).id!));
   app.put('/platforms/:id', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change this platform');
     return platforms.updatePlatform(params(req).id!, platformBody.partial().parse(req.body));
@@ -470,7 +501,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/platforms/:id/operations', async (req) => platforms.listOperations(params(req).id!));
 
-  app.get('/platforms/:id/docs', async (req) => platforms.listDocs(params(req).id!));
+  app.get('/platforms/:id/docs', async (req) => (visiblePlatform(params(req).id!), platforms.listDocs(params(req).id!)));
   app.post('/platforms/:id/docs', async (req) => {
     const id = params(req).id!;
     requirePlatform(id, 'manage', 'add documentation');
@@ -481,7 +512,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const title = (file.fields.title as { value?: string } | undefined)?.value ?? file.filename;
       return platforms.addDoc(id, { title, kind: 'file', filename: file.filename, mime: file.mimetype, data });
     }
-    const b = z.object({ title: z.string(), kind: z.enum(['note', 'link']), content: z.string().optional(), url: z.string().url().optional() }).parse(req.body);
+    const httpUrl = z
+      .string()
+      .url()
+      .refine((u) => /^https?:$/.test(new URL(u).protocol), 'Only http and https links are allowed');
+    const b = z.object({ title: z.string(), kind: z.enum(['note', 'link']), content: z.string().optional(), url: httpUrl.optional() }).parse(req.body);
     return platforms.addDoc(id, b);
   });
   app.delete('/platforms/:id/docs/:docId', async (req) => {
@@ -491,9 +526,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/docs/:docId/file', async (req, reply) => {
     const d = platforms.getDoc(params(req).docId!);
+    visiblePlatform(d.platformId);
     if (d.kind !== 'file' || !d.filename) throw new HttpError(404, 'No file');
-    reply.header('content-disposition', `inline; filename="${d.filename.replace(/"/g, '')}"`);
-    return reply.type(d.mime || 'application/octet-stream').send(fs.readFileSync(platforms.docPath(d.id, d.filename)));
+    const data = fs.readFileSync(platforms.docPath(d.id, d.filename));
+    // Uploaded files are untrusted: only PDFs, raster images and plain text open in the browser (type taken
+    // from the content, not from the upload); everything else is a download that cannot run as page or script.
+    const inline = inlineDocType(data, d.mime);
+    const name = d.filename.replace(/["\\\r\n]/g, '');
+    reply.header('content-disposition', `${inline ? 'inline' : 'attachment'}; filename="${name}"`);
+    reply.header('content-security-policy', "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; plugin-types application/pdf");
+    return reply.type(inline ?? 'application/octet-stream').send(data);
   });
 
   // ---------- processes ----------

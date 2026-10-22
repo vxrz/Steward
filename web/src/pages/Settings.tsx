@@ -15,8 +15,9 @@ import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const qc = useQueryClient();
-  const settings = useQuery({ queryKey: ['settings'], queryFn: () => get<Settings>('/settings') });
   const { caps } = useMe();
+  // Settings are admin-only on the server; other users just see a note.
+  const settings = useQuery({ queryKey: ['settings'], queryFn: () => get<Settings>('/settings'), enabled: caps.manageSettings });
   const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
   const ssoCount = auth.data?.ssoProviders?.length ?? 0;
   const readOnly = !caps.manageSettings;
@@ -25,6 +26,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   useEffect(() => {
     if (settings.data) setS(settings.data);
   }, [settings.data]);
+  if (readOnly) return <PageHeader title="Settings" description="Only administrators can change settings." />;
   if (!s) return null;
   return (
     <>
