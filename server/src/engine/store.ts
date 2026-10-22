@@ -47,6 +47,8 @@ export interface RunRow {
   parent_run_id?: string | null;
   parent_step_key?: string | null;
   outputs?: string | null;
+  trigger_id?: string | null;
+  trigger_name?: string | null;
 }
 
 export interface StepRow {
@@ -107,6 +109,7 @@ function toSummary(r: RunRow): RunSummary {
     dryRun: !!r.dry_run,
     trigger: r.trigger,
     scheduleId: r.schedule_id,
+    ...(r.trigger_id ? { triggerId: r.trigger_id, triggerName: r.trigger_name ?? null } : {}),
     actor: r.actor,
     startedAt: r.started_at,
     finishedAt: r.finished_at,
