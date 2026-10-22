@@ -1,17 +1,18 @@
 /**
- * Validate process and dashboard definitions (YAML/JSON) – for CI and for
+ * Validate process, dashboard and monitor definitions (YAML/JSON) – for CI and for
  * reviewing changes to the example library. Run with --help for usage.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
+import { validateMonitorFile } from '../monitors/validation.js';
 import { config } from '../config.js';
 import { EXIT_FAILURE, EXIT_OK, UsageError, palette, parseCli, usageFailure } from './args.js';
 
 const COMMAND = 'npm run validate --';
 
-const HELP = `Validate Steward process and dashboard definitions (YAML or JSON).
+const HELP = `Validate Steward process, dashboard and monitor definitions (YAML or JSON).
 
 Usage:
   npm run validate [-- [options] [path ...]]
@@ -37,9 +38,9 @@ Colours are only used on a terminal; NO_COLOR=1 turns them off.
 
 export interface FileResult {
   file: string;
-  kind: 'process' | 'dashboard' | 'bundle' | 'unreadable';
+  kind: 'process' | 'dashboard' | 'monitor' | 'monitor template' | 'bundle' | 'unreadable';
+  /** Nodes (process), widgets (dashboard) or checks (monitor). */
   ok: boolean;
-  /** Nodes (process) or widgets (dashboard). */
   count?: number;
   errors: string[];
   warnings: string[];
@@ -51,7 +52,7 @@ function files(p: string): string[] {
   return /\.(ya?ml|json)$/i.test(p) ? [p] : [];
 }
 
-export function validateFile(file: string): FileResult {
+export async function validateFile(file: string): Promise<FileResult> {
   const rel = path.relative(process.cwd(), file) || file;
   let raw: unknown;
   try {
@@ -63,6 +64,11 @@ export function validateFile(file: string): FileResult {
   const obj = raw as Record<string, unknown>;
   if (obj && typeof obj === 'object' && (BUNDLE_FORMATS as readonly unknown[]).includes(obj.format)) {
     return { file: rel, kind: 'bundle', ok: true, errors: [], warnings: [] };
+  }
+  if (obj && (obj.kind === 'monitor' || obj.kind === 'monitorTemplate')) {
+    const r = await validateMonitorFile(obj);
+    const kind = obj.kind === 'monitorTemplate' ? 'monitor template' : 'monitor';
+    return { file: rel, kind, ok: r.ok, count: r.checks, errors: r.ok ? [] : r.issues, warnings: [] };
   }
   if (obj && Array.isArray(obj.widgets)) {
     const r = dashboardDefinitionSchema.safeParse(raw);
@@ -81,7 +87,7 @@ export function validateFile(file: string): FileResult {
   };
 }
 
-export function main(argv: string[]): number {
+export async function main(argv: string[]): Promise<number> {
   let parsed;
   try {
     parsed = parseCli(
@@ -112,7 +118,8 @@ export function main(argv: string[]): number {
   const missing = targets.filter((t) => !fs.existsSync(t));
   if (missing.length) return usageFailure(new UsageError(`path not found: ${missing.join(', ')}`), COMMAND);
 
-  const results = targets.flatMap(files).sort().map(validateFile);
+  const results: FileResult[] = [];
+  for (const f of targets.flatMap(files).sort()) results.push(await validateFile(f));
   const errors = results.filter((r) => !r.ok).length;
   const warnings = results.reduce((n, r) => n + r.warnings.length, 0);
 
@@ -126,7 +133,7 @@ export function main(argv: string[]): number {
     if (!r.ok) out.push(`${c.red('✘')} ${r.file}: ${r.errors.join('; ')}`);
     else if (!values.quiet) {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
-      else out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : 'nodes'}`);
+      else out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : 'nodes'}`);
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);
   }
@@ -137,5 +144,5 @@ export function main(argv: string[]): number {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
-  process.exitCode = main(process.argv.slice(2));
+  process.exitCode = await main(process.argv.slice(2));
 }

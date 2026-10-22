@@ -2,6 +2,7 @@ import type { CauseRef, CheckDef, CheckOf, MonitorStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
+import { config } from '../config.js';
 import { parseJson } from '../util.js';
 import { evalExpr } from '../engine/expr.js';
 import { SpanStatusCode, withSpan } from '../telemetry.js';
@@ -131,6 +132,7 @@ export function startMonitorEngine(): void {
     logger.error({ err }, 'monitors could not be loaded');
   }
   if (process.env.SM_MONITOR_AUTOSTART === '0') return;
+  if (config.demo) void import('./demo.js').then((d) => d.startGatewaySimulator());
   timer = setInterval(() => {
     try {
       tick();
@@ -146,6 +148,7 @@ export function startMonitorEngine(): void {
 export async function stopMonitorEngine(): Promise<void> {
   if (timer) clearInterval(timer);
   timer = undefined;
+  if (config.demo) void import('./demo.js').then((d) => d.stopGatewaySimulator());
   if (!running) return;
   running = false;
   abort.abort();

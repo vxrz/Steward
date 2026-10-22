@@ -1,0 +1,58 @@
+# Mixes checks Steward runs itself with results Gatus already has: the Historian
+# depends on the OPC UA gateway, both are watched by Gatus; Steward checks its own
+# API and the Insights Hub API through the configured platform.
+kind: monitor
+key: plant-services
+name: Plant services
+description: Gatus endpoints and Steward's own checks in one dependency graph.
+tags: [plant]
+intervalSeconds: 60
+aggregate: { rule: critical }
+checks:
+  - id: steward-api
+    name: Steward API
+    type: http
+    url: http://127.0.0.1:4310/api/health
+    expectStatus: "200"
+    condition: "body.ok = true"
+    degradedResponseMs: 1000
+    x: -240
+    y: 0
+  - id: ih-api
+    name: Insights Hub API
+    type: platform
+    platform: Insights Hub
+    path: /api/identitymanagement/v3/Users
+    query: { count: "1" }
+    degradedResponseMs: 2000
+    x: 0
+    y: 0
+  - id: opcua
+    name: OPC UA gateway (Gatus)
+    type: gatus
+    platform: Gatus
+    endpointKey: edge_opc-ua-gateway
+    x: 240
+    y: 0
+  - id: historian
+    name: Historian API (Gatus)
+    type: gatus
+    platform: Gatus
+    endpointKey: plant_historian-api
+    x: 240
+    y: 160
+  - id: mes
+    name: MES frontend (Gatus)
+    type: gatus
+    platform: Gatus
+    endpointKey: plant_mes-frontend
+    degradedOnRecentFailures: 30
+    critical: false
+    x: 0
+    y: 160
+links:
+  - { from: opcua, to: historian }
+outputs:
+  - id: notify
+    type: notification
+    subscribers: [role:operator]
