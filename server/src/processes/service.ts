@@ -14,6 +14,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { currentActor, currentUser } from '../auth/context.js';
+import { logger } from '../log.js';
 import { cleanAcl, processPermissions } from '../auth/permissions.js';
 import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
 import { HttpError, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
@@ -232,7 +233,7 @@ export function listTemplates(): ProcessTemplate[] {
     .map((f) => {
       const def = parseDefinitionText(fs.readFileSync(path.join(config.templatesDir, f), 'utf8')) as ProcessDefinition;
       const res = validateProcess(def);
-      if (!res.ok) console.warn(`Template ${f} is invalid:`, res.issues);
+      if (!res.ok) logger.warn({ template: f, issues: res.issues }, 'invalid template');
       return {
         id: f.replace(/\.ya?ml$/, ''),
         name: def.name,

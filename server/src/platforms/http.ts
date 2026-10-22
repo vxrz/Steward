@@ -2,6 +2,8 @@ import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch, type Dispatcher } from 'un
 import type { AuthConfig, Platform } from '@sm/shared';
 import { evalExpr, render, renderString } from '../engine/expr.js';
 import { HttpError } from '../util.js';
+import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
+import { logger } from '../log.js';
 
 export interface HttpRequest {
   method: string;
@@ -88,7 +90,36 @@ export async function buildUrl(
 }
 
 async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
+  let target: URL | undefined;
+  try {
+    target = new URL(req.url);
+  } catch {
+    /* relative/invalid – reported by fetch */
+  }
+  return withSpan(
+    `HTTP ${req.method}`,
+    {
+      'http.request.method': req.method,
+      'url.full': target ? `${target.origin}${target.pathname}` : req.url, // query omitted (may contain filters with personal data)
+      'server.address': target?.hostname,
+      'server.port': target ? Number(target.port || (target.protocol === 'https:' ? 443 : 80)) : undefined,
+      'sm.platform.id': p.id,
+      'sm.platform.name': p.name,
+    },
+    async (span) => {
+      const res = await sendRaw(p, req, signal);
+      span.setAttribute('http.response.status_code', res.status);
+      if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
+      logger.debug({ platform: p.name, method: req.method, host: target?.host, path: target?.pathname, status: res.status, ms: res.durationMs }, 'platform call');
+      return res;
+    },
+    SpanKind.CLIENT,
+  );
+}
+
+async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
   const headers: Record<string, string> = { accept: 'application/json, */*;q=0.5', ...(req.headers ?? {}) };
+  injectTraceHeaders(headers);
   let body: string | undefined;
   if (req.body !== undefined && req.body !== null && !['GET', 'HEAD'].includes(req.method)) {
     const type = req.bodyType ?? (typeof req.body === 'string' ? 'text' : 'json');

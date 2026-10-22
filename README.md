@@ -10,6 +10,9 @@ A local tool for running standard service and platform procedures against **Siem
 - **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what *would* change.
 - **Scheduling.** Cron schedules with time zones. Scheduled runs that need a decision wait in *My tasks*.
 - **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/PDF/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
+- **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
+- **Example library.** [`examples/`](examples/README.md) contains service-management and housekeeping procedures for Insights Hub and Industrial Edge, plus dashboards, all importable.
+- **Observability.** Structured JSON logs and optional OpenTelemetry tracing.
 - **Durable.** Runs are journaled step by step. If the app stops while a run waits for a decision, it resumes after a restart without repeating finished steps.
 - **Local and safe.** The server binds to `127.0.0.1` and stores credentials AES-256-GCM encrypted with your master passphrase. It has CSRF and DNS-rebinding protection.
 
@@ -58,6 +61,10 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_CHROMIUM_PATH` | – | Use a specific Chromium/Chrome binary for browser steps |
 | `HTTPS_PROXY` / `NO_PROXY` | – | Corporate proxy, used for platform calls unless a platform overrides it |
 | `SM_DEMO` | – | `1` mounts the mock platforms under `/mock` |
+| `SM_LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug` or `trace`. Logs are JSON lines on stdout. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | – | Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`. |
+| `SM_OTEL_PROPAGATE` | `1` | `0` stops adding `traceparent` headers to platform calls |
+| `SM_METRIC_RETENTION_DAYS` | `400` | How long dashboard metric history is kept |
 
 ## Concepts
 
@@ -127,6 +134,23 @@ One person (an admin) unlocks the vault after a restart, or you set `SM_MASTER_P
 
 `none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, *accept self-signed certificates* (common for on-prem IEM), a timeout and default headers.
 
+## Dashboards
+
+1. **Publish data from a flow.** Add a **Publish to dashboard** node. Give it a dataset key such as `iem.devices`, the rows (an expression), optionally compact `columns`, a `status` expression per row (good / warning / serious / critical / unknown), a reason text, and `metrics` (numbers kept as history).
+2. **What a run stores.** Every run replaces the dataset snapshot and appends the metrics.
+3. **Keep it fresh.** Schedule the publishing flow, e.g. hourly inventories or a health check every 15 minutes. `staleAfterMinutes` marks old data on the dashboards.
+4. **Build the dashboard.** *Dashboards → New / From template / Import YAML*. Widget types:
+   - `kpi`: value, change and sparkline;
+   - `trend`: up to three metrics;
+   - `status`: distribution of row statuses;
+   - `table`: rows with status, search and a problems-only filter;
+   - `checks`: the latest checks of a process;
+   - `freshness`;
+   - `markdown`.
+5. **Refresh.** *Refresh data* re-runs the feeding processes with the inputs of their last run, provided you have run rights.
+
+Who can see what: a dataset is visible to everyone who may view the process that publishes it.
+
 ## Bundled templates
 
 | Template | What it does |
@@ -140,7 +164,9 @@ One person (an admin) unlocks the vault after a restart, or you set `SM_MASTER_P
 | Browser – Portal login and status screenshot | Signs in to a portal, reads a status text, checks it and stores a screenshot as evidence. |
 | Generic – Endpoint availability check | Calls a list of endpoints and records one check per endpoint. |
 
-Templates are YAML files in `server/templates/`. Adding a file there makes it available in *Processes → From template*.
+Templates are YAML files in [`examples/processes/`](examples/README.md); example dashboards are in `examples/dashboards/`. Adding a file there makes it available in *From template*. The examples README lists the whole library, including privileged-access review, offboarding, group hygiene, inventories, data freshness, firmware and app compliance, stale device clean-up and a weekly service report. Check files with `npm run validate`, which runs in CI too.
+
+For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roadmap) see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ### Notes on the Siemens APIs (please verify on your tenant)
 

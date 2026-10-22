@@ -29,6 +29,7 @@ export const NODE_TYPES = [
   'log',
   'report',
   'browser',
+  'publish',
   'wait',
   'fail',
   'note',
@@ -36,7 +37,7 @@ export const NODE_TYPES = [
 export type NodeType = (typeof NODE_TYPES)[number];
 
 /** Step types of the sequential (YAML) format. */
-export const STEP_TYPES = ['http', 'set', 'forEach', 'if', 'group', 'userTask', 'check', 'log', 'report', 'browser', 'wait', 'fail'] as const;
+export const STEP_TYPES = ['http', 'set', 'forEach', 'if', 'group', 'userTask', 'check', 'log', 'report', 'browser', 'publish', 'wait', 'fail'] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
 const identifier = z
@@ -168,6 +169,32 @@ export interface BrowserConfig {
   actions: BrowserAction[];
   mutating?: boolean;
 }
+/**
+ * Publish a data snapshot (and metric values) for dashboards. Each run replaces
+ * the dataset's rows; metrics are appended to a history for trends.
+ */
+export interface PublishConfig {
+  type: 'publish';
+  /** Dataset key, e.g. ih.users or iem.devices */
+  dataset: string;
+  title?: string;
+  /** Expression → list of items (the rows) */
+  rows?: string;
+  /** Optional projection: label → expression per item (keeps snapshots small) */
+  columns?: Column[];
+  /** Expression per item → stable row key */
+  key?: string;
+  /** Expression per item → good | warning | serious | critical | unknown (ok/error/fail are accepted too) */
+  status?: string;
+  /** Expression per item → short reason shown next to the status */
+  statusText?: string;
+  /** Metric name → numeric expression; appended to the dataset's history */
+  metrics?: Record<string, string>;
+  /** Data counts as stale when older than this (dashboards show it) */
+  staleAfterMinutes?: number;
+  /** Safety limit (default 5000 rows) */
+  maxRows?: number;
+}
 export interface WaitConfig {
   type: 'wait';
   seconds: number;
@@ -246,6 +273,19 @@ const shapes = {
     columns: z.array(columnSchema).optional(),
   },
   browser: { type: z.literal('browser'), connection: z.string().optional(), actions: z.array(browserActionSchema), mutating: z.boolean().optional() },
+  publish: {
+    type: z.literal('publish'),
+    dataset: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.users)'),
+    title: z.string().optional(),
+    rows: z.string().optional(),
+    columns: z.array(columnSchema).optional(),
+    key: z.string().optional(),
+    status: z.string().optional(),
+    statusText: z.string().optional(),
+    metrics: z.record(z.string()).optional(),
+    staleAfterMinutes: z.number().int().min(1).optional(),
+    maxRows: z.number().int().min(1).max(50000).optional(),
+  },
   wait: { type: z.literal('wait'), seconds: z.number().min(0).max(3600) },
   fail: { type: z.literal('fail'), message: z.string() },
   start: { type: z.literal('start') },
@@ -266,6 +306,7 @@ export type CheckStep = Base & CheckConfig;
 export type LogStep = Base & LogConfig;
 export type ReportStep = Base & ReportConfig;
 export type BrowserStep = Base & BrowserConfig;
+export type PublishStep = Base & PublishConfig;
 export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
 export type Step =
@@ -279,6 +320,7 @@ export type Step =
   | LogStep
   | ReportStep
   | BrowserStep
+  | PublishStep
   | WaitStep
   | FailStep;
 
@@ -294,6 +336,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
     z.object({ ...baseFields, ...shapes.log }),
     z.object({ ...baseFields, ...shapes.report }),
     z.object({ ...baseFields, ...shapes.browser }),
+    z.object({ ...baseFields, ...shapes.publish }),
     z.object({ ...baseFields, ...shapes.wait }),
     z.object({ ...baseFields, ...shapes.fail }),
   ]),
@@ -314,6 +357,7 @@ export type NodeConfig =
   | LogConfig
   | ReportConfig
   | BrowserConfig
+  | PublishConfig
   | WaitConfig
   | FailConfig
   | StartConfig
@@ -333,6 +377,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.log }),
   z.object({ ...baseFields, ...pos, ...shapes.report }),
   z.object({ ...baseFields, ...pos, ...shapes.browser }),
+  z.object({ ...baseFields, ...pos, ...shapes.publish }),
   z.object({ ...baseFields, ...pos, ...shapes.wait }),
   z.object({ ...baseFields, ...pos, ...shapes.fail }),
   z.object({ ...baseFields, ...pos, ...shapes.note }),

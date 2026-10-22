@@ -27,6 +27,10 @@ import { getProcess } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings } from './expr.js';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
+import { publishDataset } from '../dashboards/datasets.js';
+import { logger } from '../log.js';
+import { withSpan } from '../telemetry.js';
+import { normalizeStatus, type DatasetRow } from '@sm/shared';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -87,6 +91,11 @@ class RunContext {
     this.nodes = new Map(def.nodes.map((n) => [n.id, n]));
     this.stats = stats;
     for (const b of Object.values(bindings)) this.redactor.add(...Object.values(b.secrets));
+  }
+
+  /** Status of a step as recorded in the run journal (for traces). */
+  journalStatus(key: string): string | undefined {
+    return db().get<{ status: string }>('SELECT status FROM run_steps WHERE run_id = ? AND key = ?', this.runId, key)?.status;
   }
 
   get signal(): AbortSignal {
@@ -414,7 +423,7 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
     waiter({ decision: d, by: actor, at });
   } else {
     // Server was restarted while waiting: replay the run up to this task.
-    await resumeRun(t.runId, actor).catch((e) => console.error('resume failed', e));
+    await resumeRun(t.runId, actor).catch((e) => logger.error({ err: e, runId: t.runId }, 'resume after decision failed'));
   }
 }
 
@@ -427,7 +436,7 @@ export async function recoverRuns(): Promise<void> {
         store.setRunStatus(r.id, 'interrupted');
         await resumeRun(r.id, 'system');
       } catch (e) {
-        console.error(`Could not resume run ${r.id}:`, (e as Error).message);
+        logger.error({ err: e, runId: r.id }, 'could not resume run');
       }
     } else {
       store.setRunStatus(r.id, 'interrupted');
@@ -446,10 +455,26 @@ export async function recoverRuns(): Promise<void> {
 async function execute(ctx: RunContext): Promise<void> {
   let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
   let error: string | undefined;
+  const run = store.runRow(ctx.runId);
+  const log = logger.child({ runId: ctx.runId, processId: run.process_id, processVersion: run.process_version });
+  const t0 = Date.now();
+  log.info({ trigger: run.trigger, actor: ctx.actor, dryRun: ctx.dryRun, resumed: ctx.journal.size > 0 }, 'run started');
   try {
     const start = ctx.def.nodes.find((n) => n.type === 'start');
     if (!start) throw new Error('Process has no start node');
-    await runNode(start, ctx, null);
+    await withSpan(
+      `run ${ctx.def.name}`,
+      {
+        'sm.run.id': ctx.runId,
+        'sm.process.id': run.process_id,
+        'sm.process.version': run.process_version,
+        'sm.run.trigger': run.trigger,
+        'sm.run.dry_run': ctx.dryRun,
+        'sm.run.resumed': ctx.journal.size > 0,
+        'enduser.id': ctx.actor,
+      },
+      () => runNode(start, ctx, null),
+    );
   } catch (e) {
     if (e instanceof Cancelled || ctx.signal.aborted) {
       status = 'cancelled';
@@ -463,6 +488,7 @@ async function execute(ctx: RunContext): Promise<void> {
   }
   store.saveStats(ctx.runId, ctx.stats);
   store.setRunStatus(ctx.runId, status, { error: error ?? null, finished: true });
+  log[status === 'failed' ? 'warn' : 'info']({ status, error, durationMs: Date.now() - t0, stats: ctx.stats }, 'run finished');
   if (error && status === 'failed') ctx.log('error', `Run failed: ${error}`);
   audit({
     actor: ctx.actor,
@@ -491,7 +517,17 @@ async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): P
   if (ctx.signal.aborted) throw new Cancelled();
   if (node.type === 'note') return;
   const key = activationKey(ctx, scope, node.id);
-  const ports = await execNode(node, ctx, scope, key);
+  const ports = await withSpan(
+    `node ${node.type} ${node.id}`,
+    { 'sm.node.id': node.id, 'sm.node.type': node.type, 'sm.step.key': key, 'sm.run.id': ctx.runId },
+    async (span) => {
+      const p = await execNode(node, ctx, scope, key);
+      span.setAttribute('sm.node.ports', p.join(','));
+      const row = ctx.journalStatus(key);
+      if (row) span.setAttribute('sm.node.status', row);
+      return p;
+    },
+  );
   for (const port of ports) {
     for (const next of outgoing(ctx.nodes, ctx.def.wires, node.id, port)) await runNode(next, ctx, scope);
   }
@@ -604,6 +640,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
     if (node.saveAs) ctx.vars[node.saveAs] = { error: message };
     return ports;
   }
+  logger.warn({ runId: ctx.runId, stepKey: key, nodeType: node.type, error: message }, 'step failed');
   throw new StepFailure(`Step "${name}" failed: ${message}`, key);
 }
 
@@ -744,6 +781,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string): Promise<L
       throw new Error(await ctx.str(step.message));
     case 'userTask':
       return execUserTask(step, ctx, key);
+    case 'publish':
+      return execPublish(step, ctx, key);
     case 'browser':
       return execBrowser(step, ctx, key);
     default:
@@ -910,6 +949,66 @@ function joinUrl(base: string, p: string): string {
 function snippet(v: unknown): string {
   const s = typeof v === 'string' ? v : JSON.stringify(v);
   return (s ?? '').slice(0, 400);
+}
+
+/** Cell values are kept flat so snapshots stay small and render as text. */
+function cell(v: unknown): unknown {
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'string') return v.length > 1000 ? v.slice(0, 1000) + '…' : v;
+  if (typeof v === 'number' || typeof v === 'boolean') return v;
+  if (Array.isArray(v) && v.every((x) => x === null || typeof x !== 'object')) return v.join(', ');
+  return stringify(v).slice(0, 500);
+}
+
+async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string): Promise<LeafResult> {
+  const list = step.rows ? await ctx.list(step.rows) : [];
+  const max = step.maxRows ?? 5000;
+  if (list.length > max) throw new Error(`${list.length} rows exceed the limit of ${max} (maxRows)`);
+  let columns: string[];
+  const rows: DatasetRow[] = [];
+  if (step.columns?.length) {
+    columns = step.columns.map((c) => c.label);
+  } else {
+    const keys = new Set<string>();
+    for (const it of list.slice(0, 50)) if (it && typeof it === 'object' && !Array.isArray(it)) Object.keys(it).forEach((k) => keys.add(k));
+    columns = keys.size ? [...keys] : ['value'];
+  }
+  for (const item of list) {
+    const row: DatasetRow = {};
+    if (step.columns?.length) {
+      for (const c of step.columns) row[c.label] = cell(await ctx.item(c.value, item));
+    } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+      for (const c of columns) row[c] = cell((item as Record<string, unknown>)[c]);
+    } else row.value = cell(item);
+    if (step.key) row._key = stringify(await ctx.item(step.key, item));
+    if (step.status) row._status = normalizeStatus(await ctx.item(step.status, item));
+    if (step.statusText) row._statusText = stringify(await ctx.item(step.statusText, item));
+    rows.push(row);
+  }
+  const metrics: Record<string, number> = {};
+  for (const [name, expr] of Object.entries(step.metrics ?? {})) {
+    const v = Number(await ctx.eval(expr));
+    if (Number.isFinite(v)) metrics[name] = v;
+    else ctx.log('warn', `Metric "${name}" is not a number – skipped`, key);
+  }
+  const run = store.runRow(ctx.runId);
+  const meta = publishDataset({
+    key: step.dataset,
+    title: step.title || step.name || step.dataset,
+    processId: run.process_id,
+    processName: run.process_name,
+    runId: ctx.runId,
+    dryRun: ctx.dryRun,
+    columns,
+    rows: ctx.redactor.apply(rows),
+    metrics,
+    staleAfterMinutes: step.staleAfterMinutes,
+  });
+  const counts = Object.entries(meta.statusCounts).map(([k, n]) => `${n} ${k}`).join(', ');
+  return {
+    output: { dataset: step.dataset, rows: rows.length, statusCounts: meta.statusCounts, metrics },
+    summary: `${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}${Object.keys(metrics).length ? ` · ${Object.entries(metrics).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''}`,
+  };
 }
 
 async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: string): Promise<LeafResult> {

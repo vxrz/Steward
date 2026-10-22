@@ -1,4 +1,5 @@
 import {
+  IconChartBar,
   IconApi,
   IconArrowsSplit,
   IconBrowser,
@@ -26,6 +27,7 @@ export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   log: IconMessage,
   report: IconReport,
   browser: IconBrowser,
+  publish: IconChartBar,
   wait: IconClock,
   fail: IconX,
   note: IconNote,
@@ -74,6 +76,8 @@ export function nodeSummary(n: FlowNode): string {
       return short(n.title);
     case 'browser':
       return `${n.actions?.length ?? 0} action(s)`;
+    case 'publish':
+      return `→ ${n.dataset}`;
     case 'wait':
       return `${n.seconds}s`;
     case 'fail':

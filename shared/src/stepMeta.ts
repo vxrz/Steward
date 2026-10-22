@@ -209,6 +209,33 @@ export const STEP_META: Record<NodeType, StepMeta> = {
     ],
     defaults: () => ({ actions: [{ action: 'goto', value: '/' }, { action: 'screenshot', name: 'page' }] }),
   },
+  publish: {
+    type: 'publish',
+    label: 'Publish to dashboard',
+    category: 'Evidence',
+    color: 'cyan',
+    description:
+      'Store a snapshot of rows (with a status per row) and metric values in a dataset for dashboards. Each run replaces the rows; metrics are kept as history for trends. Dashboards read the stored data – they never call the platforms themselves.',
+    fields: [
+      { key: 'dataset', label: 'Dataset key', kind: 'text', required: true, placeholder: 'ih.users', help: 'Dashboards refer to this key' },
+      { key: 'title', label: 'Title', kind: 'text' },
+      { key: 'rows', label: 'Rows (expression → list)', kind: 'expr', placeholder: 'vars.users.body' },
+      { key: 'columns', label: 'Columns (keep only what the dashboard needs)', kind: 'columns' },
+      { key: 'key', label: 'Row key (expression per item)', kind: 'expr', placeholder: 'id' },
+      {
+        key: 'status',
+        label: 'Status (expression per item)',
+        kind: 'expr',
+        placeholder: "connectionState = 'ONLINE' ? 'good' : 'critical'",
+        help: 'good | warning | serious | critical | unknown',
+      },
+      { key: 'statusText', label: 'Status reason (expression per item)', kind: 'expr' },
+      { key: 'metrics', label: 'Metrics (name → number expression)', kind: 'keyValue', help: 'Appended to the history for trend charts' },
+      { key: 'staleAfterMinutes', label: 'Stale after (minutes)', kind: 'number' },
+      { key: 'maxRows', label: 'Max rows (safety limit, default 5000)', kind: 'number' },
+    ],
+    defaults: () => ({ dataset: 'my.dataset', rows: 'vars.items', metrics: { total: '$count(vars.items)' } }),
+  },
   wait: {
     type: 'wait',
     label: 'Wait',

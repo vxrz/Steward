@@ -244,6 +244,41 @@ const MIGRATIONS: string[] = [
   ALTER TABLE users ADD COLUMN external_id TEXT;
   CREATE UNIQUE INDEX users_external_id ON users(external_id) WHERE external_id IS NOT NULL;
   `,
+  // 5: datasets for dashboards, metric history, dashboards
+  `
+  CREATE TABLE datasets (
+    key TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    process_id TEXT NOT NULL,
+    process_name TEXT NOT NULL,
+    run_id TEXT NOT NULL,
+    dry_run INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    row_count INTEGER NOT NULL,
+    columns TEXT NOT NULL,
+    rows TEXT NOT NULL,
+    status_counts TEXT NOT NULL,
+    metrics TEXT NOT NULL,
+    stale_after_minutes INTEGER
+  );
+  CREATE TABLE dataset_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset_key TEXT NOT NULL,
+    name TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    value REAL NOT NULL,
+    run_id TEXT
+  );
+  CREATE INDEX dataset_metrics_series ON dataset_metrics(dataset_key, name, ts);
+  CREATE TABLE dashboards (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    definition TEXT NOT NULL,
+    owner TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export class Db {

@@ -13,14 +13,14 @@ let proc: ChildProcess | undefined;
 function startServer(): Promise<ChildProcess> {
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: path.join(ROOT, 'server'),
-    env: { ...process.env, SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+    env: { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   return new Promise((resolve, reject) => {
     let out = '';
     const onData = (d: Buffer) => {
       out += d.toString();
-      if (out.includes('running at')) resolve(child);
+      if (out.includes('service manager started')) resolve(child);
     };
     child.stdout!.on('data', onData);
     child.stderr!.on('data', (d) => (out += d.toString()));

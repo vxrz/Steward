@@ -12,7 +12,8 @@ export const config = {
   dataDir: path.resolve(process.env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'data')),
   demo: process.env.SM_DEMO === '1' || process.env.SM_DEMO === 'true',
   webDist: path.join(ROOT_DIR, 'web', 'dist'),
-  templatesDir: path.join(ROOT_DIR, 'server', 'templates'),
+  templatesDir: path.join(ROOT_DIR, 'examples', 'processes'),
+  dashboardsDir: path.join(ROOT_DIR, 'examples', 'dashboards'),
   /** Optional passphrase for unattended start (scheduled runs after reboot). */
   masterPassphrase: process.env.SM_MASTER_PASSPHRASE,
   /** Serve HTTPS (recommended when other people access the tool over the network). */

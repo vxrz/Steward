@@ -9,6 +9,7 @@ import { getPlatform } from './platforms/service.js';
 import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
+import { logger } from './log.js';
 
 interface ScheduleRow {
   id: string;
@@ -167,7 +168,7 @@ function arm(id: string) {
   const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
   if (!r || !r.enabled) return;
   const job = new Cron(r.cron, { timezone: r.timezone || undefined, protect: true }, () => {
-    fire(id).catch((e) => console.error(`Schedule ${id} failed:`, e));
+    fire(id).catch((e) => logger.error({ err: e, scheduleId: id }, 'schedule failed'));
   });
   jobs.set(id, job);
 }
@@ -201,6 +202,7 @@ export async function fire(id: string, manual = false): Promise<string | null> {
         return null;
       });
   if (problem) {
+    logger.warn({ scheduleId: id, reason: problem }, 'schedule skipped');
     audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem}` });
     return null;
   }

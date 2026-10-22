@@ -12,6 +12,7 @@ import { mockPlatform } from './mock/mockPlatform.js';
 import { requestContext } from './auth/context.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
+import { logger } from './log.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status'];
@@ -20,7 +21,8 @@ const LOCKED_OK = ['/api/auth/', '/api/vault/'];
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: opts.logger ? { level: 'warn' } : false,
+    ...(opts.logger ? { loggerInstance: logger } : { logger: false }),
+    disableRequestLogging: true,
     bodyLimit: 25 * 1024 * 1024,
     ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) } } : {}),
   }) as unknown as FastifyInstance;
@@ -62,7 +64,29 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it' });
       }
     }
+    (req as unknown as { smUser?: string }).smUser = user?.username;
     requestContext.run({ user, ip: req.ip }, done);
+  });
+
+  // One log line per API request: debug for routine reads, info for changes, warn/error for problems.
+  app.addHook('onResponse', async (req, reply) => {
+    if (!req.url.startsWith('/api/')) return;
+    const ms = Math.round(reply.elapsedTime);
+    const status = reply.statusCode;
+    const entry = {
+      reqId: req.id,
+      method: req.method,
+      path: req.url.split('?')[0],
+      status,
+      ms,
+      user: (req as unknown as { smUser?: string }).smUser,
+      ip: req.ip,
+    };
+    if (status >= 500) logger.error(entry, 'request failed');
+    else if (status >= 400 && ![401, 404, 423].includes(status)) logger.warn(entry, 'request rejected');
+    else if (ms > 2000) logger.warn(entry, 'slow request');
+    else if (req.method !== 'GET') logger.info(entry, 'request');
+    else logger.debug(entry, 'request');
   });
 
   app.setErrorHandler((err, _req, reply) => {
@@ -74,7 +98,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     }
     const e = err as Error & { statusCode?: number };
     if (e.statusCode && e.statusCode < 500) return reply.code(e.statusCode).send({ error: e.message });
-    console.error(err);
+    logger.error({ err }, 'unhandled error');
     return reply.code(500).send({ error: e.message || 'Internal error' });
   });
 
