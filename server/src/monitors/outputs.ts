@@ -130,7 +130,8 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
       let quiet: string | null = null;
       if (statuses && !statuses.includes(e.status)) quiet = 'status not selected';
       else if (peopleFacing(o) && (ctx.maintenance || e.status === 'maintenance')) quiet = 'maintenance window';
-      else if (peopleFacing(o) && prev === null && e.status === 'up') quiet = 'first status';
+      else if (peopleFacing(o) && e.status === 'up' && prev !== 'down' && prev !== 'degraded') quiet = 'nothing to recover from';
+      else if (peopleFacing(o) && !statuses && (e.status === 'unknown' || e.status === 'blocked')) quiet = 'not a confirmed problem';
       else if (peopleFacing(o) && ctx.acknowledged && e.status !== 'up') quiet = 'acknowledged';
       else if (e.level === 'check' && suppressOf(o) && s.dependent) quiet = 'caused by a failing parent';
       else if (o.type === 'gatus' && e.status === 'maintenance') quiet = 'maintenance window';

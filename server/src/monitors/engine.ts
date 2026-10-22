@@ -570,7 +570,7 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
         level: 'monitor',
         status: a.status,
         since: state.since,
-        message: a.rootCauses.length ? `Root cause: ${a.rootCauses.map((r) => `${r.monitorName} › ${r.checkName}`).join(', ')}` : `${m.name} is ${a.status}`,
+        message: rootMessage(a.rootCauses, rows) ?? `${m.name} is ${a.status}`,
         causedBy: a.rootCauses,
         ts,
         monitor: monitorInfo,
@@ -618,6 +618,16 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
 export function nextCheckAt(mid: string, cid: string): string | null {
   const d = due.get(ck(mid, cid));
   return d === undefined ? null : iso(d);
+}
+
+/** The latest result message of the first root cause in this monitor (e.g. "No report for 6 min"). */
+function rootMessage(roots: CauseRef[], rows: Map<string, CheckRow>): string | null {
+  for (const r of roots) {
+    const row = rows.get(r.checkId);
+    const last = row && parseJson<{ message?: string } | null>(row.last_result, null);
+    if (last?.message && row.monitor_id === r.monitorId) return last.message;
+  }
+  return null;
 }
 
 /** Resets the in-memory schedule (tests). */
