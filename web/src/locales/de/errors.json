@@ -25,7 +25,11 @@
     "SSO_CONFIG_UNVERIFIED": "Die Einstellungen dieses Anmeldeanbieters wurden außerhalb von Steward geändert. Ein Administrator muss sie prüfen und erneut speichern.",
     "ANCHOR_INVALID": "Das ist kein Prüfpunkt (erwartet wird das JSON eines Prüfpunkts oder seq:hash).",
     "ANCHOR_SIGNATURE_INVALID": "Die Signatur des Prüfpunkts ist ungültig – er wurde verändert oder stammt von einer anderen Installation.",
-    "BUSY": "Zu viele gleichzeitige Anmeldungen – bitte gleich noch einmal versuchen."
+    "BUSY": "Zu viele gleichzeitige Anmeldungen – bitte gleich noch einmal versuchen.",
+    "PDF_NOT_DERIVED": "Dieses PDF stammt nicht von einem PDF ab, das Steward für dieses Dokument erzeugt hat. Unterschreiben Sie ein hier erzeugtes PDF und laden Sie die unterschriebene Datei unverändert hoch.",
+    "PDF_NOT_SIGNED": "Das ist das unveränderte, nicht unterschriebene PDF aus Steward – bitte zuerst unterschreiben.",
+    "PDF_NO_SIGNATURE": "Die Datei beginnt mit einem für dieses Dokument erzeugten PDF, enthält aber keine Unterschrift.",
+    "RECORD_CHANGED": "Jemand hat dieses Dokument inzwischen geändert. Laden Sie die Seite neu und übernehmen Sie Ihre Änderungen noch einmal."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -101,7 +101,7 @@ const ROW_BG: Record<string, string | undefined> = {
   '@': 'var(--mantine-color-blue-light)',
 };
 
-function UnifiedDiff({ oldText, newText, oldName, newName, context }: { oldText: string; newText: string; oldName: string; newName: string; context: number }) {
+export function UnifiedDiff({ oldText, newText, oldName, newName, context }: { oldText: string; newText: string; oldName: string; newName: string; context: number }) {
   const patch = useMemo(() => structuredPatch(oldName, newName, oldText, newText, '', '', { context }), [oldText, newText, oldName, newName, context]);
   if (!patch.hunks.length) return null;
   const rows: { kind: string; a?: number; b?: number; text: string }[] = [];

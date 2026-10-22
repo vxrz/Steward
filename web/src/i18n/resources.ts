@@ -10,9 +10,11 @@ import type monitors from '../locales/en/monitors.json';
 import type platforms from '../locales/en/platforms.json';
 import type processes from '../locales/en/processes.json';
 import type profile from '../locales/en/profile.json';
+import type records from '../locales/en/records.json';
 import type reports from '../locales/en/reports.json';
 import type runs from '../locales/en/runs.json';
 import type schedules from '../locales/en/schedules.json';
+import type services from '../locales/en/services.json';
 import type settings from '../locales/en/settings.json';
 import type system from '../locales/en/system.json';
 import type tasks from '../locales/en/tasks.json';
@@ -49,4 +51,6 @@ export interface Resources {
   users: typeof users;
   profile: typeof profile;
   system: typeof system;
+  records: typeof records;
+  services: typeof services;
 }

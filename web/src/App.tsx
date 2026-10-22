@@ -14,6 +14,8 @@ import {
   IconCalendarTime,
   IconWebhook,
   IconHeartRateMonitor,
+  IconFileCertificate,
+  IconStack2,
   IconServer,
   IconShieldCheck,
   IconSettings,
@@ -62,6 +64,12 @@ const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
 const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
 const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
+const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
+const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
+const RecordEditorPage = page(() => import('./pages/RecordEditor'), 'RecordEditorPage');
+const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPage');
+const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
+const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 
 function PageLoader() {
   return (
@@ -71,7 +79,7 @@ function PageLoader() {
   );
 }
 
-type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'audit' | 'users' | 'settings';
+type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'records' | 'services' | 'audit' | 'users' | 'settings';
 const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
   { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
@@ -82,6 +90,8 @@ const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: ke
   { to: '/triggers', key: 'triggers', icon: IconWebhook },
   { to: '/monitors', key: 'monitors', icon: IconHeartRateMonitor },
   { to: '/platforms', key: 'platforms', icon: IconServer },
+  { to: '/records', key: 'records', icon: IconFileCertificate },
+  { to: '/services', key: 'services', icon: IconStack2 },
   { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
   { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
   { to: '/settings', key: 'settings', icon: IconSettings },
@@ -224,6 +234,12 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/platforms/:id" element={<PlatformDetailPage />} />
+          <Route path="/records" element={<RecordsPage />} />
+          <Route path="/records/types" element={<RecordTypesPage />} />
+          <Route path="/records/:id" element={<RecordDetailPage />} />
+          <Route path="/records/:id/edit" element={<RecordEditorPage />} />
+          <Route path="/services" element={<ServicesPage />} />
+          <Route path="/services/:id" element={<ServiceDetailPage />} />
           {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
