@@ -17,6 +17,7 @@ import { listSchedules, saveSchedule } from '../scheduler.js';
 import { startRun } from '../engine/runner.js';
 import { getProcess } from '../processes/service.js';
 import { setupMonitorDemo } from '../monitors/demo.js';
+import { getSettings, updateSettings } from '../settings.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -221,6 +222,17 @@ export async function setupDemo(): Promise<{
   }
 
   // ---- example monitors (machines with PowerMeters) and the IoT gateway simulator ----
+  // The demo's simulated plant devices live on loopback (the examples' 10.20.x.x
+  // PowerMeter IPs are mapped to 127.0.0.1 here). Allow loopback so their monitor
+  // checks run, mirroring how an admin allow-lists the real plant IPs/CIDRs under
+  // Settings → Outbound access. The outbound policy still blocks metadata and the API.
+  try {
+    const current = getSettings().outboundAllowList ?? [];
+    const additions = ['127.0.0.1', 'localhost', '[::1]'].filter((h) => !current.includes(h));
+    if (additions.length) updateSettings({ outboundAllowList: [...current, ...additions] });
+  } catch (err) {
+    logger.warn({ err: (err as Error).message }, 'could not allow loopback for the demo monitors');
+  }
   let monitors = 0;
   try {
     monitors = await setupMonitorDemo();

@@ -65,6 +65,9 @@ function isOwnServerApi(u: URL): boolean {
   const h = unmap(u.hostname).toLowerCase();
   const loopback = h === '127.0.0.1' || h === 'localhost' || h === '::1' || h.startsWith('127.');
   if (!loopback) return false;
+  // The public liveness/readiness endpoints expose nothing and are legitimate to monitor;
+  // everything else under /api (and /metrics) is the self-SSRF surface and stays blocked.
+  if (/^\/api\/(health|ready)\/?$/i.test(u.pathname)) return false;
   return /^\/(api|metrics)(\/|$)/i.test(u.pathname);
 }
 

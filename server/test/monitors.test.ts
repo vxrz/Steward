@@ -52,10 +52,8 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
-  // The outbound policy (SSRF protection) denies hosts that are neither a configured
-  // platform nor allow-listed. These tests check ad-hoc loopback servers, so allow
-  // loopback here – exactly how an admin allow-lists internal hosts (e.g. plant IPs).
-  await s.api('PUT', '/settings', { outboundAllowList: ['127.0.0.1', 'localhost', '[::1]'] });
+  // The demo allow-lists loopback (its simulated plant devices are on 127.0.0.1), which
+  // is also what lets these tests reach their ad-hoc loopback check/output servers.
   P = Object.fromEntries((await s.api('GET', '/platforms')).map((p: any) => [p.name, p.id]));
   [dana, olivia, vera] = await Promise.all(['dana', 'olivia', 'vera'].map((u) => s.as(u, PW)));
   eng = await import('../src/monitors/engine.js');

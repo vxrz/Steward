@@ -72,6 +72,8 @@ steps:
 
 describe('F4 – SSRF policy on the http node', () => {
   it('blocks cloud metadata and the server\'s own API, allows the platform', async () => {
+    // default policy: nothing allow-listed (the demo allow-lists loopback, reset it here)
+    await s.api('PUT', '/settings', { outboundAllowList: [] });
     const meta = await runYaml(`
 name: metadata
 connections: [{ slot: hub, kind: insights-hub }]

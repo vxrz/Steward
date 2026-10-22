@@ -112,6 +112,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
     const setup = await must('POST', '/api/auth/setup', { passphrase: MASTER_PASSPHRASE, username: USERS.admin.username, password: USERS.admin.password });
     const adminCookie = setup.cookie!;
     await must('POST', '/api/demo/setup', {}, adminCookie);
+    // (The demo allow-lists loopback itself, so its simulated plant-device monitor
+    // checks run; the UI tests' ad-hoc loopback targets are covered by the same entry.)
 
     // 3. wait until the initial feeder runs (dashboards) have finished
     for (let i = 0; ; i++) {
