@@ -65,7 +65,9 @@
     "webhook": "Webhook-Aufrufe annehmen (Push-Ereignisse)",
     "webhookHint": "Der Git-Host ruft Steward bei jedem Push auf. Steward muss dafür vom Git-Host erreichbar sein.",
     "requireSigned": "Signierte Commits verlangen",
-    "requireSignedHint": "Der Abruf schlägt fehl, wenn der Git-Host die Signatur des neuesten Commits im Branch nicht bestätigt hat.",
+    "requireSignedHint": "Der Abruf schlägt fehl und merkt nichts vor, wenn der Git-Host nicht die Signatur jedes neuen Commits seit dem letzten Abruf bestätigt hat. Der erste Abruf prüft den neuesten Commit und vertraut dem Verlauf davor.",
+    "allowedSigners": "Erlaubte Signierende (optional)",
+    "allowedSignersHint": "Anmeldenamen beim Git-Host oder E-Mail-Adressen. Nur Commits, die eines dieser Konten signiert hat, werden angenommen. Leer = jede vom Git-Host bestätigte Signatur.",
     "autoAccept": "Neue Elemente automatisch übernehmen",
     "autoAcceptHint": "Elemente, die es in Steward noch nicht gibt, werden sofort angelegt (Monitore deaktiviert). Änderungen an bestehenden Elementen werden weiter geprüft.",
     "enabled": "Aktiv"
@@ -124,6 +126,7 @@
     "incoming": "Aus Git",
     "noChanges": "Die Datei aus Git entspricht dem Element in Steward.",
     "newItem": "Dieses Element gibt es in Steward noch nicht. Übernehmen legt es an.",
+    "contentRemoved": "Der Inhalt der Datei wurde {{days}} Tage nach der Entscheidung entfernt. Die Änderung bleibt abgelehnt, bis sich die Datei in Git ändert.",
     "conflictTitle": "Konflikt mit dem Element in Steward",
     "conflictText": "{{reason}}. Übernehmen überschreibt es mit der Version aus Git (bei Prozessen als neue Version – die alte bleibt im Verlauf).",
     "errorsTitle": "Diese Datei kann nicht übernommen werden",

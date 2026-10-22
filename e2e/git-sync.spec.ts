@@ -96,3 +96,46 @@ test('viewers neither see nor open the Updates from Git inbox', async ({ browser
   await expect(page.getByText('Only designers and administrators review updates from Git.')).toBeVisible();
   await ctx.close();
 });
+
+test('admin requires signed commits from named signers and sees why a fetch is refused', async ({ page, request, apiAs }) => {
+  const tag = uniq('e2e').split(' ')[1]!;
+  const repo = `e2e/signed-${tag}`;
+  const file = `steward/processes/e2e-signed-${tag}.yaml`;
+  const commit = async (message: string, o: { signed: boolean; signer: string }) =>
+    json<{ sha: string }>(
+      await request.post('/mock/git/_commit', { data: { repo, ...o, files: { [file]: processYaml(`e2e-signed-${tag}`, `Signed ${tag}`, message) } } }),
+    );
+  await commit('first version', { signed: true, signer: 'alice' });
+  const sourceName = `Signed library ${tag}`;
+
+  await page.goto('/settings/git-sync');
+  await page.getByRole('button', { name: 'New source' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'New Git sync source' });
+  await dialog.getByRole('textbox', { name: 'Name' }).fill(sourceName);
+  await dialog.getByRole('textbox', { name: 'Repository URL' }).fill(`${baseURL()}/mock/git/${repo}`);
+  await dialog.getByRole('textbox', { name: 'Folder' }).fill('steward');
+  await dialog.getByText('Require signed commits').click();
+  await expect(dialog.getByText(/every new commit since the last fetch/)).toBeVisible();
+  const signers = dialog.getByRole('textbox', { name: 'Allowed signers (optional)' });
+  await signers.fill('alice');
+  await signers.press('Enter');
+  await settle(page);
+  await expectAccessible(page, 'Git sync source dialog');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Source saved')).toBeVisible();
+  const card = page.getByTestId('sync-source').filter({ hasText: sourceName });
+  await card.getByRole('button', { name: 'Fetch now' }).click();
+  await expect(page.getByText(/1 staged for review/)).toBeVisible();
+
+  // an unsigned commit below a signed head: refused, nothing staged
+  const { sha } = await commit('unsigned change', { signed: false, signer: 'mallory' });
+  await commit('signed on top', { signed: true, signer: 'alice' });
+  await card.getByRole('button', { name: 'Fetch now' }).click();
+  await expect(page.getByText(`Commit ${sha.slice(0, 10)} on main (new since the last fetched commit`).first()).toBeVisible();
+  await expect(card.getByRole('link', { name: '1 open update' })).toBeVisible();
+
+  const api = await apiAs('admin');
+  const src = (await json<{ id: string; name: string; allowedSigners: string[] }[]>(await api.get('/api/sync-sources'))).find((s) => s.name === sourceName)!;
+  expect(src.allowedSigners).toEqual(['alice']);
+  await api.delete(`/api/sync-sources/${src.id}`);
+});

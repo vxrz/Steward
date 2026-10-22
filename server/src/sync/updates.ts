@@ -8,7 +8,7 @@ import * as processes from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { fileWebUrl } from './providers.js';
 import { requireSource, type SourceRow } from './service.js';
-import { applyItem, canDecide, incomingText, localById, localText } from './items.js';
+import { applyItem, canDecide, canView, incomingText, localById, localText } from './items.js';
 import { CONFLICT_TEXT, conflictOf, link } from './fetch.js';
 
 /**
@@ -52,6 +52,9 @@ export function requireReviewer(): void {
     throw new HttpError(403, 'Only designers and administrators can review updates from Git', 'FORBIDDEN', { context: 'reviewGitUpdates' });
 }
 
+/** Updates of items the reviewer cannot see are hidden like the items themselves (name, current definition). */
+const visible = (r: UpdateRow) => !r.kind || !r.entity_id || canView(r.kind, r.entity_id);
+
 function toUpdate(r: UpdateRow): SyncUpdate {
   return {
     id: r.id,
@@ -75,6 +78,8 @@ function toUpdate(r: UpdateRow): SyncUpdate {
     comment: r.comment,
     resultVersion: r.result_version,
     canDecide: r.status === 'pending' && !!r.kind && canDecide(r.kind, r.entity_id),
+    // rejected invalid files never had content; a rejected valid file lost it to the retention
+    contentRemoved: r.status === 'rejected' && r.content === null && !parseJson<string[]>(r.errors, []).length,
   };
 }
 
@@ -95,12 +100,13 @@ export function listUpdates(q: { status?: SyncUpdateStatus[]; sourceId?: string;
       ...params,
       Math.min(Math.max(q.limit ?? 200, 1), 500),
     )
+    .filter(visible)
     .map(toUpdate);
 }
 
-function updateRow(id: string): UpdateRow {
+function updateRow(id: string, checkVisible = true): UpdateRow {
   const r = /^gsu_[A-Za-z0-9_-]{8,40}$/.test(id) ? db().get<UpdateRow>(`${SELECT} WHERE u.id = ?`, id) : undefined;
-  if (!r) throw new HttpError(404, 'Update not found', 'SYNC_UPDATE_NOT_FOUND');
+  if (!r || (checkVisible && !visible(r))) throw new HttpError(404, 'Update not found', 'SYNC_UPDATE_NOT_FOUND');
   return r;
 }
 
@@ -187,7 +193,7 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
       },
     });
   });
-  return toUpdate(updateRow(r.id));
+  return toUpdate(updateRow(r.id, false));
 }
 
 export function rejectUpdate(id: string, comment?: string): SyncUpdate {
@@ -212,7 +218,7 @@ export function rejectUpdate(id: string, comment?: string): SyncUpdate {
       details: { sourceId: r.source_id, path: r.path, commit: r.commit_sha, kind: r.kind, entityId: r.entity_id, comment: comment ?? null },
     });
   });
-  return toUpdate(updateRow(r.id));
+  return toUpdate(updateRow(r.id, false));
 }
 
 /** Where synced items came from – only items the current user can see. */

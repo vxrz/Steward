@@ -14,7 +14,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  * …/mock/gitlab/api/v4 (GitLab).
  *
  * Test helpers (demo mode only, like everything under /mock):
- *   POST /mock/git/_commit {repo, branch?, files: {path: content | null}, signed?, message?} → {sha}
+ *   POST /mock/git/_commit {repo, branch?, files: {path: content | null}, signed?, signer?, email?, message?, objectFormat?} → {sha}
+ *        (signer/email: the account that signed – default steward-bot; objectFormat 'sha256' for a new SHA-256 repository)
+ *   POST /mock/git/_tamper {repo, path, content}   serves other content under the blob id of path at the head of main
  *   POST /mock/git/_reset
  *   GET  /mock/git/_calls?repo=…   requests seen per repository (whether a token was sent, never its value)
  */
@@ -23,19 +25,24 @@ export const DEMO_GIT = { token: 'mock-git-token-0123456789', repo: 'steward/lib
 
 interface Commit {
   sha: string;
+  parent: string | null;
   tree: Map<string, string>; // path → blob sha
   signed: boolean;
+  /** The account (login, e-mail) that committed and signed */
+  signer: { login: string; email: string };
   message: string;
 }
 interface Repo {
   isPrivate: boolean;
+  /** Object format: SHA-1 (default) or SHA-256 object ids */
+  format: 'sha1' | 'sha256';
   branches: Map<string, string>;
   commits: Map<string, Commit>;
   blobs: Map<string, Buffer>;
   calls: { path: string; token: boolean; tokenOk: boolean }[];
 }
 
-const blobSha = (b: Buffer) => crypto.createHash('sha1').update(`blob ${b.length}\0`).update(b).digest('hex');
+const blobSha = (b: Buffer, format: Repo['format'] = 'sha1') => crypto.createHash(format).update(`blob ${b.length}\0`).update(b).digest('hex');
 
 export const MOCK_LIBRARY: Record<string, string> = {
   'README.md': '# Steward library (demo)\n\nFiles below `steward/` are synced into Steward.\n',
@@ -98,30 +105,53 @@ fields:
 };
 
 function newRepo(isPrivate: boolean, files: Record<string, string>): Repo {
-  const repo: Repo = { isPrivate, branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
+  const repo: Repo = { isPrivate, format: 'sha1', branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
   commit(repo, 'main', files, { signed: true, message: 'Initial library' });
   return repo;
 }
 
-function commit(repo: Repo, branch: string, files: Record<string, string | null>, o: { signed?: boolean; message?: string }): string {
+function commit(
+  repo: Repo,
+  branch: string,
+  files: Record<string, string | null>,
+  o: { signed?: boolean; message?: string; signer?: string; email?: string },
+): string {
   const parent = repo.branches.get(branch);
   const tree = new Map(parent ? repo.commits.get(parent)!.tree : []);
   for (const [p, content] of Object.entries(files)) {
     if (content === null) tree.delete(p);
     else {
       const b = Buffer.from(content, 'utf8');
-      const s = blobSha(b);
+      const s = blobSha(b, repo.format);
       repo.blobs.set(s, b);
       tree.set(p, s);
     }
   }
   const sha = crypto
-    .createHash('sha1')
+    .createHash(repo.format)
     .update(`${parent ?? ''}|${[...tree].join(';')}|${o.message ?? ''}|${Date.now()}|${Math.random()}`)
     .digest('hex');
-  repo.commits.set(sha, { sha, tree, signed: o.signed ?? false, message: o.message ?? 'Update' });
+  const login = o.signer ?? 'steward-bot';
+  repo.commits.set(sha, {
+    sha,
+    parent: parent ?? null,
+    tree,
+    signed: o.signed ?? false,
+    signer: { login, email: o.email ?? `${login}@example.com` },
+    message: o.message ?? 'Update',
+  });
   repo.branches.set(branch, sha);
   return sha;
+}
+
+/** Commits reachable from head but not from base (git log base..head), oldest first; null when base is unknown. */
+function between(repo: Repo, base: string, head: string): Commit[] | null {
+  if (!repo.commits.has(base) || !repo.commits.has(head)) return null;
+  const known = new Set<string>();
+  for (let c: string | null = base; c; c = repo.commits.get(c)?.parent ?? null) known.add(c);
+  const out: Commit[] = [];
+  for (let c: string | null = head; c && !known.has(c); c = repo.commits.get(c)?.parent ?? null) out.push(repo.commits.get(c)!);
+  return out.reverse();
 }
 
 /** Entries of a commit's tree, with the directories a real host lists too. */
@@ -132,7 +162,7 @@ function entries(c: Commit, repo: Repo) {
     for (let i = 1; i < parts.length; i++) dirs.add(parts.slice(0, i).join('/'));
   }
   return [
-    ...[...dirs].map((d) => ({ path: d, mode: '040000', type: 'tree', sha: crypto.createHash('sha1').update(`tree:${d}`).digest('hex') })),
+    ...[...dirs].map((d) => ({ path: d, mode: '040000', type: 'tree', sha: crypto.createHash(repo.format).update(`tree:${d}`).digest('hex') })),
     ...[...c.tree].map(([path, sha]) => ({ path, mode: '100644', type: 'blob', sha, size: repo.blobs.get(sha)!.length })),
   ].sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -187,20 +217,38 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
       branch?: string;
       files?: Record<string, string | null>;
       signed?: boolean;
+      signer?: string;
+      email?: string;
       message?: string;
       private?: boolean;
+      objectFormat?: 'sha1' | 'sha256';
     };
     if (!b.repo || !/^[\w.-]+\/[\w.-]+$/.test(b.repo) || !b.files) return reply.code(400).send({ error: 'repo and files are required' });
     let repo = repos.get(b.repo);
     if (!repo) {
-      repo = { isPrivate: !!b.private, branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
+      const format = b.objectFormat === 'sha256' ? 'sha256' : 'sha1';
+      repo = { isPrivate: !!b.private, format, branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
       repos.set(b.repo, repo);
     }
-    return { sha: commit(repo, b.branch ?? 'main', b.files, { signed: b.signed, message: b.message }) };
+    return { sha: commit(repo, b.branch ?? 'main', b.files, { signed: b.signed, signer: b.signer, email: b.email, message: b.message }) };
+  });
+  app.post('/git/_tamper', async (req, reply) => {
+    const b = (req.body ?? {}) as { repo?: string; path?: string; content?: string };
+    const repo = repos.get(String(b.repo));
+    const head = repo?.branches.get('main');
+    const sha = head ? repo!.commits.get(head)!.tree.get(String(b.path)) : undefined;
+    if (!repo || !sha || typeof b.content !== 'string') return reply.code(400).send({ error: 'repo, path and content are required' });
+    repo.blobs.set(sha, Buffer.from(b.content, 'utf8'));
+    return { ok: true };
   });
   app.get('/git/_calls', async (req) => repos.get(String((req.query as { repo?: string }).repo))?.calls ?? []);
 
   // ---------- Forgejo / Gitea ----------
+  const giteaVerification = (c: Commit) => ({
+    verified: c.signed,
+    reason: c.signed ? `${c.signer.login} / ABCDEF0123456789` : 'gpg.error.not_signed_commit',
+    signer: c.signed ? { name: c.signer.login, email: c.signer.email, username: c.signer.login } : null,
+  });
   const giteaToken = (req: FastifyRequest) => /^token\s+(\S+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
   const G = '/git/api/v1/repos/:owner/:repo';
   app.get(`${G}/branches/:branch`, async (req, reply) => {
@@ -209,9 +257,21 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const sha = repo.branches.get(p(req).branch!);
     if (!sha) return reply.code(404).send({ message: 'branch not found' });
     const c = repo.commits.get(sha)!;
+    return { name: p(req).branch, commit: { id: sha, message: c.message, verification: giteaVerification(c) } };
+  });
+  // Gitea/Forgejo ≥ 1.22 / 7: commits between two revisions (newest first, like git log)
+  app.get(`${G}/compare/:basehead`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, giteaToken);
+    if (!repo) return reply;
+    const [base, head] = p(req).basehead!.split('...');
+    const list = between(repo, String(base), String(head));
+    if (!list) return reply.code(404).send({ message: 'Not Found' });
     return {
-      name: p(req).branch,
-      commit: { id: sha, message: c.message, verification: { verified: c.signed, reason: c.signed ? '' : 'gpg.error.not_signed_commit' } },
+      total_commits: list.length,
+      commits: list.reverse().map((c) => ({
+        sha: c.sha,
+        commit: { message: c.message, author: { email: c.signer.email }, committer: { email: c.signer.email }, verification: giteaVerification(c) },
+      })),
     };
   });
   app.get(`${G}/git/trees/:sha`, async (req, reply) => {
@@ -237,15 +297,40 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
   // ---------- GitHub (Enterprise-style API path /api/v3) ----------
   const githubToken = (req: FastifyRequest) => /^Bearer\s+(\S+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
   const H = '/github/api/v3/repos/:owner/:repo';
+  const githubCommit = (c: Commit) => ({
+    sha: c.sha,
+    commit: {
+      message: c.message,
+      author: { email: c.signer.email },
+      committer: { email: c.signer.email },
+      verification: { verified: c.signed, reason: c.signed ? 'valid' : 'unsigned' },
+    },
+    author: { login: c.signer.login },
+    committer: { login: c.signer.login },
+  });
   app.get(`${H}/branches/:branch`, async (req, reply) => {
     const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
     if (!repo) return reply;
     const sha = repo.branches.get(p(req).branch!);
     if (!sha) return reply.code(404).send({ message: 'Branch not found' });
     const c = repo.commits.get(sha)!;
+    return { name: p(req).branch, commit: githubCommit(c) };
+  });
+  app.get(`${H}/compare/:basehead`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
+    if (!repo) return reply;
+    const [base, head] = p(req).basehead!.split('...');
+    const list = between(repo, String(base), String(head));
+    if (!list) return reply.code(404).send({ message: 'Not Found' });
+    const q = req.query as { page?: string; per_page?: string };
+    const per = Math.min(Number(q.per_page ?? 250), 250);
+    const page = Math.max(1, Number(q.page ?? 1));
     return {
-      name: p(req).branch,
-      commit: { sha, commit: { message: c.message, verification: { verified: c.signed, reason: c.signed ? 'valid' : 'unsigned' } } },
+      status: list.length ? 'ahead' : 'identical',
+      ahead_by: list.length,
+      behind_by: 0,
+      total_commits: list.length,
+      commits: list.slice((page - 1) * per, page * per).map(githubCommit),
     };
   });
   app.get(`${H}/git/trees/:sha`, async (req, reply) => {
@@ -270,12 +355,41 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     return typeof t === 'string' ? t : undefined;
   };
   const L = '/gitlab/api/v4/projects/:project';
+  const gitlabCommit = (c: Commit) => ({
+    id: c.sha,
+    message: c.message,
+    parent_ids: c.parent ? [c.parent] : [],
+    author_email: c.signer.email,
+    committer_email: c.signer.email,
+  });
   app.get(`${L}/repository/branches/:branch`, async (req, reply) => {
     const repo = access(req, reply, p(req).project!, gitlabToken);
     if (!repo) return reply;
     const sha = repo.branches.get(p(req).branch!);
     if (!sha) return reply.code(404).send({ message: '404 Branch Not Found' });
-    return { name: p(req).branch, commit: { id: sha, message: repo.commits.get(sha)!.message } };
+    return { name: p(req).branch, commit: gitlabCommit(repo.commits.get(sha)!) };
+  });
+  app.get(`${L}/repository/commits`, async (req, reply) => {
+    const repo = access(req, reply, p(req).project!, gitlabToken);
+    if (!repo) return reply;
+    const q = req.query as { ref_name?: string; page?: string; per_page?: string };
+    const [base, head] = String(q.ref_name).split('..');
+    const list = between(repo, String(base), String(head));
+    if (!list) return reply.code(404).send({ message: '404 Commit Not Found' });
+    const per = Math.min(Number(q.per_page ?? 20), 100);
+    const page = Math.max(1, Number(q.page ?? 1));
+    if (page * per < list.length) reply.header('x-next-page', String(page + 1));
+    return list
+      .reverse()
+      .slice((page - 1) * per, page * per)
+      .map(gitlabCommit);
+  });
+  app.get(`${L}/repository/commits/:sha`, async (req, reply) => {
+    const repo = access(req, reply, p(req).project!, gitlabToken);
+    if (!repo) return reply;
+    const c = commitOf(repo, p(req).sha!, reply);
+    if (!c) return reply;
+    return gitlabCommit(c);
   });
   app.get(`${L}/repository/commits/:sha/signature`, async (req, reply) => {
     const repo = access(req, reply, p(req).project!, gitlabToken);
@@ -283,7 +397,13 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const c = commitOf(repo, p(req).sha!, reply);
     if (!c) return reply;
     if (!c.signed) return reply.code(404).send({ message: '404 Signature Not Found' });
-    return { signature_type: 'SSH', verification_status: 'verified', commit_sha: c.sha };
+    return {
+      signature_type: 'PGP',
+      verification_status: 'verified',
+      commit_sha: c.sha,
+      gpg_key_user_name: c.signer.login,
+      gpg_key_user_email: c.signer.email,
+    };
   });
   app.get(`${L}/repository/tree`, async (req, reply) => {
     const repo = access(req, reply, p(req).project!, gitlabToken);

@@ -260,6 +260,27 @@ export function incomingText(kind: SyncKind, content: unknown): string {
 
 // ---------- permissions and applying ----------
 
+/**
+ * May the current user see the local item an update maps to? Processes and monitors have access
+ * lists; dashboards and record types are visible to every signed-in user. An item that no longer
+ * exists hides nothing.
+ */
+export function canView(kind: SyncKind, entityId: string): boolean {
+  switch (kind) {
+    case 'process': {
+      if (!db().get('SELECT 1 FROM processes WHERE id = ?', entityId)) return true;
+      return processes.permissionsFor(entityId).includes('view');
+    }
+    case 'monitor': {
+      const r = db().get<Parameters<typeof permissionsOfRow>[0]>('SELECT owner, acl FROM monitors WHERE id = ?', entityId);
+      return !r || permissionsOfRow(r).includes('view');
+    }
+    case 'dashboard':
+    case 'recordType':
+      return true;
+  }
+}
+
 /** May the current user accept or reject this update (the same rights as creating or editing the item by hand)? */
 export function canDecide(kind: SyncKind, entityId: string | null): boolean {
   const u = currentUser();
