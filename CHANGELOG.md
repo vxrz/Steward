@@ -87,5 +87,25 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 - Platform credentials are no longer sent to hosts outside the platform when a step calls an absolute URL.
 - The vault rejects shortened AES-GCM authentication tags.
+- Audit log integrity (review C):
+  - verification fails on rows with a sequence number below 1, on rows outside the chain, and on entries removed while the server runs; the database refuses such rows (migration `security-001`);
+  - every hour, on each verification and before each export a checkpoint `{seq, hash, digest, count, ts}` is signed with a per-installation Ed25519 key kept in the vault; it is written to the audit log, to `audit-anchor.json` in the data folder and as a log line for the SIEM, and can be e-mailed to auditors (*Audit log → Anchoring*);
+  - verification compares the chain with these anchors and with an external checkpoint (pasted in the UI, `SM_AUDIT_ANCHOR`, `SM_AUDIT_ANCHOR_FILE`): removing the newest entries or wiping the log is detected;
+  - exports include `prevHash`, details and a signed checkpoint; `npm run audit:verify-export` checks an export offline with the public key;
+  - report verification, protocol seals and summary reports only trust audit entries whose HMAC and chain position check out – a forged row no longer makes a forged PDF verify;
+  - audited free text is capped, failed sign-ins are summed up per account/address and minute, and entries recorded while the vault is locked are bounded (dropped entries are counted in the log); unauthenticated requests may send at most 64 KB.
+- Sessions are bound to a per-session key that the web app keeps in its origin's `localStorage` and sends as `x-sm-session`; a session cookie received by another program on the same host no longer signs anyone in. Download links carry a read-only link key. **Everyone has to sign in again after the update.**
+- The master passphrase can be read from a file (`SM_MASTER_PASSPHRASE_FILE`: Docker secrets, systemd credentials); both passphrase variables are removed from the environment at start. Browser steps start Chromium with a minimal environment and with its sandbox (unless running as root); the desktop launcher starts the user's browser without `SM_*` variables or secrets.
+- Vault format 2: random data, audit, integrity and signing keys wrapped with a scrypt key (N=2^17); existing vaults are converted on their first unlock (the audit chain stays valid). Administrators can change the master passphrase (*Settings*), optionally rotating the data key; new passphrases need 12 characters; wrong passphrases are audited and throttled.
+- Platform connection settings (base URL, authentication, token URL, trusted origins, headers) and sign-in provider settings are sealed with an HMAC; when they are changed directly in the database, no requests are sent until an administrator confirms them.
+- Password checks run off the event loop with a concurrency limit and the same cost for unknown user names.
+- The desktop launcher only opens its window for a server that proves it knows the secret in the user's data folder (port squatters are refused).
+- Data folder `0700`, database, vault and key files `0600` on Linux/macOS (existing installations are fixed at start).
+- Audit CSV export escapes cells that spreadsheets would run as formulas.
+- `SM_TRUST_PROXY` for reverse proxies (real client addresses for the audit log, lockouts and webhook CIDRs); `Secure` cookie and HSTS with an `https://` `SM_PUBLIC_URL`.
+- Failed sign-ins with user names that belong to no account store a pseudonym instead of the typed text; new process input type *secret* (stored encrypted, `***` everywhere).
+- Redaction of JSON-/URL-/Base64-encoded secrets, Basic credentials and OAuth token fields in run data; error reports scrub encoded secrets; traces carry a user pseudonym and scrubbed exception messages; TLS 1.2+ with forward-secret ciphers; `Cache-Control: no-store` on API responses; the desktop executable re-checks its unpacked files at every start; hardened compose files.
+- Supply chain: `npm ci --ignore-scripts` plus an enforced install-script allow-list in CI, release builds and the Dockerfile; signed build provenance and SBOM attestations for release archives and the container image.
+- New: [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md) (checklist for a work deployment) and [docs/PRIVACY.md](docs/PRIVACY.md).
 
 [Unreleased]: https://github.com/vxrz/service-manager/commits/HEAD

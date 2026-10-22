@@ -41,7 +41,7 @@ readable without signing in (errors on the sign-in page are reported too).
 | --- | --- |
 | API requests answered with a 5xx status by the error handler | 4xx responses: validation errors, missing permissions, not found, locked vault |
 | Unhandled exceptions and unhandled promise rejections (the process still exits as before, after reporting) | Failed runs and failed steps, platforms answering with 4xx/5xx, timeouts, network errors |
-| Internal engine errors: programming errors (`TypeError`, `ReferenceError`, `RangeError`) in a step or run, failed resume/recovery of runs, failed schedules | A wrong `SM_MASTER_PASSPHRASE` and other expected errors (`HttpError` < 500) |
+| Internal engine errors: programming errors (`TypeError`, `ReferenceError`, `RangeError`) in a step or run, failed resume/recovery of runs, failed schedules | A wrong configured master passphrase and other expected errors (`HttpError` < 500) |
 | Browser: uncaught errors, unhandled rejections, rendering errors caught by the error boundary | |
 
 ## What is sent

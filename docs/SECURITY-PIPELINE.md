@@ -111,6 +111,21 @@ Semgrep runs in its official container (Docker). Reports land in `.tools/reports
   job has a `timeout-minutes`.
 - **Dependabot cooldown**: new versions are proposed after 7 days (majors 14),
   so a malicious release that is pulled quickly never reaches a PR.
+- **Install scripts are enforced, not just listed**: npm 11 only *warns* about
+  packages missing from `allowScripts`. CI, the release builds and the
+  `Dockerfile` therefore run `npm ci --ignore-scripts` and then
+  `node scripts/install-scripts.mjs --check --run`: the check fails when
+  `package-lock.json` contains a package with an install script that is not
+  reviewed in `package.json` → `allowScripts` (`"name@version": true` = run,
+  `false` = never run), and only the allowed ones are run (`npm rebuild <name>`).
+  A dependency update that brings a new install script fails the build until
+  someone reviews it.
+- **Signed build provenance**: release archives and `SHA256SUMS.txt` get a SLSA
+  build provenance attestation and the CycloneDX SBOM an SBOM attestation
+  (`actions/attest-build-provenance`, `actions/attest-sbom`, keyless via
+  Sigstore – no long-lived signing key). On tags the container image is exported
+  as an OCI archive and attested the same way. Verify with
+  `gh attestation verify <file> --repo <owner>/<repo>`.
 
 ## Container image
 
