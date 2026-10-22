@@ -45,6 +45,7 @@ import { engineExtrasRoutes } from './engine-extras.js';
 import { reportRoutes } from './reports.js';
 import { triggerRoutes } from './triggers.js';
 import { monitorRoutes } from '../monitors/routes.js';
+import { recordRoutes } from '../records/routes.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
@@ -916,6 +917,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await reportRoutes(app);
   await triggerRoutes(app);
   await monitorRoutes(app);
+  await recordRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

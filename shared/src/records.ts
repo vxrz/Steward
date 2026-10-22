@@ -1,0 +1,430 @@
+/**
+ * Records (change requests, decision records) and the minimal service
+ * catalogue. Shared by server and web: workflows, default record types,
+ * link kinds and the API shapes.
+ */
+
+// ---------- workflows ----------
+
+export const RECORD_WORKFLOW_KEYS = ['change', 'decision'] as const;
+export type RecordWorkflowKey = (typeof RECORD_WORKFLOW_KEYS)[number];
+
+export interface RecordTransitionDef {
+  action: string;
+  from: string[];
+  to: string;
+  /** Approve/reject: approver or admin, never the author or submitter (four-eyes) */
+  approval?: boolean;
+  /** A comment is required (rejections) */
+  commentRequired?: boolean;
+  /** The superseding record must be named (decision records) */
+  needsRecord?: boolean;
+}
+
+export interface RecordWorkflow {
+  key: RecordWorkflowKey;
+  /** The editable status; content is frozen in every other status */
+  initial: string;
+  statuses: string[];
+  /** No further transitions, links or attachments */
+  terminal: string[];
+  /** "New revision": back to the initial status for rework (audited) */
+  revisable: string[];
+  transitions: RecordTransitionDef[];
+}
+
+export const RECORD_WORKFLOWS: Record<RecordWorkflowKey, RecordWorkflow> = {
+  change: {
+    key: 'change',
+    initial: 'draft',
+    statuses: ['draft', 'submitted', 'approved', 'rejected', 'implemented', 'closed', 'cancelled'],
+    terminal: ['closed', 'cancelled'],
+    revisable: ['submitted', 'rejected'],
+    transitions: [
+      { action: 'submit', from: ['draft'], to: 'submitted' },
+      { action: 'approve', from: ['submitted'], to: 'approved', approval: true },
+      { action: 'reject', from: ['submitted'], to: 'rejected', approval: true, commentRequired: true },
+      { action: 'implement', from: ['approved'], to: 'implemented' },
+      { action: 'close', from: ['implemented'], to: 'closed' },
+      { action: 'cancel', from: ['draft', 'submitted'], to: 'cancelled' },
+    ],
+  },
+  decision: {
+    key: 'decision',
+    initial: 'draft',
+    statuses: ['draft', 'proposed', 'accepted', 'rejected', 'superseded', 'deprecated'],
+    terminal: ['superseded', 'deprecated'],
+    revisable: ['proposed', 'rejected'],
+    transitions: [
+      { action: 'propose', from: ['draft'], to: 'proposed' },
+      { action: 'accept', from: ['proposed'], to: 'accepted', approval: true },
+      { action: 'reject', from: ['proposed'], to: 'rejected', approval: true, commentRequired: true },
+      { action: 'supersede', from: ['accepted'], to: 'superseded', needsRecord: true },
+      { action: 'deprecate', from: ['accepted'], to: 'deprecated' },
+    ],
+  },
+};
+
+/** Every status of every workflow (for filters and the API schema). */
+export const RECORD_STATUSES = [...new Set(Object.values(RECORD_WORKFLOWS).flatMap((w) => w.statuses))];
+export const RECORD_ACTIONS = [...new Set(Object.values(RECORD_WORKFLOWS).flatMap((w) => w.transitions.map((t) => t.action)))];
+
+/** Status colours (Mantine colour names). */
+export const RECORD_STATUS_COLORS: Record<string, string> = {
+  draft: 'gray',
+  submitted: 'blue',
+  proposed: 'blue',
+  approved: 'green',
+  accepted: 'green',
+  rejected: 'red',
+  implemented: 'teal',
+  closed: 'dark',
+  cancelled: 'gray',
+  superseded: 'orange',
+  deprecated: 'yellow',
+};
+
+// ---------- record types ----------
+
+export const RECORD_FIELD_KINDS = ['text', 'textarea', 'date', 'datetime', 'select'] as const;
+export type RecordFieldKind = (typeof RECORD_FIELD_KINDS)[number];
+
+export interface RecordFieldDef {
+  /** camelCase key in `fields` */
+  key: string;
+  label: string;
+  kind: RecordFieldKind;
+  required?: boolean;
+  /** For kind "select" */
+  options?: string[];
+  help?: string;
+}
+
+export interface RecordType {
+  id: string;
+  /** Number prefix, e.g. CR → CR-2026-0001 */
+  key: string;
+  name: string;
+  description: string;
+  workflow: RecordWorkflowKey;
+  /** Markdown body of a new record (section headings) */
+  template: string;
+  fields: RecordFieldDef[];
+  builtin: boolean;
+  archived: boolean;
+  recordCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const RECORD_TYPE_KEY_RE = /^[A-Z][A-Z0-9]{1,9}$/;
+export const RECORD_FIELD_KEY_RE = /^[a-z][a-zA-Z0-9]{0,39}$/;
+export const RECORD_NUMBER_RE = /^[A-Z][A-Z0-9]{1,9}-\d{4}-\d{4,}$/;
+
+const DECISION_FIELDS: RecordFieldDef[] = [
+  { key: 'decisionDate', label: 'Decision date', kind: 'date' },
+  { key: 'deciders', label: 'Deciders', kind: 'text', help: 'People who made the decision' },
+  { key: 'consulted', label: 'Consulted', kind: 'text' },
+  { key: 'informed', label: 'Informed', kind: 'text' },
+];
+
+const decisionTemplate = (extra = '') =>
+  `## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n${extra}`;
+
+/** The record types created on first start (admins can edit or archive them, and add more). */
+export const DEFAULT_RECORD_TYPES: Omit<RecordType, 'id' | 'builtin' | 'archived' | 'recordCount' | 'createdAt' | 'updatedAt'>[] = [
+  {
+    key: 'CR',
+    name: 'Change request',
+    description: 'A planned change to a service or platform: why, risk, rollback and the implementation window. Approved by someone other than the requester.',
+    workflow: 'change',
+    template: '## Description\n\n\n## Implementation plan\n\n1. \n\n## Test and verification\n\n\n## Communication\n\n',
+    fields: [
+      { key: 'reason', label: 'Reason', kind: 'textarea', required: true },
+      { key: 'risk', label: 'Risk', kind: 'select', options: ['low', 'medium', 'high'], required: true },
+      { key: 'impact', label: 'Impact', kind: 'textarea' },
+      { key: 'rollbackPlan', label: 'Rollback plan', kind: 'textarea', required: true },
+      { key: 'plannedStart', label: 'Planned start', kind: 'datetime' },
+      { key: 'plannedEnd', label: 'Planned end', kind: 'datetime' },
+    ],
+  },
+  {
+    key: 'ADR',
+    name: 'Architecture decision record',
+    description: 'An architecturally significant decision with its context and consequences (MADR or Nygard style).',
+    workflow: 'decision',
+    template: decisionTemplate(),
+    fields: DECISION_FIELDS,
+  },
+  {
+    key: 'DR',
+    name: 'Decision record',
+    description: 'A decision of the service team that is not about architecture, e.g. an operating rule or a supplier choice.',
+    workflow: 'decision',
+    template: decisionTemplate(),
+    fields: DECISION_FIELDS,
+  },
+  {
+    key: 'SDR',
+    name: 'Security decision record',
+    description: 'A security decision, e.g. an accepted risk, an exception or a hardening measure. Rename it if your team uses SDR for something else.',
+    workflow: 'decision',
+    template: decisionTemplate('\n## Risk assessment\n\n\n## Review date\n\n'),
+    fields: DECISION_FIELDS,
+  },
+];
+
+// ---------- links ----------
+
+/**
+ * Kinds of internal items a record or service can link to. Links are stored
+ * generically as { kind, id }: a new kind (e.g. credentials) needs a resolver
+ * on the server and an entry here.
+ */
+export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service'] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+
+export interface ItemLink {
+  id: string;
+  /** Internal target, or null for an external URL */
+  kind: LinkKind | null;
+  targetId: string | null;
+  url: string | null;
+  /** Label: the target's name (when visible) or the given text for external links */
+  label: string;
+  /** Free text such as "affected", "implements", "ServiceNow ticket" */
+  note: string;
+  /** False when the target does not exist (any more) or the user may not see it */
+  visible: boolean;
+  /** Web UI path of the target */
+  path: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+/** A link from another item to this one. */
+export interface Backlink {
+  linkId: string;
+  kind: 'record' | 'service';
+  id: string;
+  label: string;
+  note: string;
+  path: string;
+}
+
+// ---------- records ----------
+
+export interface RecordAttachment {
+  id: string;
+  /** file: part of the content; generated: a PDF Steward made; signed: a signed copy uploaded back */
+  kind: 'file' | 'generated' | 'signed';
+  filename: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  revision: number;
+  createdAt: string;
+  createdBy: string;
+  /** generated: signers, language, record version; signed: derivedFrom + signatures found */
+  details: RecordPdfDetails | SignedPdfDetails | null;
+}
+
+export interface RecordSigner {
+  name: string;
+  role: string;
+  email?: string;
+}
+
+export interface RecordPdfDetails {
+  lang: string;
+  version: number;
+  revision: number;
+  status: string;
+  contentHash: string;
+  signers: RecordSigner[];
+}
+
+export interface SignatureInfo {
+  /** Signer name from the signature dictionary (/Name), when the signing tool wrote one */
+  name: string | null;
+  /** Signing time from /M (ISO 8601 when it could be parsed) */
+  signedAt: string | null;
+  reason: string | null;
+  location: string | null;
+  subFilter: string | null;
+  /** Signature field name (/T of the field), when found */
+  field: string | null;
+  /** The byte range covers the whole file up to this signature's revision except the /Contents placeholder */
+  byteRangeOk: boolean;
+}
+
+export interface SignedPdfDetails {
+  derivedFrom: string;
+  derivedFromFilename: string;
+  originalSha256: string;
+  originalSize: number;
+  signatures: SignatureInfo[];
+  /** Always "structure": signatures are not cryptographically validated */
+  validation: 'structure' | 'none';
+  plain?: boolean;
+}
+
+export interface RecordEvent {
+  id: string;
+  kind: 'created' | 'transition' | 'comment' | 'revision' | 'imported';
+  action: string | null;
+  fromStatus: string | null;
+  toStatus: string | null;
+  actor: string;
+  comment: string;
+  contentHash: string | null;
+  version: number | null;
+  revision: number;
+  createdAt: string;
+}
+
+export interface RecordVersion {
+  version: number;
+  revision: number;
+  title: string;
+  body: string;
+  fields: Record<string, string>;
+  hash: string;
+  author: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface RecordSummary {
+  id: string;
+  number: string;
+  typeId: string;
+  typeKey: string;
+  typeName: string;
+  workflow: RecordWorkflowKey;
+  title: string;
+  status: string;
+  tags: string[];
+  owner: string;
+  revision: number;
+  version: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface RecordActionInfo {
+  action: string;
+  to: string;
+  allowed: boolean;
+  reason?: string;
+  approval: boolean;
+  commentRequired: boolean;
+  needsRecord: boolean;
+}
+
+export interface RecordPermissions {
+  edit: boolean;
+  comment: boolean;
+  revise: boolean;
+  attach: boolean;
+  link: boolean;
+  generatePdf: boolean;
+  uploadSigned: boolean;
+  /** Admins may attach a PDF that is not derived from a generated one as a plain attachment */
+  attachPlainPdf: boolean;
+}
+
+export interface RecordDetail extends RecordSummary {
+  body: string;
+  fields: Record<string, string>;
+  /** SHA-256 of the current content (title, body, fields, attachment hashes) */
+  contentHash: string;
+  /** Hash recorded when the content was frozen (left the draft status); null while editable */
+  frozenHash: string | null;
+  frozen: boolean;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  supersededBy: { id: string; number: string; title: string } | null;
+  importMeta: Record<string, unknown> | null;
+  type: RecordType;
+  actions: RecordActionInfo[];
+  permissions: RecordPermissions;
+  attachments: RecordAttachment[];
+  links: ItemLink[];
+  backlinks: Backlink[];
+  events: RecordEvent[];
+}
+
+export interface RecordsMeta {
+  canCreate: boolean;
+  canManageTypes: boolean;
+  canApprove: boolean;
+  maxAttachmentBytes: number;
+  maxImportFiles: number;
+  maxImportBytes: number;
+  attachmentExtensions: string[];
+}
+
+export interface RecordImportItem {
+  filename: string;
+  ok: boolean;
+  error?: string;
+  title?: string;
+  typeKey?: string;
+  status?: string;
+  /** Status in the file that could not be used (kept in the import metadata and as a tag) */
+  originalStatus?: string | null;
+  format?: 'madr' | 'nygard' | 'frontmatter' | 'markdown' | 'steward';
+  fields?: Record<string, string>;
+  tags?: string[];
+  warnings?: string[];
+  /** Set when the record was created */
+  record?: { id: string; number: string };
+}
+
+// ---------- service catalogue ----------
+
+export const SERVICE_CRITICALITIES = ['low', 'medium', 'high', 'critical'] as const;
+export type ServiceCriticality = (typeof SERVICE_CRITICALITIES)[number];
+
+export const SERVICE_CONTACT_ROLES = ['business', 'it'] as const;
+export type ServiceContactRole = (typeof SERVICE_CONTACT_ROLES)[number];
+
+export interface ServiceContact {
+  role: ServiceContactRole;
+  email: string;
+  name?: string;
+}
+
+export interface ServiceSummary {
+  id: string;
+  name: string;
+  criticality: ServiceCriticality | null;
+  contacts: ServiceContact[];
+  /** Steward users and teams responsible (user:<name>, team:<name>) */
+  owners: string[];
+  tags: string[];
+  cmdb: { system: string; id: string; url: string } | null;
+  archived: boolean;
+  linkCount: number;
+  updatedAt: string;
+}
+
+export interface ServiceDetail extends ServiceSummary {
+  description: string;
+  createdAt: string;
+  createdBy: string;
+  updatedBy: string;
+  links: ItemLink[];
+  backlinks: Backlink[];
+  canEdit: boolean;
+}
+
+export interface LinkTarget {
+  kind: LinkKind;
+  id: string;
+  label: string;
+  detail?: string;
+}
