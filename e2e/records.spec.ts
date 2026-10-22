@@ -146,6 +146,27 @@ test('a service is created and linked to a record, with backlinks both ways', as
   await expect(page.getByRole('link', { name })).toBeVisible();
 });
 
+test('credentials linked to a service and a record are listed on every side', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const svc = await json(await api.post('/api/services', { data: { name: uniq('E2E historian'), owners: [] } }));
+  const cred = await json(
+    await api.post('/api/credentials', {
+      data: { name: uniq('E2E technical user'), type: 'technicalUser', usedBy: { text: '', links: [{ kind: 'service', id: svc.id }] } },
+    }),
+  );
+  const rec = await json(await api.post('/api/records', { data: { type: 'CR', title: uniq('E2E rotate'), fields: CR_FIELDS } }));
+  await json(await api.post(`/api/records/${rec.id}/links`, { data: { kind: 'credential', id: cred.id, note: 'rotated' } }));
+
+  // the service lists the credential that uses it; the link opens the entry
+  await page.goto(`/services/${svc.id}`);
+  await page.getByRole('link', { name: cred.name }).click();
+  await expect(page).toHaveURL(/\/credentials\?open=cred_/);
+  const drawer = page.getByRole('dialog', { name: cred.name });
+  await expect(drawer.getByRole('link', { name: svc.name })).toBeVisible();
+  // and the entry lists the record that links to it
+  await expect(drawer.getByRole('link', { name: new RegExp(rec.number) })).toBeVisible();
+});
+
 test('records list is accessible and filters by status', async ({ page, apiAs }) => {
   const api = await apiAs('dana');
   const title = uniq('E2E filter');

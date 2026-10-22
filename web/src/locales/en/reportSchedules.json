@@ -42,6 +42,10 @@
     "runs": {
       "title": "Runs",
       "hint": "Succeeded and failed runs per process"
+    },
+    "records": {
+      "title": "Records and change requests",
+      "hint": "Records created, changed, approved or implemented; open change requests by status; planned change windows"
     }
   },
   "runNow": "Generate now",
@@ -86,6 +90,10 @@
     "noGatus": "Turn on metrics mode for a Gatus platform first (Platform → Metrics).",
     "dueWithinDays": "Also list entries due within (days)",
     "processes": "Processes",
+    "recordTypes": "Record types",
+    "allTypes": "All types",
+    "windowDays": "Change windows up to (days after the period)",
+    "windowDaysHint": "Planned change windows from the start of the period until this many days after its end",
     "recipients": "Recipients",
     "users": "Users",
     "teams": "Teams",

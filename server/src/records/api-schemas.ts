@@ -42,7 +42,10 @@ export const RecordAttachment = z.object({
 });
 
 export const RecordLink = z.object({
-  kind: z.string().nullable().describe('Internal item kind (process, run, monitor, platform, dashboard, record, service); null for an external URL'),
+  kind: z
+    .string()
+    .nullable()
+    .describe('Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL'),
   targetId: z.string().nullable(),
   url: z.string().nullable().describe('External http(s) URL'),
   label: z.string().describe('Name of the target – empty when the token owner may not see it'),

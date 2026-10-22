@@ -25,7 +25,7 @@ export const CredentialEntry = z.object({
   description: z.string(),
   usedBy: z.object({
     text: z.string(),
-    links: z.array(z.object({ kind: z.string().describe('process, monitor, platform, …'), id: z.string(), label: z.string().nullable() })),
+    links: z.array(z.object({ kind: z.string().describe('process, monitor, platform, service, …'), id: z.string(), label: z.string().nullable() })),
   }),
   owners: z.array(z.object({ email: z.string(), role: z.string() })).describe('Owner e-mail addresses with their role, e.g. Business owner'),
   ownerSubjects: z.array(z.string()).describe('Steward users and teams that own the entry (user:<name>, team:<name>)'),

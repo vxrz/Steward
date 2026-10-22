@@ -20,6 +20,8 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { likeEscape } from '../database/sql.js';
+import { canReadRecords } from '../records/access.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { setCertificateExpiryHook } from '../gatus/metrics.js';
 import { assertNoSecrets, SecretFoundError } from './secrets.js';
@@ -190,6 +192,12 @@ registerCredentialLinkKind('monitor', (id) => {
   const r = db().get<{ name: string; owner: string; acl: string }>('SELECT name, owner, acl FROM monitors WHERE id = ? OR key = ?', id, id);
   if (!r) return null;
   return monitorPermissions(currentUser(), { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view' as MonitorPermission) ? r.name : null;
+});
+
+// Catalogue services: the catalogue's read rule (records/access.ts).
+registerCredentialLinkKind('service', (id) => {
+  if (!canReadRecords()) return null;
+  return db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', id)?.name ?? null;
 });
 
 const resolveLink = (l: CredentialLink): CredentialLink => {
@@ -441,6 +449,19 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
     .filter((c) => !f.tag || c.tags.includes(f.tag))
     .filter((c) => f.dueWithinDays === undefined || (!!c.nextDueAt && Date.parse(c.nextDueAt) <= now + f.dueWithinDays * DAY));
+}
+
+/**
+ * Entries the current user may see that name an item under "used by" (for
+ * backlinks on the item's page). Entries the user may not see are left out.
+ */
+export function credentialsLinkingTo(kind: string, id: string): CredentialRow[] {
+  const u = currentUser();
+  if (!u) return [];
+  return db()
+    .all<CredentialRow>("SELECT * FROM credentials WHERE lower(used_by) LIKE ? ESCAPE '\\' ORDER BY name, id", `%${likeEscape(id.toLowerCase())}%`)
+    .filter((r) => parseJson<{ links?: CredentialLink[] }>(r.used_by, {}).links?.some((l) => l.kind === kind && l.id === id))
+    .filter((r) => credentialPermissions(u, r).includes('view'));
 }
 
 export function getCredential(id: string): Credential {

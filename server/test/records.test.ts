@@ -356,7 +356,8 @@ describe('links', () => {
     expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'process', id: 'does-not-exist' }))).toBe(404);
     expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'process', id: 'ih-health-check' }))).toBe(409);
     expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'record', id: rec.id }))).toBe(400);
-    expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'credential', id: 'x' }))).toBe(400);
+    expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'secret', id: 'x' }))).toBe(400);
+    expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'credential', id: 'x' }))).toBe(404);
     // backlinks of any item
     expect((await vera('GET', '/backlinks?kind=process&id=ih-health-check')).some((b: any) => b.id === rec.id)).toBe(true);
     // picker

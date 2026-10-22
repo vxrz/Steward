@@ -21,6 +21,8 @@ import { notify } from '../notifications/service.js';
 import { formatDateTime, t } from '../i18n/index.js';
 import { generateScheduledReport } from './service.js';
 import { parseSections, reportSection } from './sections.js';
+// sections registered by other features
+import '../records/report-section.js';
 
 /**
  * Scheduled summary reports. A schedule has an owner and runs with the owner's

@@ -32,6 +32,8 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Record PDFs (PDF/A-2b) with content hash, approval history, audit excerpt and one signature block with an empty AcroForm signature field per external signer; upload of the signed PDF, checked to be derived from a generated PDF (signatures listed, not cryptographically validated).
 - A minimal service catalogue: contacts, criticality, CMDB reference and links to platforms, monitors, processes, dashboards and records.
 - Public API: `GET /api/v1/records`, `/records/{recordId}`, `/records/{recordId}/versions`.
+- Services, credentials and records are connected: credentials register entries link to the services that use them, records and services link to credentials, and every side lists the others under _Linked from_ – always with the reader's rights (viewers only see credentials they own).
+- Scheduled reports: a _Records and change requests_ section (records created, changed, approved or implemented in the period, open change requests by status, planned change windows).
 
 **Processes and engine**
 

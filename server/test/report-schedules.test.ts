@@ -274,28 +274,28 @@ describe('report schedules', () => {
     expect((await s.api('GET', '/audit?action=report_schedule.skipped')).some((a: any) => a.entityId === tmp.id)).toBe(true);
   });
 
-  it('extension point: another feature registers a section (e.g. records)', async () => {
+  it('extension point: another feature registers a section (the real records section is registered too)', async () => {
     const { registerReportSection } = await import('../src/reports/sections.js');
     registerReportSection<{ label: string }, { count: number; label: string }>({
-      id: 'records',
-      schema: z.object({ label: z.string().default('Change requests') }) as never,
-      title: () => 'Records',
+      id: 'example',
+      schema: z.object({ label: z.string().default('Example items') }) as never,
+      title: () => 'Example',
       build: (c) => ({ count: 3, label: c.label }),
       render: (d, { w, section }) => {
-        section('Records');
+        section('Example');
         w.paragraph(`${d.count} ${d.label}`);
       },
-      glance: (d) => [{ label: 'Records', value: String(d.count) }],
+      glance: (d) => [{ label: 'Example', value: String(d.count) }],
     });
     const r = await dana(
       'POST',
       '/report-schedules',
-      body({ name: 'With records', recipients: { users: [], teams: [], emails: [] }, sections: { records: {}, credentials: {} } }),
+      body({ name: 'With an extra section', recipients: { users: [], teams: [], emails: [] }, sections: { example: {}, credentials: {} } }),
     );
     const schedules = await import('../src/reports/schedules.js');
     const rec = await schedules.runReportSchedule(r.id, { actor: 'dana' });
-    expect(rec.texts.join('\n')).toContain('3 Change requests');
-    expect((await dana('GET', '/report-schedules')).sections).toContain('records');
+    expect(rec.texts.join('\n')).toContain('3 Example items');
+    expect((await dana('GET', '/report-schedules')).sections).toEqual(expect.arrayContaining(['records', 'example']));
   });
 
   it('owner or admin deletes the schedule; the reports stay archived', async () => {

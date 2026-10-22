@@ -17,7 +17,7 @@ Open it with **Credentials** in the navigation (German: _Zugangsdaten_).
    - `keepass://…`, `*.kdbx`, `C:\…` or `\\server\share\…` paths are shown as text with a copy button, never as a link;
    - other link types (`javascript:`, `data:` …) are refused.
 5. **Ownership**: e-mail addresses with a role, for example _Business owner_ (the business owns the credential) and _IT operations_ (IT manages it). Add Steward users or teams as owners if they should get reminders in Steward and may edit the entry.
-6. **Used by**: a short description, and links to processes, monitors or platforms in Steward.
+6. **Used by**: a short description, and links to processes, monitors, platforms or catalogue services in Steward. The service's page then lists the entry under _Linked from_.
 7. **Dates**:
    - _Expires_: the expiry date, if there is one;
    - _Rotate every (days)_ and _Last rotated_: the next rotation is computed from the last rotation (or the issue date);
@@ -90,6 +90,12 @@ Reminders and messages are in the recipient's language (English or German).
 Viewers do not see the register: it shows where credentials are kept and who holds them, which is more than a read-only dashboard user needs. A viewer listed as an owner sees and maintains that entry. Owners who edit an entry as owner must keep themselves (or their team) in the owner list. Archived entries are read-only until an administrator restores them.
 
 All checks happen on the server; the API answers 404 for entries you may not see.
+
+## Links to services and records
+
+- An entry's **Used by** links can name catalogue services. The service page shows the entry under _Linked from_ – but only to people who may read the entry (viewers see only the entries they own).
+- Records and services can link to an entry (_Add link → Credential_). The link picker only offers entries you may see. For readers who may not see the entry, the link shows as "not visible", without its name.
+- The entry's detail panel lists the records and services that link to it under _Linked from_ (`GET /api/backlinks?kind=credential&id=…`).
 
 ## Export and API
 

@@ -27,13 +27,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { GatusMetricsSource, MonitorSummary, ProcessSummary, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
+import type { GatusMetricsSource, MonitorSummary, ProcessSummary, RecordType, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -276,6 +276,8 @@ type SectionConfig = Record<string, unknown> & {
   processIds?: string[] | null;
   slaTarget?: number | null;
   dueWithinDays?: number;
+  types?: string[] | null;
+  windowDays?: number;
   sources?: { platformId: string; endpointKeys: string[] | null }[];
 };
 
@@ -285,6 +287,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
   const [busy, setBusy] = useState(false);
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
+  const recordTypes = useQuery({ queryKey: ['record-types', false], queryFn: () => get<RecordType[]>('/record-types'), enabled: sections.includes('records') });
   const gatus = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
   const set = (patch: Partial<Draft>) => setD((x) => ({ ...x, ...patch }));
@@ -300,6 +303,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     gatus: { sources: (gatus.data ?? []).map((g) => ({ platformId: g.platformId, endpointKeys: null })), slaTarget: 99.5 },
     credentials: { dueWithinDays: 30 },
     runs: { processIds: null },
+    records: { types: null, windowDays: 30 },
   };
   const save = async () => {
     setBusy(true);
@@ -440,6 +444,26 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                   value={cfg.processIds ?? []}
                   onChange={(v) => setSec(id, { ...cfg, processIds: v.length ? v : null })}
                 />
+              )}
+              {cfg && id === 'records' && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }} ml="lg">
+                  <MultiSelect
+                    label={t('form.recordTypes')}
+                    placeholder={t('form.allTypes')}
+                    searchable
+                    data={(recordTypes.data ?? []).map((x) => ({ value: x.key, label: `${x.key} – ${x.name}` }))}
+                    value={cfg.types ?? []}
+                    onChange={(v) => setSec(id, { ...cfg, types: v.length ? v : null })}
+                  />
+                  <NumberInput
+                    label={t('form.windowDays')}
+                    description={t('form.windowDaysHint')}
+                    min={0}
+                    max={365}
+                    value={cfg.windowDays ?? 30}
+                    onChange={(v) => setSec(id, { ...cfg, windowDays: typeof v === 'number' ? v : 30 })}
+                  />
+                </SimpleGrid>
               )}
             </Stack>
           );

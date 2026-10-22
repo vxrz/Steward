@@ -41,7 +41,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
+import type { Backlink, Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { PageHeader } from '../components/common';
@@ -328,6 +328,11 @@ function CredentialDrawer({
     queryFn: () => get<CredentialEvent[]>(`/credentials/${id}/history`),
     enabled: !!entry.data,
   });
+  const backlinks = useQuery({
+    queryKey: ['credential', id, 'backlinks'],
+    queryFn: () => get<Backlink[]>(`/backlinks?kind=credential&id=${encodeURIComponent(id)}`),
+    enabled: !!entry.data,
+  });
   const [action, setAction] = useState<'rotated' | 'reviewed' | null>(null);
   const c = entry.data;
   const reload = async () => {
@@ -502,6 +507,29 @@ function CredentialDrawer({
               )}
             </Stack>
           </Field>
+          <Field label={t('detail.linkedFrom')}>
+            <Stack gap={2}>
+              {(backlinks.data ?? []).map((b) => (
+                <Text size="sm" key={b.linkId}>
+                  {t(`linkKinds.${b.kind}`, { defaultValue: b.kind })}:{' '}
+                  <Anchor component={Link} to={b.path} size="sm">
+                    {b.label}
+                  </Anchor>
+                  {b.note && (
+                    <Text span size="xs" c="dimmed">
+                      {' '}
+                      · {b.note}
+                    </Text>
+                  )}
+                </Text>
+              ))}
+              {backlinks.data && !backlinks.data.length && (
+                <Text size="sm" c="dimmed">
+                  {t('detail.noLinkedFrom')}
+                </Text>
+              )}
+            </Stack>
+          </Field>
           {c.certificate && (
             <Paper withBorder p="sm">
               <Title order={6} mb="xs">
@@ -551,7 +579,16 @@ function CredentialDrawer({
 }
 
 function LinkTo({ kind, id, label }: { kind: string; id: string; label: string }) {
-  const href = kind === 'process' ? `/processes/${id}` : kind === 'monitor' ? `/monitors/${id}` : kind === 'platform' ? `/platforms/${id}` : null;
+  const href =
+    kind === 'process'
+      ? `/processes/${id}`
+      : kind === 'monitor'
+        ? `/monitors/${id}`
+        : kind === 'platform'
+          ? `/platforms/${id}`
+          : kind === 'service'
+            ? `/services/${id}`
+            : null;
   return href ? (
     <Anchor component={Link} to={href} size="sm">
       {label}

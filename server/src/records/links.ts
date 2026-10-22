@@ -7,6 +7,7 @@ import { platformPermissions } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { likeEscape } from '../database/sql.js';
+import { credentialPermissions, credentialsLinkingTo, type CredentialRow } from '../credentials/service.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 
 /**
@@ -15,8 +16,9 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
  * with the target's name only when the current user may see the target, so a
  * link never discloses a process or platform the reader has no access to.
  *
- * New kinds (e.g. credentials): add the kind to LINK_KINDS in
- * shared/src/records.ts and register a resolver with registerLinkKind().
+ * New kinds: add the kind to LINK_KINDS in shared/src/records.ts and register
+ * a resolver with registerLinkKind(). Credentials register entries link the
+ * other way round too (their "used by" links): those show up as backlinks.
  */
 
 export type LinkSource = 'record' | 'service';
@@ -156,6 +158,29 @@ registerLinkKind('service', {
   },
 });
 
+// Credentials register entries: the register's read rules (viewers only see entries they own).
+type CredentialLinkRow = Pick<CredentialRow, 'id' | 'name' | 'type' | 'environment' | 'owner_subjects' | 'archived'>;
+const credentialVisible = (r: CredentialLinkRow) => credentialPermissions(currentUser(), r).includes('view');
+const credentialDetail = (r: CredentialLinkRow) => [r.type, r.environment, r.archived ? 'archived' : ''].filter(Boolean).join(' · ') || undefined;
+registerLinkKind('credential', {
+  resolve(id) {
+    const r = db().get<CredentialLinkRow>('SELECT id, name, type, environment, owner_subjects, archived FROM credentials WHERE id = ?', id);
+    if (!r || !credentialVisible(r)) return null;
+    return { label: r.name, path: `/credentials?open=${encodeURIComponent(r.id)}`, detail: credentialDetail(r) };
+  },
+  search(q, limit) {
+    return db()
+      .all<CredentialLinkRow>(
+        "SELECT id, name, type, environment, owner_subjects, archived FROM credentials WHERE archived = 0 AND (lower(name) LIKE ? ESCAPE '\\' OR lower(id) LIKE ? ESCAPE '\\') ORDER BY name",
+        like(q),
+        like(q),
+      )
+      .filter(credentialVisible)
+      .slice(0, limit)
+      .map((r) => ({ kind: 'credential' as const, id: r.id, label: r.name, detail: credentialDetail(r) }));
+  },
+});
+
 // ---------- input ----------
 
 export const MAX_LINKS_PER_ITEM = 200;
@@ -222,7 +247,10 @@ export function listLinks(from: LinkSource, id: string): ItemLink[] {
   return db().all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id).map(toLink);
 }
 
-/** Records and services that link to an item. */
+/**
+ * Records and services that link to an item, and credentials register entries
+ * that name it under "used by". Sources the user may not see are left out.
+ */
 export function listBacklinks(kind: string, id: string): Backlink[] {
   const rows = db().all<LinkRow>('SELECT * FROM item_links WHERE to_kind = ? AND to_id = ? ORDER BY created_at, id', kind, id);
   const out: Backlink[] = [];
@@ -230,6 +258,9 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
     const src = RESOLVERS.get(r.from_kind)?.resolve(r.from_id);
     if (!src) continue;
     out.push({ linkId: r.id, kind: r.from_kind as 'record' | 'service', id: r.from_id, label: src.label, note: r.note, path: src.path });
+  }
+  for (const c of credentialsLinkingTo(kind, id)) {
+    out.push({ linkId: `credential:${c.id}`, kind: 'credential', id: c.id, label: c.name, note: '', path: `/credentials?open=${encodeURIComponent(c.id)}` });
   }
   return out;
 }

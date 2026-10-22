@@ -178,10 +178,10 @@ export const DEFAULT_RECORD_TYPES: Omit<RecordType, 'id' | 'builtin' | 'archived
 
 /**
  * Kinds of internal items a record or service can link to. Links are stored
- * generically as { kind, id }: a new kind (e.g. credentials) needs a resolver
- * on the server and an entry here.
+ * generically as { kind, id }: a new kind needs a resolver on the server and
+ * an entry here.
  */
-export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service'] as const;
+export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 export interface ItemLink {
@@ -202,10 +202,14 @@ export interface ItemLink {
   createdBy: string;
 }
 
-/** A link from another item to this one. */
+/**
+ * A link from another item to this one: a record or service link, or a
+ * credentials register entry that names the item under "used by" (linkId is
+ * then "credential:<id>").
+ */
 export interface Backlink {
   linkId: string;
-  kind: 'record' | 'service';
+  kind: 'record' | 'service' | 'credential';
   id: string;
   label: string;
   note: string;

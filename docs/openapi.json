@@ -3602,7 +3602,7 @@
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "description": "process, monitor, platform, …"
+                      "description": "process, monitor, platform, service, …"
                     },
                     "id": {
                       "type": "string"
@@ -4299,7 +4299,7 @@
                     "null",
                     "string"
                   ],
-                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service); null for an external URL"
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
                 },
                 "targetId": {
                   "type": [
@@ -4513,7 +4513,7 @@
               "string",
               "null"
             ],
-            "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service); null for an external URL"
+            "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
           },
           "targetId": {
             "type": [

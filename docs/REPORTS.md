@@ -38,6 +38,7 @@ A report schedule creates a summary report every day, week or month, archives it
    | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                   |
    | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                          |
    | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                       |
+   | Records and change requests     | Records created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                     |
 
 6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and e-mail addresses (e-mail only, when e-mail is set up). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account.
 7. Save. _Generate now_ (▶) creates a report immediately for the period ending now.
@@ -69,6 +70,7 @@ The person whose rights a report was generated with keeps access to it after the
 - **Monitor response times** come from the stored check results (Steward keeps the newest results per check), so for long periods they describe the end of the period.
 - **Gatus uptime** is the share of successful results among all results Gatus produced in the period (deltas of `gatus_results_total`). **Outages** are periods in which the newest result failed (`gatus_results_endpoint_success = 0`). **p95** needs the per-scrape samples, kept for _raw retention_ days (default 14); for older periods it is shown as –.
 - **Credentials**: the state at the end of the period (or now, for a period that ends in the future).
+- **Records**: _changed_ means a new content version in the period; _approved_ counts approvals of change requests and acceptances of decision records. Statuses are those at the end of the period, replayed from the record history. **Open change requests** are those not closed or cancelled. **Planned change windows** come from the _Planned start_ and _Planned end_ fields of change requests (not cancelled) and cover the period plus _N_ days after it (default 30). You can limit the section to some record types.
 
 ### Archive and audit
 
@@ -87,4 +89,4 @@ Sections are registered in `server/src/reports/sections.ts` with `registerReport
 - `render(data, { w, tr, lang, section })` draws it with the PDF writer;
 - `glance` adds figures to the _At a glance_ row.
 
-A "records" section (records / change requests) plugs in this way.
+The "records" section (`server/src/records/report-section.ts`) plugs in this way; `reports/schedules.ts` imports it.

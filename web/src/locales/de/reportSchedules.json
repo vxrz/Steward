@@ -42,6 +42,10 @@
     "runs": {
       "title": "Ausführungen",
       "hint": "Erfolgreiche und fehlgeschlagene Ausführungen je Prozess"
+    },
+    "records": {
+      "title": "Dokumente und Änderungsanträge",
+      "hint": "Erstellte, geänderte, freigegebene oder umgesetzte Dokumente; offene Änderungsanträge nach Status; geplante Änderungsfenster"
     }
   },
   "runNow": "Jetzt erstellen",
@@ -86,6 +90,10 @@
     "noGatus": "Aktivieren Sie zuerst den Metrik-Modus für eine Gatus-Plattform (Plattform → Metriken).",
     "dueWithinDays": "Auch Einträge, die fällig werden innerhalb von (Tage)",
     "processes": "Prozesse",
+    "recordTypes": "Dokumentarten",
+    "allTypes": "Alle Arten",
+    "windowDays": "Änderungsfenster bis (Tage nach dem Zeitraum)",
+    "windowDaysHint": "Geplante Änderungsfenster vom Beginn des Zeitraums bis so viele Tage nach seinem Ende",
     "recipients": "Empfänger",
     "users": "Benutzer",
     "teams": "Teams",

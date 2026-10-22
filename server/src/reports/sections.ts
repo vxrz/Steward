@@ -19,7 +19,8 @@ import { pctText, st } from './scheduled-i18n.js';
  * the report model and therefore of its content hash.
  *
  * Extension point: other features register more sections with
- * registerReportSection() (e.g. "records" for records / change requests).
+ * registerReportSection() (e.g. "records" in records/report-section.ts,
+ * imported by schedules.ts).
  */
 
 const DAY = 86400000;

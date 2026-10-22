@@ -110,6 +110,7 @@
       "dashboard": "Dashboard",
       "record": "Record",
       "service": "Service",
+      "credential": "Credential",
       "external": "External link"
     },
     "target": "Target",

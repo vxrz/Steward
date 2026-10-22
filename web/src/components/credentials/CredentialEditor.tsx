@@ -35,6 +35,7 @@ import type {
   MonitorSummary,
   Platform,
   ProcessSummary,
+  ServiceSummary,
   Subject,
 } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
@@ -42,7 +43,7 @@ import { fmtDay } from '../../format';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 
 const CERT_MAX = 256 * 1024;
-const LINK_KINDS = ['process', 'monitor', 'platform'] as const;
+const LINK_KINDS = ['process', 'monitor', 'platform', 'service'] as const;
 
 interface Draft {
   name: string;
@@ -156,6 +157,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
+  const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
   const gatusEndpoints = useQuery({
     queryKey: ['gatus-endpoints', d.gatus?.platformId],
@@ -171,7 +173,9 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
       ? (processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))
       : kind === 'monitor'
         ? (monitors.data ?? []).map((m) => ({ value: m.id, label: m.name }))
-        : (platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }));
+        : kind === 'service'
+          ? (services.data ?? []).map((x) => ({ value: x.id, label: x.name }))
+          : (platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }));
 
   const upload = async (f: File | null) => {
     if (!f) return;

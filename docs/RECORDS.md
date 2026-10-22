@@ -108,14 +108,14 @@ Markdown is rendered without HTML: `<script>` or `<b>` in the text is shown as t
 
 A record or service links to:
 
-- internal items: processes, runs, monitors, platforms, dashboards, other records, services;
+- internal items: processes, runs, monitors, platforms, dashboards, other records, services, credentials register entries;
 - external pages: the entry in your CMDB, a ticket, a wiki page (`http` and `https` only).
 
-Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item.
+Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
-You can only link items you can see. If a reader may not see a linked process or platform, the link shows as "not visible" without its name.
+You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name. Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own.
 
-Links are stored generically as `{ kind, id }`. A new kind (for example credentials) needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
+Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
 
 ## Attachments
 

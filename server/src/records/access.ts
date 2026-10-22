@@ -20,6 +20,8 @@ export const RECORD_APPROVER_ROLES: Role[] = ['admin', 'approver'];
 /** Create and edit catalogue services. */
 export const SERVICE_EDITOR_ROLES: Role[] = ['admin', 'designer'];
 
+/** Read records and catalogue services: everyone who can sign in. */
+export const canReadRecords = (u: AuthUser | null = currentUser()): boolean => !!u;
 export const canCreateRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_EDITOR_ROLES);
 export const canApproveRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_APPROVER_ROLES);
 export const canManageRecordTypes = (u: AuthUser | null = currentUser()): boolean => isAdmin(u);
