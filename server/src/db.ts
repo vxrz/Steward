@@ -4,6 +4,7 @@ import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 import { config } from './config.js';
 import { OPS_MIGRATIONS } from './migrations/ops.js';
 import { ENGINE_MIGRATIONS } from './migrations/engine.js';
+import { REPORT_MIGRATIONS } from './migrations/reports.js';
 
 // Loaded lazily so the ExperimentalWarning filter in bootstrap.ts is active first.
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
@@ -14,7 +15,7 @@ export interface NamedMigration {
   name: string;
   sql: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS];
+const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...REPORT_MIGRATIONS];
 
 const MIGRATIONS: string[] = [
   `

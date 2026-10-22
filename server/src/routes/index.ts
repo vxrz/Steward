@@ -28,11 +28,12 @@ import * as store from '../engine/store.js';
 import { startRun, cancelRun, resumeRun, completeTask, recoverRuns } from '../engine/runner.js';
 import { browserAvailable } from '../engine/browser.js';
 import * as scheduler from '../scheduler.js';
-import { runReportHtml, runReportPdf } from '../reports.js';
+import { runReportHtml } from '../reports.js';
 import { setupDemo } from './demo.js';
 import { dashboardRoutes } from './dashboards.js';
 import { opsRoutes } from './ops.js';
 import { engineExtrasRoutes } from './engine-extras.js';
+import { reportRoutes } from './reports.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -585,14 +586,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if ((req.query as { download?: string }).download) reply.header('content-disposition', `attachment; filename="protocol-${id}.html"`);
     return reply.type('text/html').send(runReportHtml(id));
   });
-  app.get('/runs/:id/report.pdf', async (req, reply) => {
-    const id = params(req).id!;
-    requireRun(id, 'view', 'view this run');
-    const pdf = await runReportPdf(id);
-    audit({ action: 'run.report_exported', entityType: 'run', entityId: id, runId: id, summary: 'Run protocol exported as PDF' });
-    reply.header('content-disposition', `attachment; filename="protocol-${id}.pdf"`);
-    return reply.type('application/pdf').send(pdf);
-  });
+  // PDF reports (GET /runs/:id/report.pdf, POST /runs/:id/reports, …): routes/reports.ts
   app.get('/runs/:id/report.json', async (req, reply) => {
     const id = params(req).id!;
     requireRun(id, 'view', 'view this run');
@@ -738,6 +732,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await dashboardRoutes(app);
   await opsRoutes(app);
   await engineExtrasRoutes(app);
+  await reportRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

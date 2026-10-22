@@ -71,7 +71,8 @@ function deleteRunFiles(runId: string, artifactPaths: string[]): void {
     for (const p of artifactPaths) removeInside(artifactsDir(), p);
     removeInside(artifactsDir(), path.join(artifactsDir(), runId));
     for (const f of fs.existsSync(reportsDir()) ? fs.readdirSync(reportsDir()) : []) {
-      if (f.startsWith(runId)) removeInside(reportsDir(), path.join(reportsDir(), f));
+      // reports/<runId>/ holds the run's generated PDFs (see reports/service.ts)
+      if (f === runId || f.startsWith(runId + '.') || f.startsWith(runId + '-')) removeInside(reportsDir(), path.join(reportsDir(), f));
     }
   } catch (err) {
     logger.warn({ err, runId }, 'could not remove run files');
@@ -99,7 +100,8 @@ export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: num
         const paths = db().all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id).map((r) => r.path);
         files.set(id, paths);
         artifacts += paths.length;
-        for (const t of ['run_artifacts', 'run_tasks', 'run_logs', 'run_steps']) db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
+        // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
+        for (const t of ['run_artifacts', 'run_tasks', 'run_logs', 'run_steps', 'reports']) db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
         db().run('DELETE FROM runs WHERE id = ?', id);
       }
     });
