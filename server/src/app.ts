@@ -80,7 +80,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
     let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
-    const isPublic = PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/');
+    const isPublic =
+      PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/') || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
     // API tokens act as their owner when there is no signed-in session.
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {

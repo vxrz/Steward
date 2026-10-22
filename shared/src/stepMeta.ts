@@ -122,7 +122,7 @@ export const STEP_META: Record<NodeType, StepMeta> = {
         key: 'concurrency',
         label: 'Parallel items (1 = one after another)',
         kind: 'number',
-        help: 'Up to 20. In parallel mode variables set inside the loop are local to each item – aggregate with a Set node after the loop.',
+        help: 'Up to 20. In parallel mode variables set inside the loop are local to each item; the loop result (Save result as) holds them per item in results[].',
       },
     ],
     defaults: () => ({ items: 'vars.items', as: 'item' }),

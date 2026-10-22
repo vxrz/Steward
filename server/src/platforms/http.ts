@@ -1,4 +1,5 @@
 import { Agent, EnvHttpProxyAgent, ProxyAgent, fetch, type Dispatcher } from 'undici';
+import { trace } from '@opentelemetry/api';
 import type { AuthConfig, Platform } from '@sm/shared';
 import { evalExpr, render, renderString } from '../engine/expr.js';
 import { HttpError } from '../util.js';
@@ -466,6 +467,14 @@ export async function platformRequest(
     };
     if (attempt === 1) logger.debug(info, 'platform call will be retried');
     else logger.warn(info, 'platform call will be retried');
+    // the enclosing span (e.g. the process node) gets one event per retry
+    trace.getActiveSpan()?.addEvent('http.retry', {
+      'http.request.method': method,
+      'http.response.status_code': res?.status ?? 0,
+      'sm.http.attempt': attempt,
+      'sm.http.retry_delay_ms': delay,
+      ...(error ? { 'error.type': (error as { code?: string }).code ?? 'network' } : {}),
+    });
     await waitMs(delay, signal);
   }
 }
