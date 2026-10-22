@@ -120,3 +120,26 @@ export function startedUrl(stdout: string): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * Stops the background work that writes audit entries and sends notifications on its own: waits
+ * until no process run is active (e.g. the feeder runs that /demo/setup starts), disarms the cron
+ * schedules (the demo schedules fire every few minutes) and stops the demo gateway simulator (it
+ * posts heartbeats through the real API). For tests that rewrite the audit chain or count entries,
+ * e-mails or pending items – under load those runs finish seconds later and would interleave with
+ * the test. Call it before the test starts runs that wait for a user task (they stay active).
+ */
+export async function quiesce(timeoutMs = 60000): Promise<void> {
+  const { stopScheduler } = await import('../src/scheduler.js');
+  const { activeRunIds } = await import('../src/engine/runner.js');
+  const { stopGatewaySimulator } = await import('../src/monitors/demo.js');
+  stopScheduler();
+  stopGatewaySimulator();
+  const until = Date.now() + timeoutMs;
+  while (activeRunIds().length) {
+    if (Date.now() > until) throw new Error(`runs still active after ${timeoutMs} ms: ${activeRunIds().join(', ')}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  const { flushNotifications } = await import('../src/notifications/service.js');
+  await flushNotifications();
+}

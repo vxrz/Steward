@@ -4,7 +4,7 @@
  * longer works.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { quiesce, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
 process.env.SM_MONITOR_AUTOSTART = '0';
@@ -50,6 +50,8 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  // the demo's feeder runs (and its schedules) would send check notifications to the admin during the e-mail tests
+  await quiesce();
   [dana, olivia, adam, vera] = await Promise.all(['dana', 'olivia', 'adam', 'vera'].map((u) => s.as(u, PW)));
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
   // the company's own domain: the administrator's address

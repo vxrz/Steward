@@ -8,7 +8,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ADMIN, authHeaders, loginCookie, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
+import { ADMIN, authHeaders, loginCookie, quiesce, setup, startedUrl, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let gatus: string;
@@ -18,6 +18,8 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  // the H1/H3 tests truncate and restore the chain and count pending entries: nothing else may write meanwhile
+  await quiesce();
   gatus = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'gatus').id;
 });
 afterAll(async () => {
@@ -120,10 +122,13 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
     const keep = await maxSeq();
     const rows = await snapshotAfter(keep - 3);
     (await db()).run('DELETE FROM audit_log WHERE seq > ?', keep - 3);
-    const r = await s.api('GET', '/audit/verify');
-    expect(r.ok).toBe(false);
-    expect(r.message).toMatch(/removed/);
-    await restore(rows);
+    try {
+      const r = await s.api('GET', '/audit/verify');
+      expect(r.ok).toBe(false);
+      expect(r.message).toMatch(/removed/);
+    } finally {
+      await restore(rows); // also after a failed assertion: the next tests need an intact chain
+    }
   });
 
   it('detects tail truncation and a full wipe against the signed local anchor, also after a restart', async () => {
@@ -139,20 +144,26 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
     const rows = await snapshotAfter(anchored.seq - 10);
     (await db()).run('DELETE FROM audit_log WHERE seq > ?', anchored.seq - 10);
     resetAuditMemory(); // as after a restart: only the anchor knows the old head
-    const r = await s.api('GET', '/audit/verify');
-    expect(r.ok).toBe(false);
-    expect(r.message).toMatch(/local anchor file proves that entry #\d+ existed/);
-    await restore(rows);
+    try {
+      const r = await s.api('GET', '/audit/verify');
+      expect(r.ok).toBe(false);
+      expect(r.message).toMatch(/local anchor file proves that entry #\d+ existed/);
+    } finally {
+      await restore(rows);
+    }
 
     // full wipe
     const all = await snapshotAfter(0);
     (await db()).run('DELETE FROM audit_log');
     resetAuditMemory();
-    const wiped = await s.api('GET', '/audit/verify');
-    expect(wiped.ok).toBe(false);
-    expect(wiped.message).not.toMatch(/All 0 entries are intact/);
-    (await db()).run('DELETE FROM audit_log');
-    await restore(all);
+    try {
+      const wiped = await s.api('GET', '/audit/verify');
+      expect(wiped.ok).toBe(false);
+      expect(wiped.message).not.toMatch(/All 0 entries are intact/);
+    } finally {
+      (await db()).run('DELETE FROM audit_log');
+      await restore(all);
+    }
     expect((await s.api('GET', '/audit/verify')).ok).toBe(true);
   });
 
@@ -174,18 +185,18 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
     (await db()).run('DELETE FROM audit_log WHERE seq > ?', first.checkpoint.seq - 2);
     fs.rmSync(anchorFile());
     resetAuditMemory();
-    const r = await s.api('POST', '/audit/verify', { anchor: external });
-    expect(r.ok).toBe(false);
-    expect(r.anchors.at(-1)).toMatchObject({ ok: false, source: 'checkpoint you entered' });
-    process.env.SM_AUDIT_ANCHOR = external;
     try {
+      const r = await s.api('POST', '/audit/verify', { anchor: external });
+      expect(r.ok).toBe(false);
+      expect(r.anchors.at(-1)).toMatchObject({ ok: false, source: 'checkpoint you entered' });
+      process.env.SM_AUDIT_ANCHOR = external;
       expect((await s.api('GET', '/audit/verify')).ok).toBe(false);
     } finally {
       delete process.env.SM_AUDIT_ANCHOR;
+      (await db()).run('DELETE FROM audit_log WHERE seq > ?', first.checkpoint.seq - 2);
+      await restore(rows);
+      fs.writeFileSync(anchorFile(), savedAnchor);
     }
-    (await db()).run('DELETE FROM audit_log WHERE seq > ?', first.checkpoint.seq - 2);
-    await restore(rows);
-    fs.writeFileSync(anchorFile(), savedAnchor);
     expect((await s.api('GET', '/audit/verify')).ok).toBe(true);
   });
 
@@ -283,11 +294,11 @@ describe('H3 – no audit flooding without signing in', () => {
         body: JSON.stringify({ username: 'dana', password: `wrong-${i}` }),
       });
     }
-    const rows = (await db()).all<{ summary: string }>("SELECT summary FROM audit_log WHERE seq > ? AND action = 'auth.login_failed'", before);
+    const rows = (await db()).all<{ summary: string }>("SELECT summary FROM audit_log WHERE seq > ? AND action = 'auth.login_failed' ORDER BY seq", before);
     expect(rows).toHaveLength(1); // the others are summed up in one entry after a minute
     const { flushFailedLoginAudit } = await import('../src/auth/login-audit.js');
     flushFailedLoginAudit();
-    const after = (await db()).all<{ summary: string }>("SELECT summary FROM audit_log WHERE seq > ? AND action = 'auth.login_failed'", before);
+    const after = (await db()).all<{ summary: string }>("SELECT summary FROM audit_log WHERE seq > ? AND action = 'auth.login_failed' ORDER BY seq", before);
     expect(after.map((r) => r.summary)).toEqual(['Failed sign-in for "dana"', '3 more failed sign-in(s) for "dana" from 127.0.0.1 within one minute']);
   });
 
