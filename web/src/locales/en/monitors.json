@@ -75,7 +75,7 @@
     "stored": "I have stored the secret",
     "editTitle": "Edit gateway",
     "allowedCheckKeys": "Allowed check keys",
-    "allowedCheckKeysHint": "Wildcard *, e.g. m17.* – empty: every heartbeat check",
+    "allowedCheckKeysHint": "Wildcard *, e.g. m17.* – required: a gateway may only report the keys listed here, and only for monitors its owner may edit",
     "cidrs": "Allowed source addresses",
     "cidrsHint": "IP or CIDR; empty: any",
     "callsPerMinute": "Calls per minute",
@@ -296,7 +296,8 @@
     "onlyStatuses": "Only these statuses",
     "all": "all",
     "onlyChecks": "Only these checks",
-    "add": "Add output"
+    "add": "Add output",
+    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs."
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",

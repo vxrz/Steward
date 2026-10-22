@@ -1,6 +1,6 @@
 {
   "title": "Auslöser",
-  "description": "Webhook-Auslöser starten einen Prozess, wenn ein anderes System eine URL aufruft – z. B. startet ein Gatus-Alarm ein Diagnose-Runbook. Jeder Auslöser hat ein eigenes Secret; Ausführungen laufen mit den Rechten des Besitzers und werden übersprungen und protokolliert, wenn er den Zugriff verliert.",
+  "description": "Webhook-Auslöser starten einen Prozess, wenn ein anderes System eine URL aufruft – z. B. startet ein Gatus-Alarm ein Diagnose-Runbook. Jeder Auslöser hat ein eigenes Secret; Ausführungen laufen mit den Rechten des Eigentümers und werden übersprungen und protokolliert, wenn er den Zugriff verliert.",
   "new": "Neuer Webhook-Auslöser",
   "none": "Noch keine Webhook-Auslöser.",
   "notSaved": "Auslöser nicht gespeichert",
@@ -71,7 +71,7 @@
     "skipIfRunning": "Überspringen, solange die vorige Ausführung läuft oder wartet",
     "dryRun": "Probelauf (Änderungen simulieren)",
     "rightsOf": "Ausführungen laufen mit den Rechten von <b>{{owner}}</b>. Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
-    "rightsOfYou": "Ausführungen laufen mit Ihren Rechten (Sie sind der Besitzer). Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
+    "rightsOfYou": "Ausführungen laufen mit Ihren Rechten (Sie sind der Eigentümer). Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
     "create": "Anlegen und Secret anzeigen"
   },
   "secret": {

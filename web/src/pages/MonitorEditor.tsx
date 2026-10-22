@@ -67,6 +67,8 @@ export function MonitorEditorPage() {
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!def) return null;
+  // Outputs (notifications, runbooks, external systems) need the manage right; new monitors belong to the creator.
+  const canManage = isNew || !!existing.data?.permissions.includes('manage');
   const sel = def.checks.find((c) => c.id === selected) ?? null;
   const setCheck = (c: CheckDef) => {
     const old = sel!.id;
@@ -269,7 +271,19 @@ export function MonitorEditorPage() {
           </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="outputs">
-          <OutputsEditor outputs={def.outputs} onChange={(o) => setDef({ ...def, outputs: o })} checks={def.checks} platforms={platforms.data ?? []} processes={processes.data ?? []} />
+          {!canManage && (
+            <Alert color="gray" mb="sm">
+              {t('outputs.manageOnly')}
+            </Alert>
+          )}
+          <OutputsEditor
+            outputs={def.outputs}
+            onChange={(o) => setDef({ ...def, outputs: o })}
+            checks={def.checks}
+            platforms={platforms.data ?? []}
+            processes={processes.data ?? []}
+            disabled={!canManage}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="yaml">
           <Stack>

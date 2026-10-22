@@ -57,7 +57,7 @@
     "allowedKeys": "Erlaubte Schlüssel",
     "lastReport": "Letzte Meldung",
     "accepted": "Angenommen",
-    "line": "Secret {{prefix}}… · {{auth}} · {{rate}}/min · Besitzer {{owner}}",
+    "line": "Secret {{prefix}}… · {{auth}} · {{rate}}/min · Eigentümer {{owner}}",
     "anyKey": "alle",
     "rejected_one": "{{count}} abgewiesen",
     "rejected_other": "{{count}} abgewiesen",
@@ -75,7 +75,7 @@
     "stored": "Ich habe das Secret gespeichert",
     "editTitle": "Gateway bearbeiten",
     "allowedCheckKeys": "Erlaubte Prüfungsschlüssel",
-    "allowedCheckKeysHint": "Platzhalter *, z. B. m17.* – leer: jede Heartbeat-Prüfung",
+    "allowedCheckKeysHint": "Platzhalter *, z. B. m17.* – erforderlich: Ein Gateway darf nur die hier aufgeführten Schlüssel melden, und nur für Monitore, die sein Eigentümer bearbeiten darf",
     "cidrs": "Erlaubte Quelladressen",
     "cidrsHint": "IP oder CIDR; leer: alle",
     "callsPerMinute": "Aufrufe pro Minute",
@@ -175,7 +175,7 @@
   },
   "detail": {
     "template": "Vorlage",
-    "owner": "Besitzer {{owner}}",
+    "owner": "Eigentümer {{owner}}",
     "since": "seit {{date}}",
     "checkNow": "Jetzt prüfen",
     "newFromTemplate": "Neue Monitore aus Vorlage",
@@ -237,7 +237,7 @@
     "types": {
       "notification": {
         "label": "Benachrichtigung (In-App, E-Mail, Teams)",
-        "help": "Besitzer und Abonnenten werden nur über Ursachen benachrichtigt; abhängige Ausfälle werden in einem Alarm zusammengefasst."
+        "help": "Eigentümer und Abonnenten werden nur über Ursachen benachrichtigt; abhängige Ausfälle werden in einem Alarm zusammengefasst."
       },
       "webhook": {
         "label": "Webhook (JSON)",
@@ -253,14 +253,14 @@
       },
       "process": {
         "label": "Prozess starten (Runbook)",
-        "help": "Startet das Runbook als Besitzer des Monitors; Eingaben sind JSONata über { monitor, check, event }."
+        "help": "Startet das Runbook als Eigentümer des Monitors; Eingaben sind JSONata über { monitor, check, event }."
       }
     },
     "intro": "Ausgaben senden Statuswechsel (und auf Wunsch jede Auswertung) an Personen und andere Überwachungssysteme. Platzhalter in Schlüsseln und Pfaden: {{placeholders}}.",
     "none": "Noch keine Ausgaben – der Status steht trotzdem in der API, in den Prometheus-Metriken und in Dashboards zur Verfügung.",
     "remove": "Ausgabe {{id}} entfernen",
     "subscribers": "Abonnenten",
-    "subscribersHint": "{{examples}}; der Besitzer wird immer benachrichtigt",
+    "subscribersHint": "{{examples}}; der Eigentümer wird immer benachrichtigt",
     "hold": "Abhängige Alarme zurückhalten (s)",
     "holdHint": "So lange warten, damit eine etwas später ausfallende Vorgängerin den Ausfall noch erklärt (Standard 0)",
     "urlHint": "Ohne Zugangsdaten; für Ziele mit Authentifizierung stattdessen eine Plattform wählen",
@@ -296,7 +296,8 @@
     "onlyStatuses": "Nur diese Status",
     "all": "alle",
     "onlyChecks": "Nur diese Prüfungen",
-    "add": "Ausgabe hinzufügen"
+    "add": "Ausgabe hinzufügen",
+    "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern."
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",
