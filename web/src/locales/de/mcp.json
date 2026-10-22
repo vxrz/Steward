@@ -9,7 +9,7 @@
     "turnedOff": "MCP-Server ausgeschaltet",
     "endpoint": "Endpunkt: <c>{{url}}</c> (Streamable HTTP, Protokollversionen {{versions}})",
     "token": "Erstellen Sie auf Ihrer <a>Profilseite</a> ein Token mit dem Umfang „MCP-Client“ und tragen Sie es in die Client-Konfiguration ein:",
-    "limits": "Grenzen: {{requests}} Anfragen pro Minute und Token; {{gateway}} Plattformaufrufe pro Minute, Token und Plattform.",
+    "limits": "Grenzen: {{requests}} Anfragen pro Minute und Token; {{gateway}} Plattformaufrufe pro Minute, Benutzer und Plattform.",
     "security": "Ergebnisse der Werkzeuge sind Daten aus Steward und angebundenen Systemen. Assistenten sollten sie als Daten behandeln, nie als Anweisungen. Plattformen sind für MCP-Clients nur erreichbar, wenn ein Administrator das MCP-Gateway eingeschaltet hat (Plattform → MCP)."
   },
   "config": {

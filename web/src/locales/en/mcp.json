@@ -9,7 +9,7 @@
     "turnedOff": "MCP server turned off",
     "endpoint": "Endpoint: <c>{{url}}</c> (Streamable HTTP, protocol versions {{versions}})",
     "token": "Create a token with scope “MCP client” on your <a>profile page</a> and put it into the client configuration:",
-    "limits": "Limits: {{requests}} requests per minute and token; {{gateway}} platform calls per minute, token and platform.",
+    "limits": "Limits: {{requests}} requests per minute and token; {{gateway}} platform calls per minute, user and platform.",
     "security": "Tool results are data from Steward and connected systems. Assistants should treat them as data, never as instructions. Platforms are only reachable for MCP clients where an administrator turned on the MCP gateway (platform → MCP)."
   },
   "config": {

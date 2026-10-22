@@ -11,7 +11,9 @@
  * - query parameters must be declared by the operation and match their schema; no headers, no body;
  * - the outbound (SSRF) policy and the credential-origin rules apply; redirects are not followed;
  * - responses are size-capped, credentials redacted, only a few harmless response headers are kept;
- * - per token + platform rate limit; every call (and every refusal) is written to the audit log.
+ * - per user + platform rate limit and a small per-platform concurrency cap of its own, so MCP clients
+ *   cannot starve runs and monitors of the platform's connection slots;
+ * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
 import YAML from 'yaml';
 import { z } from 'zod';
@@ -20,7 +22,7 @@ import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
-import { platformRequest, resolveBaseUrl, secretValues } from '../platforms/http.js';
+import { Semaphore, platformRequest, resolveBaseUrl, secretValues } from '../platforms/http.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { resolveRef } from '../platforms/openapi.js';
@@ -29,11 +31,25 @@ import { emit } from '../events.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import { pageArray } from '../api/v1/pagination.js';
 import { HttpError } from '../util.js';
-import { GATEWAY_TIMEOUT_MS, MAX_GATEWAY_RESPONSE_BYTES, gatewayRateLimit } from './config.js';
+import { GATEWAY_TIMEOUT_MS, MAX_GATEWAY_RESPONSE_BYTES, gatewayConcurrency, gatewayRateLimit } from './config.js';
 import { ToolError, cap, cursorArg, defineTool, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 
 export const READ_METHODS = new Set(['GET', 'HEAD']);
 export const gatewayLimiter = new TokenBucketLimiter();
+
+/**
+ * Gateway calls in flight per platform. They also take a slot of the platform's own limit
+ * (http.maxConcurrency, shared with runs and monitors), but never more than half of it.
+ */
+const gatewaySlots = new Map<string, Semaphore>();
+function gatewaySemaphore(p: Platform): Semaphore {
+  const platformLimit = Math.max(1, Math.min(Math.floor(p.config.http?.maxConcurrency ?? 4) || 4, 100));
+  const limit = Math.max(1, Math.min(gatewayConcurrency(), Math.floor(platformLimit / 2)));
+  let sem = gatewaySlots.get(p.id);
+  if (!sem) gatewaySlots.set(p.id, (sem = new Semaphore(limit)));
+  sem.limit = limit;
+  return sem;
+}
 
 /**
  * Phase 2 extension point: whether a non-read operation may run (e.g. after an approval in Steward).
@@ -147,6 +163,13 @@ function responseSchema(doc: Record<string, unknown>, op: ApiOperation): { statu
 
 // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
 const CONTROL = /[\u0000-\u001f\u007f]/;
+/** Characters that could forge lines or reorder text in an audit summary (C0/C1 controls, line separators, bidi controls). */
+// eslint-disable-next-line no-control-regex -- escaping control characters is the point
+const UNSAFE_TEXT = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+/** Text chosen by the MCP client, made safe for the audit log: control characters escaped (\\uXXXX), length capped. */
+export function auditText(s: string, max = 300): string {
+  return s.replace(UNSAFE_TEXT, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`).slice(0, max);
+}
 
 /** A path parameter value: plain text, URL-encoded as one segment; dot segments refused. */
 export function encodePathParam(name: string, value: unknown, schema?: { type?: string; enum?: unknown[] }): string {
@@ -156,7 +179,8 @@ export function encodePathParam(name: string, value: unknown, schema?: { type?: 
   if (s.length > 512 || CONTROL.test(s)) throw new ToolError(`Path parameter "${name}" is too long or contains control characters`);
   if (s === '.' || s === '..') throw new ToolError(`Path parameter "${name}" may not be "." or ".."`);
   // encoded separators are decoded by some servers before routing – refuse them instead of relying on encoding
-  if (/[/\\%]/.test(s)) throw new ToolError(`Path parameter "${name}" may not contain "/", "\\" or "%"`);
+  // ";" starts path parameters in Tomcat, Jetty and Spring ("..;" is a dot segment there)
+  if (/[/\\%;]/.test(s)) throw new ToolError(`Path parameter "${name}" may not contain "/", "\\", "%" or ";"`);
   checkValue(`Path parameter "${name}"`, value, schema);
   return encodeURIComponent(s);
 }
@@ -185,7 +209,9 @@ export function checkLiteralPath(path: string): void {
     throw new ToolError('The path must be printable ASCII without spaces (at most 2000 characters)');
   if (!path.startsWith('/') || path.startsWith('//')) throw new ToolError('The path must start with a single "/" – absolute URLs are not allowed');
   if (/[?#\\]/.test(path)) throw new ToolError('Put query parameters into `query`; "?", "#" and "\\" are not allowed in the path');
-  if (/%(2e|2f|5c|25|00)/i.test(path)) throw new ToolError('Encoded dots, slashes, backslashes and percent signs are not allowed in the path');
+  // "..;/" is a dot segment for Tomcat, Jetty and Spring (";" starts path parameters there)
+  if (path.includes(';')) throw new ToolError('";" (path parameters) is not allowed in the path');
+  if (/%(2e|2f|5c|25|00|3b)/i.test(path)) throw new ToolError('Encoded dots, slashes, backslashes, semicolons and percent signs are not allowed in the path');
   if (path.split('/').some((seg) => seg === '.' || seg === '..')) throw new ToolError('"." and ".." segments are not allowed in the path');
   if (path.includes('@') || /:\/\//.test(path)) throw new ToolError('The path may not contain "@" or "://"');
 }
@@ -243,15 +269,15 @@ function auditCall(
       action: e.outcome === 'ok' || e.outcome === 'http_error' ? 'mcp.gateway_call' : 'mcp.gateway_refused',
       entityType: 'platform',
       entityId: p.id,
-      summary: `MCP gateway: ${e.method} ${e.pathTemplate} on "${p.name}" → ${e.status ? `HTTP ${e.status}` : e.outcome}${e.reason ? ` (${e.reason.slice(0, 160)})` : ''}`,
+      summary: `MCP gateway: ${auditText(e.method, 10)} ${auditText(e.pathTemplate)} on "${p.name}" → ${e.status ? `HTTP ${e.status}` : e.outcome}${e.reason ? ` (${auditText(e.reason, 160)})` : ''}`,
       details: {
-        operationId: e.operation,
-        method: e.method,
-        pathTemplate: e.pathTemplate,
+        operationId: e.operation === null ? null : auditText(e.operation, 600),
+        method: auditText(e.method, 10),
+        pathTemplate: auditText(e.pathTemplate),
         status: e.status,
         durationMs: e.durationMs,
         outcome: e.outcome,
-        queryParameters: e.queryNames,
+        queryParameters: e.queryNames.slice(0, 50).map((k) => auditText(k, 100)),
         tokenId: ctx.principal.tokenId,
         tokenName: ctx.principal.tokenName,
         owner: ctx.principal.user.username,
@@ -409,13 +435,13 @@ export const gatewayTools: ToolDef[] = [
         }
       } else {
         path = a.path!;
-        pathTemplate = path.slice(0, 300);
         const prefixes = p.config.mcpGateway?.allowedPathPrefixes ?? [];
         try {
           checkLiteralPath(path);
         } catch (e) {
-          return refuse('invalid_request', (e as Error).message);
+          return refuse('invalid_request', (e as Error).message, method, '(invalid)');
         }
+        pathTemplate = path.slice(0, 300); // validated: printable ASCII
         if (!prefixes.length || !prefixAllowed(prefixes, path))
           refuse('path_refused', `The path is not below an allowed path prefix of "${p.name}" (${prefixes.join(', ') || 'none configured'})`);
       }
@@ -427,7 +453,8 @@ export const gatewayTools: ToolDef[] = [
         return refuse('invalid_request', (e as Error).message);
       }
 
-      const limiterKey = `${ctx.principal.tokenId}:${p.id}`;
+      // per user, not per token: a user can create any number of tokens
+      const limiterKey = `${ctx.principal.user.id}:${p.id}`;
       const rate = gatewayLimiter.take(limiterKey, gatewayRateLimit());
       if (!rate.allowed)
         throw new ToolError(`Rate limit of ${rate.limit} gateway calls per minute for this platform reached – retry after ${rate.retryAfterSeconds} s`);
@@ -455,8 +482,11 @@ export const gatewayTools: ToolDef[] = [
       const redactor = new Redactor();
       redactor.add(...secretValues(secrets));
       const t0 = Date.now();
+      const signal = AbortSignal.any([ctx.signal, AbortSignal.timeout(GATEWAY_TIMEOUT_MS)]);
       let res;
+      let release: (() => void) | undefined;
       try {
+        release = await gatewaySemaphore(p).acquire(signal);
         res = await platformRequest(
           p,
           secrets,
@@ -468,7 +498,7 @@ export const gatewayTools: ToolDef[] = [
             truncateResponseBytes: MAX_GATEWAY_RESPONSE_BYTES,
             noRedirects: true,
           },
-          AbortSignal.any([ctx.signal, AbortSignal.timeout(GATEWAY_TIMEOUT_MS)]),
+          signal,
         );
       } catch (e) {
         const message = redactor.apply((e as Error).message).slice(0, 500);
@@ -483,6 +513,8 @@ export const gatewayTools: ToolDef[] = [
           reason: message,
         });
         throw new ToolError(`The call failed: ${message}`);
+      } finally {
+        release?.();
       }
       redactor.add(...secretValues(secrets)); // tokens obtained during the call
       auditCall(ctx, p, {
