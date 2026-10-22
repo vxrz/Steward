@@ -8,14 +8,10 @@ import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type Monitor
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
 import { Hint, PageHeader } from '../components/common';
+import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
-
-interface Meta {
-  canCreate: boolean;
-  gatewayPath: string;
-}
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -23,11 +19,10 @@ export function MonitorsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') ?? 'monitors';
-  const meta = useQuery({ queryKey: ['monitor-meta'], queryFn: () => get<Meta>('/monitors/meta') });
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
   const [importing, setImporting] = useState(false);
   const [secrets, setSecrets] = useState<MonitorSaveResult | null>(null);
-  const canCreate = !!meta.data?.canCreate;
+  const canCreate = useMe().caps.createMonitors;
   const list = monitors.data ?? [];
   const counts = Object.fromEntries(MONITOR_STATUSES.map((s) => [s, list.filter((m) => m.status === s).length]));
 

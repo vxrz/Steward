@@ -61,6 +61,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     return svc.listMonitors({ templates: q.templates === undefined ? false : q.templates === '1' || q.templates === 'true' });
   });
   app.get('/monitors/meta', async () => ({
+    // Same as capabilities.createMonitors in /auth/status (kept for API clients)
     canCreate: canCreateMonitors(currentUser()),
     permissions: MONITOR_PERMISSIONS,
     engineRunning: engine.engineRunning(),

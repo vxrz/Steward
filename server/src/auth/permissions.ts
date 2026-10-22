@@ -86,6 +86,7 @@ export function capabilities(u: AuthUser | null): Capabilities {
     viewAudit: has('admin', 'auditor'),
     createProcesses: has('admin', 'designer'),
     createPlatforms: has('admin'),
+    createMonitors: has('admin', 'designer'),
   };
 }
 

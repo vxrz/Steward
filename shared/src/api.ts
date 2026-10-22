@@ -119,6 +119,8 @@ export interface Capabilities {
   viewAudit: boolean;
   createProcesses: boolean;
   createPlatforms: boolean;
+  /** Create monitors and manage heartbeat gateways */
+  createMonitors: boolean;
 }
 
 export interface Me {

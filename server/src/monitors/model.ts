@@ -12,7 +12,7 @@ import {
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { capabilities, isAdmin, matches } from '../auth/permissions.js';
 
 /** Rows and small helpers shared by the monitor modules. */
 
@@ -160,6 +160,6 @@ export const permissionsOfRow = (r: Pick<MonitorRow, 'owner' | 'acl'>, u: AuthUs
   monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) });
 
 /** Designers and administrators create monitors and gateways. */
-export const canCreateMonitors = (u: AuthUser | null = currentUser()): boolean => !!u && (isAdmin(u) || u.roles.includes('designer'));
+export const canCreateMonitors = (u: AuthUser | null = currentUser()): boolean => capabilities(u).createMonitors;
 
 export const parseCauses = (s: string | null | undefined): CauseRef[] => parseJson<CauseRef[]>(s, []);

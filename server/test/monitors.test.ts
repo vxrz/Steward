@@ -282,6 +282,16 @@ describe('check types', () => {
 
 // ---------------------------------------------------------------------------
 
+describe('permissions', () => {
+  it('designers and administrators have the createMonitors capability', async () => {
+    const caps = async (c: Client) => ((await c('GET', '/auth/status')) as { me: { capabilities: Record<string, boolean> } }).me.capabilities.createMonitors;
+    expect(await caps(dana)).toBe(true);
+    expect(await caps(olivia)).toBe(false);
+    expect(((await s.api('GET', '/auth/status')) as { me: { capabilities: Record<string, boolean> } }).me.capabilities.createMonitors).toBe(true);
+    expect(((await olivia('GET', '/monitors/meta')) as { canCreate: boolean }).canCreate).toBe(false);
+  });
+});
+
 describe('heartbeats', () => {
   let mon: any;
   let secret: string;
