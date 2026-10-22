@@ -158,6 +158,9 @@ function certExpiry(host: string, port: number, timeoutMs: number): Promise<numb
   const hit = certCache.get(key);
   if (hit && Date.now() - hit.at < 6 * 3600000) return Promise.resolve(hit.validTo);
   return new Promise((resolve) => {
+    // Only reads the expiry date of whatever certificate the server presents (also an expired or self-signed one,
+    // which is what this check reports); nothing is sent and the socket is closed right away.
+    // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification -- no data goes over this connection
     const sock = tls.connect({
       host,
       port,

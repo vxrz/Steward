@@ -46,7 +46,7 @@ updates:
       time: '05:00'
       timezone: Europe/Berlin
     cooldown:
-      default-days: 3
+      default-days: 7
     # the node major version is pinned on purpose (follows .nvmrc / engines)
     ignore:
       - dependency-name: node

@@ -34,11 +34,11 @@ export async function waitForRun(api: APIRequestContext, runId: string, statuses
     .poll(
       async () => {
         last = await json(await api.get(`/api/runs/${runId}`));
-        return last.status;
+        return statuses.includes(last.status) ? 'reached' : `status ${last.status}`;
       },
       { timeout: timeoutMs, message: `run ${runId} to reach ${statuses.join('/')}` },
     )
-    .toMatch(new RegExp(`^(${statuses.join('|')})$`));
+    .toBe('reached');
   return last;
 }
 

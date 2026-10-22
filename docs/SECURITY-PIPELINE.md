@@ -12,7 +12,7 @@ what to do with a finding. The vulnerability disclosure policy is in
 | `security.yml`  | secrets      | [gitleaks](https://github.com/gitleaks/gitleaks) over the **full git history**                                                         | push, PR, weekly                                | any secret not allow-listed in `.gitleaks.toml`                                  |
 |                 | dependencies | `npm audit --omit=dev --audit-level=high`                                                                                              | push, PR, weekly                                | high/critical advisory in a production dependency                                |
 |                 |              | [OSV-Scanner](https://google.github.io/osv-scanner/) on `package-lock.json`                                                            | push, PR, weekly                                | any known vulnerability (dev dependencies too) not ignored in `osv-scanner.toml` |
-|                 | semgrep      | [Semgrep](https://semgrep.dev) OSS, rule sets `p/default`, `p/typescript`, `p/nodejs`, `p/secrets`, `p/github-actions`, `p/dockerfile` | push, PR, weekly                                | findings with severity `ERROR` (warnings are reported only)                      |
+|                 | semgrep      | [Semgrep](https://semgrep.dev) OSS, rule sets `p/default`, `p/typescript`, `p/nodejs`, `p/secrets`, `p/github-actions`, `p/dockerfile` | push, PR, weekly                                | `ERROR`/`HIGH`/`CRITICAL` findings (warnings are reported only)                  |
 |                 | trivy-fs     | [Trivy](https://trivy.dev) `fs` (vulnerabilities, misconfiguration, secrets) and `config`                                              | push, PR, weekly                                | high/critical with a fix available; high/critical misconfiguration               |
 |                 | lint         | [hadolint](https://github.com/hadolint/hadolint)                                                                                       | push, PR, weekly                                | Dockerfile warnings/errors (`.hadolint.yaml`)                                    |
 |                 |              | [actionlint](https://github.com/rhysd/actionlint) (+ shellcheck)                                                                       | push, PR, weekly                                | any workflow error                                                               |
@@ -85,17 +85,17 @@ with a notice; the full-history scan in CI still runs.
 3. **Not real, or accepted risk → suppress it where it belongs, with a reason**,
    as narrowly as possible, and with an expiry where the tool supports one:
 
-   | Tool        | How to suppress                                                                                     |
-   | ----------- | --------------------------------------------------------------------------------------------------- |
-   | gitleaks    | exact value + path regex in `.gitleaks.toml` (never whole folders)                                  |
-   | OSV-Scanner | `[[IgnoredVulns]]` with `reason` and `ignoreUntil` in `osv-scanner.toml`                            |
-   | npm audit   | no per-advisory ignore: fix it, or use an `overrides` entry in `package.json`                       |
-   | Semgrep     | `// nosemgrep: <rule-id>` at the end of the flagged line, with a comment explaining why             |
-   | Trivy       | `.trivyignore` (`CVE-… exp:2026-12-31` plus a comment)                                              |
-   | Grype       | `.grype.yaml` `ignore:` entry (vulnerability + package) with a comment                              |
-   | hadolint    | `# hadolint ignore=DL3008` above the instruction, with a reason                                     |
-   | zizmor      | `# zizmor: ignore[<audit>]` on the line, with a reason                                              |
-   | CodeQL      | dismiss the alert in code scanning with the reason ("false positive", "used in tests", "won't fix") |
+   | Tool        | How to suppress                                                                                                                          |
+   | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+   | gitleaks    | exact value + path regex in `.gitleaks.toml` (never whole folders)                                                                       |
+   | OSV-Scanner | `[[IgnoredVulns]]` with `reason` and `ignoreUntil` in `osv-scanner.toml`                                                                 |
+   | npm audit   | no per-advisory ignore: fix it, or use an `overrides` entry in `package.json`                                                            |
+   | Semgrep     | `// nosemgrep: <full rule id> -- <reason>` on the first line of the finding or the line above it (see [Semgrep triage](#semgrep-triage)) |
+   | Trivy       | `.trivyignore` (`CVE-… exp:2026-12-31` plus a comment)                                                                                   |
+   | Grype       | `.grype.yaml` `ignore:` entry (vulnerability + package) with a comment                                                                   |
+   | hadolint    | `# hadolint ignore=DL3008` above the instruction, with a reason                                                                          |
+   | zizmor      | `# zizmor: ignore[<audit>]` on the line, with a reason                                                                                   |
+   | CodeQL      | dismiss the alert in code scanning with the reason ("false positive", "used in tests", "won't fix")                                      |
 
 4. Mention the decision in the pull request, so the reviewer sees it.
 
@@ -112,7 +112,9 @@ with a notice; the full-history scan in CI still runs.
   updated by hand – prefer releases that are at least two weeks old.
 - **Least privilege**: `permissions: {}` at the top of the new workflows, and
   each job asks only for what it needs (`contents: read`, plus
-  `security-events: write` for SARIF, `id-token: write` for Scorecard publishing,
+  `security-events: write` and `actions: read` for SARIF uploads – the upload
+  reads the workflow run and fails with "Resource not accessible by integration"
+  without it –, `id-token: write` for Scorecard publishing,
   `contents: write` only for the release job).
 - **No credentials on disk**: `actions/checkout` with `persist-credentials: false`
   (nothing in these workflows pushes).
@@ -157,17 +159,53 @@ Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`.
 | Trivy/Grype image    | Debian 12 packages: 1 critical (CVE-2023-45853, zlib minizip – `will_not_fix`, minizip is not shipped), ~56 high (util-linux, ncurses, perl-base, systemd libs, …) without a fix | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates. Option: move to `node:24-trixie-slim` or a distroless image (see below). |
 | OSV-Scanner          | GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8 in `vitest` / `@vitest/mocker` 3.2 (dev only, Vitest dev server)                                                                        | ignored until 2027-01-31 in `osv-scanner.toml`; fix = Vitest 4 upgrade                                                                                              |
 | npm audit (all deps) | the same two moderate Vitest advisories                                                                                                                                          | dev only; CI audits production dependencies                                                                                                                         |
-| Semgrep              | `spawn-shell-true` in `scripts/dev.mjs` (Windows needs a shell for `npm.cmd`, fixed arguments)                                                                                   | `nosemgrep` with reason                                                                                                                                             |
-| Semgrep              | `detect-non-literal-require` / `lazy-load-module` (`server/src/routes/*.ts` – a local permission helper named `require`; deliberate lazy `import()`s)                            | false positives (warning level)                                                                                                                                     |
-| Semgrep              | `res-render-injection` in `engine/runner.ts` (template rendering of the process definition, not Express `res.render`)                                                            | false positive (warning level)                                                                                                                                      |
-| Semgrep              | `html-in-template-string`, `raw-html-format`, `unknown-value-with-script-tag` (reports, e-mails, SSO callback page, demo OIDC page)                                              | reviewed: values are HTML-escaped (`esc()`), the SSO `returnTo` is validated and JSON-encoded with `<` escaped (warning level)                                      |
-| Semgrep              | `detect-non-literal-regexp` in `ApiOperation.tsx`                                                                                                                                | input is escaped; runs in the browser on the user's own OpenAPI paths (warning level)                                                                               |
 | zizmor               | `superfluous-actions` for `softprops/action-gh-release` in `release.yml`                                                                                                         | informational; pinned by SHA. Could be replaced with `gh release create`                                                                                            |
 
 Fixed during the review: AES-GCM decryption without a fixed tag length
 (`vault.ts`), unpinned actions and base image, persisted checkout credentials,
 npm cache in release builds, unpinned `npx @cyclonedx/cyclonedx-npm@4`, npm and
 the old esbuild Go binary (Go 1.23 stdlib CVEs) in the runtime image.
+
+## Semgrep triage
+
+Reviewed 2026-10-22 with Semgrep 1.181.1 and the rule sets of the CI job
+(`p/default`, `p/typescript`, `p/nodejs`, `p/secrets`, `p/github-actions`,
+`p/dockerfile`): 26 findings, 2 of them blocking. Now: 0 findings. The registry
+rule sets change over time, so a later run can report new findings without a
+code change – triage them the same way.
+
+How to suppress a false positive: a comment with the **full rule id** (the
+`check_id` in `semgrep.json`, e.g.
+`javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp`)
+and a reason, either at the end of the first line of the finding or on its own
+line directly above it:
+
+```ts
+// nosemgrep: <full rule id> -- <why this is safe>
+```
+
+A bare `// nosemgrep` (no id) would hide every rule on that line; don't use it.
+No rule is disabled for the whole repository.
+
+| Rule (short id)               | Where                                                                                          | Decision    | Reason                                                                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `spawn-shell-true` (ERROR)    | `scripts/dev.mjs`, `scripts/test-pg.mjs` (and the same pattern in `install-scripts.mjs`)       | fixed       | npm runs without a shell on every platform: on Windows `scripts/npm-command.mjs` starts `npm-cli.js` with `node` (Node refuses `.cmd` files without a shell) |
+| `dependabot-missing-cooldown` | `.github/dependabot.yml` (Docker: 3 days)                                                      | fixed       | 7 days like the other ecosystems                                                                                                                             |
+| `detect-non-literal-regexp`   | `server/src/monitors/gateways.ts` (gateway key patterns)                                       | fixed       | glob matcher without a regular expression (`globMatch`, at most pattern × key steps)                                                                         |
+|                               | `web/src/components/editor/ApiOperation.tsx` (path parameters)                                 | fixed       | plain string search instead of a regular expression built from the imported OpenAPI path                                                                     |
+|                               | `server/src/monitors/zabbix.ts`, `server/src/records/markdown-io.ts`, `shared/src/markdown.ts` | fixed       | constant inputs: literal regular expressions or a small loop instead                                                                                         |
+|                               | `e2e/records.spec.ts`, `e2e/support/helpers.ts`                                                | fixed       | string matching instead of `new RegExp()`                                                                                                                    |
+|                               | `server/src/engine/expr.ts` (2 lines)                                                          | `nosemgrep` | this is the ReDoS guard for process expressions: linear-time engine or a time-limited worker (`expr-guard.test.ts`)                                          |
+|                               | `server/src/records/signed.ts` (`stringEntry`)                                                 | `nosemgrep` | the key is a fixed PDF name; the function now rejects anything but letters                                                                                   |
+| `incomplete-sanitization`     | `web/src/pages/Monitors.tsx` (example `curl` command)                                          | fixed       | replaces every `*` (`/\*/g`), not only the first; display text, not an escape                                                                                |
+| `prototype-pollution-loop`    | `server/src/i18n/index.ts` (`lookup`)                                                          | fixed       | read-only, but now follows own properties only (`Object.hasOwn`)                                                                                             |
+| `res-render-injection`        | `server/src/engine/runner.ts` (3 lines)                                                        | `nosemgrep` | false positive: `(step, ctx, key)` looks like Express `(req, res, next)`; `ctx.render()` evaluates expressions, it loads no template by name                 |
+| `raw-html-format`             | `server/src/routes/index.ts` (SSO callback page)                                               | `nosemgrep` | values are JSON string literals with `<` escaped; `returnTo` is a validated same-origin path                                                                 |
+|                               | `server/src/mock/mockOidc.ts`                                                                  | `nosemgrep` | every value is HTML-escaped; dev/demo-only mock identity provider                                                                                            |
+| `bypass-tls-verification`     | `server/src/monitors/checks.ts` (`certExpiry`)                                                 | `nosemgrep` | only reads the expiry date of the presented certificate (expired or self-signed ones are what the check reports); nothing is sent over this connection       |
+
+Tests (`server/test`) and other paths in Semgrep's default ignore list are not
+scanned.
 
 ## Only on GitHub
 
