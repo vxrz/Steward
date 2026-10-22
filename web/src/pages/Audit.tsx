@@ -1,26 +1,20 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Alert, Anchor, Button, Collapse, Group, Menu, Select, Table, Text, TextInput } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { get, notifyError } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
 
-const CATEGORIES = [
-  { value: 'run.', label: 'Runs' },
-  { value: 'api.', label: 'API calls' },
-  { value: 'task.', label: 'Decisions' },
-  { value: 'check.', label: 'Checks' },
-  { value: 'platform.', label: 'Platforms' },
-  { value: 'process.', label: 'Processes' },
-  { value: 'schedule.', label: 'Schedules' },
-  { value: 'vault.', label: 'Vault' },
-];
+const CATEGORIES = ['run', 'api', 'task', 'check', 'platform', 'process', 'schedule', 'vault'] as const;
 
+/** The audit log itself stays English: entries are evidence and must read the same for every auditor (see docs/I18N.md). */
 export function AuditPage() {
+  const { t } = useTranslation('audit');
   const [q, setQ] = useState('');
   const [debounced] = useDebouncedValue(q, 300);
   const [action, setAction] = useState<string | null>(null);
@@ -44,8 +38,8 @@ export function AuditPage() {
   return (
     <>
       <PageHeader
-        title="Audit log"
-        description="Append-only record of everything done with this tool. Entries are chained and signed (HMAC) with a key derived from your master passphrase, so edits or deletions are detected."
+        title={t('title')}
+        description={t('description')}
         actions={
           <>
             <Button
@@ -58,12 +52,12 @@ export function AuditPage() {
                   .catch((e) => notifyError(e))
               }
             >
-              Verify chain
+              {t('verify')}
             </Button>
             <Menu>
               <Menu.Target>
                 <Button size="xs" variant="default" leftSection={<IconDownload size={14} />}>
-                  Export
+                  {t('export')}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
@@ -71,7 +65,7 @@ export function AuditPage() {
                   CSV
                 </Menu.Item>
                 <Menu.Item component="a" href="/api/audit/export?format=jsonl">
-                  JSON lines (with hashes)
+                  {t('jsonl')}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
@@ -79,29 +73,46 @@ export function AuditPage() {
         }
       />
       {verify && (
-        <Alert color={verify.ok ? 'green' : 'red'} mb="md" withCloseButton onClose={() => setVerify(null)} title={verify.ok ? 'Audit chain intact' : 'Audit chain broken'}>
-          {verify.message}
+        <Alert color={verify.ok ? 'green' : 'red'} mb="md" withCloseButton onClose={() => setVerify(null)} title={verify.ok ? t('intact') : t('broken')}>
+          {verify.ok ? t('intactText', { count: verify.checked }) : verify.firstBadSeq ? t('brokenText', { seq: verify.firstBadSeq, message: verify.message }) : verify.message}
         </Alert>
       )}
       <Group mb="md" gap="xs">
-        <TextInput size="xs" placeholder="Search" leftSection={<IconSearch size={14} />} value={q} onChange={(e) => setQ(e.currentTarget.value)} w={240} />
-        <Select size="xs" placeholder="All categories" clearable data={CATEGORIES} value={action} onChange={setAction} w={170} />
+        <TextInput
+          size="xs"
+          placeholder={t('search')}
+          aria-label={t('search')}
+          leftSection={<IconSearch size={14} />}
+          value={q}
+          onChange={(e) => setQ(e.currentTarget.value)}
+          w={240}
+        />
+        <Select
+          size="xs"
+          placeholder={t('allCategories')}
+          aria-label={t('category')}
+          clearable
+          data={CATEGORIES.map((c) => ({ value: `${c}.`, label: t(`categories.${c}`) }))}
+          value={action}
+          onChange={setAction}
+          w={190}
+        />
       </Group>
       <div className="table-scroll">
         <Table fz="sm" striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>#</Table.Th>
-              <Table.Th>Time</Table.Th>
-              <Table.Th>Actor</Table.Th>
-              <Table.Th>Action</Table.Th>
-              <Table.Th>Summary</Table.Th>
+              <Table.Th>{t('table.time')}</Table.Th>
+              <Table.Th>{t('table.actor')}</Table.Th>
+              <Table.Th>{t('table.action')}</Table.Th>
+              <Table.Th>{t('table.summary')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {rows.map((a) => (
-              <>
-                <Table.Tr key={a.seq} className="clickable" onClick={() => setOpen(open === a.seq ? null : a.seq)}>
+              <Fragment key={a.seq}>
+                <Table.Tr className="clickable" onClick={() => setOpen(open === a.seq ? null : a.seq)}>
                   <Table.Td>{a.seq}</Table.Td>
                   <Table.Td className="nowrap">{fmtDate(a.ts)}</Table.Td>
                   <Table.Td>{a.actor}</Table.Td>
@@ -112,25 +123,25 @@ export function AuditPage() {
                       <>
                         {' '}
                         <Anchor component={Link} to={`/runs/${a.runId}`} size="xs" onClick={(e) => e.stopPropagation()}>
-                          run
+                          {t('table.run')}
                         </Anchor>
                       </>
                     )}
                   </Table.Td>
                 </Table.Tr>
                 {open === a.seq && (
-                  <Table.Tr key={`${a.seq}-d`}>
+                  <Table.Tr>
                     <Table.Td colSpan={5}>
                       <Collapse in>
                         <Text size="xs" c="dimmed" className="mono" mb={4}>
-                          hash {a.hash}
+                          {t('table.hash', { hash: a.hash })}
                         </Text>
                         {a.details != null && <JsonView value={a.details} maxHeight={240} />}
                       </Collapse>
                     </Table.Td>
                   </Table.Tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </Table.Tbody>
         </Table>
@@ -138,7 +149,7 @@ export function AuditPage() {
       {entries.hasNextPage && (
         <Group justify="center" mt="md">
           <Button variant="default" size="xs" loading={entries.isFetchingNextPage} onClick={() => entries.fetchNextPage()}>
-            Load older entries
+            {t('loadOlder')}
           </Button>
         </Group>
       )}
