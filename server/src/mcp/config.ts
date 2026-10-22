@@ -74,8 +74,10 @@ export function setMcpEnabled(enabled: boolean): void {
 
 /** Requests per minute and token on the MCP endpoint (SM_MCP_RATE_LIMIT, default 120). */
 export const mcpRateLimit = () => intEnv('SM_MCP_RATE_LIMIT', 120);
-/** Gateway calls per minute, token and platform (SM_MCP_GATEWAY_RATE_LIMIT, default 30). */
+/** Gateway calls per minute, user and platform (SM_MCP_GATEWAY_RATE_LIMIT, default 30). */
 export const gatewayRateLimit = () => intEnv('SM_MCP_GATEWAY_RATE_LIMIT', 30);
+/** Gateway calls in flight per platform (SM_MCP_GATEWAY_CONCURRENCY, default 2; at most half the platform's http.maxConcurrency). */
+export const gatewayConcurrency = () => intEnv('SM_MCP_GATEWAY_CONCURRENCY', 2);
 
 /**
  * Origins a browser-based MCP client may send (DNS-rebinding protection): Steward's own origin(s) and

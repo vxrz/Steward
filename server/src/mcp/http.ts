@@ -255,8 +255,8 @@ const gatewayBody = z
           .trim()
           .max(300)
           .refine(
-            (p) => /^\/[\x21-\x7e]*$/.test(p) && !/[?#\\%@]/.test(p) && !p.split('/').some((s) => s === '.' || s === '..') && !p.startsWith('//'),
-            'a path starting with "/", without "?", "#", "%", "@", "\\" or dot segments',
+            (p) => /^\/[\x21-\x7e]*$/.test(p) && !/[?#\\%@;]/.test(p) && !p.split('/').some((s) => s === '.' || s === '..') && !p.startsWith('//'),
+            'a path starting with "/", without "?", "#", "%", "@", ";", "\\" or dot segments',
           ),
       )
       .max(50)

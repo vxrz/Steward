@@ -516,6 +516,7 @@ describe('MCP platform gateway (read-only)', () => {
     await expect(vera('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true })).rejects.toMatchObject({ status: 404 });
     await expect(olivia('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true })).rejects.toMatchObject({ status: 403 });
     await expect(s.api('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true, allowedPathPrefixes: ['/x/../y'] })).rejects.toMatchObject({ status: 400 });
+    await expect(s.api('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true, allowedPathPrefixes: ['/x/..;'] })).rejects.toMatchObject({ status: 400 });
     const p = await s.api('PUT', `/platforms/${ih.id}/mcp-gateway`, { enabled: true });
     expect(p.config.mcpGateway).toEqual({ enabled: true });
     expect(p.integrity).toBe('ok');
@@ -600,7 +601,7 @@ describe('MCP platform gateway (read-only)', () => {
     }
     const refused = await call(tok.admin, 'search_audit_log', { action: 'mcp.gateway_refused', entityId: ih.id, limit: 10 });
     expect(refused.data.items.some((x: any) => x.details.outcome === 'write_refused' && x.details.method === 'POST')).toBe(true);
-    for (const id of ['..', '.', '../Groups', 'a/b', '%2e%2e', 'x\\y', 'a\nb']) {
+    for (const id of ['..', '.', '../Groups', 'a/b', '%2e%2e', 'x\\y', 'a\nb', '..;', 'a;b']) {
       const r = await call(tok.olivia, 'platform_call_operation', { platformId: ih.id, operation: 'getUser', pathParams: { id } });
       expect(r.isError, id).toBe(true);
     }
@@ -637,6 +638,11 @@ describe('MCP platform gateway (read-only)', () => {
       '/x@evil.example',
       '/echo-headersX',
       '\\\\evil',
+      // path parameters / normalisation of Tomcat, Spring, Jetty …: /echo-headers/..;/delay is /delay there
+      '/echo-headers/..;/delay',
+      '/echo-headers/..;x=1/delay',
+      '/echo-headers;x=1',
+      '/echo-headers/%3b',
     ]) {
       const r = await call(tok.olivia, 'platform_call_operation', { platformId: gw.id, path });
       expect(r.isError, path).toBe(true);
@@ -648,6 +654,54 @@ describe('MCP platform gateway (read-only)', () => {
     const big = await call(tok.olivia, 'platform_call_operation', { platformId: gw.id, path: '/big', query: { kb: 700 } });
     expect(big.data.truncated).toBe(true);
     expect(big.res.text.length).toBeLessThan(300_000);
+  });
+
+  it('masks a query API key in every URL encoding (body and Link header)', async () => {
+    const key = 'k3y~Sup3rS3cret~Value';
+    const q = await s.api('POST', '/platforms', {
+      name: 'Gateway query key',
+      kind: 'generic',
+      baseUrl: `${s.base}/mock/test`,
+      config: { auth: { type: 'apiKey', apiKeyIn: 'query', apiKeyName: 'api_key' }, variables: {}, http: { proxy: 'none' } },
+      secrets: { apiKey: key },
+    });
+    try {
+      await s.api('PUT', `/platforms/${q.id}/mcp-gateway`, { enabled: true, allowedPathPrefixes: ['/echo-url'] });
+      for (const query of [{}, { lowerHex: '1' }]) {
+        const r = await call(tok.olivia, 'platform_call_operation', { platformId: q.id, path: '/echo-url', query });
+        expect(r.isError, String(r.data)).toBe(false);
+        expect(r.data.body.url).toContain('api_key=***');
+        expect(r.data.headers.link).toContain('api_key=***');
+        expect(r.res.text).not.toMatch(/Sup3rS3cret/i);
+      }
+    } finally {
+      await s.api('DELETE', `/platforms/${q.id}`);
+    }
+  });
+
+  it('keeps control characters and refused paths out of the audit log', async () => {
+    const before = (await s.api('GET', '/audit?action=mcp.gateway_refused&limit=500')).length;
+    const bad = [
+      { platformId: gw.id, path: '/echo-headers/x\nFAKE AUDIT LINE' },
+      { platformId: gw.id, path: '/echo-headers/\u001b[31mred' },
+      { platformId: ih.id, operation: 'getUser', pathParams: { id: 'a', 'evil\nFAKE AUDIT LINE': 'b' } },
+      { platformId: ih.id, operation: 'listUsers', query: { 'evil\r\nFAKE AUDIT LINE': '1' } },
+      { platformId: ih.id, operation: 'getUser', pathParams: { id: 'a', 'x\u2028\u202ey': 'b' } },
+    ];
+    for (const args of bad) expect((await call(tok.olivia, 'platform_call_operation', args)).isError, JSON.stringify(args)).toBe(true);
+    const all = await s.api('GET', '/audit?action=mcp.gateway_refused&limit=500');
+    const entries = all.slice(0, all.length - before);
+    expect(entries.length).toBe(bad.length);
+    // eslint-disable-next-line no-control-regex -- the point of the test
+    const control = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
+    const strings = (v: unknown): string[] =>
+      typeof v === 'string' ? [v] : Array.isArray(v) ? v.flatMap(strings) : v && typeof v === 'object' ? Object.values(v).flatMap(strings) : [];
+    for (const e of entries) for (const str of [e.summary, ...strings(e.details)]) expect(control.test(str), JSON.stringify(str)).toBe(false);
+    const literal = entries.filter((e: any) => e.entityId === gw.id);
+    expect(literal.map((e: any) => e.details.pathTemplate)).toEqual(['(invalid)', '(invalid)']);
+    expect(literal.every((e: any) => !e.summary.includes('FAKE AUDIT LINE') && !e.summary.includes('red'))).toBe(true);
+    const q = entries.find((e: any) => e.details.operationId === 'listUsers');
+    expect(q.details.queryParameters).toEqual(['evil\\u000d\\u000aFAKE AUDIT LINE']);
   });
 
   it('obeys the outbound policy', async () => {
@@ -664,20 +718,43 @@ describe('MCP platform gateway (read-only)', () => {
     }
   });
 
-  it('rate-limits per token and platform', async () => {
+  it('rate-limits per user and platform (more tokens do not help)', async () => {
     process.env.SM_MCP_GATEWAY_RATE_LIMIT = '2';
     try {
       const t = await mcpToken(olivia, 'gw rate');
+      const t2 = await mcpToken(olivia, 'gw rate 2');
       expect((await call(t, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).isError).toBe(false);
-      expect((await call(t, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).isError).toBe(false);
+      expect((await call(t2, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).isError).toBe(false);
       const r = await call(t, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' });
       expect(r.isError).toBe(true);
       expect(r.data).toMatch(/Rate limit/);
       // another platform has its own budget
       expect((await call(t, 'platform_call_operation', { platformId: ih.id, operation: 'listUsers' })).isError).toBe(false);
+      expect((await call(t2, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).data).toMatch(/Rate limit/);
+      // another user has their own budget
+      expect((await call(tok.admin, 'platform_call_operation', { platformId: gw.id, path: '/echo-headers' })).isError).toBe(false);
     } finally {
       delete process.env.SM_MCP_GATEWAY_RATE_LIMIT;
     }
+  });
+
+  it('uses at most 2 of the platform connection slots, so runs and monitors are not starved', async () => {
+    const { platformConcurrency } = await import('../src/platforms/http.js');
+    await s.api('PUT', `/platforms/${gw.id}/mcp-gateway`, { enabled: true, allowedPathPrefixes: ['/echo-headers', '/delay'] });
+    let max = 0;
+    let done = false;
+    const watch = (async () => {
+      while (!done) {
+        max = Math.max(max, platformConcurrency(gw.id));
+        await new Promise((r) => setTimeout(r, 10));
+      }
+    })();
+    const users = [tok.admin, tok.olivia, tok.admin, tok.olivia, tok.admin];
+    const results = await Promise.all(users.map((t) => call(t, 'platform_call_operation', { platformId: gw.id, path: '/delay', query: { ms: 400 } })));
+    done = true;
+    await watch;
+    for (const r of results) expect(r.isError, String(r.data)).toBe(false);
+    expect(max).toBe(2);
   });
 
   it('turning it off removes the tools', async () => {

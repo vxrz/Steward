@@ -109,6 +109,47 @@ describe('HTTP retries', () => {
   });
 });
 
+describe('redaction of query API keys', () => {
+  it('masks the key in every URL encoding in the run journal and logs', async () => {
+    // URLSearchParams (buildUrl) escapes ~ as %7E, encodeURIComponent does not; the echo uses both cases of hex
+    const key = 'k3y~Sup3rS3cret~Value';
+    const api = (
+      await s.api('POST', '/platforms', {
+        name: 'Query key API',
+        kind: 'generic',
+        baseUrl: `${s.base}/mock`,
+        config: { auth: { type: 'apiKey', apiKeyIn: 'query', apiKeyName: 'api_key' }, variables: {}, http: { proxy: 'none' } },
+        secrets: { apiKey: key },
+      })
+    ).id;
+    const id = await createProcess({
+      connections: [{ slot: 'api' }],
+      nodes: [
+        n('start', 'start'),
+        n('upper', 'http', { connection: 'api', method: 'GET', path: '/test/echo-url', saveAs: 'a' }),
+        n('lower', 'http', { connection: 'api', method: 'GET', path: '/test/echo-url', query: { lowerHex: 1 }, saveAs: 'b' }),
+        n('show', 'log', { message: 'urls {{ vars.a.body.url }} {{ vars.b.body.url }} {{ vars.a.headers.link }} {{ vars.b.headers.link }}' }),
+      ],
+      wires: [w('start', 'upper'), w('upper', 'lower'), w('lower', 'show')],
+    });
+    const r = await runToEnd(id, { bindings: { api } });
+    expect([r.status, r.error]).toEqual(['succeeded', null]);
+    const steps = await Promise.all(r.steps.map((x: any) => s.api('GET', `/runs/${r.id}/steps/${x.id}`)));
+    expect(JSON.stringify(steps)).toContain('api_key=***');
+    const d = (await import('../src/db.js')).db();
+    const everything = JSON.stringify([
+      r,
+      steps,
+      d.all('SELECT * FROM run_steps WHERE run_id = ?', r.id),
+      d.all('SELECT * FROM run_logs WHERE run_id = ?', r.id),
+      d.all('SELECT * FROM audit_log WHERE run_id = ?', r.id),
+    ]);
+    expect(everything).toContain('urls ');
+    expect(everything).not.toMatch(/Sup3rS3cret/i);
+    await s.api('DELETE', `/platforms/${api}`);
+  });
+});
+
 describe('parallel for-each', () => {
   const loopProcess = (concurrency: number) =>
     createProcess({

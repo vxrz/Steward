@@ -426,7 +426,7 @@ export function retryDelay(policy: RetryPolicy, retry: number, retryAfter?: stri
 }
 
 /** Per-platform limit of concurrent requests (FIFO). */
-class Semaphore {
+export class Semaphore {
   active = 0;
   private queue: (() => void)[] = [];
   constructor(public limit: number) {}

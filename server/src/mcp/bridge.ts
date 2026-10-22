@@ -28,6 +28,10 @@ Options:
   --data-dir <path>       Data folder of a local ${BRAND.name}, to check that the URL really is it
                           (default: $SM_DATA_DIR or the per-user folder)
   --allow-http            Allow plain http:// to a host other than this computer (the token travels unencrypted)
+  --wait <seconds>        For a local URL: how long to wait for ${BRAND.name} to start and prove its identity (default 10)
+  --no-instance-check     Send the token to a local URL without the identity check (less safe: any program on
+                          the port gets the token). Only for setups where the check cannot work, e.g. ${BRAND.name}
+                          in Docker published on localhost.
   --timeout <seconds>     Time limit per request (default 60)
   -h, --help              Show this help
 
@@ -45,6 +49,8 @@ const OPTIONS = {
   'api-key-file': { type: 'string' },
   'data-dir': { type: 'string' },
   'allow-http': { type: 'boolean' },
+  wait: { type: 'string' },
+  'no-instance-check': { type: 'boolean' },
   timeout: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const;
@@ -113,6 +119,7 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
   let token: string;
   let endpoint: URL;
   let timeoutMs = 60_000;
+  let waitMs = 10_000;
   try {
     token = readToken(values['api-key-file']);
     const raw = (values.url ?? process.env.STEWARD_URL ?? `http://127.0.0.1:${process.env.SM_PORT ?? 4310}`).trim();
@@ -133,20 +140,56 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
       if (!Number.isFinite(n) || n < 1 || n > 600) throw new UsageError('--timeout takes 1–600 seconds');
       timeoutMs = n * 1000;
     }
+    if (values.wait !== undefined) {
+      const n = Number(values.wait);
+      if (!Number.isFinite(n) || n < 0 || n > 600) throw new UsageError('--wait takes 0–600 seconds');
+      waitMs = n * 1000;
+    }
   } catch (e) {
     if (e instanceof UsageError) return usageFailure(e, command);
     throw e;
   }
 
-  // A local URL could be answered by another program on the port: when our data folder has an
-  // instance file, the server has to prove it is the Steward started from it before it gets the token.
-  if (LOOPBACK(endpoint.hostname)) {
-    const file = path.join(values['data-dir'] ? path.resolve(values['data-dir']) : defaultDataDir(), 'instance.json');
-    const check = await verifyInstanceAt(endpoint.origin, file);
-    if (check === 'mismatch') {
-      err(
-        `${endpoint.origin} is not the ${BRAND.name} started from ${path.dirname(file)} – not sending the token. Is ${BRAND.name} running, or does another program use the port?`,
-      );
+  // A local URL could be answered by another program on the port (for example while Steward is
+  // stopped): the server has to prove it is the Steward started from our data folder (it knows the
+  // secret in its instance.json) before it gets the token – at start and again after a lost connection.
+  const local = LOOPBACK(endpoint.hostname);
+  const instancePath = path.join(values['data-dir'] ? path.resolve(values['data-dir']) : defaultDataDir(), 'instance.json');
+  if (local && values['no-instance-check']) {
+    err(`warning: --no-instance-check – the token goes to whatever program listens on ${endpoint.origin}, without checking that it is ${BRAND.name}`);
+  }
+  const mustProve = local && !values['no-instance-check'];
+  /** Retries while Steward may still be starting; returns an error message, or null when the proof succeeded. */
+  const proveInstance = async (): Promise<string | null> => {
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      const check = await verifyInstanceAt(endpoint.origin, instancePath);
+      if (check === 'ok') return null;
+      if (Date.now() >= deadline) {
+        return check === 'no-file'
+          ? `no ${BRAND.name} has started from ${path.dirname(instancePath)} (no instance.json) – not sending the token to ${endpoint.origin}. Start ${BRAND.name}, give its data folder with --data-dir, or see --no-instance-check (less safe) for Docker setups.`
+          : `${endpoint.origin} is not the ${BRAND.name} started from ${path.dirname(instancePath)} – not sending the token. Is ${BRAND.name} running, or does another program use the port?`;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
+  let proof: Promise<string | null> | null = null;
+  /** The current proof (shared by concurrent requests); started again after a connection error. */
+  const ensureProof = (): Promise<string | null> => {
+    if (!mustProve) return Promise.resolve(null);
+    if (!proof) {
+      const p: Promise<string | null> = proveInstance().then((m) => {
+        if (m && proof === p) proof = null; // try again with the next message
+        return m;
+      });
+      proof = p;
+    }
+    return proof;
+  };
+  if (mustProve) {
+    const m = await ensureProof();
+    if (m) {
+      err(m);
       return EXIT_FAILURE;
     }
   }
@@ -173,6 +216,15 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
     const name = msg.method === 'resources/read' ? msg.params?.uri : msg.method === 'tools/call' || msg.method === 'prompts/get' ? msg.params?.name : undefined;
     if (typeof name === 'string') headers['mcp-name'] = headerValue(name);
     const fail = (message: string, code = -32603) => isRequest && write({ jsonrpc: '2.0', id: msg.id, error: { code, message } });
+    const refused = await ensureProof();
+    if (refused || ac.signal.aborted) {
+      if (isRequest) inFlight.delete(key);
+      if (refused && !ac.signal.aborted) {
+        err(refused);
+        fail(refused);
+      }
+      return;
+    }
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
@@ -207,6 +259,8 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
       if (!bodies.length && !res.ok) fail(`${BRAND.name} answered HTTP ${res.status}`);
     } catch (e) {
       if (ac.signal.aborted) return; // cancelled by the client: no answer
+      // Steward may have stopped and another program may take the port: prove its identity again before the next request.
+      if ((e as Error).name !== 'TimeoutError') proof = null;
       const m =
         (e as Error).name === 'TimeoutError'
           ? `no answer from ${BRAND.name} within ${timeoutMs / 1000} s`

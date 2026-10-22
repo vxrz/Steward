@@ -287,10 +287,16 @@ export function secretEncodings(value: string): string[] {
     /* ignore */
   }
   try {
-    out.add(encodeURIComponent(value));
-    out.add(encodeURI(value));
+    const uri = encodeURIComponent(value);
+    const form = new URLSearchParams({ a: value }).toString().slice(2); // x-www-form-urlencoded: also ~ ! ' ( ) escaped, space as +
+    const pct = (c: string) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`;
+    // encodeURIComponent, with + for spaces, encodeURI, RFC 3986 strict (! ' ( ) * escaped), URLSearchParams (+ and %20) …
+    for (const v of [uri, uri.replace(/%20/g, '+'), encodeURI(value), uri.replace(/[!'()*]/g, pct), form, form.replace(/\+/g, '%20')]) {
+      out.add(v);
+      out.add(v.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase())); // … and each with lowercase hex digits
+    }
   } catch {
-    /* ignore */
+    /* ignore (lone surrogates) */
   }
   // JSON string escaping (quotes stripped so it matches inside a larger body)
   const j = JSON.stringify(value);

@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -54,6 +56,9 @@ beforeAll(async () => {
   await setup(s);
   await s.api('PUT', '/mcp-server', { enabled: true });
   token = (await s.api('POST', '/me/tokens', { name: 'bridge', scope: 'mcp' })).token;
+  // as main.ts does once the server listens: the bridge checks this proof before it sends the token
+  const { writeInstanceFile } = await import('../src/instance.js');
+  writeInstanceFile(s.base);
 });
 afterAll(async () => s?.app.close());
 
@@ -110,10 +115,144 @@ describe('MCP stdio bridge', () => {
       path.join(dir, 'instance.json'),
       JSON.stringify({ v: 1, product: 'steward', instanceId: 'other', secret: Buffer.alloc(32).toString('base64'), pid: 1, url: s.base, startedAt: '' }),
     );
-    const r = await bridge(['--url', s.base, '--data-dir', dir], [], { STEWARD_API_KEY: token }, 0);
+    const r = await bridge(['--url', s.base, '--data-dir', dir, '--wait', '0'], [], { STEWARD_API_KEY: token }, 0);
     expect(r.code).toBe(1);
     expect(r.stderr).toMatch(/not the Steward started from/);
   }, 40_000);
+
+  it('does not send the token to a local port while no instance file proves it is Steward', async () => {
+    // a program on a local port while Steward is stopped (no instance.json in the data folder)
+    const seen: (string | undefined)[] = [];
+    const fake = http.createServer((req, res) => {
+      seen.push(req.headers.authorization);
+      res.writeHead(200, { 'content-type': 'application/json' }).end('{"jsonrpc":"2.0","id":1,"result":{}}');
+    });
+    await new Promise<void>((r) => fake.listen(0, '127.0.0.1', r));
+    try {
+      const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-bridge-'));
+      const url = `http://127.0.0.1:${(fake.address() as AddressInfo).port}`;
+      const started = Date.now();
+      const r = await bridge(
+        ['--url', url, '--data-dir', empty, '--wait', '1'],
+        [{ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta } }],
+        {
+          STEWARD_API_KEY: token,
+        },
+        0,
+      );
+      expect(r.code).toBe(1);
+      expect(r.stderr).toMatch(/no Steward has started from .*not sending the token.*--no-instance-check/s);
+      expect(Date.now() - started).toBeGreaterThanOrEqual(1000); // it waited for Steward to start
+      expect(seen.filter(Boolean)).toEqual([]);
+      expect(r.stderr).not.toContain(token);
+    } finally {
+      fake.close();
+    }
+  }, 40_000);
+
+  it('waits for a local Steward that is still starting', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-bridge-'));
+    const pending = bridge(
+      ['--url', s.base, '--data-dir', dir, '--wait', '20'],
+      [{ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta } }],
+      {
+        STEWARD_API_KEY: token,
+      },
+    );
+    await new Promise((r) => setTimeout(r, 1500));
+    fs.copyFileSync(path.join(s.dataDir, 'instance.json'), path.join(dir, 'instance.json'));
+    const r = await pending;
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.lines[0].result.supportedVersions).toEqual(['2026-07-28']);
+  }, 40_000);
+
+  it('--no-instance-check skips the proof with a warning', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-bridge-'));
+    const r = await bridge(
+      ['--url', s.base, '--data-dir', empty, '--no-instance-check'],
+      [{ jsonrpc: '2.0', id: 1, method: 'server/discover', params: { _meta: meta } }],
+      {
+        STEWARD_API_KEY: token,
+      },
+    );
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.lines[0].result.supportedVersions).toEqual(['2026-07-28']);
+    expect(r.stderr).toMatch(/warning: --no-instance-check/);
+  }, 40_000);
+
+  it('proves the identity again after the connection was lost', async () => {
+    // a stand-in for Steward on its own port that knows the secret of its data folder …
+    const { proofOf } = await import('../src/instance-proof.js');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-bridge-'));
+    const secret = Buffer.alloc(32, 7).toString('base64');
+    const seen: { who: string; auth?: string }[] = [];
+    const serve = (who: string, port: number) =>
+      new Promise<http.Server>((resolve) => {
+        const srv = http.createServer((req, res) => {
+          const u = new URL(req.url!, 'http://x');
+          if (u.pathname === '/api/instance') {
+            const proof = who === 'steward' ? proofOf(secret, u.searchParams.get('challenge')!, port) : 'nope';
+            res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ instanceId: 'i1', proof }));
+            return;
+          }
+          seen.push({ who, auth: req.headers.authorization });
+          let body = '';
+          req.on('data', (d) => (body += d));
+          req.on('end', () =>
+            res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ jsonrpc: '2.0', id: JSON.parse(body).id, result: { who } })),
+          );
+        });
+        srv.listen(port, '127.0.0.1', () => resolve(srv));
+      });
+    let steward = await serve('steward', 0);
+    const port = (steward.address() as AddressInfo).port;
+    steward.close();
+    steward = await serve('steward', port);
+    fs.writeFileSync(path.join(dir, 'instance.json'), JSON.stringify({ v: 1, product: 'steward', instanceId: 'i1', secret, pid: 1, url: '', startedAt: '' }));
+
+    const child = spawn(process.execPath, ['--import', 'tsx', 'server/src/cli/mcp.ts', '--url', `http://127.0.0.1:${port}`, '--data-dir', dir, '--wait', '1'], {
+      cwd: root,
+      env: { ...process.env, STEWARD_API_KEY: token } as NodeJS.ProcessEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    const answer = async (id: number) => {
+      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/list', params: { _meta: meta } })}\n`);
+      for (let i = 0; i < 100; i++) {
+        const line = stdout
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => JSON.parse(l))
+          .find((l) => l.id === id);
+        if (line) return line;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      throw new Error(`no answer to ${id}: ${stderr}`);
+    };
+    try {
+      expect((await answer(1)).result.who).toBe('steward');
+      // Steward stops …
+      steward.closeAllConnections();
+      await new Promise((r) => steward.close(r));
+      expect((await answer(2)).error.message).toMatch(/cannot reach/);
+      // … and another program takes the port
+      const impostor = await serve('impostor', port);
+      try {
+        expect((await answer(3)).error.message).toMatch(/not the Steward started from/);
+        expect(seen.filter((x) => x.who === 'impostor')).toEqual([]);
+      } finally {
+        impostor.closeAllConnections();
+        impostor.close();
+      }
+      expect(seen.filter((x) => x.who === 'steward').map((x) => x.auth)).toEqual([`Bearer ${token}`]);
+    } finally {
+      child.stdin.end();
+      child.kill();
+    }
+  }, 60_000);
 
   it('usage errors: no token, plain http to another host, bad URL', async () => {
     const none = await bridge(['--url', s.base], [], {}, 0);
@@ -124,6 +263,9 @@ describe('MCP stdio bridge', () => {
     expect(http.stderr).toMatch(/unencrypted/);
     const bad = await bridge(['--url', 'ftp://x'], [], { STEWARD_API_KEY: token }, 0);
     expect(bad.code).toBe(2);
+    const wait = await bridge(['--url', s.base, '--wait', 'soon'], [], { STEWARD_API_KEY: token }, 0);
+    expect(wait.code).toBe(2);
+    expect(wait.stderr).toMatch(/--wait/);
     const help = await new Promise<string>((resolve) => {
       const c = spawn(process.execPath, ['--import', 'tsx', 'server/src/cli/mcp.ts', '--help'], { cwd: root });
       let out = '';
@@ -131,5 +273,6 @@ describe('MCP stdio bridge', () => {
       c.on('close', () => resolve(out));
     });
     expect(help).toMatch(/--api-key-file/);
+    expect(help).toMatch(/--no-instance-check/);
   }, 60_000);
 });
