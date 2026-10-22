@@ -26,6 +26,27 @@ import { permissionsOfRow } from './model.js';
  * at most once per endpoint and reason every 10 minutes.
  */
 
+/**
+ * Global cap on concurrent heartbeat evaluations across all gateways/batches, so
+ * a flood of gateway reports cannot amplify into unbounded CPU on the shared
+ * Node process (each evaluation runs guarded JSONata and DB writes).
+ */
+const MAX_CONCURRENT_EVALS = Number(process.env.SM_MONITOR_EVAL_CONCURRENCY) || 8;
+let activeEvals = 0;
+const evalQueue: (() => void)[] = [];
+function acquireEval(): Promise<() => void> {
+  const release = () => {
+    const next = evalQueue.shift();
+    if (next) next();
+    else activeEvals--;
+  };
+  if (activeEvals < MAX_CONCURRENT_EVALS) {
+    activeEvals++;
+    return Promise.resolve(release);
+  }
+  return new Promise((resolve) => evalQueue.push(() => resolve(release)));
+}
+
 export type MonitorHookRequest = Omit<HookRequest, 'triggerId' | 'query'>;
 export interface MonitorHookResponse {
   status: number;
@@ -231,7 +252,17 @@ export async function handleGatewayBatch(req: MonitorHookRequest): Promise<Monit
     }
     store(t!, r);
     accepted.push({ key: r.key!, monitorId: t!.monitor_id, checkId: t!.check_id });
-    evaluations.push(engine.evaluateCheck(t!.monitor_id, t!.check_id));
+    const target = t!;
+    evaluations.push(
+      (async () => {
+        const release = await acquireEval();
+        try {
+          await engine.evaluateCheck(target.monitor_id, target.check_id);
+        } finally {
+          release();
+        }
+      })(),
+    );
   }
   await withTimeout(Promise.all(evaluations), 5000);
   countGateway(g.id, 'accepted', accepted.length);

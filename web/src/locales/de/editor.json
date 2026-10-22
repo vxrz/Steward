@@ -178,7 +178,7 @@
     },
     "browser": {
       "label": "Browser-Automatisierung",
-      "description": "Steuert einen echten Browser (Playwright): Seiten öffnen, Formulare ausfüllen, klicken, Text auslesen und Screenshots als Nachweis erstellen. Alle Browser-Schritte einer Ausführung teilen sich eine Browser-Sitzung.",
+      "description": "Steuert einen echten Browser (Playwright): Seiten öffnen, Formulare ausfüllen, klicken, Text auslesen und Screenshots als Nachweis erstellen. Alle Browser-Schritte einer Ausführung teilen sich eine Browser-Sitzung. Probeläufe überspringen nur Schritte, die als „Ändert Daten“ markiert sind; andernfalls werden Interaktionen (Klicken, Ausfüllen …) weiterhin ausgeführt und können Daten im Portal verändern – verwenden Sie „Im Probelauf nur lesen“ für einen Schritt, der sich gefahrlos vorab ausführen lassen soll.",
       "fields": {
         "connection": {
           "label": "Verbindung (für Basis-URL & Geheimnisse)"
@@ -188,6 +188,9 @@
         },
         "mutating": {
           "label": "Ändert Daten (im Probelauf überspringen)"
+        },
+        "dryRunReadOnly": {
+          "label": "Im Probelauf nur lesen (Klicken/Ausfüllen … im Probelauf überspringen)"
         }
       }
     },

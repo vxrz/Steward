@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import { fetch, EnvHttpProxyAgent } from 'undici';
+import { fetch, Agent } from 'undici';
 import { CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
 import { PRESETS, PRESET_SPECS } from './presets.js';
-import { addSpec, createPlatform, getPlatform, getSecrets, getSecretsUnchecked, listDocs, listSpecs, getSpecContent, type PlatformInput } from './service.js';
+import { addSpec, createPlatform, getPlatform, getSecrets, getSecretsUnchecked, listDocs, listSpecs, getSpecContent, listPlatforms, type PlatformInput } from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
+import { assertOutboundAllowed, guardedLookup } from './outbound.js';
 
 /**
  * Connector types: a configured platform saved as a reusable template
@@ -135,7 +136,8 @@ export async function fetchSpec(platformId: string, url: string): Promise<string
     return typeof res.body === 'string' ? res.body : JSON.stringify(res.body);
   }
   if (!/^https:\/\//i.test(url) && !/^http:\/\/(127\.0\.0\.1|localhost)/i.test(url)) throw new HttpError(400, 'Only https URLs are allowed');
-  const res = await fetch(url, { dispatcher: new EnvHttpProxyAgent(), signal: AbortSignal.timeout(30000) });
+  await assertOutboundAllowed(url, { platforms: () => listPlatforms(), resolveOrigin: (pl) => resolveBaseUrl(pl, getSecrets(pl.id)) });
+  const res = await fetch(url, { dispatcher: new Agent({ connect: { lookup: guardedLookup } }), signal: AbortSignal.timeout(30000) });
   if (!res.ok) throw new HttpError(400, `Download failed: HTTP ${res.status}`);
   const text = await res.text();
   if (text.length > MAX_SPEC_BYTES) throw new HttpError(400, 'Specification is too large');

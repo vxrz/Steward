@@ -175,6 +175,13 @@ export interface BrowserConfig {
   connection?: string;
   actions: BrowserAction[];
   mutating?: boolean;
+  /**
+   * In a dry run, skip actions that interact with the page (click, fill, press,
+   * select, check, evaluate) and run only navigation/read/screenshot actions.
+   * Default false – a dry run otherwise still performs those interactions, so a
+   * step that clicks or fills can change data in the target portal.
+   */
+  dryRunReadOnly?: boolean;
 }
 /**
  * Publish a data snapshot (and metric values) for dashboards. Each run replaces
@@ -295,7 +302,7 @@ const shapes = {
     rows: z.string().optional(),
     columns: z.array(columnSchema).optional(),
   },
-  browser: { type: z.literal('browser'), connection: z.string().optional(), actions: z.array(browserActionSchema), mutating: z.boolean().optional() },
+  browser: { type: z.literal('browser'), connection: z.string().optional(), actions: z.array(browserActionSchema), mutating: z.boolean().optional(), dryRunReadOnly: z.boolean().optional() },
   publish: {
     type: z.literal('publish'),
     dataset: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.users)'),

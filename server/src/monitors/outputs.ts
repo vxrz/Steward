@@ -1,4 +1,6 @@
 import { EnvHttpProxyAgent, fetch } from 'undici';
+import { assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
+import { outboundContext } from '../platforms/policyContext.js';
 import {
   BRAND,
   MONITOR_STATUS_CODE,
@@ -67,7 +69,7 @@ const RETRY_MS = 60000;
 const lastAttempt = new Map<string, number>();
 /** First time a notification was held back (holdSeconds). */
 const holding = new Map<string, number>();
-const proxy = new EnvHttpProxyAgent();
+const proxy = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, requestTls: { lookup: guardedLookup } } as never);
 
 export const includeOf = (o: OutputDef) => o.include ?? (o.type === 'notification' || o.type === 'process' ? 'monitor' : 'all');
 const suppressOf = (o: OutputDef) => o.suppressDependents ?? (o.type === 'notification' || o.type === 'process');
@@ -273,6 +275,7 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
     if (!r.ok) throw new Error(`HTTP ${r.status} from "${platform.name}"`);
     return;
   }
+  await assertOutboundAllowed(o.url!, outboundContext());
   const res = await fetch(o.url!, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
@@ -337,6 +340,7 @@ async function sendZabbix(o: Extract<OutputDef, { type: 'zabbix' }>, m: LoadedMo
   const host = String(vars.trapperHost || safeHost(platform.baseUrl));
   const port = Number(vars.trapperPort || 10051);
   if (!host) throw new Error('No trapper host: set the platform variable "trapperHost"');
+  await assertNetAllowed(host, port, outboundContext());
   const r = await zabbixSend(host, port, items);
   if (r.failed > 0 || r.processed < items.length) {
     throw new Error(`Zabbix processed ${r.processed} of ${items.length} values (failed: ${r.failed}) – check the host name, the item keys and that the items are of type "Zabbix trapper"`);

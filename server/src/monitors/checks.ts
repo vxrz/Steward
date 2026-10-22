@@ -5,6 +5,8 @@ import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
 import type { CheckOf, MonitorStatus } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
 import { platformRequest } from '../platforms/http.js';
+import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
+import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
@@ -38,7 +40,7 @@ const truthy = (v: unknown) => Boolean(Array.isArray(v) ? v.length : v);
 export function tcpConnect(host: string, port: number, timeoutMs: number, signal?: AbortSignal): Promise<{ ok: boolean; ms: number; code?: string }> {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const sock = net.connect({ host, port });
+    const sock = net.connect({ host, port, lookup: guardedLookup });
     let done = false;
     const finish = (ok: boolean, code?: string) => {
       if (done) return;
@@ -66,6 +68,7 @@ const TCP_MESSAGES: Record<string, string> = {
 };
 
 async function checkTcp(c: CheckOf<'tcp'>, ctx: ExecContext): Promise<RawResult> {
+  await assertNetAllowed(c.host, c.port, outboundContext());
   const r = await tcpConnect(c.host, c.port, ctx.timeoutMs, ctx.signal);
   if (!r.ok) return { status: 'down', message: `${c.host}:${c.port} – ${TCP_MESSAGES[r.code ?? ''] ?? r.code}`, durationMs: r.ms };
   if (c.degradedMs && r.ms > c.degradedMs) return { status: 'degraded', message: `Connected in ${r.ms} ms (warning above ${c.degradedMs} ms)`, durationMs: r.ms };
@@ -96,6 +99,7 @@ function runPing(host: string, timeoutMs: number): Promise<{ unavailable: string
 }
 
 async function checkPing(c: CheckOf<'ping'>, ctx: ExecContext): Promise<RawResult> {
+  await assertNetAllowed(c.host, c.fallbackPort ?? 0, outboundContext());
   if (Date.now() >= pingUnavailableUntil) {
     const t0 = Date.now();
     const r = await runPing(c.host, ctx.timeoutMs);
@@ -131,7 +135,7 @@ function dispatcherFor(insecure: boolean, proxy: boolean): Dispatcher {
   const key = `${insecure}|${proxy}`;
   let d = dispatchers.get(key);
   if (!d) {
-    const connect = { rejectUnauthorized: !insecure };
+    const connect = { rejectUnauthorized: !insecure, lookup: guardedLookup };
     d = proxy ? new EnvHttpProxyAgent({ connect, requestTls: connect } as never) : new Agent({ connect });
     dispatchers.set(key, d);
   }
@@ -144,7 +148,7 @@ function certExpiry(host: string, port: number, timeoutMs: number): Promise<numb
   const hit = certCache.get(key);
   if (hit && Date.now() - hit.at < 6 * 3600000) return Promise.resolve(hit.validTo);
   return new Promise((resolve) => {
-    const sock = tls.connect({ host, port, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: false, timeout: timeoutMs });
+    const sock = tls.connect({ host, port, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: false, timeout: timeoutMs, lookup: guardedLookup });
     const done = (v: number | null) => {
       sock.destroy();
       if (v !== null) certCache.set(key, { at: Date.now(), validTo: v });
@@ -180,23 +184,58 @@ async function evaluateCondition(expr: string | undefined, scope: unknown): Prom
   }
 }
 
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * fetch for monitor http checks that follows redirects manually (max 5): the
+ * check's own headers (which may carry credentials) are only sent to the initial
+ * origin and dropped on any cross-origin redirect, and each hop is re-checked
+ * against the outbound policy. The default `redirect: 'follow'` keeps custom
+ * headers across origins, which would leak them.
+ */
+async function monitorFetch(c: CheckOf<'http'>, signal: AbortSignal): Promise<Awaited<ReturnType<typeof fetch>>> {
+  const dispatcher = dispatcherFor(!!c.insecureTls, c.useProxy !== false);
+  let url = c.url;
+  let method = c.method;
+  let body: string | undefined = c.method === 'POST' ? (c.body ?? '') : undefined;
+  const initialOrigin = new URL(c.url).origin;
+  for (let hop = 0; ; hop++) {
+    const sameOrigin = new URL(url).origin === initialOrigin;
+    const headers: Record<string, string> = { 'user-agent': `${BRAND.slug}-monitor` };
+    if (sameOrigin) for (const [k, v] of Object.entries(c.headers ?? {})) headers[k] = v;
+    const res = await fetch(url, { method, headers, body, dispatcher, signal, redirect: 'manual' });
+    const location = res.headers.get('location');
+    if (!REDIRECT_CODES.has(res.status) || !location || hop >= 5) return res;
+    let next: URL;
+    try {
+      next = new URL(location, url);
+    } catch {
+      return res;
+    }
+    await assertAddressSafe(next.toString());
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
+      method = 'GET';
+      body = undefined;
+    }
+    url = next.toString();
+  }
+}
+
 async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResult> {
   const matcher = statusMatcher(c.expectStatus);
   const t0 = Date.now();
+  try {
+    await assertOutboundAllowed(c.url, outboundContext());
+  } catch (e) {
+    return { status: 'unknown', message: `Target not allowed: ${(e as Error).message}`.slice(0, 300), durationMs: Date.now() - t0 };
+  }
   let res;
   try {
-    res = await fetch(c.url, {
-      method: c.method,
-      headers: { 'user-agent': `${BRAND.slug}-monitor`, ...(c.headers ?? {}) },
-      body: c.method === 'POST' ? (c.body ?? '') : undefined,
-      dispatcher: dispatcherFor(!!c.insecureTls, c.useProxy !== false),
-      signal: AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
-      redirect: 'follow',
-    });
+    res = await monitorFetch(c, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]));
   } catch (e) {
     const err = e as Error & { cause?: Error & { code?: string } };
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
-    return { status: 'down', message: `${c.method} ${c.url} failed: ${timedOut ? 'timeout' : (err.cause?.message ?? err.message)}`, durationMs: Date.now() - t0 };
+    return { status: 'down', message: `${c.method} ${c.url} failed: ${timedOut ? 'timeout' : (err.cause?.message ?? err.message)}`.slice(0, 300), durationMs: Date.now() - t0 };
   }
   const text = c.method === 'HEAD' ? '' : await readLimited(res).catch(() => '');
   const durationMs = Date.now() - t0;
@@ -212,7 +251,8 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
   }
   if (!matcher(res.status)) return { status: 'down', message: `HTTP ${res.status} (expected ${c.expectStatus || '200-399'})`, durationMs, value: res.status };
   const cond = await evaluateCondition(c.condition, { status: res.status, headers, body, durationMs });
-  if ('error' in cond) return { status: 'unknown', message: `Condition could not be evaluated: ${cond.error}`, durationMs };
+  // Never echo the upstream response body (the error message may embed it): report only that it errored.
+  if ('error' in cond) return { status: 'unknown', message: 'Condition could not be evaluated (the response did not match the expression)', durationMs };
   if (!cond.ok) return { status: 'down', message: `HTTP ${res.status}, but the condition is false`, durationMs, value: res.status };
   if (/^https:/i.test(c.url) && (c.tlsExpiryWarnDays ?? 14) > 0) {
     const u = new URL(c.url);
@@ -249,7 +289,7 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
   const scope = { status: r.status, headers: r.headers, body: r.body, durationMs };
   if (c.condition?.trim()) {
     const cond = await evaluateCondition(c.condition, scope);
-    if ('error' in cond) return { status: 'unknown', message: `Condition could not be evaluated: ${cond.error}`, durationMs };
+    if ('error' in cond) return { status: 'unknown', message: 'Condition could not be evaluated (the response did not match the expression)', durationMs };
     if (!cond.ok) return { status: 'down', message: `HTTP ${r.status}, but the condition is false`, durationMs, value: r.status };
   } else if (!r.ok) return { status: 'down', message: `HTTP ${r.status} from "${platform.name}"`, durationMs, value: r.status };
   if (c.degradedResponseMs && durationMs > c.degradedResponseMs) {

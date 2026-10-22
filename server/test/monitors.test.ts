@@ -52,6 +52,8 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  // The demo allow-lists loopback (its simulated plant devices are on 127.0.0.1), which
+  // is also what lets these tests reach their ad-hoc loopback check/output servers.
   P = Object.fromEntries((await s.api('GET', '/platforms')).map((p: any) => [p.name, p.id]));
   [dana, olivia, vera] = await Promise.all(['dana', 'olivia', 'vera'].map((u) => s.as(u, PW)));
   eng = await import('../src/monitors/engine.js');
@@ -188,10 +190,10 @@ describe('check types', () => {
           { id: 'tcpDown', name: 'TCP down', type: 'tcp', host: '127.0.0.1', port: closed, timeoutSeconds: 2 },
           // no ping binary or no ICMP in the sandbox: a refused TCP connection still proves the host answers
           { id: 'ping', name: 'Ping', type: 'ping', host: '127.0.0.1', fallbackPort: closed },
-          { id: 'http', name: 'HTTP', type: 'http', url: `${s.base}/api/health`, expectStatus: '200', condition: 'body.ok = true' },
+          { id: 'http', name: 'HTTP', type: 'http', url: `${s.base}/mock/test/delay?ms=0`, expectStatus: '200', condition: 'body.ok = true' },
           { id: 'httpSlow', name: 'HTTP slow', type: 'http', url: `${s.base}/mock/test/delay?ms=300`, degradedResponseMs: 100 },
-          { id: 'httpCond', name: 'HTTP condition', type: 'http', url: `${s.base}/api/health`, condition: 'body.ok = false' },
-          { id: 'http404', name: 'HTTP 404', type: 'http', url: `${s.base}/api/nope`, expectStatus: '200-299' },
+          { id: 'httpCond', name: 'HTTP condition', type: 'http', url: `${s.base}/mock/test/delay?ms=0`, condition: 'body.ok = false' },
+          { id: 'http404', name: 'HTTP 404', type: 'http', url: `${s.base}/mock/nope`, expectStatus: '200-299' },
           { id: 'platform', name: 'IH users', type: 'platform', platform: 'Insights Hub (demo)', path: '/api/identitymanagement/v3/Users', query: { count: '1' }, condition: 'body.totalResults > 0' },
           { id: 'platformBad', name: 'IH missing', type: 'platform', platform: P['Insights Hub (demo)'], path: '/api/nothing-here' },
         ],

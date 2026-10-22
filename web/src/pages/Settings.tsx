@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, Textarea, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconLanguage, IconTrashX } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -110,6 +110,60 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
             />
             <Text size="xs" c="dimmed">
               <Trans t={t} i18nKey="browser.tip" components={{ c: <Code /> }} />
+            </Text>
+          </Stack>
+        </Card>
+        <Card withBorder>
+          <Title order={5} mb="sm">
+            {t('outbound.title')}
+          </Title>
+          <Stack gap="xs">
+            <SegmentedControl
+              disabled={readOnly}
+              fullWidth
+              value={s.outboundPolicy ?? 'platforms'}
+              onChange={(v) => setS({ ...s, outboundPolicy: v as Settings['outboundPolicy'] })}
+              data={[
+                { value: 'platforms', label: t('outbound.platforms') },
+                { value: 'allowList', label: t('outbound.allowList') },
+                { value: 'open', label: t('outbound.open') },
+              ]}
+            />
+            <Text size="xs" c="dimmed">
+              {(s.outboundPolicy ?? 'platforms') === 'open'
+                ? t('outbound.openWarning')
+                : (s.outboundPolicy ?? 'platforms') === 'allowList'
+                  ? t('outbound.allowListHint')
+                  : t('outbound.platformsHint')}
+            </Text>
+            {(s.outboundPolicy ?? 'platforms') === 'open' && (
+              <Alert color="orange" variant="light" p="xs">
+                {t('outbound.openWarning')}
+              </Alert>
+            )}
+            <Textarea
+              disabled={readOnly}
+              label={t('outbound.listLabel')}
+              placeholder={t('outbound.listPlaceholder')}
+              autosize
+              minRows={2}
+              maxRows={8}
+              value={(s.outboundAllowList ?? []).join('\n')}
+              onChange={(e) =>
+                setS({
+                  ...s,
+                  outboundAllowList: e.currentTarget.value
+                    .split('\n')
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+                })
+              }
+            />
+            <Text size="xs" c="dimmed">
+              {t('outbound.listHint')}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {t('outbound.note')}
             </Text>
           </Stack>
         </Card>

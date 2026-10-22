@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, type Settings } from '@sm/shared';
+import { DEFAULT_LOCALE, type OutboundPolicy, type Settings } from '@sm/shared';
 import { db } from './db.js';
 
 const DEFAULTS = (): Settings => ({
@@ -10,6 +10,10 @@ const DEFAULTS = (): Settings => ({
   defaultLocale: DEFAULT_LOCALE,
   retentionMonitorDays: 30,
   apiDocs: 'authenticated',
+  outboundPolicy: (['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
+    ? (process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
+    : 'platforms',
+  outboundAllowList: [],
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
@@ -26,11 +30,15 @@ export function getSettings(): Settings {
       /* ignore */
     }
   }
+  // An explicit environment override always wins over the stored value.
+  if ((['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)) {
+    s.outboundPolicy = process.env.SM_OUTBOUND_POLICY;
+  }
   return s as unknown as Settings;
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'retentionMonitorDays', 'defaultLocale', 'apiDocs'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'retentionMonitorDays', 'defaultLocale', 'apiDocs', 'outboundPolicy', 'outboundAllowList'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

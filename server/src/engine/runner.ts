@@ -26,12 +26,15 @@ import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
-import { platformRequest, resolveBaseUrl, secretValues, type HttpResult } from '../platforms/http.js';
+import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
+import { outboundContext } from '../platforms/policyContext.js';
+import { assertAddressSafe, assertNoSecretLeak, assertOutboundAllowed, egressSecretValues, secretEncodings, type OutboundContext, type SecretBinding } from '../platforms/outbound.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
-import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings } from './expr.js';
+import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
-import { publishDataset } from '../dashboards/datasets.js';
+import { publishDataset, datasetOwner } from '../dashboards/datasets.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
@@ -62,10 +65,12 @@ export class Redactor {
   add(...vals: string[]): void {
     for (const v of vals) {
       if (!v || v.length < 4) continue;
-      this.values.add(v);
+      // Mask the raw value and its simple encodings (base64, URL-encoding, JSON escaping) so a
+      // secret cannot be smuggled into a log/protocol field in an encoded form.
+      for (const enc of secretEncodings(v)) this.values.add(enc);
       const json = JSON.stringify(v).slice(1, -1);
       const url = encodeURIComponent(v);
-      for (const variant of [json, url, url.replace(/%20/g, '+'), Buffer.from(v).toString('base64')]) if (variant !== v && variant.length >= 4) this.values.add(variant);
+      for (const variant of [json, url.replace(/%20/g, '+')]) if (variant !== v && variant.length >= 4) this.values.add(variant);
     }
   }
   /** The registered secret values (for scrubbing error reports). */
@@ -202,24 +207,32 @@ class RunContext {
     };
   }
 
+  /** Guard rails of every expression of this run (default limits, cancelled with the run). */
+  get evalOptions(): EvalOptions {
+    return { signal: this.signal };
+  }
   eval(expr: string, extra?: Bindings) {
-    return evalExpr(expr, this.scope(), this.bindingsFn(extra));
+    return evalExpr(expr, this.scope(), this.bindingsFn(extra), this.evalOptions);
   }
   bool(expr: string, extra?: Bindings) {
-    return evalBool(expr, this.scope(), this.bindingsFn(extra));
+    return evalBool(expr, this.scope(), this.bindingsFn(extra), this.evalOptions);
   }
   list(expr: string, extra?: Bindings) {
-    return evalList(expr, this.scope(), this.bindingsFn(extra));
+    return evalList(expr, this.scope(), this.bindingsFn(extra), this.evalOptions);
   }
   render(v: unknown, extra?: Bindings) {
-    return render(v, this.scope(), this.bindingsFn(extra));
+    return render(v, this.scope(), this.bindingsFn(extra), this.evalOptions);
   }
   str(v: string | undefined, extra?: Bindings) {
-    return renderString(v, this.scope(), this.bindingsFn(extra));
+    return renderString(v, this.scope(), this.bindingsFn(extra), this.evalOptions);
   }
   /** Evaluate an expression against a single item ($item, and item fields at root). */
   item(expr: string, item: unknown) {
-    return evalExpr(expr, item, this.bindingsFn({ item, vars: this.vars, inputs: this.inputs }));
+    return evalExpr(expr, item, this.bindingsFn({ item, vars: this.vars, inputs: this.inputs }), this.evalOptions);
+  }
+  /** Evaluate an expression against response data (pagination paths). */
+  data(expr: string, root: unknown) {
+    return evalExpr(expr, root, {}, this.evalOptions);
   }
 
   log(level: 'debug' | 'info' | 'warn' | 'error', message: string, stepKey?: string | null, data?: unknown) {
@@ -647,7 +660,15 @@ function activationKey(ctx: RunContext, scope: string | null, nodeId: string): s
 }
 
 /** Execute a node, then everything wired to the ports it fires (depth first, top-to-bottom). */
+/** Last time a run handed the event loop back (shared: the event loop is shared too). */
+let lastYield = performance.now();
+
 async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): Promise<void> {
+  // A run of many cheap steps never waits for I/O; let other requests in regularly.
+  if (performance.now() - lastYield > 20) {
+    await yieldToEventLoop();
+    lastYield = performance.now();
+  }
   if (ctx.signal.aborted) throw new Cancelled();
   if (node.type === 'note') return;
   const key = activationKey(ctx, scope, node.id);
@@ -1131,6 +1152,30 @@ function describe(v: unknown): string {
   return s.length > 60 ? s.slice(0, 60) + '…' : s;
 }
 
+/** Outbound destination policy context for this server (all configured platforms). */
+export function engineOutboundContext(): OutboundContext {
+  return outboundContext();
+}
+
+/** Secrets of all platforms bound to this run, with their allowed-origin check (for egress scanning). */
+function secretBindings(ctx: RunContext): SecretBinding[] {
+  return Object.values(ctx.bindings).map((b) => ({
+    platformName: b.platform.name,
+    values: egressSecretValues(b.secrets),
+    allowed: (url: string) => credentialsAllowed(b.platform, b.secrets, url),
+  }));
+}
+
+/**
+ * Gate a process-controlled outbound request: the destination must pass the
+ * outbound policy (SSRF) and must not carry any bound platform's secret to an
+ * origin that platform does not allow. Shared by the http and browser nodes.
+ */
+async function enforceOutbound(ctx: RunContext, url: string, headers: Record<string, string> = {}, body?: unknown): Promise<void> {
+  await assertOutboundAllowed(url, engineOutboundContext());
+  await assertNoSecretLeak(url, headers, body, secretBindings(ctx));
+}
+
 async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
@@ -1162,6 +1207,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   ctx.redactor.add(...secretValues(b.secrets));
   const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
   const doRequest = async (url: string, q: Record<string, unknown>) => {
+    const target = await buildUrl(b.platform, b.secrets, url, q);
+    await enforceOutbound(ctx, target, headers, body);
     const res = await platformRequest(b.platform, b.secrets, { method: step.method, url, query: q, headers, body, bodyType: step.bodyType }, ctx.signal);
     ctx.redactor.add(...secretValues(b.secrets));
     if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
@@ -1188,7 +1235,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   let totalMs = 0;
   const extract = async (bodyVal: unknown): Promise<unknown[]> => {
     if (pg.itemsPath) {
-      const v = await evalExpr(pg.itemsPath, bodyVal);
+      const v = await ctx.data(pg.itemsPath, bodyVal);
       return v === undefined || v === null ? [] : Array.isArray(v) ? v : [v];
     }
     if (Array.isArray(bodyVal)) return bodyVal;
@@ -1231,7 +1278,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
       items.push(...page);
       if (page.length === 0 || pages >= maxPages) break;
       if (pg.mode === 'page') {
-        const totalPages = Number(await evalExpr(pg.totalPagesPath ?? 'page.totalPages', res.body));
+        const totalPages = Number(await ctx.data(pg.totalPagesPath ?? 'page.totalPages', res.body));
         pageNo++;
         if (Number.isFinite(totalPages) && totalPages > 0) {
           if (pageNo - (pg.firstPage ?? 0) >= totalPages) break;
@@ -1250,7 +1297,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
       lastStatus = res.status;
       totalMs += res.durationMs;
       items.push(...(await extract(res.body)));
-      const next = await evalExpr(pg.nextPath ?? '_links.next.href', res.body);
+      const next = await ctx.data(pg.nextPath ?? '_links.next.href', res.body);
       url = typeof next === 'string' && next ? next : undefined;
       q = {};
       if (pages >= maxPages) break;
@@ -1274,6 +1321,14 @@ function auditWrite(ctx: RunContext, b: Binding, step: NodeOf<'http'>, p: string
     summary: `${step.method} ${p} on "${b.platform.name}" → HTTP ${res.status}`,
     details: { stepKey: key, status: res.status, durationMs: res.durationMs },
   });
+}
+
+function originOfSafe(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
 }
 
 function joinUrl(base: string, p: string): string {
@@ -1327,6 +1382,22 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     else ctx.log('warn', `Metric "${name}" is not a number – skipped`, key);
   }
   const run = store.runRow(ctx.runId);
+  // A dataset key is owned by the first process to publish it. A real run by another
+  // process is rejected inside publishDataset (dashboard poisoning). A *dry run* by
+  // another process must not fail or overwrite the owner's data – e.g. previewing a
+  // second instance of a template that publishes the same key – so it returns a preview.
+  const owner = datasetOwner(step.dataset);
+  if (ctx.dryRun && owner && owner !== run.process_id) {
+    const statusCounts: Record<string, number> = {};
+    for (const r of rows) if (r._status) statusCounts[r._status] = (statusCounts[r._status] ?? 0) + 1;
+    const counts = Object.entries(statusCounts).map(([k, n]) => `${n} ${k}`).join(', ');
+    ctx.log('info', `DRY RUN – "${step.dataset}" is owned by another process; it was not written`, key);
+    return {
+      status: 'dryrun',
+      output: { dataset: step.dataset, rows: rows.length, statusCounts, metrics, dryRun: true },
+      summary: `DRY RUN – would publish ${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}`,
+    };
+  }
   const meta = publishDataset({
     key: step.dataset,
     title: step.title || step.name || step.dataset,
@@ -1447,28 +1518,74 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
   }
   const settings = getSettings();
   if (!ctx.browser) {
+    const outCtx = engineOutboundContext();
     ctx.browser = await openBrowser({
       headless: settings.browserHeadless,
       timeoutMs: settings.browserTimeoutMs,
       ignoreHttpsErrors: !!b?.platform.config.http?.insecureTls,
+      // Navigation obeys the full outbound policy; sub-resources need only be address-safe
+      // (metadata / link-local / own port), so portals that pull assets from CDNs still load.
+      requestGuard: async (url, navigation) => {
+        try {
+          if (navigation) await assertOutboundAllowed(url, outCtx);
+          else await assertAddressSafe(url);
+          return true;
+        } catch {
+          return false;
+        }
+      },
     });
   }
   const page = ctx.browser.page;
   const portal = b ? (await ctx.str(b.platform.config.portalUrl || b.baseUrl, { vars: b.platform.config.variables })).replace(/\/+$/, '') : '';
+  let portalOrigin = '';
+  try {
+    if (portal) portalOrigin = new URL(portal).origin;
+  } catch {
+    /* ignore */
+  }
+  // The bound platform's own portal is a legitimate destination for its secrets (e.g. a login form).
+  const browserBindings = secretBindings(ctx).map((sb) =>
+    b && sb.platformName === b.platform.name
+      ? { ...sb, allowed: async (url: string) => (await sb.allowed(url)) || (!!portalOrigin && originOfSafe(url) === portalOrigin) }
+      : sb,
+  );
   const extracted: Record<string, unknown> = {};
   const shots: { id: string; name: string; sha256: string }[] = [];
   const done: string[] = [];
   const extraBindings: Bindings = { page: () => ({ url: page.url() }) };
+  // Actions that change the page rather than just read it. In a dry run these still
+  // run (so a non-"mutating" browser step can change data in the target portal);
+  // dryRunReadOnly skips them, and we warn once when they run in a dry run otherwise.
+  const INTERACTION = new Set(['click', 'fill', 'press', 'select', 'check', 'evaluate']);
+  let warnedDryInteraction = false;
   for (const [i, a] of step.actions.entries()) {
     if (ctx.signal.aborted) throw new Cancelled();
     const sel = a.selector ? await ctx.str(a.selector) : '';
     const val = a.value !== undefined ? await ctx.str(a.value, { ...extraBindings, extracted }) : '';
     const opts = a.timeoutMs ? { timeout: a.timeoutMs } : undefined;
     const label = `${i + 1}. ${a.action}${sel ? ` ${sel}` : ''}`;
+    if (ctx.dryRun && INTERACTION.has(a.action)) {
+      if (step.dryRunReadOnly) {
+        ctx.stats.skippedWrites++;
+        done.push(`${label} (skipped – dry run, read-only)`);
+        continue;
+      }
+      if (!warnedDryInteraction) {
+        warnedDryInteraction = true;
+        ctx.log('warn', 'DRY RUN – this browser step performs page interactions (click/fill/…) that may change data in the portal. Mark the step "changes data" or set dryRunReadOnly to skip them.', key);
+      }
+    }
+    // An action that puts a value into the page would send it to the page's current origin:
+    // make sure it is not a platform secret bound for an origin the page is not.
+    if (val && ['fill', 'press', 'select', 'evaluate'].includes(a.action)) {
+      await assertNoSecretLeak(page.url() || portal || 'about:blank', {}, val, browserBindings);
+    }
     try {
       switch (a.action) {
         case 'goto': {
           const url = /^https?:/i.test(val) ? val : portal + (val.startsWith('/') ? '' : '/') + val;
+          await enforceOutbound(ctx, url);
           await page.goto(url, { waitUntil: 'domcontentloaded', ...(opts ?? {}) });
           done.push(`${label} ${url}`);
           break;
