@@ -69,6 +69,31 @@ export async function resolveBaseUrl(p: Platform, secrets: Record<string, string
   return (await renderString(p.baseUrl, authScope(p, secrets))).replace(/\/+$/, '');
 }
 
+/** Whether a request to pathOrUrl may carry the platform's credentials. Relative paths always may. */
+export async function credentialsAllowed(p: Platform, secrets: Record<string, string>, pathOrUrl: string): Promise<boolean> {
+  if (!/^https?:\/\//i.test(pathOrUrl)) return true;
+  let origin: string;
+  try {
+    origin = new URL(pathOrUrl).origin;
+  } catch {
+    return false;
+  }
+  const allowed = new Set<string>();
+  try {
+    if (p.baseUrl) allowed.add(new URL(await resolveBaseUrl(p, secrets)).origin);
+  } catch {
+    /* base URL not resolvable – only explicitly trusted origins count */
+  }
+  for (const o of p.config.http?.trustedOrigins ?? []) {
+    try {
+      allowed.add(new URL(o).origin);
+    } catch {
+      /* ignore invalid entries */
+    }
+  }
+  return allowed.has(origin);
+}
+
 export async function buildUrl(
   p: Platform,
   secrets: Record<string, string>,
@@ -410,17 +435,30 @@ export async function platformRequest(
   signal?: AbortSignal,
 ): Promise<HttpResult> {
   if (!p.baseUrl && !/^https?:/i.test(req.url)) throw new HttpError(400, 'Platform has no base URL');
+  // Credentials (auth header, API key, default headers) only go to the platform's own origin(s).
+  const trusted = await credentialsAllowed(p, secrets, req.url);
   const query = { ...(req.query ?? {}) };
-  if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query') {
+  if (trusted && p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query') {
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
+  if (!trusted) {
+    let host = '';
+    try {
+      host = new URL(url).host;
+    } catch {
+      /* invalid URL – reported by fetch */
+    }
+    logger.warn({ platform: p.name, host }, 'request to a host outside the platform – sent without credentials (see http.trustedOrigins)');
+  }
   const send = async (attempt: number) => {
     const headers: Record<string, string> = {};
-    for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
+    if (trusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
     for (const [k, v] of Object.entries(req.headers ?? {})) headers[k.toLowerCase()] = v;
-    const auth = await obtainAuthHeader(p, secrets, signal);
-    if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+    if (trusted) {
+      const auth = await obtainAuthHeader(p, secrets, signal);
+      if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+    }
     return rawRequest(p, { ...req, url, headers }, signal, attempt);
   };
   const policy = retryPolicy(p);
@@ -480,8 +518,13 @@ export async function platformRequest(
 }
 
 /** Sensitive values that must never appear in logs for this platform. */
+/** Credential fields that identify rather than authenticate – masking them would corrupt ordinary data. */
+const IDENTIFIER_KEYS = /^(user(name)?|login|account|client_?id|tenant(_?id)?|email)$/i;
+
 export function secretValues(secrets: Record<string, string>): string[] {
-  const vals = Object.values(secrets).filter((v) => typeof v === 'string' && v.length >= 4);
+  const vals = Object.entries(secrets)
+    .filter(([k, v]) => typeof v === 'string' && v.length >= 4 && !IDENTIFIER_KEYS.test(k))
+    .map(([, v]) => v);
   const tok = [...tokenCache.values()].map((t) => t.header[1].replace(/^(Bearer|Basic)\s+/i, ''));
   return [...vals, ...tok];
 }

@@ -211,6 +211,12 @@ export interface HttpOptions {
   };
   /** Maximum concurrent requests to this platform (default 4) */
   maxConcurrency?: number;
+  /**
+   * Further origins (scheme://host[:port]) that may receive this platform's credentials.
+   * By default credentials are only sent to the origin of the base URL; requests to
+   * absolute URLs elsewhere are sent without credentials.
+   */
+  trustedOrigins?: string[];
 }
 
 export interface PlatformConfig {
