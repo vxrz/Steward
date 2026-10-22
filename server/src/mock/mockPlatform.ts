@@ -5,6 +5,7 @@ import { mockOidc } from './mockOidc.js';
 import { mockGatus } from './mockGatus.js';
 import { iotTimeseries, mockIotRoutes } from './mockIot.js';
 import { mockZabbix } from './mockZabbix.js';
+import { mockUsageRoutes } from './mockUsage.js';
 
 /**
  * In-memory simulation of the parts of Insights Hub, Industrial Edge Management
@@ -254,6 +255,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     const t = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
     if (!tokens.has(t)) return reply.code(401).send({ error: 'unauthorized' });
   };
+  await mockUsageRoutes(app, ihAuth);
 
   const scimFilter = (filter: string | undefined, obj: Record<string, unknown>): boolean => {
     if (!filter) return true;

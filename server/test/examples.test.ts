@@ -149,6 +149,42 @@ describe('example library', () => {
     expect(byEndpoint['Steward API']).toMatchObject({ _status: 'good', 'Uptime (%)': 100 });
   });
 
+  it('tenant usage: figures against the limits, warning and critical levels, checks that notify', async () => {
+    const usage = await s.api('GET', '/datasets/ih.usage');
+    const byKey = Object.fromEntries(usage.rows.map((r: any) => [r._key, r]));
+    expect(Object.keys(byKey).sort()).toEqual(['agents', 'apiCalls', 'assets', 'credits', 'files', 'timeseries', 'users']);
+    expect(byKey.users).toMatchObject({ _status: 'good', Used: 15, Limit: 25, 'Used (%)': 60 }); // 15 of 25 licensed users
+    expect(byKey.assets).toMatchObject({ _status: 'warning', Used: 12, 'Used (%)': 80 }); // 80 % = warning level
+    expect(byKey.agents._status).toBe('warning'); // 9 of 10
+    expect(byKey.credits._status).toBe('critical'); // ≥ 95 % of the reported limit
+    expect(byKey.timeseries._status).toBe('warning');
+    expect(byKey.apiCalls._status).toBe('good');
+    expect(usage.metrics).toMatchObject({ usersPercent: 60, assetsPercent: 80, critical: 1, warning: 3 });
+    expect(usage.metrics.maxPercent).toBeGreaterThanOrEqual(95);
+    // the dashboard reads only this dataset's metrics
+    const dash = await s.api('GET', '/dashboards/tenant-usage');
+    for (const w of dash.definition.widgets.filter((x: any) => x.dataset)) {
+      for (const m of [w.metric, ...(w.metrics ?? [])].filter(Boolean)) expect(Object.keys(usage.metrics), `${w.id}: ${m}`).toContain(m);
+    }
+    // the breach fails the checks of the run (check.failed notifications), the run itself succeeds
+    const { id: runId } = await s.api('POST', '/runs', { processId: 'ih-tenant-usage', bindings: { hub: platformByKind['insights-hub'] } });
+    const run = await finish(runId);
+    expect(run.status).toBe('succeeded');
+    const checks = Object.fromEntries(run.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+    expect(checks).toMatchObject({ usageService: 'succeeded', criticalCheck: 'failed', warningCheck: 'failed' });
+
+    // configurable thresholds: with 99 % / 100 % nothing is critical any more
+    const { id: relaxed } = await s.api('POST', '/runs', {
+      processId: 'ih-tenant-usage',
+      bindings: { hub: platformByKind['insights-hub'] },
+      inputs: { warnPercent: 99, criticalPercent: 100, creditLimit: 20000 },
+    });
+    expect((await finish(relaxed)).status).toBe('succeeded');
+    const after = await s.api('GET', '/datasets/ih.usage');
+    expect(after.metrics.critical).toBe(0);
+    expect(after.rows.find((r: any) => r._key === 'credits').Limit).toBe(20000);
+  });
+
   it('privileged access review removes stale admins after a second person confirms', async () => {
     const { id: runId } = await s.api('POST', '/runs', { processId: 'ih-privileged-access-review', bindings: { hub: platformByKind['insights-hub'] } });
     const r = await finish(runId);

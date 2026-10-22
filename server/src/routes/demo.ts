@@ -41,6 +41,7 @@ const FEEDERS: { process: string; cron: string }[] = [
   { process: 'ih-asset-attribute-optimization', cron: '10 6 * * *' },
   { process: 'iem-firmware-compliance', cron: '15 6 * * *' },
   { process: 'iem-app-version-compliance', cron: '20 6 * * *' },
+  { process: 'ih-tenant-usage', cron: '25 6 * * *' },
   { process: 'ih-group-hygiene', cron: '30 6 * * 1' },
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
   { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
