@@ -1,0 +1,19 @@
+name: Uptime
+description: Endpoint availability as monitored by Gatus – endpoints down, uptime and response times. Fed by "Gatus – uptime overview" (every 10 minutes); Gatus stays the monitor, Steward only shows its results.
+refreshSeconds: 60
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Uptime** – read from Gatus by the process *Gatus – uptime overview*. Opening this page never calls Gatus.
+      Alerts and the status page stay in Gatus; a Gatus alert can start the runbook *Diagnose endpoint outage* through a webhook trigger.
+  - { id: endpoints, type: kpi, title: Endpoints, dataset: gatus-uptime, metric: endpoints, width: 4 }
+  - { id: down, type: kpi, title: Down, dataset: gatus-uptime, metric: down, goodWhen: down, width: 4 }
+  - { id: avgUptime, type: kpi, title: Average uptime (%), dataset: gatus-uptime, metric: avgUptime, goodWhen: up, width: 4, days: 30 }
+  - { id: status, type: status, title: Endpoint status, dataset: gatus-uptime, width: 4 }
+  - { id: trend, type: trend, title: Down and average uptime, dataset: gatus-uptime, metrics: [down, avgUptime], days: 7, width: 8 }
+  - { id: problems, type: table, title: Endpoints needing attention, dataset: gatus-uptime, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: All endpoints, dataset: gatus-uptime, width: 12 }
+  - { id: checks, type: checks, title: Latest Gatus read-out, process: gatus-uptime-overview, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

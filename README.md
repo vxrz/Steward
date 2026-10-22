@@ -15,6 +15,7 @@ Steward is a local tool for running standard service and platform procedures aga
 - **Human in the loop.** A run can pause and ask you to pick items from a list, e.g. "untick the users who still need access", or to approve a change. The decision, who made it and when are all recorded.
 - **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what *would* change.
 - **Scheduling.** Cron schedules with time zones. Scheduled runs that need a decision wait in *My tasks*.
+- **Webhook triggers.** An inbound URL with its own secret (static token or HMAC signature) starts a process with inputs mapped from the request, e.g. a [Gatus](docs/GATUS.md) alert starts a diagnosis runbook. Runs use the owner's rights; calls are rate-limited, de-duplicated and audited.
 - **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
 - **PDF reports for the archive.** Branded PDF/A-2b reports of finished runs (what was done, when, results, decisions, comments) and periodic summaries, ready to be archived and signed later. Every PDF is stored unchanged and its SHA-256 is recorded in the audit log. See [PDF reports](#pdf-reports).
 - **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
@@ -107,6 +108,7 @@ Retention of runs and notifications, and the notification channels, are set unde
 | **Run** | One execution of a pinned process version, manual or scheduled, real or dry. It has a full step journal, logs, decisions, checks, reports and evidence. |
 | **Task** | A decision a run is waiting for: select items or approve/reject. Tasks are listed in **My tasks** and on the run page. |
 | **Schedule** | Cron plus time zone, with preset inputs and connections. It skips a new run while the previous one is still waiting, unless overlap is allowed. |
+| **Webhook trigger** | `POST /api/hooks/<id>` with a secret starts a process as the trigger's owner; inputs are mapped from the JSON body, allow-listed headers and the query with JSONata. See [docs/GATUS.md](docs/GATUS.md#webhook-trigger-reference). |
 | **Audit log** | Everything that changed anything, attributed to the signed-in user: sign-ins, user/role/access changes, platform/credential changes, process versions, runs, every write call, skipped (dry-run) writes, decisions, failed checks, screenshots, exports. |
 
 ## Users, roles and access
@@ -124,6 +126,7 @@ Retention of runs and notifications, and the notification channels, are set unde
 - **Platform access list.** Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, access, write calls in the explorer). Use this to restrict e.g. the production tenant to one team.
 - **Decisions.** A user task can name `assignees` (users, teams, roles). Otherwise everyone with `run` or `approve` on the process may decide. With `fourEyes: true`, the person who started the run may not decide.
 - **Schedules.** A schedule runs with the rights of its owner (the person who created it). If the owner loses the rights or is deactivated, the run is skipped and recorded in the audit log.
+- **Webhook triggers** follow the same rules as schedules: creating one needs run rights on the process, runs use the owner's rights (checked on every call), and the owner, an admin or a process manager can change it.
 - New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
 
 ### Single sign-on (Microsoft Entra ID / OpenID Connect)
@@ -196,6 +199,8 @@ Who can see what: a dataset is visible to everyone who may view the process that
 | Generic – Endpoint availability check | Calls a list of endpoints and records one check per endpoint. |
 
 Templates are YAML files in [`examples/processes/`](examples/README.md); example dashboards are in `examples/dashboards/`. Adding a file there makes it available in *From template*. The examples README lists the whole library, including privileged-access review, offboarding, group hygiene, inventories, data freshness, firmware and app compliance, stale device clean-up and a weekly service report. Check files with `npm run validate`, which runs in CI too.
+
+**Gatus.** Steward works alongside the [Gatus](https://github.com/TwiN/gatus) uptime monitor instead of re-implementing monitoring: Gatus monitors Steward's `/api/health` and `/api/ready`, Steward shows the Gatus endpoint status on the *Uptime* dashboard, pushes its own check results to Gatus external endpoints, and a Gatus alert can start a runbook through a webhook trigger. Configuration snippets and security notes: [docs/GATUS.md](docs/GATUS.md).
 
 For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roadmap) see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -344,6 +349,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 - By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
 - The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
+- Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
 
 ## Development
 

@@ -35,6 +35,7 @@ import { dashboardRoutes } from './dashboards.js';
 import { opsRoutes } from './ops.js';
 import { engineExtrasRoutes } from './engine-extras.js';
 import { reportRoutes } from './reports.js';
+import { triggerRoutes } from './triggers.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -746,6 +747,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await opsRoutes(app);
   await engineExtrasRoutes(app);
   await reportRoutes(app);
+  await triggerRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

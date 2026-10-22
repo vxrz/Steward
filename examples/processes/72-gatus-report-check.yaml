@@ -1,0 +1,87 @@
+name: "Gatus – report Steward check to Gatus"
+description: |
+  Pushes the result of a Steward check into a Gatus *external endpoint*, so
+  Gatus shows it next to the endpoints it monitors itself and alerts on it
+  like on any other endpoint (including the heartbeat when no result
+  arrives).
+
+  The check is the pattern of "Generic – Endpoint availability check": one
+  GET on the `target` platform, healthy when it answers 2xx/3xx within the
+  latency limit. Replace the first two steps with any check of your own –
+  only `vars.success`, `vars.error` and `vars.durationMs` are pushed.
+
+  Gatus side (see docs/GATUS.md): an entry under `external-endpoints` with a
+  `token`. The endpoint key is `<group>_<name>` in lower case with spaces and
+  `/ _ . , # + &` replaced by `-`. Store the token on the Gatus platform as
+  the credential `externalToken` (or name another credential below).
+
+  Writes: one POST to Gatus per run (skipped in dry runs). Suggested
+  schedule: as often as the heartbeat interval in Gatus expects, e.g. every
+  5–15 minutes.
+tags: [status, health, gatus, external-endpoint]
+connections:
+  - slot: target
+    description: Platform to check
+  - slot: gatus
+    kind: gatus
+    description: Gatus instance that receives the result
+inputs:
+  - name: endpointKey
+    label: Gatus external endpoint key (<group>_<name>)
+    type: string
+    required: true
+    default: steward_steward-checks
+  - name: path
+    label: Path to check on the target platform
+    type: string
+    default: /
+  - name: maxLatencyMs
+    label: Max. response time (ms)
+    type: number
+    default: 3000
+  - name: tokenCredential
+    label: Credential on the Gatus platform holding the external endpoint token
+    type: string
+    default: externalToken
+steps:
+  - id: call
+    type: http
+    name: Check the target
+    connection: target
+    method: GET
+    path: "{{ inputs.path }}"
+    expectStatus: [200, 201, 202, 204, 301, 302, 304]
+    onError: continue
+    saveAs: res
+  - id: evaluate
+    type: set
+    name: Evaluate the check
+    values:
+      success: "{{ $exists(vars.res.status) and vars.res.durationMs <= $inputs.maxLatencyMs }}"
+      durationMs: "{{ $exists(vars.res.durationMs) ? vars.res.durationMs : 0 }}"
+      error: "{{ $exists(vars.res.error) ? $substring(vars.res.error, 0, 200) : ($exists(vars.res.status) and vars.res.durationMs > $inputs.maxLatencyMs ? 'slow: ' & vars.res.durationMs & ' ms (limit ' & $inputs.maxLatencyMs & ' ms)' : '') }}"
+  - id: healthy
+    type: check
+    name: Target healthy
+    severity: warning
+    condition: "vars.success"
+    message: "{{ inputs.path }}: {{ vars.success ? 'HTTP ' & vars.res.status & ' in ' & vars.durationMs & ' ms' : vars.error }}"
+  - id: push
+    type: http
+    name: Push the result to Gatus
+    connection: gatus
+    method: POST
+    path: "/api/v1/endpoints/{{ $encodeUrlComponent(inputs.endpointKey) }}/external"
+    query:
+      success: "{{ vars.success ? 'true' : 'false' }}"
+      error: "{{ vars.success ? '' : vars.error }}"
+      duration: "{{ vars.durationMs & 'ms' }}"
+    headers:
+      # the external endpoint's own token, not the Gatus API login
+      Authorization: "Bearer {{ $secret('gatus', inputs.tokenCredential) }}"
+    expectStatus: [200]
+    saveAs: pushed
+  - id: done
+    type: log
+    name: Log
+    message: "Reported {{ vars.success ? 'success' : 'failure' }} to Gatus endpoint {{ inputs.endpointKey }}{{ run.dryRun ? ' (dry run: not sent)' : '' }}"

@@ -10,6 +10,7 @@ import {
   IconPlayerPlay,
   IconSitemap,
   IconCalendarTime,
+  IconWebhook,
   IconServer,
   IconShieldCheck,
   IconSettings,
@@ -43,6 +44,7 @@ const RunDetailPage = page(() => import('./pages/RunDetail'), 'RunDetailPage');
 const ProcessesPage = page(() => import('./pages/Processes'), 'ProcessesPage');
 const ProcessEditorPage = page(() => import('./pages/ProcessEditor'), 'ProcessEditorPage');
 const SchedulesPage = page(() => import('./pages/Schedules'), 'SchedulesPage');
+const TriggersPage = page(() => import('./pages/Triggers'), 'TriggersPage');
 const PlatformsPage = page(() => import('./pages/Platforms'), 'PlatformsPage');
 const PlatformDetailPage = page(() => import('./pages/PlatformDetail'), 'PlatformDetailPage');
 const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
@@ -65,6 +67,7 @@ const NAV: { to: string; label: string; icon: typeof IconLayoutDashboard; cap?: 
   { to: '/runs', label: 'Runs', icon: IconPlayerPlay },
   { to: '/processes', label: 'Processes', icon: IconSitemap },
   { to: '/schedules', label: 'Schedules', icon: IconCalendarTime },
+  { to: '/triggers', label: 'Triggers', icon: IconWebhook },
   { to: '/platforms', label: 'Platforms', icon: IconServer },
   { to: '/audit', label: 'Audit log', icon: IconShieldCheck, cap: 'viewAudit' },
   { to: '/users', label: 'Users & teams', icon: IconUsers, cap: 'manageUsers' },
@@ -191,6 +194,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="/processes" element={<ProcessesPage />} />
           <Route path="/processes/:id" element={<ProcessEditorPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/triggers" element={<TriggersPage />} />
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/platforms/:id" element={<PlatformDetailPage />} />
           {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}

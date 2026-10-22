@@ -93,7 +93,7 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
 <tr><td>Status</td><td>${statusBadge(run.status)} ${run.error ? esc(run.error) : ''}</td></tr>
 <tr><td>Process</td><td>${esc(run.processName)} (<span class="mono">${esc(run.processId)}</span>) version ${run.processVersion}</td></tr>
 <tr><td>Definition hash</td><td class="mono">${esc(run.definitionHash)}</td></tr>
-<tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)})</td></tr>
+<tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)}${run.triggerName ? `: ${esc(run.triggerName)}` : ''})</td></tr>
 <tr><td>Started / finished</td><td>${fmtDate(run.startedAt)} / ${fmtDate(run.finishedAt)}</td></tr>
 <tr><td>Steps</td><td>${run.stats.steps} executed, ${run.stats.failedSteps} failed · ${run.stats.writes} write call(s), ${run.stats.skippedWrites} simulated</td></tr>
 <tr><td>Checks</td><td>${run.stats.checksPassed} passed, ${run.stats.checksFailed} failed</td></tr>

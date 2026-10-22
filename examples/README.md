@@ -1,6 +1,6 @@
 # Example library: service management & housekeeping
 
-Ready-to-use procedures for **Siemens Insights Hub** and **Industrial Edge Management**, plus dashboards that show their results.
+Ready-to-use procedures for **Siemens Insights Hub**, **Industrial Edge Management** and the **Gatus** uptime monitor, plus dashboards that show their results.
 
 - **Processes** (`processes/*.yaml`) appear in the app under **Processes → From template**.
 - **Dashboards** (`dashboards/*.yaml`) appear under **Dashboards → From template**.
@@ -31,6 +31,9 @@ The processes are written in the compact sequential YAML format and become node 
 | 54 | Industrial Edge – App version compliance | Installed app versions per device against the catalog | daily | no | `iem.app-compliance` |
 | 60 | Browser – Portal login and status screenshot | Sign in to a portal and keep a screenshot as evidence | daily | no | – |
 | 70 | Generic – Endpoint availability check | One check per endpoint of any API | 15–60 min | no | – |
+| 71 | Gatus – uptime overview | Status, uptime, response times and last error of every Gatus endpoint; warns while endpoints are down | every 10 min | no | `gatus-uptime` |
+| 72 | Gatus – report Steward check to Gatus | Runs a check and pushes the result to a Gatus external endpoint | 5–15 min (below the Gatus heartbeat) | yes (Gatus result) | – |
+| 73 | Diagnose endpoint outage (from Gatus alert) | Runbook for a webhook trigger: Gatus history, probe below the probe platform, evidence, approval (four-eyes) before the placeholder remediation | started by a Gatus alert | no (example placeholder) | – |
 | 81 | Cross-platform – Weekly service report | Reachability and key figures of both platforms in one report | weekly (Mon 07:00) | no | `platform.service-report` |
 | 90 | Building block – Resolve an Insights Hub group | Reusable sub-process: group/role by name → id and members (returned as `outputs`) | – (called by other processes) | no | – |
 | 91 | Insights Hub – Add users to a group (with sub-process) | Resolves the group via #90 as a sub-process, looks up users in parallel, adds missing memberships after approval | on demand | yes (group membership) | – |
@@ -42,6 +45,7 @@ The processes are written in the compact sequential YAML format and become node 
 | Platform operations | KPIs for users, inactive users, admins, saving potential, devices online/offline/outdated, stale data; trends; status distributions; problem tables; health checks; freshness | 15, 30, 31, 40, 51 (+12 for privileged access) |
 | Access governance | User activity, privileged access, group hygiene, review cadence | 15, 12, 14 |
 | Edge fleet | Connectivity, firmware and app versions, application catalog | 51, 52, 54 |
+| Uptime | Endpoints, endpoints down, average uptime, status distribution, problem table, freshness | 71 |
 
 Dashboards only read stored datasets: opening them never calls a platform. A dataset shows as *stale* when it is older than the publishing step's `staleAfterMinutes`. That threshold is set to roughly 2–3× the suggested schedule, so a missed run becomes visible. *Refresh* on a dashboard re-runs the feeding processes with the inputs and connections of their last run.
 
@@ -73,6 +77,7 @@ The flows were built against the documented Insights Hub APIs and the simulated 
 - **IEM device fields:** `connectionState`, `deviceStatus`, `lastSeen` and `firmware` differ between IEM releases. The state field and online value are inputs; adapt the firmware/lastSeen expressions if needed.
 - **IEM per-device apps:** `GET /portal/api/v1/devices/{id}/apps` (#54) is an assumption. Check the Portal API reference of your release.
 - **IEM device deletion:** `DELETE /portal/api/v1/devices/{id}` (#53) is an assumption as well.
+- **Gatus (#71–#73):** built against the Gatus API of v5.37 (README and source, checked 2026-10-22). Setup, Gatus configuration snippets (monitoring Steward, external endpoints, custom alerts to a webhook trigger) and security notes are in [docs/GATUS.md](../docs/GATUS.md).
 
 ## Importing
 

@@ -326,8 +326,10 @@ async function resolveBindings(def: ProcessDefinition, requested: Record<string,
 export async function startRun(
   req: StartRunRequest,
   opts: {
-    trigger?: 'manual' | 'schedule' | 'subprocess';
+    trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook';
     scheduleId?: string;
+    /** Webhook trigger that started the run */
+    webhook?: { triggerId: string; triggerName: string; test?: boolean };
     actor?: string;
     /** Sub-process: the run and step (activation key) that started this run */
     parent?: { runId: string; stepKey: string };
@@ -345,8 +347,8 @@ export async function startRun(
   );
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name)
+       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
@@ -362,6 +364,8 @@ export async function startRun(
       JSON.stringify(store.emptyStats()),
       opts.parent?.runId ?? null,
       opts.parent?.stepKey ?? null,
+      opts.webhook?.triggerId ?? null,
+      opts.webhook?.triggerName ?? null,
     );
     audit({
       actor,
@@ -369,13 +373,14 @@ export async function startRun(
       entityType: 'process',
       entityId: proc.id,
       runId,
-      summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''})`,
+      summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})`,
       details: {
         inputs,
         bindings: bindingInfo,
         definitionHash: proc.definitionHash,
         dryRun: !!req.dryRun,
         scheduleId: opts.scheduleId,
+        ...(opts.webhook ? { triggerId: opts.webhook.triggerId, test: !!opts.webhook.test } : {}),
         ...(opts.parent ? { parentRunId: opts.parent.runId, parentStepKey: opts.parent.stepKey } : {}),
       },
     });

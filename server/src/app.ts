@@ -18,6 +18,8 @@ import { publicApi } from './api/index.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready'];
+/** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
+const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
 
@@ -75,7 +77,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
     // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
     const bearerOnly = !!bearerToken(req.headers.authorization) && !req.headers.cookie;
-    if (!isRead(req.method) && !bearerOnly && req.headers['x-sm-client'] !== '1') {
+    if (!isRead(req.method) && !bearerOnly && req.headers['x-sm-client'] !== '1' && !url.startsWith(HOOKS_PREFIX)) {
       return reply.code(403).send({ error: 'Missing x-sm-client header' });
     }
   });
@@ -89,7 +91,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();
     let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
     const isPublic =
-      PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/') || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
+      PUBLIC_PATHS.includes(url) ||
+      url.startsWith('/api/auth/oidc/') ||
+      url.startsWith(HOOKS_PREFIX) ||
+      (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
     // API tokens act as their owner when there is no signed-in session.
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {
