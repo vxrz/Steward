@@ -22,6 +22,7 @@ import { JsonView, Markdown, PageHeader, SeverityBadge, StatusBadge, statusLabel
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
+import { errorText } from '../i18n/errors';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -55,7 +56,7 @@ export function RunDetailPage() {
     return m;
   }, [run.data?.children]);
   const r = run.data;
-  if (!r) return run.error ? <Alert color="red">{(run.error as Error).message}</Alert> : null;
+  if (!r) return run.error ? <Alert color="red">{errorText(run.error)}</Alert> : null;
 
   const action = async (what: 'cancel' | 'resume') => {
     try {

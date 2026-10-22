@@ -94,9 +94,14 @@ function isUtf8(data: Buffer): boolean {
 export function sniff(filename: string, data: Buffer): { ext: string; mime: string } {
   const ext = path.extname(filename).slice(1).toLowerCase();
   const allowed = ALLOWED[ext];
-  if (!allowed) throw new HttpError(415, `Files of type .${ext || '?'} cannot be attached. Allowed: ${ATTACHMENT_EXTENSIONS.join(', ')}`, 'UNSUPPORTED_FILE');
-  if (!data.length) throw new HttpError(400, 'The file is empty');
-  if (!looksLike(allowed.family, data)) throw new HttpError(415, `The content of ${filename} does not look like a .${ext} file`, 'CONTENT_MISMATCH');
+  if (!allowed)
+    throw new HttpError(415, `Files of type .${ext || '?'} cannot be attached. Allowed: ${ATTACHMENT_EXTENSIONS.join(', ')}`, 'UNSUPPORTED_FILE', {
+      ext: ext || '?',
+      allowed: ATTACHMENT_EXTENSIONS.join(', '),
+    });
+  if (!data.length) throw new HttpError(400, 'The file is empty', 'FILE_EMPTY');
+  if (!looksLike(allowed.family, data))
+    throw new HttpError(415, `The content of ${filename} does not look like a .${ext} file`, 'CONTENT_MISMATCH', { file: filename, ext });
   return { ext, mime: allowed.mime };
 }
 
@@ -147,10 +152,14 @@ export function insertAttachment(a: Omit<AttachmentRow, 'created_at' | 'created_
 /** Adds a document to a draft record (part of its content). */
 export function addAttachment(recordId: string, filename: string, data: Buffer): RecordAttachment {
   const { r } = requireEditable(recordId, 'add attachments to this record', { draftOnly: true });
-  if (data.length > MAX_ATTACHMENT_BYTES) throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`);
+  if (data.length > MAX_ATTACHMENT_BYTES)
+    throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`, 'FILE_TOO_LARGE', {
+      maxMb: MAX_ATTACHMENT_BYTES / 1024 / 1024,
+    });
   const name = safeFilename(filename);
   const { mime } = sniff(name, data);
-  if (attachmentRows(r.id, 'file').length >= MAX_ATTACHMENTS) throw new HttpError(400, `At most ${MAX_ATTACHMENTS} attachments per record`);
+  if (attachmentRows(r.id, 'file').length >= MAX_ATTACHMENTS)
+    throw new HttpError(400, `At most ${MAX_ATTACHMENTS} attachments per record`, 'ATTACHMENT_LIMIT', { max: MAX_ATTACHMENTS });
   const id = newId('rat_');
   const hash = sha256(data);
   const rel = writeAttachmentFile(r.id, id, name, data);
@@ -199,8 +208,8 @@ function removeFile(rel: string): void {
 export function removeAttachment(recordId: string, attId: string): void {
   const { r } = requireEditable(recordId, 'remove attachments of this record', { draftOnly: true });
   const a = db().get<AttachmentRow>('SELECT * FROM record_attachments WHERE id = ? AND record_id = ?', attId, r.id);
-  if (!a) throw new HttpError(404, 'Attachment not found');
-  if (a.kind !== 'file') throw new HttpError(409, 'Generated and signed PDFs are kept for the record and cannot be removed');
+  if (!a) throw new HttpError(404, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
+  if (a.kind !== 'file') throw new HttpError(409, 'Generated and signed PDFs are kept for the record and cannot be removed', 'ATTACHMENT_KEPT');
   db().tx(() => {
     db().run('DELETE FROM record_attachments WHERE id = ?', a.id);
     touch(r.id);
@@ -220,15 +229,17 @@ export function attachmentForDownload(recordId: string, attId: string): { row: A
   me();
   const r = requireRecordRow(recordId);
   const a = db().get<AttachmentRow>('SELECT * FROM record_attachments WHERE id = ? AND record_id = ?', attId, r.id);
-  if (!a) throw new HttpError(404, 'Attachment not found');
+  if (!a) throw new HttpError(404, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
   let data: Buffer;
   try {
     data = fs.readFileSync(attachmentFile(a));
   } catch {
-    throw new HttpError(404, 'The file of this attachment is missing in the data folder');
+    throw new HttpError(404, 'The file of this attachment is missing in the data folder', 'ATTACHMENT_FILE_MISSING');
   }
   if (sha256(data) !== a.sha256)
-    throw new HttpError(409, `The stored file of ${a.filename} does not match its recorded SHA-256 – it was changed outside Steward`, 'ATTACHMENT_TAMPERED');
+    throw new HttpError(409, `The stored file of ${a.filename} does not match its recorded SHA-256 – it was changed outside Steward`, 'ATTACHMENT_TAMPERED', {
+      file: a.filename,
+    });
   return { row: a, data };
 }
 

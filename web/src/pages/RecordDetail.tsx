@@ -48,6 +48,7 @@ import {
   type RecordActionInfo,
   type RecordAttachment,
   type RecordDetail,
+  type RecordFieldDef,
   type RecordEvent,
   type RecordPdfDetails,
   type RecordVersion,
@@ -59,9 +60,10 @@ import { PageHeader } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
-import { fmtBytes, fmtDate } from '../format';
+import { fmtBytes, fmtDate, fmtDay } from '../format';
 import { currentLanguage } from '../i18n';
-import { errorText } from '../i18n/errors';
+import { codeText, errorText } from '../i18n/errors';
+import { fieldLabel, optionLabel } from '../components/records/builtin';
 
 const TABS = ['content', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
 type Tab = (typeof TABS)[number];
@@ -131,7 +133,7 @@ export function RecordDetailPage() {
           return a.allowed ? (
             button
           ) : (
-            <Tooltip key={a.action} label={a.reason} multiline w={260}>
+            <Tooltip key={a.action} label={codeText(a.reasonCode, undefined, a.reason) ?? a.reason} multiline w={260}>
               <span>{button}</span>
             </Tooltip>
           );
@@ -242,9 +244,12 @@ export function RecordDetailPage() {
   );
 }
 
-function fieldValue(kind: string, v: string | undefined): string {
+function fieldValue(typeKey: string, f: RecordFieldDef, v: string | undefined): string {
   if (!v) return '–';
-  if (kind === 'datetime') return fmtDate(new Date(v).toISOString());
+  if (f.kind === 'datetime') return fmtDate(new Date(v).toISOString());
+  // a calendar date: midnight local time, not UTC (which would show the day before west of Greenwich)
+  if (f.kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return fmtDay(new Date(`${v}T00:00:00`));
+  if (f.kind === 'select') return optionLabel(typeKey, f, v);
   return v;
 }
 
@@ -257,9 +262,9 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
           <Paper withBorder p="sm">
             <Stack gap="sm">
               {rec.fieldDefs.map((f) => (
-                <Field key={f.key} label={f.label}>
+                <Field key={f.key} label={fieldLabel(rec.typeKey, f)}>
                   <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
-                    {fieldValue(f.kind, rec.fields[f.key])}
+                    {fieldValue(rec.typeKey, f, rec.fields[f.key])}
                   </Text>
                 </Field>
               ))}
@@ -305,7 +310,7 @@ function VersionsTab({ rec }: { rec: RecordDetail }) {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [context, setContext] = useState(true);
-  const labels = useMemo(() => new Map(rec.fieldDefs.map((f) => [f.key, f.label])), [rec.fieldDefs]);
+  const labels = useMemo(() => new Map(rec.fieldDefs.map((f) => [f.key, fieldLabel(rec.typeKey, f)])), [rec.fieldDefs, rec.typeKey]);
   const a = list.find((v) => String(v.version) === (from ?? String(list[1]?.version ?? '')));
   const b = list.find((v) => String(v.version) === (to ?? String(list[0]?.version ?? '')));
   const options = list.map((v) => ({ value: String(v.version), label: t('versions.option', { version: v.version, revision: v.revision, author: v.author }) }));

@@ -20,7 +20,7 @@ export function zodMessage(e: ZodError): string {
 
 export function parseDefinitionInput(raw: unknown): MonitorDefinition {
   const r = monitorDefinitionSchema.safeParse(raw);
-  if (!r.success) throw new HttpError(400, `Invalid monitor definition – ${zodMessage(r.error)}`);
+  if (!r.success) throw new HttpError(400, `Invalid monitor definition – ${zodMessage(r.error)}`, 'MONITOR_INVALID', { details: zodMessage(r.error) });
   return r.data;
 }
 
@@ -38,24 +38,29 @@ export function checkExpressions(def: MonitorDefinition): void {
     try {
       jsonata(e);
     } catch (err) {
-      throw new HttpError(400, `${where}: invalid expression – ${(err as Error).message}`);
+      throw new HttpError(400, `${where}: invalid expression – ${(err as Error).message}`, 'EXPRESSION_INVALID', { where, detail: (err as Error).message });
     }
   }
 }
 
 /** Templates: the stored definition may hold {{ params.x }} anywhere; it must render into a valid definition. */
 export async function validateTemplate(raw: unknown): Promise<{ def: Record<string, unknown>; parameters: TemplateParam[] }> {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new HttpError(400, 'Invalid template definition');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new HttpError(400, 'Invalid template definition', 'TEMPLATE_INVALID', { context: 'shape' });
   const def = raw as Record<string, unknown>;
   const params = (Array.isArray(def.parameters) ? def.parameters : []).map((p, i) => {
     const r = templateParamSchema.safeParse(p);
-    if (!r.success) throw new HttpError(400, `Template parameter ${i + 1}: ${zodMessage(r.error)}`);
+    if (!r.success)
+      throw new HttpError(400, `Template parameter ${i + 1}: ${zodMessage(r.error)}`, 'TEMPLATE_PARAM_INVALID', { n: i + 1, details: zodMessage(r.error) });
     return r.data;
   });
-  if (new Set(params.map((p) => p.name)).size !== params.length) throw new HttpError(400, 'Template parameter names must be unique');
+  if (new Set(params.map((p) => p.name)).size !== params.length)
+    throw new HttpError(400, 'Template parameter names must be unique', 'TEMPLATE_PARAM_DUPLICATE');
   const sample = parseDefinitionInput(await renderTemplate(def, sampleParams(params)));
   const issues = definitionIssues(sample);
-  if (issues.length) throw new HttpError(400, `Template: ${issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
+  if (issues.length) {
+    const details = issues.map((i) => `${i.path}: ${i.message}`).join('; ');
+    throw new HttpError(400, `Template: ${details}`, 'TEMPLATE_INVALID', { details });
+  }
   checkExpressions(sample);
   return { def: { ...def, parameters: params }, parameters: params };
 }

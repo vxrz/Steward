@@ -54,5 +54,6 @@ export function assertEmailsAllowed(addrs: string[]): void {
         ', ',
       )}${refused.length > 3 ? ' …' : ''}: the domain is not allowed for addresses outside Steward. An administrator can allow it in ${ALLOWED_DOMAINS_SETTING}.`,
     'EMAIL_DOMAIN_NOT_ALLOWED',
+    { addresses: refused.slice(0, 3).map((a) => a.slice(0, 254)), count: refused.length },
   );
 }

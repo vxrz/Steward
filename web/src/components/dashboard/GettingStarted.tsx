@@ -113,7 +113,7 @@ export function GettingStarted({ setup, demoAction }: { setup: DashboardSetup; d
           {t('checklist.discoverWall')}
         </Anchor>
         {' · '}
-        {t('checklist.discoverSearch')} <Kbd size="xs">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'}</Kbd>
+        {t('checklist.discoverSearch')} <Kbd size="xs">{/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : t('checklist.shortcutCtrlK')}</Kbd>
       </Text>
     </Card>
   );

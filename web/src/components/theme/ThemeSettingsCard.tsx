@@ -41,6 +41,7 @@ import { ApiError, api, getOptional, notifyError, notifyOk, put, post } from '..
 import { errorText } from '../../i18n/errors';
 import { themeQueryKey } from '../../theme';
 import { Logo } from '../brand/Logo';
+import { fmtDate, fmtNumber } from '../../format';
 
 const SWATCHES = ['#1c7ed6', '#0b7285', '#2f9e44', '#e8590c', '#e30613', '#7950f2', '#ffd400', '#343a40'];
 
@@ -271,7 +272,7 @@ export function ThemeSettingsCard() {
         </Group>
         {s.updatedAt && (
           <Text size="xs" c="dimmed">
-            {t('theme.lastChange', { when: new Date(s.updatedAt).toLocaleString(), who: s.updatedBy ?? '–' })}
+            {t('theme.lastChange', { when: fmtDate(s.updatedAt), who: s.updatedBy ?? '–' })}
           </Text>
         )}
       </Stack>
@@ -306,7 +307,7 @@ function ContrastNotes({ notes }: { notes: ThemeContrastNote[] }) {
               color: t(`theme.colors.${n.color}`),
               scheme: t(`theme.schemes.${n.scheme}`),
               used: n.used,
-              ratio: n.ratio.toFixed(2),
+              ratio: fmtNumber(n.ratio, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
             })}
           </Text>
         ))}

@@ -93,7 +93,7 @@ export function normalizeEmailDomains(list: string[]): string[] {
   const out = [...new Set(list.map((d) => d.trim().toLowerCase().replace(/^@/, '').replace(/\.$/, '')).filter(Boolean))];
   for (const d of out) {
     if (d.length > 253 || !DOMAIN_RULE.test(d))
-      throw new HttpError(400, `"${d.slice(0, 80)}" is not a domain – enter e.g. corp.example or *.corp.example`, 'INVALID_DOMAIN');
+      throw new HttpError(400, `"${d.slice(0, 80)}" is not a domain – enter e.g. corp.example or *.corp.example`, 'INVALID_DOMAIN', { domain: d.slice(0, 80) });
   }
   if (out.length > MAX_EMAIL_DOMAINS) throw new HttpError(400, `At most ${MAX_EMAIL_DOMAINS} allowed e-mail domains`);
   return out;

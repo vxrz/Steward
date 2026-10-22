@@ -67,6 +67,17 @@ describe('npm run i18n:check', () => {
     expect(problems.filter((p: string) => p.startsWith('pl:'))).toEqual([]);
   });
 
+  it('reports texts that are still English unless they are allowed to be the same', () => {
+    const root = fixture({
+      'web/src/locales/en/a.json': { save: 'Save changes', name: 'Name', count: '{{count}} PDF', url: 'URL', ok: 'Done' },
+      'web/src/locales/de/a.json': { save: 'Save changes', name: 'Name', count: '{{count}} PDF', url: 'URL', ok: 'Fertig' },
+      'scripts/i18n-allow.json': { sameAsEnglish: { de: ['Name'] } },
+    });
+    const problems = check(root).problems.map((p: { type: string; key: string }) => `${p.type}:${p.key}`);
+    // placeholders and ACRONYMS are no words to translate; "Name" is German too (allowed)
+    expect(problems).toEqual(['untranslated:save']);
+  });
+
   it('reports undeclared and missing language folders and missing namespaces', () => {
     const root = fixture({ 'web/src/locales/en/a.json': { a: 'A' }, 'web/src/locales/en/b.json': { b: 'B' }, 'web/src/locales/fr/a.json': { a: 'A' } });
     const problems = check(root).problems.map((p: { lang: string; type: string; detail?: string; file: string }) => `${p.lang}:${p.type}:${p.file}`);

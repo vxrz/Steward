@@ -146,14 +146,15 @@ export function typeRow(idOrKey: string): TypeRow | undefined {
 
 export function requireType(idOrKey: string): TypeRow {
   const r = typeRow(idOrKey);
-  if (!r) throw new HttpError(404, `Record type ${idOrKey} not found`);
+  if (!r) throw new HttpError(404, `Record type ${idOrKey} not found`, 'RECORD_TYPE_NOT_FOUND', { type: idOrKey });
   return r;
 }
 
 export function createType(input: TypeInput): RecordType {
-  if (!canManageRecordTypes()) forbid('manage record types');
+  if (!canManageRecordTypes()) forbid('manage record types', 'manageRecordTypes');
   ensureDefaultTypes();
-  if (db().get('SELECT 1 FROM record_types WHERE key = ?', input.key)) throw new HttpError(409, `A record type with the key ${input.key} exists already`);
+  if (db().get('SELECT 1 FROM record_types WHERE key = ?', input.key))
+    throw new HttpError(409, `A record type with the key ${input.key} exists already`, 'RECORD_TYPE_EXISTS', { type: input.key });
   const id = newId('rty_');
   const now = nowIso();
   db().tx(() => {
@@ -190,10 +191,10 @@ export function createType(input: TypeInput): RecordType {
  * Name, description, template and fields stay editable.
  */
 export function updateType(id: string, input: TypeInput): RecordType {
-  if (!canManageRecordTypes()) forbid('manage record types');
+  if (!canManageRecordTypes()) forbid('manage record types', 'manageRecordTypes');
   const cur = requireType(id);
   if (input.key !== cur.key && db().get('SELECT 1 FROM record_types WHERE key = ? AND id <> ?', input.key, cur.id)) {
-    throw new HttpError(409, `A record type with the key ${input.key} exists already`);
+    throw new HttpError(409, `A record type with the key ${input.key} exists already`, 'RECORD_TYPE_EXISTS', { type: input.key });
   }
   const used = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM records WHERE type_id = ?', cur.id)!.n);
   if (input.key !== cur.key && used > 0)
@@ -203,7 +204,7 @@ export function updateType(id: string, input: TypeInput): RecordType {
       'TYPE_KEY_LOCKED',
     );
   if (input.workflow !== cur.workflow && used > 0)
-    throw new HttpError(409, 'The workflow of a type that has records cannot be changed – create a new type instead');
+    throw new HttpError(409, 'The workflow of a type that has records cannot be changed – create a new type instead', 'TYPE_WORKFLOW_LOCKED');
   const changes = (['key', 'name', 'description', 'workflow', 'template'] as const).filter((k) => input[k] !== cur[k]);
   if (JSON.stringify(input.fields) !== cur.fields) changes.push('fields' as never);
   const archived = input.archived ?? !!cur.archived;

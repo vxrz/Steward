@@ -231,7 +231,7 @@ function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
     const pid = t.processId ?? store.taskProcessId(t.id);
     if (!permCache.has(pid)) permCache.set(pid, processes.permissionsFor(pid));
     const check = decisionCheck(currentUser(), t, { actor: t.startedBy ?? '' }, permCache.get(pid)!);
-    return { ...t, canDecide: check.ok, cannotDecideReason: check.reason };
+    return { ...t, canDecide: check.ok, cannotDecideReason: check.reason, cannotDecideCode: check.code, cannotDecideParams: check.params };
   });
 }
 
@@ -855,14 +855,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/tasks/:id', async (req) => {
     const t = visibleTasks().find((x) => x.id === params(req).id);
-    if (!t) throw new HttpError(404, 'Task not found');
+    if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
     return t;
   });
   app.post('/tasks/:id/complete', async (req) => {
     const id = params(req).id!;
     const t = visibleTasks().find((x) => x.id === id);
-    if (!t) throw new HttpError(404, 'Task not found');
-    if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task');
+    if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
+    if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
     const b = z
       .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;

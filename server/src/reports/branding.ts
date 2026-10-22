@@ -37,7 +37,7 @@ export function getBranding(): ReportBranding {
 export function updateBranding(patch: Partial<Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>>): ReportBranding {
   const cur = { ...DEFAULTS, ...readSetting<Partial<Stored>>(KEY, {}) };
   if (patch.accentColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(patch.accentColor))
-    throw new HttpError(400, 'Accent colour must be a hex colour like #1c7ed6');
+    throw new HttpError(400, 'Accent colour must be a hex colour like #1c7ed6', 'COLOR_INVALID');
   const next: Stored = {
     ...cur,
     ...Object.fromEntries(
@@ -58,17 +58,20 @@ export function imageMime(data: Buffer): 'image/png' | 'image/jpeg' | null {
 }
 
 export function setLogo(data: Buffer): ReportBranding {
-  if (!data.length) throw new HttpError(400, 'The file is empty');
-  if (data.length > REPORT_LOGO_MAX_BYTES) throw new HttpError(400, `The logo is too large (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`);
+  if (!data.length) throw new HttpError(400, 'The file is empty', 'FILE_EMPTY');
+  if (data.length > REPORT_LOGO_MAX_BYTES)
+    throw new HttpError(400, `The logo is too large (max. ${REPORT_LOGO_MAX_BYTES / 1024 / 1024} MB)`, 'LOGO_TOO_LARGE', {
+      maxMb: REPORT_LOGO_MAX_BYTES / 1024 / 1024,
+    });
   const mime = imageMime(data);
-  if (!mime) throw new HttpError(400, 'The logo must be a PNG or JPEG image');
+  if (!mime) throw new HttpError(400, 'The logo must be a PNG or JPEG image', 'LOGO_TYPE');
   // Make sure the PDF engine can actually embed it (corrupt or unsupported variants are rejected now, not at report time).
   try {
     const probe = new PDFDocument({ autoFirstPage: false, font: assetPath(FONT_FILES.sans) });
     const img = openImage(probe, data);
     if (!img.width || !img.height || img.width > 6000 || img.height > 6000) throw new Error('size');
   } catch {
-    throw new HttpError(400, 'The image could not be read. Use a PNG or JPEG file up to 6000 × 6000 pixels.');
+    throw new HttpError(400, 'The image could not be read. Use a PNG or JPEG file up to 6000 × 6000 pixels.', 'LOGO_UNREADABLE');
   }
   fs.mkdirSync(brandingDir(), { recursive: true });
   const target = logoFile(mime);

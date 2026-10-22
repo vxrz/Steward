@@ -70,6 +70,7 @@
     "discover": "Also worth knowing:",
     "discoverTokens": "API tokens for scripts and AI assistants (MCP)",
     "discoverWall": "monitor status wall",
-    "discoverSearch": "search everything with"
+    "discoverSearch": "search everything with",
+    "shortcutCtrlK": "Ctrl K"
   }
 }

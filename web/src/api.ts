@@ -1,4 +1,5 @@
 import { notifications } from '@mantine/notifications';
+import type { ErrorParams } from '@sm/shared';
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
 
@@ -8,6 +9,7 @@ export class ApiError extends Error {
     message: string,
     public issues?: { path: string; message: string }[],
     public code?: string,
+    public params?: ErrorParams,
   ) {
     super(message);
   }
@@ -87,9 +89,9 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     }
   }
   if (!res.ok) {
-    const d = data as { error?: string; code?: string; issues?: { path: string; message: string }[] } | null;
+    const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[] } | null;
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
-    throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code);
+    throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params);
   }
   return data as T;
 }

@@ -60,14 +60,14 @@ export function listPlatforms(): Platform[] {
 
 export function getPlatform(id: string): Platform {
   const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Platform ${id} not found`);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   return toPlatform(r);
 }
 
 /** Credentials for using a platform – refused when its connection settings were changed outside the application. */
 export function getSecrets(id: string): Record<string, string> {
   const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Platform ${id} not found`);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   requireIntact(r);
   return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
 }
@@ -75,7 +75,7 @@ export function getSecrets(id: string): Record<string, string> {
 /** Credentials without the integrity check – only for scrubbing them from error reports and listing their names. */
 export function getSecretsUnchecked(id: string): Record<string, string> {
   const r = db().get<{ secrets: string | null }>('SELECT secrets FROM platforms WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Platform ${id} not found`);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
   return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
 }
 
@@ -96,7 +96,7 @@ function withoutGateway(cfg: PlatformConfig): PlatformConfig {
 }
 
 export function createPlatform(input: PlatformInput): Platform {
-  if (!input.name?.trim()) throw new HttpError(400, 'Name is required');
+  if (!input.name?.trim()) throw new HttpError(400, 'Name is required', 'NAME_REQUIRED');
   const id = newId('pf_');
   const ts = nowIso();
   const secrets = Object.fromEntries(Object.entries(input.secrets ?? {}).filter(([, v]) => v !== '' && v != null));

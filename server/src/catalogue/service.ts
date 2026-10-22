@@ -98,7 +98,7 @@ function toSummary(r: ServiceRow, links?: number): ServiceSummary {
 
 function row(id: string): ServiceRow {
   const r = db().get<ServiceRow>('SELECT * FROM services WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Service ${id} not found`);
+  if (!r) throw new HttpError(404, `Service ${id} not found`, 'SERVICE_NOT_FOUND', { id });
   return r;
 }
 
@@ -134,9 +134,9 @@ const dedupe = <T>(xs: T[], key: (x: T) => string) => [...new Map(xs.map((x) => 
 
 export function createService(input: ServiceInput): ServiceDetail {
   const u = me();
-  if (!canCreateServices(u)) forbid('create services');
+  if (!canCreateServices(u)) forbid('create services', 'createServices');
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0', input.name))
-    throw new HttpError(409, `A service named "${input.name}" exists already`);
+    throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
   const id = newId('svc_');
   const now = nowIso();
   db().tx(() => {
@@ -172,9 +172,9 @@ export function createService(input: ServiceInput): ServiceDetail {
 export function updateService(id: string, input: ServiceInput): ServiceDetail {
   const u = me();
   const cur = row(id);
-  if (!canEditService(u, parseJson(cur.owners, []))) forbid('change this service');
+  if (!canEditService(u, parseJson(cur.owners, []))) forbid('change this service', 'changeService');
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', input.name, id))
-    throw new HttpError(409, `A service named "${input.name}" exists already`);
+    throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
   const next = {
     name: input.name,
     description: input.description,
@@ -218,10 +218,10 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
 export function setArchived(id: string, archived: boolean): ServiceDetail {
   const u = me();
   const cur = row(id);
-  if (!canEditService(u, parseJson(cur.owners, []))) forbid('archive this service');
+  if (!canEditService(u, parseJson(cur.owners, []))) forbid('archive this service', 'changeService');
   if (!!cur.archived === archived) return getService(id);
   if (!archived && db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', cur.name, id)) {
-    throw new HttpError(409, `A service named "${cur.name}" exists already – rename one of them first`);
+    throw new HttpError(409, `A service named "${cur.name}" exists already – rename one of them first`, 'SERVICE_EXISTS', { name: cur.name });
   }
   db().tx(() => {
     db().run('UPDATE services SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, id);
@@ -237,12 +237,12 @@ export function setArchived(id: string, archived: boolean): ServiceDetail {
 
 export function addServiceLink(id: string, input: LinkInput) {
   const cur = row(id);
-  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service');
+  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
   return addLink('service', id, input, `service "${cur.name}"`);
 }
 
 export function removeServiceLink(id: string, linkId: string): void {
   const cur = row(id);
-  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service');
+  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
   removeLink('service', id, linkId, `service "${cur.name}"`);
 }

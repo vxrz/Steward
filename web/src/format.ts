@@ -2,8 +2,9 @@ import { formatLocale } from './i18n';
 
 // Formatting follows the UI language (see formatLocale). Intl objects are cached
 // per locale and options because tables call these helpers for every row.
-const cache = new Map<string, Intl.DateTimeFormat | Intl.NumberFormat | Intl.RelativeTimeFormat>();
-function cached<T extends Intl.DateTimeFormat | Intl.NumberFormat | Intl.RelativeTimeFormat>(kind: string, opts: object, make: (loc: string) => T): T {
+type Formatter = Intl.DateTimeFormat | Intl.NumberFormat | Intl.RelativeTimeFormat | Intl.ListFormat;
+const cache = new Map<string, Formatter>();
+function cached<T extends Formatter>(kind: string, opts: object, make: (loc: string) => T): T {
   const loc = formatLocale();
   const key = `${kind}|${loc}|${JSON.stringify(opts)}`;
   let f = cache.get(key) as T | undefined;
@@ -13,6 +14,8 @@ function cached<T extends Intl.DateTimeFormat | Intl.NumberFormat | Intl.Relativ
 
 export const dateTimeFormat = (opts: Intl.DateTimeFormatOptions) => cached('dt', opts, (l) => new Intl.DateTimeFormat(l, opts));
 export const numberFormat = (opts: Intl.NumberFormatOptions = {}) => cached('n', opts, (l) => new Intl.NumberFormat(l, opts));
+/** "A, B and C" / "A, B und C" */
+export const listFormat = (opts: Intl.ListFormatOptions = { type: 'conjunction' }) => cached('l', opts, (l) => new Intl.ListFormat(l, opts));
 
 /** Number in the UI language, e.g. 1,284 / 1.284 */
 export function fmtNumber(n: number | null | undefined, opts: Intl.NumberFormatOptions = {}): string {

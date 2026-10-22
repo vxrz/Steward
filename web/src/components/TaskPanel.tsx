@@ -58,7 +58,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
   };
 
   return (
-    <Paper withBorder p="md" component="section" aria-label={`Task: ${task.title}`}>
+    <Paper withBorder p="md" component="section" aria-label={t('panelLabel', { title: task.title })}>
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div style={{ minWidth: 0, flex: 1 }}>

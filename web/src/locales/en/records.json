@@ -9,6 +9,66 @@
     "DR": "Decision record",
     "SDR": "Security decision record"
   },
+  "builtin": {
+    "types": {
+      "CR": {
+        "description": "A planned change to a service or platform: why, risk, rollback and the implementation window. Approved by someone other than the requester.",
+        "template": "## Description\n\n\n## Implementation plan\n\n1. \n\n## Test and verification\n\n\n## Communication\n\n"
+      },
+      "ADR": {
+        "description": "An architecturally significant decision with its context and consequences (MADR or Nygard style).",
+        "template": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n"
+      },
+      "DR": {
+        "description": "A decision of the service team that is not about architecture, e.g. an operating rule or a supplier choice.",
+        "template": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n"
+      },
+      "SDR": {
+        "description": "A security decision, e.g. an accepted risk, an exception or a hardening measure. If your team uses SDR for something else, change the name and description (the key cannot change once records exist) or archive the type.",
+        "template": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n\n## Risk assessment\n\n\n## Review date\n\n"
+      }
+    },
+    "fields": {
+      "reason": {
+        "label": "Reason"
+      },
+      "risk": {
+        "label": "Risk"
+      },
+      "impact": {
+        "label": "Impact"
+      },
+      "rollbackPlan": {
+        "label": "Rollback plan"
+      },
+      "plannedStart": {
+        "label": "Planned start"
+      },
+      "plannedEnd": {
+        "label": "Planned end"
+      },
+      "decisionDate": {
+        "label": "Decision date"
+      },
+      "deciders": {
+        "label": "Deciders",
+        "help": "People who made the decision"
+      },
+      "consulted": {
+        "label": "Consulted"
+      },
+      "informed": {
+        "label": "Informed"
+      }
+    },
+    "options": {
+      "risk": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high"
+      }
+    }
+  },
   "status": {
     "draft": "Draft",
     "submitted": "Submitted",
@@ -313,6 +373,7 @@
       "date": "Date",
       "datetime": "Date and time",
       "select": "Choice"
-    }
+    },
+    "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered."
   }
 }

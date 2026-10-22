@@ -53,7 +53,7 @@ export function recordRow(idOrNumber: string): RecordRow | undefined {
 
 export function requireRecordRow(idOrNumber: string): RecordRow {
   const r = recordRow(idOrNumber);
-  if (!r) throw new HttpError(404, `Record ${idOrNumber} not found`);
+  if (!r) throw new HttpError(404, `Record ${idOrNumber} not found`, 'RECORD_NOT_FOUND', { id: idOrNumber });
   return r;
 }
 

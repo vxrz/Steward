@@ -61,7 +61,7 @@ function toGateway(r: GatewayRow): MonitorGateway {
 
 /** Gateways are visible to designers and administrators (they carry no monitor data). */
 function requireView(): void {
-  if (!canCreateMonitors()) throw new HttpError(403, 'Only designers and administrators can manage gateways');
+  if (!canCreateMonitors()) throw new HttpError(403, 'Only designers and administrators can manage gateways', 'FORBIDDEN', { context: 'manageGateways' });
 }
 
 export const gatewayRow = (id: string) => db().get<GatewayRow>('SELECT * FROM monitor_gateways WHERE id = ?', id);
@@ -74,8 +74,8 @@ export function listGateways(): MonitorGateway[] {
 function requireEdit(id: string): GatewayRow {
   requireView();
   const r = gatewayRow(id);
-  if (!r) throw new HttpError(404, 'Gateway not found');
-  if (!canEdit(r)) throw new HttpError(403, 'Only the owner or an administrator can change this gateway');
+  if (!r) throw new HttpError(404, 'Gateway not found', 'GATEWAY_NOT_FOUND');
+  if (!canEdit(r)) throw new HttpError(403, 'Only the owner or an administrator can change this gateway', 'FORBIDDEN', { context: 'ownerOnly' });
   return r;
 }
 
@@ -83,7 +83,8 @@ function clean(input: GatewayInput): GatewayInput {
   const cidrs = [...new Set(input.allowedCidrs.map((c) => c.trim()).filter(Boolean))];
   cidrs.forEach(parseCidr);
   for (const k of input.allowedKeys)
-    if (!/^[A-Za-z0-9_.:/*-]+$/.test(k)) throw new HttpError(400, `Invalid key pattern "${k}" (letters, digits, _ . : / - and * as wildcard)`);
+    if (!/^[A-Za-z0-9_.:/*-]+$/.test(k))
+      throw new HttpError(400, `Invalid key pattern "${k}" (letters, digits, _ . : / - and * as wildcard)`, 'GATEWAY_KEY_PATTERN', { pattern: k });
   return { ...input, allowedCidrs: cidrs, allowedKeys: [...new Set(input.allowedKeys.map((k) => k.trim()))] };
 }
 

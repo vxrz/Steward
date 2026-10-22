@@ -25,6 +25,7 @@ import { get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { useRecordTypes, useTypeName } from '../components/records/common';
+import { fieldLabel, typeDescription } from '../components/records/builtin';
 
 /** Record types (administrators): number prefix, name, workflow, template and fields. */
 export function RecordTypesPage() {
@@ -70,14 +71,14 @@ export function RecordTypesPage() {
                     </Badge>
                   )}
                   <Text size="xs" c="dimmed" lineClamp={2}>
-                    {x.description}
+                    {typeDescription(x)}
                   </Text>
                 </Table.Td>
                 <Table.Td>{t(`types.workflows.${x.workflow}`)}</Table.Td>
-                <Table.Td>{x.fields.map((f) => f.label).join(', ') || '–'}</Table.Td>
+                <Table.Td>{x.fields.map((f) => fieldLabel(x.key, f)).join(', ') || '–'}</Table.Td>
                 <Table.Td>{x.recordCount}</Table.Td>
                 <Table.Td>
-                  <ActionIcon variant="subtle" aria-label={t('types.editNamed', { name: x.name })} onClick={() => setEditing(x)}>
+                  <ActionIcon variant="subtle" aria-label={t('types.editNamed', { name: typeName(x) })} onClick={() => setEditing(x)}>
                     <IconEdit size={16} />
                   </ActionIcon>
                 </Table.Td>
@@ -143,6 +144,11 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
         }}
       >
         <Stack gap="sm">
+          {type?.builtin && (
+            <Text size="xs" c="dimmed">
+              {t('types.builtinHint')}
+            </Text>
+          )}
           <Group grow align="flex-start" wrap="wrap">
             <TextInput
               label={t('types.key')}

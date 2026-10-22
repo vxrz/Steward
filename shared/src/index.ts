@@ -18,3 +18,4 @@ export * from './reportSchedules.js';
 export * from './markdown.js';
 export * from './records.js';
 export * from './gitsync.js';
+export * from './errors.js';

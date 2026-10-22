@@ -4,6 +4,8 @@
  * link kinds and the API shapes.
  */
 
+import type { ErrorParams } from './errors.js';
+
 // ---------- workflows ----------
 
 export const RECORD_WORKFLOW_KEYS = ['change', 'decision'] as const;
@@ -325,7 +327,10 @@ export interface RecordActionInfo {
   action: string;
   to: string;
   allowed: boolean;
+  /** Why it is not allowed (English) … */
   reason?: string;
+  /** … and as a code the web UI translates (errors:codes.<code>, e.g. FOUR_EYES_AUTHOR) */
+  reasonCode?: string;
   approval: boolean;
   commentRequired: boolean;
   needsRecord: boolean;
@@ -381,7 +386,11 @@ export interface RecordsMeta {
 export interface RecordImportItem {
   filename: string;
   ok: boolean;
+  /** Why the file cannot be imported (English) … */
   error?: string;
+  /** … as a code and parameters the web UI translates (errors:codes.<code>) */
+  errorCode?: string;
+  errorParams?: ErrorParams;
   title?: string;
   typeKey?: string;
   status?: string;
@@ -390,7 +399,10 @@ export interface RecordImportItem {
   format?: 'madr' | 'nygard' | 'frontmatter' | 'markdown' | 'steward';
   fields?: Record<string, string>;
   tags?: string[];
+  /** Notes about the import (English) … */
   warnings?: string[];
+  /** … the same notes as codes and parameters (errors:codes.<code>), in the same order */
+  warningCodes?: { code: string; params?: ErrorParams }[];
   /** Set when the record was created */
   record?: { id: string; number: string };
 }

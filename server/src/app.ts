@@ -262,12 +262,12 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     }
     const user = info ? toAuthUser(info) : null;
     if (!isPublic) {
-      if (!user) return void reply.code(401).send({ error: 'Please sign in' });
+      if (!user) return void reply.code(401).send({ error: 'Please sign in', code: 'NOT_SIGNED_IN' });
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {
         return void reply.code(403).send({ error: 'Please change your password first', code: 'PASSWORD_CHANGE_REQUIRED' });
       }
       if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
-        return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it' });
+        return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
     }
     (req as unknown as { smUser?: string }).smUser = user?.username;
@@ -299,10 +299,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
-      return reply.code(err.statusCode).send({ error: err.message, code: err.code, issues: (err as HttpError & { issues?: unknown }).issues });
+      return reply
+        .code(err.statusCode)
+        .send({ error: err.message, code: err.code, params: err.params, issues: (err as HttpError & { issues?: unknown }).issues });
     }
     if (err instanceof ZodError) {
-      return reply.code(400).send({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') });
+      // the schema messages stay English (docs/I18N.md); the UI puts them into a translated sentence
+      const details = err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+      return reply.code(400).send({ error: details, code: 'INVALID_INPUT', params: { details } });
     }
     const e = err as Error & { statusCode?: number };
     if (e.statusCode && e.statusCode < 500) return reply.code(e.statusCode).send({ error: e.message });

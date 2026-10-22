@@ -257,9 +257,14 @@ registerReportSection<RecordsConfig, RecordsSectionData>({
         { header: rt(lang, 'status'), width: 1.3 },
         { header: rt(lang, 'what'), width: 2 },
       ],
-      d.activity
-        .slice(0, MAX_ROWS)
-        .map((r): CellInput[] => [r.number, { text: r.title, bold: true }, r.type, rx.status(r.status), r.what.map((a) => rt(lang, a)).join(', ')]),
+      d.activity.slice(0, MAX_ROWS).map((r): CellInput[] => [
+        r.number,
+        { text: r.title, bold: true },
+        // the number starts with the type key (CR-2026-0001): built-in names in the report's language
+        rx.typeName(r.number.split('-')[0]!, r.type),
+        rx.status(r.status),
+        r.what.map((a) => rt(lang, a)).join(', '),
+      ]),
       { empty: rt(lang, 'noActivity'), size: 7.4 },
     );
     more(d.activity.length);
@@ -306,7 +311,7 @@ registerReportSection<RecordsConfig, RecordsSectionData>({
           r.start ? tr.dateTime(r.start) : '–',
           r.end ? tr.dateTime(r.end) : '–',
           rx.status(r.status),
-          r.risk ? { text: r.risk, tone: r.risk === 'high' ? 'danger' : 'default' } : '–',
+          r.risk ? { text: rx.option(r.number.split('-')[0]!, { key: 'risk' }, r.risk), tone: r.risk === 'high' ? 'danger' : 'default' } : '–',
         ]),
       { empty: rt(lang, 'noWindows'), size: 7.4 },
     );

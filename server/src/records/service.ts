@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  DEFAULT_RECORD_TYPES,
   RECORD_WORKFLOWS,
   type RecordActionInfo,
   type RecordDetail,
@@ -13,11 +14,24 @@ import {
 import { db } from '../db.js';
 import { audit, authenticRows } from '../audit.js';
 import { currentActor, type AuthUser } from '../auth/context.js';
-import { findUserByName } from '../auth/users.js';
+import { findUserByName, getUser } from '../auth/users.js';
+import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
+import { getSettings } from '../settings.js';
 import { isAdmin } from '../auth/permissions.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
-import { canApproveRecords, canCommentRecord, canCreateRecords, canEditRecord, forbid, fourEyesReason, me } from './access.js';
+import {
+  canApproveRecords,
+  canCommentRecord,
+  canCreateRecords,
+  canEditRecord,
+  fieldParam,
+  forbid,
+  fourEyesReason,
+  me,
+  statusParam,
+  type ActionReason,
+} from './access.js';
 import { attachmentRows, contentHash, recordRow, requireRecordRow, toAttachment, versionHash, type Content, type RecordRow } from './model.js';
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
 import { addLink, listBacklinks, listLinks } from './links.js';
@@ -45,27 +59,39 @@ const tagList = z.array(z.string().trim().min(1).max(LIMITS.tag)).max(LIMITS.tag
 export const cleanTags = (tags: string[]): string[] => [...new Set(tagList.parse(tags).map((t) => t.toLowerCase()))].sort();
 
 /** Fields as stored: only keys the type defines, values checked by kind, empty values dropped. */
-export function cleanFields(defs: RecordFieldDef[], input: Record<string, unknown>, o: { dropUnknown?: boolean } = {}): Record<string, string> {
+export function cleanFields(
+  defs: RecordFieldDef[],
+  input: Record<string, unknown>,
+  o: { dropUnknown?: boolean; typeKey?: string } = {},
+): Record<string, string> {
   const out: Record<string, string> = {};
   const byKey = new Map(defs.map((d) => [d.key, d]));
   for (const [k, raw] of Object.entries(input ?? {})) {
     const def = byKey.get(k);
     if (!def) {
       if (o.dropUnknown) continue;
-      throw new HttpError(400, `Unknown field "${k}" for this record type`);
+      throw new HttpError(400, `Unknown field "${k}" for this record type`, 'RECORD_FIELD_UNKNOWN', { field: k });
     }
     if (raw === null || raw === undefined) continue;
-    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean') throw new HttpError(400, `Field "${def.label}" must be text`);
+    const field = fieldParam(o.typeKey, def);
+    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'boolean')
+      throw new HttpError(400, `Field "${def.label}" must be text`, 'RECORD_FIELD_TEXT', { field });
     const v = String(raw).trim();
     if (!v) continue;
-    if (v.length > LIMITS.field) throw new HttpError(400, `Field "${def.label}" is too long (at most ${LIMITS.field} characters)`);
-    if (def.kind === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new HttpError(400, `Field "${def.label}" must be a date (YYYY-MM-DD)`);
+    if (v.length > LIMITS.field)
+      throw new HttpError(400, `Field "${def.label}" is too long (at most ${LIMITS.field} characters)`, 'RECORD_FIELD_TOO_LONG', { field, max: LIMITS.field });
+    if (def.kind === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v))
+      throw new HttpError(400, `Field "${def.label}" must be a date (YYYY-MM-DD)`, 'RECORD_FIELD_DATE', { field });
     if (def.kind === 'datetime' && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/.test(v) || Number.isNaN(Date.parse(v)))) {
-      throw new HttpError(400, `Field "${def.label}" must be a date and time (e.g. 2026-11-03T18:00)`);
+      throw new HttpError(400, `Field "${def.label}" must be a date and time (e.g. 2026-11-03T18:00)`, 'RECORD_FIELD_DATETIME', { field });
     }
     if (def.kind === 'select' && !(def.options ?? []).includes(v))
-      throw new HttpError(400, `Field "${def.label}" must be one of ${(def.options ?? []).join(', ')}`);
-    if ((def.kind === 'text' || def.kind === 'select') && v.includes('\n')) throw new HttpError(400, `Field "${def.label}" must be a single line`);
+      throw new HttpError(400, `Field "${def.label}" must be one of ${(def.options ?? []).join(', ')}`, 'RECORD_FIELD_OPTION', {
+        field,
+        options: (def.options ?? []).join(', '),
+      });
+    if ((def.kind === 'text' || def.kind === 'select') && v.includes('\n'))
+      throw new HttpError(400, `Field "${def.label}" must be a single line`, 'RECORD_FIELD_SINGLE_LINE', { field });
     out[k] = v;
   }
   return out;
@@ -235,17 +261,18 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
   const out: RecordActionInfo[] = [];
   for (const t of wf.transitions) {
     if (!t.from.includes(r.status)) continue;
-    let reason: string | undefined;
-    if (!u) reason = 'Not signed in';
+    let reason: ActionReason | undefined;
+    if (!u) reason = { code: 'NOT_SIGNED_IN', message: 'Not signed in' };
     else if (t.approval) {
-      if (!canApproveRecords(u)) reason = 'Only approvers and administrators can approve or reject records';
+      if (!canApproveRecords(u)) reason = { code: 'RECORD_APPROVERS_ONLY', message: 'Only approvers and administrators can approve or reject records' };
       else reason = fourEyesReason(u, r, contentAuthors(r)) ?? undefined;
-    } else if (!canEditRecord(u, r)) reason = 'Only designers, operators, administrators and the owner can do this';
+    } else if (!canEditRecord(u, r)) reason = { code: 'RECORD_EDITORS_ONLY', message: 'Only designers, operators, administrators and the owner can do this' };
     out.push({
       action: t.action,
       to: t.to,
       allowed: !reason,
-      reason,
+      reason: reason?.message,
+      reasonCode: reason?.code,
       approval: !!t.approval,
       commentRequired: !!t.commentRequired,
       needsRecord: !!t.needsRecord,
@@ -355,7 +382,7 @@ export function getVersion(idOrNumber: string, version: number): RecordVersion {
   me();
   const r = requireRecordRow(idOrNumber);
   const v = db().get<VersionRow>('SELECT * FROM record_versions WHERE record_id = ? AND version = ?', r.id, version);
-  if (!v) throw new HttpError(404, `Version ${version} of ${r.number} not found`);
+  if (!v) throw new HttpError(404, `Version ${version} of ${r.number} not found`, 'RECORD_VERSION_NOT_FOUND', { version, number: r.number });
   return toVersion(v);
 }
 
@@ -424,16 +451,35 @@ export interface CreateInput {
   lenientFields?: boolean;
 }
 
+/**
+ * The body a new record starts with when none is given (API, MCP): the template of its type; for a built-in
+ * type with its unchanged English template, the template in the creator's language (profile, else the
+ * default language). The web UI sends the template in its own language.
+ */
+function templateFor(t: TypeRow, u: AuthUser): string {
+  const def = DEFAULT_RECORD_TYPES.find((d) => d.key === t.key);
+  if (!t.builtin || !def || def.template !== t.template) return t.template;
+  let locale: string | null | undefined;
+  try {
+    locale = getUser(u.id).locale;
+  } catch {
+    locale = null;
+  }
+  return tr(resolveLocale(locale, getSettings().defaultLocale), `recordTemplates.${t.key}` as MessageKey);
+}
+
 export function createRecord(input: CreateInput): RecordDetail {
   const u = me();
-  if (!canCreateRecords(u)) forbid('create records');
+  if (!canCreateRecords(u)) forbid('create records', 'createRecords');
   const t = requireType(input.type);
-  if (t.archived) throw new HttpError(409, `The record type ${t.key} is archived`);
+  if (t.archived) throw new HttpError(409, `The record type ${t.key} is archived`, 'RECORD_TYPE_ARCHIVED', { type: t.key });
   const title = input.title.trim();
-  if (!title || title.length > LIMITS.title) throw new HttpError(400, `The title is required (at most ${LIMITS.title} characters)`);
-  const body = input.body ?? t.template;
-  if (body.length > LIMITS.body) throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`);
-  const fields = cleanFields(toType(t, 0).fields, input.fields ?? {}, { dropUnknown: input.lenientFields });
+  if (!title || title.length > LIMITS.title)
+    throw new HttpError(400, `The title is required (at most ${LIMITS.title} characters)`, 'TITLE_REQUIRED', { max: LIMITS.title });
+  const body = input.body ?? templateFor(t, u);
+  if (body.length > LIMITS.body)
+    throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`, 'TEXT_TOO_LONG', { maxKib: LIMITS.body / 1024 });
+  const fields = cleanFields(toType(t, 0).fields, input.fields ?? {}, { dropUnknown: input.lenientFields, typeKey: t.key });
   const tags = cleanTags(input.tags ?? []);
   const wf = workflowOf(t);
   const id = newId('rec_');
@@ -490,29 +536,37 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
-  if (!canEditRecord(u, r)) forbid('change this record');
+  if (!canEditRecord(u, r)) forbid('change this record', 'changeRecord');
   if (input.baseVersion !== undefined && input.baseVersion !== Number(r.version)) {
-    throw new HttpError(409, `${r.number} was changed in the meantime (version ${r.version}) – reload and apply your changes again`, 'RECORD_CHANGED');
+    throw new HttpError(409, `${r.number} was changed in the meantime (version ${r.version}) – reload and apply your changes again`, 'RECORD_CHANGED', {
+      number: r.number,
+      version: Number(r.version),
+    });
   }
   const cur: Content = { title: r.title, body: r.body, fields: parseJson(r.fields, {}) };
   const next: Content = {
     title: input.title !== undefined ? input.title.trim() : cur.title,
     body: input.body !== undefined ? input.body : cur.body,
-    fields: input.fields !== undefined ? cleanFields(toType(t, 0).fields, input.fields) : cur.fields,
+    fields: input.fields !== undefined ? cleanFields(toType(t, 0).fields, input.fields, { typeKey: t.key }) : cur.fields,
   };
-  if (!next.title || next.title.length > LIMITS.title) throw new HttpError(400, `The title is required (at most ${LIMITS.title} characters)`);
-  if (next.body.length > LIMITS.body) throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`);
+  if (!next.title || next.title.length > LIMITS.title)
+    throw new HttpError(400, `The title is required (at most ${LIMITS.title} characters)`, 'TITLE_REQUIRED', { max: LIMITS.title });
+  if (next.body.length > LIMITS.body)
+    throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`, 'TEXT_TOO_LONG', { maxKib: LIMITS.body / 1024 });
   const contentChanged = versionHash(next) !== versionHash(cur);
   if (contentChanged && r.status !== wf.initial) {
-    throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN');
+    throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
+      number: r.number,
+      status: statusParam(r.status),
+    });
   }
   const tags = input.tags !== undefined ? cleanTags(input.tags) : parseJson<string[]>(r.tags, []);
   const tagsChanged = JSON.stringify(tags) !== r.tags;
   let owner = r.owner;
   if (input.owner !== undefined && input.owner.trim().toLowerCase() !== r.owner.toLowerCase()) {
-    if (!isAdmin(u) && r.owner.toLowerCase() !== u.username.toLowerCase()) forbid('hand this record over to someone else');
+    if (!isAdmin(u) && r.owner.toLowerCase() !== u.username.toLowerCase()) forbid('hand this record over to someone else', 'handOverRecord');
     const target = findUserByName(input.owner.trim());
-    if (!target || !target.active) throw new HttpError(400, `User ${input.owner} not found`);
+    if (!target || !target.active) throw new HttpError(400, `User ${input.owner} not found`, 'USER_NOT_FOUND', { name: input.owner });
     owner = target.username;
   }
   const ownerChanged = owner !== r.owner;
@@ -565,32 +619,40 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
   const def = wf.transitions.find((x) => x.action === input.action);
-  if (!def) throw new HttpError(400, `Unknown action "${input.action}" for ${t.name}`);
+  if (!def) throw new HttpError(400, `Unknown action "${input.action}" for ${t.name}`, 'RECORD_ACTION_UNKNOWN', { action: input.action });
   if (!def.from.includes(r.status))
-    throw new HttpError(409, `${r.number} is ${r.status}: "${input.action}" is not possible (allowed from ${def.from.join(', ')})`, 'INVALID_TRANSITION');
+    throw new HttpError(409, `${r.number} is ${r.status}: "${input.action}" is not possible (allowed from ${def.from.join(', ')})`, 'INVALID_TRANSITION', {
+      number: r.number,
+      status: statusParam(r.status),
+    });
   const info = actionsOf(u, r, wf).find((a) => a.action === def.action)!;
-  if (!info.allowed) throw new HttpError(403, info.reason ?? 'Not allowed', def.approval && canApproveRecords(u) ? 'FOUR_EYES' : 'FORBIDDEN');
+  if (!info.allowed) throw new HttpError(403, info.reason ?? 'Not allowed', info.reasonCode ?? 'FORBIDDEN');
   const comment = (input.comment ?? '').trim();
-  if (comment.length > LIMITS.comment) throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`);
-  if (def.commentRequired && !comment) throw new HttpError(400, 'Please give a reason in the comment');
+  if (comment.length > LIMITS.comment)
+    throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
+  if (def.commentRequired && !comment) throw new HttpError(400, 'Please give a reason in the comment', 'COMMENT_REQUIRED');
   const leavingDraft = r.status === wf.initial;
   if (leavingDraft) {
     const fields = parseJson<Record<string, string>>(r.fields, {});
     const missing = toType(t, 0).fields.filter((f) => f.required && !fields[f.key]?.trim());
     if (missing.length && def.to !== 'cancelled')
-      throw new HttpError(400, `Fill in the required fields first: ${missing.map((f) => f.label).join(', ')}`, 'RECORD_INCOMPLETE');
+      throw new HttpError(400, `Fill in the required fields first: ${missing.map((f) => f.label).join(', ')}`, 'RECORD_INCOMPLETE', {
+        fields: missing.map((f) => fieldParam(t.key, f)),
+      });
   }
   let superseding: RecordRow | undefined;
   if (def.needsRecord) {
-    if (!input.supersededBy) throw new HttpError(400, 'Name the record that supersedes this one');
+    if (!input.supersededBy) throw new HttpError(400, 'Name the record that supersedes this one', 'SUPERSEDED_BY_REQUIRED');
     superseding = recordRow(input.supersededBy);
-    if (!superseding) throw new HttpError(404, `Record ${input.supersededBy} not found`);
-    if (superseding.id === r.id) throw new HttpError(400, 'A record cannot supersede itself');
+    if (!superseding) throw new HttpError(404, `Record ${input.supersededBy} not found`, 'RECORD_NOT_FOUND', { id: input.supersededBy });
+    if (superseding.id === r.id) throw new HttpError(400, 'A record cannot supersede itself', 'SUPERSEDE_SELF');
   }
   const hash = currentContentHash(r, t);
   if (!leavingDraft && !frozenIntact(r, hash)) {
     // The frozen content no longer matches the hash recorded (and audited) when it was frozen: changed outside Steward. Stop rather than approve it.
-    throw new HttpError(409, `The content of ${r.number} does not match the hash recorded when it was frozen – check the audit log`, 'RECORD_TAMPERED');
+    throw new HttpError(409, `The content of ${r.number} does not match the hash recorded when it was frozen – check the audit log`, 'RECORD_TAMPERED', {
+      number: r.number,
+    });
   }
   const now = nowIso();
   db().tx(() => {
@@ -650,12 +712,16 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
-  if (!canEditRecord(u, r)) forbid('start a new revision of this record');
+  if (!canEditRecord(u, r)) forbid('start a new revision of this record', 'reviseRecord');
   if (!wf.revisable.includes(r.status))
-    throw new HttpError(409, `${r.number} is ${r.status}: a new revision is only possible when it is ${wf.revisable.join(' or ')}`, 'INVALID_TRANSITION');
+    throw new HttpError(409, `${r.number} is ${r.status}: a new revision is only possible when it is ${wf.revisable.join(' or ')}`, 'INVALID_TRANSITION', {
+      number: r.number,
+      status: statusParam(r.status),
+    });
   const why = comment.trim();
-  if (!why) throw new HttpError(400, 'Please say why a new revision is needed');
-  if (why.length > LIMITS.comment) throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`);
+  if (!why) throw new HttpError(400, 'Please say why a new revision is needed', 'COMMENT_REQUIRED');
+  if (why.length > LIMITS.comment)
+    throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
   const revision = Number(r.revision) + 1;
   const previousHash = r.frozen_hash;
   db().tx(() => {
@@ -689,10 +755,11 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
 export function addComment(idOrNumber: string, text: string): RecordDetail {
   const u = me();
   const r = requireRecordRow(idOrNumber);
-  if (!canCommentRecord(u, r)) forbid('comment on records');
+  if (!canCommentRecord(u, r)) forbid('comment on records', 'commentRecord');
   const comment = text.trim();
-  if (!comment) throw new HttpError(400, 'The comment is empty');
-  if (comment.length > LIMITS.comment) throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`);
+  if (!comment) throw new HttpError(400, 'The comment is empty', 'COMMENT_EMPTY');
+  if (comment.length > LIMITS.comment)
+    throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
   db().tx(() => {
     const id = insertEvent(r, { kind: 'comment', action: null, from_status: null, to_status: null, comment, content_hash: null, version: Number(r.version) });
     audit({
@@ -716,10 +783,14 @@ export function requireEditable(
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
-  if (!canEditRecord(u, r)) forbid(what);
+  if (!canEditRecord(u, r)) forbid(what, 'changeRecord');
   if (o.draftOnly && r.status !== wf.initial)
-    throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN');
-  if (o.notTerminal && wf.terminal.includes(r.status)) throw new HttpError(409, `${r.number} is ${r.status}: it cannot change any more.`, 'RECORD_CLOSED');
+    throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
+      number: r.number,
+      status: statusParam(r.status),
+    });
+  if (o.notTerminal && wf.terminal.includes(r.status))
+    throw new HttpError(409, `${r.number} is ${r.status}: it cannot change any more.`, 'RECORD_CLOSED', { number: r.number, status: statusParam(r.status) });
   return { r, t, wf };
 }
 

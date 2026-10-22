@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import type { ErrorParam, ErrorParams } from '@sm/shared';
+
+export type { ErrorParam, ErrorParams };
 
 export const nowIso = (): string => new Date().toISOString();
 
@@ -89,6 +92,8 @@ export class HttpError extends Error {
     message: string,
     /** Stable machine-readable code (e.g. WRONG_CREDENTIALS). The web UI shows a translated text for known codes; the message stays English for logs and audit. */
     public code?: string,
+    /** Details for the translated text (see ErrorParams); the English message has them already. */
+    public params?: ErrorParams,
   ) {
     super(message);
   }
@@ -96,3 +101,9 @@ export class HttpError extends Error {
 
 /** Largest process or dashboard definition accepted as YAML/JSON text (the examples are below 10 KB). */
 export const MAX_DEFINITION_TEXT = 2 * 1024 * 1024;
+
+/** An error as a nested error parameter: its English message, code and parameters. */
+export function errorParam(e: unknown): ErrorParam {
+  if (e instanceof HttpError) return { message: e.message, ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params } : {}) };
+  return { message: e instanceof Error ? e.message : String(e) };
+}

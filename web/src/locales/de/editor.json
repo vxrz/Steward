@@ -352,7 +352,7 @@
     "hint": "Auf die Arbeitsfläche ziehen oder zum Hinzufügen klicken."
   },
   "node": {
-    "ok": "ok",
+    "ok": "OK",
     "parallel": "×{{count}} parallel",
     "parallelHint": "Bis zu {{count}} Elemente laufen gleichzeitig"
   },
