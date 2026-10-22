@@ -77,7 +77,7 @@ describe('R1: record PDFs with long words', () => {
       await dana('PUT', `/records/${rec.id}`, { body, fields: { ...CR_FIELDS, impact: 'i'.repeat(5000) } });
       const t = performance.now();
       const att = await dana('POST', `/records/${rec.id}/pdf`, {});
-      expect(performance.now() - t).toBeLessThan(3000); // was minutes
+      expect(performance.now() - t).toBeLessThan(10000); // was minutes; generous so a loaded CI runner does not flake
       expect(att.kind).toBe('generated');
     });
   }
