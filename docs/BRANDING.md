@@ -26,7 +26,7 @@ Export files are now written as `steward-bundle` and `steward-connector`. Files 
 
 ## Footer
 
-> Made with ❤️ in Erlangen, Germany · Metropolregion Mittelfranken [Franconian rake] · Designed and developed by uebelacker.io with AI
+> Made with ❤️ in Erlangen, Germany · Metropolregion Mittelfranken [Franconian rake] · Designed & built by uebelacker.io with AI
 > © 2026 uebelacker.io · Open source (Apache-2.0) · GitHub
 
 **Franconian rake vs. coat of arms.** The footer shows the *Fränkischer Rechen*: in red, three silver points. It is the free regional symbol of Franconia, also used on the Franconian flag. The *official* coat of arms of the Bezirk Mittelfranken combines the rake with the Nuremberg burgraviate and the Hohenzollern arms. Under Bavarian law, third parties may only use official coats of arms of public bodies with permission. If you want the official Bezirk arms, ask the Bezirk Mittelfranken first.

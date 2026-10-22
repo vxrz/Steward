@@ -27,7 +27,7 @@ export function AppFooter() {
         </Group>
         <Dot />
         <span>
-          Designed and developed by{' '}
+          Designed &amp; built by{' '}
           <Anchor href={BRAND.authorUrl} target="_blank" rel="noopener" inherit c="dimmed" underline="always">
             {BRAND.author}
           </Anchor>{' '}
