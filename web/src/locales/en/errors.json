@@ -29,7 +29,21 @@
     "PDF_NOT_DERIVED": "This PDF is not derived from a PDF Steward generated for this record. Sign a PDF generated here and upload the signed file unchanged.",
     "PDF_NOT_SIGNED": "This is the unsigned PDF exactly as Steward generated it – sign it first.",
     "PDF_NO_SIGNATURE": "The file starts with a PDF generated for this record, but no signature was added.",
-    "RECORD_CHANGED": "Someone changed this record in the meantime. Reload the page and apply your changes again."
+    "RECORD_CHANGED": "Someone changed this record in the meantime. Reload the page and apply your changes again.",
+    "TICKET_SETTINGS_ADMIN_ONLY": "Only administrators can change the ticket reference settings.",
+    "TICKET_SOURCE_KEY_DUPLICATE": "Each source needs its own key.",
+    "TICKET_SOURCE_IN_USE": "Ticket references use a source you removed – keep it (you can rename it).",
+    "TICKET_SOURCE_UNKNOWN": "Unknown source – an administrator manages the sources.",
+    "TICKET_RESPONSIBLE_UNKNOWN": "A responsible user or team does not exist.",
+    "TICKET_DUPLICATE": "A ticket reference with this source and number exists already.",
+    "TICKET_OPENED_IN_FUTURE": "The opening date cannot be in the future.",
+    "TICKET_RESOLVED_BEFORE_OPENED": "The ticket cannot be resolved before it was opened.",
+    "TICKET_NOT_FOUND": "Ticket reference not found.",
+    "TICKET_CREATE_FORBIDDEN": "You are not allowed to add ticket references.",
+    "TICKET_EDIT_FORBIDDEN": "You are not allowed to change this ticket reference.",
+    "TICKET_DELETE_ADMIN_ONLY": "Only administrators can delete ticket references.",
+    "TICKET_CHANGED": "Someone changed this ticket reference in the meantime. Reload the page and apply your changes again.",
+    "TICKET_RESPONSIBLE_REQUIRED": "You edit this entry as one of the responsible people: keep yourself or your team in the list."
   },
   "boundary": {
     "title": "Something went wrong on this page",

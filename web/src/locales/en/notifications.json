@@ -59,6 +59,12 @@
         "label": "Report ready",
         "info": "A scheduled report you receive was generated"
       }
+    },
+    "ticket": {
+      "unchecked": {
+        "label": "Ticket not checked",
+        "info": "An open ticket reference you are responsible for was not checked for a while"
+      }
     }
   }
 }

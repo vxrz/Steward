@@ -33,7 +33,7 @@ import { EmptyState, PageHeader, QueryState, useCreateParam } from '../component
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -317,6 +317,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     credentials: { dueWithinDays: 30 },
     runs: { processIds: null },
     records: { types: null, windowDays: 30 },
+    tickets: {},
   };
   const save = async () => {
     setBusy(true);

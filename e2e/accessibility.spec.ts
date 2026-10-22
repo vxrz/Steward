@@ -49,6 +49,7 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['monitor status wall', '/monitors/wall'],
     ['platforms', '/platforms'],
     ['credentials', '/credentials'],
+    ['ticket references', '/tickets'],
     ['reports', '/reports'],
     ['settings', '/settings'],
     ['users & teams', '/users'],

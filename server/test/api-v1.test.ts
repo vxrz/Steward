@@ -87,6 +87,14 @@ beforeAll(async () => {
   SECRETS.push(extra);
   await s.api('PUT', `/platforms/${hub}/secrets`, { apiKey: extra });
   // an entry of the credentials register (with a certificate fingerprint and owners)
+  await s.api('POST', '/ticket-references', {
+    source: 'vendor',
+    externalNumber: 'CS-API-1',
+    externalUrl: 'https://support.vendor.example/cases/1',
+    title: 'API ticket',
+    vendor: 'Vendor A',
+    links: [{ kind: 'platform', id: (await s.api('GET', '/platforms'))[0].id }],
+  });
   await s.api('POST', '/credentials', {
     name: 'API test client',
     type: 'apiClient',
@@ -438,6 +446,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await listAll('/monitors/{monitorId}/history', `/monitors/${x.id}/history`);
   }
   for (const x of (await listAll('/credentials', '/credentials')).slice(0, 5)) await get('/credentials/{credentialId}', `/credentials/${x.id}`);
+  for (const x of (await listAll('/ticket-references', '/ticket-references')).slice(0, 5))
+    await get('/ticket-references/{ticketId}', `/ticket-references/${x.id}`);
   for (const x of (await listAll('/records', '/records')).slice(0, 5)) {
     await get('/records/{recordId}', `/records/${x.id}`);
     await listAll('/records/{recordId}/versions', `/records/${x.number}/versions`);

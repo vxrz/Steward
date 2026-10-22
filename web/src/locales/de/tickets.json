@@ -1,0 +1,161 @@
+{
+  "title": "Ticket-Referenzen",
+  "description": "Tickets in anderen Systemen, die das Team im Blick behält: Incidents, die Benutzer über ServiceNow gemeldet haben, und Tickets bei den Herstellern der Plattformen und Services, die wir nutzen. Steward dokumentiert sie nur – bearbeitet wird das Ticket dort, wo es liegt.",
+  "new": "Neue Ticket-Referenz",
+  "editTitle": "{{number}} bearbeiten",
+  "saved": "Ticket-Referenz gespeichert",
+  "deleted": "Ticket-Referenz gelöscht",
+  "deleteConfirm": "Ticket-Referenz {{number}} löschen? Ihr Verlauf wird entfernt; das Audit-Log behält ihn.",
+  "status": {
+    "open": "Offen",
+    "waitingVendor": "Wartet auf Hersteller",
+    "waitingUs": "Wartet auf uns",
+    "resolved": "Gelöst",
+    "closed": "Geschlossen"
+  },
+  "sources": {
+    "servicenow-incident": "ServiceNow-Incident",
+    "servicenow-other": "ServiceNow (sonstiges)",
+    "vendor": "Hersteller-Ticket",
+    "other": "Sonstiges"
+  },
+  "fields": {
+    "source": "Quelle",
+    "externalNumber": "Nummer",
+    "externalUrl": "Link",
+    "title": "Titel",
+    "note": "Notiz",
+    "vendor": "Hersteller",
+    "responsible": "Verantwortlich bei uns",
+    "status": "Status",
+    "openedAt": "Eröffnet",
+    "resolvedAt": "Gelöst",
+    "lastCheckedAt": "Zuletzt geprüft",
+    "affected": "Betroffene Elemente",
+    "reminder": "Erinnerung",
+    "age": "Alter",
+    "comment": "Kommentar"
+  },
+  "hints": {
+    "externalNumber": "Wie im anderen System, z. B. INC0012345 oder die Fallnummer des Herstellers",
+    "externalUrl": "http(s)-Link zum Ticket im anderen System",
+    "note": "Kurze Notiz in Markdown: worum es geht, was vereinbart wurde",
+    "vendor": "Einen Hersteller früherer Einträge wählen oder einen neuen eingeben",
+    "responsible": "Steward-Benutzer und -Teams, die sich darum kümmern. Sie dürfen den Eintrag bearbeiten und erhalten die Erinnerungen.",
+    "responsibleSelf": "Sie bearbeiten diesen Eintrag als verantwortliche Person: Lassen Sie sich selbst oder Ihr Team in der Liste.",
+    "statusComment": "Erscheint im Verlauf des Eintrags",
+    "openedAt": "Wann das Ticket im anderen System eröffnet wurde"
+  },
+  "reminder": {
+    "default": "Standard ({{label}})",
+    "off": "Für diesen Eintrag aus",
+    "days": "Eigener Wert",
+    "daysLabel": "Erinnern nach so vielen Tagen ohne Prüfung",
+    "defaultOff": "aus",
+    "defaultDays_one": "nach {{count}} Tag",
+    "defaultDays_other": "nach {{count}} Tagen",
+    "summary_one": "Erinnert nach {{count}} Tag ohne Prüfung",
+    "summary_other": "Erinnert nach {{count}} Tagen ohne Prüfung",
+    "none": "Keine Erinnerung"
+  },
+  "filters": {
+    "search": "Suche",
+    "state": "Anzeigen",
+    "states": {
+      "open": "Offene Tickets",
+      "closed": "Gelöste und geschlossene",
+      "all": "Alle"
+    },
+    "status": "Status",
+    "allStatuses": "Jeder Status",
+    "source": "Quelle",
+    "allSources": "Alle Quellen",
+    "vendor": "Hersteller",
+    "allVendors": "Alle Hersteller",
+    "service": "Service",
+    "allServices": "Alle Services",
+    "responsible": "Verantwortlich",
+    "anyone": "Alle",
+    "me": "Ich (oder meine Teams)",
+    "minAge": "Seit mindestens (Tagen) offen"
+  },
+  "table": {
+    "ticket": "Ticket-Referenz",
+    "source": "Quelle",
+    "status": "Status",
+    "vendor": "Hersteller",
+    "affected": "Betroffen",
+    "responsible": "Verantwortlich",
+    "age": "Alter",
+    "lastChecked": "Zuletzt geprüft"
+  },
+  "ageDays_one": "{{count}} Tag",
+  "ageDays_other": "{{count}} Tage",
+  "neverChecked": "nie",
+  "actions": {
+    "markChecked": "Als geprüft markieren",
+    "checkedDone": "Als geprüft markiert",
+    "changeStatus": "Status ändern",
+    "statusChanged": "Status geändert",
+    "openExternal": "Ticket öffnen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "statusMenu": "Status von {{number}} ändern"
+  },
+  "detail": {
+    "details": "Details",
+    "history": "Verlauf",
+    "noNote": "Keine Notiz.",
+    "notVisible": "ein Element, das Sie nicht sehen können",
+    "noAffected": "Keine betroffenen Elemente.",
+    "createdBy": "Angelegt von {{user}} am {{date}}",
+    "updatedBy": "Geändert von {{user}} {{when}}",
+    "events": {
+      "created": "Angelegt",
+      "updated": "Geändert",
+      "status": "Statuswechsel: {{from}} → {{to}}",
+      "checked": "Geprüft",
+      "reminded": "Erinnerung gesendet"
+    },
+    "fieldsChanged": "Felder: {{fields}}",
+    "markdownSafe": "Die Notiz wird als Markdown ohne HTML dargestellt."
+  },
+  "affected": {
+    "add": "Betroffenes Element hinzufügen",
+    "kind": "Art",
+    "item": "Element",
+    "search": "Zum Suchen tippen",
+    "nothing": "Nichts gefunden",
+    "remove": "{{name}} entfernen"
+  },
+  "emptyState": {
+    "title": "Noch keine Ticket-Referenzen",
+    "text": "Halten Sie hier Tickets fest, die für den Service wichtig sind: einen Incident, den Benutzer in ServiceNow gemeldet haben, oder einen Fall, den Sie bei einem Hersteller eröffnet haben. Erfassen Sie, wer sich darum kümmert, verknüpfen Sie die betroffenen Services und Plattformen und halten Sie den Status aktuell.",
+    "action": "Ticket-Referenz anlegen"
+  },
+  "emptyFiltered": "Keine Ticket-Referenzen passen zu den Filtern.",
+  "panel": {
+    "title": "Offene Tickets",
+    "none": "Keine offenen Tickets.",
+    "showClosed": "Gelöste und geschlossene anzeigen",
+    "all": "Alle Ticket-Referenzen",
+    "add": "Ticket-Referenz anlegen"
+  },
+  "vendorBadge_one": "{{count}} offenes Hersteller-Ticket",
+  "vendorBadge_other": "{{count}} offene Hersteller-Tickets",
+  "settings": {
+    "title": "Ticket-Referenzen",
+    "description": "Quellen von Tickets und die Standard-Erinnerung. Eine verwendete Quelle kann nicht entfernt werden (benennen Sie sie stattdessen um). Hersteller-Quellen zählen im Hinweis „offene Hersteller-Tickets“ des Servicekatalogs.",
+    "sources": "Quellen",
+    "key": "Schlüssel",
+    "label": "Name",
+    "vendor": "Hersteller-Quelle",
+    "addSource": "Quelle hinzufügen",
+    "removeSource": "Quelle {{name}} entfernen",
+    "reminderDefault": "Standardmäßig erinnern",
+    "reminderDefaultHint": "Die verantwortlichen Personen erinnern, wenn ein offenes Ticket so viele Tage nicht geprüft wurde. Einträge können einen eigenen Wert wählen oder die Erinnerung ausschalten.",
+    "reminderDays": "Tage ohne Prüfung",
+    "save": "Ticket-Einstellungen speichern",
+    "saved": "Einstellungen der Ticket-Referenzen gespeichert"
+  }
+}

@@ -88,5 +88,20 @@
     "title": "Report ready: \"{{name}}\"",
     "body": "The scheduled report “{{name}}” for {{from}} – {{to}} was generated.",
     "attached": "The PDF is attached."
+  },
+  "ticketStatus": {
+    "open": "open",
+    "waitingVendor": "waiting for the vendor",
+    "waitingUs": "waiting for us",
+    "resolved": "resolved",
+    "closed": "closed"
+  },
+  "ticketUnchecked": {
+    "title_one": "Ticket {{number}} not checked for {{count}} day",
+    "title_other": "Ticket {{number}} not checked for {{count}} days",
+    "body_one": "Nobody checked the ticket {{number}} “{{title}}” ({{status}}) for {{count}} day. Please look at it in the other system and mark it as checked (or change its status) in the ticket reference.",
+    "body_other": "Nobody checked the ticket {{number}} “{{title}}” ({{status}}) for {{count}} days. Please look at it in the other system and mark it as checked (or change its status) in the ticket reference.",
+    "since": "Last checked (or added): {{date}}",
+    "vendor": "Vendor: {{vendor}}"
   }
 }

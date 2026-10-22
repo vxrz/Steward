@@ -16,7 +16,8 @@
     "credentials": "Credentials",
     "reports": "Reports",
     "records": "Records",
-    "services": "Services"
+    "services": "Services",
+    "tickets": "Tickets"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
@@ -53,7 +54,8 @@
       "monitors": "Monitors",
       "services": "Services",
       "records": "Records",
-      "credentials": "Credentials"
+      "credentials": "Credentials",
+      "tickets": "Ticket references"
     },
     "runBy": "Run by {{actor}} · {{when}}",
     "dryRunBy": "Dry run by {{actor}} · {{when}}",
@@ -79,7 +81,8 @@
       "record": "New record",
       "credential": "New credential entry",
       "service": "New service",
-      "schedule": "New schedule"
+      "schedule": "New schedule",
+      "ticket": "New ticket reference"
     }
   },
   "groups": {

@@ -24,6 +24,7 @@ import { generateScheduledReport } from './service.js';
 import { parseSections, reportSection } from './sections.js';
 // sections registered by other features
 import '../records/report-section.js';
+import '../tickets/report-section.js';
 
 /**
  * Scheduled summary reports. A schedule has an owner and runs with the owner's

@@ -6,7 +6,7 @@
  */
 import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
-import { DATASET_STATUSES, MONITOR_STATUSES, type DatasetRow } from '@sm/shared';
+import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, type DatasetRow } from '@sm/shared';
 import { db } from '../db.js';
 import { queryAudit } from '../audit.js';
 import { config } from '../config.js';
@@ -20,6 +20,7 @@ import * as datasets from '../dashboards/datasets.js';
 import * as dashboards from '../dashboards/service.js';
 import * as monitors from '../monitors/service.js';
 import * as triggers from '../triggers/service.js';
+import * as tickets from '../tickets/service.js';
 import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { systemStatus } from '../system/routes.js';
 import { HttpError } from '../util.js';
@@ -554,6 +555,64 @@ const steward: ToolDef[] = [
           rejectedCount: t.rejectedCount,
         }));
       return pageArray(list, (t) => [t.name.toLowerCase(), t.id], a, { processId: a.processId, enabled: a.enabled });
+    },
+  }),
+
+  defineTool({
+    name: 'list_ticket_references',
+    title: 'List ticket references',
+    description:
+      'Tickets in other systems that the service team documents in Steward: ServiceNow incidents reported by users and tickets opened with vendors. Source, number, link, title, vendor, status (open, waitingVendor, waitingUs, resolved, closed), responsible people, age, last check and the affected services, platforms, credentials and records (names only for items you may see). Default: open tickets only.',
+    input: z
+      .object({
+        state: z.enum(['open', 'closed', 'all']).default('open').describe('open: open, waitingVendor, waitingUs; closed: resolved, closed'),
+        status: z.array(z.enum(TICKET_STATUSES)).max(5).optional().describe('Only these statuses (overrides state)'),
+        source: z.array(z.string().max(40)).max(30).optional().describe('Ticket source keys, e.g. servicenow-incident, vendor'),
+        vendor: z.string().max(120).optional(),
+        affectedKind: z.enum(TICKET_LINK_KINDS).optional().describe('With affectedId: only tickets that name this item as affected'),
+        affectedId: z.string().max(200).optional(),
+        query: z.string().max(200).optional().describe('Case-insensitive text in number, title, vendor and note'),
+        cursor: cursorArg,
+        limit: limitArg(),
+      })
+      .strict(),
+    handler: (a) => {
+      if (!!a.affectedKind !== !!a.affectedId) throw new ToolError('Give affectedKind and affectedId together');
+      const list = tickets
+        .listTickets({
+          state: a.state,
+          status: a.status,
+          source: a.source,
+          vendor: a.vendor,
+          link: a.affectedKind ? `${a.affectedKind}:${a.affectedId}` : undefined,
+          q: a.query,
+        })
+        .map((t) => ({
+          id: t.id,
+          source: t.source,
+          sourceLabel: t.sourceLabel,
+          externalNumber: t.externalNumber,
+          externalUrl: t.externalUrl,
+          title: t.title,
+          note: short(t.note),
+          vendor: t.vendor,
+          status: t.status,
+          responsible: t.responsible,
+          openedAt: t.openedAt,
+          resolvedAt: t.resolvedAt,
+          lastCheckedAt: t.lastCheckedAt,
+          ageDays: t.ageDays,
+          affected: t.links.filter((l) => l.visible).map((l) => ({ kind: l.kind, id: l.targetId, name: l.label })),
+        }));
+      return pageArray(list, (t) => [-Date.parse(t.openedAt), t.id], a, {
+        state: a.state,
+        status: a.status,
+        source: a.source,
+        vendor: a.vendor,
+        affectedKind: a.affectedKind,
+        affectedId: a.affectedId,
+        query: a.query,
+      });
     },
   }),
 

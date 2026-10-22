@@ -88,5 +88,20 @@
     "title": "Bericht erstellt: „{{name}}“",
     "body": "Der geplante Bericht „{{name}}“ für {{from}} – {{to}} wurde erstellt.",
     "attached": "Das PDF ist angehängt."
+  },
+  "ticketStatus": {
+    "open": "offen",
+    "waitingVendor": "wartet auf den Hersteller",
+    "waitingUs": "wartet auf uns",
+    "resolved": "gelöst",
+    "closed": "geschlossen"
+  },
+  "ticketUnchecked": {
+    "title_one": "Ticket {{number}} seit {{count}} Tag nicht geprüft",
+    "title_other": "Ticket {{number}} seit {{count}} Tagen nicht geprüft",
+    "body_one": "Niemand hat das Ticket {{number}} „{{title}}“ ({{status}}) seit {{count}} Tag geprüft. Bitte sehen Sie es im anderen System nach und markieren Sie es in der Ticket-Referenz als geprüft (oder ändern Sie den Status).",
+    "body_other": "Niemand hat das Ticket {{number}} „{{title}}“ ({{status}}) seit {{count}} Tagen geprüft. Bitte sehen Sie es im anderen System nach und markieren Sie es in der Ticket-Referenz als geprüft (oder ändern Sie den Status).",
+    "since": "Zuletzt geprüft (oder angelegt): {{date}}",
+    "vendor": "Hersteller: {{vendor}}"
   }
 }

@@ -57,6 +57,8 @@ const RecordEditorPage = page(() => import('./pages/RecordEditor'), 'RecordEdito
 const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
+const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
+const TicketDetailPage = page(() => import('./pages/TicketDetail'), 'TicketDetailPage');
 
 function PageLoader() {
   return (
@@ -202,6 +204,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/services/:id" element={<ServiceDetailPage />} />
                 <Route path="/credentials" element={<CredentialsPage />} />
+                <Route path="/tickets" element={<TicketsPage />} />
+                <Route path="/tickets/:id" element={<TicketDetailPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
                 {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}

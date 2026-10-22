@@ -24,6 +24,7 @@ import type users from '../locales/en/users.json';
 import type credentials from '../locales/en/credentials.json';
 import type reportSchedules from '../locales/en/reportSchedules.json';
 import type gatus from '../locales/en/gatus.json';
+import type tickets from '../locales/en/tickets.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -61,4 +62,5 @@ export interface Resources {
   mcp: typeof mcp;
   records: typeof records;
   services: typeof services;
+  tickets: typeof tickets;
 }
