@@ -1,1 +1,112 @@
-{}
+{
+  "title": "Settings",
+  "readOnly": "Only administrators can change settings.",
+  "saved": "Settings saved",
+  "signIn": {
+    "title": "Sign-in",
+    "all": "Password and SSO",
+    "adminsOnly": "SSO only",
+    "adminsOnlyHint": "Everyone signs in with single sign-on. Local administrator accounts can still use their password – keep at least one as break-glass access in case the identity provider is unavailable.",
+    "allHint": "Users can sign in with a local password or, if configured, with single sign-on.",
+    "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams."
+  },
+  "language": {
+    "title": "Language",
+    "default": "Default language",
+    "defaultHint": "For messages posted to a channel (Microsoft Teams, webhook) and for people who have not chosen a language yet.",
+    "hint": "Everyone picks their own language in the user menu or on their profile; in-app notifications and e-mails use it. Audit entries and run protocols stay in English."
+  },
+  "browser": {
+    "title": "Browser automation",
+    "missing": "Playwright is not installed. Run <c>npm install</c> and <c>npx playwright install chromium</c>, then restart.",
+    "headless": "Run browser headless",
+    "headlessHint": "Turn off to watch the browser while a process runs (useful when building browser steps).",
+    "timeout": "Default timeout per action (ms)",
+    "tip": "Tip: <c>npx playwright codegen https://your-portal</c> records clicks and shows selectors you can paste into browser steps."
+  },
+  "retention": {
+    "title": "Data retention",
+    "runs": "Keep runs (days)",
+    "runsHint": "Includes logs and evidence files. 0 = forever.",
+    "notifications": "Keep read notifications (days)",
+    "notificationsHint": "Unread ones are always kept.",
+    "hint": "Older runs and read notifications are deleted automatically. The audit log is never pruned."
+  },
+  "unattended": {
+    "title": "Unattended operation",
+    "text": "Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), set the environment variable <c>SM_MASTER_PASSPHRASE</c>. To let colleagues use the tool over the network, start it with <c>SM_HOST=0.0.0.0</c>, <hosts/> and HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>). Keep the data directory (<c>data/</c>) backed up – it contains the database, encrypted credentials, evidence files and the audit log. See the <readme>README</readme> for details."
+  },
+  "maintenance": {
+    "confirm": "Delete runs and notifications older than the saved retention periods now? This cannot be undone.",
+    "result": "{{runs}}, {{files}} and {{notifications}} deleted.",
+    "done": "Done.",
+    "finished": "Cleanup finished",
+    "failed": "Cleanup failed",
+    "nRuns_one": "{{count}} run",
+    "nRuns_other": "{{count}} runs",
+    "nFiles_one": "{{count}} file",
+    "nFiles_other": "{{count}} files",
+    "nNotifications_one": "{{count}} notification",
+    "nNotifications_other": "{{count}} notifications",
+    "database": "Database",
+    "evidence": "Evidence files",
+    "runs": "Runs",
+    "oldest": "Oldest run",
+    "auditEntries": "Audit entries",
+    "lastCleanup": "Last cleanup",
+    "never": "never",
+    "lastResult": "Last cleanup removed {{runs}}, {{files}} and {{notifications}}.",
+    "cleanup": "Clean up now",
+    "cleanupHint": "Uses the saved retention periods. Cleanup also runs automatically."
+  },
+  "tokens": {
+    "title": "API tokens",
+    "hint": "Tokens of all users. Users create their own tokens on their profile page.",
+    "none": "No tokens yet.",
+    "revokeConfirm": "Revoke the token “{{name}}” of {{owner}}? Scripts using it stop working immediately.",
+    "revoked": "Token revoked"
+  },
+  "notify": {
+    "unchanged": "unchanged",
+    "notSet": "not set",
+    "willBeRemoved": "Will be removed when you save.",
+    "keep": "Keep",
+    "removeStored": "Remove stored value",
+    "sendTest": "Send test",
+    "testSent": "Test sent.",
+    "testFailed": "Failed: {{error}}",
+    "unknownError": "unknown error",
+    "saved": "Notification settings saved",
+    "notSaved": "Not saved",
+    "unsaved": "You have unsaved changes. Tests use the saved settings, so save first.",
+    "title": "Notifications",
+    "intro": "How people are told about failed runs, waiting decisions and more. In-app notifications appear under the bell.",
+    "baseUrl": "Base URL for links",
+    "baseUrlHint": "Used for links in e-mails and Teams messages, e.g. {{example}}",
+    "email": "E-mail (SMTP)",
+    "sendEmails": "Send e-mails",
+    "smtpHost": "SMTP host",
+    "port": "Port",
+    "user": "User",
+    "password": "Password",
+    "from": "From",
+    "secure": "TLS from the start",
+    "secureHint": "On for port 465. Off uses STARTTLS when the server offers it.",
+    "testRecipient": "Test recipient",
+    "postTeams": "Post to Teams",
+    "webhookUrl": "Webhook URL",
+    "teamsUrlHint": "Incoming webhook or Workflows “Post to a channel when a webhook request is received” URL",
+    "sendWebhook": "Send to a webhook",
+    "webhookUrlHint": "Receives a JSON POST per notification (e.g. ticketing, Slack, automation)",
+    "routes": "Which events go where",
+    "event": "Event",
+    "channels": {
+      "inApp": "In-app",
+      "email": "E-mail",
+      "teams": "Teams",
+      "webhook": "Webhook"
+    },
+    "routesHint": "Each event goes to the people it concerns. E-mails are only sent to users who turned e-mail notifications on in their profile.",
+    "save": "Save notification settings"
+  }
+}

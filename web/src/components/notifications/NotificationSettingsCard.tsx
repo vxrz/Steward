@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Anchor, Button, Card, Checkbox, Divider, Group, NumberInput, PasswordInput, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconSend } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import {
   NOTIFICATION_EVENTS,
   NOTIFICATION_EVENT_INFO,
@@ -13,13 +14,14 @@ import {
 import { getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { useMe } from '../../auth';
 import { Hint } from '../common';
+import i18n from '../../i18n';
+import { errorText } from '../../i18n/errors';
 
-const CHANNELS: { value: NotificationChannel; label: string }[] = [
-  { value: 'inApp', label: 'In-app' },
-  { value: 'email', label: 'E-mail' },
-  { value: 'teams', label: 'Teams' },
-  { value: 'webhook', label: 'Webhook' },
-];
+const CHANNELS: NotificationChannel[] = ['inApp', 'email', 'teams', 'webhook'];
+
+/** Description of an event (English default in shared/, translated in the notifications namespace). */
+const eventInfo = (ev: NotificationEvent): string =>
+  i18n.t(`notifications:events.${ev}.info` as 'notifications:events.run.failed.info', { defaultValue: NOTIFICATION_EVENT_INFO[ev] });
 
 /** Write-only secret: undefined = keep the stored value, '' = remove it, text = replace it. */
 type Secret = string | undefined;
@@ -41,6 +43,7 @@ const toDraft = (s: NotificationSettings): Draft => ({
 });
 
 function SecretInput({ label, description, stored, value, onChange, mono }: { label: string; description?: string; stored: boolean; value: Secret; onChange: (v: Secret) => void; mono?: boolean }) {
+  const { t } = useTranslation('settings');
   const removing = stored && value === '';
   return (
     <div>
@@ -48,7 +51,7 @@ function SecretInput({ label, description, stored, value, onChange, mono }: { la
         label={label}
         description={description}
         classNames={mono ? { input: 'mono' } : undefined}
-        placeholder={stored ? 'unchanged' : 'not set'}
+        placeholder={stored ? t('notify.unchanged') : t('notify.notSet')}
         value={value ?? ''}
         onChange={(e) => onChange(e.currentTarget.value === '' && !stored ? undefined : e.currentTarget.value)}
         autoComplete="new-password"
@@ -58,15 +61,15 @@ function SecretInput({ label, description, stored, value, onChange, mono }: { la
           {removing ? (
             <>
               <Text size="xs" c="orange">
-                Will be removed when you save.
+                {t('notify.willBeRemoved')}
               </Text>
               <Anchor size="xs" component="button" type="button" onClick={() => onChange(undefined)}>
-                Keep
+                {t('notify.keep')}
               </Anchor>
             </>
           ) : (
             <Anchor size="xs" component="button" type="button" c="red" onClick={() => onChange('')}>
-              Remove stored value
+              {t('notify.removeStored')}
             </Anchor>
           )}
         </Group>
@@ -76,6 +79,7 @@ function SecretInput({ label, description, stored, value, onChange, mono }: { la
 }
 
 function TestButton({ channel, to, disabled }: { channel: NotificationChannel; to?: string; disabled?: boolean }) {
+  const { t } = useTranslation('settings');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
   const run = async () => {
@@ -84,7 +88,7 @@ function TestButton({ channel, to, disabled }: { channel: NotificationChannel; t
     try {
       setResult(await post<{ ok: boolean; error?: string }>('/settings/notifications/test', { channel, ...(to ? { to } : {}) }));
     } catch (e) {
-      setResult({ ok: false, error: (e as Error).message });
+      setResult({ ok: false, error: errorText(e) });
     } finally {
       setBusy(false);
     }
@@ -93,12 +97,12 @@ function TestButton({ channel, to, disabled }: { channel: NotificationChannel; t
     <Stack gap={4}>
       <Group>
         <Button size="xs" variant="light" leftSection={<IconSend size={14} />} loading={busy} disabled={disabled} onClick={run}>
-          Send test
+          {t('notify.sendTest')}
         </Button>
       </Group>
       {result && (
         <Text size="xs" c={result.ok ? 'green' : 'red'} style={{ wordBreak: 'break-word' }}>
-          {result.ok ? 'Test sent.' : `Failed: ${result.error ?? 'unknown error'}`}
+          {result.ok ? t('notify.testSent') : t('notify.testFailed', { error: result.error ?? t('notify.unknownError') })}
         </Text>
       )}
     </Stack>
@@ -107,6 +111,7 @@ function TestButton({ channel, to, disabled }: { channel: NotificationChannel; t
 
 /** Admin settings for e-mail, Teams, webhook and per-event routing. Hidden while the server has no endpoint for it. */
 export function NotificationSettingsCard() {
+  const { t } = useTranslation('settings');
   const qc = useQueryClient();
   const { me } = useMe();
   const q = useQuery({ queryKey: ['settings', 'notifications'], queryFn: () => getOptional<NotificationSettings | null>('/settings/notifications', null) });
@@ -148,58 +153,58 @@ export function NotificationSettingsCard() {
       const saved = await put<NotificationSettings>('/settings/notifications', body);
       if (saved && typeof saved === 'object' && 'email' in saved) qc.setQueryData(['settings', 'notifications'], saved);
       else await qc.invalidateQueries({ queryKey: ['settings', 'notifications'] });
-      notifyOk('Notification settings saved');
+      notifyOk(t('notify.saved'));
     } catch (e) {
-      notifyError(e, 'Not saved');
+      notifyError(e, t('notify.notSaved'));
     } finally {
       setBusy(false);
     }
   };
 
-  const unsaved = dirty ? 'You have unsaved changes. Tests use the saved settings, so save first.' : undefined;
+  const unsaved = dirty ? t('notify.unsaved') : undefined;
 
   return (
     <Card withBorder>
-      <Title order={5}>Notifications</Title>
+      <Title order={5}>{t('notify.title')}</Title>
       <Text size="sm" c="dimmed" mb="sm">
-        How people are told about failed runs, waiting decisions and more. In-app notifications appear under the bell.
+        {t('notify.intro')}
       </Text>
       <Stack>
         <TextInput
-          label="Base URL for links"
-          description="Used for links in e-mails and Teams messages, e.g. https://steward.example.com"
+          label={t('notify.baseUrl')}
+          description={t('notify.baseUrlHint', { example: 'https://steward.example.com' })}
           classNames={{ input: 'mono' }}
           placeholder={typeof window !== 'undefined' ? window.location.origin : ''}
           value={d.baseUrl}
           onChange={(e) => setD({ ...d, baseUrl: e.currentTarget.value })}
         />
 
-        <Divider label="E-mail (SMTP)" labelPosition="left" />
-        <Switch label="Send e-mails" checked={d.email.enabled} onChange={(e) => setEmail({ enabled: e.currentTarget.checked })} />
+        <Divider label={t('notify.email')} labelPosition="left" />
+        <Switch label={t('notify.sendEmails')} checked={d.email.enabled} onChange={(e) => setEmail({ enabled: e.currentTarget.checked })} />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="SMTP host" classNames={{ input: 'mono' }} placeholder="smtp.example.com" value={d.email.host} onChange={(e) => setEmail({ host: e.currentTarget.value })} />
-          <NumberInput label="Port" min={1} max={65535} value={d.email.port} onChange={(v) => setEmail({ port: typeof v === 'number' ? v : 587 })} />
-          <TextInput label="User" value={d.email.user ?? ''} onChange={(e) => setEmail({ user: e.currentTarget.value })} autoComplete="off" />
-          <SecretInput label="Password" stored={stored.email.hasPassword} value={smtpPassword} onChange={setSmtpPassword} />
-          <TextInput label="From" placeholder="Steward <noreply@example.com>" value={d.email.from} onChange={(e) => setEmail({ from: e.currentTarget.value })} />
+          <TextInput label={t('notify.smtpHost')} classNames={{ input: 'mono' }} placeholder="smtp.example.com" value={d.email.host} onChange={(e) => setEmail({ host: e.currentTarget.value })} />
+          <NumberInput label={t('notify.port')} min={1} max={65535} value={d.email.port} onChange={(v) => setEmail({ port: typeof v === 'number' ? v : 587 })} />
+          <TextInput label={t('notify.user')} value={d.email.user ?? ''} onChange={(e) => setEmail({ user: e.currentTarget.value })} autoComplete="off" />
+          <SecretInput label={t('notify.password')} stored={stored.email.hasPassword} value={smtpPassword} onChange={setSmtpPassword} />
+          <TextInput label={t('notify.from')} placeholder="Steward <noreply@example.com>" value={d.email.from} onChange={(e) => setEmail({ from: e.currentTarget.value })} />
           <Switch
-            label="TLS from the start"
-            description="On for port 465. Off uses STARTTLS when the server offers it."
+            label={t('notify.secure')}
+            description={t('notify.secureHint')}
             checked={d.email.secure}
             onChange={(e) => setEmail({ secure: e.currentTarget.checked })}
             mt={{ sm: 'lg' }}
           />
         </SimpleGrid>
         <Group align="flex-end" gap="sm">
-          <TextInput label="Test recipient" size="xs" w={260} maw="100%" value={testTo} onChange={(e) => setTestTo(e.currentTarget.value)} />
+          <TextInput label={t('notify.testRecipient')} size="xs" w={260} maw="100%" value={testTo} onChange={(e) => setTestTo(e.currentTarget.value)} />
           <TestButton channel="email" to={testTo.trim() || undefined} disabled={!!dirty || !stored.email.enabled} />
         </Group>
 
         <Divider label="Microsoft Teams" labelPosition="left" />
-        <Switch label="Post to Teams" checked={d.teamsEnabled} onChange={(e) => setD({ ...d, teamsEnabled: e.currentTarget.checked })} />
+        <Switch label={t('notify.postTeams')} checked={d.teamsEnabled} onChange={(e) => setD({ ...d, teamsEnabled: e.currentTarget.checked })} />
         <SecretInput
-          label="Webhook URL"
-          description="Incoming webhook or Workflows “Post to a channel when a webhook request is received” URL"
+          label={t('notify.webhookUrl')}
+          description={t('notify.teamsUrlHint')}
           mono
           stored={stored.teams.hasWebhookUrl}
           value={teamsUrl}
@@ -208,10 +213,10 @@ export function NotificationSettingsCard() {
         <TestButton channel="teams" disabled={!!dirty || !stored.teams.enabled || !stored.teams.hasWebhookUrl} />
 
         <Divider label="Webhook" labelPosition="left" />
-        <Switch label="Send to a webhook" checked={d.webhookEnabled} onChange={(e) => setD({ ...d, webhookEnabled: e.currentTarget.checked })} />
+        <Switch label={t('notify.sendWebhook')} checked={d.webhookEnabled} onChange={(e) => setD({ ...d, webhookEnabled: e.currentTarget.checked })} />
         <SecretInput
-          label="Webhook URL"
-          description="Receives a JSON POST per notification (e.g. ticketing, Slack, automation)"
+          label={t('notify.webhookUrl')}
+          description={t('notify.webhookUrlHint')}
           mono
           stored={stored.webhook.hasUrl}
           value={webhookUrl}
@@ -219,15 +224,15 @@ export function NotificationSettingsCard() {
         />
         <TestButton channel="webhook" disabled={!!dirty || !stored.webhook.enabled || !stored.webhook.hasUrl} />
 
-        <Divider label="Which events go where" labelPosition="left" />
+        <Divider label={t('notify.routes')} labelPosition="left" />
         <Table.ScrollContainer minWidth={520}>
           <Table verticalSpacing={6} fz="sm">
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Event</Table.Th>
+                <Table.Th>{t('notify.event')}</Table.Th>
                 {CHANNELS.map((c) => (
-                  <Table.Th key={c.value} ta="center" w={80}>
-                    {c.label}
+                  <Table.Th key={c} ta="center" w={80}>
+                    {t(`notify.channels.${c}`)}
                   </Table.Th>
                 ))}
               </Table.Tr>
@@ -240,17 +245,17 @@ export function NotificationSettingsCard() {
                       {ev}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {NOTIFICATION_EVENT_INFO[ev]}
+                      {eventInfo(ev)}
                     </Text>
                   </Table.Td>
                   {CHANNELS.map((c) => (
-                    <Table.Td key={c.value}>
+                    <Table.Td key={c}>
                       <Checkbox
                         mx="auto"
                         w="fit-content"
-                        aria-label={`${ev}: ${c.label}`}
-                        checked={(d.routes[ev] ?? []).includes(c.value)}
-                        onChange={(e) => toggleRoute(ev, c.value, e.currentTarget.checked)}
+                        aria-label={`${ev}: ${t(`notify.channels.${c}`)}`}
+                        checked={(d.routes[ev] ?? []).includes(c)}
+                        onChange={(e) => toggleRoute(ev, c, e.currentTarget.checked)}
                       />
                     </Table.Td>
                   ))}
@@ -259,10 +264,10 @@ export function NotificationSettingsCard() {
             </Table.Tbody>
           </Table>
         </Table.ScrollContainer>
-        <Hint>Each event goes to the people it concerns. E-mails are only sent to users who turned e-mail notifications on in their profile.</Hint>
+        <Hint>{t('notify.routesHint')}</Hint>
         <Group justify="flex-end" gap="sm">
           <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!dirty}>
-            Save notification settings
+            {t('notify.save')}
           </Button>
         </Group>
         {unsaved && (

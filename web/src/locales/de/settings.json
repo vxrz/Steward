@@ -1,0 +1,112 @@
+{
+  "title": "Einstellungen",
+  "readOnly": "Nur Administratoren können Einstellungen ändern.",
+  "saved": "Einstellungen gespeichert",
+  "signIn": {
+    "title": "Anmeldung",
+    "all": "Passwort und SSO",
+    "adminsOnly": "Nur SSO",
+    "adminsOnlyHint": "Alle melden sich per Single Sign-on an. Lokale Administratorkonten können weiterhin ihr Passwort verwenden – mindestens eines als Notfallzugang behalten, falls der Identity Provider nicht erreichbar ist.",
+    "allHint": "Benutzer können sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on anmelden.",
+    "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten."
+  },
+  "language": {
+    "title": "Sprache",
+    "default": "Standardsprache",
+    "defaultHint": "Für Nachrichten an einen Kanal (Microsoft Teams, Webhook) und für Personen, die noch keine Sprache gewählt haben.",
+    "hint": "Jede Person wählt ihre Sprache im Benutzermenü oder im Profil; In-App-Benachrichtigungen und E-Mails verwenden sie. Audit-Einträge und Ausführungsprotokolle bleiben auf Englisch."
+  },
+  "browser": {
+    "title": "Browser-Automatisierung",
+    "missing": "Playwright ist nicht installiert. <c>npm install</c> und <c>npx playwright install chromium</c> ausführen und neu starten.",
+    "headless": "Browser ohne Fenster ausführen (headless)",
+    "headlessHint": "Ausschalten, um den Browser während einer Ausführung zu beobachten (hilfreich beim Erstellen von Browser-Schritten).",
+    "timeout": "Standard-Zeitlimit pro Aktion (ms)",
+    "tip": "Tipp: <c>npx playwright codegen https://your-portal</c> zeichnet Klicks auf und zeigt Selektoren, die sich in Browser-Schritte einfügen lassen."
+  },
+  "retention": {
+    "title": "Aufbewahrung",
+    "runs": "Ausführungen aufbewahren (Tage)",
+    "runsHint": "Einschließlich Logs und Nachweisdateien. 0 = unbegrenzt.",
+    "notifications": "Gelesene Benachrichtigungen aufbewahren (Tage)",
+    "notificationsHint": "Ungelesene bleiben immer erhalten.",
+    "hint": "Ältere Ausführungen und gelesene Benachrichtigungen werden automatisch gelöscht. Das Audit-Log wird nie gekürzt."
+  },
+  "unattended": {
+    "title": "Unbeaufsichtigter Betrieb",
+    "text": "Zeitpläne laufen nur, solange der Tresor entsperrt ist; geplante Ausführungen verwenden die Rechte des Zeitplan-Eigentümers. Um nach einem Neustart entsperrt zu starten (z. B. als Windows-Dienst), die Umgebungsvariable <c>SM_MASTER_PASSPHRASE</c> setzen. Damit Kollegen das Tool über das Netzwerk nutzen können, mit <c>SM_HOST=0.0.0.0</c>, <hosts/> und HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>) starten. Das Datenverzeichnis (<c>data/</c>) regelmäßig sichern – es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log. Details stehen in der <readme>README</readme>."
+  },
+  "maintenance": {
+    "confirm": "Ausführungen und Benachrichtigungen, die älter als die gespeicherten Aufbewahrungsfristen sind, jetzt löschen? Das lässt sich nicht rückgängig machen.",
+    "result": "{{runs}}, {{files}} und {{notifications}} gelöscht.",
+    "done": "Erledigt.",
+    "finished": "Bereinigung abgeschlossen",
+    "failed": "Bereinigung fehlgeschlagen",
+    "nRuns_one": "{{count}} Ausführung",
+    "nRuns_other": "{{count}} Ausführungen",
+    "nFiles_one": "{{count}} Datei",
+    "nFiles_other": "{{count}} Dateien",
+    "nNotifications_one": "{{count}} Benachrichtigung",
+    "nNotifications_other": "{{count}} Benachrichtigungen",
+    "database": "Datenbank",
+    "evidence": "Nachweisdateien",
+    "runs": "Ausführungen",
+    "oldest": "Älteste Ausführung",
+    "auditEntries": "Audit-Einträge",
+    "lastCleanup": "Letzte Bereinigung",
+    "never": "nie",
+    "lastResult": "Die letzte Bereinigung hat {{runs}}, {{files}} und {{notifications}} entfernt.",
+    "cleanup": "Jetzt bereinigen",
+    "cleanupHint": "Verwendet die gespeicherten Aufbewahrungsfristen. Die Bereinigung läuft auch automatisch."
+  },
+  "tokens": {
+    "title": "API-Token",
+    "hint": "Token aller Benutzer. Benutzer legen ihre eigenen Token auf ihrer Profilseite an.",
+    "none": "Noch keine Token.",
+    "revokeConfirm": "Token „{{name}}“ von {{owner}} widerrufen? Skripte, die es verwenden, funktionieren sofort nicht mehr.",
+    "revoked": "Token widerrufen"
+  },
+  "notify": {
+    "unchanged": "unverändert",
+    "notSet": "nicht gesetzt",
+    "willBeRemoved": "Wird beim Speichern entfernt.",
+    "keep": "Behalten",
+    "removeStored": "Gespeicherten Wert entfernen",
+    "sendTest": "Test senden",
+    "testSent": "Test gesendet.",
+    "testFailed": "Fehlgeschlagen: {{error}}",
+    "unknownError": "unbekannter Fehler",
+    "saved": "Benachrichtigungseinstellungen gespeichert",
+    "notSaved": "Nicht gespeichert",
+    "unsaved": "Es gibt ungespeicherte Änderungen. Tests verwenden die gespeicherten Einstellungen – daher zuerst speichern.",
+    "title": "Benachrichtigungen",
+    "intro": "Wie Personen über fehlgeschlagene Ausführungen, wartende Entscheidungen und mehr informiert werden. In-App-Benachrichtigungen erscheinen unter der Glocke.",
+    "baseUrl": "Basis-URL für Links",
+    "baseUrlHint": "Für Links in E-Mails und Teams-Nachrichten, z. B. {{example}}",
+    "email": "E-Mail (SMTP)",
+    "sendEmails": "E-Mails senden",
+    "smtpHost": "SMTP-Host",
+    "port": "Port",
+    "user": "Benutzer",
+    "password": "Passwort",
+    "from": "Absender",
+    "secure": "TLS von Beginn an",
+    "secureHint": "Für Port 465 einschalten. Aus: STARTTLS, wenn der Server es anbietet.",
+    "testRecipient": "Testempfänger",
+    "postTeams": "In Teams posten",
+    "webhookUrl": "Webhook-URL",
+    "teamsUrlHint": "URL eines eingehenden Webhooks oder des Workflows „Bei Eingang einer Webhook-Anforderung in einem Kanal posten“",
+    "sendWebhook": "An einen Webhook senden",
+    "webhookUrlHint": "Erhält pro Benachrichtigung einen JSON-POST (z. B. Ticketsystem, Slack, Automatisierung)",
+    "routes": "Welche Ereignisse wohin gehen",
+    "event": "Ereignis",
+    "channels": {
+      "inApp": "In-App",
+      "email": "E-Mail",
+      "teams": "Teams",
+      "webhook": "Webhook"
+    },
+    "routesHint": "Jedes Ereignis geht an die betroffenen Personen. E-Mails erhalten nur Benutzer, die E-Mail-Benachrichtigungen in ihrem Profil eingeschaltet haben.",
+    "save": "Benachrichtigungseinstellungen speichern"
+  }
+}
