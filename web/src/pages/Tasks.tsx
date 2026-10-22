@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { SegmentedControl, Stack, Text } from '@mantine/core';
+import { SegmentedControl, Stack } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { TaskRecord } from '@sm/shared';
 import { get } from '../api';
-import { PageHeader } from '../components/common';
+import { EmptyState, PageHeader, QueryState } from '../components/common';
+import { IconInbox } from '@tabler/icons-react';
 import { TaskPanel } from '../components/TaskPanel';
 
 export function TasksPage() {
@@ -31,10 +32,11 @@ export function TasksPage() {
         }
       />
       <Stack>
+        <QueryState query={tasks} rows={2} />
         {tasks.data?.length === 0 && (
-          <Text c="dimmed" size="sm">
-            {filter === 'mine' ? t('emptyMine') : t('empty')}
-          </Text>
+          <EmptyState icon={IconInbox} title={filter === 'mine' ? t('emptyMine') : t('empty')}>
+            {filter === 'mine' ? t('emptyMineText') : undefined}
+          </EmptyState>
         )}
         {tasks.data?.map((task) => (
           <TaskPanel key={`${task.id}-${task.status}`} task={task} />

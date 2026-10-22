@@ -3,11 +3,11 @@ import { Alert, Anchor, Badge, Box, Button, FileButton, Group, Modal, Paper, Sel
 import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconCheck, IconFileImport, IconPlus, IconSearch, IconSettings, IconUpload, IconX } from '@tabler/icons-react';
+import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, IconSettings, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { RECORD_STATUSES, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
-import { PageHeader } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/records/common';
 import { fmtDate, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
@@ -40,6 +40,7 @@ export function RecordsPage() {
   };
   const list = records.data ?? [];
   const canCreate = meta.data?.canCreate ?? false;
+  useCreateParam(meta.data?.canCreate, () => setCreating(true));
 
   return (
     <>
@@ -108,12 +109,33 @@ export function RecordsPage() {
           </Badge>
         )}
       </Group>
-      {records.error && <Alert color="red">{errorText(records.error)}</Alert>}
-      {records.isSuccess && list.length === 0 && (
-        <Text c="dimmed" size="sm">
-          {query.toString() ? t('list.noMatch') : canCreate ? t('list.emptyCreate') : t('list.empty')}
-        </Text>
-      )}
+      <QueryState query={records} />
+      {records.isSuccess &&
+        list.length === 0 &&
+        (query.toString() ? (
+          <Text c="dimmed" size="sm">
+            {t('list.noMatch')}
+          </Text>
+        ) : (
+          <EmptyState
+            icon={IconFileCertificate}
+            title={t('list.emptyTitle')}
+            action={
+              canCreate && (
+                <>
+                  <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
+                    {t('list.emptyAction')}
+                  </Button>
+                  <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImporting(true)}>
+                    {t('list.emptyImport')}
+                  </Button>
+                </>
+              )
+            }
+          >
+            {canCreate ? t('list.emptyCreateText') : t('list.emptyText')}
+          </EmptyState>
+        ))}
       {list.length > 0 && <RecordTable records={list} onTag={(x) => set('tag', x)} />}
       {creating && <NewRecordModal onClose={() => setCreating(false)} onCreated={(r) => navigate(`/records/${r.id}/edit`)} />}
       {importing && <ImportModal onClose={() => setImporting(false)} />}

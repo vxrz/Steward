@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Button, Group, Select } from '@mantine/core';
-import { IconReportAnalytics } from '@tabler/icons-react';
+import { Button, Group, Select, Text } from '@mantine/core';
+import { Link } from 'react-router-dom';
+import { IconPlayerPlay, IconReportAnalytics, IconSitemap } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import type { ProcessSummary, RunSummary } from '@sm/shared';
 import { get } from '../api';
-import { PageHeader, statusLabel } from '../components/common';
+import { EmptyState, PageHeader, QueryState, statusLabel } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
 
@@ -49,7 +50,26 @@ export function RunsPage() {
           </Group>
         }
       />
-      <RunTable runs={runs.data ?? []} />
+      <QueryState query={runs} />
+      {runs.data?.length === 0 &&
+        (status || processId ? (
+          <Text c="dimmed" size="sm">
+            {t('emptyState.noMatch')}
+          </Text>
+        ) : (
+          <EmptyState
+            icon={IconPlayerPlay}
+            title={t('emptyState.title')}
+            action={
+              <Button component={Link} to="/processes" leftSection={<IconSitemap size={16} />}>
+                {t('emptyState.action')}
+              </Button>
+            }
+          >
+            {t('emptyState.text')}
+          </EmptyState>
+        ))}
+      {!!runs.data?.length && <RunTable runs={runs.data} />}
       <SummaryReportDialog opened={summaryOpen} onClose={() => setSummaryOpen(false)} processIds={processId ? [processId] : undefined} />
     </>
   );

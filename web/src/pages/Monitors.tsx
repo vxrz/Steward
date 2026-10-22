@@ -22,11 +22,11 @@ import {
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { IconEdit, IconFileImport, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconFileImport, IconHeartRateMonitor, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
 import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorSummary } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
-import { Hint, PageHeader } from '../components/common';
+import { EmptyState, Hint, PageHeader, QueryState } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
@@ -89,10 +89,26 @@ export function MonitorsPage() {
               </Badge>
             ))}
           </Group>
+          <QueryState query={monitors} />
           {monitors.isSuccess && list.length === 0 && (
-            <Text c="dimmed" size="sm">
-              {canCreate ? t('list.emptyCreate') : t('list.empty')}
-            </Text>
+            <EmptyState
+              icon={IconHeartRateMonitor}
+              title={t('emptyState.title')}
+              action={
+                canCreate && (
+                  <>
+                    <Button leftSection={<IconPlus size={16} />} onClick={() => navigate('/monitors/new')}>
+                      {t('emptyState.action')}
+                    </Button>
+                    <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImporting(true)}>
+                      {t('emptyState.import')}
+                    </Button>
+                  </>
+                )
+              }
+            >
+              {canCreate ? t('emptyState.textCreate') : t('emptyState.text')}
+            </EmptyState>
           )}
           {list.length > 0 && <MonitorTable monitors={list} />}
         </>

@@ -125,6 +125,7 @@ export function ProcessEditorPage() {
   return (
     <Box>
       <PageHeader
+        back="processes"
         title={
           <Group gap="xs" wrap="wrap">
             <span>{def.name || p.name}</span>

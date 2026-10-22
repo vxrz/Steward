@@ -26,5 +26,50 @@
   "upcoming": "Demnächst",
   "nothingScheduled": "Nichts geplant. <a>Prozess planen</a>.",
   "upcomingLine": "{{process}} · {{date}} ({{relative}})",
-  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · Probelauf"
+  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · Probelauf",
+  "checklist": {
+    "title": "Erste Schritte",
+    "hide": "Checkliste „Erste Schritte“ ausblenden",
+    "progressLabel": "Fortschritt der Einrichtung",
+    "progress": "{{done}} von {{total}} erledigt",
+    "doneSr": "(erledigt)",
+    "steps": {
+      "platform": {
+        "title": "Plattform hinzufügen",
+        "text": "Ein Insights-Hub-Tenant, ein Industrial Edge Management oder eine beliebige REST-API, mit Zugangsdaten und API-Spezifikation."
+      },
+      "process": {
+        "title": "Prozess erstellen",
+        "text": "Mit einer Vorlage beginnen (Health Checks, Zugriffsprüfungen, Inventar) oder einen eigenen Ablauf bauen."
+      },
+      "run": {
+        "title": "Probelauf starten",
+        "text": "Ein Probelauf simuliert jede Änderung und schreibt das vollständige Protokoll – auf der Plattform ändert sich nichts."
+      },
+      "schedule": {
+        "title": "Prozess einplanen",
+        "text": "Health Checks und Prüfungen selbstständig laufen lassen, z. B. jeden Montagmorgen."
+      },
+      "monitor": {
+        "title": "System mit einem Monitor überwachen",
+        "text": "Kombinierbare Verfügbarkeitsprüfungen mit Ursachen, Wartungsfenstern und Alarmen."
+      },
+      "credential": {
+        "title": "Zugangsdaten dokumentieren",
+        "text": "Wo Zugangsdaten liegen, wem sie gehören und wann sie ablaufen – nie das Geheimnis selbst."
+      },
+      "users": {
+        "title": "Team einladen",
+        "text": "Benutzer anlegen oder Single Sign-on anbinden; Rollen legen fest, wer was darf."
+      },
+      "report": {
+        "title": "Zusammenfassenden Bericht senden",
+        "text": "Ein wöchentliches oder monatliches PDF für das Service-Meeting: Verfügbarkeit, Zugangsdaten, Ausführungen und Dokumente."
+      }
+    },
+    "discover": "Auch nützlich:",
+    "discoverTokens": "API-Token für Skripte und KI-Assistenten (MCP)",
+    "discoverWall": "Statuswand der Monitore",
+    "discoverSearch": "alles durchsuchen mit"
+  }
 }

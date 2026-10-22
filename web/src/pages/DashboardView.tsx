@@ -77,6 +77,7 @@ export function DashboardViewPage() {
   return (
     <DashboardContext.Provider value={ctx}>
       <PageHeader
+        back="dashboards"
         title={def.name}
         description={
           <>

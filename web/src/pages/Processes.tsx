@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Card,
@@ -19,7 +20,7 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   IconPlayerPlay,
@@ -33,10 +34,11 @@ import {
   IconPackage,
   IconPackageExport,
   IconPackageImport,
+  IconSitemap,
 } from '@tabler/icons-react';
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
-import { PageHeader, StatusBadge } from '../components/common';
+import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
 import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
@@ -124,32 +126,38 @@ export function ProcessesPage() {
         onChange={(e) => setFilter(e.currentTarget.value)}
         maw={360}
       />
+      <QueryState query={processes} />
       {processes.data?.length === 0 && (
-        <Card withBorder p="lg">
-          <Text fw={600}>{t('empty.title')}</Text>
-          <Text size="sm" c="dimmed" mb="sm">
-            {t('empty.text')}
-          </Text>
-          {caps.createProcesses ? (
-            <Group>
+        <EmptyState
+          icon={IconSitemap}
+          title={t('empty.title')}
+          action={
+            caps.createProcesses && (
               <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
                 {t('empty.browse')}
               </Button>
-            </Group>
-          ) : (
-            <Text size="sm" c="dimmed">
-              {t('empty.askForAccess')}
-            </Text>
-          )}
-        </Card>
+            )
+          }
+        >
+          {t('empty.text')}
+          {!caps.createProcesses && <div>{t('empty.askForAccess')}</div>}
+        </EmptyState>
       )}
       <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }}>
         {list.map((p) => (
           <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/processes/${p.id}`)}>
             <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Text fw={600} style={{ minWidth: 0 }}>
+              <Anchor
+                component={Link}
+                to={`/processes/${p.id}`}
+                fw={600}
+                c="var(--mantine-color-text)"
+                underline="hover"
+                style={{ minWidth: 0 }}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {p.name}
-              </Text>
+              </Anchor>
               <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 {p.permissions.includes('run') && (
                   <Tooltip label={t('card.run')}>

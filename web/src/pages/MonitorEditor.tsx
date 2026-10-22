@@ -156,6 +156,7 @@ export function MonitorEditorPage() {
   return (
     <>
       <PageHeader
+        back={isNew || !existing.data ? 'monitors' : ['monitors', { to: `/monitors/${existing.data.id}`, label: existing.data.name }]}
         title={isNew ? t('new') : t('editor.editTitle', { name: existing.data?.name ?? '' })}
         description={t('editor.description')}
         actions={

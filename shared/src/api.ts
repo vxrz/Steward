@@ -706,6 +706,20 @@ export interface DashboardData {
   failedChecks: { runId: string; processName: string; name: string; message: string; severity: string; ts: string }[];
   upcoming: Schedule[];
   counts: { platforms: number; processes: number; schedules: number; runs24h: number; failed24h: number };
+  /** Administrators only: what is set up so far (the getting-started checklist on the start page) */
+  setup?: DashboardSetup;
+}
+
+/** Instance-wide numbers of the getting-started checklist (all entries, not only the visible ones). */
+export interface DashboardSetup {
+  platforms: number;
+  processes: number;
+  runs: number;
+  schedules: number;
+  monitors: number;
+  credentials: number;
+  users: number;
+  reportSchedules: number;
 }
 
 // ---------- API contract check (sandbox contract tests) ----------

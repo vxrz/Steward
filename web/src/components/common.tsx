@@ -1,22 +1,74 @@
-import { useState, type ReactNode } from 'react';
-import { ActionIcon, Badge, Box, Button, Code, CopyButton, Group, ScrollArea, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
-import { IconCheck, IconCopy, IconPlus, IconTrash } from '@tabler/icons-react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useMediaQuery } from '@mantine/hooks';
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Code,
+  Collapse,
+  CopyButton,
+  Group,
+  Paper,
+  ScrollArea,
+  Skeleton,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  Tooltip,
+} from '@mantine/core';
+import {
+  IconAlertTriangle,
+  IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCopy,
+  IconFilter,
+  IconPlus,
+  IconRefresh,
+  IconTrash,
+  type Icon as TablerIcon,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
+import { NAV_GROUPS, type NavKey } from './AppNav';
+
+/**
+ * One colour vocabulary for every status badge (runs, tasks, monitors, credentials, check severities):
+ * green = good / done, red = failed / down / expired, orange = needs attention (overdue, interrupted,
+ * blocked, warning), yellow = soon / degraded / simulated, blue = in progress / maintenance,
+ * violet = waiting for a person, gray = neutral / unknown. The label always says the status as well,
+ * so colour is never the only signal.
+ */
+export const TONE = {
+  ok: 'green',
+  bad: 'red',
+  attention: 'orange',
+  soon: 'yellow',
+  active: 'blue',
+  person: 'violet',
+  neutral: 'gray',
+} as const;
 
 const STATUS_COLORS: Record<string, string> = {
-  succeeded: 'green',
-  failed: 'red',
-  running: 'blue',
-  waiting: 'violet',
-  queued: 'gray',
-  cancelled: 'gray',
-  interrupted: 'orange',
-  skipped: 'gray',
-  dryrun: 'yellow',
-  open: 'violet',
-  completed: 'green',
+  succeeded: TONE.ok,
+  failed: TONE.bad,
+  running: TONE.active,
+  waiting: TONE.person,
+  queued: TONE.neutral,
+  cancelled: TONE.neutral,
+  interrupted: TONE.attention,
+  skipped: TONE.neutral,
+  dryrun: TONE.soon,
+  open: TONE.person,
+  completed: TONE.ok,
 };
+
+const SEVERITY_COLORS: Record<string, string> = { error: TONE.bad, warning: TONE.attention, info: TONE.neutral };
 
 /** Display label of a run, step or task status (unknown values are shown as they are). */
 export function statusLabel(status: string): string {
@@ -42,28 +94,197 @@ export function severityLabel(severity: string): string {
 export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'xs' | 'sm' | 'md' }) {
   useTranslation();
   return (
-    <Badge color={STATUS_COLORS[status] ?? 'gray'} variant="light" size={size}>
+    <Badge color={STATUS_COLORS[status] ?? TONE.neutral} variant="light" size={size} style={{ minWidth: 'max-content' }}>
       {statusLabel(status)}
     </Badge>
   );
 }
 
-export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
+/** A parent page shown above a detail page's title ("‹ Runs"): a sidebar page by its key, or any link. */
+export type Crumb = NavKey | { to: string; label: ReactNode };
+
+/**
+ * The header every page starts with: title (h2), optional description, the page's actions on the right
+ * and, on detail pages, the way back to the parent pages (`back`). On narrow screens the actions wrap
+ * below the title instead of squeezing it.
+ */
+/**
+ * Filters of a list: shown as they are on wide screens; on phones folded behind a "Filters" button
+ * (with the number of active filters) so the list itself stays on the first screen.
+ */
+export function FilterPanel({ active, children }: { active: number; children: ReactNode }) {
+  const { t } = useTranslation();
+  const narrow = useMediaQuery('(max-width: 36em)');
+  const [open, setOpen] = useState(false);
+  if (!narrow) return <>{children}</>;
   return (
-    <Group justify="space-between" align="flex-start" mb="md" wrap="wrap" gap="sm">
-      <Box style={{ minWidth: 0, flex: 1 }}>
-        <Title order={2} fz={{ base: 'h3', sm: 'h2' }}>
+    <Box mb="md">
+      <Button
+        size="xs"
+        variant={active ? 'light' : 'default'}
+        leftSection={<IconFilter size={14} />}
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls="list-filters"
+        mb={open ? 'xs' : 0}
+      >
+        {active ? t('filtersActive', { count: active }) : t('filters')}
+      </Button>
+      <Collapse in={open} id="list-filters">
+        {children}
+      </Collapse>
+    </Box>
+  );
+}
+
+/** Severity of a failed check (error / warning / info). */
+export function SeverityBadge({ severity, size = 'xs' }: { severity: string; size?: 'xs' | 'sm' }) {
+  useTranslation();
+  return (
+    <Badge color={SEVERITY_COLORS[severity] ?? TONE.neutral} variant="light" size={size}>
+      {severityLabel(severity)}
+    </Badge>
+  );
+}
+
+export function PageHeader({ title, description, actions, back }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; back?: Crumb | Crumb[] }) {
+  const crumbs = back ? (Array.isArray(back) ? back : [back]) : [];
+  return (
+    <>
+      {crumbs.length > 0 && <BackLinks crumbs={crumbs} />}
+      <Group justify="space-between" align="flex-start" mb="md" wrap="wrap" gap="sm">
+        <Box style={{ minWidth: 0, flex: '1 1 18rem' }}>
+          <Title order={2} fz={{ base: 'h3', sm: 'h2' }} style={{ overflowWrap: 'anywhere' }}>
+            {title}
+          </Title>
+          {description && (
+            <Text c="dimmed" size="sm" mt={4} component="div">
+              {description}
+            </Text>
+          )}
+        </Box>
+        {actions && (
+          <Group gap="xs" wrap="wrap">
+            {actions}
+          </Group>
+        )}
+      </Group>
+    </>
+  );
+}
+
+const NAV_PATHS = Object.fromEntries(NAV_GROUPS.flatMap((g) => g.items.map((i) => [i.key, i.to]))) as Record<NavKey, string>;
+
+function BackLinks({ crumbs }: { crumbs: Crumb[] }) {
+  const { t } = useTranslation(['common', 'nav']);
+  const links = crumbs.map((c) => (typeof c === 'string' ? { to: NAV_PATHS[c], label: t(`nav:items.${c}`) } : c));
+  return (
+    <nav aria-label={t('breadcrumb')} data-testid="breadcrumb">
+      <Group gap={4} mb={4} wrap="wrap">
+        {links.map((c, i) => (
+          <Group key={c.to} gap={4} wrap="nowrap">
+            {i > 0 && <IconChevronRight size={12} color="var(--mantine-color-dimmed)" aria-hidden />}
+            <Anchor component={Link} to={c.to} size="sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+              {i === 0 && <IconChevronLeft size={14} aria-hidden />}
+              {c.label}
+            </Anchor>
+          </Group>
+        ))}
+      </Group>
+    </nav>
+  );
+}
+
+/**
+ * What a list shows when it has no entries yet: an icon, a short title, one or two sentences of guidance
+ * and – for users who may – the primary action. `compact` is for an empty section inside a card (no border).
+ */
+export function EmptyState({
+  icon: Icon,
+  title,
+  children,
+  action,
+  compact,
+  testId = 'empty-state',
+}: {
+  icon?: TablerIcon;
+  title: ReactNode;
+  children?: ReactNode;
+  action?: ReactNode;
+  compact?: boolean;
+  testId?: string;
+}) {
+  return (
+    <Paper withBorder={!compact} p={compact ? 'sm' : 'xl'} mb={compact ? 0 : 'md'} data-testid={testId}>
+      <Stack align="center" gap={6}>
+        {Icon && <Icon size={compact ? 28 : 40} stroke={1.3} color="var(--mantine-color-dimmed)" aria-hidden />}
+        <Text fw={600} ta="center">
           {title}
-        </Title>
-        {description && (
-          <Text c="dimmed" size="sm" mt={4}>
-            {description}
+        </Text>
+        {children && (
+          <Text size="sm" c="dimmed" ta="center" maw={560} component="div">
+            {children}
           </Text>
         )}
-      </Box>
-      {actions && <Group gap="xs">{actions}</Group>}
-    </Group>
+        {action && (
+          <Group mt="xs" gap="xs" justify="center">
+            {action}
+          </Group>
+        )}
+      </Stack>
+    </Paper>
   );
+}
+
+/** Placeholder rows while a list loads (instead of an empty page). */
+export function LoadingState({ rows = 4 }: { rows?: number }) {
+  const { t } = useTranslation();
+  return (
+    <Stack gap="xs" aria-busy="true" aria-label={t('loading')} role="status" mb="md">
+      {Array.from({ length: rows }, (_, i) => (
+        <Skeleton key={i} height={36} radius="sm" />
+      ))}
+    </Stack>
+  );
+}
+
+/** A list or page could not be loaded: the reason and a retry button. */
+export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('loadFailed')} mb="md">
+      <Text size="sm">{error instanceof Error ? error.message : String(error)}</Text>
+      {onRetry && (
+        <Button size="xs" variant="light" color="red" mt="xs" leftSection={<IconRefresh size={14} />} onClick={onRetry}>
+          {t('retry')}
+        </Button>
+      )}
+    </Alert>
+  );
+}
+
+/** Loading → skeleton, error → message with retry; otherwise nothing (the page renders its data). */
+export function QueryState({ query, rows }: { query: { isLoading: boolean; error: unknown; refetch: () => unknown }; rows?: number }) {
+  if (query.isLoading) return <LoadingState rows={rows} />;
+  if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  return null;
+}
+
+/**
+ * Opens a page's "create" dialog when the URL carries ?new=1 (links from the command palette and the
+ * getting-started checklist). The parameter is removed again; `allowed` undefined means "not known yet".
+ */
+export function useCreateParam(allowed: boolean | undefined, open: () => void) {
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get('new') === '1';
+  useEffect(() => {
+    if (!wanted || allowed === undefined) return;
+    if (allowed) open();
+    const next = new URLSearchParams(params);
+    next.delete('new');
+    setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per ?new=1
+  }, [wanted, allowed]);
 }
 
 export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight?: number }) {

@@ -24,8 +24,6 @@
   "import": "Importieren",
   "list": {
     "count": "{{count}} {{status}}",
-    "empty": "Noch keine Monitore.",
-    "emptyCreate": "Noch keine Monitore. Legen Sie einen an oder importieren Sie ein Beispiel aus der Bibliothek.",
     "rootCauseLine": "Ursache: {{causes}}",
     "uptimeLine": "Verfügbarkeit 24 h {{h24}} · 7 Tage {{d7}} · {{since}}",
     "status": "Status",
@@ -461,5 +459,12 @@
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
+  },
+  "emptyState": {
+    "title": "Noch keine Monitore",
+    "text": "Monitore, die Sie sehen dürfen, erscheinen hier.",
+    "textCreate": "Überwachen Sie Geräte, APIs und Datenflüsse mit kombinierbaren Prüfungen. Legen Sie einen Monitor an oder importieren Sie ein Beispiel aus der Bibliothek.",
+    "action": "Ersten Monitor anlegen",
+    "import": "Beispiel importieren"
   }
 }

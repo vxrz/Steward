@@ -25,8 +25,8 @@ import {
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import { IconCheck, IconCopy, IconEdit, IconHistory, IconKey, IconPlus, IconSend, IconTrash } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
+import { IconCheck, IconCopy, IconEdit, IconHistory, IconKey, IconPlus, IconSend, IconTrash, IconWebhook } from '@tabler/icons-react';
 import type {
   ProcessDetail,
   ProcessSummary,
@@ -40,7 +40,7 @@ import type {
 } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { Hint, PageHeader, StatusBadge } from '../components/common';
+import { EmptyState, Hint, PageHeader, QueryState, StatusBadge } from '../components/common';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 
@@ -108,7 +108,6 @@ const hookUrl = (tr: Pick<WebhookTrigger, 'path'>) => `${window.location.origin}
 export function TriggersPage() {
   const { t } = useTranslation(['triggers', 'common']);
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const triggers = useQuery({ queryKey: ['triggers'], queryFn: () => get<WebhookTrigger[]>('/triggers'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
   const [secret, setSecret] = useState<WebhookTriggerSecret | null>(null);
@@ -150,10 +149,19 @@ export function TriggersPage() {
           </Button>
         }
       />
+      <QueryState query={triggers} />
       {triggers.data?.length === 0 && (
-        <Text c="dimmed" size="sm">
-          {t('none')}
-        </Text>
+        <EmptyState
+          icon={IconWebhook}
+          title={t('emptyState.title')}
+          action={
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
+              {t('emptyState.action')}
+            </Button>
+          }
+        >
+          {t('emptyState.text')}
+        </EmptyState>
       )}
       {!!triggers.data?.length && (
         <div className="table-scroll">
@@ -210,10 +218,12 @@ export function TriggersPage() {
                   </Table.Td>
                   <Table.Td className="nowrap">
                     {tr.lastRunId ? (
-                      <Stack gap={2} align="flex-start" className="clickable" onClick={() => navigate(`/runs/${tr.lastRunId}`)}>
-                        {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
-                        <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
-                      </Stack>
+                      <Anchor component={Link} to={`/runs/${tr.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+                        <Stack gap={2} align="flex-start">
+                          {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
+                          <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
+                        </Stack>
+                      </Anchor>
                     ) : (
                       <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
                     )}
@@ -602,7 +612,6 @@ endpoints:
 
 function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () => void }) {
   const { t } = useTranslation(['triggers', 'common']);
-  const navigate = useNavigate();
   const [payload, setPayload] = useState(JSON.stringify(GATUS_SAMPLE, null, 2));
   const [dryRun, setDryRun] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -641,7 +650,10 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
               <Text size="sm">
                 {result.response.runId ? (
                   <>
-                    {t('test.runStarted')} <Anchor onClick={() => navigate(`/runs/${result.response.runId}`)}>{result.response.runId}</Anchor>
+                    {t('test.runStarted')}{' '}
+                    <Anchor component={Link} to={`/runs/${result.response.runId}`}>
+                      {result.response.runId}
+                    </Anchor>
                   </>
                 ) : (
                   (result.response.skipped && t('test.skipped', { reason: result.response.skipped })) || result.response.error

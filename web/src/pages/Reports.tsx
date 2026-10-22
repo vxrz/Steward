@@ -25,11 +25,11 @@ import {
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { GatusMetricsSource, MonitorSummary, ProcessSummary, RecordType, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
-import { PageHeader } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
@@ -67,6 +67,7 @@ export function ReportsPage() {
   const generated = useQuery({ queryKey: ['report-schedules', 'reports'], queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
   const summaries = useQuery({ queryKey: ['reports', 'summary'], queryFn: () => getOptional<ReportRecord[]>('/reports?kind=summary', []) });
   const [draft, setDraft] = useState<Draft | null>(null);
+  useCreateParam(schedules.data?.canCreate, () => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en')));
   const [running, setRunning] = useState<string | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ['report-schedules'] });
   const reports = [...(generated.data ?? []), ...(summaries.data ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -102,10 +103,22 @@ export function ReportsPage() {
           <Title order={5} mb="xs">
             {t('schedulesTitle')}
           </Title>
+          <QueryState query={schedules} rows={2} />
           {schedules.data?.items.length === 0 && (
-            <Text size="sm" c="dimmed">
-              {t('empty')}
-            </Text>
+            <EmptyState
+              compact
+              icon={IconCalendarTime}
+              title={t('emptyState.title')}
+              action={
+                schedules.data.canCreate && (
+                  <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en'))}>
+                    {t('emptyState.action')}
+                  </Button>
+                )
+              }
+            >
+              {t('emptyState.text')}
+            </EmptyState>
           )}
           {!!schedules.data?.items.length && (
             <div className="table-scroll">

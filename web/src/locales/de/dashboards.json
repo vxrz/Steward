@@ -11,7 +11,8 @@
     "widgets_one": "{{count}} Widget",
     "widgets_other": "{{count}} Widgets",
     "by": "von {{owner}}",
-    "updated": "aktualisiert {{when}}"
+    "updated": "aktualisiert {{when}}",
+    "emptyAction": "Mit einer Vorlage beginnen"
   },
   "datasets": {
     "title": "Datenquellen",

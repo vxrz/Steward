@@ -105,10 +105,8 @@ export function PlatformDetailPage() {
 
   return (
     <>
-      <Anchor size="sm" onClick={() => navigate('/platforms')}>
-        ← {t('title')}
-      </Anchor>
       <PageHeader
+        back="platforms"
         title={p.name}
         description={
           <Group gap={6} component="span">

@@ -37,6 +37,7 @@ import {
   IconPlus,
   IconRefresh,
   IconRestore,
+  IconKey,
   IconShieldLock,
   IconTrash,
 } from '@tabler/icons-react';
@@ -44,13 +45,13 @@ import { useTranslation } from 'react-i18next';
 import type { Backlink, Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
-import { PageHeader } from '../components/common';
+import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
-export const STATUS_COLOR: Record<CredentialStatus, string> = { ok: 'green', dueSoon: 'yellow', overdue: 'orange', expired: 'red' };
+export const STATUS_COLOR: Record<CredentialStatus, string> = { ok: TONE.ok, dueSoon: TONE.soon, overdue: TONE.attention, expired: TONE.bad };
 
 export function CredentialStatusBadge({ status, size = 'sm' }: { status: CredentialStatus; size?: 'xs' | 'sm' }) {
   const { t } = useTranslation('credentials');
@@ -128,6 +129,7 @@ export function CredentialsPage() {
   const list = useQuery({ queryKey: ['credentials', qs], queryFn: () => get<CredentialList>(`/credentials${qs ? `?${qs}` : ''}`) });
   const openId = params.get('open');
   const [editing, setEditing] = useState<Credential | 'new' | null>(null);
+  useCreateParam(list.data?.canCreate, () => setEditing('new'));
   const refresh = () => qc.invalidateQueries({ queryKey: ['credentials'] });
   const open = (id: string | null) => {
     const next = new URLSearchParams(params);
@@ -164,55 +166,84 @@ export function CredentialsPage() {
       <Alert icon={<IconShieldLock size={18} />} color="blue" variant="light" mb="md">
         {t('noSecretsHint')}
       </Alert>
-      <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs" mb="md">
-        <TextInput size="xs" label={t('filters.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
-        <MultiSelect
-          size="xs"
-          label={t('filters.type')}
-          data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
-          value={types}
-          onChange={setTypes}
-          clearable
-        />
-        <MultiSelect
-          size="xs"
-          label={t('filters.status')}
-          data={CREDENTIAL_STATUS_IDS.map((x) => ({ value: x, label: t(`status.${x}`) }))}
-          value={statuses}
-          onChange={setStatuses}
-          clearable
-        />
-        <Select size="xs" label={t('filters.platform')} data={platforms} value={platform || null} onChange={(v) => setPlatform(v ?? '')} clearable searchable />
-        <TextInput
-          size="xs"
-          label={t('filters.owner')}
-          placeholder={t('filters.ownerPlaceholder')}
-          value={owner}
-          onChange={(e) => setOwner(e.currentTarget.value)}
-        />
-        <NumberInput
-          size="xs"
-          label={t('filters.dueWithin')}
-          min={0}
-          max={3650}
-          value={dueWithin}
-          onChange={(v) => setDueWithin(typeof v === 'number' ? v : '')}
-        />
-        <Select
-          size="xs"
-          label={t('filters.archived')}
-          data={(['exclude', 'include', 'only'] as const).map((x) => ({ value: x, label: t(`filters.archivedOptions.${x}`) }))}
-          value={archived}
-          onChange={(v) => setArchived((v as typeof archived) ?? 'exclude')}
-          allowDeselect={false}
-        />
-      </SimpleGrid>
-      {list.isLoading && <Loader size="sm" />}
-      {list.data && list.data.items.length === 0 && (
-        <Text c="dimmed" size="sm">
-          {qs ? t('emptyFiltered') : t('empty')}
-        </Text>
-      )}
+      <FilterPanel active={[q, types.length, statuses.length, platform, owner, dueWithin !== '', archived !== 'exclude'].filter(Boolean).length}>
+        <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs" mb="md">
+          <TextInput size="xs" label={t('filters.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+          <MultiSelect
+            size="xs"
+            label={t('filters.type')}
+            data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
+            value={types}
+            onChange={setTypes}
+            placeholder={types.length ? undefined : t('filters.allTypes')}
+            clearable
+          />
+          <MultiSelect
+            size="xs"
+            label={t('filters.status')}
+            data={CREDENTIAL_STATUS_IDS.map((x) => ({ value: x, label: t(`status.${x}`) }))}
+            value={statuses}
+            onChange={setStatuses}
+            placeholder={statuses.length ? undefined : t('filters.allStatuses')}
+            clearable
+          />
+          <Select
+            size="xs"
+            label={t('filters.platform')}
+            placeholder={t('filters.allPlatforms')}
+            data={platforms}
+            value={platform || null}
+            onChange={(v) => setPlatform(v ?? '')}
+            clearable
+            searchable
+          />
+          <TextInput
+            size="xs"
+            label={t('filters.owner')}
+            placeholder={t('filters.ownerPlaceholder')}
+            value={owner}
+            onChange={(e) => setOwner(e.currentTarget.value)}
+          />
+          <NumberInput
+            size="xs"
+            label={t('filters.dueWithin')}
+            min={0}
+            max={3650}
+            value={dueWithin}
+            onChange={(v) => setDueWithin(typeof v === 'number' ? v : '')}
+          />
+          <Select
+            size="xs"
+            label={t('filters.archived')}
+            data={(['exclude', 'include', 'only'] as const).map((x) => ({ value: x, label: t(`filters.archivedOptions.${x}`) }))}
+            value={archived}
+            onChange={(v) => setArchived((v as typeof archived) ?? 'exclude')}
+            allowDeselect={false}
+          />
+        </SimpleGrid>
+      </FilterPanel>
+      <QueryState query={list} />
+      {list.data &&
+        list.data.items.length === 0 &&
+        (qs ? (
+          <Text c="dimmed" size="sm">
+            {t('emptyFiltered')}
+          </Text>
+        ) : (
+          <EmptyState
+            icon={IconKey}
+            title={t('emptyState.title')}
+            action={
+              list.data.canCreate && (
+                <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
+                  {t('emptyState.action')}
+                </Button>
+              )
+            }
+          >
+            {t('emptyState.text')}
+          </EmptyState>
+        ))}
       {!!list.data?.items.length && (
         <div className="table-scroll">
           <Table highlightOnHover fz="sm" aria-label={t('title')}>

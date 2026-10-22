@@ -41,15 +41,18 @@
     "status": "Status",
     "allStatuses": "All statuses",
     "clearTag": "Remove the filter for tag {{tag}}",
-    "empty": "No records yet.",
-    "emptyCreate": "No records yet. Create one, or import your existing decision records from Markdown files.",
     "noMatch": "No records match the filter.",
     "number": "Number",
     "record": "Record",
     "owner": "Owner",
     "updated": "Changed",
     "revision": "revision {{n}}",
-    "ownerLine": "{{owner}} · changed {{when}}"
+    "ownerLine": "{{owner}} · changed {{when}}",
+    "emptyTitle": "No records yet",
+    "emptyText": "Change requests and decision records you may see will show up here.",
+    "emptyCreateText": "Write a change request or a decision record, or import your existing decision records from Markdown files.",
+    "emptyAction": "Write your first record",
+    "emptyImport": "Import existing records"
   },
   "create": {
     "title": "New record",

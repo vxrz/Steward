@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActionIcon,
+  Anchor,
   Badge,
   Button,
   FileButton,
   Table,
   Tooltip,
   Card,
-  Center,
   Divider,
   Group,
   Loader,
@@ -27,7 +27,7 @@ import { useTranslation } from 'react-i18next';
 import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
-import { Hint, KeyValueEditor, PageHeader } from '../components/common';
+import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../components/common';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
@@ -64,38 +64,38 @@ export function PlatformsPage() {
           </>
         }
       />
-      {platforms.isLoading && (
-        <Center p="xl">
-          <Loader />
-        </Center>
-      )}
+      <QueryState query={platforms} rows={3} />
       {platforms.data && platforms.data.length === 0 && (
-        <Paper withBorder p="xl">
-          <Stack align="center" gap="xs">
-            <IconServer size={40} stroke={1.3} />
-            <Text fw={600}>{t('empty.title')}</Text>
-            <Text size="sm" c="dimmed" ta="center" maw={520}>
-              {t('empty.text')}
-            </Text>
-            {caps.createPlatforms ? (
-              <Button mt="sm" leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
+        <EmptyState
+          icon={IconServer}
+          title={t('empty.title')}
+          action={
+            caps.createPlatforms && (
+              <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
                 {t('empty.addFirst')}
               </Button>
-            ) : (
-              <Text size="sm" c="dimmed">
-                {t('empty.adminsOnly')}
-              </Text>
-            )}
-          </Stack>
-        </Paper>
+            )
+          }
+        >
+          {t('empty.text')}
+          {!caps.createPlatforms && <div>{t('empty.adminsOnly')}</div>}
+        </EmptyState>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
         {platforms.data?.map((p) => (
           <Card key={p.id} withBorder padding="md" className="clickable" onClick={() => navigate(`/platforms/${p.id}`)}>
             <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Text fw={600} lineClamp={1}>
+              <Anchor
+                component={Link}
+                to={`/platforms/${p.id}`}
+                fw={600}
+                lineClamp={1}
+                c="var(--mantine-color-text)"
+                underline="hover"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {p.name}
-              </Text>
+              </Anchor>
               {p.environment && (
                 <Badge variant="outline" size="sm">
                   {p.environment}

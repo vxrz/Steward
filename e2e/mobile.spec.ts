@@ -61,6 +61,9 @@ test.describe('phone @mobile', () => {
     '/monitors/wall',
     '/credentials',
     '/reports',
+    '/records',
+    '/services',
+    '/triggers',
   ]) {
     test(`no horizontal scroll on ${path}`, async ({ page }) => {
       await page.goto(path);
@@ -69,6 +72,19 @@ test.describe('phone @mobile', () => {
       await expectNoHorizontalScroll(page);
     });
   }
+
+  test('list filters fold behind a button', async ({ page }) => {
+    await page.goto('/credentials');
+    await expect(page.getByRole('main').getByRole('heading', { name: 'Credentials', level: 2 })).toBeVisible();
+    const filters = page.getByRole('button', { name: 'Filters', exact: true });
+    const search = page.getByRole('textbox', { name: 'Search', exact: true });
+    await expect(search).toBeHidden();
+    await filters.tap();
+    await expect(filters).toHaveAttribute('aria-expanded', 'true');
+    await search.fill('zzz-no-such-entry');
+    await expect(page.getByText('No entries match the filters.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Filters (1 active)' })).toBeVisible();
+  });
 
   test('no horizontal scroll on a run page', async ({ page, apiAs }) => {
     const runId = await startRunApi(await apiAs('olivia'), PROCESS.healthCheck, { dryRun: true });

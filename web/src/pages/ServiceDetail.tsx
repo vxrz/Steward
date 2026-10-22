@@ -38,6 +38,7 @@ export function ServiceDetailPage() {
   return (
     <>
       <PageHeader
+        back="services"
         title={
           <Group gap="sm" wrap="wrap">
             <span>{s.name}</span>

@@ -71,5 +71,11 @@
     "manage": "Verwalten",
     "use": "Nutzen",
     "acknowledge": "bestätigen"
-  }
+  },
+  "breadcrumb": "Navigationspfad",
+  "loadFailed": "Die Seite konnte nicht geladen werden",
+  "retry": "Erneut versuchen",
+  "filters": "Filter",
+  "filtersActive_one": "Filter ({{count}} aktiv)",
+  "filtersActive_other": "Filter ({{count}} aktiv)"
 }

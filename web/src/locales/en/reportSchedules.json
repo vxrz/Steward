@@ -4,7 +4,6 @@
   "new": "New report schedule",
   "edit": "Edit report schedule",
   "schedulesTitle": "Report schedules",
-  "empty": "No report schedules yet.",
   "disabled": "disabled",
   "table": {
     "name": "Name",
@@ -102,5 +101,10 @@
     "attachPdf": "Attach the PDF to e-mails",
     "attachPdfHint": "Otherwise the e-mail contains a link (recipients need an account to open it).",
     "enabled": "Enabled"
+  },
+  "emptyState": {
+    "title": "No report schedules yet",
+    "text": "Send a summary PDF (availability, credentials, runs, records) to your team every week or month.",
+    "action": "Create your first report schedule"
   }
 }

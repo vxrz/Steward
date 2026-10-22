@@ -151,5 +151,11 @@
       "more_other": "{{count}} weitere anzeigen",
       "all": "Alle anzeigen"
     }
+  },
+  "emptyState": {
+    "title": "Noch keine Ausführungen",
+    "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Protokoll. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
+    "action": "Zu den Prozessen",
+    "noMatch": "Keine Ausführungen passen zum Filter."
   }
 }

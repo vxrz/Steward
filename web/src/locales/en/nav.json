@@ -49,13 +49,17 @@
       "processes": "Processes",
       "startRun": "Start a run",
       "dashboards": "Dashboards",
-      "platforms": "Platforms"
+      "platforms": "Platforms",
+      "monitors": "Monitors",
+      "services": "Services",
+      "records": "Records",
+      "credentials": "Credentials"
     },
     "runBy": "Run by {{actor}} · {{when}}",
     "dryRunBy": "Dry run by {{actor}} · {{when}}",
     "startRunOf": "Start run of {{name}}",
     "nothingFound": "Nothing found",
-    "placeholder": "Search pages, processes, dashboards, platforms…",
+    "placeholder": "Search pages, processes, monitors, records…",
     "search": "Search",
     "searchWithShortcut": "Search ({{shortcut}})",
     "searchButton": "Search…",
@@ -63,6 +67,29 @@
       "page": "page",
       "create": "create",
       "theme": "theme"
+    },
+    "pages": {
+      "monitorWall": "Monitor status wall",
+      "recordTypes": "Record types",
+      "systemStatus": "System status",
+      "about": "About"
+    },
+    "create": {
+      "monitor": "New monitor",
+      "record": "New record",
+      "credential": "New credential entry",
+      "service": "New service",
+      "schedule": "New schedule"
     }
-  }
+  },
+  "groups": {
+    "operate": "Operate",
+    "automate": "Automate",
+    "service": "Service management",
+    "admin": "Administration"
+  },
+  "mainNavigation": "Main navigation",
+  "collapseSidebar": "Collapse sidebar",
+  "expandSidebar": "Expand sidebar",
+  "backToDashboard": "Go to the dashboard"
 }

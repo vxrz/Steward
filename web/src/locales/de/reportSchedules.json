@@ -4,7 +4,6 @@
   "new": "Neuer Berichtszeitplan",
   "edit": "Berichtszeitplan bearbeiten",
   "schedulesTitle": "Berichtszeitpläne",
-  "empty": "Noch keine Berichtszeitpläne.",
   "disabled": "deaktiviert",
   "table": {
     "name": "Name",
@@ -102,5 +101,10 @@
     "attachPdf": "PDF an E-Mails anhängen",
     "attachPdfHint": "Sonst enthält die E-Mail einen Link (zum Öffnen ist ein Konto nötig).",
     "enabled": "Aktiv"
+  },
+  "emptyState": {
+    "title": "Noch keine Berichtszeitpläne",
+    "text": "Senden Sie Ihrem Team wöchentlich oder monatlich einen zusammenfassenden PDF-Bericht (Verfügbarkeit, Zugangsdaten, Ausführungen, Dokumente).",
+    "action": "Ersten Berichtszeitplan anlegen"
   }
 }

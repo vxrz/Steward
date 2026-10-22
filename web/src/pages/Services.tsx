@@ -3,11 +3,11 @@ import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, 
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconExternalLink, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconExternalLink, IconPlus, IconStack2, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
-import { PageHeader } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 
@@ -31,6 +31,7 @@ export function ServicesPage() {
   const services = useQuery({ queryKey: ['services', archived], queryFn: () => get<ServiceSummary[]>(`/services${archived ? '?archived=1' : ''}`) });
   const { hasRole } = useMe();
   const canCreate = hasRole('admin') || hasRole('designer');
+  useCreateParam(canCreate, () => setCreating(true));
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const list = services.data ?? [];
   return (
@@ -47,10 +48,22 @@ export function ServicesPage() {
         }
       />
       <Switch size="sm" mb="md" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+      <QueryState query={services} />
       {services.isSuccess && list.length === 0 && (
-        <Text c="dimmed" size="sm">
-          {canCreate ? t('emptyCreate') : t('empty')}
-        </Text>
+        <EmptyState
+          icon={IconStack2}
+          title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}
+          action={
+            canCreate &&
+            !archived && (
+              <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
+                {t('emptyState.action')}
+              </Button>
+            )
+          }
+        >
+          {archived ? undefined : canCreate ? t('emptyState.textCreate') : t('emptyState.text')}
+        </EmptyState>
       )}
       {list.length > 0 &&
         (narrow ? (

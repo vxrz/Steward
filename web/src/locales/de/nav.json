@@ -49,13 +49,17 @@
       "processes": "Prozesse",
       "startRun": "Ausführung starten",
       "dashboards": "Dashboards",
-      "platforms": "Plattformen"
+      "platforms": "Plattformen",
+      "monitors": "Monitore",
+      "services": "Services",
+      "records": "Dokumente",
+      "credentials": "Zugangsdaten"
     },
     "runBy": "Ausführung von {{actor}} · {{when}}",
     "dryRunBy": "Probelauf von {{actor}} · {{when}}",
     "startRunOf": "{{name}} ausführen",
     "nothingFound": "Nichts gefunden",
-    "placeholder": "Seiten, Prozesse, Dashboards, Plattformen suchen…",
+    "placeholder": "Seiten, Prozesse, Monitore, Dokumente suchen…",
     "search": "Suchen",
     "searchWithShortcut": "Suchen ({{shortcut}})",
     "searchButton": "Suchen…",
@@ -63,6 +67,29 @@
       "page": "Seite",
       "create": "anlegen neu",
       "theme": "Farbschema hell dunkel"
+    },
+    "pages": {
+      "monitorWall": "Statuswand der Monitore",
+      "recordTypes": "Dokumentarten",
+      "systemStatus": "Systemstatus",
+      "about": "Über"
+    },
+    "create": {
+      "monitor": "Neuer Monitor",
+      "record": "Neues Dokument",
+      "credential": "Neuer Zugangsdaten-Eintrag",
+      "service": "Neuer Service",
+      "schedule": "Neuer Zeitplan"
     }
-  }
+  },
+  "groups": {
+    "operate": "Betrieb",
+    "automate": "Automatisierung",
+    "service": "Service-Management",
+    "admin": "Administration"
+  },
+  "mainNavigation": "Hauptnavigation",
+  "collapseSidebar": "Seitenleiste einklappen",
+  "expandSidebar": "Seitenleiste ausklappen",
+  "backToDashboard": "Zur Übersicht"
 }
