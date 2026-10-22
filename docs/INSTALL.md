@@ -144,13 +144,13 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 
 A Steward installation is its data folder. To start over, stop Steward, delete (or rename) the folder and start again: you get the first-start screen (new master passphrase, new admin) and can load the demo platforms and processes again. This also deletes all processes, runs, the vault and the audit log of that folder.
 
-| Started with | Data folder |
-| --- | --- |
-| `npm run demo` / `npm run dev:demo` | `data/` in the project folder (or `SM_DATA_DIR`) |
-| Desktop executable, Windows | `%LOCALAPPDATA%\steward` |
-| Desktop executable, macOS | `~/Library/Application Support/steward` |
-| Desktop executable, Linux | `~/.local/share/steward` (or `$XDG_DATA_HOME/steward`) |
-| Container | the `sm-data` volume: `docker compose down -v` |
+| Started with                        | Data folder                                            |
+| ----------------------------------- | ------------------------------------------------------ |
+| `npm run demo` / `npm run dev:demo` | `data/` in the project folder (or `SM_DATA_DIR`)       |
+| Desktop executable, Windows         | `%LOCALAPPDATA%\steward`                               |
+| Desktop executable, macOS           | `~/Library/Application Support/steward`                |
+| Desktop executable, Linux           | `~/.local/share/steward` (or `$XDG_DATA_HOME/steward`) |
+| Container                           | the `sm-data` volume: `docker compose down -v`         |
 
 Keep demos in their own folder so they never mix with real data: `steward --demo --data-dir ~/steward-demo` or `SM_DATA_DIR=./demo-data npm run demo`. With PostgreSQL, the data lives in the database schema (`SM_DATABASE_URL`/`SM_DATABASE_SCHEMA`): use a separate schema for demos.
 

@@ -84,7 +84,9 @@ function promptHidden(question: string): Promise<string> {
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const c of process.stdin) chunks.push(c as Buffer);
-  return Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
+  return Buffer.concat(chunks)
+    .toString('utf8')
+    .replace(/\r?\n$/, '');
 }
 
 function alive(pid: number): boolean {
@@ -121,7 +123,8 @@ export async function runAdmin(argv: string[], command = 'steward admin'): Promi
     process.stdout.write(help(command));
     return values.help ? EXIT_OK : usageFailure(new UsageError('missing command'), command);
   }
-  if (sub !== 'list-admins' && sub !== 'reset-password') return usageFailure(new UsageError(`unknown command '${sub}'`, 'Commands: list-admins, reset-password'), command);
+  if (sub !== 'list-admins' && sub !== 'reset-password')
+    return usageFailure(new UsageError(`unknown command '${sub}'`, 'Commands: list-admins, reset-password'), command);
   if (sub === 'reset-password' && rest.length !== 1) return usageFailure(new UsageError('reset-password takes exactly one username'), command);
   if (sub === 'list-admins' && rest.length) return usageFailure(new UsageError(`unexpected argument '${rest[0]}'`), command);
   if (values.activate && sub !== 'reset-password') return usageFailure(new UsageError('--activate only works with reset-password'), command);
@@ -142,7 +145,11 @@ export async function runAdmin(argv: string[], command = 'steward admin'): Promi
   }
 }
 
-async function execute(sub: string, username: string | undefined, values: { activate?: boolean; 'passphrase-stdin'?: boolean; json?: boolean }): Promise<number> {
+async function execute(
+  sub: string,
+  username: string | undefined,
+  values: { activate?: boolean; 'passphrase-stdin'?: boolean; json?: boolean },
+): Promise<number> {
   await import('../bootstrap.js');
   const fs = await import('node:fs');
   const { config } = await import('../config.js');
@@ -191,7 +198,16 @@ async function execute(sub: string, username: string | undefined, values: { acti
     const admins = users.listUsers().filter((u) => u.roles.includes('admin'));
     if (values.json) {
       process.stdout.write(
-        JSON.stringify({ ok: true, admins: admins.map((u) => ({ username: u.username, displayName: u.displayName, active: u.active, authSource: u.authSource, lastLoginAt: u.lastLoginAt })) }) + '\n',
+        JSON.stringify({
+          ok: true,
+          admins: admins.map((u) => ({
+            username: u.username,
+            displayName: u.displayName,
+            active: u.active,
+            authSource: u.authSource,
+            lastLoginAt: u.lastLoginAt,
+          })),
+        }) + '\n',
       );
     } else if (!admins.length) {
       process.stdout.write('No administrator accounts.\n');
