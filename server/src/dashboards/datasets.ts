@@ -67,6 +67,11 @@ export function getDataset(key: string): Dataset {
   return { ...toMeta(r), rows: parseJson<DatasetRow[]>(r.rows, []) };
 }
 
+/** The process that owns a dataset key (first publisher), or undefined if it has no data yet. */
+export function datasetOwner(key: string): string | undefined {
+  return db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', key)?.process_id;
+}
+
 export function deleteDataset(key: string): void {
   db().tx(() => {
     db().run('DELETE FROM datasets WHERE key = ?', key);

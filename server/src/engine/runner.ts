@@ -32,7 +32,7 @@ import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bin
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
-import { publishDataset } from '../dashboards/datasets.js';
+import { publishDataset, datasetOwner } from '../dashboards/datasets.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
@@ -1353,6 +1353,22 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     else ctx.log('warn', `Metric "${name}" is not a number – skipped`, key);
   }
   const run = store.runRow(ctx.runId);
+  // A dataset key is owned by the first process to publish it. A real run by another
+  // process is rejected inside publishDataset (dashboard poisoning). A *dry run* by
+  // another process must not fail or overwrite the owner's data – e.g. previewing a
+  // second instance of a template that publishes the same key – so it returns a preview.
+  const owner = datasetOwner(step.dataset);
+  if (ctx.dryRun && owner && owner !== run.process_id) {
+    const statusCounts: Record<string, number> = {};
+    for (const r of rows) if (r._status) statusCounts[r._status] = (statusCounts[r._status] ?? 0) + 1;
+    const counts = Object.entries(statusCounts).map(([k, n]) => `${n} ${k}`).join(', ');
+    ctx.log('info', `DRY RUN – "${step.dataset}" is owned by another process; it was not written`, key);
+    return {
+      status: 'dryrun',
+      output: { dataset: step.dataset, rows: rows.length, statusCounts, metrics, dryRun: true },
+      summary: `DRY RUN – would publish ${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}`,
+    };
+  }
   const meta = publishDataset({
     key: step.dataset,
     title: step.title || step.name || step.dataset,
