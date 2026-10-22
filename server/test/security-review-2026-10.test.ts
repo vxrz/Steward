@@ -187,3 +187,50 @@ describe('startup warnings', () => {
     expect(securityWarnings({ SM_METRICS_PUBLIC: '1' }, safe, false).join()).toMatch(/metrics/);
   });
 });
+
+// Critical paths without a test before this review (found with V8 function coverage).
+describe('account administration', () => {
+  it('keeps at least one active administrator', async () => {
+    const users = await s.api<{ id: string; username: string }[]>('GET', '/users');
+    const adminId = users.find((u) => u.username === 'admin')!.id;
+    await expect(s.api('PUT', `/users/${adminId}`, { roles: ['viewer'] })).rejects.toMatchObject({ status: 409 });
+    await expect(s.api('PUT', `/users/${adminId}`, { active: false })).rejects.toMatchObject({ status: 409 });
+    expect((await s.api('GET', '/auth/me')).user.roles).toContain('admin');
+  });
+
+  it('resets a password: one-time password, sessions signed out, change required', async () => {
+    const users = await s.api<{ id: string; username: string }[]>('GET', '/users');
+    const vid = users.find((u) => u.username === 'vera')!.id;
+    const cookie = await loginCookie(s.base, 'vera', PW);
+    const before = client(cookie);
+    expect((await before('GET', '/auth/me')).status).toBe(200);
+    const { temporaryPassword } = await s.api('POST', `/users/${vid}/reset-password`);
+    expect(temporaryPassword).toBeTruthy();
+    expect((await before('GET', '/auth/me')).status).toBe(401);
+    const after = client(await loginCookie(s.base, 'vera', temporaryPassword));
+    const blocked = await after('GET', '/runs');
+    expect(blocked.status).toBe(403);
+    expect((await blocked.json()).code).toBe('PASSWORD_CHANGE_REQUIRED');
+    expect((await after('POST', '/auth/password', { current: temporaryPassword, next: PW + 'x' })).status).toBe(200);
+    expect((await after('GET', '/runs')).status).toBe(200);
+    expect((await s.api<{ action: string }[]>('GET', `/audit?action=user.password_reset&entityId=${vid}`)).length).toBe(1);
+  });
+
+  it('signs out: the session cookie stops working', async () => {
+    const c = client(await loginCookie(s.base, 'adam', PW));
+    expect((await c('GET', '/auth/me')).status).toBe(200);
+    expect((await c('POST', '/auth/logout', {})).status).toBe(200);
+    expect((await c('GET', '/auth/me')).status).toBe(401);
+  });
+
+  it('deletes a team and with it the access its members had through it', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Review team', members: ['vera'] });
+    const proc = (await s.api<{ id: string }[]>('GET', '/processes'))[0]!.id;
+    await s.api('PUT', `/processes/${proc}/access`, { acl: [{ subject: 'team:review team', permissions: ['view'] }] });
+    const v = client(await loginCookie(s.base, 'vera', PW + 'x'));
+    expect((await v('GET', `/processes/${proc}`)).status).toBe(200);
+    await s.api('DELETE', `/teams/${team.id}`);
+    expect((await v('GET', `/processes/${proc}`)).status).toBe(404);
+    await s.api('PUT', `/processes/${proc}/access`, { acl: [] });
+  });
+});
