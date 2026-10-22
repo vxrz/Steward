@@ -243,6 +243,18 @@ Steward creates PDF reports without a browser, also in the desktop executable.
 
 API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the *settings* capability.
 
+## Records and services
+
+*Records* holds the team's **change requests** and **decision records** (ADR, DR, SDR), numbered per type and year (`CR-2026-0001`):
+
+- a workflow per type (change: draft → submitted → approved/rejected → implemented → closed; decision: draft → proposed → accepted/rejected → superseded/deprecated), with four-eyes approval by approvers;
+- versions with a diff; leaving the draft status freezes the content and records its SHA-256 – changes need an audited new revision;
+- Markdown text (rendered without HTML), structured fields, comments, attachments (documents and e-mails, content-checked) and links to processes, runs, monitors, platforms, dashboards, services and external pages, shown on both sides;
+- import of existing ADRs from Markdown (MADR, Nygard, YAML frontmatter) and export back to Markdown;
+- a PDF/A-2b document with signature blocks and empty digital signature fields for people outside Steward; the signed PDF is uploaded back and checked to be derived from the generated one (structure only, not a cryptographic validation).
+
+*Services* is a minimal service catalogue: contacts, criticality, the entry in your CMDB and links. See [docs/RECORDS.md](docs/RECORDS.md).
+
 ## Writing processes
 
 Processes are built on the canvas or as YAML (*Source* tab, or *Import YAML*).

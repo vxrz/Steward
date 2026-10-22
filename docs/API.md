@@ -91,6 +91,9 @@ Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly
 | `GET /monitors/{monitorId}/status` | token | Monitor and check statuses with status codes (0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance) – for Zabbix HTTP agent items, see [MONITORS.md](MONITORS.md#zabbix-pull) |
 | `GET /monitors/{monitorId}/history` | token | Status changes, newest first. Filter `check` |
 | `GET /monitors/discovery` | token | Zabbix low-level discovery: `{"data":[{"{#MONITOR}":…,"{#CHECK}":…}]}`; `level=monitors` for one entry per monitor |
+| `GET /records` | token | Change requests and decision records, ordered by number. Filters `type`, `status`, `tag`, `q`. See [RECORDS.md](RECORDS.md) |
+| `GET /records/{recordId}` | token | Id or number (`CR-2026-0001`); text, fields, content and frozen hash, attachments (with SHA-256), links, approvals and comments |
+| `GET /records/{recordId}/versions` | token | Every saved change of title, text and fields, newest first |
 
 Visibility follows the web UI: runs, tasks, schedules and datasets of a process you may not view do not exist for you (`404`, or left out of lists). Sub-process runs of hidden processes are left out of `children`.
 

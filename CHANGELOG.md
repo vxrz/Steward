@@ -12,6 +12,14 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 - **Account recovery:** `steward admin list-admins` and `steward admin reset-password <user> [--activate]` (also `npm run admin`) set a one-time password on the server. They need the data folder and the master passphrase, refuse while Steward is running, sign out the account's sessions and are audited. Docs on resetting a demo instance.
 
+**Records and services**
+
+- Records: change requests and decision records (ADR, DR, SDR) with editable types (key, name, workflow, Markdown template, fields), numbers per type and year (`CR-2026-0001`), change and decision workflows, four-eyes approval, versions with a line diff, frozen content with a recorded SHA-256 and audited new revisions, comments, links with backlinks, and attachments (documents and e-mails). See [docs/RECORDS.md](docs/RECORDS.md).
+- Markdown import of existing decision records (MADR, Nygard, YAML frontmatter; bulk with preview) and Markdown export.
+- Record PDFs (PDF/A-2b) with content hash, approval history, audit excerpt and one signature block with an empty AcroForm signature field per external signer; upload of the signed PDF, checked to be derived from a generated PDF (signatures listed, not cryptographically validated).
+- A minimal service catalogue: contacts, criticality, CMDB reference and links to platforms, monitors, processes, dashboards and records.
+- Public API: `GET /api/v1/records`, `/records/{recordId}`, `/records/{recordId}/versions`.
+
 **Processes and engine**
 
 - Node-RED-style flow editor with a node palette, labelled outputs and YAML source view.
@@ -106,6 +114,7 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Security
 
+- Records: uploaded attachments are checked against their extension (magic numbers, e-mail headers, UTF-8 text), stored read-only with their SHA-256 (checked on download) and always downloaded as attachments in a sandbox; Markdown is rendered from a syntax tree without HTML (links: http, https and mailto only); YAML frontmatter is parsed with the core schema only (no custom tags, aliases limited) and sizes are limited; links only name targets the reader may see; a signed PDF is only accepted when its first bytes match a generated PDF of the record whose audit entry is authentic.
 - Platform credentials are no longer sent to hosts outside the platform when a step calls an absolute URL.
 - The vault rejects shortened AES-GCM authentication tags.
 - Audit log integrity (review C):
