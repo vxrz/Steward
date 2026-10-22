@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Alert, Anchor, Badge, Button, Checkbox, Collapse, Group, Paper, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
 import { IconSend } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { Platform } from '@sm/shared';
 import { post } from '../../api';
 import { Hint, JsonView, KeyValueEditor } from '../common';
+import { errorText } from '../../i18n/errors';
+import { fmtNumber } from '../../format';
 
 export interface ExplorerPreset {
   method: string;
@@ -26,6 +29,7 @@ const toStringMap = (v: Record<string, unknown> | undefined): Record<string, str
   v ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === 'string' ? x : JSON.stringify(x)])) : undefined;
 
 export function ExplorerTab({ platform, preset, canWrite = true }: { platform: Platform; preset: ExplorerPreset | null; canWrite?: boolean }) {
+  const { t } = useTranslation('platforms');
   const [method, setMethod] = useState('GET');
   const [path, setPath] = useState(platform.config.testPath || '/');
   const [query, setQuery] = useState<Record<string, unknown> | undefined>();
@@ -79,7 +83,7 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
       if (writes) setConfirmed(false);
     } catch (e) {
       setResult(null);
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -88,16 +92,13 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
   return (
     <Stack>
       <Paper withBorder p="md">
-        <Title order={5}>Ad-hoc request</Title>
-        <Hint>
-          Calls are authenticated with the platform's credentials and every call is recorded in the audit log. Path placeholders like
-          {' {id} '}from a spec must be replaced by real values.
-        </Hint>
+        <Title order={5}>{t('explorer.title')}</Title>
+        <Hint>{t('explorer.hint', { example: '{id}' })}</Hint>
         <Stack mt="sm">
           <Group align="flex-end" wrap="nowrap" gap="xs">
-            <Select data={canWrite ? METHODS : ['GET', 'HEAD']} value={method} onChange={(v) => setMethod(v ?? 'GET')} allowDeselect={false} w={110} label="Method" />
+            <Select data={canWrite ? METHODS : ['GET', 'HEAD']} value={method} onChange={(v) => setMethod(v ?? 'GET')} allowDeselect={false} w={110} label={t('explorer.method')} />
             <TextInput
-              label="Path (relative to base URL)"
+              label={t('explorer.path')}
               classNames={{ input: 'mono' }}
               value={path}
               onChange={(e) => setPath(e.currentTarget.value)}
@@ -109,36 +110,36 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
           </Group>
           <div>
             <Text size="sm" fw={500} mb={4}>
-              Query parameters
+              {t('explorer.query')}
             </Text>
             <KeyValueEditor value={query} onChange={setQuery} />
           </div>
           <div>
             <Text size="sm" fw={500} mb={4}>
-              Headers
+              {t('explorer.headers')}
             </Text>
             <KeyValueEditor value={headers} onChange={setHeaders} />
           </div>
           {writes && (
             <>
-              <Textarea label="Body (JSON)" classNames={{ input: 'mono' }} autosize minRows={3} maxRows={14} value={body} onChange={(e) => setBody(e.currentTarget.value)} />
+              <Textarea label={t('explorer.body')} classNames={{ input: 'mono' }} autosize minRows={3} maxRows={14} value={body} onChange={(e) => setBody(e.currentTarget.value)} />
               <Checkbox
                 color="orange"
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.currentTarget.checked)}
-                label={`I understand this changes data on ${platform.name}`}
+                label={t('explorer.confirm', { name: platform.name })}
               />
             </>
           )}
           <Group justify="flex-end">
             <Button leftSection={<IconSend size={16} />} onClick={send} loading={busy} disabled={!path.trim() || (writes && !confirmed)} color={writes ? 'orange' : 'blue'}>
-              Send
+              {t('explorer.send')}
             </Button>
           </Group>
         </Stack>
       </Paper>
       {error && (
-        <Alert color="red" title="Request failed">
+        <Alert color="red" title={t('explorer.failed')}>
           {error}
         </Alert>
       )}
@@ -149,20 +150,20 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
               HTTP {result.status}
             </Badge>
             <Text size="sm" c="dimmed">
-              {result.durationMs} ms
+              {fmtNumber(result.durationMs)} ms
             </Text>
             <Text size="xs" className="mono" c="dimmed" style={{ wordBreak: 'break-all' }}>
               {result.url}
             </Text>
           </Group>
           <Anchor size="xs" onClick={() => setShowHeaders((s) => !s)}>
-            {showHeaders ? 'Hide' : 'Show'} response headers
+            {showHeaders ? t('explorer.hideHeaders') : t('explorer.showHeaders')}
           </Anchor>
           <Collapse in={showHeaders}>
             <JsonView value={result.headers} maxHeight={200} />
           </Collapse>
           <Text size="sm" fw={500} mt="sm" mb={4}>
-            Body
+            {t('explorer.responseBody')}
           </Text>
           <JsonView value={result.body} maxHeight={500} />
         </Paper>
