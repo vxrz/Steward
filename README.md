@@ -21,7 +21,8 @@ Steward is a local tool for running standard service and platform procedures aga
 - **Sub-processes and parallel loops.** A *Run sub-process* node calls another process as a reusable building block (inputs in, outputs back, linked child runs). *For each* can process items in parallel. Platform calls retry on 429/5xx with backoff and honour `Retry-After`.
 - **Editor help.** Expression autocomplete with a live preview using the data of the last run, a *Last run* inspector per node, undo/redo, copy/paste between processes, and a YAML diff between versions.
 - **Notifications.** In-app notification centre, plus e-mail (SMTP), Microsoft Teams and generic webhooks for decisions waiting, failed runs and checks, stale dashboard data and skipped schedules. Optional browser notifications.
-- **Automation API.** Personal API tokens (read-only or full) for scripts and CI, e.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/runs`.
+- **Automation API.** Personal API tokens (read-only or full) for scripts and CI.
+- **Public REST API.** A versioned, read-only API under `/api/v1` with an OpenAPI 3.1 description and an optional Swagger UI (`/api/docs/`): processes and versions, runs with steps, logs, decisions and checks, tasks, schedules, platform metadata (never credentials), dashboard datasets, the audit log, users and teams. Token-only, rate-limited, cursor pagination, RFC 9457 errors. E.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/v1/runs`. See [docs/API.md](docs/API.md).
 - **Observability.** Structured JSON logs, optional OpenTelemetry tracing, Prometheus metrics (`/api/metrics`), readiness probe (`/api/ready`).
 - **Runs anywhere.** A single-file desktop executable (no Node.js needed), an installable web app (PWA), Node.js, or a container. See [docs/INSTALL.md](docs/INSTALL.md).
 - **Durable.** Runs are journaled step by step. If the app stops while a run waits for a decision, it resumes after a restart without repeating finished steps.
@@ -86,6 +87,9 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_OTEL_PROPAGATE` | `1` | `0` stops adding `traceparent` headers to platform calls |
 | `SM_METRIC_RETENTION_DAYS` | `400` | How long dashboard metric history is kept |
 | `SM_METRICS_PUBLIC` | – | `1` serves `/api/metrics` without sign-in (otherwise admins, auditors or an API token) |
+| `SM_API_V1` | `on` | `off` turns the public REST API (`/api/v1`) and its documentation off |
+| `SM_API_DOCS` | – | Who may open the API documentation (`/api/docs/`, `openapi.json` without a token): `off`, `authenticated` (signed-in users, the default) or `public`. Overrides the setting under **Settings → REST API**. |
+| `SM_API_RATE_LIMIT` | `600` | Requests per minute and API token on `/api/v1`; `0` = unlimited |
 
 Retention of runs and notifications, and the notification channels, are set under **Settings**.
 
@@ -315,6 +319,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 - The audit log is HMAC-chained with a key derived from the master key. *Audit log → Verify chain* detects modified, removed or re-ordered entries. Each finished run stores a fingerprint of its protocol in the chain, and the protocol shows whether it is still intact.
 - By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
+- The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
 
 ## Development
 
@@ -344,6 +349,8 @@ Where things live:
 - SCIM provisioning (deactivate accounts automatically when people leave).
 - Import a Postman collection as a platform spec.
 - See [docs/ROADMAP.md](docs/ROADMAP.md).
+
+Public REST API: the OpenAPI document [`docs/openapi.json`](docs/openapi.json) is generated from the route schemas with `npm run openapi`; `npm run openapi -- --check` fails when it is outdated (run it in CI). Details in [docs/API.md](docs/API.md).
 
 Contract checks against a sandbox tenant (for CI): `npm run contract -- --url http://127.0.0.1:4310 --token smt_… --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec.
 
