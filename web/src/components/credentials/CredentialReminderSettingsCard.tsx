@@ -47,10 +47,30 @@ export function CredentialReminderSettingsCard() {
       </Text>
       <Stack gap="xs">
         <Switch label={t('settings.enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
-        <TextInput label={t('settings.daysBefore')} description={t('settings.daysBeforeHint')} value={days} onChange={(e) => setDays(e.currentTarget.value)} error={valid ? undefined : t('settings.daysInvalid')} />
+        <TextInput
+          label={t('settings.daysBefore')}
+          description={t('settings.daysBeforeHint')}
+          value={days}
+          onChange={(e) => setDays(e.currentTarget.value)}
+          error={valid ? undefined : t('settings.daysInvalid')}
+        />
         <Group grow align="flex-start">
-          <NumberInput label={t('settings.overdueEvery')} description={t('settings.overdueEveryHint')} min={0} max={365} value={d.overdueEveryDays} onChange={(v) => setD({ ...d, overdueEveryDays: typeof v === 'number' ? v : 0 })} />
-          <NumberInput label={t('settings.dueSoonDays')} description={t('settings.dueSoonHint')} min={1} max={365} value={d.dueSoonDays} onChange={(v) => setD({ ...d, dueSoonDays: typeof v === 'number' ? v : 30 })} />
+          <NumberInput
+            label={t('settings.overdueEvery')}
+            description={t('settings.overdueEveryHint')}
+            min={0}
+            max={365}
+            value={d.overdueEveryDays}
+            onChange={(v) => setD({ ...d, overdueEveryDays: typeof v === 'number' ? v : 0 })}
+          />
+          <NumberInput
+            label={t('settings.dueSoonDays')}
+            description={t('settings.dueSoonHint')}
+            min={1}
+            max={365}
+            value={d.dueSoonDays}
+            onChange={(v) => setD({ ...d, dueSoonDays: typeof v === 'number' ? v : 30 })}
+          />
         </Group>
         <Group justify="flex-end">
           <Button size="xs" onClick={save} loading={busy} disabled={!valid}>

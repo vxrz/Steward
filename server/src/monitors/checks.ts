@@ -406,10 +406,14 @@ export function planGatus(c: CheckOf<'gatus'>, owner: string): void {
 function checkGatusMetrics(c: CheckOf<'gatus'>, ctx: ExecContext): RawResult {
   const src = sourceRow(c.platform);
   if (!src) return { status: 'unknown', message: 'Gatus metrics mode is not configured for this platform' };
-  if (!src.last_success_at) return { status: 'unknown', message: `Gatus metrics have not been scraped yet${src.last_error ? `: ${src.last_error}` : ''}`.slice(0, 500) };
+  if (!src.last_success_at)
+    return { status: 'unknown', message: `Gatus metrics have not been scraped yet${src.last_error ? `: ${src.last_error}` : ''}`.slice(0, 500) };
   const scrapeAge = (ctx.now() - Date.parse(src.last_success_at)) / 1000;
   if (scrapeAge > Math.max(3 * src.interval_seconds, 180)) {
-    return { status: 'unknown', message: `The last successful Gatus metrics scrape is ${fmtAge(scrapeAge)} old${src.last_error ? ` (${src.last_error})` : ''}`.slice(0, 500) };
+    return {
+      status: 'unknown',
+      message: `The last successful Gatus metrics scrape is ${fmtAge(scrapeAge)} old${src.last_error ? ` (${src.last_error})` : ''}`.slice(0, 500),
+    };
   }
   const e = endpointState(c.platform, c.endpointKey);
   if (!e) return { status: 'unknown', message: `Gatus has no endpoint with the key "${c.endpointKey}" in its metrics` };
@@ -417,7 +421,8 @@ function checkGatusMetrics(c: CheckOf<'gatus'>, ctx: ExecContext): RawResult {
   const label = `${e.group_name ? `${e.group_name}/` : ''}${e.name || e.key}`;
   if (c.maxAgeSeconds && e.last_result_at) {
     const age = (ctx.now() - Date.parse(e.last_result_at)) / 1000;
-    if (age > c.maxAgeSeconds) return { status: 'down', message: `Gatus produced no new result for ${fmtAge(age)} (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
+    if (age > c.maxAgeSeconds)
+      return { status: 'down', message: `Gatus produced no new result for ${fmtAge(age)} (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
   }
   if (e.success === null) return { status: 'unknown', message: `Gatus metrics have no success value for "${label}" yet`, durationMs: ms };
   if (!e.success) return { status: 'down', message: `Gatus: ${label} is failing (metrics)`, durationMs: ms };

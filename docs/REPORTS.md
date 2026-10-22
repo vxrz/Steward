@@ -1,14 +1,14 @@
 # Reports
 
-Steward produces three kinds of PDF/A-2b reports. All of them are archived the same way: the file is written once and never changed, its SHA-256 is recorded in the audit log (`report.generated`), and *Audit log → Verify PDF report* checks a copy, also a signed one.
+Steward produces three kinds of PDF/A-2b reports. All of them are archived the same way: the file is written once and never changed, its SHA-256 is recorded in the audit log (`report.generated`), and _Audit log → Verify PDF report_ checks a copy, also a signed one.
 
-| Kind | What | Where |
-| --- | --- | --- |
-| Run report | One run: what was done, decisions, checks, evidence | Run page → *PDF reports* ([README](../README.md#pdf-reports)) |
-| Summary report | Runs of one or more processes in a period | *Runs → Summary report* ([README](../README.md#pdf-reports)) |
-| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | *Reports* (this page) |
+| Kind                 | What                                                    | Where                                                         |
+| -------------------- | ------------------------------------------------------- | ------------------------------------------------------------- |
+| Run report           | One run: what was done, decisions, checks, evidence     | Run page → _PDF reports_ ([README](../README.md#pdf-reports)) |
+| Summary report       | Runs of one or more processes in a period               | _Runs → Summary report_ ([README](../README.md#pdf-reports))  |
+| **Scheduled report** | Availability and SLA, credentials, runs – on a schedule | _Reports_ (this page)                                         |
 
-Branding (company name, logo, colour, classification, footer) comes from *Settings → Report branding* for all of them.
+Branding (company name, logo, colour, classification, footer) comes from _Settings → Report branding_ for all of them.
 
 ## Scheduled reports
 
@@ -16,30 +16,31 @@ A report schedule creates a summary report every day, week or month, archives it
 
 ### Create a schedule
 
-1. *Reports → New report schedule*.
+1. _Reports → New report schedule_.
 2. **Name** and, optionally, a **title** for the cover.
 3. **When**:
 
-   | Preset | Runs | Period |
-   | --- | --- | --- |
-   | Daily | every day at 06:00 | the previous calendar day |
-   | Weekly | Mondays at 06:00 | the previous week, Monday to Monday |
-   | Monthly | on the 1st at 06:00 | the previous calendar month |
-   | Custom | your cron expression | the given number of days before each run |
+   | Preset  | Runs                 | Period                                   |
+   | ------- | -------------------- | ---------------------------------------- |
+   | Daily   | every day at 06:00   | the previous calendar day                |
+   | Weekly  | Mondays at 06:00     | the previous week, Monday to Monday      |
+   | Monthly | on the 1st at 06:00  | the previous calendar month              |
+   | Custom  | your cron expression | the given number of days before each run |
 
    Periods are calendar periods in the schedule's **time zone** (summer time is handled). The report's times are shown in that zone too.
+
 4. **Language** (English or German) and **classification**.
 5. **Sections** – choose one or more:
 
-   | Section | Contents |
-   | --- | --- |
-   | Availability of monitors | Per monitor: uptime, SLA met or missed (optional target, e.g. 99.5 %), number of outages, downtime, average and p95 response time; a bar chart and the list of outages |
-   | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode)) |
-   | Credentials register | Expired and overdue entries and those due within *N* days after the period ([CREDENTIALS.md](CREDENTIALS.md)) |
-   | Runs | Runs started in the period per process: succeeded, failed, other |
+   | Section                         | Contents                                                                                                                                                               |
+   | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Availability of monitors        | Per monitor: uptime, SLA met or missed (optional target, e.g. 99.5 %), number of outages, downtime, average and p95 response time; a bar chart and the list of outages |
+   | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                   |
+   | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                          |
+   | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                       |
 
-6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and e-mail addresses (e-mail only, when e-mail is set up). *Attach the PDF* sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account.
-7. Save. *Generate now* (▶) creates a report immediately for the period ending now.
+6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and e-mail addresses (e-mail only, when e-mail is set up). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account.
+7. Save. _Generate now_ (▶) creates a report immediately for the period ending now.
 
 ### Whose data is in the report?
 
@@ -53,25 +54,25 @@ Recipients get the report the owner was allowed to produce – choose them like 
 
 ### Who may do what
 
-| | Create | Change, delete, generate now | See the schedule and its reports |
-| --- | --- | --- | --- |
-| Administrator | ✓ | ✓ (all schedules) | ✓ |
-| Designer, operator, approver, auditor | ✓ | own schedules | own schedules; auditors: all |
-| Viewer | | | as a recipient |
-| Recipient (user or team) | | | ✓ while the schedule exists |
+|                                       | Create | Change, delete, generate now | See the schedule and its reports |
+| ------------------------------------- | ------ | ---------------------------- | -------------------------------- |
+| Administrator                         | ✓      | ✓ (all schedules)            | ✓                                |
+| Designer, operator, approver, auditor | ✓      | own schedules                | own schedules; auditors: all     |
+| Viewer                                |        |                              | as a recipient                   |
+| Recipient (user or team)              |        |                              | ✓ while the schedule exists      |
 
 The person whose rights a report was generated with keeps access to it after the schedule is deleted; auditors and administrators always do.
 
 ### How the figures are computed
 
-- **Monitor uptime** is time-weighted from the monitor's status changes in the period: *down* counts against it, *up* and *degraded* count for it; *unknown*, *blocked* and *maintenance* time is left out. An **outage** is a period in which the monitor was *down*.
+- **Monitor uptime** is time-weighted from the monitor's status changes in the period: _down_ counts against it, _up_ and _degraded_ count for it; _unknown_, _blocked_ and _maintenance_ time is left out. An **outage** is a period in which the monitor was _down_.
 - **Monitor response times** come from the stored check results (Steward keeps the newest results per check), so for long periods they describe the end of the period.
-- **Gatus uptime** is the share of successful results among all results Gatus produced in the period (deltas of `gatus_results_total`). **Outages** are periods in which the newest result failed (`gatus_results_endpoint_success = 0`). **p95** needs the per-scrape samples, kept for *raw retention* days (default 14); for older periods it is shown as –.
+- **Gatus uptime** is the share of successful results among all results Gatus produced in the period (deltas of `gatus_results_total`). **Outages** are periods in which the newest result failed (`gatus_results_endpoint_success = 0`). **p95** needs the per-scrape samples, kept for _raw retention_ days (default 14); for older periods it is shown as –.
 - **Credentials**: the state at the end of the period (or now, for a period that ends in the future).
 
 ### Archive and audit
 
-Generated reports are stored under `data/reports/scheduled/<report>.pdf`, listed under *Reports → Generated reports* and downloaded with the usual check of the recorded SHA-256. Audit entries: `report_schedule.created`, `.updated`, `.deleted`, `.skipped`, `.failed`, and `report.generated` (with the actor who triggered it, `system` for the timer) for each PDF.
+Generated reports are stored under `data/reports/scheduled/<report>.pdf`, listed under _Reports → Generated reports_ and downloaded with the usual check of the recorded SHA-256. Audit entries: `report_schedule.created`, `.updated`, `.deleted`, `.skipped`, `.failed`, and `report.generated` (with the actor who triggered it, `system` for the timer) for each PDF.
 
 ### API
 
@@ -84,6 +85,6 @@ Sections are registered in `server/src/reports/sections.ts` with `registerReport
 - `schema` validates the section's configuration (zod);
 - `build(config, { from, to, now, lang })` runs inside `runAs(owner)` and returns JSON data (part of the report's content hash);
 - `render(data, { w, tr, lang, section })` draws it with the PDF writer;
-- `glance` adds figures to the *At a glance* row.
+- `glance` adds figures to the _At a glance_ row.
 
 A "records" section (records / change requests) plugs in this way.

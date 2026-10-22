@@ -143,7 +143,14 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
         action: 'maintenance.cleanup',
         entityType: 'maintenance',
         summary: `Cleanup: ${removed.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
-        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays, retentionMonitorDays: monitorDays, monitorData, gatusData },
+        details: {
+          ...result,
+          retentionRunDays: s.retentionRunDays,
+          retentionNotificationDays: s.retentionNotificationDays,
+          retentionMonitorDays: monitorDays,
+          monitorData,
+          gatusData,
+        },
       });
     }
     logger.info(result, 'maintenance cleanup finished');

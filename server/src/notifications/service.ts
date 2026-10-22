@@ -119,7 +119,15 @@ export function notify(n: Notice): void {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
   }
-  const message = (locale: Locale): OutgoingMessage => ({ event: n.event, ...textIn(locale), locale, link: absoluteLink(n.link), ts: nowIso(), data: n.data, attachments: n.attachments });
+  const message = (locale: Locale): OutgoingMessage => ({
+    event: n.event,
+    ...textIn(locale),
+    locale,
+    link: absoluteLink(n.link),
+    ts: nowIso(),
+    data: n.data,
+    attachments: n.attachments,
+  });
   const key = `${n.event}:${n.externalKey}`;
   const jobs: { channel: string; to?: string; send: () => Promise<void> }[] = [];
   let secrets: ReturnType<typeof channelSecrets>;
@@ -334,9 +342,7 @@ export function startNotificationJobs(): void {
       logger.warn({ err }, 'stale dataset check failed');
     }
     // credentials register: expiry / rotation / review reminders (idempotent, see credentials/reminders.ts)
-    import('../credentials/reminders.js')
-      .then((m) => m.checkCredentialReminders())
-      .catch((err) => logger.warn({ err }, 'credential reminder check failed'));
+    import('../credentials/reminders.js').then((m) => m.checkCredentialReminders()).catch((err) => logger.warn({ err }, 'credential reminder check failed'));
   }, STALE_CHECK_MS);
   staleTimer.unref();
 }

@@ -35,7 +35,10 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs'];
 
-type Draft = Pick<ReportSchedule, 'name' | 'enabled' | 'preset' | 'cron' | 'timezone' | 'periodDays' | 'lang' | 'classification' | 'title' | 'sections' | 'recipients' | 'attachPdf'> & { id?: string };
+type Draft = Pick<
+  ReportSchedule,
+  'name' | 'enabled' | 'preset' | 'cron' | 'timezone' | 'periodDays' | 'lang' | 'classification' | 'title' | 'sections' | 'recipients' | 'attachPdf'
+> & { id?: string };
 
 const emptyDraft = (lang: 'en' | 'de'): Draft => ({
   name: '',
@@ -57,7 +60,10 @@ export function ReportsPage() {
   const qc = useQueryClient();
   const [params] = useSearchParams();
   const highlight = params.get('report');
-  const schedules = useQuery({ queryKey: ['report-schedules'], queryFn: () => get<{ items: ReportSchedule[]; canCreate: boolean; sections: string[] }>('/report-schedules') });
+  const schedules = useQuery({
+    queryKey: ['report-schedules'],
+    queryFn: () => get<{ items: ReportSchedule[]; canCreate: boolean; sections: string[] }>('/report-schedules'),
+  });
   const generated = useQuery({ queryKey: ['report-schedules', 'reports'], queryFn: () => get<ReportRecord[]>('/report-schedules/reports') });
   const summaries = useQuery({ queryKey: ['reports', 'summary'], queryFn: () => getOptional<ReportRecord[]>('/reports?kind=summary', []) });
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -265,7 +271,13 @@ export function ReportsPage() {
   );
 }
 
-type SectionConfig = Record<string, unknown> & { monitorIds?: string[] | null; processIds?: string[] | null; slaTarget?: number | null; dueWithinDays?: number; sources?: { platformId: string; endpointKeys: string[] | null }[] };
+type SectionConfig = Record<string, unknown> & {
+  monitorIds?: string[] | null;
+  processIds?: string[] | null;
+  slaTarget?: number | null;
+  dueWithinDays?: number;
+  sources?: { platformId: string; endpointKeys: string[] | null }[];
+};
 
 function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; sections: string[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['reportSchedules', 'common']);
@@ -317,14 +329,29 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
           <Text size="sm" fw={500} mb={4}>
             {t('form.when')}
           </Text>
-          <SegmentedControl fullWidth data={PRESETS.map((p) => ({ value: p, label: t(`presets.${p}`) }))} value={d.preset} onChange={(v) => set({ preset: v as ReportSchedulePreset })} />
+          <SegmentedControl
+            fullWidth
+            data={PRESETS.map((p) => ({ value: p, label: t(`presets.${p}`) }))}
+            value={d.preset}
+            onChange={(v) => set({ preset: v as ReportSchedulePreset })}
+          />
           <Text size="xs" c="dimmed" mt={4}>
             {t(`presetHints.${d.preset}`)}
           </Text>
         </div>
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
-          {d.preset === 'custom' && <TextInput label={t('form.cron')} classNames={{ input: 'mono' }} value={d.cron} onChange={(e) => set({ cron: e.currentTarget.value })} />}
-          {d.preset === 'custom' && <NumberInput label={t('form.periodDays')} min={1} max={366} value={d.periodDays} onChange={(v) => set({ periodDays: typeof v === 'number' ? v : 7 })} />}
+          {d.preset === 'custom' && (
+            <TextInput label={t('form.cron')} classNames={{ input: 'mono' }} value={d.cron} onChange={(e) => set({ cron: e.currentTarget.value })} />
+          )}
+          {d.preset === 'custom' && (
+            <NumberInput
+              label={t('form.periodDays')}
+              min={1}
+              max={366}
+              value={d.periodDays}
+              onChange={(v) => set({ periodDays: typeof v === 'number' ? v : 7 })}
+            />
+          )}
           <TextInput label={t('form.timezone')} value={d.timezone} onChange={(e) => set({ timezone: e.currentTarget.value })} />
           <Select
             label={t('form.lang')}
@@ -363,7 +390,14 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                     value={cfg.monitorIds ?? []}
                     onChange={(v) => setSec(id, { ...cfg, monitorIds: v.length ? v : null })}
                   />
-                  <NumberInput label={t('form.slaTarget')} min={0} max={100} decimalScale={3} value={cfg.slaTarget ?? ''} onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })} />
+                  <NumberInput
+                    label={t('form.slaTarget')}
+                    min={0}
+                    max={100}
+                    decimalScale={3}
+                    value={cfg.slaTarget ?? ''}
+                    onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
+                  />
                 </SimpleGrid>
               )}
               {cfg && id === 'gatus' && (
@@ -375,11 +409,26 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                     value={(cfg.sources ?? []).map((x) => x.platformId)}
                     onChange={(v) => setSec(id, { ...cfg, sources: v.map((platformId) => ({ platformId, endpointKeys: null })) })}
                   />
-                  <NumberInput label={t('form.slaTarget')} min={0} max={100} decimalScale={3} value={cfg.slaTarget ?? ''} onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })} />
+                  <NumberInput
+                    label={t('form.slaTarget')}
+                    min={0}
+                    max={100}
+                    decimalScale={3}
+                    value={cfg.slaTarget ?? ''}
+                    onChange={(v) => setSec(id, { ...cfg, slaTarget: typeof v === 'number' ? v : null })}
+                  />
                 </SimpleGrid>
               )}
               {cfg && id === 'credentials' && (
-                <NumberInput ml="lg" maw={260} label={t('form.dueWithinDays')} min={0} max={365} value={cfg.dueWithinDays ?? 30} onChange={(v) => setSec(id, { ...cfg, dueWithinDays: typeof v === 'number' ? v : 30 })} />
+                <NumberInput
+                  ml="lg"
+                  maw={260}
+                  label={t('form.dueWithinDays')}
+                  min={0}
+                  max={365}
+                  value={cfg.dueWithinDays ?? 30}
+                  onChange={(v) => setSec(id, { ...cfg, dueWithinDays: typeof v === 'number' ? v : 30 })}
+                />
               )}
               {cfg && id === 'runs' && (
                 <MultiSelect
@@ -398,11 +447,33 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
 
         <Divider label={t('form.recipients')} labelPosition="left" />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <MultiSelect label={t('form.users')} searchable data={users} value={d.recipients.users} onChange={(v) => set({ recipients: { ...d.recipients, users: v } })} />
-          <MultiSelect label={t('form.teams')} searchable data={teams} value={d.recipients.teams} onChange={(v) => set({ recipients: { ...d.recipients, teams: v } })} />
+          <MultiSelect
+            label={t('form.users')}
+            searchable
+            data={users}
+            value={d.recipients.users}
+            onChange={(v) => set({ recipients: { ...d.recipients, users: v } })}
+          />
+          <MultiSelect
+            label={t('form.teams')}
+            searchable
+            data={teams}
+            value={d.recipients.teams}
+            onChange={(v) => set({ recipients: { ...d.recipients, teams: v } })}
+          />
         </SimpleGrid>
-        <TagsInput label={t('form.emails')} description={t('form.emailsHint')} value={d.recipients.emails} onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })} />
-        <Switch label={t('form.attachPdf')} description={t('form.attachPdfHint')} checked={d.attachPdf} onChange={(e) => set({ attachPdf: e.currentTarget.checked })} />
+        <TagsInput
+          label={t('form.emails')}
+          description={t('form.emailsHint')}
+          value={d.recipients.emails}
+          onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })}
+        />
+        <Switch
+          label={t('form.attachPdf')}
+          description={t('form.attachPdfHint')}
+          checked={d.attachPdf}
+          onChange={(e) => set({ attachPdf: e.currentTarget.checked })}
+        />
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => set({ enabled: e.currentTarget.checked })} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

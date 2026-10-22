@@ -24,7 +24,19 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { IconPlus, IconShieldLock, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { CertificateInfo, Credential, CredentialLink, CredentialOwner, CredentialReminderOverride, CredentialType, GatusEndpointState, MonitorSummary, Platform, ProcessSummary, Subject } from '@sm/shared';
+import type {
+  CertificateInfo,
+  Credential,
+  CredentialLink,
+  CredentialOwner,
+  CredentialReminderOverride,
+  CredentialType,
+  GatusEndpointState,
+  MonitorSummary,
+  Platform,
+  ProcessSummary,
+  Subject,
+} from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { fmtDay } from '../../format';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
@@ -105,8 +117,26 @@ const fromEntry = (c: Credential | null): Draft =>
       };
 
 /** A date input over an ISO value: unchanged values keep their time, a picked day is sent as YYYY-MM-DD. */
-function DateField({ label, value, onChange, description }: { label: string; value: string | null; onChange: (v: string | null) => void; description?: string }) {
-  return <TextInput type="date" label={label} description={description} value={value ? value.slice(0, 10) : ''} onChange={(e) => onChange(e.currentTarget.value || null)} />;
+function DateField({
+  label,
+  value,
+  onChange,
+  description,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (v: string | null) => void;
+  description?: string;
+}) {
+  return (
+    <TextInput
+      type="date"
+      label={label}
+      description={description}
+      value={value ? value.slice(0, 10) : ''}
+      onChange={(e) => onChange(e.currentTarget.value || null)}
+    />
+  );
 }
 
 const toBase64 = async (f: File): Promise<string> => {
@@ -207,11 +237,21 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
             onChange={(v) => set({ platformId: v })}
           />
           {!d.platformId ? (
-            <TextInput label={t('fields.platformText')} placeholder={t('editor.platformTextPlaceholder')} value={d.platformText} onChange={(e) => set({ platformText: e.currentTarget.value })} />
+            <TextInput
+              label={t('fields.platformText')}
+              placeholder={t('editor.platformTextPlaceholder')}
+              value={d.platformText}
+              onChange={(e) => set({ platformText: e.currentTarget.value })}
+            />
           ) : (
             <div />
           )}
-          <TextInput label={t('fields.environment')} placeholder={t('editor.environmentPlaceholder')} value={d.environment} onChange={(e) => set({ environment: e.currentTarget.value })} />
+          <TextInput
+            label={t('fields.environment')}
+            placeholder={t('editor.environmentPlaceholder')}
+            value={d.environment}
+            onChange={(e) => set({ environment: e.currentTarget.value })}
+          />
           <TagsInput label={t('fields.tags')} value={d.tags} onChange={(v) => set({ tags: v })} />
         </SimpleGrid>
         <Textarea label={t('fields.description')} autosize minRows={2} value={d.description} onChange={(e) => set({ description: e.currentTarget.value })} />
@@ -254,7 +294,13 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 value={o.role}
                 onChange={(v) => set({ owners: d.owners.map((x, j) => (j === i ? { ...x, role: v } : x)) })}
               />
-              <ActionIcon variant="subtle" color="red" mb={4} onClick={() => set({ owners: d.owners.filter((_, j) => j !== i) })} aria-label={t('editor.removeOwner')}>
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                mb={4}
+                onClick={() => set({ owners: d.owners.filter((_, j) => j !== i) })}
+                aria-label={t('editor.removeOwner')}
+              >
                 <IconTrash size={16} />
               </ActionIcon>
             </Group>
@@ -295,13 +341,24 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 value={l.id || null}
                 onChange={(v) => set({ usedBy: { ...d.usedBy, links: d.usedBy.links.map((x, j) => (j === i ? { ...x, id: v ?? '' } : x)) } })}
               />
-              <ActionIcon variant="subtle" color="red" mb={4} onClick={() => set({ usedBy: { ...d.usedBy, links: d.usedBy.links.filter((_, j) => j !== i) } })} aria-label={t('editor.removeLink')}>
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                mb={4}
+                onClick={() => set({ usedBy: { ...d.usedBy, links: d.usedBy.links.filter((_, j) => j !== i) } })}
+                aria-label={t('editor.removeLink')}
+              >
                 <IconTrash size={16} />
               </ActionIcon>
             </Group>
           ))}
           <Group>
-            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => set({ usedBy: { ...d.usedBy, links: [...d.usedBy.links, { kind: 'process', id: '' }] } })}>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => set({ usedBy: { ...d.usedBy, links: [...d.usedBy.links, { kind: 'process', id: '' }] } })}
+            >
               {t('editor.addLink')}
             </Button>
           </Group>
@@ -348,10 +405,29 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
         )}
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <DateField label={t('fields.issuedAt')} value={d.issuedAt} onChange={(v) => set({ issuedAt: v })} />
-          <DateField label={t('fields.expiresAt')} description={certDecides ? t('editor.expiryFromCert') : undefined} value={certDecides ? cert!.info.chainNotAfter : d.expiresAt} onChange={(v) => set({ expiresAt: v })} />
-          <NumberInput label={t('fields.rotationInterval')} description={t('editor.daysOptional')} min={1} max={3650} value={d.rotationIntervalDays ?? ''} onChange={(v) => set({ rotationIntervalDays: typeof v === 'number' ? v : null })} />
+          <DateField
+            label={t('fields.expiresAt')}
+            description={certDecides ? t('editor.expiryFromCert') : undefined}
+            value={certDecides ? cert!.info.chainNotAfter : d.expiresAt}
+            onChange={(v) => set({ expiresAt: v })}
+          />
+          <NumberInput
+            label={t('fields.rotationInterval')}
+            description={t('editor.daysOptional')}
+            min={1}
+            max={3650}
+            value={d.rotationIntervalDays ?? ''}
+            onChange={(v) => set({ rotationIntervalDays: typeof v === 'number' ? v : null })}
+          />
           <DateField label={t('fields.lastRotated')} value={d.lastRotatedAt} onChange={(v) => set({ lastRotatedAt: v })} />
-          <NumberInput label={t('fields.reviewInterval')} description={t('editor.daysOptional')} min={1} max={3650} value={d.reviewIntervalDays ?? ''} onChange={(v) => set({ reviewIntervalDays: typeof v === 'number' ? v : null })} />
+          <NumberInput
+            label={t('fields.reviewInterval')}
+            description={t('editor.daysOptional')}
+            min={1}
+            max={3650}
+            value={d.reviewIntervalDays ?? ''}
+            onChange={(v) => set({ reviewIntervalDays: typeof v === 'number' ? v : null })}
+          />
           <DateField label={t('fields.lastReviewed')} value={d.lastReviewedAt} onChange={(v) => set({ lastReviewedAt: v })} />
         </SimpleGrid>
         {gatusPlatforms.length > 0 && (
@@ -378,7 +454,11 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
         )}
 
         <Divider label={t('editor.remindersSection')} labelPosition="left" />
-        <Switch label={t('editor.ownReminders')} checked={!!d.reminders} onChange={(e) => set({ reminders: e.currentTarget.checked ? { daysBefore: [30, 14, 7, 1], overdueEveryDays: 7 } : null })} />
+        <Switch
+          label={t('editor.ownReminders')}
+          checked={!!d.reminders}
+          onChange={(e) => set({ reminders: e.currentTarget.checked ? { daysBefore: [30, 14, 7, 1], overdueEveryDays: 7 } : null })}
+        />
         {d.reminders && (
           <SimpleGrid cols={{ base: 1, sm: 3 }}>
             <TextInput
@@ -397,12 +477,30 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 })
               }
             />
-            <NumberInput label={t('editor.overdueEvery')} min={0} max={365} value={d.reminders.overdueEveryDays ?? 7} onChange={(v) => set({ reminders: { ...d.reminders, overdueEveryDays: typeof v === 'number' ? v : 0 } })} />
-            <Switch mt="lg" label={t('editor.noReminders')} checked={!!d.reminders.disabled} onChange={(e) => set({ reminders: { ...d.reminders, disabled: e.currentTarget.checked } })} />
+            <NumberInput
+              label={t('editor.overdueEvery')}
+              min={0}
+              max={365}
+              value={d.reminders.overdueEveryDays ?? 7}
+              onChange={(v) => set({ reminders: { ...d.reminders, overdueEveryDays: typeof v === 'number' ? v : 0 } })}
+            />
+            <Switch
+              mt="lg"
+              label={t('editor.noReminders')}
+              checked={!!d.reminders.disabled}
+              onChange={(e) => set({ reminders: { ...d.reminders, disabled: e.currentTarget.checked } })}
+            />
           </SimpleGrid>
         )}
 
-        <Textarea label={t('fields.notes')} description={t('noSecretsShort')} autosize minRows={2} value={d.notes} onChange={(e) => set({ notes: e.currentTarget.value })} />
+        <Textarea
+          label={t('fields.notes')}
+          description={t('noSecretsShort')}
+          autosize
+          minRows={2}
+          value={d.notes}
+          onChange={(e) => set({ notes: e.currentTarget.value })}
+        />
         {error && <Alert color="red">{error}</Alert>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

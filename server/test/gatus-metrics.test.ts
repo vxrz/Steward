@@ -11,7 +11,11 @@ let gatusId: string;
 let dana: Client, olivia: Client, vera: Client;
 let gm: typeof import('../src/gatus/metrics.js');
 const PW = 'Demo-password-1';
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 const mock = (path: string, body: unknown = {}) =>
   fetch(`${s.base}/mock/gatus${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
 
@@ -183,7 +187,14 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
 
   it('scrapes, stores endpoint states, uptime and certificate expiry; audited', async () => {
     await mock('/metrics/reset');
-    const saved = await s.api('PUT', `/gatus/sources/${gatusId}`, { enabled: true, intervalSeconds: 60, retentionDays: 90, rawRetentionDays: 14, metricsPath: '/metrics', fetchUptimes: true });
+    const saved = await s.api('PUT', `/gatus/sources/${gatusId}`, {
+      enabled: true,
+      intervalSeconds: 60,
+      retentionDays: 90,
+      rawRetentionDays: 14,
+      metricsPath: '/metrics',
+      fetchUptimes: true,
+    });
     expect(saved.source).toMatchObject({ platformId: gatusId, enabled: true, owner: 'admin', metricsPath: '/metrics' });
     const audit = await s.api('GET', '/audit?action=gatus.metrics_enabled');
     expect(audit.some((a: any) => a.entityId === gatusId)).toBe(true);
@@ -234,7 +245,10 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
     const r = await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
     expect(r.resets).toBe(4);
     const { db } = await import('../src/db.js');
-    const sample = db().get<{ ok: number; reset: number }>("SELECT ok, reset FROM gatus_samples WHERE platform_id = ? AND key = 'plant_mes-frontend' ORDER BY id DESC LIMIT 1", gatusId)!;
+    const sample = db().get<{ ok: number; reset: number }>(
+      "SELECT ok, reset FROM gatus_samples WHERE platform_id = ? AND key = 'plant_mes-frontend' ORDER BY id DESC LIMIT 1",
+      gatusId,
+    )!;
     expect([sample.ok, sample.reset]).toEqual([1, 1]);
   });
 
@@ -245,7 +259,9 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
     const admin = toAuthUser(findUserByName('admin')!);
     const p = runAs(admin, () => getPlatform(gatusId));
-    await expect(platformRequest(p, getSecrets(gatusId), { method: 'GET', url: '/metrics', maxResponseBytes: 200, rawText: true })).rejects.toThrow(/larger than 200 bytes/);
+    await expect(platformRequest(p, getSecrets(gatusId), { method: 'GET', url: '/metrics', maxResponseBytes: 200, rawText: true })).rejects.toThrow(
+      /larger than 200 bytes/,
+    );
   });
 
   it('reports errors of the scrape on the source (wrong path), and the outbound policy applies', async () => {

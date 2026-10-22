@@ -2,7 +2,19 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ActionIcon, Alert, Anchor, Badge, Button, Center, Collapse, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
-import { IconApi, IconBook, IconChartLine, IconDots, IconKey, IconLock, IconPlug, IconPlugConnected, IconSettings, IconTerminal2, IconTrash } from '@tabler/icons-react';
+import {
+  IconApi,
+  IconBook,
+  IconChartLine,
+  IconDots,
+  IconKey,
+  IconLock,
+  IconPlug,
+  IconPlugConnected,
+  IconSettings,
+  IconTerminal2,
+  IconTrash,
+} from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AclEntry, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';

@@ -147,7 +147,8 @@ export function saveSource(platformId: string, input: SourceInput, actor: string
 /** Removes the source and every sample of it. */
 export function deleteSource(platformId: string): void {
   db().tx(() => {
-    for (const t of ['gatus_samples', 'gatus_hourly', 'gatus_transitions', 'gatus_endpoints', 'gatus_sources']) db().run(`DELETE FROM ${t} WHERE platform_id = ?`, platformId);
+    for (const t of ['gatus_samples', 'gatus_hourly', 'gatus_transitions', 'gatus_endpoints', 'gatus_sources'])
+      db().run(`DELETE FROM ${t} WHERE platform_id = ?`, platformId);
   });
 }
 
@@ -188,7 +189,18 @@ export function endpointsFromSamples(samples: PromSample[]): { endpoints: Map<st
     if (!key || key.length > 300 || !Number.isFinite(s.value)) continue;
     let e = endpoints.get(key);
     if (!e) {
-      e = { key, group: s.labels.group ?? '', name: s.labels.name ?? '', type: s.labels.type ?? '', ok: 0, fail: 0, success: null, durationS: null, certS: null, domainS: null };
+      e = {
+        key,
+        group: s.labels.group ?? '',
+        name: s.labels.name ?? '',
+        type: s.labels.type ?? '',
+        ok: 0,
+        fail: 0,
+        success: null,
+        durationS: null,
+        certS: null,
+        domainS: null,
+      };
       endpoints.set(key, e);
     }
     switch (s.name) {
@@ -237,7 +249,8 @@ export function storeScrape(platformId: string, text: string, now: number): { en
   const parsed = parsePrometheus(text, { keep: (n) => KEPT.has(n), maxBytes: METRICS_MAX_BYTES });
   const { endpoints: all, startedAt } = endpointsFromSamples(parsed.samples);
   const endpoints = new Map([...all].slice(0, MAX_ENDPOINTS));
-  if (all.size > MAX_ENDPOINTS) logger.warn({ platformId, endpoints: all.size, stored: MAX_ENDPOINTS }, 'Gatus metrics: too many endpoints, the rest is ignored');
+  if (all.size > MAX_ENDPOINTS)
+    logger.warn({ platformId, endpoints: all.size, stored: MAX_ENDPOINTS }, 'Gatus metrics: too many endpoints, the rest is ignored');
   const src = sourceRow(platformId);
   const prevStart = src?.gatus_started_at ? Date.parse(src.gatus_started_at) : null;
   // a different process start time means Gatus restarted: all counters started from zero
@@ -353,10 +366,19 @@ export async function scrape(platformId: string, now = Date.now()): Promise<Scra
     const r = await platformRequest(
       platform,
       secrets,
-      { method: 'GET', url: src.metrics_path, headers: { accept: 'text/plain;version=0.0.4;q=1, */*;q=0.1' }, maxResponseBytes: METRICS_MAX_BYTES, rawText: true },
+      {
+        method: 'GET',
+        url: src.metrics_path,
+        headers: { accept: 'text/plain;version=0.0.4;q=1, */*;q=0.1' },
+        maxResponseBytes: METRICS_MAX_BYTES,
+        rawText: true,
+      },
       AbortSignal.timeout(timeout),
     );
-    if (r.status !== 200) throw new Error(`Gatus answered HTTP ${r.status} for ${src.metrics_path}${r.status === 404 ? ' – is "metrics: true" set in the Gatus configuration?' : ''}`);
+    if (r.status !== 200)
+      throw new Error(
+        `Gatus answered HTTP ${r.status} for ${src.metrics_path}${r.status === 404 ? ' – is "metrics: true" set in the Gatus configuration?' : ''}`,
+      );
     const stored = storeScrape(platformId, String(r.body ?? ''), now);
     if (!stored.endpoints) throw new Error('The answer contains no gatus_results_* metrics – is this the Gatus metrics endpoint?');
     const durationMs = Date.now() - t0;
@@ -368,13 +390,21 @@ export async function scrape(platformId: string, now = Date.now()): Promise<Scra
       platformId,
     );
     if (src.fetch_uptimes && (!src.last_uptimes_at || now - Date.parse(src.last_uptimes_at) >= HOUR)) {
-      await fetchUptimes(platformId, src.owner).catch((err) => logger.warn({ err: { message: (err as Error).message }, platformId }, 'Gatus uptime figures could not be read'));
+      await fetchUptimes(platformId, src.owner).catch((err) =>
+        logger.warn({ err: { message: (err as Error).message }, platformId }, 'Gatus uptime figures could not be read'),
+      );
       db().run('UPDATE gatus_sources SET last_uptimes_at = ? WHERE platform_id = ?', new Date(now).toISOString(), platformId);
     }
     return { ok: true, ...stored, durationMs };
   } catch (e) {
     const message = String((e as Error).message ?? e).slice(0, 500);
-    db().run('UPDATE gatus_sources SET last_scrape_at = ?, last_error = ?, last_duration_ms = ? WHERE platform_id = ?', new Date(now).toISOString(), message, Date.now() - t0, platformId);
+    db().run(
+      'UPDATE gatus_sources SET last_scrape_at = ?, last_error = ?, last_duration_ms = ? WHERE platform_id = ?',
+      new Date(now).toISOString(),
+      message,
+      Date.now() - t0,
+      platformId,
+    );
     return { ok: false, endpoints: 0, samples: 0, malformed: 0, resets: 0, durationMs: Date.now() - t0, error: message };
   } finally {
     running.delete(platformId);
@@ -484,7 +514,11 @@ export function pruneGatusData(now = Date.now()): { samples: number; hourly: num
 const pct = (ok: number, fail: number) => (ok + fail > 0 ? Math.round((ok / (ok + fail)) * 10000) / 100 : null);
 
 /** Uptime per endpoint over a period, from the hourly aggregates. */
-export function uptimeBetween(platformId: string, from: number, to: number): Map<string, { ok: number; fail: number; uptime: number | null; durationSum: number; durationCount: number; durationMax: number | null }> {
+export function uptimeBetween(
+  platformId: string,
+  from: number,
+  to: number,
+): Map<string, { ok: number; fail: number; uptime: number | null; durationSum: number; durationCount: number; durationMax: number | null }> {
   const rows = db().all<{ key: string; ok: number; fail: number; ds: number; dc: number; dm: number | null }>(
     `SELECT key, SUM(ok) AS ok, SUM(fail) AS fail, SUM(duration_sum) AS ds, SUM(duration_count) AS dc, MAX(duration_max) AS dm
      FROM gatus_hourly WHERE platform_id = ? AND bucket >= ? AND bucket < ? GROUP BY key`,
@@ -495,7 +529,14 @@ export function uptimeBetween(platformId: string, from: number, to: number): Map
   return new Map(
     rows.map((r) => [
       r.key,
-      { ok: Number(r.ok), fail: Number(r.fail), uptime: pct(Number(r.ok), Number(r.fail)), durationSum: Number(r.ds), durationCount: Number(r.dc), durationMax: r.dm === null ? null : Number(r.dm) },
+      {
+        ok: Number(r.ok),
+        fail: Number(r.fail),
+        uptime: pct(Number(r.ok), Number(r.fail)),
+        durationSum: Number(r.ds),
+        durationCount: Number(r.dc),
+        durationMax: r.dm === null ? null : Number(r.dm),
+      },
     ]),
   );
 }
@@ -593,7 +634,12 @@ export function availability(platformId: string, keys: string[] | null, from: nu
       fromIso,
       toIso,
     );
-    const outages = outagesFrom(before ? [{ t: from, down: !before.success }, ...changes.map((c) => ({ t: Date.parse(c.ts), down: !c.success }))] : changes.map((c) => ({ t: Date.parse(c.ts), down: !c.success })), to);
+    const outages = outagesFrom(
+      before
+        ? [{ t: from, down: !before.success }, ...changes.map((c) => ({ t: Date.parse(c.ts), down: !c.success }))]
+        : changes.map((c) => ({ t: Date.parse(c.ts), down: !c.success })),
+      to,
+    );
     return {
       key: e.key,
       group: e.group_name,

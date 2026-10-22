@@ -22,8 +22,16 @@ let s: TestServer;
 let dana: Client, olivia: Client, adam: Client, audrey: Client, vera: Client;
 const PW = 'Demo-password-1';
 const DAY = 86400000;
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
-const errorOf = (p: Promise<unknown>) => p.then(() => '', (e: Error) => e.message);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
+const errorOf = (p: Promise<unknown>) =>
+  p.then(
+    () => '',
+    (e: Error) => e.message,
+  );
 
 /** Agent certificate signed by a test CA (generated once with openssl; valid until 2035/2036). */
 const LEAF = `-----BEGIN CERTIFICATE-----
@@ -109,7 +117,10 @@ describe('secret heuristics', () => {
       [privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), /private key/],
       ['-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----', /private key/],
       ['-----BEGIN RSA PRIVATE KEY-----', /private key/],
-      [`token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c`, /JSON Web Token/],
+      [
+        `token eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c`,
+        /JSON Web Token/,
+      ],
       [`ghp_${'a1B2c3D4e5F6g7H8i9J0'.repeat(2)}`, /GitHub/],
       ['AKIAIOSFODNN7EXAMPLE', /AWS/],
       ['xoxb-123456789012-abcdefABCDEF', /Slack/],
@@ -170,7 +181,9 @@ describe('certificates', () => {
     const derKey = privateKey.export({ type: 'pkcs8', format: 'der' });
     expect(await errorOf(dana('POST', '/credentials/certificate/parse', { contentBase64: b64(derKey) }))).toMatch(/PRIVATE_KEY_REJECTED/);
     // the start of a PKCS#12 file: SEQUENCE, INTEGER 3
-    expect(await errorOf(dana('POST', '/credentials/certificate/parse', { contentBase64: b64(Buffer.from([0x30, 0x82, 0x01, 0x00, 0x02, 0x01, 0x03, 0x30])) }))).toMatch(/PKCS#12/);
+    expect(
+      await errorOf(dana('POST', '/credentials/certificate/parse', { contentBase64: b64(Buffer.from([0x30, 0x82, 0x01, 0x00, 0x02, 0x01, 0x03, 0x30])) })),
+    ).toMatch(/PKCS#12/);
     expect(await status(dana('POST', '/credentials/certificate/parse', { pem: 'hello' }))).toBe(400);
     expect(await status(dana('POST', '/credentials/certificate/parse', { contentBase64: b64(Buffer.alloc(300 * 1024, 1)) }))).toBe(400);
     // saving an entry with a key is refused the same way, nothing is stored
@@ -205,9 +218,21 @@ describe('register entries', () => {
   it('computes next rotation and review dates and the status', async () => {
     const { computeDues, worstCredentialStatus } = await import('../src/credentials/service.js');
     const now = Date.parse('2026-06-01T12:00:00Z');
-    const base = { created_at: '2026-01-01T00:00:00.000Z', issued_at: null, last_rotated_at: null, last_reviewed_at: null, rotation_interval_days: null, review_interval_days: null, expires_at: null } as any;
+    const base = {
+      created_at: '2026-01-01T00:00:00.000Z',
+      issued_at: null,
+      last_rotated_at: null,
+      last_reviewed_at: null,
+      rotation_interval_days: null,
+      review_interval_days: null,
+      expires_at: null,
+    } as any;
     expect(computeDues(base, now, 30)).toEqual([]);
-    const dues = computeDues({ ...base, expires_at: '2026-06-20T00:00:00.000Z', rotation_interval_days: 90, last_rotated_at: '2026-03-01T00:00:00.000Z', review_interval_days: 365 }, now, 30);
+    const dues = computeDues(
+      { ...base, expires_at: '2026-06-20T00:00:00.000Z', rotation_interval_days: 90, last_rotated_at: '2026-03-01T00:00:00.000Z', review_interval_days: 365 },
+      now,
+      30,
+    );
     expect(dues).toEqual([
       { kind: 'expiry', dueAt: '2026-06-20T00:00:00.000Z', daysLeft: 19, status: 'dueSoon' },
       { kind: 'rotation', dueAt: '2026-05-30T00:00:00.000Z', daysLeft: -3, status: 'overdue' },
@@ -220,11 +245,24 @@ describe('register entries', () => {
   });
 
   it('marks rotated and reviewed (with history and audit); filters by status, type and due window', async () => {
-    const c = await olivia('POST', '/credentials', entry({ type: 'technicalUser', name: 'svc-reader rotation test', rotationIntervalDays: 60, lastRotatedAt: new Date(Date.now() - 70 * DAY).toISOString(), reviewIntervalDays: 365 }));
+    const c = await olivia(
+      'POST',
+      '/credentials',
+      entry({
+        type: 'technicalUser',
+        name: 'svc-reader rotation test',
+        rotationIntervalDays: 60,
+        lastRotatedAt: new Date(Date.now() - 70 * DAY).toISOString(),
+        reviewIntervalDays: 365,
+      }),
+    );
     expect(c.status).toBe('overdue');
     const overdue = await olivia('GET', '/credentials?status=overdue&type=technicalUser');
     expect(overdue.items.map((x: any) => x.id)).toContain(c.id);
-    const r = await olivia('POST', `/credentials/${c.id}/rotated`, { comment: 'New password set in KeePass', expiresAt: new Date(Date.now() + 400 * DAY).toISOString() });
+    const r = await olivia('POST', `/credentials/${c.id}/rotated`, {
+      comment: 'New password set in KeePass',
+      expiresAt: new Date(Date.now() + 400 * DAY).toISOString(),
+    });
     expect(r.status).toBe('ok');
     expect(Date.parse(r.nextRotationAt) - Date.now()).toBeGreaterThan(59 * DAY);
     expect(await status(olivia('POST', `/credentials/${c.id}/rotated`, { comment: 'password: Summer2024!' }))).toBe(400);
@@ -320,7 +358,16 @@ describe('reminders', () => {
       routes: {},
     });
     const due = new Date(Date.now() + 20 * DAY).toISOString();
-    const c = await dana('POST', '/credentials', entry({ name: 'Reminder test cert', expiresAt: due, ownerSubjects: ['user:olivia'], owners: [{ email: 'cert-owner@example.com', role: 'Business owner' }] }));
+    const c = await dana(
+      'POST',
+      '/credentials',
+      entry({
+        name: 'Reminder test cert',
+        expiresAt: due,
+        ownerSubjects: ['user:olivia'],
+        owners: [{ email: 'cert-owner@example.com', role: 'Business owner' }],
+      }),
+    );
     // only this entry: everything else in the register is archived for the test
     const { db } = await import('../src/db.js');
     db().run('UPDATE credentials SET archived = 1 WHERE id <> ?', c.id);
@@ -349,7 +396,10 @@ describe('reminders', () => {
     expect(checkCredentialReminders(now + 15 * DAY)).toBe(1);
     // per-entry override: no reminders
     const fresh = await dana('GET', `/credentials/${c.id}`);
-    await dana('PUT', `/credentials/${c.id}`, { ...entry({ name: fresh.name, expiresAt: fresh.expiresAt, ownerSubjects: ['user:olivia'] }), reminders: { disabled: true } });
+    await dana('PUT', `/credentials/${c.id}`, {
+      ...entry({ name: fresh.name, expiresAt: fresh.expiresAt, ownerSubjects: ['user:olivia'] }),
+      reminders: { disabled: true },
+    });
     expect(checkCredentialReminders(now + 39 * DAY + 3600000)).toBe(0);
     const h = await dana('GET', `/credentials/${c.id}/history`);
     expect(h.filter((e: any) => e.kind === 'reminded').length).toBeGreaterThanOrEqual(6);
@@ -422,8 +472,16 @@ describe('expiry sync from Gatus metrics', () => {
   it('updates "expires at" from the certificate gauge of the linked endpoint, audited', async () => {
     const gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
     await s.api('PUT', `/gatus/sources/${gatusId}`, { enabled: true, metricsPath: '/metrics' });
-    await fetch(`${s.base}/mock/gatus/metrics/set`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ key: 'plant_mes-frontend', certificateDays: 12 }) });
-    const c = await dana('POST', '/credentials', entry({ type: 'certificate', name: 'MES TLS certificate', expiresAt: '2025-01-01', gatus: { platformId: gatusId, endpointKey: 'plant_mes-frontend' } }));
+    await fetch(`${s.base}/mock/gatus/metrics/set`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ key: 'plant_mes-frontend', certificateDays: 12 }),
+    });
+    const c = await dana(
+      'POST',
+      '/credentials',
+      entry({ type: 'certificate', name: 'MES TLS certificate', expiresAt: '2025-01-01', gatus: { platformId: gatusId, endpointKey: 'plant_mes-frontend' } }),
+    );
     expect(await status(vera('POST', '/credentials', entry({ gatus: { platformId: gatusId, endpointKey: 'x' } })))).toBe(403);
     const hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
     expect(await status(dana('POST', '/credentials', entry({ gatus: { platformId: hub, endpointKey: 'x' } })))).toBe(400);

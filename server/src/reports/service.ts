@@ -336,7 +336,16 @@ export async function generateScheduledReport(o: ScheduledOptions): Promise<Repo
   const ctx = context({ ...o, actor: o.owner.username }, id, 1);
   const model = runAs(o.owner, () =>
     buildScheduledModel(
-      { scheduleId: o.scheduleId, scheduleName: o.scheduleName, title: o.title, owner: person(o.owner.username), from: o.from, to: o.to, now: Date.now(), sections: o.sections },
+      {
+        scheduleId: o.scheduleId,
+        scheduleName: o.scheduleName,
+        title: o.title,
+        owner: person(o.owner.username),
+        from: o.from,
+        to: o.to,
+        now: Date.now(),
+        sections: o.sections,
+      },
       ctx,
     ),
   );

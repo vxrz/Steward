@@ -15,9 +15,11 @@ const en = {
   footer: '{name} · {from} – {to} · generated {date} · report {reportId}',
 
   availability: 'Availability of monitors',
-  availabilityIntro: 'Uptime is time-weighted from the status changes of each monitor: down counts against it, up and degraded count for it; unknown, blocked and maintenance time is left out. Response times come from the stored check results (the newest results per check).',
+  availabilityIntro:
+    'Uptime is time-weighted from the status changes of each monitor: down counts against it, up and degraded count for it; unknown, blocked and maintenance time is left out. Response times come from the stored check results (the newest results per check).',
   gatus: 'Availability of Gatus endpoints',
-  gatusIntro: 'Uptime from the number of successful and failed results Gatus produced (counter deltas of gatus_results_total, scraped by Steward). Outages are periods in which the newest result failed. p95 needs the per-scrape samples, which are kept for a shorter time.',
+  gatusIntro:
+    'Uptime from the number of successful and failed results Gatus produced (counter deltas of gatus_results_total, scraped by Steward). Outages are periods in which the newest result failed. p95 needs the per-scrape samples, which are kept for a shorter time.',
   monitor: 'Monitor',
   endpoint: 'Endpoint',
   uptime: 'Uptime',
@@ -85,9 +87,11 @@ const de: Record<ScheduledKey, string> = {
   footer: '{name} · {from} – {to} · erstellt {date} · Bericht {reportId}',
 
   availability: 'Verfügbarkeit der Monitore',
-  availabilityIntro: 'Die Verfügbarkeit ist zeitgewichtet aus den Statuswechseln jedes Monitors berechnet: Ausgefallen zählt dagegen, OK und Beeinträchtigt dafür; Zeiten mit Unbekannt, Blockiert und Wartung bleiben unberücksichtigt. Antwortzeiten stammen aus den gespeicherten Prüfergebnissen (die neuesten Ergebnisse je Prüfung).',
+  availabilityIntro:
+    'Die Verfügbarkeit ist zeitgewichtet aus den Statuswechseln jedes Monitors berechnet: Ausgefallen zählt dagegen, OK und Beeinträchtigt dafür; Zeiten mit Unbekannt, Blockiert und Wartung bleiben unberücksichtigt. Antwortzeiten stammen aus den gespeicherten Prüfergebnissen (die neuesten Ergebnisse je Prüfung).',
   gatus: 'Verfügbarkeit der Gatus-Endpunkte',
-  gatusIntro: 'Verfügbarkeit aus der Zahl erfolgreicher und fehlgeschlagener Ergebnisse von Gatus (Zählerdifferenzen von gatus_results_total, von Steward abgerufen). Ausfälle sind Zeiträume, in denen das neueste Ergebnis fehlschlug. Für p95 sind die Einzelwerte nötig, die kürzer aufbewahrt werden.',
+  gatusIntro:
+    'Verfügbarkeit aus der Zahl erfolgreicher und fehlgeschlagener Ergebnisse von Gatus (Zählerdifferenzen von gatus_results_total, von Steward abgerufen). Ausfälle sind Zeiträume, in denen das neueste Ergebnis fehlschlug. Für p95 sind die Einzelwerte nötig, die kürzer aufbewahrt werden.',
   monitor: 'Monitor',
   endpoint: 'Endpunkt',
   uptime: 'Verfügbarkeit',
@@ -117,7 +121,8 @@ const de: Record<ScheduledKey, string> = {
   slaMissedCount: 'SLA verfehlt',
 
   credentials: 'Zugangsdaten-Register',
-  credentialsIntro: 'Einträge, deren Ablauf-, Rotations- oder Überprüfungsdatum überschritten ist, und solche, die innerhalb von {days} Tagen nach Ende des Zeitraums fällig werden.',
+  credentialsIntro:
+    'Einträge, deren Ablauf-, Rotations- oder Überprüfungsdatum überschritten ist, und solche, die innerhalb von {days} Tagen nach Ende des Zeitraums fällig werden.',
   expired: 'Abgelaufen',
   overdue: 'Überfällig',
   dueSoon: 'Fällig innerhalb von {days} Tagen',
@@ -152,4 +157,6 @@ export function st(lang: ReportLang, key: ScheduledKey, vars?: Record<string, st
 
 /** Percent with two decimals in the report language. */
 export const pctText = (lang: ReportLang, v: number | null | undefined): string =>
-  v === null || v === undefined ? '–' : `${new Intl.NumberFormat(lang === 'de' ? 'de-DE' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} %`;
+  v === null || v === undefined
+    ? '–'
+    : `${new Intl.NumberFormat(lang === 'de' ? 'de-DE' : 'en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v)} %`;

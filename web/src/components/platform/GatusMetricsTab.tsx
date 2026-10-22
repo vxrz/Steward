@@ -36,7 +36,15 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
   const [busy, setBusy] = useState<string | null>(null);
   const source = src.data?.source ?? null;
   useEffect(() => {
-    if (source) setD({ enabled: source.enabled, intervalSeconds: source.intervalSeconds, retentionDays: source.retentionDays, rawRetentionDays: source.rawRetentionDays, metricsPath: source.metricsPath, fetchUptimes: source.fetchUptimes });
+    if (source)
+      setD({
+        enabled: source.enabled,
+        intervalSeconds: source.intervalSeconds,
+        retentionDays: source.retentionDays,
+        rawRetentionDays: source.rawRetentionDays,
+        metricsPath: source.metricsPath,
+        fetchUptimes: source.fetchUptimes,
+      });
   }, [source]);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['gatus-source', platform.id] });
@@ -73,7 +81,8 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
             {source.enabled ? (source.lastError ? t('state.failing') : t('state.active')) : t('state.disabled')}
           </Badge>
           <Text size="xs" c="dimmed">
-            {source.lastSuccessAt ? t('lastScrape', { when: fmtRelative(source.lastSuccessAt), ms: source.lastDurationMs ?? 0 }) : t('neverScraped')} · {t('endpointCount', { count: source.endpointCount })}
+            {source.lastSuccessAt ? t('lastScrape', { when: fmtRelative(source.lastSuccessAt), ms: source.lastDurationMs ?? 0 }) : t('neverScraped')} ·{' '}
+            {t('endpointCount', { count: source.endpointCount })}
           </Text>
         </Group>
       )}
@@ -82,14 +91,50 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
           <Title order={6}>{t('config')}</Title>
           <Switch label={t('enabled')} disabled={!canManage} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
           <Group grow align="flex-start">
-            <TextInput label={t('metricsPath')} description={t('metricsPathHint')} classNames={{ input: 'mono' }} disabled={!canManage} value={d.metricsPath} onChange={(e) => setD({ ...d, metricsPath: e.currentTarget.value })} />
-            <NumberInput label={t('interval')} min={15} max={3600} disabled={!canManage} value={d.intervalSeconds} onChange={(v) => setD({ ...d, intervalSeconds: typeof v === 'number' ? v : 60 })} />
+            <TextInput
+              label={t('metricsPath')}
+              description={t('metricsPathHint')}
+              classNames={{ input: 'mono' }}
+              disabled={!canManage}
+              value={d.metricsPath}
+              onChange={(e) => setD({ ...d, metricsPath: e.currentTarget.value })}
+            />
+            <NumberInput
+              label={t('interval')}
+              min={15}
+              max={3600}
+              disabled={!canManage}
+              value={d.intervalSeconds}
+              onChange={(v) => setD({ ...d, intervalSeconds: typeof v === 'number' ? v : 60 })}
+            />
           </Group>
           <Group grow align="flex-start">
-            <NumberInput label={t('retention')} description={t('retentionHint')} min={1} max={730} disabled={!canManage} value={d.retentionDays} onChange={(v) => setD({ ...d, retentionDays: typeof v === 'number' ? v : 90 })} />
-            <NumberInput label={t('rawRetention')} description={t('rawRetentionHint')} min={1} max={90} disabled={!canManage} value={d.rawRetentionDays} onChange={(v) => setD({ ...d, rawRetentionDays: typeof v === 'number' ? v : 14 })} />
+            <NumberInput
+              label={t('retention')}
+              description={t('retentionHint')}
+              min={1}
+              max={730}
+              disabled={!canManage}
+              value={d.retentionDays}
+              onChange={(v) => setD({ ...d, retentionDays: typeof v === 'number' ? v : 90 })}
+            />
+            <NumberInput
+              label={t('rawRetention')}
+              description={t('rawRetentionHint')}
+              min={1}
+              max={90}
+              disabled={!canManage}
+              value={d.rawRetentionDays}
+              onChange={(v) => setD({ ...d, rawRetentionDays: typeof v === 'number' ? v : 14 })}
+            />
           </Group>
-          <Switch label={t('fetchUptimes')} description={t('fetchUptimesHint')} disabled={!canManage} checked={d.fetchUptimes} onChange={(e) => setD({ ...d, fetchUptimes: e.currentTarget.checked })} />
+          <Switch
+            label={t('fetchUptimes')}
+            description={t('fetchUptimesHint')}
+            disabled={!canManage}
+            checked={d.fetchUptimes}
+            onChange={(e) => setD({ ...d, fetchUptimes: e.currentTarget.checked })}
+          />
           <Group justify="flex-end" gap="xs">
             {source && canManage && (
               <Button
@@ -122,7 +167,11 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
               </Button>
             )}
             {canManage && (
-              <Button size="xs" loading={busy === 'save'} onClick={() => run('save', () => put(`/gatus/sources/${platform.id}`, d).then(() => notifyOk(t('saved'))))}>
+              <Button
+                size="xs"
+                loading={busy === 'save'}
+                onClick={() => run('save', () => put(`/gatus/sources/${platform.id}`, d).then(() => notifyOk(t('saved'))))}
+              >
                 {source ? t('save') : t('enable')}
               </Button>
             )}
@@ -157,7 +206,13 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    {e.success === null ? '–' : <Badge color={e.success ? 'green' : 'red'} variant="light">{e.success ? t('table.up') : t('table.down')}</Badge>}
+                    {e.success === null ? (
+                      '–'
+                    ) : (
+                      <Badge color={e.success ? 'green' : 'red'} variant="light">
+                        {e.success ? t('table.up') : t('table.down')}
+                      </Badge>
+                    )}
                   </Table.Td>
                   <Table.Td>{pct(e.uptime.h24)}</Table.Td>
                   <Table.Td>{pct(e.uptime.d7)}</Table.Td>

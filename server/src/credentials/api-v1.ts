@@ -39,7 +39,9 @@ export function credentialApiRoutes(get: Get): void {
     },
     async (req, reply) => {
       const q = req.query as z.infer<typeof CredentialListQuery>;
-      const list = svc.listCredentials({ status: q.status, type: q.type, platform: q.platform, dueWithinDays: q.dueWithinDays, archived: q.archived, q: q.q }).map(map);
+      const list = svc
+        .listCredentials({ status: q.status, type: q.type, platform: q.platform, dueWithinDays: q.dueWithinDays, archived: q.archived, q: q.q })
+        .map(map);
       const page = pageArray(list, (c) => [c.name.toLowerCase(), c.id], q, q);
       linkNext(req, reply, page.nextCursor);
       return page;
@@ -48,12 +50,19 @@ export function credentialApiRoutes(get: Get): void {
 
   get(
     '/credentials/:credentialId',
-    { operationId: 'getCredential', tag: 'Credentials', summary: 'Get an entry of the credentials register', params: { credentialId: 'Entry id (cred_…)' }, response: { $ref: 'CredentialEntry#' } },
+    {
+      operationId: 'getCredential',
+      tag: 'Credentials',
+      summary: 'Get an entry of the credentials register',
+      params: { credentialId: 'Entry id (cred_…)' },
+      response: { $ref: 'CredentialEntry#' },
+    },
     async (req) => {
       try {
         return map(svc.getCredential((req.params as { credentialId: string }).credentialId));
       } catch (e) {
-        if (e instanceof HttpError && e.statusCode === 404) throw new ProblemError(404, { type: 'not-found', title: 'Not found', detail: 'Credential not found' });
+        if (e instanceof HttpError && e.statusCode === 404)
+          throw new ProblemError(404, { type: 'not-found', title: 'Not found', detail: 'Credential not found' });
         throw e;
       }
     },

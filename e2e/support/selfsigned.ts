@@ -30,7 +30,11 @@ const time = (d: Date) => {
   return tlv(0x17, Buffer.from(s, 'ascii'));
 };
 
-export function selfSignedCertificate(o: { commonName: string; notBefore?: Date; notAfter: Date; serial?: number }): { pem: string; der: Buffer; privateKeyPem: string } {
+export function selfSignedCertificate(o: { commonName: string; notBefore?: Date; notAfter: Date; serial?: number }): {
+  pem: string;
+  der: Buffer;
+  privateKeyPem: string;
+} {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const name = seq(set(seq(OID_CN, utf8(o.commonName))));
   const alg = seq(OID_ED25519);
@@ -45,6 +49,13 @@ export function selfSignedCertificate(o: { commonName: string; notBefore?: Date;
   );
   const sig = crypto.sign(null, tbs, privateKey);
   const der = seq(tbs, alg, tlv(0x03, Buffer.concat([Buffer.from([0]), sig])));
-  const b64 = der.toString('base64').replace(/(.{64})/g, '$1\n').trim();
-  return { pem: `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`, der, privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() };
+  const b64 = der
+    .toString('base64')
+    .replace(/(.{64})/g, '$1\n')
+    .trim();
+  return {
+    pem: `-----BEGIN CERTIFICATE-----\n${b64}\n-----END CERTIFICATE-----\n`,
+    der,
+    privateKeyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+  };
 }

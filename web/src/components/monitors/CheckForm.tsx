@@ -416,7 +416,15 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
       {c.type === 'gatus' && (
         <>
           <PlatformSelect value={c.platform} onChange={(v) => set({ platform: v })} platforms={platforms} kind="gatus" disabled={disabled} />
-          <TextInput label={t('form.endpointKey')} description={t('form.endpointKeyHint', { pattern: '<group>_<name>', example: 'plant_historian-api' })} required disabled={disabled} value={c.endpointKey} onChange={(e) => set({ endpointKey: e.currentTarget.value })} classNames={{ input: 'mono' }} />
+          <TextInput
+            label={t('form.endpointKey')}
+            description={t('form.endpointKeyHint', { pattern: '<group>_<name>', example: 'plant_historian-api' })}
+            required
+            disabled={disabled}
+            value={c.endpointKey}
+            onChange={(e) => set({ endpointKey: e.currentTarget.value })}
+            classNames={{ input: 'mono' }}
+          />
           <Select
             label={t('form.gatusSource')}
             description={t('form.gatusSourceHint')}

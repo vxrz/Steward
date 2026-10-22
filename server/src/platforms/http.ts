@@ -252,11 +252,7 @@ async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, 
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function obtainAuthHeader(
-  p: Platform,
-  secrets: Record<string, string>,
-  signal?: AbortSignal,
-): Promise<[string, string] | null> {
+async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<[string, string] | null> {
   const auth: AuthConfig = p.config.auth ?? { type: 'none' };
   const scope = authScope(p, secrets);
   switch (auth.type) {
@@ -497,7 +493,12 @@ async function followRedirects(
         /* the initial url already carries the query api key (buildUrl) */
       }
     }
-    const res = await rawRequest(p, { method, url, headers, body, bodyType: req.bodyType, maxResponseBytes: req.maxResponseBytes, rawText: req.rawText }, signal, attempt);
+    const res = await rawRequest(
+      p,
+      { method, url, headers, body, bodyType: req.bodyType, maxResponseBytes: req.maxResponseBytes, rawText: req.rawText },
+      signal,
+      attempt,
+    );
     const location = res.headers['location'];
     if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
       if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {

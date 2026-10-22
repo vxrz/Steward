@@ -4,13 +4,13 @@
 
 The two work together in four directions, plus a metrics mode that gives Steward its own history of Gatus' results:
 
-| # | Direction | How |
-| --- | --- | --- |
-| 1 | **Gatus monitors Steward** | Gatus endpoints for `/api/health` and `/api/ready` |
-| 2 | **Steward shows Gatus status** (read-only) | Connector type *Gatus*, process *Gatus – uptime overview*, dashboard *Uptime* |
-| 3 | **Steward reports its own checks to Gatus** | Gatus *external endpoint*, process *Gatus – report Steward check to Gatus* |
-| 4 | **A Gatus alert starts a Steward runbook** | Gatus *custom alerting provider* → Steward **webhook trigger** → *Diagnose endpoint outage* |
-| 5 | **Steward keeps Gatus' history** (metrics mode) | Steward scrapes Gatus' Prometheus endpoint `/metrics`: uptime, outages, response times and certificate expiry for monitors, scheduled reports and the credentials register |
+| #   | Direction                                       | How                                                                                                                                                                        |
+| --- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Gatus monitors Steward**                      | Gatus endpoints for `/api/health` and `/api/ready`                                                                                                                         |
+| 2   | **Steward shows Gatus status** (read-only)      | Connector type _Gatus_, process _Gatus – uptime overview_, dashboard _Uptime_                                                                                              |
+| 3   | **Steward reports its own checks to Gatus**     | Gatus _external endpoint_, process _Gatus – report Steward check to Gatus_                                                                                                 |
+| 4   | **A Gatus alert starts a Steward runbook**      | Gatus _custom alerting provider_ → Steward **webhook trigger** → _Diagnose endpoint outage_                                                                                |
+| 5   | **Steward keeps Gatus' history** (metrics mode) | Steward scrapes Gatus' Prometheus endpoint `/metrics`: uptime, outages, response times and certificate expiry for monitors, scheduled reports and the credentials register |
 
 Everything below was written against the Gatus README and source (`api/*.go`, `alerting/provider/custom/custom.go`, `config/key/key.go`) on `master`, latest release **v5.37.0**, checked on 2026-10-22. Gatus has no formally versioned API, so check a release's README if you run an older version.
 
@@ -66,15 +66,15 @@ _Platforms → Add platform → Gatus (status monitoring)_:
 
 ### Two ways to read Gatus: API mode and metrics mode
 
-| | API mode (default) | Metrics mode |
-| --- | --- | --- |
-| Reads | `GET /api/v1/endpoints/statuses` (the newest results) | `GET /metrics` (Prometheus text), every 60 s by default |
+|                         | API mode (default)                                                                                                           | Metrics mode                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Reads                   | `GET /api/v1/endpoints/statuses` (the newest results)                                                                        | `GET /metrics` (Prometheus text), every 60 s by default                                                         |
 | Authentication in Gatus | `security.basic` (Steward sends the platform's basic auth); with `security.oidc` only through a token-checking reverse proxy | **none** – `/metrics` is always open in Gatus; restrict it in the network (see [Metrics mode](#5-metrics-mode)) |
-| History | What Gatus returns (at most `maximum-number-of-results` per endpoint) | Steward's own: hourly figures for 90 days, single samples for 14 days (configurable) |
-| Provides | Status of the newest result, recent failures, response time of the newest results | Status, uptime from result counters, outages, response times (avg, p95), TLS certificate and domain expiry |
-| Used by | Monitor check *Gatus endpoint*, processes, dashboards | Monitor check *Gatus endpoint* (data source *metrics*), scheduled reports, credentials register (expiry sync) |
+| History                 | What Gatus returns (at most `maximum-number-of-results` per endpoint)                                                        | Steward's own: hourly figures for 90 days, single samples for 14 days (configurable)                            |
+| Provides                | Status of the newest result, recent failures, response time of the newest results                                            | Status, uptime from result counters, outages, response times (avg, p95), TLS certificate and domain expiry      |
+| Used by                 | Monitor check _Gatus endpoint_, processes, dashboards                                                                        | Monitor check _Gatus endpoint_ (data source _metrics_), scheduled reports, credentials register (expiry sync)   |
 
-Both can be used at the same time. With metrics mode on, a monitor's *Gatus endpoint* check reads the scraped state automatically (data source *Automatic*); choose *Gatus status API* to keep using the API.
+Both can be used at the same time. With metrics mode on, a monitor's _Gatus endpoint_ check reads the scraped state automatically (data source _Automatic_); choose _Gatus status API_ to keep using the API.
 
 ### Gatus API facts the processes rely on
 
@@ -215,15 +215,15 @@ metrics: true
 
 ### What Gatus publishes (checked against `metrics/metrics.go` on master)
 
-| Metric | Type | Steward uses it for |
-| --- | --- | --- |
-| `gatus_results_total{key,group,name,type,success}` | counter | number of successful and failed results → uptime |
-| `gatus_results_endpoint_success{key,…}` | gauge | state of the newest result (1/0) → status, outages |
-| `gatus_results_duration_seconds{key,…}` | gauge | response time of the newest result |
-| `gatus_results_certificate_expiration_seconds{key,…}` | gauge | TLS certificate expiry → endpoint list, credentials register |
-| `gatus_results_domain_expiration_seconds{key,…}` | gauge | domain expiry (shown in the endpoint list) |
-| `gatus_results_code_total`, `gatus_results_connected_total` | counter | (ignored) |
-| `process_start_time_seconds` | gauge | detects Gatus restarts (counters start at zero again) |
+| Metric                                                      | Type    | Steward uses it for                                          |
+| ----------------------------------------------------------- | ------- | ------------------------------------------------------------ |
+| `gatus_results_total{key,group,name,type,success}`          | counter | number of successful and failed results → uptime             |
+| `gatus_results_endpoint_success{key,…}`                     | gauge   | state of the newest result (1/0) → status, outages           |
+| `gatus_results_duration_seconds{key,…}`                     | gauge   | response time of the newest result                           |
+| `gatus_results_certificate_expiration_seconds{key,…}`       | gauge   | TLS certificate expiry → endpoint list, credentials register |
+| `gatus_results_domain_expiration_seconds{key,…}`            | gauge   | domain expiry (shown in the endpoint list)                   |
+| `gatus_results_code_total`, `gatus_results_connected_total` | counter | (ignored)                                                    |
+| `process_start_time_seconds`                                | gauge   | detects Gatus restarts (counters start at zero again)        |
 
 Extra labels Gatus adds (`extra-labels`) are summed up per endpoint key.
 
@@ -233,27 +233,28 @@ Extra labels Gatus adds (`extra-labels`) are summed up per endpoint key.
 2. **Restrict access to `/metrics`.** Gatus serves it without authentication, also when `security.basic` or `security.oidc` protects the rest. It reveals endpoint names, groups, response times and certificate dates. Options:
    - a reverse proxy in front of Gatus that forwards `/metrics` only from Steward's host (allow-list by source address), or
    - a Gatus that is only reachable from Steward's host (firewall, internal network).
-   If the proxy expects credentials, configure the platform's authentication (*basic* or *bearer*): Steward sends them, and only to the platform's own origin.
-3. *Platforms → your Gatus platform → Metrics → Turn on metrics mode*. Settings:
+     If the proxy expects credentials, configure the platform's authentication (_basic_ or _bearer_): Steward sends them, and only to the platform's own origin.
+3. _Platforms → your Gatus platform → Metrics → Turn on metrics mode_. Settings:
 
-   | Setting | Default | Notes |
-   | --- | --- | --- |
-   | Metrics path | `/metrics` | A path below the base URL; absolute URLs are refused, so the scrape stays on the platform's origin |
-   | Interval | 60 s | 15 s – 1 h |
-   | Keep history | 90 days | Hourly figures and status changes |
-   | Keep single samples | 14 days | One row per scrape and endpoint; needed for p95 response times and short outages |
-   | Also read Gatus' uptime figures | off | Once an hour per endpoint, `GET /api/v1/endpoints/{key}/uptimes/{1h,24h,7d,30d}` (unauthenticated in Gatus; answers `text/plain` like `0.958333`, a JSON number or `{"uptime": …}` is accepted too). Shown next to Steward's own figure |
+   | Setting                         | Default    | Notes                                                                                                                                                                                                                                   |
+   | ------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Metrics path                    | `/metrics` | A path below the base URL; absolute URLs are refused, so the scrape stays on the platform's origin                                                                                                                                      |
+   | Interval                        | 60 s       | 15 s – 1 h                                                                                                                                                                                                                              |
+   | Keep history                    | 90 days    | Hourly figures and status changes                                                                                                                                                                                                       |
+   | Keep single samples             | 14 days    | One row per scrape and endpoint; needed for p95 response times and short outages                                                                                                                                                        |
+   | Also read Gatus' uptime figures | off        | Once an hour per endpoint, `GET /api/v1/endpoints/{key}/uptimes/{1h,24h,7d,30d}` (unauthenticated in Gatus; answers `text/plain` like `0.958333`, a JSON number or `{"uptime": …}` is accepted too). Shown next to Steward's own figure |
 
-   Managing metrics mode needs *manage* rights on the platform; *Scrape now* needs *use* rights. The scrapes run with the rights of the person who saved the settings (they must keep *use* rights on the platform). Changes are audited (`gatus.metrics_enabled`, `gatus.metrics_updated`, `gatus.metrics_removed`).
-4. *Scrape now* checks the setup. The table lists every endpoint with its state, uptime over 24 hours, 7 and 30 days, response time, certificate expiry and the time of the newest result.
+   Managing metrics mode needs _manage_ rights on the platform; _Scrape now_ needs _use_ rights. The scrapes run with the rights of the person who saved the settings (they must keep _use_ rights on the platform). Changes are audited (`gatus.metrics_enabled`, `gatus.metrics_updated`, `gatus.metrics_removed`).
+
+4. _Scrape now_ checks the setup. The table lists every endpoint with its state, uptime over 24 hours, 7 and 30 days, response time, certificate expiry and the time of the newest result.
 
 ### How it works
 
-- **Fetching**: through the platform (base URL, proxy, TLS settings), the outbound policy (*Settings → Outbound access*) and the address checks every outbound request gets. Answers above 8 MB are rejected, redirects are followed manually, the timeout is the interval (5–30 s). Errors are shown on the platform (*The last scrape failed*) and in the server log.
+- **Fetching**: through the platform (base URL, proxy, TLS settings), the outbound policy (_Settings → Outbound access_) and the address checks every outbound request gets. Answers above 8 MB are rejected, redirects are followed manually, the timeout is the interval (5–30 s). Errors are shown on the platform (_The last scrape failed_) and in the server log.
 - **Parsing**: a small parser for the Prometheus text format with limits (bytes, lines, samples, labels, label length). Malformed lines are skipped and counted; only `gatus_*` metrics and the process start time are kept.
 - **Uptime from counters**: each scrape stores the difference of `gatus_results_total{success="true"}` and `{success="false"}` since the previous scrape – the results Gatus produced in between. When a counter goes down or Gatus' process start time changes (a restart), the new value counts as the number of results since the restart. The very first scrape only sets the baseline.
-- **Storage**: the newest state per endpoint, one sample per scrape (kept *Keep single samples* days), hourly sums (kept *Keep history* days) and the changes of the success gauge (outages; the newest change per endpoint is always kept). The daily maintenance job removes old data; removing metrics mode deletes all samples of the platform.
-- **Monitor check**: *Gatus endpoint* with data source *metrics* (or *Automatic* while metrics mode is on) reads the stored state: down when the newest result failed, degraded when one of the last *N* results failed, unknown when the last successful scrape is older than three intervals, and down when Gatus produced no new result within *maximum age*.
+- **Storage**: the newest state per endpoint, one sample per scrape (kept _Keep single samples_ days), hourly sums (kept _Keep history_ days) and the changes of the success gauge (outages; the newest change per endpoint is always kept). The daily maintenance job removes old data; removing metrics mode deletes all samples of the platform.
+- **Monitor check**: _Gatus endpoint_ with data source _metrics_ (or _Automatic_ while metrics mode is on) reads the stored state: down when the newest result failed, degraded when one of the last _N_ results failed, unknown when the last successful scrape is older than three intervals, and down when Gatus produced no new result within _maximum age_.
 
 ### Limitations of metrics mode
 

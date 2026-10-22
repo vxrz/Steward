@@ -68,7 +68,7 @@ export function parseCertificate(data: Buffer): CertificateInfo {
       'PRIVATE_KEY_REJECTED',
     );
   }
-  let certs: X509Certificate[] = [];
+  let certs: X509Certificate[];
   if (text.includes('-----BEGIN')) {
     const blocks = text.match(PEM_CERT) ?? [];
     if (!blocks.length) throw new CertificateError('No certificate found – expected a PEM block "-----BEGIN CERTIFICATE-----"');
@@ -105,13 +105,15 @@ export function parseCertificate(data: Buffer): CertificateInfo {
     ...summary(leaf),
     subjectAltNames: sans,
     isCA: leaf.ca,
-    selfSigned: leaf.subject === leaf.issuer && (() => {
-      try {
-        return leaf.verify(leaf.publicKey);
-      } catch {
-        return false;
-      }
-    })(),
+    selfSigned:
+      leaf.subject === leaf.issuer &&
+      (() => {
+        try {
+          return leaf.verify(leaf.publicKey);
+        } catch {
+          return false;
+        }
+      })(),
     chain: rest.map(summary),
     chainNotAfter: new Date(chainNotAfter).toISOString(),
   };

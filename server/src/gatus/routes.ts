@@ -34,7 +34,8 @@ function gatusPlatform(id: string, need?: 'use' | 'manage') {
   }
   if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`);
   if (p.kind !== 'gatus') throw new HttpError(400, 'Metrics mode is only available for Gatus platforms');
-  if (need && !p.permissions.includes(need)) throw new HttpError(403, `You are not allowed to ${need === 'manage' ? 'configure' : 'use'} this platform`, 'FORBIDDEN');
+  if (need && !p.permissions.includes(need))
+    throw new HttpError(403, `You are not allowed to ${need === 'manage' ? 'configure' : 'use'} this platform`, 'FORBIDDEN');
   return p;
 }
 

@@ -62,7 +62,8 @@ function randomToken(text: string): boolean {
 
 /** `password: Summer2024!`, `client_secret = …`: the value must look like a password (3+ character classes, no path or URL). */
 function assignedSecret(text: string): boolean {
-  const re = /\b(?:password|passwd|passwort|kennwort|pwd|secret|client[_-]?secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|token)\b\s*[:=]\s*["']?([^\s"'<>]{8,})/gi;
+  const re =
+    /\b(?:password|passwd|passwort|kennwort|pwd|secret|client[_-]?secret|api[_-]?key|apikey|access[_-]?token|auth[_-]?token|token)\b\s*[:=]\s*["']?([^\s"'<>]{8,})/gi;
   for (const m of text.matchAll(re)) {
     const v = m[1]!;
     if (/^(https?|keepass|kdbx|file):/i.test(v) || /[\\/]/.test(v)) continue;

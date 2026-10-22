@@ -27,7 +27,19 @@ import {
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconArchive, IconCheck, IconCopy, IconDownload, IconEdit, IconExternalLink, IconPlus, IconRefresh, IconRestore, IconShieldLock, IconTrash } from '@tabler/icons-react';
+import {
+  IconArchive,
+  IconCheck,
+  IconCopy,
+  IconDownload,
+  IconEdit,
+  IconExternalLink,
+  IconPlus,
+  IconRefresh,
+  IconRestore,
+  IconShieldLock,
+  IconTrash,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
@@ -80,7 +92,11 @@ export function LocationView({ c }: { c: Credential }) {
             </CopyButton>
           </Group>
         ))}
-      {!c.location.text && !url && <Text size="sm" c="dimmed">–</Text>}
+      {!c.location.text && !url && (
+        <Text size="sm" c="dimmed">
+          –
+        </Text>
+      )}
     </Stack>
   );
 }
@@ -128,7 +144,13 @@ export function CredentialsPage() {
         description={t('description')}
         actions={
           <Group gap="xs">
-            <Button size="xs" variant="default" component="a" href={apiUrl(`/credentials/export.csv${qs ? `?${qs}` : ''}`)} leftSection={<IconDownload size={14} />}>
+            <Button
+              size="xs"
+              variant="default"
+              component="a"
+              href={apiUrl(`/credentials/export.csv${qs ? `?${qs}` : ''}`)}
+              leftSection={<IconDownload size={14} />}
+            >
               {t('exportCsv')}
             </Button>
             {list.data?.canCreate && (
@@ -144,11 +166,38 @@ export function CredentialsPage() {
       </Alert>
       <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs" mb="md">
         <TextInput size="xs" label={t('filters.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
-        <MultiSelect size="xs" label={t('filters.type')} data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))} value={types} onChange={setTypes} clearable />
-        <MultiSelect size="xs" label={t('filters.status')} data={CREDENTIAL_STATUS_IDS.map((x) => ({ value: x, label: t(`status.${x}`) }))} value={statuses} onChange={setStatuses} clearable />
+        <MultiSelect
+          size="xs"
+          label={t('filters.type')}
+          data={CREDENTIAL_TYPE_IDS.map((x) => ({ value: x, label: t(`types.${x}`) }))}
+          value={types}
+          onChange={setTypes}
+          clearable
+        />
+        <MultiSelect
+          size="xs"
+          label={t('filters.status')}
+          data={CREDENTIAL_STATUS_IDS.map((x) => ({ value: x, label: t(`status.${x}`) }))}
+          value={statuses}
+          onChange={setStatuses}
+          clearable
+        />
         <Select size="xs" label={t('filters.platform')} data={platforms} value={platform || null} onChange={(v) => setPlatform(v ?? '')} clearable searchable />
-        <TextInput size="xs" label={t('filters.owner')} placeholder={t('filters.ownerPlaceholder')} value={owner} onChange={(e) => setOwner(e.currentTarget.value)} />
-        <NumberInput size="xs" label={t('filters.dueWithin')} min={0} max={3650} value={dueWithin} onChange={(v) => setDueWithin(typeof v === 'number' ? v : '')} />
+        <TextInput
+          size="xs"
+          label={t('filters.owner')}
+          placeholder={t('filters.ownerPlaceholder')}
+          value={owner}
+          onChange={(e) => setOwner(e.currentTarget.value)}
+        />
+        <NumberInput
+          size="xs"
+          label={t('filters.dueWithin')}
+          min={0}
+          max={3650}
+          value={dueWithin}
+          onChange={(v) => setDueWithin(typeof v === 'number' ? v : '')}
+        />
         <Select
           size="xs"
           label={t('filters.archived')}
@@ -258,11 +307,27 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function CredentialDrawer({ id, onClose, onEdit, onChanged, isAdmin }: { id: string; onClose: () => void; onEdit: (c: Credential) => void; onChanged: () => void; isAdmin: boolean }) {
+function CredentialDrawer({
+  id,
+  onClose,
+  onEdit,
+  onChanged,
+  isAdmin,
+}: {
+  id: string;
+  onClose: () => void;
+  onEdit: (c: Credential) => void;
+  onChanged: () => void;
+  isAdmin: boolean;
+}) {
   const { t } = useTranslation(['credentials', 'common']);
   const qc = useQueryClient();
   const entry = useQuery({ queryKey: ['credential', id], queryFn: () => get<Credential>(`/credentials/${id}`), retry: false });
-  const history = useQuery({ queryKey: ['credential', id, 'history'], queryFn: () => get<CredentialEvent[]>(`/credentials/${id}/history`), enabled: !!entry.data });
+  const history = useQuery({
+    queryKey: ['credential', id, 'history'],
+    queryFn: () => get<CredentialEvent[]>(`/credentials/${id}/history`),
+    enabled: !!entry.data,
+  });
   const [action, setAction] = useState<'rotated' | 'reviewed' | null>(null);
   const c = entry.data;
   const reload = async () => {
@@ -336,14 +401,26 @@ function CredentialDrawer({ id, onClose, onEdit, onChanged, isAdmin }: { id: str
               </Button>
             </Group>
           )}
-          {action && <ActionForm id={id} kind={action} cert={c.type === 'certificate' || c.type === 'agentCertificate'} onDone={async () => (setAction(null), await reload())} onCancel={() => setAction(null)} />}
+          {action && (
+            <ActionForm
+              id={id}
+              kind={action}
+              cert={c.type === 'certificate' || c.type === 'agentCertificate'}
+              onDone={async () => (setAction(null), await reload())}
+              onCancel={() => setAction(null)}
+            />
+          )}
 
           <Paper withBorder p="sm">
             <Title order={6} mb="xs">
               {t('detail.dates')}
             </Title>
             <Stack gap={6}>
-              {c.dues.length === 0 && <Text size="sm" c="dimmed">{t('detail.noDates')}</Text>}
+              {c.dues.length === 0 && (
+                <Text size="sm" c="dimmed">
+                  {t('detail.noDates')}
+                </Text>
+              )}
               {c.dues.map((d) => (
                 <Group key={d.kind} justify="space-between" wrap="nowrap">
                   <Text size="sm">{t(`dueKinds.${d.kind}`)}</Text>
@@ -396,7 +473,11 @@ function CredentialDrawer({ id, onClose, onEdit, onChanged, isAdmin }: { id: str
                   {s}
                 </Text>
               ))}
-              {!c.owners.length && !c.ownerSubjects.length && <Text size="sm" c="dimmed">–</Text>}
+              {!c.owners.length && !c.ownerSubjects.length && (
+                <Text size="sm" c="dimmed">
+                  –
+                </Text>
+              )}
             </Stack>
           </Field>
           <Field label={t('fields.usedBy')}>
@@ -404,10 +485,21 @@ function CredentialDrawer({ id, onClose, onEdit, onChanged, isAdmin }: { id: str
               {c.usedBy.text && <Text size="sm">{c.usedBy.text}</Text>}
               {c.usedBy.links.map((l) => (
                 <Text size="sm" key={`${l.kind}:${l.id}`}>
-                  {t(`linkKinds.${l.kind}`, { defaultValue: l.kind })}: {l.label ? <LinkTo kind={l.kind} id={l.id} label={l.label} /> : <Text span c="dimmed">{t('detail.notVisible')}</Text>}
+                  {t(`linkKinds.${l.kind}`, { defaultValue: l.kind })}:{' '}
+                  {l.label ? (
+                    <LinkTo kind={l.kind} id={l.id} label={l.label} />
+                  ) : (
+                    <Text span c="dimmed">
+                      {t('detail.notVisible')}
+                    </Text>
+                  )}
                 </Text>
               ))}
-              {!c.usedBy.text && !c.usedBy.links.length && <Text size="sm" c="dimmed">–</Text>}
+              {!c.usedBy.text && !c.usedBy.links.length && (
+                <Text size="sm" c="dimmed">
+                  –
+                </Text>
+              )}
             </Stack>
           </Field>
           {c.certificate && (
@@ -425,7 +517,9 @@ function CredentialDrawer({ id, onClose, onEdit, onChanged, isAdmin }: { id: str
                 <Field label={t('cert.fingerprint')}>
                   <Code style={{ overflowWrap: 'anywhere' }}>{c.certificate.fingerprint256}</Code>
                 </Field>
-                {c.certificate.chain.length > 0 && <Field label={t('cert.chain')}>{c.certificate.chain.map((x) => `${x.subject} (${fmtDay(x.notAfter)})`).join('; ')}</Field>}
+                {c.certificate.chain.length > 0 && (
+                  <Field label={t('cert.chain')}>{c.certificate.chain.map((x) => `${x.subject} (${fmtDay(x.notAfter)})`).join('; ')}</Field>
+                )}
               </Stack>
             </Paper>
           )}
@@ -467,7 +561,19 @@ function LinkTo({ kind, id, label }: { kind: string; id: string; label: string }
   );
 }
 
-function ActionForm({ id, kind, cert, onDone, onCancel }: { id: string; kind: 'rotated' | 'reviewed'; cert: boolean; onDone: () => void; onCancel: () => void }) {
+function ActionForm({
+  id,
+  kind,
+  cert,
+  onDone,
+  onCancel,
+}: {
+  id: string;
+  kind: 'rotated' | 'reviewed';
+  cert: boolean;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
   const { t } = useTranslation(['credentials', 'common']);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [comment, setComment] = useState('');
@@ -477,10 +583,7 @@ function ActionForm({ id, kind, cert, onDone, onCancel }: { id: string; kind: 'r
   const submit = async () => {
     setBusy(true);
     try {
-      const body =
-        kind === 'rotated'
-          ? { rotatedAt: date, comment, ...(expires ? { expiresAt: expires } : {}) }
-          : { reviewedAt: date, comment };
+      const body = kind === 'rotated' ? { rotatedAt: date, comment, ...(expires ? { expiresAt: expires } : {}) } : { reviewedAt: date, comment };
       await api('POST', `/credentials/${id}/${kind}`, body);
       notifyOk(kind === 'rotated' ? t('detail.rotatedOk') : t('detail.reviewedOk'));
       onDone();
@@ -494,9 +597,30 @@ function ActionForm({ id, kind, cert, onDone, onCancel }: { id: string; kind: 'r
     <Paper withBorder p="sm">
       <Stack gap="xs">
         <Title order={6}>{kind === 'rotated' ? t('detail.markRotated') : t('detail.markReviewed')}</Title>
-        <TextInput type="date" label={kind === 'rotated' ? t('detail.rotatedOn') : t('detail.reviewedOn')} value={date} onChange={(e) => setDate(e.currentTarget.value)} max={new Date().toISOString().slice(0, 10)} />
-        {kind === 'rotated' && <TextInput type="date" label={t('detail.newExpiry')} description={cert ? t('detail.newExpiryCertHint') : undefined} value={expires} onChange={(e) => setExpires(e.currentTarget.value)} />}
-        <Textarea label={t('detail.comment')} description={t('noSecretsShort')} autosize minRows={2} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+        <TextInput
+          type="date"
+          label={kind === 'rotated' ? t('detail.rotatedOn') : t('detail.reviewedOn')}
+          value={date}
+          onChange={(e) => setDate(e.currentTarget.value)}
+          max={new Date().toISOString().slice(0, 10)}
+        />
+        {kind === 'rotated' && (
+          <TextInput
+            type="date"
+            label={t('detail.newExpiry')}
+            description={cert ? t('detail.newExpiryCertHint') : undefined}
+            value={expires}
+            onChange={(e) => setExpires(e.currentTarget.value)}
+          />
+        )}
+        <Textarea
+          label={t('detail.comment')}
+          description={t('noSecretsShort')}
+          autosize
+          minRows={2}
+          value={comment}
+          onChange={(e) => setComment(e.currentTarget.value)}
+        />
         <Group justify="flex-end">
           <Button variant="default" size="xs" onClick={onCancel}>
             {t('common:cancel')}

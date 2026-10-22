@@ -5,7 +5,14 @@ import { CREDENTIAL_DUE_KINDS, CREDENTIAL_STATUSES, CREDENTIAL_TYPES } from '@sm
 
 const ts = () => z.string().datetime({ offset: true }).describe('ISO 8601 timestamp (UTC)');
 
-const CertificateSummary = z.object({ subject: z.string(), issuer: z.string(), serialNumber: z.string(), fingerprint256: z.string(), notBefore: ts(), notAfter: ts() });
+const CertificateSummary = z.object({
+  subject: z.string(),
+  issuer: z.string(),
+  serialNumber: z.string(),
+  fingerprint256: z.string(),
+  notBefore: ts(),
+  notAfter: ts(),
+});
 
 export const CredentialEntry = z.object({
   id: z.string(),
@@ -22,7 +29,9 @@ export const CredentialEntry = z.object({
   }),
   owners: z.array(z.object({ email: z.string(), role: z.string() })).describe('Owner e-mail addresses with their role, e.g. Business owner'),
   ownerSubjects: z.array(z.string()).describe('Steward users and teams that own the entry (user:<name>, team:<name>)'),
-  location: z.object({ text: z.string(), url: z.string().nullable() }).describe('Where the secret is kept (e.g. KeePass database and entry) – never the secret'),
+  location: z
+    .object({ text: z.string(), url: z.string().nullable() })
+    .describe('Where the secret is kept (e.g. KeePass database and entry) – never the secret'),
   issuedAt: ts().nullable(),
   expiresAt: ts().nullable(),
   rotationIntervalDays: z.number().int().nullable(),
@@ -34,7 +43,13 @@ export const CredentialEntry = z.object({
   nextDueAt: ts().nullable().describe('Earliest of expiry, next rotation and next review'),
   status: z.enum(CREDENTIAL_STATUSES),
   dues: z.array(z.object({ kind: z.enum(CREDENTIAL_DUE_KINDS), dueAt: ts(), daysLeft: z.number().int(), status: z.enum(CREDENTIAL_STATUSES) })),
-  certificate: CertificateSummary.extend({ subjectAltNames: z.array(z.string()), isCA: z.boolean(), selfSigned: z.boolean(), chain: z.array(CertificateSummary), chainNotAfter: ts() })
+  certificate: CertificateSummary.extend({
+    subjectAltNames: z.array(z.string()),
+    isCA: z.boolean(),
+    selfSigned: z.boolean(),
+    chain: z.array(CertificateSummary),
+    chainNotAfter: ts(),
+  })
     .nullable()
     .describe('Metadata of the documented public certificate'),
   tags: z.array(z.string()),

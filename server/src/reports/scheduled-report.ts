@@ -38,7 +38,12 @@ export function buildScheduledModel(
   };
 }
 
-export async function renderScheduledReport(m: ScheduledReportModel, contentHash: string, brand: BrandingInput, o: { compress?: boolean } = {}): Promise<RenderResult> {
+export async function renderScheduledReport(
+  m: ScheduledReportModel,
+  contentHash: string,
+  brand: BrandingInput,
+  o: { compress?: boolean } = {},
+): Promise<RenderResult> {
   const tr = translator(m.lang, m.timeZone);
   const { t } = tr;
   const L = m.lang;
@@ -79,7 +84,11 @@ export async function renderScheduledReport(m: ScheduledReportModel, contentHash
     { accent: brand.branding.accentColor, compress: o.compress },
   );
 
-  w.cover({ title: m.title, subtitle: period, meta: [t('generatedWith', { product: PRODUCT }), t('reportNo', { id: m.reportId }), tr.dateTime(m.generatedAt)] });
+  w.cover({
+    title: m.title,
+    subtitle: period,
+    meta: [t('generatedWith', { product: PRODUCT }), t('reportNo', { id: m.reportId }), tr.dateTime(m.generatedAt)],
+  });
 
   let n = 0;
   const section = (title: string) => w.section(`${++n}. ${title}`);

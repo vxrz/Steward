@@ -1,6 +1,15 @@
 // ---------- Notifications ----------
 
-export const NOTIFICATION_EVENTS = ['task.assigned', 'run.failed', 'check.failed', 'dataset.stale', 'schedule.skipped', 'monitor.status', 'credential.due', 'report.ready'] as const;
+export const NOTIFICATION_EVENTS = [
+  'task.assigned',
+  'run.failed',
+  'check.failed',
+  'dataset.stale',
+  'schedule.skipped',
+  'monitor.status',
+  'credential.due',
+  'report.ready',
+] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
 export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {

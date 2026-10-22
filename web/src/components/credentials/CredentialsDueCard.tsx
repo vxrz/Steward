@@ -18,7 +18,11 @@ interface Summary {
 /** Home page: credentials that expired, are overdue for rotation/review or due soon (only when there are any). */
 export function CredentialsDueCard() {
   const { t } = useTranslation('credentials');
-  const s = useQuery({ queryKey: ['credentials', 'summary'], queryFn: () => getOptional<Summary | null>('/credentials/summary', null), refetchInterval: 60000 });
+  const s = useQuery({
+    queryKey: ['credentials', 'summary'],
+    queryFn: () => getOptional<Summary | null>('/credentials/summary', null),
+    refetchInterval: 60000,
+  });
   const d = s.data;
   if (!d || !d.items.length) return null;
   return (

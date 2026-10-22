@@ -68,9 +68,27 @@ const jobs = new Map<string, Cron>();
 // ---------- time zones and periods ----------
 
 function zoneParts(t: number, tz: string): { y: number; m: number; d: number; h: number; mi: number; s: number; wd: number } {
-  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', weekday: 'short' });
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    weekday: 'short',
+  });
   const p = Object.fromEntries(f.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
-  return { y: +p.year!, m: +p.month!, d: +p.day!, h: +p.hour!, mi: +p.minute!, s: +p.second!, wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday!) };
+  return {
+    y: +p.year!,
+    m: +p.month!,
+    d: +p.day!,
+    h: +p.hour!,
+    mi: +p.minute!,
+    s: +p.second!,
+    wd: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(p.weekday!),
+  };
 }
 
 const offset = (t: number, tz: string): number => {
@@ -122,8 +140,10 @@ const validTz = (tz: string): boolean => {
 export const canCreateReportSchedules = (u: AuthUser | null = currentUser()): boolean => !!u && u.roles.some((r) => CREATE_ROLES.includes(r));
 const isScheduleOwner = (u: AuthUser, r: { owner: string }) => r.owner.toLowerCase() === u.username.toLowerCase();
 const canEdit = (u: AuthUser | null, r: Row) => !!u && (isAdmin(u) || isScheduleOwner(u, r));
-const isRecipient = (u: AuthUser, rec: ReportRecipients) => rec.users.some((x) => x.toLowerCase() === u.username.toLowerCase()) || rec.teams.some((tm) => matches(u, `team:${tm}`));
-const canView = (u: AuthUser | null, r: Row) => !!u && (canEdit(u, r) || capabilities(u).viewAudit || isRecipient(u, parseJson(r.recipients, { users: [], teams: [], emails: [] })));
+const isRecipient = (u: AuthUser, rec: ReportRecipients) =>
+  rec.users.some((x) => x.toLowerCase() === u.username.toLowerCase()) || rec.teams.some((tm) => matches(u, `team:${tm}`));
+const canView = (u: AuthUser | null, r: Row) =>
+  !!u && (canEdit(u, r) || capabilities(u).viewAudit || isRecipient(u, parseJson(r.recipients, { users: [], teams: [], emails: [] })));
 
 /** Archived scheduled reports: the owner, the recipients, auditors and administrators. */
 export function canViewScheduledReport(rec: ReportRecord, u: AuthUser | null = currentUser()): boolean {
@@ -201,7 +221,10 @@ export const scheduleInputSchema = z.object({
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 
-function normalize(b: ScheduleInput, owner: AuthUser): Omit<Row, 'id' | 'owner' | 'created_at' | 'updated_at' | 'last_run_at' | 'last_report_id' | 'last_error'> {
+function normalize(
+  b: ScheduleInput,
+  owner: AuthUser,
+): Omit<Row, 'id' | 'owner' | 'created_at' | 'updated_at' | 'last_run_at' | 'last_report_id' | 'last_error'> {
   const tz = b.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   if (!validTz(tz)) throw new HttpError(400, `Unknown time zone "${tz}"`);
   const cron = b.preset === 'custom' ? b.cron : PRESET_CRON[b.preset];
@@ -251,7 +274,10 @@ export function createReportSchedule(b: ScheduleInput): ReportSchedule {
   const row = { id, owner: u.username, ...v, created_at: now, updated_at: now };
   const cols = Object.keys(row);
   db().tx(() => {
-    db().run(`INSERT INTO report_schedules (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, ...cols.map((c) => (row as Record<string, unknown>)[c]));
+    db().run(
+      `INSERT INTO report_schedules (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+      ...cols.map((c) => (row as Record<string, unknown>)[c]),
+    );
     audit({
       action: 'report_schedule.created',
       entityType: 'report_schedule',
@@ -272,7 +298,14 @@ export function updateReportSchedule(id: string, b: ScheduleInput): ReportSchedu
   const v = normalize(b, owner ? toAuthUser(owner) : u);
   const changed = (Object.keys(v) as (keyof typeof v)[]).filter((k) => String(r[k]) !== String(v[k]));
   db().tx(() => {
-    db().run(`UPDATE report_schedules SET ${Object.keys(v).map((k) => `${k} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...Object.values(v), nowIso(), id);
+    db().run(
+      `UPDATE report_schedules SET ${Object.keys(v)
+        .map((k) => `${k} = ?`)
+        .join(', ')}, updated_at = ? WHERE id = ?`,
+      ...Object.values(v),
+      nowIso(),
+      id,
+    );
     audit({
       action: 'report_schedule.updated',
       entityType: 'report_schedule',
@@ -292,7 +325,12 @@ export function deleteReportSchedule(id: string): void {
   disarm(id);
   db().tx(() => {
     db().run('DELETE FROM report_schedules WHERE id = ?', id);
-    audit({ action: 'report_schedule.deleted', entityType: 'report_schedule', entityId: id, summary: `Report schedule "${r.name}" deleted (generated reports stay in the archive)` });
+    audit({
+      action: 'report_schedule.deleted',
+      entityType: 'report_schedule',
+      entityId: id,
+      summary: `Report schedule "${r.name}" deleted (generated reports stay in the archive)`,
+    });
   });
 }
 
@@ -323,7 +361,13 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
     if (!ownerInfo || !ownerInfo.active) {
       const msg = `the owner ${r.owner} is missing or deactivated`;
       db().run('UPDATE report_schedules SET last_run_at = ?, last_error = ? WHERE id = ?', nowIso(), msg, id);
-      audit({ actor: o.actor, action: 'report_schedule.skipped', entityType: 'report_schedule', entityId: id, summary: `Report schedule "${r.name}" skipped: ${msg}` });
+      audit({
+        actor: o.actor,
+        action: 'report_schedule.skipped',
+        entityType: 'report_schedule',
+        entityId: id,
+        summary: `Report schedule "${r.name}" skipped: ${msg}`,
+      });
       throw new HttpError(409, `The report was not generated: ${msg}`);
     }
     const owner = toAuthUser(ownerInfo);
@@ -348,7 +392,13 @@ export async function runReportSchedule(id: string, o: { actor: string; at?: num
     } catch (e) {
       const msg = String((e as Error).message ?? e).slice(0, 500);
       db().run('UPDATE report_schedules SET last_run_at = ?, last_error = ? WHERE id = ?', nowIso(), msg, id);
-      audit({ actor: o.actor, action: 'report_schedule.failed', entityType: 'report_schedule', entityId: id, summary: `Report schedule "${r.name}" failed: ${msg}` });
+      audit({
+        actor: o.actor,
+        action: 'report_schedule.failed',
+        entityType: 'report_schedule',
+        entityId: id,
+        summary: `Report schedule "${r.name}" failed: ${msg}`,
+      });
       throw e;
     }
     db().run('UPDATE report_schedules SET last_run_at = ?, last_report_id = ?, last_error = NULL WHERE id = ?', nowIso(), rec.id, id);
@@ -369,7 +419,12 @@ function sendReport(r: Row, rec: ReportRecord & { pdf: Buffer }): void {
     event: 'report.ready',
     text: (l) => ({
       title: t(l, 'reportReady.title', { name: r.name }),
-      body: [t(l, 'reportReady.body', { name: r.name, from: formatDateTime(l, rec.from!), to: formatDateTime(l, rec.to!) }), attach ? t(l, 'reportReady.attached') : ''].filter(Boolean).join('\n'),
+      body: [
+        t(l, 'reportReady.body', { name: r.name, from: formatDateTime(l, rec.from!), to: formatDateTime(l, rec.to!) }),
+        attach ? t(l, 'reportReady.attached') : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     }),
     link: `/reports?report=${encodeURIComponent(rec.id)}`,
     recipients: users,
@@ -395,7 +450,9 @@ function arm(id: string): void {
   try {
     const job = new Cron(r.cron, { timezone: r.timezone, protect: true }, () => {
       if (!vault().unlocked) return;
-      runReportSchedule(id, { actor: 'system' }).catch((e) => logger.warn({ err: { message: (e as Error).message }, reportScheduleId: id }, 'scheduled report failed'));
+      runReportSchedule(id, { actor: 'system' }).catch((e) =>
+        logger.warn({ err: { message: (e as Error).message }, reportScheduleId: id }, 'scheduled report failed'),
+      );
     });
     jobs.set(id, job);
   } catch (err) {

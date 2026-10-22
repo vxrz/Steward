@@ -99,7 +99,11 @@ export function uptimeBars(w: ReportWriter, title: string, items: { label: strin
     }
     if (it.target !== null && it.target !== undefined && it.target >= min) {
       const tx = barX + (barW * (it.target - min)) / (100 - min);
-      w.doc.moveTo(tx, y).lineTo(tx, y + rowH).lineWidth(1).stroke(COLORS.text);
+      w.doc
+        .moveTo(tx, y)
+        .lineTo(tx, y + rowH)
+        .lineWidth(1)
+        .stroke(COLORS.text);
     }
     w.font('sans', 7.2).fillColor(COLORS.text);
     w.text(it.value === null ? '–' : `${it.value.toFixed(2)} %`, barX + barW + 4, y + 2, { width: 48, align: 'right', lineBreak: false });
@@ -161,9 +165,15 @@ export function monitorAvailability(monitorId: string, from: number, to: number)
     if (p.status === 'up' || p.status === 'degraded') ok += b - a;
     else if (p.status === 'down') down += b - a;
   });
-  if (downSince !== null) outages.push({ from: new Date(downSince).toISOString(), to: end < to ? null : new Date(to).toISOString(), durationMs: end - downSince });
+  if (downSince !== null)
+    outages.push({ from: new Date(downSince).toISOString(), to: end < to ? null : new Date(to).toISOString(), durationMs: end - downSince });
   const durations = db()
-    .all<{ d: number }>('SELECT duration_ms AS d FROM monitor_results WHERE monitor_id = ? AND ts >= ? AND ts < ? AND duration_ms IS NOT NULL', monitorId, fromIso, toIso)
+    .all<{ d: number }>(
+      'SELECT duration_ms AS d FROM monitor_results WHERE monitor_id = ? AND ts >= ? AND ts < ? AND duration_ms IS NOT NULL',
+      monitorId,
+      fromIso,
+      toIso,
+    )
     .map((r) => Number(r.d));
   return {
     uptime: ok + down > 0 ? Math.round((ok / (ok + down)) * 10000) / 100 : null,
@@ -184,7 +194,9 @@ interface AvailabilityData {
 function visibleMonitorRows(): { id: string; key: string; name: string; owner: string; acl: string }[] {
   const u = currentUser();
   return db()
-    .all<{ id: string; key: string; name: string; owner: string; acl: string }>('SELECT id, key, name, owner, acl FROM monitors WHERE is_template = 0 ORDER BY name')
+    .all<{ id: string; key: string; name: string; owner: string; acl: string }>(
+      'SELECT id, key, name, owner, acl FROM monitors WHERE is_template = 0 ORDER BY name',
+    )
     .filter((r) => permissionsOfRow(r, u).includes('view'));
 }
 
@@ -210,7 +222,11 @@ registerReportSection<AvailabilityConfig, AvailabilityData>({
     const missed = d.slaTarget !== null ? d.monitors.filter((m) => m.uptime !== null && m.uptime < d.slaTarget!).length : null;
     return [
       { label: `${st(l, 'avgUptime')} (${st(l, 'monitor')})`, value: ups.length ? pctText(l, ups.reduce((s, x) => s + x, 0) / ups.length) : '–' },
-      { label: st(l, 'incidents'), value: String(d.monitors.reduce((s, m) => s + m.outages.length, 0)), tone: d.monitors.some((m) => m.outages.length) ? 'warning' : 'default' },
+      {
+        label: st(l, 'incidents'),
+        value: String(d.monitors.reduce((s, m) => s + m.outages.length, 0)),
+        tone: d.monitors.some((m) => m.outages.length) ? 'warning' : 'default',
+      },
       ...(missed !== null ? [{ label: st(l, 'slaMissedCount'), value: String(missed), tone: (missed ? 'danger' : 'success') as Tone }] : []),
     ];
   },
@@ -254,7 +270,13 @@ registerReportSection<AvailabilityConfig, AvailabilityData>({
   },
 });
 
-function outageTable(w: ReportWriter, tr: Translator, lang: ReportLang, what: string, outages: { name: string; from: string; to: string | null; durationMs: number }[]): void {
+function outageTable(
+  w: ReportWriter,
+  tr: Translator,
+  lang: ReportLang,
+  what: string,
+  outages: { name: string; from: string; to: string | null; durationMs: number }[],
+): void {
   w.table(
     [
       { header: what, width: 3 },
@@ -265,7 +287,12 @@ function outageTable(w: ReportWriter, tr: Translator, lang: ReportLang, what: st
     outages
       .sort((a, b) => a.from.localeCompare(b.from))
       .slice(0, 500)
-      .map((o): CellInput[] => [o.name, tr.dateTime(o.from), o.to ? tr.dateTime(o.to) : { text: st(lang, 'ongoing'), tone: 'danger' }, tr.duration(o.durationMs)]),
+      .map((o): CellInput[] => [
+        o.name,
+        tr.dateTime(o.from),
+        o.to ? tr.dateTime(o.to) : { text: st(lang, 'ongoing'), tone: 'danger' },
+        tr.duration(o.durationMs),
+      ]),
     { empty: st(lang, 'noIncidents'), size: 7.4 },
   );
 }
@@ -273,7 +300,10 @@ function outageTable(w: ReportWriter, tr: Translator, lang: ReportLang, what: st
 // ---------- availability of Gatus endpoints ----------
 
 const gatusSchema = z.object({
-  sources: z.array(z.object({ platformId: z.string().min(1).max(100), endpointKeys: z.array(z.string().min(1).max(300)).max(500).nullable().default(null) })).min(1).max(20),
+  sources: z
+    .array(z.object({ platformId: z.string().min(1).max(100), endpointKeys: z.array(z.string().min(1).max(300)).max(500).nullable().default(null) }))
+    .min(1)
+    .max(20),
   slaTarget,
 });
 type GatusConfig = z.infer<typeof gatusSchema>;
@@ -295,7 +325,8 @@ registerReportSection<GatusConfig, GatusData>({
   id: 'gatus',
   schema: gatusSchema as unknown as ZodType<GatusConfig>,
   validate: (c) => {
-    for (const s of c.sources) if (!visiblePlatform(s.platformId)) throw Object.assign(new Error(`Gatus platform ${s.platformId} not found`), { statusCode: 400 });
+    for (const s of c.sources)
+      if (!visiblePlatform(s.platformId)) throw Object.assign(new Error(`Gatus platform ${s.platformId} not found`), { statusCode: 400 });
   },
   title: (l) => st(l, 'gatus'),
   build: (c, ctx) => ({
@@ -313,7 +344,13 @@ registerReportSection<GatusConfig, GatusData>({
     return [
       { label: `${st(l, 'avgUptime')} (Gatus)`, value: ups.length ? pctText(l, ups.reduce((s, x) => s + x, 0) / ups.length) : '–' },
       ...(d.slaTarget !== null
-        ? [{ label: `${st(l, 'slaMissedCount')} (Gatus)`, value: String(eps.filter((e) => e.uptime !== null && e.uptime < d.slaTarget!).length), tone: (eps.some((e) => e.uptime !== null && e.uptime < d.slaTarget!) ? 'danger' : 'success') as Tone }]
+        ? [
+            {
+              label: `${st(l, 'slaMissedCount')} (Gatus)`,
+              value: String(eps.filter((e) => e.uptime !== null && e.uptime < d.slaTarget!).length),
+              tone: (eps.some((e) => e.uptime !== null && e.uptime < d.slaTarget!) ? 'danger' : 'success') as Tone,
+            },
+          ]
         : []),
     ];
   },
@@ -447,7 +484,15 @@ registerReportSection<CredentialsConfig, CredentialsData>({
           { header: st(lang, 'dueDate'), width: 1.5 },
           { header: st(lang, 'owners'), width: 2.6 },
         ],
-        rows.slice(0, 1000).map((r): CellInput[] => [{ text: r.name, bold: true }, r.platform || '–', st(lang, `kind_${r.due}` as 'kind_expiry'), tr.date(r.dueAt), r.owners || '–']),
+        rows
+          .slice(0, 1000)
+          .map((r): CellInput[] => [
+            { text: r.name, bold: true },
+            r.platform || '–',
+            st(lang, `kind_${r.due}` as 'kind_expiry'),
+            tr.date(r.dueAt),
+            r.owners || '–',
+          ]),
         { size: 7.4 },
       );
     };
@@ -470,7 +515,8 @@ registerReportSection<RunsConfig, RunsData>({
   id: 'runs',
   schema: runsSchema as unknown as ZodType<RunsConfig>,
   validate: (c) => {
-    for (const id of c.processIds ?? []) if (!processes.permissionsFor(id).includes('view')) throw Object.assign(new Error(`Process ${id} not found`), { statusCode: 400 });
+    for (const id of c.processIds ?? [])
+      if (!processes.permissionsFor(id).includes('view')) throw Object.assign(new Error(`Process ${id} not found`), { statusCode: 400 });
   },
   title: (l) => st(l, 'runs'),
   build: (c, ctx) => {
@@ -513,7 +559,13 @@ registerReportSection<RunsConfig, RunsData>({
         { header: st(lang, 'failed'), width: 1.3, align: 'right' },
         { header: st(lang, 'other'), width: 1.2, align: 'right' },
       ],
-      d.processes.map((p): CellInput[] => [{ text: p.name, bold: true }, String(p.total), String(p.succeeded), { text: String(p.failed), tone: p.failed ? 'danger' : 'default' }, String(p.other)]),
+      d.processes.map((p): CellInput[] => [
+        { text: p.name, bold: true },
+        String(p.total),
+        String(p.succeeded),
+        { text: String(p.failed), tone: p.failed ? 'danger' : 'default' },
+        String(p.other),
+      ]),
       { empty: st(lang, 'noRuns') },
     );
   },
@@ -528,7 +580,8 @@ export function parseSections(input: unknown): Record<string, unknown> {
     const def = SECTIONS.get(id);
     if (!def) throw Object.assign(new Error(`Unknown report section "${id}"`), { statusCode: 400 });
     const r = def.schema.safeParse(cfg === true ? {} : cfg);
-    if (!r.success) throw Object.assign(new Error(`Section "${id}": ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`), { statusCode: 400 });
+    if (!r.success)
+      throw Object.assign(new Error(`Section "${id}": ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`), { statusCode: 400 });
     out[id] = r.data;
   }
   if (!Object.keys(out).length) throw Object.assign(new Error('Select at least one section'), { statusCode: 400 });

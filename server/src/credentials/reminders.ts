@@ -52,7 +52,10 @@ export function plannedReminder(due: CredentialDue, cfg: { daysBefore: number[];
 
 /** Claims a reminder; true when it was not sent before. */
 function claim(credentialId: string, key: string): boolean {
-  return db().run('INSERT INTO credential_reminders (credential_id, reminder_key, sent_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', credentialId, key, nowIso()).changes === 1;
+  return (
+    db().run('INSERT INTO credential_reminders (credential_id, reminder_key, sent_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING', credentialId, key, nowIso())
+      .changes === 1
+  );
 }
 
 function recipientsOf(c: Credential): { users: UserInfo[]; emails: string[] } {
@@ -88,7 +91,13 @@ function text(l: Locale, c: Credential, due: CredentialDue, r: PlannedReminder):
       : r.phase === 'expired'
         ? t(l, 'credentialDue.titleExpired', vars)
         : t(l, 'credentialDue.titleOverdue', vars);
-  const lines = [r.phase === 'before' ? t(l, 'credentialDue.bodyBefore', vars) : r.phase === 'expired' ? t(l, 'credentialDue.bodyExpired', vars) : t(l, 'credentialDue.bodyOverdue', vars)];
+  const lines = [
+    r.phase === 'before'
+      ? t(l, 'credentialDue.bodyBefore', vars)
+      : r.phase === 'expired'
+        ? t(l, 'credentialDue.bodyExpired', vars)
+        : t(l, 'credentialDue.bodyOverdue', vars),
+  ];
   if (c.location.text) lines.push(t(l, 'credentialDue.location', { location: c.location.text.slice(0, 300) }));
   if (c.owners.length) lines.push(t(l, 'credentialDue.owners', { owners: c.owners.map((o) => (o.role ? `${o.email} (${o.role})` : o.email)).join(', ') }));
   return { title, body: lines.join('\n') };
@@ -133,4 +142,3 @@ export function checkCredentialReminders(now = Date.now()): number {
   }
   return sent;
 }
-

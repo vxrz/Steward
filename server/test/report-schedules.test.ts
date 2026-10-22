@@ -28,7 +28,11 @@ let monitorId: string;
 let secretMonitorId: string;
 const PW = 'Demo-password-1';
 const H = 3600000;
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 const hasTool = (bin: string) => spawnSync(bin, ['-v'], { stdio: 'ignore' }).error === undefined;
 
 async function download(url: string, user: string, password: string) {
@@ -44,7 +48,11 @@ beforeAll(async () => {
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
   // a monitor with a known history: up, down for 6 h, up again (inside the last 48 h)
-  monitorId = (await dana('POST', '/monitors', { definition: { name: 'Report test – Historian', checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } })).monitor.id;
+  monitorId = (
+    await dana('POST', '/monitors', {
+      definition: { name: 'Report test – Historian', checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+    })
+  ).monitor.id;
   const { db } = await import('../src/db.js');
   const now = Date.now();
   for (const [ts, st, prev] of [
@@ -52,12 +60,28 @@ beforeAll(async () => {
     [now - 24 * H, 'down', 'up'],
     [now - 18 * H, 'up', 'down'],
   ] as const) {
-    db().run("INSERT INTO monitor_history (monitor_id, check_id, ts, status, previous, message) VALUES (?, '', ?, ?, ?, '')", monitorId, new Date(ts).toISOString(), st, prev);
+    db().run(
+      "INSERT INTO monitor_history (monitor_id, check_id, ts, status, previous, message) VALUES (?, '', ?, ?, ?, '')",
+      monitorId,
+      new Date(ts).toISOString(),
+      st,
+      prev,
+    );
   }
-  db().run("INSERT INTO monitor_results (monitor_id, check_id, ts, status, message, duration_ms) VALUES (?, 'hb', ?, 'up', '', 120)", monitorId, new Date(now - 2 * H).toISOString());
-  db().run("INSERT INTO monitor_results (monitor_id, check_id, ts, status, message, duration_ms) VALUES (?, 'hb', ?, 'up', '', 480)", monitorId, new Date(now - 3 * H).toISOString());
+  db().run(
+    "INSERT INTO monitor_results (monitor_id, check_id, ts, status, message, duration_ms) VALUES (?, 'hb', ?, 'up', '', 120)",
+    monitorId,
+    new Date(now - 2 * H).toISOString(),
+  );
+  db().run(
+    "INSERT INTO monitor_results (monitor_id, check_id, ts, status, message, duration_ms) VALUES (?, 'hb', ?, 'up', '', 480)",
+    monitorId,
+    new Date(now - 3 * H).toISOString(),
+  );
   // a monitor dana may not see
-  const secret = await s.api('POST', '/monitors', { definition: { name: 'Admins only – Payroll gateway', checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } });
+  const secret = await s.api('POST', '/monitors', {
+    definition: { name: 'Admins only – Payroll gateway', checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+  });
   secretMonitorId = secret.monitor.id;
   await s.api('PUT', `/monitors/${secretMonitorId}/access`, { acl: [{ subject: 'user:admin', permissions: ['view'] }] });
   // Gatus metrics with two scrapes
@@ -65,7 +89,13 @@ beforeAll(async () => {
   await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
   await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
   // credentials
-  await dana('POST', '/credentials', { name: 'Expired agent certificate', type: 'agentCertificate', platformText: 'Insights Hub', expiresAt: new Date(now - 5 * 86400000).toISOString(), owners: [{ email: 'it@example.com', role: 'IT' }] });
+  await dana('POST', '/credentials', {
+    name: 'Expired agent certificate',
+    type: 'agentCertificate',
+    platformText: 'Insights Hub',
+    expiresAt: new Date(now - 5 * 86400000).toISOString(),
+    owners: [{ email: 'it@example.com', role: 'IT' }],
+  });
   await dana('POST', '/credentials', { name: 'API client due soon', type: 'apiClient', expiresAt: new Date(now + 10 * 86400000).toISOString() });
   await s.api('PUT', '/settings/notifications', {
     email: { enabled: true, host: 'smtp.example.com', port: 587, secure: false, from: 'steward@example.com' },
@@ -220,14 +250,22 @@ describe('report schedules', () => {
   it('run now through the API; the admin’s report of the same sections contains the restricted monitor', async () => {
     const rec = await dana('POST', `/report-schedules/${id}/run`);
     expect(rec.kind).toBe('scheduled');
-    const admins = await s.api('POST', '/report-schedules', body({ name: 'Admin report', recipients: { users: [], teams: [], emails: [] }, sections: { availability: { monitorIds: null } } }));
+    const admins = await s.api(
+      'POST',
+      '/report-schedules',
+      body({ name: 'Admin report', recipients: { users: [], teams: [], emails: [] }, sections: { availability: { monitorIds: null } } }),
+    );
     const schedules = await import('../src/reports/schedules.js');
     const r = await schedules.runReportSchedule(admins.id, { actor: 'admin' });
     expect(r.texts.join('\n')).toContain('Admins only – Payroll gateway');
   });
 
   it('a deactivated owner stops the schedule (recorded, audited)', async () => {
-    const tmp = await dana('POST', '/report-schedules', body({ name: 'Owner gone', recipients: { users: [], teams: [], emails: [] }, sections: { credentials: {} } }));
+    const tmp = await dana(
+      'POST',
+      '/report-schedules',
+      body({ name: 'Owner gone', recipients: { users: [], teams: [], emails: [] }, sections: { credentials: {} } }),
+    );
     const { db } = await import('../src/db.js');
     db().run("UPDATE report_schedules SET owner = 'ghost' WHERE id = ?", tmp.id);
     const schedules = await import('../src/reports/schedules.js');
@@ -249,7 +287,11 @@ describe('report schedules', () => {
       },
       glance: (d) => [{ label: 'Records', value: String(d.count) }],
     });
-    const r = await dana('POST', '/report-schedules', body({ name: 'With records', recipients: { users: [], teams: [], emails: [] }, sections: { records: {}, credentials: {} } }));
+    const r = await dana(
+      'POST',
+      '/report-schedules',
+      body({ name: 'With records', recipients: { users: [], teams: [], emails: [] }, sections: { records: {}, credentials: {} } }),
+    );
     const schedules = await import('../src/reports/schedules.js');
     const rec = await schedules.runReportSchedule(r.id, { actor: 'dana' });
     expect(rec.texts.join('\n')).toContain('3 Change requests');

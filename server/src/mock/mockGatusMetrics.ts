@@ -31,7 +31,17 @@ interface Ep {
 const DAY_S = 86400;
 
 function seed(): { started: number; eps: Ep[] } {
-  const ep = (group: string, name: string, type: string, success: boolean, durationS: number, code: number | undefined, certDays: number, ok: number, fail: number): Ep => ({
+  const ep = (
+    group: string,
+    name: string,
+    type: string,
+    success: boolean,
+    durationS: number,
+    code: number | undefined,
+    certDays: number,
+    ok: number,
+    fail: number,
+  ): Ep => ({
     key: `${group}_${name.toLowerCase().replace(/[/_.,\s#+&]/g, '-')}`,
     group,
     name,
@@ -76,10 +86,17 @@ export async function mockGatusMetrics(app: FastifyInstance): Promise<void> {
     for (const e of state.eps) lines.push(`gatus_results_duration_seconds${lbl(e)} ${e.durationS}`);
     lines.push('# HELP gatus_results_code_total Total number of results by code', '# TYPE gatus_results_code_total counter');
     for (const e of state.eps) if (e.code) lines.push(`gatus_results_code_total${lbl(e, { code: String(e.code) })} ${e.ok + e.fail}`);
-    lines.push('# HELP gatus_results_connected_total Total number of results in which a connection was successfully established', '# TYPE gatus_results_connected_total counter');
+    lines.push(
+      '# HELP gatus_results_connected_total Total number of results in which a connection was successfully established',
+      '# TYPE gatus_results_connected_total counter',
+    );
     for (const e of state.eps) lines.push(`gatus_results_connected_total${lbl(e)} ${e.ok + e.fail}`);
-    lines.push('# HELP gatus_results_certificate_expiration_seconds Number of seconds until the certificate expires', '# TYPE gatus_results_certificate_expiration_seconds gauge');
-    for (const e of state.eps) if (e.certS) lines.push(`gatus_results_certificate_expiration_seconds${lbl(e)} ${e.certS.toExponential(9).replace('e+', 'e+0')}`);
+    lines.push(
+      '# HELP gatus_results_certificate_expiration_seconds Number of seconds until the certificate expires',
+      '# TYPE gatus_results_certificate_expiration_seconds gauge',
+    );
+    for (const e of state.eps)
+      if (e.certS) lines.push(`gatus_results_certificate_expiration_seconds${lbl(e)} ${e.certS.toExponential(9).replace('e+', 'e+0')}`);
     lines.push('# HELP gatus_results_endpoint_success Displays whether or not the endpoint was a success', '# TYPE gatus_results_endpoint_success gauge');
     for (const e of state.eps) lines.push(`gatus_results_endpoint_success${lbl(e)} ${e.success ? 1 : 0}`);
     lines.push('# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.', '# TYPE process_start_time_seconds gauge');

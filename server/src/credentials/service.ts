@@ -194,7 +194,7 @@ registerCredentialLinkKind('monitor', (id) => {
 
 const resolveLink = (l: CredentialLink): CredentialLink => {
   const fn = linkResolvers.get(l.kind);
-  let label: string | null = null;
+  let label: string | null;
   try {
     label = fn ? fn(l.id) : null;
   } catch {
@@ -287,7 +287,10 @@ export const credentialInputSchema = z.object({
   lastRotatedAt: dateish.nullable().optional(),
   reviewIntervalDays: z.number().int().min(1).max(3650).nullable().optional(),
   lastReviewedAt: dateish.nullable().optional(),
-  gatus: z.object({ platformId: z.string().min(1).max(100), endpointKey: z.string().trim().min(1).max(300) }).nullable().optional(),
+  gatus: z
+    .object({ platformId: z.string().min(1).max(100), endpointKey: z.string().trim().min(1).max(300) })
+    .nullable()
+    .optional(),
   reminders: z
     .object({
       daysBefore: z.array(z.number().int().min(0).max(365)).max(10).optional(),
@@ -312,6 +315,7 @@ export type CredentialInput = z.infer<typeof credentialInputSchema>;
 export function checkLocationUrl(u: string | null | undefined): string | null {
   const v = u?.trim();
   if (!v) return null;
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (/[\u0000-\u001f\u007f]/.test(v)) throw new HttpError(400, 'The location link contains control characters');
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v)?.[1]?.toLowerCase();
   // a single letter is a Windows drive (C:\…); no scheme = a path or a database name
@@ -381,7 +385,11 @@ export function requireCredential(id: string, perm: CredentialPermission = 'view
   const perms = r ? credentialPermissions(currentUser(), r) : [];
   if (!r || !perms.includes('view')) throw new HttpError(404, `Credential ${id} not found`);
   if (!perms.includes(perm)) {
-    throw new HttpError(403, r.archived && perm === 'edit' ? 'Archived entries cannot be changed – restore it first' : `You are not allowed to ${perm} this entry`, 'FORBIDDEN');
+    throw new HttpError(
+      403,
+      r.archived && perm === 'edit' ? 'Archived entries cannot be changed – restore it first' : `You are not allowed to ${perm} this entry`,
+      'FORBIDDEN',
+    );
   }
   return r;
 }
@@ -415,8 +423,20 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
   return rows
     .filter((r) => credentialPermissions(u, r).includes('view'))
     .map((r) => toCredential(r, u, now, settings))
-    .filter((c) => !needle || [c.name, c.description, c.platformText, c.platformName ?? '', c.environment, c.location.text, c.usedBy.text, ...c.tags].some((x) => x.toLowerCase().includes(needle)))
-    .filter((c) => !f.platform || c.platformId === f.platform || c.platformText.toLowerCase() === f.platform.toLowerCase() || (c.platformName ?? '').toLowerCase() === f.platform.toLowerCase())
+    .filter(
+      (c) =>
+        !needle ||
+        [c.name, c.description, c.platformText, c.platformName ?? '', c.environment, c.location.text, c.usedBy.text, ...c.tags].some((x) =>
+          x.toLowerCase().includes(needle),
+        ),
+    )
+    .filter(
+      (c) =>
+        !f.platform ||
+        c.platformId === f.platform ||
+        c.platformText.toLowerCase() === f.platform.toLowerCase() ||
+        (c.platformName ?? '').toLowerCase() === f.platform.toLowerCase(),
+    )
     .filter((c) => !f.status?.length || f.status.includes(c.status))
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
     .filter((c) => !f.tag || c.tags.includes(f.tag))
@@ -437,8 +457,23 @@ export function credentialHistory(id: string): CredentialEvent[] {
     .map((e) => ({ id: Number(e.id), ts: e.ts, actor: e.actor, kind: e.kind, comment: e.comment, details: parseJson(e.details, {}) }));
 }
 
-export function addEvent(credentialId: string, kind: CredentialEventKind, actor: string, comment = '', details: Record<string, unknown> = {}, ts = nowIso()): void {
-  db().run('INSERT INTO credential_events (credential_id, ts, actor, kind, comment, details) VALUES (?, ?, ?, ?, ?, ?)', credentialId, ts, actor, kind, comment.slice(0, 2000), JSON.stringify(details));
+export function addEvent(
+  credentialId: string,
+  kind: CredentialEventKind,
+  actor: string,
+  comment = '',
+  details: Record<string, unknown> = {},
+  ts = nowIso(),
+): void {
+  db().run(
+    'INSERT INTO credential_events (credential_id, ts, actor, kind, comment, details) VALUES (?, ?, ?, ?, ?, ?)',
+    credentialId,
+    ts,
+    actor,
+    kind,
+    comment.slice(0, 2000),
+    JSON.stringify(details),
+  );
 }
 
 // ---------- changes ----------
@@ -469,7 +504,8 @@ const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   last_reviewed_at: (b) => b.lastReviewedAt ?? null,
   gatus_platform_id: (b) => b.gatus?.platformId ?? null,
   gatus_endpoint_key: (b) => b.gatus?.endpointKey ?? null,
-  reminders: (b) => (b.reminders ? JSON.stringify({ ...b.reminders, ...(b.reminders.daysBefore ? { daysBefore: normDays(b.reminders.daysBefore) } : {}) }) : null),
+  reminders: (b) =>
+    b.reminders ? JSON.stringify({ ...b.reminders, ...(b.reminders.daysBefore ? { daysBefore: normDays(b.reminders.daysBefore) } : {}) }) : null,
   notes: (b) => b.notes,
   tags: (b) => JSON.stringify([...new Set(b.tags)]),
 };
@@ -497,12 +533,26 @@ export function createCredential(b: CredentialInput): Credential {
   const { values, certificate } = prepare(b);
   const id = newId('cred_');
   const now = nowIso();
-  const row = { ...values, id, certificate: certificate ? JSON.stringify(certificate) : null, archived: 0, version: 1, created_at: now, created_by: u.username, updated_at: now, updated_by: u.username };
+  const row = {
+    ...values,
+    id,
+    certificate: certificate ? JSON.stringify(certificate) : null,
+    archived: 0,
+    version: 1,
+    created_at: now,
+    created_by: u.username,
+    updated_at: now,
+    updated_by: u.username,
+  };
   const cols = Object.keys(row);
   db().tx(() => {
-    db().run(`INSERT INTO credentials (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`, ...cols.map((c) => (row as Record<string, unknown>)[c]));
+    db().run(
+      `INSERT INTO credentials (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`,
+      ...cols.map((c) => (row as Record<string, unknown>)[c]),
+    );
     addEvent(id, 'created', u.username, '', { type: b.type, expiresAt: values.expires_at ?? null });
-    if (certificate) addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
+    if (certificate)
+      addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
     audit({
       action: 'credential.created',
       entityType: 'credential',
@@ -517,14 +567,16 @@ export function createCredential(b: CredentialInput): Credential {
 /** What the audit log records of an entry (all of it is documentation, none of it secret). */
 function auditView(values: Record<string, unknown>, certificate?: CertificateInfo | null): Record<string, unknown> {
   const out: Record<string, unknown> = { ...values };
-  if (certificate !== undefined) out.certificate = certificate ? { fingerprint256: certificate.fingerprint256, subject: certificate.subject, notAfter: certificate.notAfter } : null;
+  if (certificate !== undefined)
+    out.certificate = certificate ? { fingerprint256: certificate.fingerprint256, subject: certificate.subject, notAfter: certificate.notAfter } : null;
   return out;
 }
 
 export function updateCredential(id: string, b: CredentialInput): Credential {
   const u = me();
   const before = requireCredential(id, 'edit');
-  if (b.version !== undefined && b.version !== before.version) throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
+  if (b.version !== undefined && b.version !== before.version)
+    throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
   // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
   const { values, certificate } = prepare(b);
   if (!u.roles.some((x) => EDIT_ROLES.includes(x)) && !isOwner(u, { owner_subjects: String(values.owner_subjects) })) {
@@ -545,7 +597,8 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
     );
     if (!r.changes) throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
     addEvent(id, 'updated', u.username, '', { fields: changed });
-    if (certificate) addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
+    if (certificate)
+      addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
     audit({
       action: 'credential.updated',
       entityType: 'credential',
@@ -553,7 +606,12 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
       summary: `Credential register: "${b.name}" changed (${changed.join(', ')})`,
       details: {
         changes: Object.fromEntries(
-          changed.map((c) => [c, c === 'certificate' ? auditView({}, certificate).certificate : { from: (before as unknown as Record<string, unknown>)[c] ?? null, to: values[c] ?? null }]),
+          changed.map((c) => [
+            c,
+            c === 'certificate'
+              ? auditView({}, certificate).certificate
+              : { from: (before as unknown as Record<string, unknown>)[c] ?? null, to: values[c] ?? null },
+          ]),
         ),
       },
     });
@@ -587,13 +645,22 @@ export function markRotated(id: string, b: z.infer<typeof rotatedSchema>): Crede
       u.username,
       id,
     );
-    addEvent(id, 'rotated', u.username, b.comment, { rotatedAt: at, expiresAt: { from: r.expires_at, to: expires }, ...(certificate ? { fingerprint256: certificate.fingerprint256 } : {}) });
+    addEvent(id, 'rotated', u.username, b.comment, {
+      rotatedAt: at,
+      expiresAt: { from: r.expires_at, to: expires },
+      ...(certificate ? { fingerprint256: certificate.fingerprint256 } : {}),
+    });
     audit({
       action: 'credential.rotated',
       entityType: 'credential',
       entityId: id,
       summary: `Credential register: "${r.name}" rotated on ${at.slice(0, 10)}${expires !== r.expires_at ? `, expires ${expires ? expires.slice(0, 10) : 'never'}` : ''}`,
-      details: { rotatedAt: at, comment: b.comment || undefined, expiresAt: { from: r.expires_at, to: expires }, ...(certificate ? { fingerprint256: certificate.fingerprint256 } : {}) },
+      details: {
+        rotatedAt: at,
+        comment: b.comment || undefined,
+        expiresAt: { from: r.expires_at, to: expires },
+        ...(certificate ? { fingerprint256: certificate.fingerprint256 } : {}),
+      },
     });
   });
   return toCredential(credentialRow(id), u);
@@ -635,9 +702,20 @@ export function setArchived(id: string, archived: boolean): Credential {
   const r = requireCredential(id, 'archive');
   if (!!r.archived === archived) return toCredential(r, u);
   db().tx(() => {
-    db().run('UPDATE credentials SET archived = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, id);
+    db().run(
+      'UPDATE credentials SET archived = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?',
+      archived ? 1 : 0,
+      nowIso(),
+      u.username,
+      id,
+    );
     addEvent(id, archived ? 'archived' : 'restored', u.username);
-    audit({ action: archived ? 'credential.archived' : 'credential.restored', entityType: 'credential', entityId: id, summary: `Credential register: "${r.name}" ${archived ? 'archived' : 'restored'}` });
+    audit({
+      action: archived ? 'credential.archived' : 'credential.restored',
+      entityType: 'credential',
+      entityId: id,
+      summary: `Credential register: "${r.name}" ${archived ? 'archived' : 'restored'}`,
+    });
   });
   return toCredential(credentialRow(id), u);
 }
@@ -647,7 +725,13 @@ export function deleteCredential(id: string): void {
   db().tx(() => {
     for (const t of ['credential_events', 'credential_reminders']) db().run(`DELETE FROM ${t} WHERE credential_id = ?`, id);
     db().run('DELETE FROM credentials WHERE id = ?', id);
-    audit({ action: 'credential.deleted', entityType: 'credential', entityId: id, summary: `Credential register: "${r.name}" deleted`, details: { name: r.name, type: r.type } });
+    audit({
+      action: 'credential.deleted',
+      entityType: 'credential',
+      entityId: id,
+      summary: `Credential register: "${r.name}" deleted`,
+      details: { name: r.name, type: r.type },
+    });
   });
 }
 

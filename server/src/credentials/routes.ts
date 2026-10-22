@@ -49,7 +49,13 @@ export const listQuery = z.object({
   archived: z.enum(['exclude', 'include', 'only']).optional(),
 });
 
-const certBody = z.object({ contentBase64: z.string().max(Math.ceil((CERTIFICATE_MAX_BYTES * 4) / 3) + 16).optional(), pem: z.string().max(CERTIFICATE_MAX_BYTES).optional() });
+const certBody = z.object({
+  contentBase64: z
+    .string()
+    .max(Math.ceil((CERTIFICATE_MAX_BYTES * 4) / 3) + 16)
+    .optional(),
+  pem: z.string().max(CERTIFICATE_MAX_BYTES).optional(),
+});
 
 export async function credentialRoutes(app: FastifyInstance): Promise<void> {
   app.get('/credentials', async (req): Promise<CredentialList> => {
@@ -62,7 +68,12 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     me();
     const q = listQuery.parse(req.query ?? {});
     const items = svc.listCredentials({ ...q, archived: q.archived ?? 'include' });
-    audit({ action: 'credential.exported', entityType: 'credential', summary: `Credential register exported as CSV (${items.length} entries)`, details: { filters: q, count: items.length } });
+    audit({
+      action: 'credential.exported',
+      entityType: 'credential',
+      summary: `Credential register exported as CSV (${items.length} entries)`,
+      details: { filters: q, count: items.length },
+    });
     reply.header('content-disposition', `attachment; filename="credentials-${new Date().toISOString().slice(0, 10)}.csv"`);
     reply.header('cache-control', 'no-store');
     return reply.type('text/csv; charset=utf-8').send(svc.credentialsCsv(items));
