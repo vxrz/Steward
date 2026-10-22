@@ -10,6 +10,21 @@ import { BRAND } from '@sm/shared';
 import { startNotificationJobs, stopNotificationJobs, flushNotifications } from './notifications/service.js';
 import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 import { db } from './db.js';
+import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
+import { listPlatforms, getSecrets } from './platforms/service.js';
+import { secretValues } from './platforms/http.js';
+
+/** All platform secret values (and cached access tokens) – never part of an error report. */
+function platformSecretValues(): string[] {
+  if (!vault().unlocked) return [];
+  return listPlatforms().flatMap((p) => {
+    try {
+      return secretValues(getSecrets(p.id));
+    } catch {
+      return [];
+    }
+  });
+}
 
 export interface Started {
   url: string;
@@ -20,13 +35,17 @@ export interface Started {
 export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   ensureDataDirs();
   const tracing = initTelemetry();
+  const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });
   await app.listen({ host: config.host, port: config.port });
-  await unlockFromEnv().catch((e) => logger.error({ err: e }, 'automatic unlock failed'));
+  await unlockFromEnv().catch((e) => {
+    logger.error({ err: e }, 'automatic unlock failed');
+    if (isUnexpected(e)) reportError(e, { tags: { phase: 'unlock' } });
+  });
   startNotificationJobs();
   startMaintenanceJobs();
   const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
-  logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing }, 'service manager started');
+  logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing, errorReporting }, 'service manager started');
 
   if (opts.banner ?? process.stdout.isTTY) {
     console.log(`\n  ${BRAND.name} ${config.version} running at ${url}`);
@@ -45,6 +64,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     await app.close();
     await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 5000))]);
     await shutdownTelemetry();
+    await closeErrorReporting();
   };
   const onSignal = () => void stop().finally(() => process.exit(0));
   process.on('SIGINT', onSignal);

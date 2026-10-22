@@ -1,0 +1,149 @@
+# Security and supply-chain pipeline
+
+What runs where, how to read the results, how to run the checks locally and
+what to do with a finding. The vulnerability disclosure policy is in
+[SECURITY.md](../SECURITY.md).
+
+## Overview
+
+| Workflow | Job | Tool | When | Fails the build on |
+| --- | --- | --- | --- | --- |
+| `ci.yml` | build-test | `npm audit --omit=dev --audit-level=moderate` | push, PR | moderate+ advisory in a production dependency |
+| `security.yml` | secrets | [gitleaks](https://github.com/gitleaks/gitleaks) over the **full git history** | push, PR, weekly | any secret not allow-listed in `.gitleaks.toml` |
+| | dependencies | `npm audit --omit=dev --audit-level=high` | push, PR, weekly | high/critical advisory in a production dependency |
+| | | [OSV-Scanner](https://google.github.io/osv-scanner/) on `package-lock.json` | push, PR, weekly | any known vulnerability (dev dependencies too) not ignored in `osv-scanner.toml` |
+| | semgrep | [Semgrep](https://semgrep.dev) OSS, rule sets `p/default`, `p/typescript`, `p/nodejs`, `p/secrets`, `p/github-actions`, `p/dockerfile` | push, PR, weekly | findings with severity `ERROR` (warnings are reported only) |
+| | trivy-fs | [Trivy](https://trivy.dev) `fs` (vulnerabilities, misconfiguration, secrets) and `config` | push, PR, weekly | high/critical with a fix available; high/critical misconfiguration |
+| | lint | [hadolint](https://github.com/hadolint/hadolint) | push, PR, weekly | Dockerfile warnings/errors (`.hadolint.yaml`) |
+| | | [actionlint](https://github.com/rhysd/actionlint) (+ shellcheck) | push, PR, weekly | any workflow error |
+| | | [zizmor](https://docs.zizmor.sh) | push, PR, weekly | workflow security findings of medium severity or higher |
+| `codeql.yml` | analyze | [CodeQL](https://codeql.github.com), `javascript-typescript` (security-extended) and `actions` | push to main, PR, weekly | analysis errors (findings are shown in code scanning) |
+| `container.yml` | image | Docker Buildx build (not pushed) | push, tags, PR, weekly | build errors |
+| | | [Syft](https://github.com/anchore/syft) SBOM: CycloneDX JSON, SPDX JSON | | – |
+| | | [Grype](https://github.com/anchore/grype) on the SBOM, `--only-fixed --fail-on high` | | high/critical with a fix available |
+| | | Trivy `image`, `--ignore-unfixed` | | high/critical with a fix available, secrets in the image |
+| `scorecard.yml` | analysis | [OpenSSF Scorecard](https://scorecard.dev) | push to main, weekly, branch protection changes | – (score and findings in code scanning) |
+| `release.yml` | sbom | CycloneDX npm SBOM of the production dependencies | tags, `[build-exe]` | – (attached to the release) |
+| Dependabot | – | `.github/dependabot.yml`: npm (minor/patch grouped), GitHub Actions, Docker base image | weekly, plus security updates | – (opens pull requests) |
+
+The weekly runs matter: new advisories are published for code that has not
+changed.
+
+## Reading the results
+
+- **Job log**: every scanner also prints a human-readable table, so a red job
+  tells you what and where without downloading anything.
+- **Code scanning** (*Security → Code scanning*): all tools upload SARIF with
+  their own category (`gitleaks`, `osv-scanner`, `semgrep`, `trivy-fs`,
+  `hadolint`, `zizmor`, `/language:…` for CodeQL, `grype-image`, `trivy-image`,
+  `scorecard`). Findings show up as alerts and as annotations on pull requests.
+  This needs a public repository or GitHub Advanced Security; elsewhere the upload
+  step fails *without* failing the job (`continue-on-error` on that step only).
+- **Artifacts** (on the workflow run page): `*-report` artifacts keep the SARIF
+  files for 30 days in any case; `container-sbom` holds the image SBOMs
+  (CycloneDX and SPDX, 90 days for tags), `container-scan-reports` the image scan
+  results and the Syft JSON SBOM.
+
+SARIF files can be opened with the
+[SARIF viewer for VS Code](https://marketplace.visualstudio.com/items?itemName=MS-SarifVSCode.sarif-viewer).
+
+## Running the checks locally
+
+```bash
+scripts/security/install-tools.sh            # Linux x86_64: verified binaries into .tools/bin
+scripts/security/scan.sh                     # gitleaks, npm audit, OSV, Trivy, hadolint, actionlint, zizmor, Semgrep
+scripts/security/scan.sh --image             # … plus build the image, SBOM with Syft, Grype and Trivy image scan
+scripts/security/scan.sh --only gitleaks,osv # selected checks
+```
+
+On macOS: `brew install gitleaks osv-scanner trivy hadolint actionlint syft grype zizmor`.
+Semgrep runs in its official container (Docker). Reports land in `.tools/reports/`
+(ignored by git). Without access to `api.osv.dev`, set
+`OSV_SCANNER_FLAGS="--offline-vulnerabilities --download-offline-databases"`.
+
+## Handling a finding
+
+1. **Is it real?** Read the rule/advisory. For dependencies check whether the
+   vulnerable code is reachable (production or dev dependency? which function?).
+2. **Real → fix it.** Update the dependency (`npm update <pkg>`, or wait for /
+   merge the Dependabot PR), change the code, or rebuild the image to pick up a
+   fixed base image. A leaked secret must be **revoked and rotated** – deleting it
+   from the code does not help, it stays in the history.
+3. **Not real, or accepted risk → suppress it where it belongs, with a reason**,
+   as narrowly as possible, and with an expiry where the tool supports one:
+
+   | Tool | How to suppress |
+   | --- | --- |
+   | gitleaks | exact value + path regex in `.gitleaks.toml` (never whole folders) |
+   | OSV-Scanner | `[[IgnoredVulns]]` with `reason` and `ignoreUntil` in `osv-scanner.toml` |
+   | npm audit | no per-advisory ignore: fix it, or use an `overrides` entry in `package.json` |
+   | Semgrep | `// nosemgrep: <rule-id>` at the end of the flagged line, with a comment explaining why |
+   | Trivy | `.trivyignore` (`CVE-… exp:2026-12-31` plus a comment) |
+   | Grype | `.grype.yaml` `ignore:` entry (vulnerability + package) with a comment |
+   | hadolint | `# hadolint ignore=DL3008` above the instruction, with a reason |
+   | zizmor | `# zizmor: ignore[<audit>]` on the line, with a reason |
+   | CodeQL | dismiss the alert in code scanning with the reason ("false positive", "used in tests", "won't fix") |
+
+4. Mention the decision in the pull request, so the reviewer sees it.
+
+## Supply-chain hardening of the workflows
+
+- **Pinned actions**: every third-party action is pinned to a full commit SHA
+  with the version as a comment (`uses: actions/checkout@<sha> # v7.0.1`), so a
+  moved or hijacked tag cannot change what runs (cf. the `tj-actions/changed-files`
+  incident in 2025). Dependabot updates SHA and comment together.
+- **Pinned tools**: scanners are not installed through wrapper actions but as
+  release binaries whose SHA-256 is recorded in `scripts/security/install-tools.sh`
+  (verified against a second source when updating). Semgrep runs from an image
+  pinned by digest, zizmor from PyPI with `--require-hashes`. These pins are
+  updated by hand – prefer releases that are at least two weeks old.
+- **Least privilege**: `permissions: {}` at the top of the new workflows, and
+  each job asks only for what it needs (`contents: read`, plus
+  `security-events: write` for SARIF, `id-token: write` for Scorecard publishing,
+  `contents: write` only for the release job).
+- **No credentials on disk**: `actions/checkout` with `persist-credentials: false`
+  (nothing in these workflows pushes).
+- **No `pull_request_target`**: pull requests from forks run without secrets and
+  with a read-only token.
+- **No dependency cache in release builds** (cache poisoning); CI and security
+  jobs only read public data.
+- **Concurrency groups** cancel superseded PR runs (never releases), and every
+  job has a `timeout-minutes`.
+- **Dependabot cooldown**: new versions are proposed after 7 days (majors 14),
+  so a malicious release that is pulled quickly never reaches a PR.
+
+## Container image
+
+`Dockerfile` builds a slim runtime image: base image pinned by digest; only the
+server, its production dependencies and the built web UI; no npm/npx/yarn;
+non-root numeric user (1000); app files owned by root; node as PID 1 (clean
+shutdown on SIGTERM); works with a read-only root file system (`docker-compose.yml`
+runs it read-only, with all capabilities dropped and `no-new-privileges`).
+
+## Accepted findings (state of the last review)
+
+Reviewed 2026-10-22 with the tool versions pinned in `install-tools.sh`.
+
+| Tool | Finding | Decision |
+| --- | --- | --- |
+| Trivy/Grype image | Debian 12 packages: 1 critical (CVE-2023-45853, zlib minizip – `will_not_fix`, minizip is not shipped), ~56 high (util-linux, ncurses, perl-base, systemd libs, …) without a fix | not failing (`--ignore-unfixed` / `--only-fixed`); they disappear with base image updates. Option: move to `node:24-trixie-slim` or a distroless image (see below). |
+| OSV-Scanner | GHSA-82fw-gwwq-j7x9, GHSA-qxg6-89mg-rqv8 in `vitest` / `@vitest/mocker` 3.2 (dev only, Vitest dev server) | ignored until 2027-01-31 in `osv-scanner.toml`; fix = Vitest 4 upgrade |
+| npm audit (all deps) | the same two moderate Vitest advisories | dev only; CI audits production dependencies |
+| Semgrep | `spawn-shell-true` in `scripts/dev.mjs` (Windows needs a shell for `npm.cmd`, fixed arguments) | `nosemgrep` with reason |
+| Semgrep | `detect-non-literal-require` / `lazy-load-module` (`server/src/routes/*.ts` – a local permission helper named `require`; deliberate lazy `import()`s) | false positives (warning level) |
+| Semgrep | `res-render-injection` in `engine/runner.ts` (template rendering of the process definition, not Express `res.render`) | false positive (warning level) |
+| Semgrep | `html-in-template-string`, `raw-html-format`, `unknown-value-with-script-tag` (reports, e-mails, SSO callback page, demo OIDC page) | reviewed: values are HTML-escaped (`esc()`), the SSO `returnTo` is validated and JSON-encoded with `<` escaped (warning level) |
+| Semgrep | `detect-non-literal-regexp` in `ApiOperation.tsx` | input is escaped; runs in the browser on the user's own OpenAPI paths (warning level) |
+| zizmor | `superfluous-actions` for `softprops/action-gh-release` in `release.yml` | informational; pinned by SHA. Could be replaced with `gh release create` |
+
+Fixed during the review: AES-GCM decryption without a fixed tag length
+(`vault.ts`), unpinned actions and base image, persisted checkout credentials,
+npm cache in release builds, unpinned `npx @cyclonedx/cyclonedx-npm@4`, npm and
+the old esbuild Go binary (Go 1.23 stdlib CVEs) in the runtime image.
+
+## Only on GitHub
+
+These parts cannot be tested outside GitHub Actions: SARIF upload and code
+scanning alerts, CodeQL, Scorecard publishing, Dependabot, artifact upload, and
+Grype's database download in some restricted networks. Everything else runs with
+`scripts/security/scan.sh`.

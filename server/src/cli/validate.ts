@@ -1,16 +1,49 @@
 /**
  * Validate process and dashboard definitions (YAML/JSON) – for CI and for
- * reviewing changes to the example library.
- *   npm run validate                 (checks examples/)
- *   npm run validate -- path/to/file.yaml other/dir
+ * reviewing changes to the example library. Run with --help for usage.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
+import { config } from '../config.js';
+import { EXIT_FAILURE, EXIT_OK, UsageError, palette, parseCli, usageFailure } from './args.js';
 
-const args = process.argv.slice(2);
-const targets = args.length ? args : [path.resolve(import.meta.dirname, '../../../examples')];
+const COMMAND = 'npm run validate --';
+
+const HELP = `Validate Steward process and dashboard definitions (YAML or JSON).
+
+Usage:
+  npm run validate [-- [options] [path ...]]
+
+Paths can be files or folders (searched recursively for .yaml, .yml and .json).
+Without a path the bundled example library (examples/) is checked.
+
+Options:
+  --json         Print the result as JSON (for scripts and CI)
+  -q, --quiet    Only print errors and the summary
+  -h, --help     Show this help
+  -V, --version  Print the version
+
+Examples:
+  npm run validate
+  npm run validate -- my-processes/ dashboards/ops.yaml
+  npm run --silent validate -- --json processes/ > validation.json
+
+Exit status: 0 = all definitions valid (warnings allowed), 1 = at least one invalid
+definition, 2 = usage error (unknown option, path not found).
+Colours are only used on a terminal; NO_COLOR=1 turns them off.
+`;
+
+export interface FileResult {
+  file: string;
+  kind: 'process' | 'dashboard' | 'bundle' | 'unreadable';
+  ok: boolean;
+  /** Nodes (process) or widgets (dashboard). */
+  count?: number;
+  errors: string[];
+  warnings: string[];
+}
 
 function files(p: string): string[] {
   const st = fs.statSync(p);
@@ -18,43 +51,91 @@ function files(p: string): string[] {
   return /\.(ya?ml|json)$/i.test(p) ? [p] : [];
 }
 
-let errors = 0;
-let warnings = 0;
-for (const file of targets.flatMap(files).sort()) {
-  const rel = path.relative(process.cwd(), file);
+export function validateFile(file: string): FileResult {
+  const rel = path.relative(process.cwd(), file) || file;
   let raw: unknown;
   try {
     const text = fs.readFileSync(file, 'utf8');
     raw = file.endsWith('.json') ? JSON.parse(text) : YAML.parse(text);
   } catch (e) {
-    console.log(`✘ ${rel}: cannot parse – ${(e as Error).message}`);
-    errors++;
-    continue;
+    return { file: rel, kind: 'unreadable', ok: false, errors: [`cannot parse – ${(e as Error).message}`], warnings: [] };
   }
   const obj = raw as Record<string, unknown>;
   if (obj && typeof obj === 'object' && (BUNDLE_FORMATS as readonly unknown[]).includes(obj.format)) {
-    console.log(`• ${rel}: bundle (skipped)`);
-    continue;
+    return { file: rel, kind: 'bundle', ok: true, errors: [], warnings: [] };
   }
   if (obj && Array.isArray(obj.widgets)) {
     const r = dashboardDefinitionSchema.safeParse(raw);
-    if (r.success) console.log(`✔ ${rel}: dashboard, ${r.data.widgets.length} widgets`);
-    else {
-      errors++;
-      console.log(`✘ ${rel}: ${r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
-    }
-    continue;
+    return r.success
+      ? { file: rel, kind: 'dashboard', ok: true, count: r.data.widgets.length, errors: [], warnings: [] }
+      : { file: rel, kind: 'dashboard', ok: false, errors: r.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`), warnings: [] };
   }
   const r = validateProcess(raw);
-  if (r.ok) console.log(`✔ ${rel}: process, ${r.definition!.nodes.length} nodes`);
-  else {
-    errors++;
-    console.log(`✘ ${rel}: ${r.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ''}${i.path} ${i.message}`).join('; ')}`);
-  }
-  for (const w of r.warnings) {
-    warnings++;
-    console.log(`  ⚠ ${w.nodeId ? `[${w.nodeId}] ` : ''}${w.message}`);
-  }
+  return {
+    file: rel,
+    kind: 'process',
+    ok: r.ok,
+    count: r.ok ? r.definition!.nodes.length : undefined,
+    errors: r.ok ? [] : r.issues.map((i) => `${i.nodeId ? `[${i.nodeId}] ` : ''}${i.path} ${i.message}`),
+    warnings: r.warnings.map((w) => `${w.nodeId ? `[${w.nodeId}] ` : ''}${w.message}`),
+  };
 }
-console.log(`\n${errors} error(s), ${warnings} warning(s)`);
-process.exit(errors ? 1 : 0);
+
+export function main(argv: string[]): number {
+  let parsed;
+  try {
+    parsed = parseCli(
+      argv,
+      {
+        json: { type: 'boolean' },
+        quiet: { type: 'boolean', short: 'q' },
+        help: { type: 'boolean', short: 'h' },
+        version: { type: 'boolean', short: 'V' },
+      },
+      { positionals: true },
+    );
+  } catch (e) {
+    if (e instanceof UsageError) return usageFailure(e, COMMAND);
+    throw e;
+  }
+  const { values, positionals } = parsed;
+  if (values.help) {
+    process.stdout.write(HELP);
+    return EXIT_OK;
+  }
+  if (values.version) {
+    process.stdout.write(`${config.version}\n`);
+    return EXIT_OK;
+  }
+
+  const targets = positionals.length ? positionals : [path.resolve(import.meta.dirname, '../../../examples')];
+  const missing = targets.filter((t) => !fs.existsSync(t));
+  if (missing.length) return usageFailure(new UsageError(`path not found: ${missing.join(', ')}`), COMMAND);
+
+  const results = targets.flatMap(files).sort().map(validateFile);
+  const errors = results.filter((r) => !r.ok).length;
+  const warnings = results.reduce((n, r) => n + r.warnings.length, 0);
+
+  if (values.json) {
+    process.stdout.write(JSON.stringify({ ok: errors === 0, errors, warnings, files: results }, null, 2) + '\n');
+    return errors ? EXIT_FAILURE : EXIT_OK;
+  }
+  const c = palette(process.stdout);
+  const out: string[] = [];
+  for (const r of results) {
+    if (!r.ok) out.push(`${c.red('✘')} ${r.file}: ${r.errors.join('; ')}`);
+    else if (!values.quiet) {
+      if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
+      else out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : 'nodes'}`);
+    }
+    if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);
+  }
+  if (!results.length) out.push('No .yaml, .yml or .json files found.');
+  out.push(`\n${errors ? c.red(`${errors} error(s)`) : '0 error(s)'}, ${warnings} warning(s)`);
+  process.stdout.write(out.join('\n') + '\n');
+  return errors ? EXIT_FAILURE : EXIT_OK;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
+  process.exitCode = main(process.argv.slice(2));
+}

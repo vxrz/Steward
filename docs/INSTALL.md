@@ -126,7 +126,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - Both databases are first brought to the current schema version.
 - Rows are copied verbatim, in foreign-key order and in batches, in one transaction on the target, and the row counts are checked before the commit. So the tamper-evident audit chain still verifies (Admin → Audit → Verify).
 - Afterwards, start the app with `SM_DATABASE_URL` and the same data directory.
-- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward npm run db:copy -- --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
+- In a container: `docker compose -f docker-compose.postgres.yml run --rm steward node --import tsx server/src/cli/db-copy.ts --from sqlite:/data/service-manager.db`. The target then defaults to `SM_DATABASE_URL`.
 
 **Things to know.**
 
