@@ -1,3 +1,7 @@
+import { spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
@@ -442,4 +446,94 @@ describe('contract check', () => {
     expect(r.results[0].problems.join(' ')).toContain('documented as array');
     expect(r.results[1].problems).toEqual(['missing required property "total"', 'property "calls" is integer, documented as string']);
   });
+});
+
+describe('sub-process after a restart', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-subflow-restart-'));
+  const port = 40000 + Math.floor(Math.random() * 10000);
+  const base = `http://127.0.0.1:${port}`;
+  let proc: ChildProcess | undefined;
+  let cookie = '';
+  afterAll(() => {
+    proc?.kill('SIGKILL');
+  });
+
+  const startServer = () =>
+    new Promise<ChildProcess>((resolve, reject) => {
+      const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+        cwd: path.resolve(__dirname, '..'),
+        env: { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let out = '';
+      child.stdout!.on('data', (d: Buffer) => {
+        out += d.toString();
+        if (out.includes('service manager started')) resolve(child);
+      });
+      child.stderr!.on('data', (d) => (out += d.toString()));
+      child.on('exit', (code) => reject(new Error(`server exited ${code}: ${out}`)));
+      setTimeout(() => reject(new Error('server start timeout: ' + out)), 30000);
+    });
+  const api = async (method: string, url: string, body?: unknown): Promise<any> => {
+    const res = await fetch(base + '/api' + url, {
+      method,
+      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const set = res.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0]!;
+    const t = await res.text();
+    if (!res.ok) throw new Error(`${method} ${url}: ${res.status} ${t}`);
+    return t ? JSON.parse(t) : null;
+  };
+  const waitFor = async (id: string, ok: (r: any) => boolean) => {
+    for (let i = 0; i < 200; i++) {
+      const r = await api('GET', `/runs/${id}`);
+      if (ok(r)) return r;
+      await sleep(100);
+    }
+    throw new Error('timeout');
+  };
+
+  it('re-attaches to the existing child run instead of starting a new one', async () => {
+    proc = await startServer();
+    await api('POST', '/auth/setup', { passphrase: 'restart-test-pass', username: 'admin', password: 'Admin-password-1' });
+    const childId = (
+      await api('POST', '/processes', {
+        definition: {
+          name: 'restart child',
+          outputs: { answer: 'vars.decision.approved' },
+          nodes: [n('start', 'start'), n('ask', 'userTask', { mode: 'approve', title: 'Go on?', saveAs: 'decision' })],
+          wires: [w('start', 'ask')],
+        },
+      })
+    ).id;
+    const parentId = (
+      await api('POST', '/processes', {
+        definition: {
+          name: 'restart parent',
+          nodes: [n('start', 'start'), n('sub', 'subprocess', { process: childId, saveAs: 'res' }), n('show', 'log', { message: 'answer {{ vars.res.answer }}' })],
+          wires: [w('start', 'sub'), w('sub', 'show')],
+        },
+      })
+    ).id;
+    const { id } = await api('POST', '/runs', { processId: parentId });
+    const waiting = await waitFor(id, (r) => r.children?.length === 1 && r.status === 'waiting');
+    const child = await waitFor(waiting.children[0].id, (r) => r.status === 'waiting' && r.tasks.length === 1);
+
+    proc.kill('SIGKILL');
+    await sleep(300);
+    proc = await startServer();
+
+    await waitFor(id, (r) => r.status === 'waiting');
+    const task = (await waitFor(child.id, (r) => r.status === 'waiting')).tasks[0];
+    await sleep(800); // parent re-attached
+    await api('POST', `/tasks/${task.id}/complete`, { approved: true, selectedKeys: [] });
+    const done = await waitFor(id, (r) => DONE.includes(r.status));
+    expect([done.status, done.error]).toEqual(['succeeded', null]);
+    expect(done.children).toHaveLength(1);
+    expect(done.children[0]).toMatchObject({ id: child.id, status: 'succeeded' });
+    expect(done.steps.find((x: any) => x.key === 'show').summary).toBe('answer true');
+    expect(done.logs.some((l: any) => l.message.includes(`Re-attached to sub-process run ${child.id}`))).toBe(true);
+  }, 90000);
 });

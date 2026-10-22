@@ -28,19 +28,19 @@ export function InputsForm({
     <Stack gap="sm">
       {defs.map((d) => {
         const label = d.label ?? d.name;
-        const common = { label, description: d.description, required: d.required, key: d.name };
+        const common = { label, description: d.description, required: d.required };
         const v = value[d.name];
         switch (d.type) {
           case 'number':
-            return <NumberInput {...common} value={(v as number | string) ?? ''} onChange={(x) => set(d.name, x)} />;
+            return <NumberInput key={d.name} {...common} value={(v as number | string) ?? ''} onChange={(x) => set(d.name, x)} />;
           case 'boolean':
-            return <Switch {...common} checked={!!v} onChange={(e) => set(d.name, e.currentTarget.checked)} />;
+            return <Switch key={d.name} {...common} checked={!!v} onChange={(e) => set(d.name, e.currentTarget.checked)} />;
           case 'select':
-            return <Select {...common} data={d.options ?? []} value={(v as string) ?? null} onChange={(x) => set(d.name, x)} />;
+            return <Select key={d.name} {...common} data={d.options ?? []} value={(v as string) ?? null} onChange={(x) => set(d.name, x)} />;
           case 'list':
             return (
               <Textarea
-                {...common}
+                key={d.name} {...common}
                 description={d.description ?? 'One value per line'}
                 autosize
                 minRows={2}
@@ -75,9 +75,9 @@ export function InputsForm({
               </Stack>
             );
           case 'json':
-            return <JsonInput {...common} autosize minRows={3} formatOnBlur value={(v as string) ?? ''} onChange={(x) => set(d.name, x)} />;
+            return <JsonInput key={d.name} {...common} autosize minRows={3} formatOnBlur value={(v as string) ?? ''} onChange={(x) => set(d.name, x)} />;
           default:
-            return <TextInput {...common} value={(v as string) ?? ''} onChange={(e) => set(d.name, e.currentTarget.value)} />;
+            return <TextInput key={d.name} {...common} value={(v as string) ?? ''} onChange={(e) => set(d.name, e.currentTarget.value)} />;
         }
       })}
     </Stack>

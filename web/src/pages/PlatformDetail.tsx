@@ -92,11 +92,11 @@ export function PlatformDetailPage() {
         title={p.name}
         description={
           <Group gap={6} component="span">
-            <Badge color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
+            <Badge component="span" color={KIND_COLORS[p.kind] ?? 'gray'} variant="light" size="sm">
               {p.kind}
             </Badge>
             {p.environment && (
-              <Badge variant="outline" size="sm">
+              <Badge component="span" variant="outline" size="sm">
                 {p.environment}
               </Badge>
             )}

@@ -78,7 +78,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
               </Group>
               <Stack gap={6}>
                 {data.openTasks.map((t) => (
-                  <Group key={t.id} justify="space-between" wrap="nowrap">
+                  <Group key={t.id} justify="space-between" gap={4} wrap="wrap">
                     <Anchor component={Link} to={`/runs/${t.runId}`} size="sm" style={{ minWidth: 0 }}>
                       {t.title}
                     </Anchor>
@@ -99,7 +99,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
               </Group>
               <Stack gap={6}>
                 {data.failedChecks.map((c, i) => (
-                  <Group key={i} justify="space-between" wrap="nowrap" align="flex-start">
+                  <Group key={i} justify="space-between" gap={4} wrap="wrap" align="flex-start">
                     <div style={{ minWidth: 0 }}>
                       <Group gap={6}>
                         <Badge size="xs" color={c.severity === 'error' ? 'red' : c.severity === 'warning' ? 'orange' : 'gray'}>
