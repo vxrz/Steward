@@ -698,7 +698,8 @@ describe('outputs', () => {
     const run = await s.waitRun(runs[0].id);
     expect(run.inputs).toEqual({ monitor: 'Runbook test', cause: 'Report' });
     expect(run.actor).toBe('dana');
-    expect(run.triggerName).toBe('Monitor "Runbook test"');
+    expect(run).toMatchObject({ trigger: 'monitor', triggerName: 'Runbook test' });
+    expect(run.triggerId).toMatch(/^mon_/);
     // recovering does not start another run (default statuses: down)
     await hook(hb.path, { status: 'up' }, bearer(hb.secret));
     await eng.settle();

@@ -110,7 +110,9 @@ export function RunDetailPage() {
               trigger:
                 r.trigger === 'webhook'
                   ? t('trigger.webhookNamed', { name: r.triggerName ?? r.triggerId ?? '' })
-                  : t(`trigger.${r.trigger}`, { defaultValue: r.trigger }),
+                  : r.trigger === 'monitor'
+                    ? t('trigger.monitorNamed', { name: r.triggerName ?? r.triggerId ?? '' })
+                    : t(`trigger.${r.trigger}`, { defaultValue: r.trigger }),
               date: fmtDate(r.startedAt),
               duration: runDuration(r.startedAt, r.finishedAt),
             }}

@@ -26,7 +26,8 @@
     "checksOk": "checks {{passed}}/{{total}} ok",
     "failedSteps_one": "{{count}} failed step",
     "failedSteps_other": "{{count}} failed steps",
-    "webhook": "webhook"
+    "webhook": "webhook",
+    "monitor": "monitor"
   },
   "bindings": {
     "noPermission": "{{name}} (no permission to use)",
@@ -64,7 +65,9 @@
     "resume": "resume",
     "subprocess": "sub-process",
     "webhook": "webhook",
-    "webhookNamed": "webhook trigger \"{{name}}\""
+    "webhookNamed": "webhook trigger \"{{name}}\"",
+    "monitor": "monitor",
+    "monitorNamed": "monitor \"{{name}}\""
   },
   "detail": {
     "description": "Run <id>{{id}}</id> · <version>version {{version}}</version> · started by {{actor}} ({{trigger}}) {{date}} · {{duration}}",

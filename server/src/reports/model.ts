@@ -42,6 +42,8 @@ export interface RunReportModel extends ReportContext {
     error: string | null;
     dryRun: boolean;
     trigger: string;
+    /** Webhook trigger or monitor that started the run */
+    triggerName: string | null;
     scheduleName: string | null;
     parentRunId: string | null;
     actor: Person;
@@ -256,6 +258,7 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
       error: run.error ?? null,
       dryRun: run.dryRun,
       trigger: run.trigger,
+      triggerName: run.triggerName ?? null,
       scheduleName,
       parentRunId: run.parentRunId ?? null,
       actor: person(run.actor),

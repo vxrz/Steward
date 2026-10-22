@@ -24,7 +24,7 @@ import {
 import { MONITOR_COMPONENTS } from '../../monitors/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
-export const RUN_TRIGGERS = ['manual', 'schedule', 'resume', 'subprocess'] as const satisfies readonly RunSummary['trigger'][];
+export const RUN_TRIGGERS = ['manual', 'schedule', 'resume', 'subprocess', 'webhook', 'monitor'] as const satisfies readonly RunSummary['trigger'][];
 export const STEP_STATUSES = ['running', 'succeeded', 'failed', 'skipped', 'waiting', 'dryrun'] as const satisfies readonly StepStatus[];
 export const TASK_STATUSES = ['open', 'completed', 'cancelled'] as const;
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'] as const;

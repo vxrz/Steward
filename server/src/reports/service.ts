@@ -385,6 +385,7 @@ export async function previewReport(o: { lang: ReportLang; actor: string; brandi
       error: null,
       dryRun: false,
       trigger: 'manual',
+      triggerName: null,
       scheduleName: null,
       parentRunId: null,
       actor,

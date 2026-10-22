@@ -384,9 +384,9 @@ export interface RunSummary {
   processVersion: number;
   status: RunStatus;
   dryRun: boolean;
-  trigger: 'manual' | 'schedule' | 'resume' | 'subprocess' | 'webhook';
+  trigger: 'manual' | 'schedule' | 'resume' | 'subprocess' | 'webhook' | 'monitor';
   scheduleId?: string | null;
-  /** Webhook trigger that started this run (trigger 'webhook') */
+  /** What started this run: the webhook trigger (trigger 'webhook') or the monitor (trigger 'monitor'), by id and name */
   triggerId?: string | null;
   triggerName?: string | null;
   /** Set when this run was started by a "subprocess" node of another run */

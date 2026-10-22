@@ -53,6 +53,11 @@ export function RunTable({ runs, compact = false }: { runs: RunSummary[]; compac
                       {t('table.webhook')}
                     </Badge>
                   )}
+                  {r.trigger === 'monitor' && (
+                    <Badge ml={4} size="xs" variant="outline" color="pink" title={r.triggerName ?? undefined}>
+                      {t('table.monitor')}
+                    </Badge>
+                  )}
                   {r.trigger === 'subprocess' && (
                     <Badge ml={4} size="xs" variant="outline" color="violet">
                       {t('table.subprocess')}

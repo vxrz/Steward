@@ -26,7 +26,8 @@
     "checksOk": "Prüfungen {{passed}}/{{total}} ok",
     "failedSteps_one": "{{count}} Schritt fehlgeschlagen",
     "failedSteps_other": "{{count}} Schritte fehlgeschlagen",
-    "webhook": "Webhook"
+    "webhook": "Webhook",
+    "monitor": "Monitor"
   },
   "bindings": {
     "noPermission": "{{name}} (keine Berechtigung zur Nutzung)",
@@ -64,7 +65,9 @@
     "resume": "fortgesetzt",
     "subprocess": "Unterprozess",
     "webhook": "Webhook",
-    "webhookNamed": "Webhook-Auslöser „{{name}}“"
+    "webhookNamed": "Webhook-Auslöser „{{name}}“",
+    "monitor": "Monitor",
+    "monitorNamed": "Monitor „{{name}}“"
   },
   "detail": {
     "description": "Ausführung <id>{{id}}</id> · <version>Version {{version}}</version> · gestartet von {{actor}} ({{trigger}}) {{date}} · {{duration}}",

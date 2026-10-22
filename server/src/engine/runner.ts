@@ -331,9 +331,9 @@ async function resolveBindings(def: ProcessDefinition, requested: Record<string,
 export async function startRun(
   req: StartRunRequest,
   opts: {
-    trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook';
+    trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook' | 'monitor';
     scheduleId?: string;
-    /** Webhook trigger that started the run */
+    /** Webhook trigger (trigger 'webhook') or monitor (trigger 'monitor') that started the run */
     webhook?: { triggerId: string; triggerName: string; test?: boolean };
     actor?: string;
     /** Sub-process: the run and step (activation key) that started this run */

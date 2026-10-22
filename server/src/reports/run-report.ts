@@ -82,7 +82,7 @@ export async function renderRunReport(
   let n = 0;
   const section = (title: string) => w.section(`${++n}. ${title}`);
   section(t('summary'));
-  const trig = tr.v('trigger', m.run.trigger) + (m.run.scheduleName ? ` – ${m.run.scheduleName}` : '') + (m.run.parentRunId ? ` – ${t('parentRun')} ${m.run.parentRunId}` : '');
+  const trig = tr.v('trigger', m.run.trigger) + (m.run.triggerName ? ` – ${m.run.triggerName}` : '') + (m.run.scheduleName ? ` – ${m.run.scheduleName}` : '') + (m.run.parentRunId ? ` – ${t('parentRun')} ${m.run.parentRunId}` : '');
   w.keyValues([
     { label: t('process'), value: m.process.name },
     { label: t('processVersion'), value: String(m.process.version) },

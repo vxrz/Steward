@@ -568,7 +568,9 @@
               "manual",
               "schedule",
               "resume",
-              "subprocess"
+              "subprocess",
+              "webhook",
+              "monitor"
             ]
           },
           "scheduleId": {
@@ -738,7 +740,9 @@
               "manual",
               "schedule",
               "resume",
-              "subprocess"
+              "subprocess",
+              "webhook",
+              "monitor"
             ]
           },
           "scheduleId": {
@@ -4152,7 +4156,9 @@
                   "manual",
                   "schedule",
                   "resume",
-                  "subprocess"
+                  "subprocess",
+                  "webhook",
+                  "monitor"
                 ]
               }
             },
