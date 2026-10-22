@@ -10,6 +10,7 @@ import * as store from '../engine/store.js';
 import { HttpError, sha256 } from '../util.js';
 import * as branding from '../reports/branding.js';
 import * as reports from '../reports/service.js';
+import { initAutoReports } from '../reports/auto.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -88,6 +89,8 @@ function sendPdf(reply: FastifyReply, data: Buffer, filename: string, inline = f
 }
 
 export async function reportRoutes(app: FastifyInstance): Promise<void> {
+  initAutoReports();
+
   // ---------- run reports ----------
   app.post('/runs/:id/reports', async (req) => {
     const id = params(req).id!;

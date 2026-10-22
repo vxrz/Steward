@@ -500,6 +500,14 @@ const definitionBase = {
   constants: z.record(z.unknown()).optional(),
   /** Values returned to a parent process (name → expression evaluated when the run ends) */
   outputs: z.record(z.string()).optional(),
+  /** PDF run report: `auto` generates and archives it whenever a run finishes */
+  report: z
+    .object({
+      auto: z.boolean().optional(),
+      lang: z.enum(['en', 'de']).optional(),
+    })
+    .strict()
+    .optional(),
 };
 
 export const processDefinitionSchema = z.object({
