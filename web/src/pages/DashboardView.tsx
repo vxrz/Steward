@@ -4,16 +4,19 @@ import { Alert, Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { fmtRelative } from '../format';
+import { errorText } from '../i18n/errors';
 import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
 import '../components/dashboard/viz.css';
 
 export function DashboardViewPage() {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -28,7 +31,7 @@ export function DashboardViewPage() {
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
   const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter }), [refreshMs, statusFilter]);
 
-  if (dash.error) return <Alert color="red">{(dash.error as Error).message}</Alert>;
+  if (dash.error) return <Alert color="red">{errorText(dash.error)}</Alert>;
   if (!d || !def) return null;
 
   const refresh = async () => {
@@ -37,11 +40,11 @@ export function DashboardViewPage() {
       const r = await post<{ started: { processId: string; runId: string }[]; skipped: { processId: string; reason: string }[] }>(`/dashboards/${d.id}/refresh`);
       notifications.show({
         color: r.started.length ? 'blue' : 'yellow',
-        title: r.started.length ? `Refreshing – ${r.started.length} run(s) started` : 'Nothing was started',
+        title: r.started.length ? t('view.refreshing', { count: r.started.length }) : t('view.nothingStarted'),
         message: [
           ...r.started.map((s) => `▶ ${s.processId}`),
           ...r.skipped.map((s) => `– ${s.processId}: ${s.reason}`),
-        ].join('\n') || 'This dashboard has no data sources yet.',
+        ].join('\n') || t('view.noSources'),
         autoClose: 8000,
         style: { whiteSpace: 'pre-line' },
       });
@@ -50,7 +53,7 @@ export function DashboardViewPage() {
         setTimeout(() => setFastUntil(0), 91000);
       }
     } catch (e) {
-      notifyError(e, 'Refresh failed');
+      notifyError(e, t('view.refreshFailed'));
     } finally {
       setBusy(false);
     }
@@ -64,9 +67,9 @@ export function DashboardViewPage() {
       qc.setQueryData(['dashboard', id], saved);
       qc.invalidateQueries({ queryKey: ['dashboards'] });
       setDraft(null);
-      notifyOk('Dashboard saved');
+      notifyOk(t('view.saved'));
     } catch (e) {
-      notifyError(e, 'Not saved');
+      notifyError(e, t('view.notSaved'));
     } finally {
       setBusy(false);
     }
@@ -86,38 +89,38 @@ export function DashboardViewPage() {
           draft ? (
             <>
               <Button size="xs" variant="default" leftSection={<IconX size={14} />} onClick={() => setDraft(null)}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={busy} onClick={save} disabled={!draft.name.trim()}>
-                Save
+                {t('common:save')}
               </Button>
             </>
           ) : (
             <>
               <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} loading={busy} onClick={refresh}>
-                Refresh data
+                {t('view.refresh')}
               </Button>
               {d.canEdit && (
                 <Button size="xs" variant="default" leftSection={<IconEdit size={14} />} onClick={() => setDraft(structuredClone(d.definition))}>
-                  Edit
+                  {t('common:edit')}
                 </Button>
               )}
               <Menu position="bottom-end">
                 <Menu.Target>
-                  <Button size="xs" variant="subtle" px={6} aria-label="More">
+                  <Button size="xs" variant="subtle" px={6} aria-label={t('view.more')}>
                     <IconDots size={16} />
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
                   <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/dashboards/${d.id}/export`}>
-                    Export YAML
+                    {t('view.exportYaml')}
                   </Menu.Item>
                   {d.canEdit && (
                     <Menu.Item
                       color="red"
                       leftSection={<IconTrash size={14} />}
                       onClick={async () => {
-                        if (!confirm(`Delete dashboard "${d.name}"? The datasets stay.`)) return;
+                        if (!confirm(t('view.deleteConfirm', { name: d.name }))) return;
                         try {
                           await del(`/dashboards/${d.id}`);
                           qc.invalidateQueries({ queryKey: ['dashboards'] });
@@ -127,7 +130,7 @@ export function DashboardViewPage() {
                         }
                       }}
                     >
-                      Delete
+                      {t('common:delete')}
                     </Menu.Item>
                   )}
                 </Menu.Dropdown>
@@ -139,13 +142,15 @@ export function DashboardViewPage() {
       {draft && <DashboardEditor value={draft} onChange={setDraft} />}
       {def.widgets.length === 0 ? (
         <Paper withBorder p="lg">
-          <Text fw={600}>No widgets yet</Text>
+          <Text fw={600}>{t('view.noWidgets')}</Text>
           <Text size="sm" c="dimmed">
-            {d.canEdit ? 'Click Edit and add widgets. ' : ''}Widgets show datasets published by processes with a “Publish to dashboard” node – see{' '}
-            <Anchor component={Link} to="/dashboards">
-              datasets
-            </Anchor>
-            .
+            {d.canEdit ? `${t('view.clickEdit')} ` : ''}
+            <Trans
+              t={t}
+              i18nKey="view.widgetsHint"
+              values={{ node: t('editor:steps.publish.label') }}
+              components={{ a: <Anchor component={Link} to="/dashboards" /> }}
+            />
           </Text>
         </Paper>
       ) : (
@@ -156,11 +161,12 @@ export function DashboardViewPage() {
 }
 
 function LastUpdate({ keys }: { keys: string[] }) {
+  const { t } = useTranslation('dashboards');
   const metas = useDatasetMetas();
   const latest = (metas.data ?? [])
     .filter((m) => keys.includes(m.key))
     .map((m) => m.updatedAt)
     .sort()
     .pop();
-  return <span>{latest ? `data from ${fmtRelative(latest)}` : 'no data yet'}</span>;
+  return <span>{latest ? t('view.dataFrom', { when: fmtRelative(latest) }) : t('view.noData')}</span>;
 }

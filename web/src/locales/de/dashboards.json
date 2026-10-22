@@ -1,0 +1,195 @@
+{
+  "list": {
+    "newName": "Neues Dashboard",
+    "title": "Dashboards",
+    "description": "Statusübersichten aus Daten, die Ihre Prozesse veröffentlichen (einmalig, bei Bedarf oder nach Zeitplan). Dashboards lesen nur gespeicherte Daten – sie rufen die Plattformen nie selbst auf.",
+    "importYaml": "YAML importieren",
+    "fromTemplate": "Aus Vorlage",
+    "new": "Neues Dashboard",
+    "emptyTitle": "Noch keine Dashboards",
+    "emptyText": "Mit einer Vorlage beginnen (z. B. Plattformbetrieb) und anschließend die Inventarprozesse ausführen, die sie befüllen – oder sie planen, damit die Daten aktuell bleiben.",
+    "widgets_one": "{{count}} Widget",
+    "widgets_other": "{{count}} Widgets",
+    "by": "von {{owner}}",
+    "updated": "aktualisiert {{when}}"
+  },
+  "datasets": {
+    "title": "Datenquellen",
+    "hint": "Werden von Knoten „{{node}}“ veröffentlicht. Jede Ausführung ersetzt die Zeilen und ergänzt den Kennzahlenverlauf für Trenddiagramme. Angezeigt werden die Datenquellen der Prozesse, die Sie sehen dürfen.",
+    "dataset": "Datenquelle",
+    "source": "Quelle",
+    "updated": "Aktualisiert",
+    "rows": "Zeilen",
+    "status": "Status",
+    "none": "Noch keine Datenquellen – einen Prozess mit einem Knoten „{{node}}“ ausführen.",
+    "stale": "veraltet",
+    "deleteHint": "Datenquelle und ihren Verlauf löschen",
+    "delete": "Datenquelle löschen",
+    "deleteConfirm": "Datenquelle „{{key}}“ und ihren Kennzahlenverlauf löschen? Sie wird bei der nächsten Ausführung von {{process}} neu angelegt."
+  },
+  "templates": {
+    "title": "Dashboard-Vorlagen",
+    "none": "Keine Vorlagen in examples/dashboards gefunden.",
+    "created": "„{{name}}“ angelegt",
+    "use": "Verwenden"
+  },
+  "import": {
+    "title": "Dashboard importieren (YAML oder JSON)",
+    "loadFile": "Datei laden",
+    "failed": "Import fehlgeschlagen",
+    "submit": "Importieren"
+  },
+  "status": {
+    "good": "Gut",
+    "warning": "Warnung",
+    "serious": "Ernst",
+    "critical": "Kritisch",
+    "unknown": "Unbekannt",
+    "none": "kein Status"
+  },
+  "view": {
+    "refreshing_one": "Aktualisierung – {{count}} Ausführung gestartet",
+    "refreshing_other": "Aktualisierung – {{count}} Ausführungen gestartet",
+    "nothingStarted": "Nichts gestartet",
+    "noSources": "Dieses Dashboard hat noch keine Datenquellen.",
+    "refreshFailed": "Aktualisierung fehlgeschlagen",
+    "saved": "Dashboard gespeichert",
+    "notSaved": "Nicht gespeichert",
+    "refresh": "Daten aktualisieren",
+    "more": "Mehr",
+    "exportYaml": "YAML exportieren",
+    "deleteConfirm": "Dashboard „{{name}}“ löschen? Die Datenquellen bleiben erhalten.",
+    "noWidgets": "Noch keine Widgets",
+    "clickEdit": "Auf „Bearbeiten“ klicken und Widgets hinzufügen.",
+    "widgetsHint": "Widgets zeigen Datenquellen, die Prozesse mit einem Knoten „{{node}}“ veröffentlichen – siehe <a>Datenquellen</a>.",
+    "dataFrom": "Daten von {{when}}",
+    "noData": "noch keine Daten"
+  },
+  "widgets": {
+    "kpi": {
+      "label": "Kennzahl",
+      "info": "Kennzahl-Kachel: letzter Wert einer Kennzahl (oder die Zeilenzahl) mit Veränderung und Sparkline"
+    },
+    "trend": {
+      "label": "Trenddiagramm",
+      "info": "Liniendiagramm von bis zu drei Kennzahlen im Zeitverlauf"
+    },
+    "status": {
+      "label": "Statusverteilung",
+      "info": "Verteilung der Zeilenstatus (gut / Warnung / ernst / kritisch)"
+    },
+    "table": {
+      "label": "Tabelle",
+      "info": "Zeilen einer Datenquelle mit Status-Badges, Suche und Filter „nur Probleme“"
+    },
+    "checks": {
+      "label": "Prüfungen",
+      "info": "Prüfergebnisse der letzten Ausführung eines Prozesses"
+    },
+    "freshness": {
+      "label": "Datenaktualität",
+      "info": "Alter jeder Datenquelle dieses Dashboards und die nächste geplante Aktualisierung"
+    },
+    "markdown": {
+      "label": "Text",
+      "info": "Freier Text (Markdown-Teilmenge)"
+    }
+  },
+  "editor": {
+    "defaultNotes": "Notizen zu diesem Dashboard",
+    "widgets_one": "Widgets ({{count}})",
+    "widgets_other": "Widgets ({{count}})",
+    "settings": "Einstellungen",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "addWidget": "Widget hinzufügen",
+    "description": "Beschreibung",
+    "refreshSeconds": "Gespeicherte Daten neu lesen alle (Sekunden)",
+    "refreshSecondsHint": "Das Dashboard liest nur gespeicherte Datenquellen; die Plattformen werden von den Prozessen (Zeitplänen) abgefragt, die sie veröffentlichen.",
+    "applyYaml": "YAML übernehmen"
+  },
+  "form": {
+    "title": "Widget „{{type}}“",
+    "widgetTitle": "Titel",
+    "automatic": "Automatisch",
+    "width": "Breite",
+    "widths": {
+      "w3": "Viertel (3/12)",
+      "w4": "Drittel (4/12)",
+      "w6": "Hälfte (6/12)",
+      "w8": "Zwei Drittel (8/12)",
+      "w12": "Volle Breite"
+    },
+    "dataset": "Datenquelle",
+    "datasetHint": "Wird von einem Knoten „{{node}}“ veröffentlicht; noch nicht veröffentlichte Schlüssel sind erlaubt und zeigen nach der ersten Ausführung Daten.",
+    "datasetPlaceholder": "z. B. iem.devices",
+    "value": "Wert",
+    "rowCount": "Anzahl der Zeilen",
+    "metric": "Kennzahl: {{name}}",
+    "increaseIs": "Ein Anstieg ist",
+    "neutral": "Neutral",
+    "good": "Gut",
+    "bad": "Schlecht",
+    "compareDays": "Vergleichen mit (vor Tagen)",
+    "metrics": "Kennzahlen (max. 3)",
+    "pickMetrics": "Kennzahlen auswählen",
+    "noMetrics": "Noch keine Kennzahlen veröffentlicht",
+    "days": "Tage",
+    "columns": "Spalten",
+    "allColumns": "Alle Spalten",
+    "problemsOnly": "Standardmäßig nur Probleme anzeigen",
+    "rowsShown": "Angezeigte Zeilen",
+    "process": "Prozess",
+    "text": "Text (Markdown-Teilmenge)",
+    "apply": "Übernehmen"
+  },
+  "w": {
+    "chart": "Diagramm",
+    "table": "Tabelle",
+    "viewToggle": "Ansicht: Diagramm oder Tabelle",
+    "chooseDataset": "Eine Datenquelle für dieses Widget wählen.",
+    "noData": "Noch keine Daten in <c>{{dataset}}</c> (oder kein Zugriff). Den Prozess ausführen, der sie veröffentlicht – mit einem Knoten „{{node}}“ und diesem Schlüssel.",
+    "goToProcesses": "Zu den Prozessen",
+    "olderThan_one": "Älter als {{count}} Minute",
+    "olderThan_other": "Älter als {{count}} Minuten",
+    "rows": "Zeilen",
+    "vsDaysAgo_one": "ggü. vor {{count}} Tag",
+    "vsDaysAgo_other": "ggü. vor {{count}} Tagen",
+    "lastDays_one": "{{name}} – letzter Tag",
+    "lastDays_other": "{{name}} – letzte {{count}} Tage",
+    "noHistory": "Noch kein Kennzahlenverlauf – Trends erscheinen nach einigen Ausführungen.",
+    "statusTitle": "{{name}} – Status",
+    "downloadCsv": "CSV herunterladen",
+    "search": "Suchen",
+    "problemsOnly": "Nur Probleme",
+    "clearFilter": "Statusfilter entfernen",
+    "statusOnly": "nur {{status}}",
+    "rowsOf": "{{shown}} von {{total}}",
+    "allGood": "Keine passenden Zeilen – alles in Ordnung.",
+    "noRows": "Keine Zeilen.",
+    "showMore_one": "Mehr anzeigen ({{count}} ausgeblendet)",
+    "showMore_other": "Mehr anzeigen ({{count}} ausgeblendet)",
+    "latestRun": "letzte Ausführung {{when}}",
+    "open": "öffnen",
+    "chooseProcess": "Einen Prozess für dieses Widget wählen.",
+    "notRunYet": "Der Prozess wurde noch nicht ausgeführt.",
+    "noChecks": "Die letzte Ausführung enthält keine Prüfungen.",
+    "passed": "bestanden",
+    "failed": "fehlgeschlagen",
+    "failedSeverity": "fehlgeschlagen · {{severity}}",
+    "nextRefresh": "Nächste Aktualisierung",
+    "noDataShort": "keine Daten",
+    "run": "Ausführung",
+    "notScheduled": "nicht geplant",
+    "noDatasets": "Keine Datenquellen auf diesem Dashboard.",
+    "unknownType": "Unbekannter Widget-Typ"
+  },
+  "charts": {
+    "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",
+    "time": "Zeit",
+    "noStatusRows": "Keine Zeilen mit Status.",
+    "segment": "{{status}}: {{count}} ({{share}})",
+    "segmentFilter": "{{status}}: {{count}} ({{share}}) – klicken, um Tabellen zu filtern",
+    "share": "Anteil"
+  }
+}

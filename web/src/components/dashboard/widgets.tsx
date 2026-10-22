@@ -32,7 +32,10 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import type { DashboardWidget, DatasetMeta, DatasetRow, DatasetStatus, RunDetail, RunSummary, Schedule } from '@sm/shared';
+import { Trans, useTranslation } from 'react-i18next';
 import { get } from '../../api';
+import { errorText } from '../../i18n/errors';
+import { severityLabel } from '../common';
 import { fmtRelative } from '../../format';
 import { Markdown } from '../common';
 import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './charts';
@@ -63,6 +66,7 @@ function WidgetCard({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const { t } = useTranslation('dashboards');
   return (
     <Paper withBorder p="sm" h="100%" className="viz-root" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
       {(title || toggle || actions) && (
@@ -87,10 +91,10 @@ function WidgetCard({
                 value={view}
                 onChange={(v) => onView?.(v as 'chart' | 'table')}
                 data={[
-                  { value: 'chart', label: 'Chart' },
-                  { value: 'table', label: 'Table' },
+                  { value: 'chart', label: t('w.chart') },
+                  { value: 'table', label: t('w.table') },
                 ]}
-                aria-label="Chart or table view"
+                aria-label={t('w.viewToggle')}
               />
             )}
           </Group>
@@ -104,42 +108,42 @@ function WidgetCard({
 }
 
 function NoData({ dataset, error }: { dataset?: string; error?: unknown }) {
-  if (!dataset) return <Text size="sm" c="dimmed">Choose a dataset for this widget.</Text>;
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
+  if (!dataset) return <Text size="sm" c="dimmed">{t('w.chooseDataset')}</Text>;
   return (
     <Stack gap={4}>
       <Text size="sm" c="dimmed">
         {isNotFound(error) || !error ? (
-          <>
-            No data in <span className="mono">{dataset}</span> yet (or no access). Run the process that publishes it – a “Publish to dashboard” node with this dataset key.
-          </>
+          <Trans t={t} i18nKey="w.noData" values={{ dataset, node: t('editor:steps.publish.label') }} components={{ c: <span className="mono" /> }} />
         ) : (
-          (error as Error).message
+          errorText(error)
         )}
       </Text>
       <Anchor component={Link} to="/processes" size="xs">
-        Go to processes
+        {t('w.goToProcesses')}
       </Anchor>
     </Stack>
   );
 }
 
 function Freshness({ meta }: { meta?: DatasetMeta }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   if (!meta) return null;
   return (
     <Group gap={6} wrap="nowrap">
       <Text size="xs" c="var(--viz-text-secondary)" truncate>
-        updated {fmtRelative(meta.updatedAt)}
+        {t('list.updated', { when: fmtRelative(meta.updatedAt) })}
       </Text>
       {meta.stale && (
-        <Tooltip label={`Older than ${meta.staleAfterMinutes} minutes`}>
+        <Tooltip label={t('w.olderThan', { count: meta.staleAfterMinutes ?? 0 })}>
           <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
-            stale
+            {t('datasets.stale')}
           </Badge>
         </Tooltip>
       )}
       {meta.dryRun && (
         <Badge size="xs" color="gray" variant="light" leftSection={<IconFlask size={10} />}>
-          dry run
+          {t('common:status.dryrun')}
         </Badge>
       )}
     </Group>
@@ -151,6 +155,7 @@ function Freshness({ meta }: { meta?: DatasetMeta }) {
 // ---------------------------------------------------------------------------
 
 function KpiWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const metas = useDatasetMetas();
   const meta = metas.data?.find((m) => m.key === w.dataset);
@@ -163,7 +168,7 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const delta = value !== undefined && first !== undefined && points.length > 1 ? value - first : undefined;
   const good = delta === undefined || delta === 0 || !w.goodWhen ? null : (delta > 0) === (w.goodWhen === 'up');
   const DeltaIcon = !delta ? IconArrowRight : delta > 0 ? IconArrowUpRight : IconArrowDownRight;
-  const label = w.title || `${meta?.title ?? w.dataset} · ${isRows ? 'rows' : w.metric}`;
+  const label = w.title || `${meta?.title ?? w.dataset} · ${isRows ? t('w.rows') : w.metric}`;
   if (!meta && !metas.isLoading) {
     return (
       <WidgetCard title={label}>
@@ -187,7 +192,7 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
                   {compact(delta)}
                 </Text>
                 <Text size="xs" c="var(--viz-text-secondary)">
-                  vs {days} d ago
+                  {t('w.vsDaysAgo', { count: days })}
                 </Text>
               </Group>
             )}
@@ -205,13 +210,14 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
 // ---------------------------------------------------------------------------
 
 function TrendWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const metas = useDatasetMetas();
   const meta = metas.data?.find((m) => m.key === w.dataset);
   const names = (w.metrics?.length ? w.metrics : Object.keys(meta?.metrics ?? {}).slice(0, 3)).slice(0, 3);
   const days = w.days ?? 30;
   const series = useMetrics(w.dataset, names, days);
-  const title = w.title || `${meta?.title ?? w.dataset} – last ${days} days`;
+  const title = w.title || t('w.lastDays', { name: meta?.title ?? w.dataset, count: days });
   if (!meta && !metas.isLoading) {
     return (
       <WidgetCard title={title}>
@@ -224,7 +230,7 @@ function TrendWidget({ w }: { w: DashboardWidget }) {
     <WidgetCard title={title} subtitle={<Freshness meta={meta} />} fetching={series.isFetching} toggle view={view} onView={setView}>
       {!hasPoints ? (
         <Text size="sm" c="dimmed">
-          {series.isLoading ? 'Loading…' : 'No metric history yet – trends appear after a few runs.'}
+          {series.isLoading ? t('common:loading') : t('w.noHistory')}
         </Text>
       ) : view === 'table' ? (
         <TrendTable series={series.data ?? []} names={names} />
@@ -240,15 +246,16 @@ function TrendWidget({ w }: { w: DashboardWidget }) {
 // ---------------------------------------------------------------------------
 
 function StatusWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const { statusFilter, setStatusFilter } = useDashboardCtx();
   const metas = useDatasetMetas();
   const meta = metas.data?.find((m) => m.key === w.dataset);
-  const title = w.title || `${meta?.title ?? w.dataset} – status`;
+  const title = w.title || t('w.statusTitle', { name: meta?.title ?? w.dataset });
   if (!meta) {
     return (
       <WidgetCard title={title}>
-        {metas.isLoading ? <Text size="sm" c="dimmed">Loading…</Text> : <NoData dataset={w.dataset} />}
+        {metas.isLoading ? <Text size="sm" c="dimmed">{t('common:loading')}</Text> : <NoData dataset={w.dataset} />}
       </WidgetCard>
     );
   }
@@ -276,6 +283,7 @@ function cellText(v: unknown): string {
 }
 
 function TableWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { statusFilter, setStatusFilter } = useDashboardCtx();
   const ds = useDataset(w.dataset);
   const [q, setQ] = useState('');
@@ -312,7 +320,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
   if (!d) {
     return (
       <WidgetCard title={title}>
-        {ds.isLoading ? <Text size="sm" c="dimmed">Loading…</Text> : <NoData dataset={w.dataset} error={ds.error} />}
+        {ds.isLoading ? <Text size="sm" c="dimmed">{t('common:loading')}</Text> : <NoData dataset={w.dataset} error={ds.error} />}
       </WidgetCard>
     );
   }
@@ -337,11 +345,11 @@ function TableWidget({ w }: { w: DashboardWidget }) {
       subtitle={<Freshness meta={d} />}
       fetching={ds.isFetching}
       actions={
-        <Tooltip label="Download CSV">
+        <Tooltip label={t('w.downloadCsv')}>
           <ActionIcon
             variant="subtle"
             size="sm"
-            aria-label="Download CSV"
+            aria-label={t('w.downloadCsv')}
             onClick={() =>
               download(
                 `${d.key}.csv`,
@@ -358,30 +366,38 @@ function TableWidget({ w }: { w: DashboardWidget }) {
       }
     >
       <Group gap="xs" mb={6} wrap="wrap">
-        <TextInput size="xs" placeholder="Search" leftSection={<IconSearch size={13} />} value={q} onChange={(e) => setQ(e.currentTarget.value)} w={180} />
-        {hasStatus && <Switch size="xs" label="Problems only" checked={problems} onChange={(e) => setProblems(e.currentTarget.checked)} />}
+        <TextInput
+          size="xs"
+          placeholder={t('w.search')}
+          aria-label={t('w.search')}
+          leftSection={<IconSearch size={13} />}
+          value={q}
+          onChange={(e) => setQ(e.currentTarget.value)}
+          w={180}
+        />
+        {hasStatus && <Switch size="xs" label={t('w.problemsOnly')} checked={problems} onChange={(e) => setProblems(e.currentTarget.checked)} />}
         {filterStatus && (
           <Badge
             variant="light"
             color="gray"
             rightSection={
-              <UnstyledButton aria-label="Clear status filter" onClick={() => setStatusFilter(null)} style={{ display: 'flex' }}>
+              <UnstyledButton aria-label={t('w.clearFilter')} onClick={() => setStatusFilter(null)} style={{ display: 'flex' }}>
                 <IconX size={11} />
               </UnstyledButton>
             }
           >
-            {STATUS_META[filterStatus].label} only
+            {t('w.statusOnly', { status: STATUS_META[filterStatus].label })}
           </Badge>
         )}
         <Text size="xs" c="var(--viz-text-secondary)" ml="auto" className="viz-num">
-          {rows.length} of {d.rowCount}
+          {t('w.rowsOf', { shown: rows.length, total: d.rowCount })}
         </Text>
       </Group>
       <div className="table-scroll">
         <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + cols.length * 140}>
           <Table.Thead>
             <Table.Tr>
-              {hasStatus && header('_status', 'Status')}
+              {hasStatus && header('_status', t('datasets.status'))}
               {cols.map((c) => header(c, c, numeric(c)))}
             </Table.Tr>
           </Table.Thead>
@@ -395,7 +411,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
                 )}
                 {cols.map((c) => (
                   <Table.Td key={c} ta={numeric(c) ? 'right' : undefined} className={numeric(c) ? 'viz-num' : undefined} style={{ maxWidth: 360, overflowWrap: 'break-word' }}>
-                    {typeof r[c] === 'boolean' ? (r[c] ? 'yes' : 'no') : cellText(r[c])}
+                    {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
                   </Table.Td>
                 ))}
               </Table.Tr>
@@ -404,7 +420,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
               <Table.Tr>
                 <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0)}>
                   <Text size="sm" c="dimmed">
-                    {problems || filterStatus ? 'No matching rows – all good.' : 'No rows.'}
+                    {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -415,7 +431,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
       {rows.length > limit && (
         <Group justify="center" mt={6}>
           <Button size="compact-xs" variant="subtle" onClick={() => setLimit((l) => l + 50)}>
-            Show more ({rows.length - limit} hidden)
+            {t('w.showMore', { count: rows.length - limit })}
           </Button>
         </Group>
       )}
@@ -428,6 +444,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
 // ---------------------------------------------------------------------------
 
 function ChecksWidget({ w }: { w: DashboardWidget }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { refreshMs } = useDashboardCtx();
   const last = useQuery({
     queryKey: ['runs', 'latest', w.process],
@@ -438,16 +455,16 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
   const runId = last.data?.[0]?.id;
   const run = useQuery({ queryKey: ['run', runId], queryFn: () => get<RunDetail>(`/runs/${runId}`), enabled: !!runId, refetchInterval: refreshMs });
   const checks = (run.data?.steps ?? []).filter((s) => s.type === 'check');
-  const title = w.title || run.data?.processName || w.process || 'Checks';
+  const title = w.title || run.data?.processName || w.process || t('widgets.checks.label');
   return (
     <WidgetCard
       title={title}
       subtitle={
         run.data && (
           <>
-            latest run {fmtRelative(run.data.startedAt)} ·{' '}
+            {t('w.latestRun', { when: fmtRelative(run.data.startedAt) })} ·{' '}
             <Anchor component={Link} to={`/runs/${run.data.id}`} size="xs">
-              open
+              {t('w.open')}
             </Anchor>
           </>
         )
@@ -455,27 +472,27 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
       fetching={run.isFetching}
     >
       {!w.process ? (
-        <Text size="sm" c="dimmed">Choose a process for this widget.</Text>
+        <Text size="sm" c="dimmed">{t('w.chooseProcess')}</Text>
       ) : last.data && !runId ? (
-        <Text size="sm" c="dimmed">The process has not run yet.</Text>
+        <Text size="sm" c="dimmed">{t('w.notRunYet')}</Text>
       ) : (
         <Stack gap={6}>
-          {checks.length === 0 && run.data && <Text size="sm" c="dimmed">The latest run has no checks.</Text>}
+          {checks.length === 0 && run.data && <Text size="sm" c="dimmed">{t('w.noChecks')}</Text>}
           {checks.map((c) => {
             const o = (c.output ?? {}) as { passed?: boolean; severity?: string; message?: string };
             const failedStatus: DatasetStatus = o.severity === 'warning' ? 'warning' : o.severity === 'info' ? 'unknown' : 'critical';
             return (
               <Group key={c.id} gap={8} wrap="nowrap" align="flex-start">
                 {o.passed ? (
-                  <IconCircleCheck size={18} color="var(--viz-good)" aria-label="passed" style={{ flexShrink: 0 }} />
+                  <IconCircleCheck size={18} color="var(--viz-good)" aria-label={t('w.passed')} style={{ flexShrink: 0 }} />
                 ) : (
-                  <IconCircleX size={18} color={STATUS_META[failedStatus].color} aria-label="failed" style={{ flexShrink: 0 }} />
+                  <IconCircleX size={18} color={STATUS_META[failedStatus].color} aria-label={t('w.failed')} style={{ flexShrink: 0 }} />
                 )}
                 <div style={{ minWidth: 0 }}>
                   <Text size="sm" c="var(--viz-text-primary)">
                     {c.name}{' '}
                     <Text span size="xs" c="var(--viz-text-secondary)">
-                      {o.passed ? 'passed' : `failed · ${o.severity ?? 'error'}`}
+                      {o.passed ? t('w.passed') : t('w.failedSeverity', { severity: severityLabel(o.severity ?? 'error') })}
                     </Text>
                   </Text>
                   {(o.message || c.error) && (
@@ -498,6 +515,7 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
 // ---------------------------------------------------------------------------
 
 function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const metas = useDatasetMetas();
   const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules') });
   const nextRun = (processId: string) =>
@@ -506,15 +524,15 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
       .map((s) => s.nextRunAt!)
       .sort()[0];
   return (
-    <WidgetCard title={w.title || 'Data freshness'} fetching={metas.isFetching}>
+    <WidgetCard title={w.title || t('widgets.freshness.label')} fetching={metas.isFetching}>
       <div className="table-scroll">
         <Table fz="sm" verticalSpacing={4} miw={520}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Dataset</Table.Th>
-              <Table.Th>Updated</Table.Th>
-              <Table.Th>Source</Table.Th>
-              <Table.Th>Next refresh</Table.Th>
+              <Table.Th>{t('datasets.dataset')}</Table.Th>
+              <Table.Th>{t('datasets.updated')}</Table.Th>
+              <Table.Th>{t('datasets.source')}</Table.Th>
+              <Table.Th>{t('w.nextRefresh')}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -538,19 +556,19 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
                         <Group gap={4}>
                           {m.stale && (
                             <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
-                              stale
+                              {t('datasets.stale')}
                             </Badge>
                           )}
                           {m.dryRun && (
                             <Badge size="xs" color="gray" variant="light" leftSection={<IconFlask size={10} />}>
-                              dry run
+                              {t('common:status.dryrun')}
                             </Badge>
                           )}
                         </Group>
                       </Stack>
                     ) : (
                       <Text size="sm" c="dimmed">
-                        no data
+                        {t('w.noDataShort')}
                       </Text>
                     )}
                   </Table.Td>
@@ -561,7 +579,7 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
                           {m.processName}
                         </Anchor>
                         <Anchor component={Link} to={`/runs/${m.runId}`} size="xs" c="dimmed">
-                          run
+                          {t('w.run')}
                         </Anchor>
                       </Stack>
                     ) : (
@@ -570,7 +588,7 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
                   </Table.Td>
                   <Table.Td className="nowrap">
                     <Text size="sm" c={next ? undefined : 'dimmed'}>
-                      {next ? fmtRelative(next) : 'not scheduled'}
+                      {next ? fmtRelative(next) : t('w.notScheduled')}
                     </Text>
                   </Table.Td>
                 </Table.Tr>
@@ -580,7 +598,7 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
               <Table.Tr>
                 <Table.Td colSpan={4}>
                   <Text size="sm" c="dimmed">
-                    No datasets on this dashboard.
+                    {t('w.noDatasets')}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -595,6 +613,7 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
 // ---------------------------------------------------------------------------
 
 export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: string[] }) {
+  const { t } = useTranslation('dashboards');
   switch (w.type) {
     case 'kpi':
       return <KpiWidget w={w} />;
@@ -618,7 +637,7 @@ export function WidgetView({ w, datasets }: { w: DashboardWidget; datasets: stri
       return (
         <WidgetCard title={w.title}>
           <Text size="sm" c="dimmed">
-            Unknown widget type
+            {t('w.unknownType')}
           </Text>
         </WidgetCard>
       );
