@@ -10,6 +10,7 @@ import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
+import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const qc = useQueryClient();
@@ -18,6 +19,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
   const ssoCount = auth.data?.ssoProviders?.length ?? 0;
   const readOnly = !caps.manageSettings;
+  const publicApi = usePublicApi();
   const [s, setS] = useState<Settings | null>(null);
   useEffect(() => {
     if (settings.data) setS(settings.data);
@@ -113,6 +115,43 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
             {!readOnly && <MaintenanceStatusView />}
           </Stack>
         </Card>
+        {publicApi.data && (
+          <Card withBorder>
+            <Title order={5} mb="sm">
+              REST API
+            </Title>
+            <Stack gap="xs">
+              <PublicApiInfo status={publicApi.data} />
+              {publicApi.data.enabled && (
+                <>
+                  <Text size="sm" fw={500}>
+                    Who can open the API documentation
+                  </Text>
+                  <SegmentedControl
+                    disabled={readOnly || publicApi.data.docsSource === 'env'}
+                    fullWidth
+                    value={publicApi.data.docsSource === 'env' ? publicApi.data.docs : (s.apiDocs ?? 'authenticated')}
+                    onChange={(v) => setS({ ...s, apiDocs: v as Settings['apiDocs'] })}
+                    data={[
+                      { value: 'off', label: 'Off' },
+                      { value: 'authenticated', label: 'Signed-in users' },
+                      { value: 'public', label: 'Public' },
+                    ]}
+                  />
+                  <Text size="xs" c="dimmed">
+                    {publicApi.data.docsSource === 'env' ? (
+                      <>
+                        Set by the environment variable <Code>SM_API_DOCS</Code> on the server.{' '}
+                      </>
+                    ) : null}
+                    Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token
+                    (created on the profile page){publicApi.data.rateLimitPerMinute ? ` and allows ${publicApi.data.rateLimitPerMinute} requests per minute and token` : ''}.
+                  </Text>
+                </>
+              )}
+            </Stack>
+          </Card>
+        )}
         {!readOnly && (
         <Group>
           <Button

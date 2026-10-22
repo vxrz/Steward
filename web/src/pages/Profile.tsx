@@ -25,6 +25,7 @@ import { del, getOptional, notifyError, notifyOk, patch, post } from '../api';
 import { useMe } from '../auth';
 import { Hint, PageHeader } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
+import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ChangePasswordForm } from './Auth';
 import {
   browserNotificationsSupported,
@@ -234,6 +235,9 @@ function TokensCard() {
 
   const list = tokens.data ?? [];
   const host = typeof window !== 'undefined' ? window.location.origin : 'http://<host>';
+  const publicApi = usePublicApi();
+  // The versioned REST API is the stable interface for scripts; fall back to the internal API when it is off.
+  const exampleUrl = `${host}${publicApi.data?.enabled ? `${publicApi.data.basePath}/runs?limit=10` : '/api/runs'}`;
   return (
     <Card withBorder>
       <Group justify="space-between" mb="sm" gap="sm">
@@ -260,10 +264,13 @@ function TokensCard() {
       ) : (
         <ApiTokenTable tokens={list} onRevoke={revoke} />
       )}
-      <Text size="sm" mt="md" mb={4}>
-        Example:
-      </Text>
-      <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer <token>" ${host}/api/runs`}</Code>
+      <Stack gap={4} mt="md">
+        <PublicApiInfo status={publicApi.data} />
+        <Text size="sm" mb={4}>
+          Example (a read-only token is enough):
+        </Text>
+      </Stack>
+      <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer <token>" "${exampleUrl}"`}</Code>
 
       <CreateTokenModal
         opened={createOpen}
@@ -296,7 +303,7 @@ function TokensCard() {
               <Text size="sm" mb={4}>
                 Use it like this:
               </Text>
-              <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer ${created.token}" ${host}/api/runs`}</Code>
+              <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer ${created.token}" "${exampleUrl}"`}</Code>
             </div>
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setCreated(null)}>
