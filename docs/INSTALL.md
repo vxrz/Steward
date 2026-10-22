@@ -52,7 +52,7 @@ npm run build        # web UI
 npm run build:exe    # → dist-exe/service-manager[.exe]
 ```
 
-The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`.
+The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`. A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release. To build without a release, use *Actions → Release → Run workflow* or put `[build-exe]` in a commit message; the files are then attached to the workflow run as artifacts.
 
 ## 2. Installed web app (PWA)
 
