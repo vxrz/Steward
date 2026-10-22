@@ -3,17 +3,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { freshDbEnv } from './pg-env.js';
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-restart-'));
 const port = 40000 + Math.floor(Math.random() * 10000);
 const base = `http://127.0.0.1:${port}`;
 let proc: ChildProcess | undefined;
+const dbEnv = freshDbEnv(); // both starts use the same database
 
 function startServer(): Promise<ChildProcess> {
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: path.join(ROOT, 'server'),
-    env: { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+    env: { ...process.env, ...dbEnv, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   return new Promise((resolve, reject) => {

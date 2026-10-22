@@ -111,6 +111,11 @@ async function main(): Promise<void> {
   const { config } = await import('../config.js');
   if (args.version) return void console.log(config.version);
   if (args.autostart) return void console.log(setAutostart(args.autostart === 'on'));
+  if (inExecutable && config.database.kind !== 'sqlite') {
+    console.error('The desktop executable always uses its built-in SQLite database – PostgreSQL (SM_DATABASE_URL) needs the Node.js or container version. Unset SM_DATABASE_URL.');
+    process.exitCode = 1;
+    return;
+  }
 
   const host = config.host === '0.0.0.0' ? 'localhost' : config.host;
   const url = `${config.tls ? 'https' : 'http'}://${host}:${config.port}`;

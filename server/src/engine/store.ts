@@ -450,7 +450,7 @@ export function listArtifacts(runId: string): RunArtifact[] {
 }
 
 export function artifactFile(id: string): { path: string; mime: string; name: string; runId: string } {
-  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS runId FROM run_artifacts WHERE id = ?', id);
+  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS "runId" FROM run_artifacts WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'Artifact not found');
   return r;
 }

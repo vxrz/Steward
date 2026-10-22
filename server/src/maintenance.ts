@@ -20,7 +20,6 @@ const FINISHED = ['succeeded', 'failed', 'cancelled'];
 const BATCH = 200;
 const DAY_MS = 86400000;
 
-const dbFile = () => path.join(config.dataDir, 'service-manager.db');
 const artifactsDir = () => path.join(config.dataDir, 'artifacts');
 const reportsDir = () => path.join(config.dataDir, 'reports');
 
@@ -50,7 +49,7 @@ function dirSize(dir: string): number {
 export function maintenanceStatus(): MaintenanceStatus {
   const runs = db().get<{ n: number; oldest: string | null }>('SELECT COUNT(*) AS n, MIN(started_at) AS oldest FROM runs')!;
   return {
-    databaseBytes: fileSize(dbFile()) + fileSize(dbFile() + '-wal'),
+    databaseBytes: db().sizeBytes(),
     artifactBytes: dirSize(artifactsDir()),
     runs: runs.n,
     oldestRun: runs.oldest,
@@ -121,7 +120,7 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
     const removed = s.retentionRunDays > 0 ? deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
     const notificationsDeleted = s.retentionNotificationDays > 0 ? deleteReadOlderThan(s.retentionNotificationDays) : 0;
     const result: LastCleanup = { at: new Date(now).toISOString(), runsDeleted: removed.runs, artifactsDeleted: removed.artifacts, notificationsDeleted };
-    if (removed.runs) db().raw.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    if (removed.runs) db().compact();
     writeSetting(LAST_KEY, result);
     if (opts.manual || removed.runs || notificationsDeleted) {
       audit({

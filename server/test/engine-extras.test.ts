@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { freshDbEnv } from './pg-env.js';
 
 let s: TestServer;
 let hub: string;
@@ -454,6 +455,7 @@ describe('sub-process after a restart', () => {
   const base = `http://127.0.0.1:${port}`;
   let proc: ChildProcess | undefined;
   let cookie = '';
+  const dbEnv = freshDbEnv(); // not the in-process test server's database
   afterAll(() => {
     proc?.kill('SIGKILL');
   });
@@ -462,7 +464,7 @@ describe('sub-process after a restart', () => {
     new Promise<ChildProcess>((resolve, reject) => {
       const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
         cwd: path.resolve(__dirname, '..'),
-        env: { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+        env: { ...process.env, ...dbEnv, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let out = '';

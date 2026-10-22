@@ -338,7 +338,7 @@ function syncRolesAndTeams(
     if (!managedTeams.has(key)) continue;
     const member = t.members.some((m) => m.toLowerCase() === username.toLowerCase());
     if (wantedTeams.has(key) && !member) {
-      db().run('INSERT OR IGNORE INTO team_members (team_id, user_id) VALUES (?, ?)', t.id, userId);
+      db().run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING', t.id, userId);
       teamChanges.push(`+${t.name}`);
     } else if (!wantedTeams.has(key) && member) {
       db().run('DELETE FROM team_members WHERE team_id = ? AND user_id = ?', t.id, userId);

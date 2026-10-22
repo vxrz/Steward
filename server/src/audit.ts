@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { db } from './db.js';
+import { likeEscape } from './database/sql.js';
 import { vault } from './vault.js';
 import { canonicalJson, nowIso, parseJson } from './util.js';
 import { currentActor } from './auth/context.js';
@@ -130,8 +131,14 @@ export function queryAudit(f: {
   if (f.runId) (where.push('run_id = ?'), params.push(f.runId));
   if (f.entityType) (where.push('entity_type = ?'), params.push(f.entityType));
   if (f.entityId) (where.push('entity_id = ?'), params.push(f.entityId));
-  if (f.action) (where.push('action LIKE ?'), params.push(f.action + '%'));
-  if (f.q) (where.push('(summary LIKE ? OR actor LIKE ? OR action LIKE ?)'), params.push(`%${f.q}%`, `%${f.q}%`, `%${f.q}%`));
+  // case-insensitive on SQLite and PostgreSQL alike; user input is matched literally
+  const like = (col: string) => `lower(${col}) LIKE lower(?) ESCAPE '\\'`;
+  if (f.action) (where.push(like('action')), params.push(likeEscape(f.action) + '%'));
+  if (f.q) {
+    const q = `%${likeEscape(f.q)}%`;
+    where.push(`(${like('summary')} OR ${like('actor')} OR ${like('action')})`);
+    params.push(q, q, q);
+  }
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
   const sql = `SELECT * FROM audit_log ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY seq DESC LIMIT ?`;
   params.push(Math.min(f.limit ?? 200, 5000));

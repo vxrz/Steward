@@ -19,6 +19,8 @@
     "start": "npm run start -w server",
     "demo": "npm run build && cross-env SM_DEMO=1 npm run start -w server",
     "test": "npm run test -w server",
+    "test:pg": "node scripts/test-pg.mjs",
+    "db:copy": "tsx server/src/cli/db-copy.ts",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p web",
     "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs",
     "validate": "tsx server/src/cli/validate.ts",

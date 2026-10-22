@@ -29,3 +29,31 @@ jobs:
         run: npm run build
       - name: Dependency audit (production dependencies)
         run: npm audit --omit=dev --audit-level=moderate
+
+  test-postgres:
+    # The same test suite on PostgreSQL (every test server gets its own schema)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      SM_TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Tests on PostgreSQL
+        run: npm run test:pg

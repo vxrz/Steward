@@ -9,6 +9,7 @@ import { activeRunIds } from './engine/runner.js';
 import { BRAND } from '@sm/shared';
 import { startNotificationJobs, stopNotificationJobs, flushNotifications } from './notifications/service.js';
 import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
+import { db } from './db.js';
 
 export interface Started {
   url: string;
@@ -25,11 +26,13 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   startNotificationJobs();
   startMaintenanceJobs();
   const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
-  logger.info({ url, dataDir: config.dataDir, demo: config.demo, tracing }, 'service manager started');
+  logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing }, 'service manager started');
 
   if (opts.banner ?? process.stdout.isTTY) {
     console.log(`\n  ${BRAND.name} ${config.version} running at ${url}`);
-    console.log(`  Data directory: ${config.dataDir}${config.demo ? '\n  DEMO MODE: mock platforms available under /mock' : ''}`);
+    console.log(`  Data directory: ${config.dataDir}`);
+    if (db().dialect !== 'sqlite') console.log(`  Database: ${db().label}`);
+    if (config.demo) console.log('  DEMO MODE: mock platforms available under /mock');
     console.log(vault().initialized ? (vault().unlocked ? '  Vault unlocked.' : '  Open the UI to unlock the vault.') : '  Open the UI to set up your master passphrase.');
     console.log('');
   }

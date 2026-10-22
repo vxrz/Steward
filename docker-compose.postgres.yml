@@ -1,0 +1,47 @@
+# Steward with PostgreSQL (e.g. on an internal VM):
+#
+#   echo "STEWARD_DB_PASSWORD=$(openssl rand -hex 24)" > .env
+#   docker compose -f docker-compose.postgres.yml up -d      →   http://localhost:4310
+#
+# The app still needs its data volume: vault file, artifacts, reports and uploaded docs
+# live there. Back up both volumes (see docs/INSTALL.md, "Database").
+services:
+  steward:
+    build: .
+    image: steward:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
+    volumes:
+      - steward-data:/data
+    environment:
+      SM_DATABASE_URL: postgres://steward:${STEWARD_DB_PASSWORD:?set STEWARD_DB_PASSWORD in .env}@postgres:5432/steward
+      # SM_DATABASE_SCHEMA: steward   # default: public
+      SM_ALLOWED_HOSTS: ""
+      # Unattended unlock so schedules run after a restart (use a Docker secret / env file in production)
+      # SM_MASTER_PASSPHRASE: ""
+      # SM_PUBLIC_URL: "https://steward.example.com"
+      SM_LOG_LEVEL: info
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: steward
+      POSTGRES_USER: steward
+      POSTGRES_PASSWORD: ${STEWARD_DB_PASSWORD:?set STEWARD_DB_PASSWORD in .env}
+    volumes:
+      - steward-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U steward -d steward"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # no published port: only the app reaches the database
+
+volumes:
+  steward-data:
+  steward-pg:
