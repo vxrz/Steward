@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ActionIcon, Alert, Anchor, Badge, Button, Center, Collapse, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
-import { IconApi, IconBook, IconDots, IconKey, IconLock, IconPlug, IconPlugConnected, IconSettings, IconTerminal2, IconTrash } from '@tabler/icons-react';
+import { IconApi, IconBook, IconChartLine, IconDots, IconKey, IconLock, IconPlug, IconPlugConnected, IconSettings, IconTerminal2, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AclEntry, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
@@ -18,6 +18,7 @@ import { CredentialsTab } from '../components/platform/CredentialsTab';
 import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
+import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 
 interface TestResult {
   ok: boolean;
@@ -190,6 +191,11 @@ export function PlatformDetailPage() {
               {t('detail.tabs.explorer')}
             </Tabs.Tab>
           )}
+          {p.kind === 'gatus' && (
+            <Tabs.Tab value="metrics" leftSection={<IconChartLine size={16} />}>
+              {t('detail.tabs.metrics')}
+            </Tabs.Tab>
+          )}
           <Tabs.Tab value="access" leftSection={<IconLock size={16} />}>
             {t('detail.tabs.access')}
           </Tabs.Tab>
@@ -217,6 +223,11 @@ export function PlatformDetailPage() {
         <Tabs.Panel value="explorer">
           <ExplorerTab platform={p} preset={explorerPreset} canWrite={canManage} />
         </Tabs.Panel>
+        {p.kind === 'gatus' && (
+          <Tabs.Panel value="metrics">
+            <GatusMetricsTab platform={p} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="access">
           <AccessEditor kind="platform" acl={p.acl} onSave={(acl) => saveAccess(acl)} readOnly={!canManage} />
         </Tabs.Panel>

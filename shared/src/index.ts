@@ -12,3 +12,4 @@ export * from './monitors.js';
 export * from './scrub.js';
 export * from './theme.js';
 export * from './system.js';
+export * from './gatus.js';

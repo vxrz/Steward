@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
+import { mockGatusMetrics } from './mockGatusMetrics.js';
 
 /**
  * Simulated Gatus (https://github.com/TwiN/gatus) for demo mode, mounted at
@@ -11,6 +12,7 @@ import { config } from '../config.js';
  *   GET  /api/v1/endpoints/{key}/response-times/{1h|24h|7d|30d}  text/plain, average in ms
  *   POST /api/v1/endpoints/{key}/external?success=&error=&duration=   Authorization: Bearer <external endpoint token>
  *   GET  /health
+ *   GET  /metrics (Prometheus, see mockGatusMetrics.ts)
  * The status routes are protected with HTTP Basic auth, as with Gatus' `security.basic`;
  * uptime, response-time and external routes are unprotected in Gatus too.
  * Results are ordered oldest → newest; `duration` is in nanoseconds.
@@ -190,6 +192,7 @@ export async function mockGatus(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   app.get('/gatus/health', async () => ({ status: 'UP' }));
+  await mockGatusMetrics(app);
   app.get(`${P}/statuses`, { preHandler: basic }, async (req) => all().map((e) => view(e, req.query as Record<string, string>)));
   app.get(`${P}/:key/statuses`, { preHandler: basic }, async (req, reply) => {
     const e = byKey((req.params as { key: string }).key);

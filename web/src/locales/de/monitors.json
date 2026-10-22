@@ -171,7 +171,14 @@
     "subMonitorHint": "Wird nach eigenem Zeitplan ausgewertet; dieser Knoten zeigt seinen Gesamtstatus",
     "schedule": "Zeitplan und Schwellen",
     "monitorDefault": "Leer: Vorgabe des Monitors",
-    "critical": "Kritisch (ein Ausfall setzt den Monitor auf „ausgefallen“)"
+    "critical": "Kritisch (ein Ausfall setzt den Monitor auf „ausgefallen“)",
+    "gatusSource": "Datenquelle",
+    "gatusSourceHint": "Metriken: der Zustand, den Steward von /metrics in Gatus abruft (Plattform → Metriken). API: die Status-API von Gatus (bei geschütztem Gatus mit Basic Auth).",
+    "gatusSources": {
+      "auto": "Automatisch (Metriken, wenn für die Plattform aktiviert)",
+      "api": "Status-API von Gatus",
+      "metrics": "Abgerufene Metriken"
+    }
   },
   "detail": {
     "template": "Vorlage",

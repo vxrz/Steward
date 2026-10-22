@@ -8,6 +8,7 @@ import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './
 import { REPORT_MIGRATIONS } from './migrations/reports.js';
 import { MONITOR_MIGRATIONS } from './migrations/monitors.js';
 import { SECURITY_MIGRATIONS } from './migrations/security.js';
+import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -18,7 +19,7 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS, ...REPORT_MIGRATIONS, ...TRIGGER_MIGRATIONS, ...MONITOR_MIGRATIONS, ...SECURITY_MIGRATIONS];
+const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS, ...REPORT_MIGRATIONS, ...TRIGGER_MIGRATIONS, ...MONITOR_MIGRATIONS, ...SECURITY_MIGRATIONS, ...GATUS_MIGRATIONS];
 
 const MIGRATIONS: string[] = [
   `

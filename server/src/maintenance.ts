@@ -8,6 +8,7 @@ import { logger } from './log.js';
 import { getSettings, readSetting, writeSetting } from './settings.js';
 import { deleteReadOlderThan } from './notifications/store.js';
 import { deleteMonitorDataBefore } from './monitors/retention.js';
+import { pruneGatusData } from './gatus/metrics.js';
 
 /**
  * Retention: removes finished runs (with steps, logs, tasks and artifacts) and
@@ -124,6 +125,13 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
     const notificationsDeleted = s.retentionNotificationDays > 0 ? deleteReadOlderThan(s.retentionNotificationDays) : 0;
     const monitorDays = s.retentionMonitorDays ?? 30;
     const monitorData = monitorDays > 0 ? deleteMonitorDataBefore(new Date(now - monitorDays * DAY_MS).toISOString()) : null;
+    // Gatus metrics: per source (rawRetentionDays / retentionDays)
+    let gatusData: ReturnType<typeof pruneGatusData> | null = null;
+    try {
+      gatusData = pruneGatusData(now);
+    } catch (err) {
+      logger.warn({ err }, 'Gatus metrics retention failed');
+    }
     const result: LastCleanup = { at: new Date(now).toISOString(), runsDeleted: removed.runs, artifactsDeleted: removed.artifacts, notificationsDeleted };
     if (removed.runs) db().compact();
     writeSetting(LAST_KEY, result);
@@ -133,7 +141,7 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
         action: 'maintenance.cleanup',
         entityType: 'maintenance',
         summary: `Cleanup: ${removed.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
-        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays, retentionMonitorDays: monitorDays, monitorData },
+        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays, retentionMonitorDays: monitorDays, monitorData, gatusData },
       });
     }
     logger.info(result, 'maintenance cleanup finished');
