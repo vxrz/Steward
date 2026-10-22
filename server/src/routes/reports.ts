@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
 import { audit, verifyAudit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
+import { getUser } from '../auth/users.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -57,7 +58,16 @@ function requireReportAccess(rec: ReportRecord): void {
 }
 
 const langSchema = z.enum(REPORT_LANGS).optional();
-const userLocale = (): string | undefined => (currentUser() as (AuthUser & { locale?: string }) | null)?.locale;
+/** Report language when the request names none: the requesting user's language (profile), else English. */
+const userLocale = (): string | undefined => {
+  const u = currentUser();
+  if (!u) return undefined;
+  try {
+    return getUser(u.id).locale ?? undefined;
+  } catch {
+    return undefined; // e.g. a user deleted while the request ran
+  }
+};
 
 const runReportBody = z.object({
   lang: langSchema,

@@ -178,6 +178,23 @@ describe('notifications in the recipient language', () => {
   });
 });
 
+describe('PDF report language', () => {
+  it('follows the requesting user’s language unless the request names one', async () => {
+    const runId = await startApproval();
+    await olivia('PATCH', '/me', { locale: 'de' });
+    try {
+      const fromProfile = (await olivia('POST', `/runs/${runId}/reports`, {})) as { lang: string };
+      expect(fromProfile.lang).toBe('de');
+      const explicit = (await olivia('POST', `/runs/${runId}/reports`, { lang: 'en' })) as { lang: string };
+      expect(explicit.lang).toBe('en');
+    } finally {
+      await olivia('PATCH', '/me', { locale: null });
+    }
+    const unset = (await olivia('POST', `/runs/${runId}/reports`, {})) as { lang: string };
+    expect(unset.lang).toBe('en');
+  });
+});
+
 describe('server message catalog', () => {
   it('translates with plurals, placeholders and English fallback', async () => {
     const { t, resolveLocale } = await import('../src/i18n/index.js');
