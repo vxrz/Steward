@@ -138,6 +138,41 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - Size on the *Settings → Maintenance* page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
 
+## Resetting a demo and recovering access
+
+### Start a demo from scratch
+
+A Steward installation is its data folder. To start over, stop Steward, delete (or rename) the folder and start again: you get the first-start screen (new master passphrase, new admin) and can load the demo platforms and processes again. This also deletes all processes, runs, the vault and the audit log of that folder.
+
+| Started with | Data folder |
+| --- | --- |
+| `npm run demo` / `npm run dev:demo` | `data/` in the project folder (or `SM_DATA_DIR`) |
+| Desktop executable, Windows | `%LOCALAPPDATA%\steward` |
+| Desktop executable, macOS | `~/Library/Application Support/steward` |
+| Desktop executable, Linux | `~/.local/share/steward` (or `$XDG_DATA_HOME/steward`) |
+| Container | the `sm-data` volume: `docker compose down -v` |
+
+Keep demos in their own folder so they never mix with real data: `steward --demo --data-dir ~/steward-demo` or `SM_DATA_DIR=./demo-data npm run demo`. With PostgreSQL, the data lives in the database schema (`SM_DATABASE_URL`/`SM_DATABASE_SCHEMA`): use a separate schema for demos.
+
+### Forgotten administrator password
+
+The recovery command sets a one-time password for a local account on the server itself. It needs access to the data folder **and** the master passphrase, so it gives no more than someone who can already unlock the vault. Steward must be stopped (the command refuses otherwise). It signs out all sessions of the account, and the next sign-in asks for a new password. The reset is written to the audit log with the operating-system account that ran it (`cli:<user>@<host>`).
+
+```bash
+steward admin list-admins                      # which administrator accounts exist
+steward admin reset-password admin             # prompts for the master passphrase
+steward admin reset-password alice --activate  # also reactivates a deactivated account
+npm run admin -- reset-password admin          # from the source tree
+```
+
+In the container: `docker compose stop steward && docker compose run --rm steward node --import tsx server/src/cli/admin.ts reset-password admin`, then start it again.
+
+The passphrase comes from `SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `--passphrase-stdin` or a prompt. Run `steward admin --help` for all options; `--json` gives machine-readable output.
+
+Without the master passphrase nothing can be recovered: the credentials and the audit key are encrypted with it. Start from scratch as above and set up the platforms again.
+
+Accounts that sign in with single sign-on have no password. If the identity provider is unavailable, reset the password of a local administrator account (keep one as a break-glass account, see [SECURITY-HARDENING.md](SECURITY-HARDENING.md)).
+
 ## Health and readiness
 
 Every installation answers two public endpoints, without signing in:

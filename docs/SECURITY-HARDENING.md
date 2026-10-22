@@ -25,7 +25,7 @@ Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#n
 
 ## Sign-in
 
-- **Single sign-on** (Entra ID / OIDC) with your company's MFA. Then set *Settings → Sign-in → Only administrators* so that ordinary users cannot fall back to passwords. Keep one or two local break-glass administrator accounts with long passwords in the company password manager.
+- **Single sign-on** (Entra ID / OIDC) with your company's MFA. Then set *Settings → Sign-in → Only administrators* so that ordinary users cannot fall back to passwords. Keep one or two local break-glass administrator accounts with long passwords in the company password manager. If their passwords are lost too, `steward admin reset-password` on the server sets a one-time password (needs the data folder and the master passphrase, audited; see [INSTALL.md](INSTALL.md#forgotten-administrator-password)).
 - Map roles from IdP groups (`requireMapping` for production) – leavers lose access when the IdP account is disabled.
 - Sessions are bound to a per-session key in the browser (origin-isolated `localStorage`), not only to the cookie. Scripts use API tokens (`Authorization: Bearer smt_…`), never copied cookies.
 - Failed sign-ins are rate-limited per account, per account and address, and per address, and audited in bounded form (see [PRIVACY.md](PRIVACY.md)).

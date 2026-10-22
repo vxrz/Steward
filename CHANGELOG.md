@@ -10,6 +10,8 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Added
 
+- **Account recovery:** `steward admin list-admins` and `steward admin reset-password <user> [--activate]` (also `npm run admin`) set a one-time password on the server. They need the data folder and the master passphrase, refuse while Steward is running, sign out the account's sessions and are audited. Docs on resetting a demo instance.
+
 **Processes and engine**
 
 - Node-RED-style flow editor with a node palette, labelled outputs and YAML source view.

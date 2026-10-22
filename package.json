@@ -29,6 +29,7 @@
     "build:exe": "node scripts/build-exe.mjs",
     "desktop": "tsx server/src/desktop/launcher.ts",
     "contract": "tsx server/src/cli/contract.ts",
+    "admin": "tsx server/src/cli/admin.ts",
     "audit:verify-export": "tsx server/src/cli/audit-verify-export.ts",
     "i18n:check": "node scripts/i18n-check.mjs"
   },

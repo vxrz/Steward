@@ -138,6 +138,7 @@ Retention of runs and notifications, and the notification channels, are set unde
 - **Schedules.** A schedule runs with the rights of its owner (the person who created it). If the owner loses the rights or is deactivated, the run is skipped and recorded in the audit log.
 - **Webhook triggers** follow the same rules as schedules: creating one needs run rights on the process, runs use the owner's rights (checked on every call), and the owner, an admin or a process manager can change it.
 - New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
+- Forgotten admin password: `steward admin reset-password <user>` on the server (needs the master passphrase; audited). To reset a demo, delete its data folder. See [docs/INSTALL.md](docs/INSTALL.md#resetting-a-demo-and-recovering-access).
 
 ### Single sign-on (Microsoft Entra ID / OpenID Connect)
 

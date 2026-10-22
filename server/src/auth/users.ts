@@ -207,6 +207,35 @@ export function resetPassword(id: string): string {
   return temp;
 }
 
+/**
+ * Recovery on the server (`steward admin reset-password`): a one-time password for a local account,
+ * optionally reactivating it. The caller has unlocked the vault with the master passphrase.
+ */
+export function recoverAccount(id: string, opts: { actor: string; activate?: boolean }): string {
+  const u = getUser(id);
+  if (u.authSource !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
+  const temp = temporaryPassword();
+  const reactivate = !u.active && !!opts.activate;
+  db().tx(() => {
+    db().run(
+      `UPDATE users SET password_hash = ?, must_change_password = 1${reactivate ? ', active = 1' : ''}, updated_at = ? WHERE id = ?`,
+      hashPassword(temp),
+      nowIso(),
+      id,
+    );
+    db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    audit({
+      actor: opts.actor,
+      action: 'user.password_reset',
+      entityType: 'user',
+      entityId: id,
+      summary: `Password of "${u.username}" reset with the recovery command on the server${reactivate ? ' and the account reactivated' : ''}`,
+      details: { via: 'cli', reactivated: reactivate },
+    });
+  });
+  return temp;
+}
+
 /** Changes the own password and signs out all other sessions of the user (keepSession: the current session cookie). */
 export async function changePassword(id: string, current: string, next: string, keepSession?: string): Promise<void> {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
