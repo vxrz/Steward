@@ -488,7 +488,7 @@ describe('dependencies', () => {
     const n = (await olivia('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`));
     expect(n.map((x: any) => `${x.title} | ${x.body}`)).toHaveLength(1);
     expect(n[0].title).toBe('Down: Machine 99 – PowerMeter');
-    expect(n[0].body).toMatch(/Root cause: Machine 99 – PowerMeter › PowerMeter reachable/);
+    expect(n[0].body).toMatch(/^Root cause: PowerMeter reachable\. /);
     expect((await dana('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`))).toHaveLength(1);
     // evaluating again does not notify again
     await eng.evaluateMonitorNow(mon.id);

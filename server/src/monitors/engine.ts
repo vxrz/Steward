@@ -505,7 +505,12 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
   const maint = !!activeMaintenance(mid, now);
   const subRoots = (c: CheckDef): CauseRef[] =>
     c.type === 'monitor' ? parseCauses(db().get<{ root_causes: string }>('SELECT root_causes FROM monitor_state WHERE monitor_id = ?', c.monitor)?.root_causes) : [];
-  const a = analyze(m, statuses, { maintenance: maint, subRoots });
+  const pendingDown = new Set(
+    enabledChecks
+      .filter((c) => statuses.get(c.id) !== 'down' && parseJson<{ status?: string } | null>(rows.get(c.id)?.last_result, null)?.status === 'down')
+      .map((c) => c.id),
+  );
+  const a = analyze(m, statuses, { maintenance: maint, subRoots, pendingDown });
   if (!m.enabled) a.status = 'unknown';
   const ts = iso(now);
   const prev = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', mid);

@@ -131,6 +131,7 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
       if (statuses && !statuses.includes(e.status)) quiet = 'status not selected';
       else if (peopleFacing(o) && (ctx.maintenance || e.status === 'maintenance')) quiet = 'maintenance window';
       else if (peopleFacing(o) && e.status === 'up' && prev !== 'down' && prev !== 'degraded') quiet = 'nothing to recover from';
+      else if (peopleFacing(o) && e.status === 'degraded' && prev === null) quiet = 'first status';
       else if (peopleFacing(o) && !statuses && (e.status === 'unknown' || e.status === 'blocked')) quiet = 'not a confirmed problem';
       else if (peopleFacing(o) && ctx.acknowledged && e.status !== 'up') quiet = 'acknowledged';
       else if (e.level === 'check' && suppressOf(o) && s.dependent) quiet = 'caused by a failing parent';
@@ -255,7 +256,7 @@ function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: L
       blocked: `Blocked: ${where}`,
       maintenance: `Maintenance: ${where}`,
     };
-    const roots = e.causedBy.length ? `Root cause: ${e.causedBy.map(causeText).join(', ')}. ` : '';
+    const roots = e.causedBy.length ? `Root cause: ${e.causedBy.map((c) => (c.monitorId === m.id ? c.checkName : causeText(c))).join(', ')}. ` : '';
     notify({
       event: 'monitor.status',
       title: titles[e.status],

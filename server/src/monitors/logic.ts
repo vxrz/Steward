@@ -117,7 +117,8 @@ const affected = (s: MonitorStatus | undefined) => s === 'down' || s === 'blocke
 export function analyze(
   monitor: { id: string; key: string; name: string; def: MonitorDefinition },
   statuses: Map<string, MonitorStatus>,
-  opts: { maintenance?: boolean; subRoots?: (check: CheckDef) => CauseRef[] } = {},
+  /** pendingDown: checks whose latest result failed but that are not confirmed down yet (they still explain their children) */
+  opts: { maintenance?: boolean; subRoots?: (check: CheckDef) => CauseRef[]; pendingDown?: Set<string> } = {},
 ): Analysis {
   const checks = monitor.def.checks.filter((c) => c.enabled !== false);
   const byId = new Map(checks.map((c) => [c.id, c]));
@@ -128,6 +129,8 @@ export function analyze(
     parents.set(l.to, [...(parents.get(l.to) ?? []), l.from]);
     children.set(l.from, [...(children.get(l.from) ?? []), l.to]);
   }
+  const pending = opts.pendingDown ?? new Set<string>();
+  const fails = (id: string) => failing(statuses.get(id)) || pending.has(id);
   const ref = (c: CheckDef): CauseRef[] => {
     const sub = c.type === 'monitor' ? (opts.subRoots?.(c) ?? []) : [];
     return sub.length ? sub : [{ monitorId: monitor.id, monitorKey: monitor.key, monitorName: monitor.name, checkId: c.id, checkName: c.name }];
@@ -137,9 +140,9 @@ export function analyze(
   const roots = (id: string, path: Set<string>): CauseRef[] => {
     const hit = memo.get(id);
     if (hit) return hit;
-    const fp = (parents.get(id) ?? []).filter((p) => failing(statuses.get(p)) && !path.has(p));
+    const fp = (parents.get(id) ?? []).filter((p) => fails(p) && !path.has(p));
     let out: CauseRef[];
-    if (!fp.length) out = statuses.get(id) === 'down' ? ref(byId.get(id)!) : [];
+    if (!fp.length) out = statuses.get(id) === 'down' || pending.has(id) ? ref(byId.get(id)!) : [];
     else {
       const next = new Set(path).add(id);
       out = dedupe(fp.flatMap((p) => roots(p, next)));
@@ -153,7 +156,7 @@ export function analyze(
     const s = statuses.get(c.id) ?? 'unknown';
     let causedBy: CauseRef[] = [];
     if (affected(s)) {
-      const fp = (parents.get(c.id) ?? []).filter((p) => failing(statuses.get(p)));
+      const fp = (parents.get(c.id) ?? []).filter((p) => fails(p));
       if (fp.length) causedBy = dedupe(fp.flatMap((p) => roots(p, new Set([c.id]))));
     }
     let note: string | null = null;
@@ -188,10 +191,11 @@ export function analyze(
   } else {
     status = worstStatus(checks.map(effective).map((s) => (s === 'blocked' ? 'down' : s)));
   }
+  // every failing check is explained by its causes, or is a root cause itself
   const rootCauses = dedupe(
     checks
-      .filter((c) => views.get(c.id)!.status === 'down' && !views.get(c.id)!.causedBy.length)
-      .flatMap(ref),
+      .filter((c) => views.get(c.id)!.status === 'down')
+      .flatMap((c) => (views.get(c.id)!.causedBy.length ? views.get(c.id)!.causedBy : ref(c))),
   );
   if (opts.maintenance) status = 'maintenance';
   return { checks: views, status, rootCauses };

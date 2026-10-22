@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Group, Paper, Select, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
-import { PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
+import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
 import { get } from '../api';
 
 const PERMISSION_HELP: Record<string, string> = {
@@ -12,10 +12,11 @@ const PERMISSION_HELP: Record<string, string> = {
   approve: 'Decide approvals and user tasks',
   manage: 'Change access, archive (processes) · change configuration, credentials and access, write calls in the explorer (platforms)',
   use: 'Use the platform in runs and schedules, read-only explorer calls',
+  acknowledge: 'Acknowledge problems and plan maintenance windows (monitors)',
 };
 
 export interface AccessEditorProps {
-  kind: 'process' | 'platform';
+  kind: 'process' | 'platform' | 'monitor';
   acl: AclEntry[];
   /** Process owner (user name) – the owner always has all rights. */
   owner?: string | null;
@@ -26,7 +27,8 @@ export interface AccessEditorProps {
 /** Edit an access list: subjects (users, teams, roles) with permissions. */
 export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEditorProps) {
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects') });
-  const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : PLATFORM_PERMISSIONS;
+  const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : PLATFORM_PERMISSIONS;
+  const owned = kind !== 'platform';
   const [rows, setRows] = useState<AclEntry[]>(acl);
   const [own, setOwn] = useState<string | null>(owner ?? null);
   const [draft, setDraft] = useState('');
@@ -44,7 +46,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
   const add = () => {
     const v = draft.trim().toLowerCase();
     if (!/^(user|team|role):.+/.test(v) || rows.some((r) => r.subject === v)) return;
-    setRows([...rows, { subject: v, permissions: kind === 'process' ? ['view'] : ['use'] }]);
+    setRows([...rows, { subject: v, permissions: kind === 'platform' ? ['use'] : ['view'] }]);
     setDraft('');
   };
 
@@ -61,22 +63,22 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
         <Text size="sm">
           {rows.length ? (
             <>
-              <b>Restricted:</b> only the subjects below get the listed rights{kind === 'process' ? ', plus administrators and the owner' : ', plus administrators'}.
+              <b>Restricted:</b> only the subjects below get the listed rights{owned ? ', plus administrators and the owner' : ', plus administrators'}.
               Auditors can always read.
             </>
           ) : (
             <>
-              <b>Default role rights apply</b> (e.g. {kind === 'process' ? 'designers edit & run, operators run, approvers decide, viewers read' : 'designers and operators may use it, only administrators manage it'}).
+              <b>Default role rights apply</b> (e.g. {kind === 'process' ? 'designers edit & run, operators run, approvers decide, viewers read' : kind === 'monitor' ? 'designers edit, operators acknowledge, everyone else reads' : 'designers and operators may use it, only administrators manage it'}).
               Add entries to restrict access to specific users, teams or roles.
             </>
           )}
         </Text>
       </Alert>
 
-      {kind === 'process' && (
+      {owned && (
         <Select
           label="Owner"
-          description="The owner always has all rights on this process."
+          description={kind === 'monitor' ? 'The owner always has all rights on this monitor and is notified about it.' : 'The owner always has all rights on this process.'}
           data={users}
           value={own}
           onChange={setOwn}
@@ -189,7 +191,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
             onClick={async () => {
               setBusy(true);
               try {
-                await onSave(rows, kind === 'process' ? own : undefined);
+                await onSave(rows, owned ? own : undefined);
               } finally {
                 setBusy(false);
               }
