@@ -583,6 +583,8 @@ export interface Settings {
   retentionRunDays: number;
   /** Delete read notifications older than this many days */
   retentionNotificationDays: number;
+  /** Keep monitor status history, hourly samples and recent results this many days (default 30) */
+  retentionMonitorDays: number;
   browserTimeoutMs: number;
   /** Who may open the public API documentation (Swagger UI) and its OpenAPI document. SM_API_DOCS overrides it. */
   apiDocs: ApiDocsMode;
