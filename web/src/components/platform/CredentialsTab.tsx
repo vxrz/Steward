@@ -9,7 +9,7 @@ import { requiredSecrets } from './SettingsTab';
 
 const COMMON_KEYS = ['clientId', 'clientSecret', 'username', 'password', 'token', 'apiKey'];
 
-export function CredentialsTab({ platform }: { platform: Platform }) {
+export function CredentialsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
   const qc = useQueryClient();
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
@@ -86,7 +86,7 @@ export function CredentialsTab({ platform }: { platform: Platform }) {
                     </Table.Td>
                     <Table.Td c="dimmed">••••••••</Table.Td>
                     <Table.Td w={90}>
-                      <Group gap={4} wrap="nowrap" justify="flex-end">
+                      {!readOnly && <Group gap={4} wrap="nowrap" justify="flex-end">
                         <Tooltip label="Replace">
                           <ActionIcon
                             variant="subtle"
@@ -104,7 +104,7 @@ export function CredentialsTab({ platform }: { platform: Platform }) {
                             <IconTrash size={16} />
                           </ActionIcon>
                         </Tooltip>
-                      </Group>
+                      </Group>}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -113,6 +113,9 @@ export function CredentialsTab({ platform }: { platform: Platform }) {
           </div>
         )}
       </Paper>
+      {readOnly ? (
+        <Text size="sm" c="dimmed">Only users who may manage this platform can change credentials.</Text>
+      ) : (
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
           Add or replace a secret
@@ -141,6 +144,7 @@ export function CredentialsTab({ platform }: { platform: Platform }) {
           </Stack>
         </form>
       </Paper>
+      )}
       <Modal opened={!!removing} onClose={() => setRemoving(null)} title="Remove secret">
         <Text size="sm">
           Remove the secret <strong>{removing}</strong>? Processes using it will fail until it is set again.

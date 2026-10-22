@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import YAML from 'yaml';
 import {
   ActionIcon,
@@ -12,13 +13,15 @@ import {
   SimpleGrid,
   Stack,
   Switch,
+  TagsInput,
   Text,
   TextInput,
   Textarea,
 } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
-import { BROWSER_ACTIONS, HTTP_METHODS, type BrowserAction, type Column, type ConnectionSlot, type FieldMeta, type Paginate } from '@sm/shared';
+import { BROWSER_ACTIONS, HTTP_METHODS, type BrowserAction, type Column, type ConnectionSlot, type FieldMeta, type Paginate, type Subject } from '@sm/shared';
 import { KeyValueEditor } from '../common';
+import { get } from '../../api';
 
 export const EXPR_HINT = 'JSONata expression, e.g. vars.users.body[active]';
 
@@ -134,7 +137,7 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return (
         <Select
           label={label}
-          description={description ?? (connections.length ? undefined : 'Declare connections in the "Connections" tab first')}
+          description={description ?? (connections.length ? undefined : 'Declare connections in the "Settings" tab first')}
           data={connections.map((c) => ({ value: c.slot, label: c.kind ? `${c.slot} (${c.kind})` : c.slot }))}
           clearable={!field.required}
           value={(value as string) ?? null}
@@ -167,6 +170,8 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return <StatusListField label={label} description={description} value={value as number[] | undefined} onChange={onChange} />;
     case 'actions':
       return <ActionsEditor value={(value as BrowserAction[] | undefined) ?? []} onChange={onChange} />;
+    case 'subjects':
+      return <SubjectsField label={label} description={description} value={value as string[] | undefined} onChange={onChange} />;
     default:
       return null;
   }
@@ -177,14 +182,26 @@ function JsonField({ label, description, value, onChange }: { label: React.React
   const toText = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : YAML.stringify(v, { lineWidth: 0 }).trimEnd());
   const [text, setText] = useState(() => toText(value));
   const [error, setError] = useState<string | null>(null);
+  const committed = useRef(value);
+  // pick up values set from elsewhere (e.g. "Insert example body")
+  useEffect(() => {
+    if (JSON.stringify(value) !== JSON.stringify(committed.current)) {
+      committed.current = value;
+      setText(toText(value));
+      setError(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
   const commit = () => {
     if (!text.trim()) {
       setError(null);
+      committed.current = undefined;
       return onChange(undefined);
     }
     try {
       const parsed = YAML.parse(text);
       setError(null);
+      committed.current = parsed;
       onChange(parsed);
     } catch (e) {
       setError((e as Error).message.split('\n')[0] ?? 'Invalid YAML/JSON');
@@ -209,6 +226,13 @@ function JsonField({ label, description, value, onChange }: { label: React.React
 
 function StatusListField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value?: number[]; onChange: (v: unknown) => void }) {
   const [text, setText] = useState(() => (value ?? []).join(', '));
+  const committed = useRef(value);
+  useEffect(() => {
+    if (JSON.stringify(value) !== JSON.stringify(committed.current)) {
+      committed.current = value;
+      setText((value ?? []).join(', '));
+    }
+  }, [value]);
   return (
     <TextInput
       label={label}
@@ -222,7 +246,8 @@ function StatusListField({ label, description, value, onChange }: { label: React
           .split(/[,\s]+/)
           .map((x) => Number(x))
           .filter((n) => Number.isInteger(n) && n >= 100 && n < 600);
-        onChange(nums.length ? nums : undefined);
+        committed.current = nums.length ? nums : undefined;
+        onChange(committed.current);
       }}
     />
   );
@@ -450,5 +475,34 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
         </Group>
       </Stack>
     </Box>
+  );
+}
+
+/** Users, teams and roles (suggestions from /api/subjects; free text allowed). */
+function SubjectsField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value?: string[]; onChange: (v: unknown) => void }) {
+  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects'), retry: false, staleTime: 60000 });
+  const labels = new Map((subjects.data ?? []).map((s) => [s.value, s.label]));
+  return (
+    <TagsInput
+      label={label}
+      description={description}
+      placeholder="user:alice, team:service-desk, role:approver"
+      splitChars={[',', ' ']}
+      data={(subjects.data ?? []).map((s) => s.value)}
+      renderOption={({ option }) => (
+        <div>
+          <Text size="xs" className="mono">
+            {option.value}
+          </Text>
+          {labels.get(option.value) && labels.get(option.value) !== option.value && (
+            <Text size="10px" c="dimmed">
+              {labels.get(option.value)}
+            </Text>
+          )}
+        </div>
+      )}
+      value={value ?? []}
+      onChange={(v) => onChange(v.length ? v : undefined)}
+    />
   );
 }

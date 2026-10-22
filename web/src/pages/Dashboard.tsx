@@ -7,15 +7,27 @@ import { get, notifyError, notifyOk, post } from '../api';
 import { PageHeader } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { fmtDate, fmtRelative } from '../format';
+import { useMe } from '../auth';
+import { useState } from 'react';
 
 export function DashboardPage({ demo }: { demo: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const d = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
+  const { isAdmin } = useMe();
+  const [demoAccounts, setDemoAccounts] = useState<{ users: string[]; password: string } | null>(null);
   const data = d.data;
   return (
     <>
       <PageHeader title="Dashboard" description="What needs your attention, what is running and what is planned." />
+      {demoAccounts && (
+        <Alert color="yellow" title="Demo accounts created" mb="md" withCloseButton onClose={() => setDemoAccounts(null)}>
+          <Text size="sm">
+            Sign in as <b>{demoAccounts.users.join(', ')}</b> with the password <code>{demoAccounts.password}</code> to see the roles in action
+            (dana = designer, olivia = operator, adam = approver, audrey = auditor, vera = viewer; olivia and adam form the team “Service Desk”).
+          </Text>
+        </Alert>
+      )}
       {data && data.counts.platforms === 0 && (
         <Alert icon={<IconRocket />} title="Get started" mb="md">
           <Stack gap="xs">
@@ -26,14 +38,15 @@ export function DashboardPage({ demo }: { demo: boolean }) {
               <br />
               3. Run it (start with a dry run) or <Anchor component={Link} to="/schedules">schedule</Anchor> it.
             </Text>
-            {demo && (
+            {demo && isAdmin && (
               <Group>
                 <Button
                   size="xs"
                   onClick={async () => {
                     try {
-                      const r = await post<{ platforms: number; processes: number }>('/demo/setup');
+                      const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup');
                       notifyOk(`Loaded ${r.platforms} demo platforms and ${r.processes} processes`);
+                      setDemoAccounts({ users: r.users, password: r.password });
                       qc.invalidateQueries();
                     } catch (e) {
                       notifyError(e);

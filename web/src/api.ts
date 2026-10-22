@@ -5,20 +5,23 @@ export class ApiError extends Error {
     public status: number,
     message: string,
     public issues?: { path: string; message: string }[],
+    public code?: string,
   ) {
     super(message);
   }
 }
 
-let onLocked: (() => void) | undefined;
-export function setLockedHandler(fn: () => void): void {
-  onLocked = fn;
+/** Called when the session/auth state changes (signed out, password change required, vault locked). */
+let onAuthChange: (() => void) | undefined;
+export function setAuthChangeHandler(fn: () => void): void {
+  onAuthChange = fn;
 }
 
 export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData;
   const res = await fetch('/api' + url, {
     method,
+    credentials: 'same-origin',
     headers: {
       'x-sm-client': '1',
       ...(body !== undefined && !isForm ? { 'content-type': 'application/json' } : {}),
@@ -35,9 +38,9 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     }
   }
   if (!res.ok) {
-    if (res.status === 423) onLocked?.();
-    const d = data as { error?: string; issues?: { path: string; message: string }[] } | null;
-    throw new ApiError(res.status, d?.error ?? `HTTP ${res.status}`, d?.issues);
+    const d = data as { error?: string; code?: string; issues?: { path: string; message: string }[] } | null;
+    if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
+    throw new ApiError(res.status, d?.error ?? `HTTP ${res.status}`, d?.issues, d?.code);
   }
   return data as T;
 }

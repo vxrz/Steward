@@ -58,7 +58,7 @@ export function SchedulesPage() {
     <>
       <PageHeader
         title="Schedules"
-        description="Plan processes to run automatically (e.g. weekly health checks, quarterly access reviews). Scheduled runs that need a decision wait in My tasks."
+        description="Plan processes to run automatically (e.g. weekly health checks, quarterly access reviews). Scheduled runs use the rights of the schedule's owner; runs that need a decision wait in My tasks."
         actions={
           <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft())}>
             New schedule
@@ -83,7 +83,13 @@ export function SchedulesPage() {
               {schedules.data.map((s) => (
                 <Table.Tr key={s.id}>
                   <Table.Td>
-                    <Switch size="xs" checked={s.enabled} onChange={(e) => save({ ...s, enabled: e.currentTarget.checked })} aria-label="Enabled" />
+                    <Switch
+                      size="xs"
+                      checked={s.enabled}
+                      disabled={!s.canEdit}
+                      onChange={(e) => save({ ...s, enabled: e.currentTarget.checked })}
+                      aria-label="Enabled"
+                    />
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
@@ -91,6 +97,7 @@ export function SchedulesPage() {
                     </Text>
                     <Text size="xs" c="dimmed">
                       <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
+                      {s.owner && ` · runs as ${s.owner}`}
                       {s.dryRun && (
                         <Badge ml={4} size="xs" color="yellow" variant="light">
                           dry run
@@ -133,9 +140,12 @@ export function SchedulesPage() {
                           <IconPlayerPlay size={16} />
                         </ActionIcon>
                       </Tooltip>
+                      {s.canEdit && (
                       <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label="Edit">
                         <IconEdit size={16} />
                       </ActionIcon>
+                      )}
+                      {s.canEdit && (
                       <ActionIcon
                         variant="subtle"
                         color="red"
@@ -148,6 +158,7 @@ export function SchedulesPage() {
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
+                      )}
                     </Group>
                   </Table.Td>
                 </Table.Tr>
@@ -206,7 +217,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           label="Process"
           required
           searchable
-          data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+          data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
           value={d.processId || null}
           onChange={(v) => setD({ ...d, processId: v ?? '', inputs: {}, bindings: {} })}
         />
@@ -249,6 +260,10 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           </>
         )}
         <Divider />
+        <Text size="xs" c="dimmed">
+          Scheduled runs execute with the rights of {draft.owner ? <b>{draft.owner}</b> : 'you (the owner)'}; they are skipped and logged if the owner loses
+          access to the process or a platform.
+        </Text>
         <Switch label="Enabled" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Switch label="Dry run (simulate changes)" checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
         <Switch

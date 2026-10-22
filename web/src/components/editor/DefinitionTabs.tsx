@@ -47,7 +47,7 @@ function strip<T extends object>(o: T): T {
 
 export function GeneralPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
   return (
-    <Stack maw={720}>
+    <Stack>
       <TextInput label="Name" required value={def.name} onChange={(e) => onChange({ ...def, name: e.currentTarget.value })} />
       <Textarea
         label="Description"
@@ -295,7 +295,8 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        The complete process definition as YAML. Edit and click "Apply to editor"; save afterwards to create a new version.
+        The complete process definition as YAML (nodes + wires). You can also paste the compact sequential format (<Code>steps:</Code> with nested
+        loops and branches) – it is converted into a flow. Click "Apply to editor", then save to create a new version.
       </Text>
       <Textarea autosize minRows={16} maxRows={60} classNames={{ input: 'mono' }} value={text} onChange={(e) => setText(e.currentTarget.value)} spellCheck={false} />
       {issues && issues.length > 0 && (

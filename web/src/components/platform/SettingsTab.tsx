@@ -55,7 +55,7 @@ export function requiredSecrets(auth: AuthConfig | undefined): string[] {
   }
 }
 
-export function SettingsTab({ platform }: { platform: Platform }) {
+export function SettingsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
   const qc = useQueryClient();
   const [name, setName] = useState(platform.name);
   const [kind, setKind] = useState(platform.kind);
@@ -116,6 +116,7 @@ export function SettingsTab({ platform }: { platform: Platform }) {
   };
 
   return (
+    <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <Stack>
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
@@ -362,12 +363,17 @@ export function SettingsTab({ platform }: { platform: Platform }) {
         </Stack>
       </Paper>
 
-      <Divider />
-      <Group justify="flex-end">
-        <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!name.trim()}>
-          Save settings
-        </Button>
-      </Group>
+      {!readOnly && (
+        <>
+          <Divider />
+          <Group justify="flex-end">
+            <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!name.trim()}>
+              Save settings
+            </Button>
+          </Group>
+        </>
+      )}
     </Stack>
+    </fieldset>
   );
 }

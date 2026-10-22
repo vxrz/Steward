@@ -1,31 +1,30 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Alert, Badge, Box, Button, Center, Grid, Group, Loader, Modal, Paper, Stack, Tabs, Text, Textarea, Tooltip } from '@mantine/core';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Alert, Anchor, Badge, Box, Button, Center, Collapse, Group, Loader, Modal, Stack, Switch, Tabs, Text, Textarea, UnstyledButton } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertTriangle, IconDeviceFloppy, IconDownload, IconPlayerPlay } from '@tabler/icons-react';
-import { validateProcess, type ProcessDefinition, type ProcessDetail, type Step, type ValidationIssue } from '@sm/shared';
+import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconDeviceFloppy, IconDownload, IconInfoCircle, IconPlayerPlay } from '@tabler/icons-react';
+import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put } from '../api';
 import { PageHeader } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
-import { StepList, type TreeActions } from '../components/editor/StepTree';
-import { ExpressionHelp, StepForm } from '../components/editor/StepForm';
-import { ConnectionsPanel, ConstantsPanel, GeneralPanel, InputsPanel, SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
-import {
-  ROOT,
-  allIds,
-  createStep,
-  duplicateStep,
-  getStep,
-  insertStep,
-  locKey,
-  moveStep,
-  removeStep,
-  replaceStep,
-  type Loc,
-} from '../components/editor/paths';
+import { AccessEditor } from '../components/AccessEditor';
+import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs';
+import { SettingsTab } from '../components/editor/SettingsTab';
+import { FlowEditor } from '../components/flow/FlowEditor';
+import { useLastRun } from '../components/flow/useLastRun';
+import { fmtRelative } from '../format';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
+
+/** Editor tabs. To add one (e.g. "Access"), insert a Tabs.Tab and Tabs.Panel at the ACCESS_TAB markers below. */
+export type EditorTab = 'flow' | 'settings' | 'source' | 'versions' | (string & {});
+
+const byNode = (list: ValidationIssue[]) => {
+  const m = new Map<string, string>();
+  for (const i of list) if (i.nodeId && !m.has(i.nodeId)) m.set(i.nodeId, i.message);
+  return m;
+};
 
 export function ProcessEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -34,12 +33,14 @@ export function ProcessEditorPage() {
   const [def, setDef] = useState<ProcessDefinition | null>(null);
   const [loadedId, setLoadedId] = useState<string | null>(null);
   const [baseline, setBaseline] = useState('');
-  const [selected, setSelected] = useState<Loc | null>(null);
-  const formRef = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<string | null>('steps');
+  const [tab, setTab] = useState<string | null>('flow');
   const [saveOpen, setSaveOpen] = useState(false);
   const [runWarn, setRunWarn] = useState(false);
   const [runOpen, setRunOpen] = useState(false);
+  const [showIssues, setShowIssues] = useState(false);
+  const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
+  const [showRun, setShowRun] = useState(false);
+  const lastRun = useLastRun(id ?? '', showRun && !!id);
 
   // initialise working copy once per process
   useEffect(() => {
@@ -48,7 +49,6 @@ export function ProcessEditorPage() {
       setLoadedId(proc.data.id);
       setDef(d);
       setBaseline(JSON.stringify(d));
-      setSelected(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proc.data?.id]);
@@ -65,7 +65,12 @@ export function ProcessEditorPage() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  const validation = useMemo(() => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[] }), [def]);
+  const validation = useMemo(
+    () => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[], warnings: [] as ValidationIssue[] }),
+    [def],
+  );
+  const issuesByNode = useMemo(() => byNode(validation.issues), [validation.issues]);
+  const warningsByNode = useMemo(() => byNode(validation.warnings), [validation.warnings]);
 
   if (proc.isLoading || (!proc.error && (!def || loadedId !== proc.data?.id))) {
     return (
@@ -79,41 +84,25 @@ export function ProcessEditorPage() {
   }
 
   const p = proc.data;
-  const steps = def.steps ?? [];
-  const setSteps = (s: Step[]) => setDef({ ...def, steps: s });
-  const selectedStep = selected ? getStep(steps, selected) : undefined;
-  const ids = allIds(steps);
-  const otherIds = new Set([...ids].filter((x) => x !== selectedStep?.id));
-
-  const actions: TreeActions = {
-    selected: locKey(selected),
-    onSelect: (loc) => {
-      setSelected(loc);
-      // on narrow screens the form is below the tree – bring it into view
-      if (window.innerWidth < 992) setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-    },
-    onAdd: (ref, index, type) => {
-      const [s, loc] = insertStep(steps, ref, index, createStep(type, ids));
-      setSteps(s);
-      setSelected(loc);
-    },
-    onMove: (loc, d) => {
-      const [s, nloc] = moveStep(steps, loc, d);
-      setSteps(s);
-      if (locKey(loc) === locKey(selected)) setSelected(nloc);
-    },
-    onDuplicate: (loc) => {
-      const [s, nloc] = duplicateStep(steps, loc);
-      setSteps(s);
-      setSelected(nloc);
-    },
-    onRemove: (loc) => {
-      setSteps(removeStep(steps, loc));
-      setSelected(null);
-    },
-  };
-
+  const canEdit = !!p?.permissions.includes('edit');
   const onRun = () => (dirty ? setRunWarn(true) : setRunOpen(true));
+  const problems = [...validation.issues.map((i) => ({ ...i, severity: 'error' as const })), ...validation.warnings.map((w) => ({ ...w, severity: 'warning' as const }))];
+
+  const runToolbar = (
+    <Group gap={6} wrap="nowrap" px={6} py={2} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
+      <Switch size="xs" label="Last run" checked={showRun} onChange={(e) => setShowRun(e.currentTarget.checked)} />
+      {showRun && lastRun.run && (
+        <Anchor component={Link} to={`/runs/${lastRun.run.id}`} size="xs">
+          {lastRun.run.status} · {fmtRelative(lastRun.run.startedAt)}
+        </Anchor>
+      )}
+      {showRun && lastRun.none && (
+        <Text size="xs" c="dimmed">
+          no runs yet
+        </Text>
+      )}
+    </Group>
+  );
 
   return (
     <Box>
@@ -132,120 +121,143 @@ export function ProcessEditorPage() {
         description={<span className="mono">{p.id}</span>}
         actions={
           <>
-            {validation.issues.length > 0 && (
-              <Tooltip label="See issues below">
-                <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
-                  {validation.issues.length} issue(s)
-                </Badge>
-              </Tooltip>
+            {problems.length > 0 && (
+              <UnstyledButton onClick={() => setShowIssues((s) => !s)}>
+                <Group gap={4}>
+                  {validation.issues.length > 0 && (
+                    <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
+                      {validation.issues.length} issue(s)
+                    </Badge>
+                  )}
+                  {validation.warnings.length > 0 && (
+                    <Badge color="orange" variant="light" leftSection={<IconInfoCircle size={12} />}>
+                      {validation.warnings.length} warning(s)
+                    </Badge>
+                  )}
+                </Group>
+              </UnstyledButton>
             )}
-            <Button
-              size="sm"
-              variant="default"
-              component="a"
-              href={`/api/processes/${p.id}/export`}
-              leftSection={<IconDownload size={16} />}
-              visibleFrom="xs"
-            >
+            <Button size="sm" variant="default" component="a" href={`/api/processes/${p.id}/export`} leftSection={<IconDownload size={16} />} visibleFrom="xs">
               Export YAML
             </Button>
-            <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={16} />} onClick={onRun}>
-              Run
-            </Button>
-            <Button size="sm" leftSection={<IconDeviceFloppy size={16} />} disabled={!dirty} onClick={() => setSaveOpen(true)}>
-              Save
-            </Button>
+            {p.permissions.includes('run') && (
+              <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={16} />} onClick={onRun}>
+                Run
+              </Button>
+            )}
+            {canEdit ? (
+              <Button size="sm" leftSection={<IconDeviceFloppy size={16} />} disabled={!dirty} onClick={() => setSaveOpen(true)}>
+                Save
+              </Button>
+            ) : (
+              <Badge variant="light" color="gray" size="lg">
+                read-only
+              </Badge>
+            )}
           </>
         }
       />
 
-      {validation.issues.length > 0 && (
-        <Alert color="red" variant="light" mb="md" title="The process has validation issues (saving will be refused)">
-          <Stack gap={2}>
-            {validation.issues.slice(0, 10).map((i, k) => (
-              <Text size="xs" key={k} className="mono">
-                {i.path ? `${i.path}: ` : ''}
-                {i.message}
-              </Text>
-            ))}
-            {validation.issues.length > 10 && <Text size="xs">… and {validation.issues.length - 10} more</Text>}
-          </Stack>
+      {problems.length > 0 && (
+        <Alert
+          color={validation.issues.length ? 'red' : 'orange'}
+          variant="light"
+          mb="sm"
+          p="xs"
+          title={
+            <UnstyledButton onClick={() => setShowIssues((s) => !s)}>
+              <Group gap={4}>
+                {showIssues ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                <Text size="sm" fw={600}>
+                  {validation.issues.length ? `${validation.issues.length} issue(s) – saving will be refused` : `${validation.warnings.length} warning(s)`}
+                  {validation.issues.length > 0 && validation.warnings.length > 0 ? `, ${validation.warnings.length} warning(s)` : ''}
+                </Text>
+              </Group>
+            </UnstyledButton>
+          }
+        >
+          <Collapse in={showIssues}>
+            <Stack gap={2}>
+              {problems.slice(0, 30).map((i, k) => (
+                <UnstyledButton
+                  key={k}
+                  disabled={!i.nodeId}
+                  onClick={() => {
+                    if (!i.nodeId) return;
+                    setTab('flow');
+                    setFocus((f) => ({ id: i.nodeId!, seq: (f?.seq ?? 0) + 1 }));
+                  }}
+                >
+                  <Text size="xs" c={i.severity === 'error' ? 'red' : 'orange'} td={i.nodeId ? 'underline' : undefined}>
+                    {i.nodeId ? `${i.nodeId}: ` : i.path ? `${i.path}: ` : ''}
+                    {i.message}
+                  </Text>
+                </UnstyledButton>
+              ))}
+            </Stack>
+          </Collapse>
         </Alert>
       )}
 
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
-        <Tabs.List mb="md">
-          <Tabs.Tab value="steps">Steps</Tabs.Tab>
-          <Tabs.Tab value="general">General</Tabs.Tab>
-          <Tabs.Tab value="inputs">Inputs ({def.inputs?.length ?? 0})</Tabs.Tab>
-          <Tabs.Tab value="connections">Connections ({def.connections?.length ?? 0})</Tabs.Tab>
-          <Tabs.Tab value="constants">Constants</Tabs.Tab>
+        <Tabs.List mb="sm">
+          <Tabs.Tab value="flow">Flow</Tabs.Tab>
+          <Tabs.Tab value="settings">Settings</Tabs.Tab>
           <Tabs.Tab value="source">Source</Tabs.Tab>
           <Tabs.Tab value="versions">Versions</Tabs.Tab>
+          <Tabs.Tab value="access">Access</Tabs.Tab>
         </Tabs.List>
 
-        <Tabs.Panel value="steps">
-          <Grid gutter="md">
-            <Grid.Col span={{ base: 12, md: 5 }}>
-              <Paper withBorder p="sm">
-                <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb="xs">
-                  Steps
-                </Text>
-                <StepList steps={steps} refBlock={ROOT} actions={actions} />
-              </Paper>
-            </Grid.Col>
-            <Grid.Col span={{ base: 12, md: 7 }}>
-              <Stack gap="sm">
-                <ExpressionHelp />
-                <Paper withBorder p="md" ref={formRef} style={{ scrollMarginTop: 64 }}>
-                  {selectedStep && selected ? (
-                    <StepForm
-                      key={locKey(selected) + ':' + selectedStep.type}
-                      step={selectedStep}
-                      otherIds={otherIds}
-                      connections={def.connections ?? []}
-                      onChange={(s) => setSteps(replaceStep(steps, selected, s))}
-                    />
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      Select a step to edit it, or add a new one. Steps run top to bottom; loops and conditions contain nested steps.
-                    </Text>
-                  )}
-                </Paper>
-              </Stack>
-            </Grid.Col>
-          </Grid>
+        <Tabs.Panel value="flow">
+          <FlowEditor
+            def={def}
+            onChange={setDef}
+            issuesByNode={issuesByNode}
+            warningsByNode={warningsByNode}
+            runStatus={showRun ? lastRun.statusByNode : undefined}
+            focus={focus}
+            toolbar={runToolbar}
+            height="calc(100vh - 230px)"
+            readOnly={!canEdit}
+          />
         </Tabs.Panel>
-        <Tabs.Panel value="general">
-          <GeneralPanel def={def} onChange={setDef} />
-        </Tabs.Panel>
-        <Tabs.Panel value="inputs">
-          <InputsPanel def={def} onChange={setDef} />
-        </Tabs.Panel>
-        <Tabs.Panel value="connections">
-          <ConnectionsPanel def={def} onChange={setDef} />
-        </Tabs.Panel>
-        <Tabs.Panel value="constants">
-          <ConstantsPanel def={def} onChange={setDef} />
+        <Tabs.Panel value="settings">
+          <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+            <SettingsTab def={def} onChange={setDef} />
+          </fieldset>
         </Tabs.Panel>
         <Tabs.Panel value="source">
-          <SourcePanel
-            def={def}
-            onChange={(d) => {
-              setDef(normalize(d));
-              setSelected(null);
-            }}
-          />
+          <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+            <SourcePanel def={def} onChange={(d) => setDef(normalize(d))} />
+          </fieldset>
         </Tabs.Panel>
         <Tabs.Panel value="versions">
           <VersionsPanel
             processId={p.id}
             currentVersion={p.currentVersion}
             onRestore={(d, v) => {
+              if (!canEdit) return notifyError(new Error('You may view but not change this process'));
               setDef(normalize(d));
-              setSelected(null);
-              setTab('steps');
+              setTab('flow');
               notifyOk(`Version v${v} loaded as working copy – save to make it the current version.`);
+            }}
+          />
+        </Tabs.Panel>
+        <Tabs.Panel value="access" pt="md">
+          <AccessEditor
+            kind="process"
+            acl={p.acl}
+            owner={p.owner}
+            readOnly={!p.permissions.includes('manage')}
+            onSave={async (acl, owner) => {
+              try {
+                const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
+                qc.setQueryData(['process', id], (old: ProcessDetail | undefined) => (old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved));
+                qc.invalidateQueries({ queryKey: ['processes'] });
+                notifyOk('Access saved');
+              } catch (e) {
+                notifyError(e, 'Access not saved');
+              }
             }}
           />
         </Tabs.Panel>

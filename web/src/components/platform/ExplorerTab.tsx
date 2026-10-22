@@ -25,7 +25,7 @@ const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
 const toStringMap = (v: Record<string, unknown> | undefined): Record<string, string> | undefined =>
   v ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === 'string' ? x : JSON.stringify(x)])) : undefined;
 
-export function ExplorerTab({ platform, preset }: { platform: Platform; preset: ExplorerPreset | null }) {
+export function ExplorerTab({ platform, preset, canWrite = true }: { platform: Platform; preset: ExplorerPreset | null; canWrite?: boolean }) {
   const [method, setMethod] = useState('GET');
   const [path, setPath] = useState(platform.config.testPath || '/');
   const [query, setQuery] = useState<Record<string, unknown> | undefined>();
@@ -39,11 +39,11 @@ export function ExplorerTab({ platform, preset }: { platform: Platform; preset: 
 
   useEffect(() => {
     if (preset) {
-      setMethod(preset.method);
+      setMethod(canWrite || preset.method === 'GET' || preset.method === 'HEAD' ? preset.method : 'GET');
       setPath(preset.path);
       setConfirmed(false);
     }
-  }, [preset]);
+  }, [preset]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const writes = method !== 'GET' && method !== 'HEAD';
 
@@ -95,7 +95,7 @@ export function ExplorerTab({ platform, preset }: { platform: Platform; preset: 
         </Hint>
         <Stack mt="sm">
           <Group align="flex-end" wrap="nowrap" gap="xs">
-            <Select data={METHODS} value={method} onChange={(v) => setMethod(v ?? 'GET')} allowDeselect={false} w={110} label="Method" />
+            <Select data={canWrite ? METHODS : ['GET', 'HEAD']} value={method} onChange={(v) => setMethod(v ?? 'GET')} allowDeselect={false} w={110} label="Method" />
             <TextInput
               label="Path (relative to base URL)"
               classNames={{ input: 'mono' }}

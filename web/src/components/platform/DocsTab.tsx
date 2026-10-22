@@ -30,7 +30,7 @@ function fmtSize(n?: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function DocsTab({ platform }: { platform: Platform }) {
+export function DocsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
   const qc = useQueryClient();
   const docs = useQuery({ queryKey: ['platform', platform.id, 'docs'], queryFn: () => get<PlatformDoc[]>(`/platforms/${platform.id}/docs`) });
   const [kind, setKind] = useState<'note' | 'link' | 'file'>('note');
@@ -87,6 +87,7 @@ export function DocsTab({ platform }: { platform: Platform }) {
 
   return (
     <Stack>
+      {!readOnly && (
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
           Add documentation
@@ -134,6 +135,7 @@ export function DocsTab({ platform }: { platform: Platform }) {
           </Group>
         </Stack>
       </Paper>
+      )}
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
@@ -172,9 +174,9 @@ export function DocsTab({ platform }: { platform: Platform }) {
                   </div>
                 </Group>
                 <Tooltip label="Delete">
-                  <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label="Delete">
+                  {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label="Delete">
                     <IconTrash size={16} />
-                  </ActionIcon>
+                  </ActionIcon>}
                 </Tooltip>
               </Group>
               {d.kind === 'note' && (

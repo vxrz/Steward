@@ -41,12 +41,21 @@ export function MethodBadge({ method }: { method: string }) {
   );
 }
 
-export function SpecsTab({ platform, onPickOperation }: { platform: Platform; onPickOperation: (op: ApiOperation) => void }) {
+export function SpecsTab({
+  platform,
+  onPickOperation,
+  readOnly = false,
+}: {
+  platform: Platform;
+  onPickOperation: (op: ApiOperation) => void;
+  readOnly?: boolean;
+}) {
   const qc = useQueryClient();
   const specs = useQuery({ queryKey: ['platform', platform.id, 'specs'], queryFn: () => get<PlatformSpec[]>(`/platforms/${platform.id}/specs`) });
   const ops = useQuery({ queryKey: ['platform', platform.id, 'operations'], queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
+  const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState('');
   const [tag, setTag] = useState<string | null>(null);
@@ -54,13 +63,17 @@ export function SpecsTab({ platform, onPickOperation }: { platform: Platform; on
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id] });
 
-  const upload = async () => {
+  const upload = async (fromUrl = false) => {
     setBusy(true);
     try {
-      const s = await post<PlatformSpec>(`/platforms/${platform.id}/specs`, { name: name || undefined, content });
+      const s = await post<PlatformSpec>(
+        `/platforms/${platform.id}/specs`,
+        fromUrl ? { name: name || undefined, url: url.trim() } : { name: name || undefined, content },
+      );
       notifyOk(`${s.operationCount} operations imported`, s.name);
       setName('');
       setContent('');
+      setUrl('');
       await refresh();
     } catch (e) {
       notifyError(e, 'Specification not imported');
@@ -92,6 +105,7 @@ export function SpecsTab({ platform, onPickOperation }: { platform: Platform; on
 
   return (
     <Stack>
+      {!readOnly && (
       <Paper withBorder p="md">
         <Title order={5}>Import an API specification</Title>
         <Hint>OpenAPI 3.x or Swagger 2.0, JSON or YAML. Operations become searchable here and can be picked in the explorer.</Hint>
@@ -115,6 +129,19 @@ export function SpecsTab({ platform, onPickOperation }: { platform: Platform; on
               )}
             </FileButton>
           </Group>
+          <Group align="flex-end" wrap="wrap">
+            <TextInput
+              label="…or import from a URL"
+              placeholder="https://example.com/openapi.json"
+              classNames={{ input: 'mono' }}
+              value={url}
+              onChange={(e) => setUrl(e.currentTarget.value)}
+              style={{ flex: 1, minWidth: 220 }}
+            />
+            <Button variant="light" onClick={() => upload(true)} loading={busy} disabled={!/^https?:\/\/\S+$/.test(url.trim())}>
+              Import from URL
+            </Button>
+          </Group>
           <Textarea
             label="…or paste the specification"
             classNames={{ input: 'mono' }}
@@ -125,12 +152,13 @@ export function SpecsTab({ platform, onPickOperation }: { platform: Platform; on
             onChange={(e) => setContent(e.currentTarget.value)}
           />
           <Group justify="flex-end">
-            <Button onClick={upload} loading={busy} disabled={content.trim().length < 2}>
+            <Button onClick={() => upload(false)} loading={busy} disabled={content.trim().length < 2}>
               Import
             </Button>
           </Group>
         </Stack>
       </Paper>
+      )}
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
@@ -179,9 +207,9 @@ export function SpecsTab({ platform, onPickOperation }: { platform: Platform; on
                           </ActionIcon>
                         </Tooltip>
                         <Tooltip label="Delete">
-                          <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label="Delete">
+                          {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label="Delete">
                             <IconTrash size={16} />
-                          </ActionIcon>
+                          </ActionIcon>}
                         </Tooltip>
                       </Group>
                     </Table.Td>

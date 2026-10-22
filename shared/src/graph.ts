@@ -122,11 +122,41 @@ export function autoLayout(nodes: FlowNode[], wires: Wire[]): FlowNode[] {
     if (g.hasNode(w.from) && g.hasNode(w.to)) g.setEdge(w.from, w.to, {}, `${w.port}-${i}`);
   });
   dagre.layout(g);
-  return nodes.map((n) => {
-    if (n.type === 'note') return n;
+  const pos = new Map<string, { x: number; y: number }>();
+  for (const n of laid) {
     const p = g.node(n.id) as { x: number; y: number } | undefined;
-    return p ? { ...n, x: Math.round(p.x - NODE_WIDTH / 2), y: Math.round(p.y - NODE_HEIGHT / 2) } : n;
+    if (p) pos.set(n.id, { x: Math.round(p.x - NODE_WIDTH / 2), y: Math.round(p.y - NODE_HEIGHT / 2) });
+  }
+  wrapRows(pos);
+  return nodes.map((n) => {
+    const p = n.type === 'note' ? undefined : pos.get(n.id);
+    return p ? { ...n, x: p.x, y: p.y } : n;
   });
+}
+
+/** Long left-to-right chains are wrapped into rows (like a hand-drawn flow) so they stay readable. */
+const RANKS_PER_ROW = 5;
+function wrapRows(pos: Map<string, { x: number; y: number }>): void {
+  const xs = [...new Set([...pos.values()].map((p) => p.x))].sort((a, b) => a - b);
+  if (xs.length <= RANKS_PER_ROW + 1) return;
+  const rankOf = new Map(xs.map((x, i) => [x, i]));
+  const rows = new Map<number, { x: number; y: number }[]>();
+  for (const p of pos.values()) {
+    const row = Math.floor(rankOf.get(p.x)! / RANKS_PER_ROW);
+    rows.set(row, [...(rows.get(row) ?? []), p]);
+  }
+  let offset = 0;
+  for (const row of [...rows.keys()].sort((a, b) => a - b)) {
+    const list = rows.get(row)!;
+    const minY = Math.min(...list.map((p) => p.y));
+    const maxY = Math.max(...list.map((p) => p.y));
+    for (const p of list) {
+      const col = rankOf.get(p.x)! % RANKS_PER_ROW;
+      p.x = 20 + col * (NODE_WIDTH + 70);
+      p.y = offset + (p.y - minY);
+    }
+    offset += maxY - minY + NODE_HEIGHT + 90;
+  }
 }
 
 /** Outgoing wires of a node port, ordered top-to-bottom (then left-to-right) by target position. */

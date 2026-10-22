@@ -16,7 +16,9 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
   const [filter, setFilter] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
-  const open = task.status === 'open';
+  const isOpen = task.status === 'open';
+  /** open and this user may decide → interactive */
+  const open = isOpen && task.canDecide !== false;
   const decided = new Set(task.decision?.selectedKeys ?? []);
 
   const visible = useMemo(() => {
@@ -64,6 +66,11 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                   dry run
                 </Badge>
               )}
+              {task.fourEyes && (
+                <Badge color="grape" variant="light" title="The person who started the run may not decide">
+                  four-eyes
+                </Badge>
+              )}
             </Group>
             <Text size="xs" c="dimmed">
               {task.processName}
@@ -76,7 +83,20 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                 </>
               )}
               {' · '}created {fmtDate(task.createdAt)}
+              {task.startedBy ? ` · run started by ${task.startedBy}` : ''}
             </Text>
+            {task.assignees?.length > 0 && (
+              <Group gap={4} mt={4}>
+                <Text size="xs" c="dimmed">
+                  Assigned to
+                </Text>
+                {task.assignees.map((a) => (
+                  <Badge key={a} size="xs" variant="outline" color={a.startsWith('user:') ? 'blue' : a.startsWith('team:') ? 'grape' : 'gray'}>
+                    {a}
+                  </Badge>
+                ))}
+              </Group>
+            )}
           </div>
         </Group>
         <Markdown text={task.instructions} />
@@ -154,7 +174,11 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
           </>
         )}
 
-        {open ? (
+        {isOpen && !open ? (
+          <Alert color="gray" variant="light">
+            Waiting for someone else: {task.cannotDecideReason ?? 'you may not decide this task'}.
+          </Alert>
+        ) : open ? (
           <>
             <Textarea label="Comment (stored in the protocol)" autosize minRows={1} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
             <Group justify="flex-end">

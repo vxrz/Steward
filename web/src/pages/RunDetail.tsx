@@ -29,7 +29,7 @@ import {
   IconCircleCheck,
   IconCircleX,
 } from '@tabler/icons-react';
-import type { AuditEntry, RunDetail, RunStepRecord } from '@sm/shared';
+import type { AuditEntry, ProcessDetail, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { fmtDate, fmtDuration, runDuration } from '../format';
 import { JsonView, Markdown, PageHeader, StatusBadge } from '../components/common';
@@ -47,6 +47,13 @@ export function RunDetailPage() {
     queryFn: () => get<RunDetail>(`/runs/${id}`),
     refetchInterval: (q) => (q.state.data && ACTIVE.includes(q.state.data.status) ? 1500 : false),
   });
+  const proc = useQuery({
+    queryKey: ['process', run.data?.processId],
+    queryFn: () => get<ProcessDetail>(`/processes/${run.data!.processId}`),
+    enabled: !!run.data?.processId,
+    retry: false,
+  });
+  const canRun = !!proc.data?.permissions.includes('run');
   const r = run.data;
   if (!r) return run.error ? <Alert color="red">{(run.error as Error).message}</Alert> : null;
 
@@ -82,21 +89,23 @@ export function RunDetailPage() {
         }
         actions={
           <>
-            {['running', 'waiting', 'interrupted'].includes(r.status) && (
+            {canRun && ['running', 'waiting', 'interrupted'].includes(r.status) && (
               <Button size="xs" color="red" variant="light" leftSection={<IconPlayerStop size={14} />} onClick={() => action('cancel')}>
                 Cancel
               </Button>
             )}
-            {r.status === 'interrupted' && (
+            {canRun && r.status === 'interrupted' && (
               <Tooltip label="Replays completed steps from the journal and continues with the interrupted step (it may be executed again)." multiline w={260}>
                 <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={() => action('resume')}>
                   Resume
                 </Button>
               </Tooltip>
             )}
-            <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} onClick={() => setRerun(true)}>
-              Run again
-            </Button>
+            {canRun && (
+              <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} onClick={() => setRerun(true)}>
+                Run again
+              </Button>
+            )}
             <Menu position="bottom-end">
               <Menu.Target>
                 <Button size="xs" leftSection={<IconFileDownload size={14} />}>

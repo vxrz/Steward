@@ -37,15 +37,24 @@ export function BindingsForm({
         const all = platforms.data ?? [];
         const matching = all.filter((p) => !c.kind || p.kind === c.kind);
         const others = all.filter((p) => c.kind && p.kind !== c.kind);
+        const item = (p: Platform) => ({
+          value: p.id,
+          label: p.permissions?.includes('use') ? p.name : `${p.name} (no permission to use)`,
+          disabled: !p.permissions?.includes('use'),
+        });
         const data = [
-          ...(matching.length ? [{ group: c.kind ? `Kind: ${c.kind}` : 'Platforms', items: matching.map((p) => ({ value: p.id, label: p.name })) }] : []),
-          ...(others.length ? [{ group: 'Other platforms', items: others.map((p) => ({ value: p.id, label: p.name })) }] : []),
+          ...(matching.length ? [{ group: c.kind ? `Kind: ${c.kind}` : 'Platforms', items: matching.map(item) }] : []),
+          ...(others.length ? [{ group: 'Other platforms', items: others.map(item) }] : []),
         ];
+        const anyBlocked = all.some((p) => !p.permissions?.includes('use'));
         return (
           <Select
             key={c.slot}
             label={`Connection "${c.slot}"`}
-            description={c.description || (c.kind ? `Expects a ${c.kind} platform` : undefined)}
+            description={
+              (c.description || (c.kind ? `Expects a ${c.kind} platform` : '')) +
+              (anyBlocked ? ' · platforms you may not use are disabled' : '')
+            }
             required
             data={data}
             value={value[c.slot] ?? null}
@@ -78,7 +87,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     }
   }, [proc.data, opened]);
 
-  const hasWrites = useMemo(() => JSON.stringify(proc.data?.definition.steps ?? []).match(/"method":"(POST|PUT|PATCH|DELETE)"|"mutating":true/), [proc.data]);
+  const hasWrites = useMemo(() => JSON.stringify(proc.data?.definition.nodes ?? []).match(/"method":"(POST|PUT|PATCH|DELETE)"|"mutating":true/), [proc.data]);
 
   const start = async () => {
     if (!proc.data) return;

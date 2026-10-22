@@ -9,6 +9,7 @@ import { del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
 import { fmtRelative } from '../format';
+import { useMe } from '../auth';
 
 export function ProcessesPage() {
   const navigate = useNavigate();
@@ -18,11 +19,12 @@ export function ProcessesPage() {
   const [runId, setRunId] = useState<string | null>(null);
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
+  const { caps } = useMe();
 
   const createBlank = async () => {
     try {
       const p = await post<ProcessDetail>('/processes', {
-        definition: { name: 'New process', description: '', connections: [], inputs: [], steps: [] },
+        definition: { name: 'New process', description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
       });
       navigate(`/processes/${p.id}`);
     } catch (e) {
@@ -39,6 +41,7 @@ export function ProcessesPage() {
         title="Processes"
         description="Reusable procedures: API calls, loops, decisions, approvals, checks and browser steps. Every save creates a new version."
         actions={
+          caps.createProcesses && (
           <>
             <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
               Import YAML
@@ -50,6 +53,7 @@ export function ProcessesPage() {
               New process
             </Button>
           </>
+          )
         }
       />
       <TextInput mb="md" placeholder="Search by name or tag" leftSection={<IconSearch size={14} />} value={filter} onChange={(e) => setFilter(e.currentTarget.value)} maw={360} />
@@ -59,11 +63,17 @@ export function ProcessesPage() {
           <Text size="sm" c="dimmed" mb="sm">
             Start from a template – user onboarding, access reviews, attribute optimization, health checks – or build your own.
           </Text>
-          <Group>
-            <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
-              Browse templates
-            </Button>
-          </Group>
+          {caps.createProcesses ? (
+            <Group>
+              <Button onClick={templates.open} leftSection={<IconTemplate size={16} />}>
+                Browse templates
+              </Button>
+            </Group>
+          ) : (
+            <Text size="sm" c="dimmed">
+              Ask a designer or administrator to create processes or to give you access.
+            </Text>
+          )}
         </Card>
       )}
       <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }}>
@@ -74,11 +84,13 @@ export function ProcessesPage() {
                 {p.name}
               </Text>
               <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
-                <Tooltip label="Run">
-                  <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label="Run">
-                    <IconPlayerPlay size={16} />
-                  </ActionIcon>
-                </Tooltip>
+                {p.permissions.includes('run') && (
+                  <Tooltip label="Run">
+                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label="Run">
+                      <IconPlayerPlay size={16} />
+                    </ActionIcon>
+                  </Tooltip>
+                )}
                 <Menu position="bottom-end">
                   <Menu.Target>
                     <ActionIcon variant="subtle" aria-label="More">
@@ -89,7 +101,7 @@ export function ProcessesPage() {
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={`/api/processes/${p.id}/export`}>
                       Export YAML
                     </Menu.Item>
-                    <Menu.Item
+                    {p.permissions.includes('manage') && <Menu.Item
                       color="red"
                       leftSection={<IconArchive size={14} />}
                       onClick={async () => {
@@ -99,7 +111,7 @@ export function ProcessesPage() {
                       }}
                     >
                       Archive
-                    </Menu.Item>
+                    </Menu.Item>}
                   </Menu.Dropdown>
                 </Menu>
               </Group>
@@ -111,6 +123,16 @@ export function ProcessesPage() {
               <Badge size="xs" variant="outline">
                 v{p.currentVersion}
               </Badge>
+              {p.acl.length > 0 && (
+                <Badge size="xs" variant="light" color="orange" title="Access restricted by an access list">
+                  restricted
+                </Badge>
+              )}
+              {!p.permissions.includes('edit') && (
+                <Badge size="xs" variant="light" color="gray">
+                  read-only
+                </Badge>
+              )}
               {p.tags.map((t) => (
                 <Badge key={t} size="xs" variant="light" color="gray">
                   {t}
@@ -158,7 +180,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
                     </Badge>
                   ))}
                   <Badge size="xs" variant="outline">
-                    {t.definition.steps.length} steps
+                    {(t.definition.nodes ?? []).filter((n) => n.type !== 'start' && n.type !== 'note').length} steps
                   </Badge>
                 </Group>
               </div>
