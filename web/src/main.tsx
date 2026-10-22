@@ -1,13 +1,14 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { MantineProvider, createTheme } from '@mantine/core';
+import { Center, Loader, MantineProvider, createTheme } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
 import { BRAND } from '../../shared/src/brand';
+import './i18n';
 import { App } from './App';
 import { initPwa } from './pwa';
 
@@ -31,7 +32,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          {/* Suspends while the language files of a non-English UI load. */}
+          <Suspense
+            fallback={
+              <Center h="100vh">
+                <Loader />
+              </Center>
+            }
+          >
+            <App />
+          </Suspense>
         </BrowserRouter>
       </QueryClientProvider>
     </MantineProvider>

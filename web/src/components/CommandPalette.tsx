@@ -5,6 +5,7 @@ import { Spotlight, spotlight, type SpotlightActionData, type SpotlightActionGro
 import '@mantine/spotlight/styles.css';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   IconArrowRight,
   IconChartBar,
@@ -42,11 +43,13 @@ const short = (text: string | undefined): string | undefined => {
 };
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
-/** Every word of the query must appear in label, description or keywords. Empty query: only pages/actions/recent runs. */
-const filter: SpotlightFilterFunction = (query, actions) => {
+/** Every word of the query must appear in label, description or keywords. Empty query: only the groups not in `searchOnly` (pages, actions, recent runs). */
+const makeFilter =
+  (searchOnly: Set<string>): SpotlightFilterFunction =>
+  (query, actions) => {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const groups = actions as SpotlightActionGroupData[];
-  if (!words.length) return groups.filter((g) => g.group !== 'Processes' && g.group !== 'Start a run' && g.group !== 'Dashboards' && g.group !== 'Platforms');
+  if (!words.length) return groups.filter((g) => !searchOnly.has(g.group));
   return groups
     .map((g) => ({
       ...g,
@@ -62,6 +65,7 @@ const filter: SpotlightFilterFunction = (query, actions) => {
 
 /** Ctrl/Cmd+K command palette: pages, processes, dashboards, platforms, recent runs and quick actions. */
 export function CommandPalette({ pages }: { pages: PalettePage[] }) {
+  const { t } = useTranslation(['nav', 'common']);
   const navigate = useNavigate();
   const { caps } = useMe();
   const { colorScheme, setColorScheme } = useMantineColorScheme();
@@ -79,25 +83,25 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
   const actions = useMemo<SpotlightActionGroupData[]>(() => {
     const icon = (I: Icon) => <I size={18} stroke={1.6} />;
     const go = (to: string) => () => navigate(to);
-    const pageActions: SpotlightActionData[] = [...pages, { to: '/profile', label: 'Profile & API tokens', icon: IconUser }].map((p) => ({
+    const pageActions: SpotlightActionData[] = [...pages, { to: '/profile', label: t('items.profile'), icon: IconUser }].map((p) => ({
       id: `page:${p.to}`,
       label: p.label,
       leftSection: icon(p.icon),
-      keywords: ['page', 'go', 'open'],
+      keywords: ['page', 'go', 'open', t('palette.keywords.page')],
       onClick: go(p.to),
     }));
     const quick: SpotlightActionData[] = [];
     if (caps.createProcesses) {
       quick.push({
         id: 'new-process',
-        label: 'New process',
-        description: 'Create an empty process and open the editor',
+        label: t('palette.newProcess'),
+        description: t('palette.newProcessHint'),
         leftSection: icon(IconPlus),
-        keywords: ['create', 'add'],
+        keywords: ['create', 'add', t('palette.keywords.create')],
         onClick: async () => {
           try {
             const p = await post<ProcessDetail>('/processes', {
-              definition: { name: 'New process', description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
+              definition: { name: t('palette.newProcess'), description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
             });
             navigate(`/processes/${p.id}`);
           } catch (e) {
@@ -108,22 +112,22 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     }
     quick.push({
       id: 'toggle-theme',
-      label: colorScheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode',
-      description: 'Change the color scheme',
+      label: colorScheme === 'dark' ? t('palette.lightMode') : t('palette.darkMode'),
+      description: t('palette.colorSchemeHint'),
       leftSection: icon(colorScheme === 'dark' ? IconSun : IconMoon),
-      keywords: ['theme', 'dark', 'light', 'color'],
+      keywords: ['theme', 'dark', 'light', 'color', t('palette.keywords.theme')],
       onClick: () => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark'),
     });
     const procs = processes.data ?? [];
     return [
-      { group: 'Actions', actions: quick },
-      { group: 'Pages', actions: pageActions },
+      { group: t('palette.groups.actions'), actions: quick },
+      { group: t('palette.groups.pages'), actions: pageActions },
       {
-        group: 'Recent runs',
+        group: t('palette.groups.recentRuns'),
         actions: (runs.data ?? []).slice(0, 6).map((r) => ({
           id: `run:${r.id}`,
           label: r.processName,
-          description: `${r.dryRun ? 'Dry run' : 'Run'} by ${r.actor} · ${fmtRelative(r.startedAt)}`,
+          description: t(r.dryRun ? 'palette.dryRunBy' : 'palette.runBy', { actor: r.actor, when: fmtRelative(r.startedAt) }),
           leftSection: icon(IconPlayerPlay),
           rightSection: <StatusBadge status={r.status} size="xs" />,
           keywords: ['run', r.status, r.id],
@@ -131,7 +135,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         })),
       },
       {
-        group: 'Processes',
+        group: t('palette.groups.processes'),
         actions: procs.map((p) => ({
           id: `process:${p.id}`,
           label: p.name,
@@ -142,19 +146,19 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         })),
       },
       {
-        group: 'Start a run',
+        group: t('palette.groups.startRun'),
         actions: procs
           .filter((p) => p.permissions.includes('run'))
           .map((p) => ({
             id: `run-process:${p.id}`,
-            label: `Start run of ${p.name}`,
+            label: t('palette.startRunOf', { name: p.name }),
             leftSection: icon(IconArrowRight),
             keywords: ['run', 'start', 'execute', ...p.tags],
             onClick: () => setRunProcessId(p.id),
           })),
       },
       {
-        group: 'Dashboards',
+        group: t('palette.groups.dashboards'),
         actions: (dashboards.data ?? []).map((d) => ({
           id: `dashboard:${d.id}`,
           label: d.name,
@@ -165,7 +169,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         })),
       },
       {
-        group: 'Platforms',
+        group: t('palette.groups.platforms'),
         actions: (platforms.data ?? []).map((p) => ({
           id: `platform:${p.id}`,
           label: p.name,
@@ -176,7 +180,11 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         })),
       },
     ];
-  }, [pages, caps.createProcesses, colorScheme, setColorScheme, navigate, processes.data, runs.data, dashboards.data, platforms.data]);
+  }, [t, pages, caps.createProcesses, colorScheme, setColorScheme, navigate, processes.data, runs.data, dashboards.data, platforms.data]);
+  const filter = useMemo(
+    () => makeFilter(new Set([t('palette.groups.processes'), t('palette.groups.startRun'), t('palette.groups.dashboards'), t('palette.groups.platforms')])),
+    [t],
+  );
 
   const loading = processes.isFetching || dashboards.isFetching || platforms.isFetching || runs.isFetching;
 
@@ -187,12 +195,12 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         filter={filter}
         shortcut={['mod + K']}
         onSpotlightOpen={() => setActive(true)}
-        nothingFound={loading ? 'Loading…' : 'Nothing found'}
+        nothingFound={loading ? t('common:loading') : t('palette.nothingFound')}
         highlightQuery
         scrollable
         maxHeight={isMobile ? 'calc(100dvh - 80px)' : 460}
         fullScreen={isMobile}
-        searchProps={{ leftSection: <IconSearch size={18} stroke={1.6} />, placeholder: 'Search pages, processes, dashboards, platforms…', 'aria-label': 'Search' }}
+        searchProps={{ leftSection: <IconSearch size={18} stroke={1.6} />, placeholder: t('palette.placeholder'), 'aria-label': t('palette.search') }}
       />
       {runProcessId && (
         <Suspense fallback={null}>
@@ -205,18 +213,19 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
 
 /** Header button that opens the palette (full search field on wide screens, icon on phones). */
 export function CommandPaletteButton() {
+  const { t } = useTranslation('nav');
   const shortcut = isMac ? '⌘ K' : 'Ctrl K';
   return (
     <>
-      <Tooltip label={`Search (${shortcut})`}>
-        <ActionIcon variant="subtle" onClick={() => spotlight.open()} aria-label="Search" hiddenFrom="sm">
+      <Tooltip label={t('palette.searchWithShortcut', { shortcut })}>
+        <ActionIcon variant="subtle" onClick={() => spotlight.open()} aria-label={t('palette.search')} hiddenFrom="sm">
           <IconSearch size={18} />
         </ActionIcon>
       </Tooltip>
       <UnstyledButton
         onClick={() => spotlight.open()}
         visibleFrom="sm"
-        aria-label={`Search (${shortcut})`}
+        aria-label={t('palette.searchWithShortcut', { shortcut })}
         px="sm"
         h={32}
         w={240}
@@ -226,7 +235,7 @@ export function CommandPaletteButton() {
           <Group gap={6} wrap="nowrap">
             <IconSearch size={14} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed">
-              Search…
+              {t('palette.searchButton')}
             </Text>
           </Group>
           <Kbd size="xs">{shortcut}</Kbd>

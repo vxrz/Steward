@@ -1,0 +1,21 @@
+{
+  "title": "Something went wrong",
+  "http": "Request failed (HTTP {{status}})",
+  "codes": {
+    "WRONG_CREDENTIALS": "Wrong user name or password.",
+    "TOO_MANY_ATTEMPTS": "Too many failed attempts – try again in a few minutes.",
+    "PASSWORD_LOGIN_DISABLED": "Password sign-in is disabled – please use single sign-on.",
+    "WRONG_PASSPHRASE": "Wrong passphrase.",
+    "VAULT_LOCKED": "The vault is locked.",
+    "SSO_VAULT_LOCKED": "Single sign-on is not available until an administrator unlocks the vault.",
+    "NOT_SIGNED_IN": "Please sign in.",
+    "PASSWORD_CHANGE_REQUIRED": "Please change your password first.",
+    "WRONG_CURRENT_PASSWORD": "The current password is wrong.",
+    "SAME_PASSWORD": "Choose a password different from the current one.",
+    "PASSWORD_POLICY": "The password needs at least 10 characters, with letters and at least one digit or symbol.",
+    "LAST_ADMIN": "At least one active administrator is required.",
+    "SSO_MANAGED_PROFILE": "Name and e-mail of this account are managed by single sign-on.",
+    "INVALID_EMAIL": "Enter a valid e-mail address.",
+    "UNSUPPORTED_LOCALE": "This language is not supported."
+  }
+}

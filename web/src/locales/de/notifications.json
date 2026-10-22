@@ -1,0 +1,46 @@
+{
+  "center": {
+    "title": "Benachrichtigungen",
+    "labelUnread_one": "Benachrichtigungen ({{count}} ungelesen)",
+    "labelUnread_other": "Benachrichtigungen ({{count}} ungelesen)",
+    "unread_one": "{{count}} ungelesen",
+    "unread_other": "{{count}} ungelesen",
+    "markAllRead": "Alle als gelesen markieren",
+    "settings": "Benachrichtigungseinstellungen",
+    "unavailable": "Benachrichtigungen sind auf diesem Server nicht verfügbar.",
+    "empty": "Keine neuen Benachrichtigungen.",
+    "unreadItem": "Ungelesen: {{title}}"
+  },
+  "events": {
+    "task": {
+      "assigned": {
+        "label": "Entscheidung",
+        "info": "Eine Ausführung wartet auf eine Entscheidung, die Sie treffen dürfen"
+      }
+    },
+    "run": {
+      "failed": {
+        "label": "Ausführung fehlgeschlagen",
+        "info": "Eine von Ihnen gestartete Ausführung (oder eine geplante Ausführung, deren Eigentümer Sie sind) ist fehlgeschlagen"
+      }
+    },
+    "check": {
+      "failed": {
+        "label": "Prüfung fehlgeschlagen",
+        "info": "Eine Prüfung ist in einer von Ihnen gestarteten Ausführung oder einem Ihrer Prozesse fehlgeschlagen"
+      }
+    },
+    "dataset": {
+      "stale": {
+        "label": "Veraltete Daten",
+        "info": "Dashboard-Daten, die Sie liefern, sind älter als ihre Aktualitätsgrenze"
+      }
+    },
+    "schedule": {
+      "skipped": {
+        "label": "Zeitplan übersprungen",
+        "info": "Ein Zeitplan, dessen Eigentümer Sie sind, wurde übersprungen (fehlende Rechte, läuft noch …)"
+      }
+    }
+  }
+}

@@ -2,20 +2,22 @@ import { ActionIcon, Badge, Box, Button, Center, Drawer, Group, Indicator, Loade
 import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import { useNavigate } from 'react-router-dom';
 import { IconBell, IconBellOff, IconChecks, IconSettings } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { AppNotification } from '@sm/shared';
 import { fmtDate, fmtRelative } from '../../format';
 import { useBrowserNotificationBridge, useNotificationActions, useNotifications } from './useNotifications';
 
-const EVENTS: Record<string, { label: string; color: string }> = {
-  'task.assigned': { label: 'Decision', color: 'violet' },
-  'run.failed': { label: 'Run failed', color: 'red' },
-  'check.failed': { label: 'Check failed', color: 'orange' },
-  'dataset.stale': { label: 'Stale data', color: 'yellow' },
-  'schedule.skipped': { label: 'Schedule skipped', color: 'gray' },
+const EVENT_COLORS: Record<string, string> = {
+  'task.assigned': 'violet',
+  'run.failed': 'red',
+  'check.failed': 'orange',
+  'dataset.stale': 'yellow',
+  'schedule.skipped': 'gray',
 };
 
 /** Bell with unread badge; opens a drawer with the latest notifications. */
 export function NotificationCenter() {
+  const { t } = useTranslation('notifications');
   const [opened, { open, close }] = useDisclosure();
   const isMobile = useMediaQuery('(max-width: 48em)');
   const navigate = useNavigate();
@@ -25,7 +27,7 @@ export function NotificationCenter() {
 
   const unread = q.data?.unread ?? 0;
   const items = q.data?.items ?? [];
-  const label = unread ? `Notifications (${unread} unread)` : 'Notifications';
+  const label = unread ? t('center.labelUnread', { count: unread }) : t('center.title');
 
   const onItem = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
@@ -51,10 +53,10 @@ export function NotificationCenter() {
         size={isMobile ? '100%' : 420}
         title={
           <Group gap="xs">
-            <Text fw={600}>Notifications</Text>
+            <Text fw={600}>{t('center.title')}</Text>
             {unread > 0 && (
               <Badge size="sm" color="red" variant="light">
-                {unread} unread
+                {t('center.unread', { count: unread })}
               </Badge>
             )}
           </Group>
@@ -63,7 +65,7 @@ export function NotificationCenter() {
       >
         <Group justify="space-between" mb="sm" gap="xs">
           <Button size="xs" variant="light" leftSection={<IconChecks size={14} />} disabled={!unread} onClick={() => markAllRead()}>
-            Mark all read
+            {t('center.markAllRead')}
           </Button>
           <Button
             size="xs"
@@ -75,7 +77,7 @@ export function NotificationCenter() {
               navigate('/profile');
             }}
           >
-            Notification settings
+            {t('center.settings')}
           </Button>
         </Group>
         {q.isLoading ? (
@@ -86,7 +88,7 @@ export function NotificationCenter() {
           <Stack align="center" gap={4} py="xl">
             <IconBellOff size={32} stroke={1.4} color="var(--mantine-color-dimmed)" />
             <Text size="sm" c="dimmed" ta="center">
-              {q.data?.unavailable ? 'Notifications are not available on this server.' : 'You are all caught up.'}
+              {q.data?.unavailable ? t('center.unavailable') : t('center.empty')}
             </Text>
           </Stack>
         ) : (
@@ -101,7 +103,7 @@ export function NotificationCenter() {
                   border: '1px solid var(--mantine-color-default-border)',
                   background: n.read ? undefined : 'var(--mantine-color-blue-light)',
                 }}
-                aria-label={`${n.read ? '' : 'Unread: '}${n.title}`}
+                aria-label={n.read ? n.title : t('center.unreadItem', { title: n.title })}
               >
                 <Group gap="xs" wrap="nowrap" align="flex-start">
                   <Box
@@ -126,8 +128,8 @@ export function NotificationCenter() {
                         {n.body}
                       </Text>
                     )}
-                    <Badge size="xs" variant="light" color={EVENTS[n.event]?.color ?? 'gray'} mt={4} tt="none">
-                      {EVENTS[n.event]?.label ?? n.event}
+                    <Badge size="xs" variant="light" color={EVENT_COLORS[n.event] ?? 'gray'} mt={4} tt="none">
+                      {t(`events.${n.event}.label` as 'events.run.failed.label', { defaultValue: n.event })}
                     </Badge>
                   </Box>
                 </Group>

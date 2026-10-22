@@ -1,0 +1,21 @@
+{
+  "title": "Etwas ist schiefgelaufen",
+  "http": "Anfrage fehlgeschlagen (HTTP {{status}})",
+  "codes": {
+    "WRONG_CREDENTIALS": "Benutzername oder Passwort ist falsch.",
+    "TOO_MANY_ATTEMPTS": "Zu viele Fehlversuche – bitte in einigen Minuten erneut versuchen.",
+    "PASSWORD_LOGIN_DISABLED": "Die Anmeldung mit Passwort ist deaktiviert – bitte Single Sign-on verwenden.",
+    "WRONG_PASSPHRASE": "Falsche Passphrase.",
+    "VAULT_LOCKED": "Der Tresor ist gesperrt.",
+    "SSO_VAULT_LOCKED": "Single Sign-on ist erst verfügbar, wenn ein Administrator den Tresor entsperrt hat.",
+    "NOT_SIGNED_IN": "Bitte anmelden.",
+    "PASSWORD_CHANGE_REQUIRED": "Bitte zuerst das Passwort ändern.",
+    "WRONG_CURRENT_PASSWORD": "Das aktuelle Passwort ist falsch.",
+    "SAME_PASSWORD": "Bitte ein anderes als das aktuelle Passwort wählen.",
+    "PASSWORD_POLICY": "Das Passwort braucht mindestens 10 Zeichen, Buchstaben und mindestens eine Ziffer oder ein Sonderzeichen.",
+    "LAST_ADMIN": "Mindestens ein aktiver Administrator ist erforderlich.",
+    "SSO_MANAGED_PROFILE": "Name und E-Mail-Adresse dieses Kontos werden über Single Sign-on verwaltet.",
+    "INVALID_EMAIL": "Bitte eine gültige E-Mail-Adresse eingeben.",
+    "UNSUPPORTED_LOCALE": "Diese Sprache wird nicht unterstützt."
+  }
+}

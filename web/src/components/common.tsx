@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import { ActionIcon, Badge, Box, Button, Code, CopyButton, Group, ScrollArea, Stack, Text, TextInput, Title, Tooltip } from '@mantine/core';
 import { IconCheck, IconCopy, IconPlus, IconTrash } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 
 const STATUS_COLORS: Record<string, string> = {
   succeeded: 'green',
@@ -16,10 +18,16 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'green',
 };
 
+/** Display label of a run, step or task status (unknown values are shown as they are). */
+export function statusLabel(status: string): string {
+  return i18n.t(`common:status.${status}` as 'common:status.running', { defaultValue: status });
+}
+
 export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'xs' | 'sm' | 'md' }) {
+  useTranslation();
   return (
     <Badge color={STATUS_COLORS[status] ?? 'gray'} variant="light" size={size}>
-      {status === 'dryrun' ? 'dry run' : status}
+      {statusLabel(status)}
     </Badge>
   );
 }
@@ -43,6 +51,7 @@ export function PageHeader({ title, description, actions }: { title: ReactNode; 
 }
 
 export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight?: number }) {
+  const { t } = useTranslation();
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   return (
     <Box pos="relative">
@@ -53,7 +62,7 @@ export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight
       </ScrollArea.Autosize>
       <CopyButton value={text ?? ''}>
         {({ copied, copy }) => (
-          <ActionIcon size="sm" variant="subtle" onClick={copy} pos="absolute" top={4} right={14} aria-label="Copy">
+          <ActionIcon size="sm" variant="subtle" onClick={copy} pos="absolute" top={4} right={14} aria-label={t('copy')}>
             {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
           </ActionIcon>
         )}
@@ -110,10 +119,10 @@ export function fromText(s: string): unknown {
 export function KeyValueEditor({
   value,
   onChange,
-  keyLabel = 'Name',
-  valueLabel = 'Value',
+  keyLabel: keyLabelProp,
+  valueLabel: valueLabelProp,
   valuePlaceholder,
-  addLabel = 'Add',
+  addLabel: addLabelProp,
 }: {
   value: Record<string, unknown> | undefined;
   onChange: (v: Record<string, unknown> | undefined) => void;
@@ -122,6 +131,10 @@ export function KeyValueEditor({
   valuePlaceholder?: string;
   addLabel?: string;
 }) {
+  const { t } = useTranslation();
+  const keyLabel = keyLabelProp ?? t('name');
+  const valueLabel = valueLabelProp ?? t('value');
+  const addLabel = addLabelProp ?? t('add');
   const entries = Object.entries(value ?? {});
   const [draftKey, setDraftKey] = useState('');
   const update = (list: [string, unknown][]) => onChange(list.length ? Object.fromEntries(list) : undefined);
@@ -153,7 +166,7 @@ export function KeyValueEditor({
               update(copy);
             }}
           />
-          <ActionIcon variant="subtle" color="red" onClick={() => update(entries.filter((_, j) => j !== i))} aria-label="Remove">
+          <ActionIcon variant="subtle" color="red" onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('remove')}>
             <IconTrash size={14} />
           </ActionIcon>
         </Group>

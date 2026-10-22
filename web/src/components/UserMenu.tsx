@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
-import { IconChevronDown, IconDownload, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconDownload, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { ChangePasswordForm } from '../pages/Auth';
 import { useInstallPrompt } from '../pwa';
+import { currentLanguage } from '../i18n';
+import { LANGUAGES } from '../i18n/languages';
+import { useChangeLanguage } from './LanguageSwitcher';
 
 export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<void> {
   try {
@@ -19,7 +23,9 @@ export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<vo
 }
 
 export function UserMenu() {
+  const { t } = useTranslation(['nav', 'common']);
   const { me, isAdmin } = useMe();
+  const changeLanguage = useChangeLanguage();
   const qc = useQueryClient();
   const [pwOpen, setPwOpen] = useState(false);
   const navigate = useNavigate();
@@ -36,7 +42,7 @@ export function UserMenu() {
     <>
       <Menu position="bottom-end" width={240}>
         <Menu.Target>
-          <UnstyledButton aria-label="User menu">
+          <UnstyledButton aria-label={t('userMenu.label')}>
             <Group gap={6} wrap="nowrap">
               <Avatar size={28} radius="xl" color="blue">
                 {initials}
@@ -60,7 +66,7 @@ export function UserMenu() {
             <Group gap={4}>
               {me.user.roles.map((r) => (
                 <Badge key={r} size="xs" variant="light">
-                  {r}
+                  {t(`common:roles.${r}`)}
                 </Badge>
               ))}
               {me.user.teams.map((t) => (
@@ -72,30 +78,30 @@ export function UserMenu() {
           </Stack>
           <Menu.Divider />
           <Menu.Item leftSection={<IconUser size={14} />} onClick={() => navigate('/profile')}>
-            Profile &amp; API tokens
+            {t('items.profile')}
           </Menu.Item>
           <Menu.Item
             hiddenFrom="xs"
             leftSection={colorScheme === 'dark' ? <IconSun size={14} /> : <IconMoon size={14} />}
             onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
           >
-            {colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}
+            {colorScheme === 'dark' ? t('lightMode') : t('darkMode')}
           </Menu.Item>
           {canInstall && (
             <Menu.Item leftSection={<IconDownload size={14} />} onClick={() => install().catch(() => undefined)}>
-              Install app
+              {t('userMenu.installApp')}
             </Menu.Item>
           )}
           {(!me.user.authSource || me.user.authSource === 'local') && (
             <Menu.Item leftSection={<IconKey size={14} />} onClick={() => setPwOpen(true)}>
-              Change password
+              {t('userMenu.changePassword')}
             </Menu.Item>
           )}
           {isAdmin && (
             <Menu.Item
               leftSection={<IconLock size={14} />}
               onClick={async () => {
-                if (!confirm('Lock the vault? Schedules stop and everybody waits until an administrator unlocks it again.')) return;
+                if (!confirm(t('userMenu.lockVaultConfirm'))) return;
                 try {
                   await post('/vault/lock');
                   qc.clear();
@@ -105,15 +111,28 @@ export function UserMenu() {
                 }
               }}
             >
-              Lock vault
+              {t('userMenu.lockVault')}
             </Menu.Item>
           )}
+          <Menu.Divider />
+          <Menu.Label>{t('language')}</Menu.Label>
+          {LANGUAGES.map((l) => (
+            <Menu.Item
+              key={l.code}
+              lang={l.code}
+              leftSection={currentLanguage() === l.code ? <IconCheck size={14} /> : <span style={{ width: 14, display: 'inline-block' }} />}
+              onClick={() => void changeLanguage(l.code)}
+            >
+              {l.nativeName}
+            </Menu.Item>
+          ))}
+          <Menu.Divider />
           <Menu.Item leftSection={<IconLogout size={14} />} color="red" onClick={() => signOut(qc)}>
-            Sign out
+            {t('userMenu.signOut')}
           </Menu.Item>
         </Menu.Dropdown>
       </Menu>
-      <Modal opened={pwOpen} onClose={() => setPwOpen(false)} title="Change password">
+      <Modal opened={pwOpen} onClose={() => setPwOpen(false)} title={t('userMenu.changePassword')}>
         <ChangePasswordForm onDone={() => setPwOpen(false)} />
       </Modal>
     </>
