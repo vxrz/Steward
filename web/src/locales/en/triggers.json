@@ -119,6 +119,7 @@
   },
   "emptyState": {
     "title": "No webhook triggers yet",
-    "text": "Let another system start a process by calling a URL, e.g. a Gatus alert that starts a diagnosis runbook. Each trigger gets its own secret."
+    "text": "Let another system start a process by calling a URL, e.g. a Gatus alert that starts a diagnosis runbook. Each trigger gets its own secret.",
+    "action": "Create your first webhook trigger"
   }
 }

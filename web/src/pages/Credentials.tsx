@@ -236,7 +236,7 @@ export function CredentialsPage() {
             action={
               list.data.canCreate && (
                 <Button leftSection={<IconPlus size={16} />} onClick={() => setEditing('new')}>
-                  {t('new')}
+                  {t('emptyState.action')}
                 </Button>
               )
             }

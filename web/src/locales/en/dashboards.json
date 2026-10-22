@@ -11,7 +11,8 @@
     "widgets_one": "{{count}} widget",
     "widgets_other": "{{count}} widgets",
     "by": "by {{owner}}",
-    "updated": "updated {{when}}"
+    "updated": "updated {{when}}",
+    "emptyAction": "Start from a template"
   },
   "datasets": {
     "title": "Datasets",

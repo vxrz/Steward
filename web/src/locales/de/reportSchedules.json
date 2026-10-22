@@ -104,6 +104,7 @@
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",
-    "text": "Senden Sie Ihrem Team wöchentlich oder monatlich einen zusammenfassenden PDF-Bericht (Verfügbarkeit, Zugangsdaten, Ausführungen, Dokumente)."
+    "text": "Senden Sie Ihrem Team wöchentlich oder monatlich einen zusammenfassenden PDF-Bericht (Verfügbarkeit, Zugangsdaten, Ausführungen, Dokumente).",
+    "action": "Ersten Berichtszeitplan anlegen"
   }
 }

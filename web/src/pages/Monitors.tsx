@@ -98,10 +98,10 @@ export function MonitorsPage() {
                 canCreate && (
                   <>
                     <Button leftSection={<IconPlus size={16} />} onClick={() => navigate('/monitors/new')}>
-                      {t('new')}
+                      {t('emptyState.action')}
                     </Button>
                     <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImporting(true)}>
-                      {t('import')}
+                      {t('emptyState.import')}
                     </Button>
                   </>
                 )

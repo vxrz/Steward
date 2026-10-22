@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useMemo, type ComponentType } from 'react';
 import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Button, Center, Group, Loader, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
@@ -115,7 +115,8 @@ function Shell({ status }: { status: AuthStatus }) {
   const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
   const openTasks = tasks.data?.length ?? 0;
 
-  const navItems = useNavGroups(caps).flatMap((g) => g.items);
+  const navGroups = useNavGroups(caps);
+  const navItems = useMemo(() => navGroups.flatMap((g) => g.items), [navGroups]);
   // Narrow icon-only sidebar on wide screens (remembered per browser)
   const [rail, setRail] = useLocalStorage({ key: 'sm.nav.rail', defaultValue: false, getInitialValueInEffect: false });
   // The burger drawer on phones always shows the full sidebar.

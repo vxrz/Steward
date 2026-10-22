@@ -50,7 +50,9 @@
     "ownerLine": "{{owner}} · geändert {{when}}",
     "emptyTitle": "Noch keine Dokumente",
     "emptyText": "Änderungsanträge und Entscheidungsprotokolle, die Sie sehen dürfen, erscheinen hier.",
-    "emptyCreateText": "Schreiben Sie einen Änderungsantrag oder ein Entscheidungsprotokoll, oder importieren Sie vorhandene Entscheidungsprotokolle aus Markdown-Dateien."
+    "emptyCreateText": "Schreiben Sie einen Änderungsantrag oder ein Entscheidungsprotokoll, oder importieren Sie vorhandene Entscheidungsprotokolle aus Markdown-Dateien.",
+    "emptyAction": "Erstes Dokument schreiben",
+    "emptyImport": "Vorhandene Dokumente importieren"
   },
   "create": {
     "title": "Neues Dokument",

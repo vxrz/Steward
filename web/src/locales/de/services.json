@@ -49,6 +49,7 @@
     "title": "Noch keine Services",
     "titleArchived": "Keine archivierten Services",
     "text": "Administratoren oder Designer legen die Services an, die Ihr Team betreibt.",
-    "textCreate": "Legen Sie die Services an, die Ihr Team betreibt, und verknüpfen Sie deren Plattformen, Monitore und Dokumente."
+    "textCreate": "Legen Sie die Services an, die Ihr Team betreibt, und verknüpfen Sie deren Plattformen, Monitore und Dokumente.",
+    "action": "Ersten Service anlegen"
   }
 }

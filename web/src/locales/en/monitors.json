@@ -463,6 +463,8 @@
   "emptyState": {
     "title": "No monitors yet",
     "text": "Monitors you may see will show up here.",
-    "textCreate": "Watch devices, APIs and data flows with composable checks. Create a monitor, or import an example from the library."
+    "textCreate": "Watch devices, APIs and data flows with composable checks. Create a monitor, or import an example from the library.",
+    "action": "Create your first monitor",
+    "import": "Import an example"
   }
 }

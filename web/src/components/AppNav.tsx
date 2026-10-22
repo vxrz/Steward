@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
@@ -113,14 +113,19 @@ export interface NavEntry {
 /** The sections and pages the user may see, with translated labels. */
 export function useNavGroups(caps: Capabilities): { key: NavGroupKey | null; label: string; items: NavEntry[] }[] {
   const { t } = useTranslation('nav');
-  return NAV_GROUPS.map((g) => {
-    const label = g.key ? t(`groups.${g.key}`) : '';
-    return {
-      key: g.key,
-      label,
-      items: g.items.filter((n) => !n.cap || caps[n.cap]).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: label })),
-    };
-  }).filter((g) => g.items.length > 0);
+  // Memoised: the command palette rebuilds its actions when this changes.
+  return useMemo(
+    () =>
+      NAV_GROUPS.map((g) => {
+        const label = g.key ? t(`groups.${g.key}`) : '';
+        return {
+          key: g.key,
+          label,
+          items: g.items.filter((n) => !n.cap || caps[n.cap]).map((n) => ({ to: n.to, key: n.key, icon: n.icon, label: t(`items.${n.key}`), group: label })),
+        };
+      }).filter((g) => g.items.length > 0),
+    [t, caps],
+  );
 }
 
 const COLLAPSED_KEY = 'sm.nav.collapsedGroups';

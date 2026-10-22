@@ -57,7 +57,7 @@ export function ServicesPage() {
             canCreate &&
             !archived && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
-                {t('new')}
+                {t('emptyState.action')}
               </Button>
             )
           }

@@ -156,7 +156,7 @@ export function TriggersPage() {
           title={t('emptyState.title')}
           action={
             <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
-              {t('new')}
+              {t('emptyState.action')}
             </Button>
           }
         >

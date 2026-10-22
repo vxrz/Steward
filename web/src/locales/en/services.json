@@ -49,6 +49,7 @@
     "title": "No services yet",
     "titleArchived": "No archived services",
     "text": "Your administrators or designers add the services your team runs.",
-    "textCreate": "Add the services your team runs and link their platforms, monitors and records."
+    "textCreate": "Add the services your team runs and link their platforms, monitors and records.",
+    "action": "Add your first service"
   }
 }

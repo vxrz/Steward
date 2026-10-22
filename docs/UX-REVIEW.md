@@ -77,7 +77,7 @@ Before: [nav-before.png](images/ux/nav-before.png).
 
 ### Empty, loading and error states
 
-- `EmptyState`: icon, title, guidance, the primary action for users who may use it (`compact` inside a card). Used on Runs, My tasks, Schedules, Triggers, Monitors, Records, Services, Credentials, Reports, Processes, Dashboards, Platforms and for unknown addresses.
+- `EmptyState`: icon, title, guidance, the primary action for users who may use it (`compact` inside a card). The action has its own label ("Add your first entry"), so screen readers do not meet two buttons with the header's name. Used on Runs, My tasks, Schedules, Triggers, Monitors, Records, Services, Credentials, Reports, Processes, Dashboards, Platforms and for unknown addresses.
 - Filtered lists without matches keep a short "No … match the filter" line, so people do not mistake a filter for an empty register.
 - `QueryState`: skeleton rows while a list loads, an error message with _Try again_ when it fails.
 

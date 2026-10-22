@@ -100,12 +100,16 @@ test.describe('navigation (admin)', () => {
     await search.fill('record types');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/\/records\/types$/);
+    // let the palette finish closing before it is opened again
+    await settle(page);
+    await expect(search).toBeHidden();
 
     await page.keyboard.press('Control+K');
     await search.fill('monitor machine 17 powermeter');
     await page.getByRole('button', { name: /^Machine 17 – PowerMeter/ }).click();
     await expect(page).toHaveURL(/\/monitors\/[^/]+$/);
     await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Machine 17 – PowerMeter');
+    await settle(page);
 
     await page.keyboard.press('Control+K');
     await search.fill('new record');
@@ -183,12 +187,12 @@ test.describe('first steps on an empty installation (own server)', () => {
     const page = await open(browser);
     const cases: [string, string, string][] = [
       ['/runs', 'No runs yet', 'Open processes'],
-      ['/schedules', 'No schedules yet', 'New schedule'],
-      ['/triggers', 'No webhook triggers yet', 'New webhook trigger'],
-      ['/monitors', 'No monitors yet', 'New monitor'],
-      ['/services', 'No services yet', 'New service'],
-      ['/records', 'No records yet', 'New record'],
-      ['/reports', 'No report schedules yet', 'New report schedule'],
+      ['/schedules', 'No schedules yet', 'Create your first schedule'],
+      ['/triggers', 'No webhook triggers yet', 'Create your first webhook trigger'],
+      ['/monitors', 'No monitors yet', 'Create your first monitor'],
+      ['/services', 'No services yet', 'Add your first service'],
+      ['/records', 'No records yet', 'Write your first record'],
+      ['/reports', 'No report schedules yet', 'Create your first report schedule'],
       ['/processes', 'No processes yet', 'Browse templates'],
       ['/platforms', 'No platforms yet', 'Add your first platform'],
     ];

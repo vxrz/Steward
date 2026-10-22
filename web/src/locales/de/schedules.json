@@ -42,6 +42,7 @@
   },
   "emptyState": {
     "title": "Noch keine Zeitpläne",
-    "text": "Lassen Sie einen Prozess automatisch ausführen, z. B. einen wöchentlichen Health Check oder eine vierteljährliche Zugriffsprüfung. Geplante Ausführungen laufen mit den Rechten des Zeitplan-Eigentümers."
+    "text": "Lassen Sie einen Prozess automatisch ausführen, z. B. einen wöchentlichen Health Check oder eine vierteljährliche Zugriffsprüfung. Geplante Ausführungen laufen mit den Rechten des Zeitplan-Eigentümers.",
+    "action": "Ersten Zeitplan anlegen"
   }
 }

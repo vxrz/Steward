@@ -69,7 +69,7 @@ export function DashboardsPage() {
           action={
             caps.createProcesses && (
               <Button leftSection={<IconTemplate size={16} />} onClick={templates.open}>
-                {t('list.fromTemplate')}
+                {t('list.emptyAction')}
               </Button>
             )
           }

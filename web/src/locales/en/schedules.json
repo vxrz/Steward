@@ -42,6 +42,7 @@
   },
   "emptyState": {
     "title": "No schedules yet",
-    "text": "Run a process automatically, e.g. a weekly health check or a quarterly access review. Scheduled runs use the rights of the schedule's owner."
+    "text": "Run a process automatically, e.g. a weekly health check or a quarterly access review. Scheduled runs use the rights of the schedule's owner.",
+    "action": "Create your first schedule"
   }
 }

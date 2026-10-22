@@ -119,6 +119,7 @@
   },
   "emptyState": {
     "title": "Noch keine Webhook-Auslöser",
-    "text": "Lassen Sie ein anderes System einen Prozess über eine URL starten, z. B. einen Gatus-Alarm, der ein Diagnose-Runbook startet. Jeder Auslöser bekommt ein eigenes Secret."
+    "text": "Lassen Sie ein anderes System einen Prozess über eine URL starten, z. B. einen Gatus-Alarm, der ein Diagnose-Runbook startet. Jeder Auslöser bekommt ein eigenes Secret.",
+    "action": "Ersten Webhook-Auslöser anlegen"
   }
 }

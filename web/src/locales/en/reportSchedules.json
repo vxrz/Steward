@@ -104,6 +104,7 @@
   },
   "emptyState": {
     "title": "No report schedules yet",
-    "text": "Send a summary PDF (availability, credentials, runs, records) to your team every week or month."
+    "text": "Send a summary PDF (availability, credentials, runs, records) to your team every week or month.",
+    "action": "Create your first report schedule"
   }
 }

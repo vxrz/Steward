@@ -124,10 +124,10 @@ export function RecordsPage() {
               canCreate && (
                 <>
                   <Button leftSection={<IconPlus size={16} />} onClick={() => setCreating(true)}>
-                    {t('new')}
+                    {t('list.emptyAction')}
                   </Button>
                   <Button variant="default" leftSection={<IconFileImport size={16} />} onClick={() => setImporting(true)}>
-                    {t('import')}
+                    {t('list.emptyImport')}
                   </Button>
                 </>
               )

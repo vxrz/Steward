@@ -112,7 +112,7 @@ export function ReportsPage() {
               action={
                 schedules.data.canCreate && (
                   <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft(emptyDraft(i18n.language.startsWith('de') ? 'de' : 'en'))}>
-                    {t('new')}
+                    {t('emptyState.action')}
                   </Button>
                 )
               }

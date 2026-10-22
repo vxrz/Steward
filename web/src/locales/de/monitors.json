@@ -463,6 +463,8 @@
   "emptyState": {
     "title": "Noch keine Monitore",
     "text": "Monitore, die Sie sehen dürfen, erscheinen hier.",
-    "textCreate": "Überwachen Sie Geräte, APIs und Datenflüsse mit kombinierbaren Prüfungen. Legen Sie einen Monitor an oder importieren Sie ein Beispiel aus der Bibliothek."
+    "textCreate": "Überwachen Sie Geräte, APIs und Datenflüsse mit kombinierbaren Prüfungen. Legen Sie einen Monitor an oder importieren Sie ein Beispiel aus der Bibliothek.",
+    "action": "Ersten Monitor anlegen",
+    "import": "Beispiel importieren"
   }
 }
