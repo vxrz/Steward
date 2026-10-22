@@ -332,6 +332,36 @@ describe('branding', () => {
   });
 });
 
+describe('verification of archived copies', () => {
+  it('recognizes generated reports, signed copies and modified files', async () => {
+    const rec = (await s.api('GET', `/runs/${dryRun.id}/reports`))[0];
+    const pdf = (await download(`/reports/${rec.id}/download`)).body;
+    const exact = await s.api('POST', '/reports/verify', { contentBase64: pdf.toString('base64') });
+    expect(exact).toMatchObject({ match: 'exact', sha256: rec.sha256, report: { id: rec.id, runId: dryRun.id, stored: true }, auditChain: { ok: true } });
+    // a signature is appended as an incremental update after the original %%EOF
+    const signed = Buffer.concat([pdf, Buffer.from('\n99 0 obj\n<< /Type /Sig >>\nendobj\nxref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 100 >>\nstartxref\n0\n%%EOF\n')]);
+    expect((await s.api('POST', '/reports/verify', { contentBase64: signed.toString('base64') })).match).toBe('signed-copy');
+    const modified = Buffer.from(pdf);
+    modified[modified.length - 200] ^= 1;
+    expect((await s.api('POST', '/reports/verify', { contentBase64: modified.toString('base64') })).match).toBe('unknown');
+    // users who may not see the run learn nothing about it
+    await s.api('PUT', '/processes/ih-access-review-1-flag/access', { acl: [{ subject: 'team:Service Desk', permissions: ['view', 'run'] }] });
+    try {
+      expect(await status(vera('POST', '/reports/verify', { contentBase64: pdf.toString('base64') }))).toBe(404);
+    } finally {
+      await s.api('PUT', '/processes/ih-access-review-1-flag/access', { acl: [] });
+    }
+  });
+  it('passes veraPDF (PDF/A-2b) when SM_VERAPDF is set', async () => {
+    const cmd = process.env.SM_VERAPDF; // e.g. "java -cp '/opt/verapdf/lib/*' org.verapdf.apps.GreenfieldCliWrapper"
+    if (!cmd) return;
+    const files = fs.readdirSync(path.join(s.dataDir, 'reports', dryRun.id)).map((f) => path.join(s.dataDir, 'reports', dryRun.id, f));
+    const out = spawnSync(`${cmd} --flavour 2b --format text ${files.map((f) => `'${f}'`).join(' ')}`, { shell: true, encoding: 'utf8' });
+    expect(out.stdout).not.toContain('FAIL');
+    expect(out.stdout.match(/^PASS /gm)?.length).toBe(files.length);
+  });
+});
+
 describe('automatic reports and retention', () => {
   it('generates the report when a run of a process with report.auto finishes', async () => {
     const p = await s.api('POST', '/processes', {
@@ -365,6 +395,7 @@ describe('automatic reports and retention', () => {
   it('retention cleanup removes the run’s report files and records', async () => {
     const dir = path.join(s.dataDir, 'reports', reviewRun.id);
     expect(fs.readdirSync(dir).length).toBeGreaterThan(2);
+    const keptCopy = fs.readFileSync(path.join(dir, fs.readdirSync(dir)[0]!));
     const { db } = await import('../src/db.js');
     db().run("UPDATE runs SET finished_at = '2001-01-01T00:00:00.000Z' WHERE id = ?", reviewRun.id);
     await s.api('PUT', '/settings', { retentionRunDays: 30 });
@@ -374,6 +405,9 @@ describe('automatic reports and retention', () => {
     // other runs' reports survive; the audit log keeps the history
     expect(fs.existsSync(path.join(s.dataDir, 'reports', dryRun.id))).toBe(true);
     expect((await s.api('GET', '/audit?action=report.generated')).filter((a: any) => a.runId === reviewRun.id).length).toBeGreaterThan(2);
+    // an archived copy of a deleted run's report can still be verified against the audit log
+    const v = await s.api('POST', '/reports/verify', { contentBase64: keptCopy.toString('base64') });
+    expect(v).toMatchObject({ match: 'exact', report: { runId: reviewRun.id, stored: false } });
     await s.api('PUT', '/settings', { retentionRunDays: 0 });
   });
 });
