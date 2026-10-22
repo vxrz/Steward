@@ -6,6 +6,7 @@ import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
 import { emit } from '../events.js';
+import { guardedLookup } from './outbound.js';
 
 export interface HttpRequest {
   method: string;
@@ -51,9 +52,13 @@ function dispatcherFor(p: Platform): Dispatcher {
   const connect = {
     rejectUnauthorized: !p.config.http?.insecureTls,
     ...(p.config.http?.caPem ? { ca: p.config.http.caPem } : {}),
+    // Resolve DNS ourselves, reject metadata/link-local addresses and pin the IP
+    // for the connection so a name cannot be rebound after the policy check.
+    lookup: guardedLookup,
   };
   const proxy = p.config.http?.proxy?.trim();
   let dispatcher: Dispatcher;
+  // A real proxy resolves names on its side, so the pinning lookup only applies to direct connections.
   if (proxy === 'none') dispatcher = new Agent({ connect });
   else if (proxy) dispatcher = new ProxyAgent({ uri: proxy, requestTls: connect });
   else dispatcher = new EnvHttpProxyAgent({ connect, requestTls: connect } as never);
@@ -188,7 +193,9 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       body,
       dispatcher: dispatcherFor(p),
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      redirect: 'follow',
+      // Redirects are followed manually (see followRedirects) so credentials can be
+      // re-evaluated per hop; undici only strips Authorization, not custom headers.
+      redirect: 'manual',
     });
   } catch (e) {
     const err = e as Error & { cause?: Error & { code?: string } };
@@ -423,6 +430,73 @@ function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+const MAX_REDIRECTS = 5;
+
+/**
+ * Send one request and follow up to MAX_REDIRECTS redirects manually. Credentials
+ * are attached (and stripped) per hop: a hop that leaves the platform's allowed
+ * origins receives no auth header, no default headers and no user header whose
+ * value contains one of the platform's secret values. undici's own redirect
+ * handling only strips `Authorization`, not custom-named credential headers.
+ */
+async function followRedirects(
+  p: Platform,
+  secrets: Record<string, string>,
+  req: HttpRequest,
+  initialQuery: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  attempt: number,
+): Promise<HttpResult> {
+  let method = req.method;
+  let url = req.url;
+  let body = req.body;
+  let sawHttps = /^https:/i.test(url);
+  const leakValues = secretValues(secrets);
+  for (let hop = 0; ; hop++) {
+    const hopTrusted = await credentialsAllowed(p, secrets, url);
+    const headers: Record<string, string> = {};
+    if (hopTrusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
+    for (const [k, v] of Object.entries(req.headers ?? {})) {
+      // Drop a user-supplied header that carries a secret when the hop is not trusted.
+      if (!hopTrusted && typeof v === 'string' && leakValues.some((s) => v.includes(s))) continue;
+      headers[k.toLowerCase()] = v;
+    }
+    if (hopTrusted) {
+      if (/^http:/i.test(url) && sawHttps) {
+        throw Object.assign(new Error(`Refusing to send credentials over an insecure redirect to ${url} (https → http downgrade)`), { retryable: false });
+      }
+      const auth = await obtainAuthHeader(p, secrets, signal);
+      if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
+      if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
+        /* the initial url already carries the query api key (buildUrl) */
+      }
+    }
+    const res = await rawRequest(p, { method, url, headers, body, bodyType: req.bodyType }, signal, attempt);
+    const location = res.headers['location'];
+    if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
+      if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {
+        throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${req.url}`), { retryable: false });
+      }
+      return res;
+    }
+    let next: URL;
+    try {
+      next = new URL(location, url);
+    } catch {
+      return res;
+    }
+    if (/^https:/i.test(url)) sawHttps = true;
+    // 301/302/303 turn the request into a bodyless GET; 307/308 preserve method and body.
+    if (res.status === 303 || ((res.status === 301 || res.status === 302) && method !== 'GET' && method !== 'HEAD')) {
+      method = 'GET';
+      body = undefined;
+    }
+    url = next.toString();
+  }
+}
+
+const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+
 /**
  * Perform an authenticated request against a platform.
  * Retries 429/502/503/504 and network errors (honouring Retry-After; POST/PATCH
@@ -451,16 +525,7 @@ export async function platformRequest(
     }
     logger.warn({ platform: p.name, host }, 'request to a host outside the platform – sent without credentials (see http.trustedOrigins)');
   }
-  const send = async (attempt: number) => {
-    const headers: Record<string, string> = {};
-    if (trusted) for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
-    for (const [k, v] of Object.entries(req.headers ?? {})) headers[k.toLowerCase()] = v;
-    if (trusted) {
-      const auth = await obtainAuthHeader(p, secrets, signal);
-      if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
-    }
-    return rawRequest(p, { ...req, url, headers }, signal, attempt);
-  };
+  const send = (attempt: number) => followRedirects(p, secrets, { ...req, url }, query, signal, attempt);
   const policy = retryPolicy(p);
   const method = req.method.toUpperCase();
   const mayRetry = policy.maxRetries > 0 && (!NON_IDEMPOTENT.has(method) || policy.retryNonIdempotent);

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   LOCALE_CODES,
   API_DOCS_MODES,
+  OUTBOUND_POLICIES,
   ROLES,
   validateProcess,
   type AuthStatus,
@@ -385,6 +386,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
         defaultLocale: z.enum(LOCALE_CODES).optional(),
         apiDocs: z.enum(API_DOCS_MODES).optional(),
+        outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
+        outboundAllowList: z.array(z.string().trim().min(1).max(255)).max(200).optional(),
       })
       .parse(req.body);
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');

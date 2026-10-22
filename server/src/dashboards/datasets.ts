@@ -86,6 +86,17 @@ export function publishDataset(input: {
   metrics: Record<string, number>;
   staleAfterMinutes?: number;
 }): DatasetMeta {
+  // A dataset key is owned by the process that first published it; another process
+  // may not overwrite it (that would poison a dashboard and reassign its visibility).
+  // An administrator resets ownership by deleting the dataset (DELETE /api/datasets/:key).
+  const owner = db().get<{ process_id: string; process_name: string }>('SELECT process_id, process_name FROM datasets WHERE key = ?', input.key);
+  if (owner && owner.process_id !== input.processId) {
+    throw new HttpError(
+      409,
+      `Dataset "${input.key}" is owned by process "${owner.process_name}". Another process may not overwrite it. ` +
+        `Use a different dataset key, or ask an administrator to delete the dataset first (Dashboards → dataset → Delete).`,
+    );
+  }
   const counts: Partial<Record<DatasetStatus, number>> = {};
   for (const r of input.rows) if (r._status) counts[r._status] = (counts[r._status] ?? 0) + 1;
   const ts = nowIso();

@@ -30,6 +30,19 @@ export interface BrowserSession {
   close(): Promise<void>;
 }
 
+/**
+ * Decide whether the browser may issue a request. `navigation` is true for a
+ * top-level page navigation (the process-controlled destination) and false for
+ * sub-resources (scripts, images, XHR). Returning false aborts the request.
+ */
+export type BrowserRequestGuard = (url: string, navigation: boolean) => Promise<boolean> | boolean;
+
+interface PwRoute {
+  request(): { url(): string; isNavigationRequest(): boolean };
+  continue(): Promise<void>;
+  abort(reason?: string): Promise<void>;
+}
+
 const EXECUTABLE_CANDIDATES = [process.env.SM_CHROMIUM_PATH].filter(Boolean) as string[];
 
 let available: boolean | undefined;
@@ -44,8 +57,15 @@ export async function browserAvailable(): Promise<boolean> {
   return available;
 }
 
-export async function openBrowser(opts: { headless: boolean; timeoutMs: number; ignoreHttpsErrors?: boolean }): Promise<BrowserSession> {
-  let pw: { chromium: { launch(o: unknown): Promise<{ newContext(o: unknown): Promise<{ newPage(): Promise<PwPage> }>; close(): Promise<void> }> } };
+export async function openBrowser(opts: { headless: boolean; timeoutMs: number; ignoreHttpsErrors?: boolean; requestGuard?: BrowserRequestGuard }): Promise<BrowserSession> {
+  let pw: {
+    chromium: {
+      launch(o: unknown): Promise<{
+        newContext(o: unknown): Promise<{ newPage(): Promise<PwPage>; route(pattern: string, handler: (r: PwRoute) => Promise<void>): Promise<void> }>;
+        close(): Promise<void>;
+      }>;
+    };
+  };
   try {
     pw = (await import('playwright')) as never;
   } catch {
@@ -56,6 +76,20 @@ export async function openBrowser(opts: { headless: boolean; timeoutMs: number; 
   const executablePath = EXECUTABLE_CANDIDATES.find((p) => fs.existsSync(p));
   const browser = await pw.chromium.launch({ headless: opts.headless, ...(executablePath ? { executablePath } : {}) });
   const context = await browser.newContext({ ignoreHTTPSErrors: !!opts.ignoreHttpsErrors, viewport: { width: 1366, height: 860 } });
+  if (opts.requestGuard) {
+    const guard = opts.requestGuard;
+    // Enforce the outbound policy on every browser request, including sub-resources
+    // (the browser uses Chromium's own network stack, not our guarded dispatcher).
+    await context.route('**/*', async (route) => {
+      let ok = false;
+      try {
+        ok = await guard(route.request().url(), route.request().isNavigationRequest());
+      } catch {
+        ok = false;
+      }
+      await (ok ? route.continue() : route.abort('blockedbyclient')).catch(() => undefined);
+    });
+  }
   const page = await context.newPage();
   page.setDefaultTimeout(opts.timeoutMs);
   return { page, close: () => browser.close() };

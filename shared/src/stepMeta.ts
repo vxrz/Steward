@@ -208,11 +208,12 @@ export const STEP_META: Record<NodeType, StepMeta> = {
     category: 'Browser',
     color: 'orange',
     description:
-      'Drive a real browser (Playwright): open pages, fill forms, click, extract text and take screenshots as evidence. The browser session is shared by all browser steps of a run.',
+      'Drive a real browser (Playwright): open pages, fill forms, click, extract text and take screenshots as evidence. The browser session is shared by all browser steps of a run. Dry runs skip only steps marked "changes data"; otherwise interactions (click, fill, …) still run and can change data in the portal – use "Read-only in dry runs" for a step that must stay safe to preview.',
     fields: [
       { key: 'connection', label: 'Connection (for base URL & secrets)', kind: 'connection' },
       { key: 'actions', label: 'Actions', kind: 'actions', required: true },
       { key: 'mutating', label: 'Changes data (skip in dry run)', kind: 'boolean' },
+      { key: 'dryRunReadOnly', label: 'Read-only in dry runs (skip click/fill/… during a dry run)', kind: 'boolean' },
     ],
     defaults: () => ({ actions: [{ action: 'goto', value: '/' }, { action: 'screenshot', name: 'page' }] }),
   },

@@ -24,6 +24,20 @@
     "timeout": "Default timeout per action (ms)",
     "tip": "Tip: <c>npx playwright codegen https://your-portal</c> records clicks and shows selectors you can paste into browser steps."
   },
+  "outbound": {
+    "title": "Outbound access",
+    "policy": "Where processes may send requests",
+    "platforms": "Configured platforms + allow-list",
+    "allowList": "Allow-list only",
+    "open": "Any host (labs)",
+    "platformsHint": "Processes may reach the origins of configured platforms (and their trusted origins) and the allow-list below. Recommended.",
+    "allowListHint": "Processes may reach only the destinations on the allow-list below – not even configured platforms unless listed.",
+    "openWarning": "Processes may reach any host. Only use this in a lab. Cloud-metadata and link-local addresses and the server's own port stay blocked.",
+    "listLabel": "Allow-list",
+    "listPlaceholder": "https://api.example.com\n*.corp.example\n10.0.0.0/8",
+    "listHint": "One entry per line: an origin (https://host[:port]), a host or host glob (*.example.com) or a CIDR. Cloud-metadata (169.254.169.254, …) and link-local addresses and the Steward server's own port are always blocked.",
+    "note": "Absolute URLs that are not covered here fail with a message telling the author to ask an administrator to allow the origin."
+  },
   "retention": {
     "title": "Data retention",
     "runs": "Keep runs (days)",

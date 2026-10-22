@@ -600,7 +600,19 @@ export interface Settings {
   defaultLocale: Locale;
   /** Who may open the public API documentation (Swagger UI) and its OpenAPI document. SM_API_DOCS overrides it. */
   apiDocs: ApiDocsMode;
+  /**
+   * Where process-controlled requests (http node, browser navigation, OpenAPI import by URL) may go.
+   * 'platforms' (default): the origins of configured platforms (+ their trusted origins) and the allow-list below.
+   * 'allowList': only the allow-list below. 'open': any host (labs only – shows a warning). Cloud-metadata and
+   * link-local addresses and the server's own port are always blocked. SM_OUTBOUND_POLICY overrides it.
+   */
+  outboundPolicy: OutboundPolicy;
+  /** Extra destinations processes may reach: origins (https://host[:port]), host names/globs (*.example.com) or CIDRs. */
+  outboundAllowList: string[];
 }
+
+export const OUTBOUND_POLICIES = ['platforms', 'allowList', 'open'] as const;
+export type OutboundPolicy = (typeof OUTBOUND_POLICIES)[number];
 
 // ---------- Public REST API (/api/v1) ----------
 
