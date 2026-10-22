@@ -11,7 +11,7 @@ Open it with **Credentials** in the navigation (German: _Zugangsdaten_).
 1. _Credentials → New entry_.
 2. Enter a **name** and choose the **type**:
    API client / OAuth client, technical user / service account, password, token / API key, certificate, agent / device certificate, SSH key, other.
-3. Choose the **platform** (a platform in Steward) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test).
+3. Choose the **platform** (a platform in Steward you have a right on) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test). People without a right on the linked platform do not see its name.
 4. **Where it is kept**: the KeePass database and the path of the entry, for example `KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-17`. **Link or path** is optional:
    - an `http(s)` link opens in a new tab (for example a vault web UI);
    - `keepass://…`, `*.kdbx`, `C:\…` or `\\server\share\…` paths are shown as text with a copy button, never as a link;

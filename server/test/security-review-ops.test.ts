@@ -24,6 +24,7 @@ vi.mock('nodemailer', () => ({
 
 let s: TestServer;
 let dana: Client, olivia: Client, adam: Client, vera: Client;
+let gatusId: string;
 const PW = 'Demo-password-1';
 const DAY = 86400000;
 const status = (p: Promise<unknown>) =>
@@ -50,6 +51,7 @@ beforeAll(async () => {
   await setup(s);
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, adam, vera] = await Promise.all(['dana', 'olivia', 'adam', 'vera'].map((u) => s.as(u, PW)));
+  gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
   // the company's own domain: the administrator's address
   await s.api('PATCH', '/me', { email: 'admin@corp.example' });
   await s.api('PUT', '/settings/notifications', SMTP);
@@ -408,5 +410,42 @@ describe('#10 sub-monitors the viewer cannot view', () => {
     expect(saved.monitor.description).toBe('edited by olivia');
     const own = await dana('GET', `/monitors/${parentId}`);
     expect(own.definition.checks[0].monitor).toBe(subId);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11 – credentials: platform names of platforms the viewer has no rights on
+
+describe('#11 linked platforms of credentials', () => {
+  it('the platform name is only shown to users with rights on the platform', async () => {
+    const c = await dana('POST', '/credentials', credential({ name: 'Linked to Gatus', platformId: gatusId, ownerSubjects: ['user:vera'] }));
+    expect(c.platformName).toBe('Gatus (demo)');
+    const mine = await vera('GET', `/credentials/${c.id}`);
+    expect(mine.platformName).toBeNull();
+    expect((await vera('GET', '/credentials?q=Gatus (demo)')).items.map((x: any) => x.id)).not.toContain(c.id);
+  });
+
+  it('editors cannot link platforms they cannot see (no existence oracle)', async () => {
+    const zabbix =
+      (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'zabbix') ?? (await s.api('GET', '/platforms')).find((p: any) => p.id !== gatusId);
+    await s.api('PUT', `/platforms/${zabbix.id}/access`, { acl: [{ subject: 'role:admin', permissions: ['manage'] }] });
+    try {
+      const hidden = await errorOf(dana('POST', '/credentials', credential({ platformId: zabbix.id })));
+      const missing = await errorOf(dana('POST', '/credentials', credential({ platformId: 'plat_does_not_exist' })));
+      expect(hidden).toMatch(/400/);
+      expect(hidden.replace(zabbix.id, 'ID')).toBe(missing.replace('plat_does_not_exist', 'ID'));
+      // an entry linked by an administrator stays editable for others (the link is kept)
+      const c = await s.api('POST', '/credentials', credential({ name: 'Linked by admin', platformId: zabbix.id }));
+      const seen = await dana('GET', `/credentials/${c.id}`);
+      expect(seen.platformName).toBeNull();
+      const saved = await dana('PUT', `/credentials/${c.id}`, {
+        ...credential({ name: c.name, expiresAt: c.expiresAt }),
+        platformId: seen.platformId,
+        description: 'x',
+      });
+      expect(saved.platformId).toBe(zabbix.id);
+    } finally {
+      await s.api('PUT', `/platforms/${zabbix.id}/access`, { acl: [] });
+    }
   });
 });

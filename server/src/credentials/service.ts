@@ -17,7 +17,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { readSetting, writeSetting } from '../settings.js';
@@ -206,9 +206,11 @@ const resolveLink = (l: CredentialLink): CredentialLink => {
 
 // ---------- mapping ----------
 
-function platformName(id: string | null): string | null {
+/** The name of the linked platform – only for users with a right on it (null otherwise, like a missing platform). */
+function platformName(id: string | null, u: AuthUser | null): string | null {
   if (!id) return null;
-  return db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', id)?.name ?? null;
+  const p = db().get<{ name: string; acl: string }>('SELECT name, acl FROM platforms WHERE id = ?', id);
+  return p && platformPermissions(u, { acl: parseJson(p.acl, []) }).length ? p.name : null;
 }
 
 export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
@@ -220,7 +222,7 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     name: r.name,
     type: r.type,
     platformId: r.platform_id,
-    platformName: platformName(r.platform_id),
+    platformName: platformName(r.platform_id, u),
     platformText: r.platform_text,
     environment: r.environment,
     description: r.description,
@@ -356,9 +358,11 @@ function secretCheck(b: CredentialInput): void {
   }
 }
 
-function checkPlatform(id: string | null | undefined): void {
-  if (!id) return;
-  if (!db().get('SELECT 1 FROM platforms WHERE id = ?', id)) throw new HttpError(400, `Platform ${id} not found`);
+/** A platform the user has a right on (the same answer as for a missing one otherwise); an unchanged link is kept. */
+function checkPlatform(id: string | null | undefined, unchanged: string | null): void {
+  if (!id || id === unchanged) return;
+  const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', id);
+  if (!p || !platformPermissions(currentUser(), { acl: parseJson(p.acl, []) }).length) throw new HttpError(400, `Platform ${id} not found`);
 }
 
 function checkGatus(g: CredentialInput['gatus']): void {
@@ -518,7 +522,7 @@ const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.m
 /** Validates an input (`before`: the stored entry on update) and maps it to columns. */
 function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
   secretCheck(b);
-  checkPlatform(b.platformId);
+  checkPlatform(b.platformId, before?.platform_id ?? null);
   // new owner addresses must have an allowed domain (stored ones stay; notify() checks them again on every send)
   const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);
   assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
