@@ -22,6 +22,8 @@ export interface HttpResult {
   headers: Record<string, string>;
   body: unknown;
   durationMs: number;
+  /** Number of attempts when the request was retried */
+  attempts?: number;
 }
 
 interface CachedToken {
@@ -90,7 +92,7 @@ export async function buildUrl(
   return url;
 }
 
-async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
+async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, attempt = 1): Promise<HttpResult> {
   let target: URL | undefined;
   try {
     target = new URL(req.url);
@@ -106,6 +108,9 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal): 
       'server.port': target ? Number(target.port || (target.protocol === 'https:' ? 443 : 80)) : undefined,
       'sm.platform.id': p.id,
       'sm.platform.name': p.name,
+      'sm.http.attempt': attempt,
+      // OTel semantic convention: number of times this request was re-sent (retries)
+      'http.request.resend_count': attempt > 1 ? attempt - 1 : undefined,
     },
     async (span) => {
       const t0 = Date.now();
@@ -160,9 +165,17 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       redirect: 'follow',
     });
   } catch (e) {
-    const err = e as Error & { cause?: Error };
+    const err = e as Error & { cause?: Error & { code?: string } };
     const cause = err.cause?.message ? ` (${err.cause.message})` : '';
-    throw new Error(`${req.method} ${req.url} failed: ${err.message}${cause}`);
+    const cancelled = !!signal?.aborted;
+    const timedOut = !cancelled && (timeout.aborted || err.name === 'TimeoutError');
+    const code = err.cause?.code ?? (err as { code?: string }).code;
+    const retryable = !cancelled && (timedOut || (!!code && RETRYABLE_CODES.has(code)));
+    throw Object.assign(new Error(`${req.method} ${req.url} failed: ${timedOut ? 'timeout' : err.message}${cause}`), {
+      retryable,
+      cancelled,
+      code: timedOut ? 'ETIMEDOUT' : code,
+    });
   }
   const resHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => (resHeaders[k] = v));
@@ -265,7 +278,130 @@ function short(v: unknown): string {
   return (s ?? '').slice(0, 300);
 }
 
-/** Perform an authenticated request against a platform. */
+/** Network error codes worth another attempt (connection dropped/refused, DNS hiccup, timeouts). */
+const RETRYABLE_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_CLOSED',
+]);
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+const NON_IDEMPOTENT = new Set(['POST', 'PATCH']);
+
+export interface RetryPolicy {
+  maxRetries: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  retryNonIdempotent: boolean;
+}
+
+export function retryPolicy(p: Platform): RetryPolicy {
+  const r = p.config.http?.retry ?? {};
+  const num = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : d);
+  return {
+    maxRetries: Math.min(num(r.maxRetries, 3), 10),
+    baseDelayMs: num(r.baseDelayMs, 500),
+    maxDelayMs: num(r.maxDelayMs, 30000),
+    retryNonIdempotent: !!r.retryNonIdempotent,
+  };
+}
+
+/** Delay before retry number `retry` (1-based): Retry-After if given, else exponential backoff with full jitter. */
+export function retryDelay(policy: RetryPolicy, retry: number, retryAfter?: string, now = Date.now()): number {
+  if (retryAfter) {
+    const t = retryAfter.trim();
+    let ms: number | undefined;
+    if (/^\d+(\.\d+)?$/.test(t)) ms = Number(t) * 1000;
+    else {
+      const at = Date.parse(t);
+      if (!Number.isNaN(at)) ms = Math.max(0, at - now);
+    }
+    if (ms !== undefined) return Math.min(ms, policy.maxDelayMs);
+  }
+  const cap = Math.min(policy.maxDelayMs, policy.baseDelayMs * 2 ** (retry - 1));
+  return Math.floor(Math.random() * cap);
+}
+
+/** Per-platform limit of concurrent requests (FIFO). */
+class Semaphore {
+  active = 0;
+  private queue: (() => void)[] = [];
+  constructor(public limit: number) {}
+  async acquire(signal?: AbortSignal): Promise<() => void> {
+    if (signal?.aborted) throw cancelledError();
+    if (this.active >= this.limit) {
+      await new Promise<void>((resolve, reject) => {
+        const grant = () => {
+          signal?.removeEventListener('abort', onAbort);
+          resolve();
+        };
+        const onAbort = () => {
+          const i = this.queue.indexOf(grant);
+          if (i >= 0) this.queue.splice(i, 1);
+          reject(cancelledError());
+        };
+        this.queue.push(grant);
+        signal?.addEventListener('abort', onAbort, { once: true });
+      });
+    } else this.active++;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const next = this.queue.shift();
+      if (next) next(); // slot handed over, active count unchanged
+      else this.active--;
+    };
+  }
+}
+const semaphores = new Map<string, Semaphore>();
+
+function semaphoreFor(p: Platform): Semaphore {
+  const limit = Math.max(1, Math.min(Math.floor(p.config.http?.maxConcurrency ?? 4) || 4, 100));
+  let s = semaphores.get(p.id);
+  if (!s) semaphores.set(p.id, (s = new Semaphore(limit)));
+  s.limit = limit;
+  return s;
+}
+
+/** Requests currently in flight / waiting per platform (diagnostics, tests). */
+export function platformConcurrency(platformId: string): number {
+  return semaphores.get(platformId)?.active ?? 0;
+}
+
+function cancelledError(): Error {
+  return Object.assign(new Error('Cancelled'), { cancelled: true });
+}
+
+function waitMs(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(cancelledError());
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(cancelledError());
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+/**
+ * Perform an authenticated request against a platform.
+ * Retries 429/502/503/504 and network errors (honouring Retry-After; POST/PATCH
+ * only with retryNonIdempotent) and limits concurrent calls per platform.
+ */
 export async function platformRequest(
   p: Platform,
   secrets: Record<string, string>,
@@ -278,20 +414,60 @@ export async function platformRequest(
     query[p.config.auth.apiKeyName || 'api_key'] = secrets.apiKey ?? '';
   }
   const url = await buildUrl(p, secrets, req.url, query);
-  const send = async () => {
+  const send = async (attempt: number) => {
     const headers: Record<string, string> = {};
     for (const [k, v] of Object.entries(p.config.http?.defaultHeaders ?? {})) headers[k.toLowerCase()] = v;
     for (const [k, v] of Object.entries(req.headers ?? {})) headers[k.toLowerCase()] = v;
     const auth = await obtainAuthHeader(p, secrets, signal);
     if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
-    return rawRequest(p, { ...req, url, headers }, signal);
+    return rawRequest(p, { ...req, url, headers }, signal, attempt);
   };
-  let res = await send();
-  if (res.status === 401 && tokenCache.has(p.id)) {
-    tokenCache.delete(p.id);
-    res = await send();
+  const policy = retryPolicy(p);
+  const method = req.method.toUpperCase();
+  const mayRetry = policy.maxRetries > 0 && (!NON_IDEMPOTENT.has(method) || policy.retryNonIdempotent);
+  const sem = semaphoreFor(p);
+  let target: URL | undefined;
+  try {
+    target = new URL(url);
+  } catch {
+    /* reported by fetch */
   }
-  return res;
+  for (let attempt = 1; ; attempt++) {
+    let res: HttpResult | undefined;
+    let error: (Error & { retryable?: boolean }) | undefined;
+    const release = await sem.acquire(signal);
+    try {
+      res = await send(attempt);
+      if (res.status === 401 && tokenCache.has(p.id)) {
+        tokenCache.delete(p.id);
+        res = await send(attempt);
+      }
+    } catch (e) {
+      error = e as Error & { retryable?: boolean };
+    } finally {
+      release();
+    }
+    const retryable = error ? !!error.retryable : RETRYABLE_STATUS.has(res!.status);
+    if (!retryable || !mayRetry || attempt > policy.maxRetries || signal?.aborted) {
+      if (error) throw error;
+      return attempt > 1 ? { ...res!, attempts: attempt } : res!;
+    }
+    const delay = retryDelay(policy, attempt, res?.headers['retry-after']);
+    const info = {
+      platform: p.name,
+      method,
+      host: target?.host,
+      path: target?.pathname,
+      status: res?.status,
+      error: error?.message,
+      attempt,
+      maxRetries: policy.maxRetries,
+      delayMs: delay,
+    };
+    if (attempt === 1) logger.debug(info, 'platform call will be retried');
+    else logger.warn(info, 'platform call will be retried');
+    await waitMs(delay, signal);
+  }
 }
 
 /** Sensitive values that must never appear in logs for this platform. */

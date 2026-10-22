@@ -46,6 +46,11 @@ export function RunTable({ runs, compact = false }: { runs: RunSummary[]; compac
                       scheduled
                     </Badge>
                   )}
+                  {r.trigger === 'subprocess' && (
+                    <Badge ml={4} size="xs" variant="outline" color="violet">
+                      sub-process
+                    </Badge>
+                  )}
                 </Table.Td>
               )}
               <Table.Td>

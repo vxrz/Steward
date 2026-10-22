@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton } from '@mantine/core';
-import { IconChevronDown, IconKey, IconLock, IconLogout } from '@tabler/icons-react';
+import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
+import { IconChevronDown, IconDownload, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { ChangePasswordForm } from '../pages/Auth';
+import { useInstallPrompt } from '../pwa';
 
 export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<void> {
   try {
@@ -20,6 +22,9 @@ export function UserMenu() {
   const { me, isAdmin } = useMe();
   const qc = useQueryClient();
   const [pwOpen, setPwOpen] = useState(false);
+  const navigate = useNavigate();
+  const { colorScheme, setColorScheme } = useMantineColorScheme();
+  const { canInstall, install } = useInstallPrompt();
   if (!me) return null;
   const initials = me.user.displayName
     .split(/\s+/)
@@ -66,6 +71,21 @@ export function UserMenu() {
             </Group>
           </Stack>
           <Menu.Divider />
+          <Menu.Item leftSection={<IconUser size={14} />} onClick={() => navigate('/profile')}>
+            Profile &amp; API tokens
+          </Menu.Item>
+          <Menu.Item
+            hiddenFrom="xs"
+            leftSection={colorScheme === 'dark' ? <IconSun size={14} /> : <IconMoon size={14} />}
+            onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+          >
+            {colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </Menu.Item>
+          {canInstall && (
+            <Menu.Item leftSection={<IconDownload size={14} />} onClick={() => install().catch(() => undefined)}>
+              Install app
+            </Menu.Item>
+          )}
           {(!me.user.authSource || me.user.authSource === 'local') && (
             <Menu.Item leftSection={<IconKey size={14} />} onClick={() => setPwOpen(true)}>
               Change password

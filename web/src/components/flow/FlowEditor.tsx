@@ -18,11 +18,15 @@ import {
   type NodeTypes,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ActionIcon, Box, Button, Drawer, Group, Paper, ScrollArea, Stack, Text, Tooltip, useComputedColorScheme } from '@mantine/core';
+import { ActionIcon, Box, Button, Drawer, Group, Paper, ScrollArea, Stack, Tabs, Text, Tooltip, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
-import { IconCopy, IconLayoutDistributeHorizontal, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArrowBackUp, IconArrowForwardUp, IconCopy, IconLayoutDistributeHorizontal, IconPlus, IconTrash } from '@tabler/icons-react';
 import { NODE_HEIGHT, NODE_WIDTH, type FlowNode, type NodeType, type ProcessDefinition, type Wire } from '@sm/shared';
+import { notifyOk } from '../../api';
 import { NodeForm, ExpressionHelp } from '../editor/NodeForm';
+import { NodeInspector } from '../editor/NodeInspector';
+import { isMac, isTextTarget, modKey } from '../editor/useDefHistory';
+import { copyNodes, pasteNodes, readClipboard, writeClipboard } from './clipboard';
 import { FlowNodeView, type FlowNodeData, type FlowRfNode, type NodeRunStatus } from './FlowNodeView';
 import { DND_TYPE, Palette } from './Palette';
 import { nodeColor } from './meta';
@@ -46,7 +50,16 @@ type Def = ProcessDefinition;
 
 export interface FlowEditorProps {
   def: Def;
-  onChange: (d: Def) => void;
+  /** coalesceKey: changes with the same key in quick succession form one undo step */
+  onChange: (d: Def, coalesceKey?: string) => void;
+  /** Saved process id (live preview, node inspector) */
+  processId?: string;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  /** Changes on undo/redo (forms are re-created) */
+  historySeq?: number;
   issuesByNode: Map<string, string>;
   warningsByNode: Map<string, string>;
   runStatus?: Map<string, NodeRunStatus>;
@@ -82,7 +95,23 @@ function toRfNode(n: FlowNode, data: Omit<FlowNodeData, 'node'>, prev?: Node): F
   };
 }
 
-function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatus, focus, toolbar, height, readOnly = false }: FlowEditorProps) {
+function FlowEditorInner({
+  def,
+  onChange,
+  processId,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
+  historySeq = 0,
+  issuesByNode,
+  warningsByNode,
+  runStatus,
+  focus,
+  toolbar,
+  height,
+  readOnly = false,
+}: FlowEditorProps) {
   const rf = useReactFlow();
   const isMobile = useMediaQuery('(max-width: 62em)') ?? false;
   const scheme = useComputedColorScheme('light');
@@ -94,7 +123,9 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
   const [formKey, setFormKey] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedEdges, setSelectedEdges] = useState<Set<string>>(new Set());
-  const pendingSelect = useRef<string | null>(null);
+  const [panelTab, setPanelTab] = useState<string>('props');
+  /** Node id(s) to select after the next definition change. */
+  const pendingSelect = useRef<string | string[] | null>(null);
   /** New id of a node being renamed – selection events caused by the id swap are ignored. */
   const renaming = useRef<string | null>(null);
 
@@ -111,9 +142,10 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
       const byId = new Map(prev.map((n) => [n.id, n]));
       const sel = pendingSelect.current;
       pendingSelect.current = null;
+      const selSet = sel === null ? null : new Set(Array.isArray(sel) ? sel : [sel]);
       return def.nodes.map((n) => {
         const node = toRfNode(n, dataFor(n.id), byId.get(n.id));
-        if (sel) node.selected = n.id === sel;
+        if (selSet) node.selected = selSet.has(n.id);
         return node;
       });
     });
@@ -258,6 +290,47 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.seq]);
 
+  // undo/redo: re-create the form (it keeps local drafts) and drop a selection that no longer exists
+  useEffect(() => {
+    if (!historySeq) return;
+    setFormKey((k) => k + 1);
+    setSelectedId((cur) => (cur && defRef.current.nodes.some((n) => n.id === cur) ? cur : null));
+  }, [historySeq]);
+
+  // copy / paste of selected nodes (also across processes, via localStorage)
+  const rfNodesRef = useRef(rfNodes);
+  rfNodesRef.current = rfNodes;
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.defaultPrevented) return;
+      const k = e.key.toLowerCase();
+      if (k !== 'c' && k !== 'v') return;
+      if (isTextTarget(e.target) || window.getSelection()?.toString()) return;
+      if (document.querySelector('.mantine-Modal-content')) return;
+      if (k === 'c') {
+        const ids = rfNodesRef.current.filter((n) => n.selected).map((n) => n.id);
+        const clip = copyNodes(defRef.current, ids);
+        if (!clip) return;
+        e.preventDefault();
+        writeClipboard(clip);
+        notifyOk(`${clip.nodes.length} node(s) copied – paste with ${modKey}V, also in another process`);
+      } else {
+        if (readOnly) return;
+        const clip = readClipboard();
+        if (!clip) return;
+        e.preventDefault();
+        const [d, ids] = pasteNodes(defRef.current, clip);
+        if (!ids.length) return;
+        pendingSelect.current = ids;
+        select(ids.length === 1 ? ids[0]! : null);
+        onChange(d);
+      }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onChange, readOnly]);
+
   const selectedNode = selectedId ? def.nodes.find((n) => n.id === selectedId) : undefined;
   const otherIds = useMemo(() => {
     const s = allIds(def);
@@ -280,6 +353,30 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
     onChange(d);
   };
 
+  const form = selectedNode ? (
+    <Stack gap="sm">
+      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <NodeForm
+          key={formKey}
+          node={selectedNode}
+          otherIds={otherIds}
+          connections={def.connections ?? []}
+          onChange={(n) => onChange(updateNode(defRef.current, selectedNode.id, n), `form:${formKey}`)}
+          onRename={(newId) => {
+            pendingSelect.current = newId;
+            renaming.current = newId;
+            setTimeout(() => {
+              if (renaming.current === newId) renaming.current = null;
+            }, 300);
+            setSelectedId(newId);
+            onChange(renameNode(defRef.current, selectedNode.id, newId), `form:${formKey}`);
+          }}
+        />
+      </fieldset>
+      <ExpressionHelp />
+    </Stack>
+  ) : null;
+
   const properties = selectedNode ? (
     <Stack gap="sm">
       <Group justify="space-between" wrap="nowrap">
@@ -299,25 +396,24 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
           </Tooltip>
         </Group>
       </Group>
-      <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      <NodeForm
-        key={formKey}
-        node={selectedNode}
-        otherIds={otherIds}
-        connections={def.connections ?? []}
-        onChange={(n) => onChange(updateNode(defRef.current, selectedNode.id, n))}
-        onRename={(newId) => {
-          pendingSelect.current = newId;
-          renaming.current = newId;
-          setTimeout(() => {
-            if (renaming.current === newId) renaming.current = null;
-          }, 300);
-          setSelectedId(newId);
-          onChange(renameNode(defRef.current, selectedNode.id, newId));
-        }}
-      />
-      </fieldset>
-      <ExpressionHelp />
+      {selectedNode.type === 'note' ? (
+        form
+      ) : (
+        <Tabs value={panelTab} onChange={(v) => setPanelTab(v ?? 'props')} keepMounted={false}>
+          <Tabs.List grow>
+            <Tabs.Tab value="props">Properties</Tabs.Tab>
+            <Tabs.Tab value="run" rightSection={runStatus?.get(selectedNode.id) ? <RunDot status={runStatus.get(selectedNode.id)!.status} /> : undefined}>
+              Last run
+            </Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="props" pt="sm">
+            {form}
+          </Tabs.Panel>
+          <Tabs.Panel value="run" pt="sm">
+            <NodeInspector processId={processId} nodeId={selectedNode.id} />
+          </Tabs.Panel>
+        </Tabs>
+      )}
     </Stack>
   ) : (
     <Stack gap="sm">
@@ -327,7 +423,7 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
       <Text size="sm" c="dimmed">
         {readOnly
           ? 'Read-only: select a node to see its configuration.'
-          : 'Select a node to edit it. Drag from an output (right) to an input (left) to connect nodes. Select a wire or node and press Delete to remove it.'}
+          : `Select a node to edit it. Drag from an output (right) to an input (left) to connect nodes. Select a wire or node and press Delete to remove it. ${modKey}C / ${modKey}V copy and paste selected nodes; ${modKey}Z undoes.`}
       </Text>
       <Text size="xs" c="dimmed">
         The run starts at the Start node and follows the wires. Where one output has several wires, they run one after another, top to bottom.
@@ -373,6 +469,20 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
         <Panel position="top-right">
           <Group gap={6}>
             {toolbar}
+            {!readOnly && (onUndo || onRedo) && (
+              <Group gap={2} wrap="nowrap" px={2} py={1} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
+                <Tooltip label={`Undo (${modKey}Z)`}>
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onUndo} disabled={!canUndo} aria-label="Undo">
+                    <IconArrowBackUp size={16} />
+                  </ActionIcon>
+                </Tooltip>
+                <Tooltip label={`Redo (${modKey}${isMac ? '⇧' : 'Shift+'}Z)`}>
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onRedo} disabled={!canRedo} aria-label="Redo">
+                    <IconArrowForwardUp size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </Group>
+            )}
             {!readOnly && (
             <Tooltip label="Arrange nodes automatically">
               <Button
@@ -439,4 +549,9 @@ function FlowEditorInner({ def, onChange, issuesByNode, warningsByNode, runStatu
       </ScrollArea>
     </Paper>
   );
+}
+
+const DOT_COLOR: Record<string, string> = { succeeded: 'green', failed: 'red', dryrun: 'yellow', waiting: 'violet', running: 'blue', skipped: 'gray' };
+function RunDot({ status }: { status: string }) {
+  return <Box style={{ width: 8, height: 8, borderRadius: 8, background: `var(--mantine-color-${DOT_COLOR[status] ?? 'gray'}-6)` }} />;
 }

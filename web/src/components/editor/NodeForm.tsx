@@ -3,6 +3,8 @@ import { Accordion, Badge, Code, Divider, Group, NumberInput, Paper, SimpleGrid,
 import { COMMON_FIELDS, STEP_META, nodePorts, type ConnectionSlot, type FlowNode } from '@sm/shared';
 import { FieldInput } from './fields';
 import { ApiOperationSection } from './ApiOperation';
+import { ExprNodeScope } from './ExprContext';
+import { SubprocessSection } from './SubprocessSection';
 import { NODE_ICONS, PORT_HELP, nodeColor } from '../flow/meta';
 
 const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -21,7 +23,7 @@ export function ExpressionHelp() {
               placeholder keeps the raw value (list, object, number).
             </Text>
             <Text size="xs">
-              Scope: <Code>inputs.*</Code> run inputs · <Code>vars.*</Code> node results (saveAs, set, loop items) · <Code>const.*</Code> constants ·{' '}
+              Start typing (or press <Code>Ctrl+Space</Code>) for suggestions; the value below a field is a live preview using the latest run. Scope: <Code>inputs.*</Code> run inputs · <Code>vars.*</Code> node results (saveAs, set, loop items) · <Code>const.*</Code> constants ·{' '}
               <Code>run.id / run.dryRun / run.actor</Code> · <Code>conn.&lt;slot&gt;.vars.*</Code> platform variables.
             </Text>
             <Text size="xs">
@@ -73,6 +75,7 @@ export function NodeForm({
   const commonFields = COMMON_FIELDS.filter((f) => !(node.type === 'if' && f.key === 'when'));
 
   return (
+    <ExprNodeScope nodeId={node.id} enabled={node.type !== 'note'}>
     <Stack gap="sm">
       <Group gap="xs" wrap="nowrap">
         <Badge size="lg" variant="light" color={nodeColor(node.type)} leftSection={<Icon size={14} />}>
@@ -109,7 +112,20 @@ export function NodeForm({
       )}
       {meta.fields.map((f) => (
         <Fragment key={f.key}>
-          <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
+          {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
+            <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
+          )}
+          {node.type === 'subprocess' && f.key === 'inputs' && (
+            <SubprocessSection
+              node={node}
+              connections={connections}
+              onChange={(patch) => {
+                const next: Record<string, unknown> = { ...node, ...patch };
+                for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                onChange(next as unknown as FlowNode);
+              }}
+            />
+          )}
           {node.type === 'http' && f.key === 'connection' && (
             <ApiOperationSection
               node={node}
@@ -168,5 +184,6 @@ export function NodeForm({
         </>
       )}
     </Stack>
+    </ExprNodeScope>
   );
 }

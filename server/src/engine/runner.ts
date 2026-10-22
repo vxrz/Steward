@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   isMutating,
   nodePorts,
@@ -19,11 +20,12 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { db } from '../db.js';
 import { getSettings } from '../settings.js';
-import { currentActor } from '../auth/context.js';
+import { currentActor, runAs } from '../auth/context.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { platformRequest, resolveBaseUrl, secretValues, type HttpResult } from '../platforms/http.js';
-import { getProcess } from '../processes/service.js';
+import { getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings } from './expr.js';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
@@ -43,7 +45,7 @@ interface Binding {
   baseUrl: string;
 }
 
-class Redactor {
+export class Redactor {
   private values = new Set<string>();
   add(...vals: string[]): void {
     for (const v of vals) if (v && v.length >= 4) this.values.add(v);
@@ -67,9 +69,21 @@ class Redactor {
   }
 }
 
+/**
+ * Per-item variable scope of parallel for-each loops: the body of each item sees
+ * a copy of the outer vars, so its writes stay local to the item.
+ */
+const varScope = new AsyncLocalStorage<{ ctx: RunContext; vars: Record<string, unknown> }>();
+
 class RunContext {
-  vars: Record<string, unknown> = {};
+  /** Run-level variables (outside parallel loop bodies). */
+  rootVars: Record<string, unknown> = {};
   journal: Map<string, store.StepRow>;
+  processId: string;
+  /** Who resumed the run (undefined for a fresh start). */
+  resumedBy?: string;
+  /** Open waits (user tasks, sub-process runs); the run shows "waiting" while > 0. */
+  private waits = 0;
   redactor = new Redactor();
   abort = new AbortController();
   browser?: BrowserSession;
@@ -89,6 +103,7 @@ class RunContext {
     stats: RunStats,
   ) {
     this.journal = store.loadJournal(runId);
+    this.processId = store.runRow(runId).process_id;
     this.nodes = new Map(def.nodes.map((n) => [n.id, n]));
     this.stats = stats;
     for (const b of Object.values(bindings)) this.redactor.add(...Object.values(b.secrets));
@@ -101,6 +116,22 @@ class RunContext {
 
   get signal(): AbortSignal {
     return this.abort.signal;
+  }
+
+  /** Variables of the current scope (the item's own copy inside a parallel loop body). */
+  get vars(): Record<string, unknown> {
+    const s = varScope.getStore();
+    return s && s.ctx === this ? s.vars : this.rootVars;
+  }
+
+  beginWait(): void {
+    if (this.waits++ === 0) store.setRunStatus(this.runId, 'waiting');
+  }
+  endWait(): void {
+    if (--this.waits <= 0) {
+      this.waits = 0;
+      if (!this.signal.aborted) store.setRunStatus(this.runId, 'running');
+    }
   }
 
   scope(): Record<string, unknown> {
@@ -294,7 +325,13 @@ async function resolveBindings(def: ProcessDefinition, requested: Record<string,
 
 export async function startRun(
   req: StartRunRequest,
-  opts: { trigger?: 'manual' | 'schedule'; scheduleId?: string; actor?: string } = {},
+  opts: {
+    trigger?: 'manual' | 'schedule' | 'subprocess';
+    scheduleId?: string;
+    actor?: string;
+    /** Sub-process: the run and step (activation key) that started this run */
+    parent?: { runId: string; stepKey: string };
+  } = {},
 ): Promise<string> {
   const proc = getProcess(req.processId, req.version);
   const def = proc.definition;
@@ -308,8 +345,8 @@ export async function startRun(
   );
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key)
+       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
@@ -323,6 +360,8 @@ export async function startRun(
       JSON.stringify(bindingInfo),
       startedAt,
       JSON.stringify(store.emptyStats()),
+      opts.parent?.runId ?? null,
+      opts.parent?.stepKey ?? null,
     );
     audit({
       actor,
@@ -330,8 +369,15 @@ export async function startRun(
       entityType: 'process',
       entityId: proc.id,
       runId,
-      summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'})`,
-      details: { inputs, bindings: bindingInfo, definitionHash: proc.definitionHash, dryRun: !!req.dryRun, scheduleId: opts.scheduleId },
+      summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''})`,
+      details: {
+        inputs,
+        bindings: bindingInfo,
+        definitionHash: proc.definitionHash,
+        dryRun: !!req.dryRun,
+        scheduleId: opts.scheduleId,
+        ...(opts.parent ? { parentRunId: opts.parent.runId, parentStepKey: opts.parent.stepKey } : {}),
+      },
     });
   });
   launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats());
@@ -347,8 +393,10 @@ function launch(
   actor: string,
   startedAt: string,
   stats: RunStats,
+  resumedBy?: string,
 ): void {
   const ctx = new RunContext(runId, def, inputs, bindings, dryRun, actor, startedAt, stats);
+  ctx.resumedBy = resumedBy;
   const done = execute(ctx).finally(() => active.delete(runId));
   active.set(runId, { ctx, done });
 }
@@ -375,6 +423,7 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
     r.actor,
     r.started_at,
     { ...store.emptyStats(), ...parseJson(r.stats, {}) },
+    actor,
   );
 }
 
@@ -387,8 +436,12 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
     taskWaiters.get(t.id)?.(null);
     taskWaiters.delete(t.id);
   }
+  if (a) a.ctx.abort.abort();
+  // sub-process runs started by this run are cancelled with it
+  for (const child of store.unfinishedChildRuns(runId)) {
+    await cancelRun(child, actor).catch((e) => logger.warn({ err: e, runId: child }, 'could not cancel sub-process run'));
+  }
   if (a) {
-    a.ctx.abort.abort();
     await a.done.catch(() => undefined);
   } else {
     store.setRunStatus(runId, 'cancelled', { finished: true });
@@ -432,6 +485,7 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
 export async function recoverRuns(): Promise<void> {
   const rows = db().all<{ id: string; status: string }>("SELECT id, status FROM runs WHERE status IN ('running', 'queued', 'waiting')");
   for (const r of rows) {
+    if (active.has(r.id)) continue; // already re-attached (e.g. by a resumed parent run)
     if (r.status === 'waiting') {
       try {
         store.setRunStatus(r.id, 'interrupted');
@@ -478,6 +532,7 @@ async function execute(ctx: RunContext): Promise<void> {
       },
       () => runNode(start, ctx, null),
     );
+    await evaluateOutputs(ctx);
   } catch (e) {
     if (e instanceof Cancelled || ctx.signal.aborted) {
       status = 'cancelled';
@@ -503,6 +558,33 @@ async function execute(ctx: RunContext): Promise<void> {
     summary: `Run of "${ctx.def.name}" ${status}${error && status === 'failed' ? `: ${error.slice(0, 200)}` : ''}`,
     details: { stats: ctx.stats, protocolHash: store.protocolHash(ctx.runId), dryRun: ctx.dryRun },
   });
+}
+
+/** Evaluate the definition's `outputs` (values returned to a parent process) and store them on the run. */
+async function evaluateOutputs(ctx: RunContext): Promise<void> {
+  const defs = Object.entries(ctx.def.outputs ?? {});
+  if (!defs.length) return;
+  const out: Record<string, unknown> = {};
+  for (const [name, expr] of defs) {
+    try {
+      const v = await ctx.eval(expr);
+      out[name] = v === undefined ? null : v;
+    } catch (e) {
+      throw new Error(`Output "${name}": ${(e as Error).message}`);
+    }
+  }
+  store.saveOutputs(ctx.runId, ctx.redactor.apply(out));
+}
+
+/** Record the end of a step and publish a step.finished event (metrics). */
+function finishStep(
+  ctx: RunContext,
+  key: string,
+  nodeType: string,
+  f: { status: StepStatus; output?: unknown; summary?: string; error?: string; startedMs: number },
+): void {
+  store.finishStep(ctx.runId, key, f);
+  emit('step.finished', { runId: ctx.runId, processId: ctx.processId, nodeType, status: f.status, durationMs: Date.now() - f.startedMs });
 }
 
 const MAX_ACTIVATIONS = 200000;
@@ -579,7 +661,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   if (node.type === 'start') {
     if (!journaled) {
       store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: 'start', name, status: 'running' });
-      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: 'Run started', startedMs: Date.now() });
+      finishStep(ctx, key, 'start', { status: 'succeeded', summary: 'Run started', startedMs: Date.now() });
     }
     return ['out'];
   }
@@ -600,7 +682,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   // ----- condition -----
   if (node.when && !(await ctx.bool(node.when))) {
     store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name, status: 'skipped' });
-    store.finishStep(ctx.runId, key, { status: 'skipped', summary: 'Condition not met', startedMs: Date.now() });
+    finishStep(ctx, key, node.type, { status: 'skipped', summary: 'Condition not met', startedMs: Date.now() });
     return skipPorts(node);
   }
 
@@ -612,10 +694,10 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
   let lastErr: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const res = await execLeaf(node, ctx, key);
+      const res = await execLeaf(node, ctx, key, attempt);
       const status = res.status ?? 'succeeded';
       const output = ctx.redactor.apply(res.output);
-      store.finishStep(ctx.runId, key, { status, output, summary: res.summary ? ctx.redactor.apply(res.summary) : undefined, startedMs: started });
+      finishStep(ctx, key, node.type, { status, output, summary: res.summary ? ctx.redactor.apply(res.summary) : undefined, startedMs: started });
       ctx.stats.steps++;
       if (status === 'failed') ctx.stats.failedSteps++;
       store.saveStats(ctx.runId, ctx.stats);
@@ -624,7 +706,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
     } catch (e) {
       lastErr = e;
       if (e instanceof Cancelled || ctx.signal.aborted) {
-        store.finishStep(ctx.runId, key, { status: 'failed', error: 'Cancelled', startedMs: started });
+        finishStep(ctx, key, node.type, { status: 'failed', error: 'Cancelled', startedMs: started });
         throw new Cancelled();
       }
       if (attempt < attempts) {
@@ -634,7 +716,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
     }
   }
   const message = ctx.redactor.apply((lastErr as Error)?.message ?? String(lastErr));
-  store.finishStep(ctx.runId, key, { status: 'failed', error: message, output: { error: message }, startedMs: started });
+  finishStep(ctx, key, node.type, { status: 'failed', error: message, output: { error: message }, startedMs: started });
   ctx.stats.steps++;
   ctx.stats.failedSteps++;
   store.saveStats(ctx.runId, ctx.stats);
@@ -680,7 +762,7 @@ async function execControl(
         cond = await ctx.bool(node.condition);
         store.updateStepInput(ctx.runId, key, { decision: cond });
       }
-      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: cond ? '→ true' : '→ false', startedMs: started, output: { result: cond } });
+      finishStep(ctx, key, node.type, { status: 'succeeded', summary: cond ? '→ true' : '→ false', startedMs: started, output: { result: cond } });
       return [cond ? 'true' : 'false'];
     }
     let items: unknown[];
@@ -691,19 +773,33 @@ async function execControl(
       store.updateStepInput(ctx.runId, key, { decision: ctx.redactor.apply(items) });
     }
     const body = outgoing(ctx.nodes, ctx.def.wires, node.id, 'each');
-    for (let i = 0; i < items.length; i++) {
-      if (ctx.signal.aborted) throw new Cancelled();
-      ctx.vars[node.as] = items[i];
-      ctx.vars[`${node.as}Index`] = i;
-      for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
-      if (node.delayMs && i < items.length - 1 && !journalHasPrefix(ctx, `${key}[${i + 1}]/`)) await sleep(node.delayMs, ctx.signal);
+    const concurrency = Math.max(1, Math.min(node.concurrency ?? 1, 20));
+    let output: { count: number; results?: Record<string, unknown>[] };
+    if (concurrency > 1) {
+      const results = await runItemsInParallel(node, ctx, key, items, body, concurrency);
+      output = { count: items.length, results: ctx.redactor.apply(results) };
+    } else {
+      for (let i = 0; i < items.length; i++) {
+        if (ctx.signal.aborted) throw new Cancelled();
+        ctx.vars[node.as] = items[i];
+        ctx.vars[`${node.as}Index`] = i;
+        for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
+        if (node.delayMs && i < items.length - 1 && !journalHasPrefix(ctx, `${key}[${i + 1}]/`)) await sleep(node.delayMs, ctx.signal);
+      }
+      output = { count: items.length };
     }
-    store.finishStep(ctx.runId, key, { status: 'succeeded', summary: `${items.length} item(s)`, startedMs: started, output: { count: items.length } });
+    finishStep(ctx, key, node.type, {
+      status: 'succeeded',
+      summary: `${items.length} item(s)${concurrency > 1 ? `, ${concurrency} in parallel` : ''}`,
+      startedMs: started,
+      output,
+    });
+    if (node.saveAs) ctx.vars[node.saveAs] = output;
     return ['done'];
   } catch (e) {
     const cancelled = e instanceof Cancelled || ctx.signal.aborted;
     const message = cancelled ? 'Cancelled' : ctx.redactor.apply((e as Error).message);
-    store.finishStep(ctx.runId, key, { status: 'failed', error: message, startedMs: started });
+    finishStep(ctx, key, node.type, { status: 'failed', error: message, startedMs: started });
     if (cancelled) throw new Cancelled();
     if (node.onError === 'continue') {
       ctx.log('warn', `"${name}" failed, continuing: ${message}`, key);
@@ -713,12 +809,181 @@ async function execControl(
   }
 }
 
+/**
+ * Parallel for-each: up to `concurrency` items at a time, item starts spaced by
+ * delayMs. Each item body works on its own copy of the variables (writes do
+ * not leak to the outer scope); the variables an item set are returned in item
+ * order (the loop's `results`). The first failure stops starting new items.
+ */
+async function runItemsInParallel(
+  node: NodeOf<'forEach'>,
+  ctx: RunContext,
+  key: string,
+  items: unknown[],
+  body: FlowNode[],
+  concurrency: number,
+): Promise<Record<string, unknown>[]> {
+  const outer = ctx.vars;
+  const results: Record<string, unknown>[] = items.map(() => ({}));
+  const local = new Set([node.as, `${node.as}Index`]);
+  let next = 0;
+  let failure: { error: unknown } | undefined;
+  let gate: Promise<void> = Promise.resolve();
+  let lastStart = 0;
+  const stop = () => !!failure || ctx.signal.aborted;
+
+  const startSlot = async (i: number): Promise<boolean> => {
+    if (!node.delayMs || i === 0 || journalHasPrefix(ctx, `${key}[${i}]/`)) {
+      lastStart = Date.now();
+      return true;
+    }
+    const mine = gate.then(async () => {
+      const wait = lastStart + node.delayMs! - Date.now();
+      if (wait > 0 && !stop()) await sleep(wait, ctx.signal);
+      lastStart = Date.now();
+    });
+    gate = mine.catch(() => undefined);
+    try {
+      await mine;
+      return !stop();
+    } catch {
+      return false;
+    }
+  };
+
+  const worker = async () => {
+    for (;;) {
+      if (stop()) return;
+      const i = next++;
+      if (i >= items.length) return;
+      if (!(await startSlot(i))) return;
+      const vars: Record<string, unknown> = { ...outer, [node.as]: items[i], [`${node.as}Index`]: i };
+      try {
+        await varScope.run({ ctx, vars }, async () => {
+          for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
+        });
+        for (const [k, v] of Object.entries(vars)) if (!local.has(k) && (!(k in outer) || outer[k] !== v)) results[i]![k] = v;
+      } catch (e) {
+        failure ??= { error: e };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  if (ctx.signal.aborted) throw new Cancelled();
+  if (failure) throw failure.error;
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-processes
+// ---------------------------------------------------------------------------
+
+/** Maximum nesting of sub-process runs below a top-level run. */
+export const MAX_SUBPROCESS_DEPTH = 5;
+const FINISHED_RUN = ['succeeded', 'failed', 'cancelled'];
+
+/** Process permissions of a user by name (sub-processes run with the rights of the run's actor). */
+function actorPermissions(actor: string, processId: string): string[] {
+  const u = findUserByName(actor);
+  if (!u || !u.active) return [];
+  return runAs(toAuthUser(u), () => permissionsFor(processId));
+}
+
+async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: string, attempt: number): Promise<LeafResult> {
+  let child = store.latestChildRun(ctx.runId, key);
+  // a retry attempt starts a fresh child run; a resumed run re-attaches to the existing one
+  if (child && attempt > 1 && FINISHED_RUN.includes(child.status) && child.status !== 'succeeded') child = undefined;
+  if (child) {
+    ctx.log('info', `Re-attached to sub-process run ${child.id} (${child.status})`, key);
+  } else {
+    const chain = store.ancestorChain(ctx.runId);
+    const loop = chain.find((a) => a.processId === step.process);
+    if (loop) {
+      throw new Error(`Recursion: process "${step.process}" is already running in this chain (${chain.map((a) => a.processId).reverse().join(' → ')})`);
+    }
+    if (chain.length > MAX_SUBPROCESS_DEPTH) throw new Error(`Sub-processes are nested too deeply (limit ${MAX_SUBPROCESS_DEPTH})`);
+    if (!actorPermissions(ctx.actor, step.process).includes('run')) {
+      throw new Error(`${ctx.actor} may not run process "${step.process}" (needs the "run" right)`);
+    }
+    const proc = getProcess(step.process, step.version);
+    const bindings: Record<string, string> = {};
+    for (const slot of proc.definition.connections) {
+      const parentSlot = step.connections?.[slot.slot] ?? slot.slot;
+      const b = ctx.bindings[parentSlot];
+      if (!b) throw new Error(`Sub-process connection "${slot.slot}" needs connection "${parentSlot}" of this process, which is not bound`);
+      bindings[slot.slot] = b.platform.id;
+    }
+    const inputs = (await ctx.render(step.inputs ?? {})) as Record<string, unknown>;
+    const request = { process: step.process, version: step.version ?? proc.currentVersion, inputs, bindings };
+    store.updateStepInput(ctx.runId, key, ctx.redactor.apply(request));
+    const id = await startRun(
+      { processId: step.process, version: step.version, inputs, bindings, dryRun: ctx.dryRun },
+      { trigger: 'subprocess', actor: ctx.actor, parent: { runId: ctx.runId, stepKey: key } },
+    );
+    store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ ...request, childRunId: id }));
+    ctx.log('info', `Started sub-process run ${id} of "${proc.name}"${ctx.dryRun ? ' (dry run)' : ''}`, key);
+    child = { id, status: 'running' };
+  }
+  const row = await waitForChild(child.id, ctx, key);
+  if (ctx.signal.aborted) throw new Cancelled();
+  if (row.status !== 'succeeded') {
+    throw new Error(`Sub-process run ${row.id} ("${row.process_name}") ${row.status}${row.error ? `: ${row.error}` : ''}`);
+  }
+  const outputs = parseJson<Record<string, unknown>>(row.outputs ?? null, {});
+  return { output: outputs, summary: `"${row.process_name}" succeeded (run ${row.id})` };
+}
+
+/** Wait until a child run has finished (it may be running, waiting for a task, or interrupted by a restart). */
+async function waitForChild(childId: string, ctx: RunContext, key: string): Promise<store.RunRow> {
+  let waiting = false;
+  let warned = false;
+  let resumed = false;
+  const aborted = new Promise<void>((resolve) => {
+    if (ctx.signal.aborted) resolve();
+    ctx.signal.addEventListener('abort', () => resolve(), { once: true });
+  });
+  try {
+    for (;;) {
+      if (ctx.signal.aborted) throw new Cancelled();
+      const row = store.runRow(childId);
+      if (FINISHED_RUN.includes(row.status)) return row;
+      if (!waiting) {
+        waiting = true;
+        store.setStepStatus(ctx.runId, key, 'waiting');
+        ctx.beginWait();
+      }
+      const a = active.get(childId);
+      if (a) {
+        await Promise.race([a.done, aborted]);
+        continue;
+      }
+      if (row.status === 'interrupted') {
+        // a person resuming the parent also resumes the interrupted child; otherwise it needs review
+        if (!resumed && ctx.resumedBy && ctx.resumedBy !== 'system') {
+          resumed = true;
+          await resumeRun(childId, ctx.resumedBy).catch((e) => ctx.log('warn', `Could not resume sub-process run ${childId}: ${(e as Error).message}`, key));
+          continue;
+        }
+        if (!warned) {
+          warned = true;
+          ctx.log('warn', `Sub-process run ${childId} was interrupted – resume or cancel it to continue`, key);
+        }
+      }
+      await sleep(500, ctx.signal).catch(() => undefined);
+    }
+  } finally {
+    if (waiting) {
+      ctx.endWait();
+      if (!ctx.signal.aborted) store.setStepStatus(ctx.runId, key, 'running');
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Leaf steps
 // ---------------------------------------------------------------------------
 
-async function execLeaf(step: FlowNode, ctx: RunContext, key: string): Promise<LeafResult> {
+async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 1): Promise<LeafResult> {
   switch (step.type) {
     case 'http':
       return execHttp(step, ctx, key);
@@ -798,6 +1063,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string): Promise<L
       return execPublish(step, ctx, key);
     case 'browser':
       return execBrowser(step, ctx, key);
+    case 'subprocess':
+      return execSubprocess(step, ctx, key, attempt);
     default:
       throw new Error(`Unsupported node type ${(step as FlowNode).type}`);
   }
@@ -843,6 +1110,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const doRequest = async (url: string, q: Record<string, unknown>) => {
     const res = await platformRequest(b.platform, b.secrets, { method: step.method, url, query: q, headers, body, bodyType: step.bodyType }, ctx.signal);
     ctx.redactor.add(...secretValues(b.secrets));
+    if (res.attempts && res.attempts > 1) ctx.log('warn', `${step.method} ${url} → HTTP ${res.status} after ${res.attempts} attempts`, key);
     if (!accept(res.status)) throw new Error(`HTTP ${res.status} from ${step.method} ${url}: ${snippet(res.body)}`);
     return res;
   };
@@ -852,8 +1120,8 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     const res = await doRequest(p, query);
     if (writes) auditWrite(ctx, b, step, p, res, key);
     return {
-      output: { status: res.status, ok: res.ok, headers: res.headers, body: res.body, durationMs: res.durationMs },
-      summary: `${step.method} ${p} → ${res.status} (${res.durationMs} ms)`,
+      output: { status: res.status, ok: res.ok, headers: res.headers, body: res.body, durationMs: res.durationMs, ...(res.attempts ? { attempts: res.attempts } : {}) },
+      summary: `${step.method} ${p} → ${res.status} (${res.durationMs} ms${res.attempts ? `, ${res.attempts} attempts` : ''})`,
     };
   }
 
@@ -1073,16 +1341,19 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
     throw new Cancelled();
   } else {
     store.setStepStatus(ctx.runId, key, 'waiting');
-    store.setRunStatus(ctx.runId, 'waiting');
+    ctx.beginWait();
     ctx.log('info', `Waiting for user decision: ${title}`, key);
     const taskId = task.id;
-    result = await new Promise((resolve) => {
-      taskWaiters.set(taskId, resolve);
-      ctx.signal.addEventListener('abort', () => resolve(null), { once: true });
-    });
-    taskWaiters.delete(taskId);
+    try {
+      result = await new Promise((resolve) => {
+        taskWaiters.set(taskId, resolve);
+        ctx.signal.addEventListener('abort', () => resolve(null), { once: true });
+      });
+    } finally {
+      taskWaiters.delete(taskId);
+      ctx.endWait();
+    }
     if (!result) throw new Cancelled();
-    store.setRunStatus(ctx.runId, 'running');
     store.setStepStatus(ctx.runId, key, 'running');
   }
   const { decision, by, at } = result;

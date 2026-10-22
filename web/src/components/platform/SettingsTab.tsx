@@ -19,7 +19,7 @@ import {
 } from '@mantine/core';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import YAML from 'yaml';
-import type { AuthConfig, AuthType, Platform, PlatformConfig } from '@sm/shared';
+import type { AuthConfig, AuthType, HttpOptions, Platform, PlatformConfig } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { Hint, KeyValueEditor } from '../common';
 
@@ -85,6 +85,12 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     setAuth({ request: { method: 'POST', url: '', ...(auth.request ?? {}), ...patch } });
   const http = cfg.http ?? {};
   const setHttp = (patch: Partial<PlatformConfig['http']>) => setCfg({ ...cfg, http: { ...http, ...patch } });
+  const retry = http.retry ?? {};
+  const setRetry = (patch: Partial<NonNullable<HttpOptions['retry']>>) => {
+    const next = Object.fromEntries(Object.entries({ ...retry, ...patch }).filter(([, v]) => v !== undefined && v !== false));
+    setHttp({ retry: Object.keys(next).length ? next : undefined });
+  };
+  const num = (v: string | number) => (typeof v === 'number' ? v : undefined);
 
   const needed = useMemo(() => requiredSecrets(auth), [auth]);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
@@ -360,6 +366,52 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
             </Text>
             <KeyValueEditor value={http.defaultHeaders} onChange={(v) => setHttp({ defaultHeaders: v ? toStringMap(v) : undefined })} />
           </div>
+          <Divider label="Retries and load" labelPosition="left" />
+          <Hint>
+            Requests that fail with 429, 502, 503, 504 or a network error are repeated with growing delays (honouring Retry-After). Empty fields use the defaults.
+          </Hint>
+          <SimpleGrid cols={{ base: 1, sm: 2 }}>
+            <NumberInput
+              label="Max retries"
+              description="0 turns retries off"
+              placeholder="3"
+              min={0}
+              max={10}
+              value={retry.maxRetries ?? ''}
+              onChange={(v) => setRetry({ maxRetries: num(v) })}
+            />
+            <NumberInput
+              label="Max concurrent requests"
+              description="Calls to this platform at the same time"
+              placeholder="4"
+              min={1}
+              max={64}
+              value={http.maxConcurrency ?? ''}
+              onChange={(v) => setHttp({ maxConcurrency: num(v) })}
+            />
+            <NumberInput
+              label="First retry delay (ms)"
+              placeholder="500"
+              min={0}
+              step={100}
+              value={retry.baseDelayMs ?? ''}
+              onChange={(v) => setRetry({ baseDelayMs: num(v) })}
+            />
+            <NumberInput
+              label="Longest retry delay (ms)"
+              placeholder="30000"
+              min={0}
+              step={1000}
+              value={retry.maxDelayMs ?? ''}
+              onChange={(v) => setRetry({ maxDelayMs: num(v) })}
+            />
+          </SimpleGrid>
+          <Switch
+            label="Also retry POST and PATCH"
+            description="Only turn on if the API handles repeated requests safely – they may create or change data twice."
+            checked={!!retry.retryNonIdempotent}
+            onChange={(e) => setRetry({ retryNonIdempotent: e.currentTarget.checked })}
+          />
         </Stack>
       </Paper>
 

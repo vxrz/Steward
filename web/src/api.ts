@@ -48,7 +48,23 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
 export const get = <T = unknown>(url: string) => api<T>('GET', url);
 export const post = <T = unknown>(url: string, body?: unknown) => api<T>('POST', url, body ?? {});
 export const put = <T = unknown>(url: string, body?: unknown) => api<T>('PUT', url, body ?? {});
+export const patch = <T = unknown>(url: string, body?: unknown) => api<T>('PATCH', url, body ?? {});
 export const del = <T = unknown>(url: string) => api<T>('DELETE', url);
+
+/** True for "this endpoint does not exist (yet)" / "not allowed" – used to hide optional features gracefully. */
+export function isUnavailable(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 404 || e.status === 403 || e.status === 405 || e.status === 501);
+}
+
+/** GET that resolves to `fallback` when the endpoint is missing or forbidden (optional server features). */
+export async function getOptional<T>(url: string, fallback: T): Promise<T> {
+  try {
+    return await get<T>(url);
+  } catch (e) {
+    if (isUnavailable(e)) return fallback;
+    throw e;
+  }
+}
 
 export function notifyError(e: unknown, title = 'Something went wrong'): void {
   notifications.show({ color: 'red', title, message: (e as Error)?.message ?? String(e), autoClose: 8000 });

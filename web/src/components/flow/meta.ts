@@ -65,7 +65,7 @@ export function nodeSummary(n: FlowNode): string {
     case 'set':
       return short(Object.keys(n.values ?? {}).join(', '));
     case 'forEach':
-      return `each ${n.as} in ${short(n.items, 40)}`;
+      return `each ${n.as} in ${short(n.items, (n.concurrency ?? 1) > 1 ? 30 : 40)}`;
     case 'if':
       return short(n.condition);
     case 'userTask':
@@ -80,6 +80,8 @@ export function nodeSummary(n: FlowNode): string {
       return `${n.actions?.length ?? 0} action(s)`;
     case 'publish':
       return `→ ${n.dataset}`;
+    case 'subprocess':
+      return n.process ? `run ${n.process}${n.version ? ` v${n.version}` : ''}` : 'no process chosen';
     case 'wait':
       return `${n.seconds}s`;
     case 'fail':

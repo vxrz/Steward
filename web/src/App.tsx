@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect, type ComponentType } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
@@ -18,24 +18,43 @@ import {
   IconSun,
 } from '@tabler/icons-react';
 import type { AuthStatus, Capabilities, TaskRecord } from '@sm/shared';
+// Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
+import { BRAND } from '../../shared/src/brand';
 import { get, setAuthChangeHandler } from './api';
 import { MeContext } from './auth';
 import { ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
-import { UsersPage } from './pages/Users';
 import { UserMenu, signOut } from './components/UserMenu';
-import { DashboardPage } from './pages/Dashboard';
-import { PlatformsPage } from './pages/Platforms';
-import { PlatformDetailPage } from './pages/PlatformDetail';
-import { ProcessesPage } from './pages/Processes';
-import { ProcessEditorPage } from './pages/ProcessEditor';
-import { RunsPage } from './pages/Runs';
-import { RunDetailPage } from './pages/RunDetail';
-import { TasksPage } from './pages/Tasks';
-import { SchedulesPage } from './pages/Schedules';
-import { AuditPage } from './pages/Audit';
-import { SettingsPage } from './pages/Settings';
-import { DashboardsPage } from './pages/Dashboards';
-import { DashboardViewPage } from './pages/DashboardView';
+import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
+import { NotificationCenter } from './components/notifications/NotificationCenter';
+
+// Pages are loaded on demand to keep the first download small.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function page<K extends string, M extends Record<K, ComponentType<any>>>(load: () => Promise<M>, name: K) {
+  return lazy(() => load().then((m) => ({ default: m[name] })));
+}
+const DashboardPage = page(() => import('./pages/Dashboard'), 'DashboardPage');
+const DashboardsPage = page(() => import('./pages/Dashboards'), 'DashboardsPage');
+const DashboardViewPage = page(() => import('./pages/DashboardView'), 'DashboardViewPage');
+const TasksPage = page(() => import('./pages/Tasks'), 'TasksPage');
+const RunsPage = page(() => import('./pages/Runs'), 'RunsPage');
+const RunDetailPage = page(() => import('./pages/RunDetail'), 'RunDetailPage');
+const ProcessesPage = page(() => import('./pages/Processes'), 'ProcessesPage');
+const ProcessEditorPage = page(() => import('./pages/ProcessEditor'), 'ProcessEditorPage');
+const SchedulesPage = page(() => import('./pages/Schedules'), 'SchedulesPage');
+const PlatformsPage = page(() => import('./pages/Platforms'), 'PlatformsPage');
+const PlatformDetailPage = page(() => import('./pages/PlatformDetail'), 'PlatformDetailPage');
+const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
+const UsersPage = page(() => import('./pages/Users'), 'UsersPage');
+const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
+const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
+
+function PageLoader() {
+  return (
+    <Center py={80}>
+      <Loader size="sm" />
+    </Center>
+  );
+}
 
 const NAV: { to: string; label: string; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', label: 'Dashboard', icon: IconLayoutDashboard },
@@ -66,7 +85,7 @@ export function App() {
   if (status.error || !status.data) {
     return (
       <Center h="100vh" p="md">
-        <Text c="red">Cannot reach the Service Manager server: {(status.error as Error)?.message}</Text>
+        <Text c="red">Cannot reach the {BRAND.name} server: {(status.error as Error)?.message}</Text>
       </Center>
     );
   }
@@ -91,34 +110,45 @@ function Shell({ status }: { status: AuthStatus }) {
   const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
   const openTasks = tasks.data?.length ?? 0;
 
+  const navItems = NAV.filter((n) => !n.cap || caps[n.cap]);
   const isActive = (to: string) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to));
 
   return (
     <AppShell header={{ height: 52 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="md">
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap">
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Text fw={700}>Service Manager</Text>
+        <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
+            <Text fw={700} truncate component="a" href="/" onClick={(e) => (e.preventDefault(), navigate('/'))} c="inherit" style={{ textDecoration: 'none' }}>
+              {BRAND.name}
+            </Text>
             {status.demo && (
-              <Badge color="yellow" variant="light">
+              <Badge color="yellow" variant="light" visibleFrom="xs" style={{ flexShrink: 0 }}>
                 demo
               </Badge>
             )}
           </Group>
-          <Group gap={6} wrap="nowrap">
-            <Tooltip label="Toggle dark mode">
-              <ActionIcon variant="subtle" onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')} aria-label="Toggle color scheme">
+          <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
+            <CommandPaletteButton />
+            <NotificationCenter />
+            <Tooltip label={colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}>
+              <ActionIcon
+                variant="subtle"
+                onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
+                aria-label="Toggle color scheme"
+                visibleFrom="xs"
+              >
                 {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
               </ActionIcon>
             </Tooltip>
             <UserMenu />
           </Group>
         </Group>
+        <CommandPalette pages={navItems} />
       </AppShell.Header>
       <AppShell.Navbar p="xs">
         <ScrollArea>
-          {NAV.filter((n) => !n.cap || caps[n.cap]).map((n) => (
+          {navItems.map((n) => (
             <NavLink
               key={n.to}
               label={n.label}
@@ -141,6 +171,7 @@ function Shell({ status }: { status: AuthStatus }) {
         </ScrollArea>
       </AppShell.Navbar>
       <AppShell.Main>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage demo={status.demo} />} />
           <Route path="/dashboards" element={<DashboardsPage />} />
@@ -156,8 +187,10 @@ function Shell({ status }: { status: AuthStatus }) {
           {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Text>Page not found</Text>} />
         </Routes>
+        </Suspense>
       </AppShell.Main>
     </AppShell>
   );

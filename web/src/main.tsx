@@ -7,7 +7,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
 import './styles.css';
+import { BRAND } from '../../shared/src/brand';
 import { App } from './App';
+import { initPwa } from './pwa';
+
+document.title = BRAND.name;
+initPwa();
 
 const theme = createTheme({
   primaryColor: 'blue',

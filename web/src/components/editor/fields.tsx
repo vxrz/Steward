@@ -20,8 +20,11 @@ import {
 } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { BROWSER_ACTIONS, HTTP_METHODS, type BrowserAction, type Column, type ConnectionSlot, type FieldMeta, type Paginate, type Subject } from '@sm/shared';
-import { KeyValueEditor } from '../common';
+import { KeyValueEditor, asText, fromText } from '../common';
 import { get } from '../../api';
+import { useExprContext } from './ExprContext';
+import { ExpressionInput } from './ExpressionInput';
+import { useProcesses } from './editorApi';
 
 export const EXPR_HINT = 'JSONata expression, e.g. vars.users.body[active]';
 
@@ -45,6 +48,7 @@ function Label({ field }: { field: FieldMeta }) {
 
 /** Renders one field of a step form based on its FieldMeta kind. */
 export function FieldInput({ field, value, onChange, connections }: FieldProps) {
+  const expr = useExprContext();
   const label = <Label field={field} />;
   const description = field.help;
   switch (field.kind) {
@@ -62,33 +66,38 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       );
     case 'template':
     case 'expr':
+    case 'templateArea': {
+      const isExpr = field.kind === 'expr';
+      const area = field.kind === 'templateArea';
+      const desc = isExpr ? (description ? `${description} · ${EXPR_HINT}` : EXPR_HINT) : field.kind === 'template' ? (description ?? 'Text with {{ expression }} placeholders') : description;
+      if (!expr.enabled) {
+        return (
+          <Textarea
+            label={label}
+            description={desc}
+            placeholder={field.placeholder}
+            autosize
+            minRows={area ? 3 : 1}
+            maxRows={area ? 16 : 10}
+            classNames={{ input: 'mono' }}
+            value={(value as string) ?? ''}
+            onChange={(e) => onChange(clean(e.currentTarget.value))}
+          />
+        );
+      }
       return (
-        <Textarea
+        <ExpressionInput
           label={label}
-          description={field.kind === 'expr' ? (description ? `${description} · ${EXPR_HINT}` : EXPR_HINT) : (description ?? 'Text with {{ expression }} placeholders')}
+          description={desc}
           placeholder={field.placeholder}
-          autosize
-          minRows={1}
-          maxRows={10}
-          classNames={{ input: 'mono' }}
+          template={!isExpr}
+          minRows={area ? 3 : 1}
+          maxRows={area ? 16 : 10}
           value={(value as string) ?? ''}
-          onChange={(e) => onChange(clean(e.currentTarget.value))}
+          onChange={(v) => onChange(clean(v))}
         />
       );
-    case 'templateArea':
-      return (
-        <Textarea
-          label={label}
-          description={description}
-          placeholder={field.placeholder}
-          autosize
-          minRows={3}
-          maxRows={16}
-          classNames={{ input: 'mono' }}
-          value={(value as string) ?? ''}
-          onChange={(e) => onChange(clean(e.currentTarget.value))}
-        />
-      );
+    }
     case 'number':
       return (
         <NumberInput
@@ -157,7 +166,11 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
               {description}
             </Text>
           )}
-          <KeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} valuePlaceholder="value or {{ expression }}" />
+          {expr.enabled ? (
+            <ExprKeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} template={field.key !== 'metrics'} />
+          ) : (
+            <KeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} valuePlaceholder="value or {{ expression }}" />
+          )}
         </Box>
       );
     case 'json':
@@ -172,6 +185,8 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return <ActionsEditor value={(value as BrowserAction[] | undefined) ?? []} onChange={onChange} />;
     case 'subjects':
       return <SubjectsField label={label} description={description} value={value as string[] | undefined} onChange={onChange} />;
+    case 'process':
+      return <ProcessField label={label} description={description} value={value as string | undefined} onChange={onChange} required={field.required} />;
     default:
       return null;
   }
@@ -208,16 +223,16 @@ function JsonField({ label, description, value, onChange }: { label: React.React
     }
   };
   return (
-    <Textarea
+    <ExpressionInput
       label={label}
       description={description ?? 'JSON or YAML. Strings may contain {{ expressions }}.'}
-      autosize
+      template
+      preview={false}
       minRows={3}
       maxRows={16}
-      classNames={{ input: 'mono' }}
       value={text}
       error={error}
-      onChange={(e) => setText(e.currentTarget.value)}
+      onChange={setText}
       onBlur={commit}
       placeholder={'type: USER\nvalue: "{{ vars.user.id }}"'}
     />
@@ -276,13 +291,14 @@ export function ColumnsEditor({ label, value, onChange }: { label: React.ReactNo
         {cols.map((c, i) => (
           <Group key={i} gap={6} wrap="nowrap">
             <TextInput size="xs" w={130} placeholder="Label" value={c.label} onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, label: e.currentTarget.value } : x)))} />
-            <TextInput
+            <ExpressionInput
               size="xs"
               style={{ flex: 1, minWidth: 0 }}
-              classNames={{ input: 'mono' }}
               placeholder="expression"
+              aria-label="Column value (expression)"
+              preview={false}
               value={c.value}
-              onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, value: e.currentTarget.value } : x)))}
+              onChange={(v) => set(cols.map((x, j) => (j === i ? { ...x, value: v } : x)))}
             />
             <ActionIcon size="sm" variant="subtle" onClick={() => set(move(cols, i, -1))} disabled={i === 0} aria-label="Up">
               <IconArrowUp size={14} />
@@ -439,16 +455,28 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
                 </ActionIcon>
               </Group>
               <SimpleGrid cols={{ base: 1, xs: 2 }} spacing={6} mt={6}>
-                {(meta?.fields ?? []).map((f) => (
-                  <TextInput
-                    key={f}
-                    size="xs"
-                    label={f === 'value' ? valueLabel(a.action) : ACTION_FIELD_LABELS[f]}
-                    classNames={{ input: 'mono' }}
-                    value={(a[f] as string) ?? ''}
-                    onChange={(e) => patch(i, { [f]: e.currentTarget.value || undefined } as Partial<BrowserAction>)}
-                  />
-                ))}
+                {(meta?.fields ?? []).map((f) =>
+                  f === 'value' && a.action !== 'evaluate' ? (
+                    <ExpressionInput
+                      key={f}
+                      size="xs"
+                      template
+                      preview={false}
+                      label={valueLabel(a.action)}
+                      value={(a[f] as string) ?? ''}
+                      onChange={(v) => patch(i, { [f]: v || undefined } as Partial<BrowserAction>)}
+                    />
+                  ) : (
+                    <TextInput
+                      key={f}
+                      size="xs"
+                      label={f === 'value' ? valueLabel(a.action) : ACTION_FIELD_LABELS[f]}
+                      classNames={{ input: 'mono' }}
+                      value={(a[f] as string) ?? ''}
+                      onChange={(e) => patch(i, { [f]: e.currentTarget.value || undefined } as Partial<BrowserAction>)}
+                    />
+                  ),
+                )}
                 {a.action === 'screenshot' && (
                   <Switch size="xs" mt={6} label="Full page" checked={!!a.fullPage} onChange={(e) => patch(i, { fullPage: e.currentTarget.checked || undefined })} />
                 )}
@@ -503,6 +531,111 @@ function SubjectsField({ label, description, value, onChange }: { label: React.R
       )}
       value={value ?? []}
       onChange={(v) => onChange(v.length ? v : undefined)}
+    />
+  );
+}
+
+/** Key/value rows whose values are templates (or expressions) with the expression assistant. */
+export function ExprKeyValueEditor({
+  value,
+  onChange,
+  template = true,
+  keyLabel = 'Name',
+  addLabel = 'Add',
+}: {
+  value: Record<string, unknown> | undefined;
+  onChange: (v: Record<string, unknown> | undefined) => void;
+  template?: boolean;
+  keyLabel?: string;
+  addLabel?: string;
+}) {
+  const entries = Object.entries(value ?? {});
+  const [draftKey, setDraftKey] = useState('');
+  const update = (list: [string, unknown][]) => onChange(list.length ? Object.fromEntries(list) : undefined);
+  return (
+    <Stack gap={6}>
+      {entries.map(([k, v], i) => (
+        <Group key={i} gap={6} wrap="nowrap" align="flex-start">
+          <TextInput
+            size="xs"
+            w={120}
+            style={{ flexShrink: 0 }}
+            classNames={{ input: 'mono' }}
+            value={k}
+            aria-label={keyLabel}
+            onChange={(e) => {
+              const copy = [...entries];
+              copy[i] = [e.currentTarget.value, v];
+              update(copy);
+            }}
+          />
+          <ExpressionInput
+            size="xs"
+            style={{ flex: 1, minWidth: 0 }}
+            template={template}
+            aria-label={`Value of ${k}`}
+            placeholder={template ? 'value or {{ expression }}' : 'expression'}
+            value={asText(v)}
+            onChange={(t) => {
+              const copy = [...entries];
+              copy[i] = [k, template ? fromText(t) : t];
+              update(copy);
+            }}
+          />
+          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={`Remove ${k}`}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Group>
+      ))}
+      <Group gap={6}>
+        <TextInput size="xs" w={120} placeholder={keyLabel} aria-label={`New ${keyLabel.toLowerCase()}`} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconPlus size={14} />}
+          disabled={!draftKey.trim() || entries.some(([k]) => k === draftKey.trim())}
+          onClick={() => {
+            update([...entries, [draftKey.trim(), '']]);
+            setDraftKey('');
+          }}
+        >
+          {addLabel}
+        </Button>
+      </Group>
+    </Stack>
+  );
+}
+
+/** Select of other processes (for sub-process nodes). */
+function ProcessField({
+  label,
+  description,
+  value,
+  onChange,
+  required,
+}: {
+  label: React.ReactNode;
+  description?: string;
+  value?: string;
+  onChange: (v: unknown) => void;
+  required?: boolean;
+}) {
+  const { processId } = useExprContext();
+  const processes = useProcesses();
+  const options = (processes.data ?? []).filter((p) => p.id !== processId).map((p) => ({ value: p.id, label: p.name }));
+  if (value && !options.some((o) => o.value === value) && value !== processId) options.push({ value, label: `${value} (not found)` });
+  return (
+    <Select
+      label={label}
+      description={description ?? 'The process to run as one step'}
+      placeholder={processes.isLoading ? 'Loading…' : 'Choose a process'}
+      data={options}
+      searchable
+      clearable={!required}
+      nothingFoundMessage="No other process"
+      value={value || null}
+      error={value && value === processId ? 'A process cannot run itself' : undefined}
+      onChange={(v) => onChange(v ?? '')}
     />
   );
 }

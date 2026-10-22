@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { Box, Group, Text, Tooltip } from '@mantine/core';
+import { Badge, Box, Group, Text, Tooltip } from '@mantine/core';
 import { IconEyeCheck, IconFilter, IconUsers } from '@tabler/icons-react';
 import { NODE_HEIGHT, NODE_WIDTH, STEP_META, hasInput, nodePorts, type FlowNode } from '@sm/shared';
 import { Markdown } from '../common';
@@ -109,6 +109,13 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
           {node.when && <IconFilter size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && (node.assignees?.length ?? 0) > 0 && <IconUsers size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && node.fourEyes && <IconEyeCheck size={11} color="var(--mantine-color-dimmed)" />}
+          {node.type === 'forEach' && (node.concurrency ?? 1) > 1 && (
+            <Tooltip label={`Up to ${node.concurrency} items run at the same time`} withArrow>
+              <Badge size="xs" variant="light" color={color} px={4} style={{ flexShrink: 0, textTransform: 'none' }} data-testid="parallel-badge">
+                ×{node.concurrency} parallel
+              </Badge>
+            </Tooltip>
+          )}
         </Group>
         <Text size="sm" fw={600} lh={1.25} truncate>
           {node.name || node.id}

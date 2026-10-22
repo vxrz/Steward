@@ -25,6 +25,8 @@ import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-r
 import { INPUT_TYPES, type ConnectionSlot, type InputDef, type ProcessDefinition, type ProcessDetail, type ProcessVersion, type ValidationIssue } from '@sm/shared';
 import { get, notifyError, post } from '../../api';
 import { fmtDate } from '../../format';
+import { ExpressionInput } from './ExpressionInput';
+import { VersionCompare } from './VersionDiff';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -330,7 +332,18 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
   );
 }
 
-export function VersionsPanel({ processId, currentVersion, onRestore }: { processId: string; currentVersion: number; onRestore: (d: Def, version: number) => void }) {
+export function VersionsPanel({
+  processId,
+  currentVersion,
+  workingCopy,
+  onRestore,
+}: {
+  processId: string;
+  currentVersion: number;
+  /** Unsaved working copy (offered in the comparison) */
+  workingCopy?: Def;
+  onRestore: (d: Def, version: number) => void;
+}) {
   const versions = useQuery({ queryKey: ['process-versions', processId, currentVersion], queryFn: () => get<ProcessVersion[]>(`/processes/${processId}/versions`) });
   const [viewing, setViewing] = useState<ProcessDetail | null>(null);
   const [viewVersion, setViewVersion] = useState<number | null>(null);
@@ -347,6 +360,14 @@ export function VersionsPanel({ processId, currentVersion, onRestore }: { proces
       <Text size="sm" c="dimmed">
         Every save creates a new immutable version. Runs record the exact version and its hash.
       </Text>
+      {versions.data && (
+        <Paper withBorder p="sm">
+          <Text fw={600} size="sm" mb="xs">
+            Compare versions
+          </Text>
+          <VersionCompare key={`${currentVersion}-${!!workingCopy}`} processId={processId} versions={versions.data} currentVersion={currentVersion} workingCopy={workingCopy} />
+        </Paper>
+      )}
       <div className="table-scroll">
         <Table striped highlightOnHover miw={560}>
           <Table.Thead>
@@ -402,6 +423,67 @@ export function VersionsPanel({ processId, currentVersion, onRestore }: { proces
           </Stack>
         )}
       </Modal>
+    </Stack>
+  );
+}
+
+/** Values returned when this process runs as a sub-process (definition.outputs: name → expression). */
+export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const entries = Object.entries(def.outputs ?? {});
+  const update = (list: [string, string][]) => {
+    const next = { ...def } as Def;
+    if (list.length) next.outputs = Object.fromEntries(list);
+    else delete next.outputs;
+    onChange(next);
+  };
+  const nameError = (k: string, i: number) =>
+    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? 'Letters, digits and _ only' : entries.some(([x], j) => j !== i && x === k) ? 'Duplicate name' : null;
+  return (
+    <Stack>
+      <Text size="sm" c="dimmed">
+        Values returned when this process runs as a sub-process. Each value is an expression evaluated when the run ends, e.g.{' '}
+        <Code>vars.users.body</Code>. The parent gets them as the node result (<Code>vars.&lt;saveAs&gt;.&lt;name&gt;</Code>).
+      </Text>
+      {entries.map(([k, v], i) => (
+        <Group key={i} gap="xs" wrap="nowrap" align="flex-start">
+          <TextInput
+            size="xs"
+            w={150}
+            style={{ flexShrink: 0 }}
+            classNames={{ input: 'mono' }}
+            aria-label="Output name"
+            placeholder="name"
+            value={k}
+            error={nameError(k, i)}
+            onChange={(e) => update(entries.map((x, j) => (j === i ? [e.currentTarget.value, x[1]] : x)))}
+          />
+          <ExpressionInput
+            size="xs"
+            style={{ flex: 1, minWidth: 0 }}
+            aria-label={`Expression for output ${k}`}
+            placeholder="expression, e.g. vars.result"
+            value={v}
+            onChange={(t) => update(entries.map((x, j) => (j === i ? [x[0], t] : x)))}
+          />
+          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={`Remove output ${k}`}>
+            <IconTrash size={14} />
+          </ActionIcon>
+        </Group>
+      ))}
+      <Group>
+        <Button
+          size="xs"
+          variant="light"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => {
+            let n = entries.length + 1;
+            while (entries.some(([x]) => x === `output${n}`)) n++;
+            update([...entries, [`output${n}`, '']]);
+          }}
+        >
+          Add output
+        </Button>
+      </Group>
     </Stack>
   );
 }

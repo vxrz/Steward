@@ -1,5 +1,6 @@
 import type {
   Column,
+  RunChild,
   RunArtifact,
   RunDetail,
   RunLog,
@@ -26,7 +27,7 @@ export const emptyStats = (): RunStats => ({
   openTasks: 0,
 });
 
-interface RunRow {
+export interface RunRow {
   id: string;
   process_id: string;
   process_name: string;
@@ -43,6 +44,9 @@ interface RunRow {
   finished_at: string | null;
   error: string | null;
   stats: string;
+  parent_run_id?: string | null;
+  parent_step_key?: string | null;
+  outputs?: string | null;
 }
 
 export interface StepRow {
@@ -108,6 +112,8 @@ function toSummary(r: RunRow): RunSummary {
     finishedAt: r.finished_at,
     error: r.error,
     stats,
+    parentRunId: r.parent_run_id ?? null,
+    parentStepKey: r.parent_step_key ?? null,
   };
 }
 
@@ -171,7 +177,63 @@ export function getRunDetail(id: string): RunDetail {
     tasks: listTasks({ runId: id }),
     artifacts: listArtifacts(id),
     reports,
+    outputs: parseJson<Record<string, unknown> | null>(r.outputs ?? null, null),
+    children: listChildRuns(id),
   };
+}
+
+// ---------- Sub-process runs ----------
+
+export function listChildRuns(runId: string): RunChild[] {
+  return db()
+    .all<{ id: string; process_id: string; process_name: string; status: RunStatus; parent_step_key: string | null; started_at: string; finished_at: string | null }>(
+      'SELECT id, process_id, process_name, status, parent_step_key, started_at, finished_at FROM runs WHERE parent_run_id = ? ORDER BY started_at, rowid',
+      runId,
+    )
+    .map((c) => ({
+      id: c.id,
+      processId: c.process_id,
+      processName: c.process_name,
+      status: c.status,
+      parentStepKey: c.parent_step_key,
+      startedAt: c.started_at,
+      finishedAt: c.finished_at,
+    }));
+}
+
+/** Most recent child run started by a step of a run (re-attach on resume). */
+export function latestChildRun(runId: string, stepKey: string): { id: string; status: RunStatus } | undefined {
+  return db().get<{ id: string; status: RunStatus }>(
+    'SELECT id, status FROM runs WHERE parent_run_id = ? AND parent_step_key = ? ORDER BY started_at DESC, rowid DESC LIMIT 1',
+    runId,
+    stepKey,
+  );
+}
+
+/** Child runs that are not finished yet. */
+export function unfinishedChildRuns(runId: string): string[] {
+  return db()
+    .all<{ id: string }>("SELECT id FROM runs WHERE parent_run_id = ? AND status NOT IN ('succeeded', 'failed', 'cancelled')", runId)
+    .map((r) => r.id);
+}
+
+/** The run and its ancestors (nearest first). */
+export function ancestorChain(runId: string): { id: string; processId: string }[] {
+  const out: { id: string; processId: string }[] = [];
+  let cur: string | null | undefined = runId;
+  const seen = new Set<string>();
+  while (cur && !seen.has(cur) && out.length < 50) {
+    seen.add(cur);
+    const r: { id: string; process_id: string; parent_run_id: string | null } | undefined = db().get('SELECT id, process_id, parent_run_id FROM runs WHERE id = ?', cur);
+    if (!r) break;
+    out.push({ id: r.id, processId: r.process_id });
+    cur = r.parent_run_id;
+  }
+  return out;
+}
+
+export function saveOutputs(runId: string, outputs: Record<string, unknown>): void {
+  db().run('UPDATE runs SET outputs = ? WHERE id = ?', JSON.stringify(outputs), runId);
 }
 
 export function getStepFull(runId: string, stepRowId: number): RunStepRecord {

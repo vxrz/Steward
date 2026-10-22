@@ -605,10 +605,24 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     if (n.type === 'userTask' && n.mode === 'select' && !n.items) {
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: 'Select tasks need an "items" expression' });
     }
+    if (n.type === 'subprocess') {
+      for (const [childSlot, parentSlot] of Object.entries(n.connections ?? {})) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot)) issues.push({ path: `nodes[${i}].connections`, nodeId: n.id, message: `Invalid connection slot name "${childSlot}"` });
+        if (!slots.has(parentSlot)) {
+          issues.push({ path: `nodes[${i}].connections.${childSlot}`, nodeId: n.id, message: `Unknown connection "${parentSlot}" for sub-process slot "${childSlot}". Declare it under Connections.` });
+        }
+      }
+      for (const k of Object.keys(n.inputs ?? {})) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `nodes[${i}].inputs`, nodeId: n.id, message: `Invalid input name "${k}"` });
+      }
+    }
     if (n.type === 'if' && n.when) {
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: '"Only run when" is not supported on if nodes – put it into the condition' });
     }
   });
+  for (const k of Object.keys(d.outputs ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `outputs.${k}`, message: `Invalid output name "${k}" (letters, digits and _ only)` });
+  }
   const starts = d.nodes.filter((n) => n.type === 'start');
   if (starts.length !== 1) issues.push({ path: 'nodes', message: `A process needs exactly one start node (found ${starts.length})` });
 

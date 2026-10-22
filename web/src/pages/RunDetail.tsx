@@ -28,8 +28,9 @@ import {
   IconRefresh,
   IconCircleCheck,
   IconCircleX,
+  IconBoxMultiple,
 } from '@tabler/icons-react';
-import type { AuditEntry, ProcessDetail, RunDetail, RunStepRecord } from '@sm/shared';
+import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { fmtDate, fmtDuration, runDuration } from '../format';
 import { JsonView, Markdown, PageHeader, StatusBadge } from '../components/common';
@@ -84,7 +85,7 @@ export function RunDetailPage() {
         }
         description={
           <>
-            Run <span className="mono">{r.id}</span> · <Anchor component={Link} to={`/processes/${r.processId}`} size="sm">version {r.processVersion}</Anchor> · started by {r.actor} ({r.trigger}) {fmtDate(r.startedAt)} · {runDuration(r.startedAt, r.finishedAt)}
+            Run <span className="mono">{r.id}</span> · <Anchor component={Link} to={`/processes/${r.processId}`} size="sm">version {r.processVersion}</Anchor> · started by {r.actor} ({r.trigger === 'subprocess' ? 'sub-process' : r.trigger}) {fmtDate(r.startedAt)} · {runDuration(r.startedAt, r.finishedAt)}
           </>
         }
         actions={
@@ -133,6 +134,16 @@ export function RunDetailPage() {
       <RunDialog processId={r.processId} opened={rerun} onClose={() => setRerun(false)} />
 
       <Stack>
+        {r.parentRunId && (
+          <Alert color="violet" variant="light" p="xs" icon={<IconBoxMultiple size={16} />}>
+            <Text size="sm">
+              Started by sub-process step{r.parentStepKey ? <> <span className="mono">{r.parentStepKey}</span></> : ''} of run{' '}
+              <Anchor component={Link} to={`/runs/${r.parentRunId}`} className="mono" size="sm">
+                {r.parentRunId}
+              </Anchor>
+            </Text>
+          </Alert>
+        )}
         {r.status === 'failed' && r.error && (
           <Alert color="red" title="Run failed">
             {r.error}
@@ -156,6 +167,8 @@ export function RunDetailPage() {
           <Stat label="Decisions" value={`${r.tasks.filter((t) => t.status === 'completed').length}/${r.tasks.length}`} />
         </SimpleGrid>
 
+        {(r.children?.length ?? 0) > 0 && <ChildRuns runs={r.children!} />}
+
         <Tabs defaultValue={r.reports.length ? 'reports' : 'timeline'} keepMounted={false}>
           <Tabs.List>
             <Tabs.Tab value="timeline">Steps</Tabs.Tab>
@@ -172,7 +185,7 @@ export function RunDetailPage() {
             <Stack gap={4}>
               {r.steps.length === 0 && <Text c="dimmed">No steps yet.</Text>}
               {r.steps.map((s) => (
-                <StepRow key={s.id} runId={r.id} step={s} />
+                <StepRow key={s.id} runId={r.id} step={s} childRuns={r.children?.filter((c) => c.parentStepKey === s.key)} />
               ))}
             </Stack>
           </Tabs.Panel>
@@ -325,6 +338,14 @@ export function RunDetailPage() {
                 Inputs
               </Text>
               <JsonView value={r.inputs} />
+              {r.outputs && Object.keys(r.outputs).length > 0 && (
+                <>
+                  <Text fw={600} size="sm">
+                    Outputs
+                  </Text>
+                  <JsonView value={r.outputs} />
+                </>
+              )}
               <Text size="xs" c="dimmed" className="mono">
                 Definition hash {r.definitionHash}
               </Text>
@@ -358,7 +379,36 @@ function Stat({ label, value, sub, bad }: { label: string; value: string; sub?: 
   );
 }
 
-function StepRow({ runId, step }: { runId: string; step: RunStepRecord }) {
+function ChildRuns({ runs }: { runs: RunChild[] }) {
+  return (
+    <Paper withBorder p="sm">
+      <Group gap={6} mb={6}>
+        <IconBoxMultiple size={16} />
+        <Text fw={600} size="sm">
+          Sub-process runs ({runs.length})
+        </Text>
+      </Group>
+      <Stack gap={4}>
+        {runs.map((c) => (
+          <Group key={c.id} gap="xs" wrap="nowrap">
+            <StatusBadge status={c.status} size="xs" />
+            <Anchor component={Link} to={`/runs/${c.id}`} size="sm" truncate style={{ minWidth: 0 }}>
+              {c.processName}
+            </Anchor>
+            <Text size="xs" c="dimmed" className="mono" truncate style={{ flex: 1, minWidth: 0 }}>
+              {c.parentStepKey ?? ''}
+            </Text>
+            <Text size="xs" c="dimmed" className="nowrap" visibleFrom="xs">
+              {c.startedAt ? runDuration(c.startedAt, c.finishedAt) : ''}
+            </Text>
+          </Group>
+        ))}
+      </Stack>
+    </Paper>
+  );
+}
+
+function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
@@ -393,6 +443,18 @@ function StepRow({ runId, step }: { runId: string; step: RunStepRecord }) {
             {step.key} · started {fmtDate(step.startedAt)}
           </Text>
           {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
+          {childRuns && childRuns.length > 0 && (
+            <Group gap={6}>
+              <Text size="xs" fw={600}>
+                Child run:
+              </Text>
+              {childRuns.map((c) => (
+                <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
+                  {c.id} ({c.status})
+                </Anchor>
+              ))}
+            </Group>
+          )}
           {s.input !== undefined && s.input !== null && (
             <>
               <Text size="xs" fw={600}>

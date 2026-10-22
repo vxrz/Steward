@@ -11,6 +11,14 @@ export type Bindings = Record<string, unknown>;
 
 const cache = new Map<string, jsonata.Expression>();
 
+/** Guard rails for untrusted/interactive evaluation (expression assistant). */
+export interface EvalOptions {
+  /** Abort evaluation after this many milliseconds (JSONata guard rail + wall clock) */
+  timeoutMs?: number;
+  /** Maximum JSONata stack depth */
+  maxDepth?: number;
+}
+
 export class ExpressionError extends Error {
   constructor(
     public expression: string,
@@ -24,16 +32,20 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
-function compile(expr: string): jsonata.Expression {
-  let c = cache.get(expr);
+function compile(expr: string, opts?: EvalOptions): jsonata.Expression {
+  const guarded = !!(opts?.timeoutMs || opts?.maxDepth);
+  const cacheKey = guarded ? `${opts!.timeoutMs ?? 0}|${opts!.maxDepth ?? 0}|${expr}` : expr;
+  let c = cache.get(cacheKey);
   if (!c) {
     try {
-      c = jsonata(expr);
+      c = guarded
+        ? (jsonata as unknown as (e: string, o: Record<string, unknown>) => jsonata.Expression)(expr, { timeout: opts!.timeoutMs, stack: opts!.maxDepth })
+        : jsonata(expr);
     } catch (e) {
       throw new ExpressionError(expr, (e as Error).message);
     }
     if (cache.size > 2000) cache.clear();
-    cache.set(expr, c);
+    cache.set(cacheKey, c);
   }
   return c;
 }
@@ -67,12 +79,29 @@ function toMillis(t: unknown): number | undefined {
   return Number.isNaN(n) ? undefined : n;
 }
 
-export async function evalExpr(expr: string, root: unknown, bindings: Bindings = {}): Promise<unknown> {
+/** Help for the custom functions above (expression assistant). */
+export const CUSTOM_FUNCTIONS: { name: string; signature: string; help: string }[] = [
+  { name: '$daysSince', signature: '$daysSince(timestamp)', help: 'Whole days since an ISO timestamp or epoch millis (undefined when empty)' },
+  { name: '$daysAgo', signature: '$daysAgo(n)', help: 'ISO timestamp n days in the past' },
+  { name: '$uuid', signature: '$uuid()', help: 'Random UUID' },
+  { name: '$ts', signature: '$ts(timestamp)', help: 'Parse a timestamp leniently into epoch millis (undefined if invalid)' },
+];
+
+export async function evalExpr(expr: string, root: unknown, bindings: Bindings = {}, opts?: EvalOptions): Promise<unknown> {
   const source = stripBraces(expr);
   if (source === '') return undefined;
-  const compiled = compile(source);
+  const compiled = compile(source, opts);
   try {
-    const result = await compiled.evaluate(root, { ...standardBindings, ...bindings });
+    const run = compiled.evaluate(root, { ...standardBindings, ...bindings });
+    let timer: NodeJS.Timeout | undefined;
+    const result = opts?.timeoutMs
+      ? await Promise.race([
+          run,
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(`Evaluation timeout after ${opts.timeoutMs} milliseconds`)), opts.timeoutMs! + 50);
+          }),
+        ]).finally(() => clearTimeout(timer))
+      : await run;
     return normalize(result);
   } catch (e) {
     const err = e as { message?: string; code?: string };
@@ -161,22 +190,22 @@ export function hasTemplate(v: unknown): boolean {
 }
 
 /** Render templates recursively in strings, arrays and objects. */
-export async function render(value: unknown, root: unknown, bindings: Bindings = {}): Promise<unknown> {
+export async function render(value: unknown, root: unknown, bindings: Bindings = {}, opts?: EvalOptions): Promise<unknown> {
   if (typeof value === 'string') {
     if (!value.includes('{{')) return value;
     const segs = parseTemplate(value);
-    if (segs.length === 1 && segs[0]!.kind === 'expr') return evalExpr(segs[0]!.text, root, bindings);
+    if (segs.length === 1 && segs[0]!.kind === 'expr') return evalExpr(segs[0]!.text, root, bindings, opts);
     let out = '';
     for (const seg of segs) {
       if (seg.kind === 'text') out += seg.text;
-      else out += stringify(await evalExpr(seg.text, root, bindings));
+      else out += stringify(await evalExpr(seg.text, root, bindings, opts));
     }
     return out;
   }
-  if (Array.isArray(value)) return Promise.all(value.map((v) => render(v, root, bindings)));
+  if (Array.isArray(value)) return Promise.all(value.map((v) => render(v, root, bindings, opts)));
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = await render(v, root, bindings);
+    for (const [k, v] of Object.entries(value)) out[k] = await render(v, root, bindings, opts);
     return out;
   }
   return value;

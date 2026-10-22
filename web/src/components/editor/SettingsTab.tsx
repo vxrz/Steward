@@ -1,6 +1,6 @@
 import { Paper, Stack, Title } from '@mantine/core';
 import type { ProcessDefinition } from '@sm/shared';
-import { ConnectionsPanel, ConstantsPanel, GeneralPanel, InputsPanel } from './DefinitionTabs';
+import { ConnectionsPanel, ConstantsPanel, GeneralPanel, InputsPanel, OutputsPanel } from './DefinitionTabs';
 
 type Def = ProcessDefinition;
 
@@ -15,7 +15,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** Process-level settings: general info, connection slots, inputs and constants. */
+/** Process-level settings: general info, connection slots, inputs, constants and outputs. */
 export function SettingsTab({ def, onChange }: { def: Def; onChange: (d: Def) => void }) {
   return (
     <Stack maw={960}>
@@ -30,6 +30,9 @@ export function SettingsTab({ def, onChange }: { def: Def; onChange: (d: Def) =>
       </Section>
       <Section title="Constants">
         <ConstantsPanel def={def} onChange={onChange} />
+      </Section>
+      <Section title={`Outputs (${Object.keys(def.outputs ?? {}).length})`}>
+        <OutputsPanel def={def} onChange={onChange} />
       </Section>
     </Stack>
   );

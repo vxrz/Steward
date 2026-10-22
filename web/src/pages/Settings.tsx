@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Code, Group, NumberInput, SegmentedControl, Stack, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AuthStatus, Settings } from '@sm/shared';
-import { get, notifyError, notifyOk, put } from '../api';
+import { IconTrashX } from '@tabler/icons-react';
+import type { ApiToken, AuthStatus, MaintenanceStatus, Settings } from '@sm/shared';
+import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { useMe } from '../auth';
+import { fmtDate, fmtRelative } from '../format';
+import { ApiTokenTable } from '../components/ApiTokenTable';
+import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const qc = useQueryClient();
@@ -21,7 +25,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   return (
     <>
       <PageHeader title="Settings" description={readOnly ? 'Only administrators can change settings.' : undefined} />
-      <Stack maw={640}>
+      <Stack maw={760}>
         <Card withBorder>
           <Title order={5} mb="sm">
             Sign-in
@@ -79,6 +83,35 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
             </Text>
           </Stack>
         </Card>
+        <Card withBorder>
+          <Title order={5} mb="sm">
+            Data retention
+          </Title>
+          <Stack>
+            <SimpleGrid cols={{ base: 1, sm: 2 }}>
+              <NumberInput
+                disabled={readOnly}
+                label="Keep runs (days)"
+                description="Includes logs and evidence files. 0 = forever."
+                min={0}
+                value={s.retentionRunDays ?? 0}
+                onChange={(v) => setS({ ...s, retentionRunDays: typeof v === 'number' ? v : 0 })}
+              />
+              <NumberInput
+                disabled={readOnly}
+                label="Keep read notifications (days)"
+                description="Unread ones are always kept."
+                min={1}
+                value={s.retentionNotificationDays ?? 30}
+                onChange={(v) => setS({ ...s, retentionNotificationDays: typeof v === 'number' ? v : 30 })}
+              />
+            </SimpleGrid>
+            <Text size="xs" c="dimmed">
+              Older runs and read notifications are deleted automatically. The audit log is never pruned.
+            </Text>
+            {!readOnly && <MaintenanceStatusView />}
+          </Stack>
+        </Card>
         {!readOnly && (
         <Group>
           <Button
@@ -96,6 +129,8 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           </Button>
         </Group>
         )}
+        {!readOnly && <NotificationSettingsCard />}
+        {!readOnly && <AdminTokensCard />}
         <Card withBorder>
           <Title order={5} mb="xs">
             Unattended operation
@@ -109,5 +144,112 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         </Card>
       </Stack>
     </>
+  );
+}
+
+function fmtBytes(n?: number | null): string {
+  if (n == null || !Number.isFinite(n)) return '–';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = n;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
+}
+
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <Paper withBorder p="xs" title={hint}>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text fw={600}>{value}</Text>
+    </Paper>
+  );
+}
+
+/** Storage numbers and the "Clean up now" button. Hidden while the server has no maintenance endpoint. */
+function MaintenanceStatusView() {
+  const qc = useQueryClient();
+  const status = useQuery({ queryKey: ['maintenance'], queryFn: () => getOptional<MaintenanceStatus | null>('/maintenance', null) });
+  const [busy, setBusy] = useState(false);
+  const m = status.data;
+  if (!m) return null;
+  const cleanup = async () => {
+    if (!confirm('Delete runs and notifications older than the saved retention periods now? This cannot be undone.')) return;
+    setBusy(true);
+    try {
+      type Result = { runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number };
+      // Accepts the cleanup result or the refreshed maintenance status (which carries it as lastCleanup).
+      const r = await post<Result | MaintenanceStatus>('/maintenance/cleanup');
+      const c = r && 'runsDeleted' in r ? r : (r as MaintenanceStatus | null)?.lastCleanup;
+      notifyOk(c ? `${c.runsDeleted} runs, ${c.artifactsDeleted} files and ${c.notificationsDeleted} notifications deleted.` : 'Done.', 'Cleanup finished');
+      if (r && 'databaseBytes' in r) qc.setQueryData(['maintenance'], r);
+      else qc.invalidateQueries({ queryKey: ['maintenance'] });
+    } catch (e) {
+      notifyError(e, 'Cleanup failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Stack gap="xs">
+      <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
+        <Stat label="Database" value={fmtBytes(m.databaseBytes)} />
+        <Stat label="Evidence files" value={fmtBytes(m.artifactBytes)} />
+        <Stat label="Runs" value={m.runs.toLocaleString()} />
+        <Stat label="Oldest run" value={m.oldestRun ? fmtRelative(m.oldestRun) : '–'} hint={m.oldestRun ? fmtDate(m.oldestRun) : undefined} />
+        <Stat label="Audit entries" value={m.auditEntries.toLocaleString()} />
+        <Stat label="Last cleanup" value={m.lastCleanup ? fmtRelative(m.lastCleanup.at) : 'never'} hint={m.lastCleanup ? fmtDate(m.lastCleanup.at) : undefined} />
+      </SimpleGrid>
+      {m.lastCleanup && (
+        <Text size="xs" c="dimmed">
+          Last cleanup removed {m.lastCleanup.runsDeleted} runs, {m.lastCleanup.artifactsDeleted} files and {m.lastCleanup.notificationsDeleted} notifications.
+        </Text>
+      )}
+      <Group>
+        <Button variant="light" color="red" leftSection={<IconTrashX size={16} />} loading={busy} onClick={cleanup}>
+          Clean up now
+        </Button>
+        <Text size="xs" c="dimmed">
+          Uses the saved retention periods. Cleanup also runs automatically.
+        </Text>
+      </Group>
+    </Stack>
+  );
+}
+
+/** Every user's API tokens (administrators). Hidden while the server has no token endpoint. */
+function AdminTokensCard() {
+  const qc = useQueryClient();
+  const tokens = useQuery({ queryKey: ['tokens', 'all'], queryFn: () => getOptional<ApiToken[] | null>('/tokens', null) });
+  if (!tokens.data) return null;
+  const revoke = async (t: ApiToken) => {
+    if (!confirm(`Revoke the token “${t.name}” of ${t.owner}? Scripts using it stop working immediately.`)) return;
+    try {
+      await del(`/tokens/${encodeURIComponent(t.id)}`);
+      notifyOk('Token revoked');
+      qc.invalidateQueries({ queryKey: ['tokens'] });
+      qc.invalidateQueries({ queryKey: ['me', 'tokens'] });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  return (
+    <Card withBorder>
+      <Title order={5}>API tokens</Title>
+      <Text size="sm" c="dimmed" mb="sm">
+        Tokens of all users. Users create their own tokens on their profile page.
+      </Text>
+      {tokens.data.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No tokens yet.
+        </Text>
+      ) : (
+        <ApiTokenTable tokens={tokens.data} showOwner onRevoke={revoke} />
+      )}
+    </Card>
   );
 }

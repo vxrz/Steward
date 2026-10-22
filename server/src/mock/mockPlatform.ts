@@ -175,6 +175,32 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
+  // ---------------- Test helpers (retries, parallelism) ----------------
+  // /mock/test/flaky?key=k&fail=2[&status=503][&retryAfter=1]: the first `fail` calls per key are rejected
+  const flakyCalls = new Map<string, number>();
+  const flaky = async (req: FastifyRequest, reply: FastifyReply) => {
+    const q = req.query as { key?: string; fail?: string; status?: string; retryAfter?: string };
+    const key = q.key ?? 'default';
+    const calls = (flakyCalls.get(key) ?? 0) + 1;
+    flakyCalls.set(key, calls);
+    if (calls <= Number(q.fail ?? 2)) {
+      const status = Number(q.status ?? 429);
+      if (q.retryAfter !== 'none') reply.header('retry-after', q.retryAfter ?? '1');
+      return reply.code(status).send({ error: 'try again later', calls });
+    }
+    return { ok: true, calls, method: req.method };
+  };
+  app.get('/test/flaky', flaky);
+  app.post('/test/flaky', flaky);
+  app.get('/test/flaky/calls', async (req) => ({ calls: flakyCalls.get((req.query as { key?: string }).key ?? 'default') ?? 0 }));
+  // /mock/test/delay?ms=200&value=x: answers after a delay
+  app.get('/test/delay', async (req) => {
+    const q = req.query as { ms?: string; value?: string };
+    const ms = Math.min(Number(q.ms ?? 200), 10000);
+    await new Promise((r) => setTimeout(r, ms));
+    return { ok: true, ms, value: q.value ?? null };
+  });
+
   // ---------------- Insights Hub ----------------
   app.post('/ih/oauth/token', async (req, reply) => {
     const auth = String(req.headers.authorization ?? '');

@@ -12,6 +12,8 @@ import { SourcePanel, VersionsPanel } from '../components/editor/DefinitionTabs'
 import { SettingsTab } from '../components/editor/SettingsTab';
 import { FlowEditor } from '../components/flow/FlowEditor';
 import { useLastRun } from '../components/flow/useLastRun';
+import { ExprProvider } from '../components/editor/ExprContext';
+import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
@@ -41,6 +43,9 @@ export function ProcessEditorPage() {
   const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
   const [showRun, setShowRun] = useState(false);
   const lastRun = useLastRun(id ?? '', showRun && !!id);
+  const history = useDefHistory(def, setDef);
+  const editable = !!proc.data?.permissions.includes('edit');
+  useUndoKeys(editable && !!def, history.undo, history.redo);
 
   // initialise working copy once per process
   useEffect(() => {
@@ -49,6 +54,7 @@ export function ProcessEditorPage() {
       setLoadedId(proc.data.id);
       setDef(d);
       setBaseline(JSON.stringify(d));
+      history.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proc.data?.id]);
@@ -199,6 +205,7 @@ export function ProcessEditorPage() {
         </Alert>
       )}
 
+      <ExprProvider processId={p.id} def={def}>
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="sm">
           <Tabs.Tab value="flow">Flow</Tabs.Tab>
@@ -211,7 +218,13 @@ export function ProcessEditorPage() {
         <Tabs.Panel value="flow">
           <FlowEditor
             def={def}
-            onChange={setDef}
+            onChange={history.change}
+            processId={p.id}
+            onUndo={history.undo}
+            onRedo={history.redo}
+            canUndo={history.canUndo}
+            canRedo={history.canRedo}
+            historySeq={history.seq}
             issuesByNode={issuesByNode}
             warningsByNode={warningsByNode}
             runStatus={showRun ? lastRun.statusByNode : undefined}
@@ -223,21 +236,22 @@ export function ProcessEditorPage() {
         </Tabs.Panel>
         <Tabs.Panel value="settings">
           <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <SettingsTab def={def} onChange={setDef} />
+            <SettingsTab key={history.seq} def={def} onChange={(d) => history.change(d, 'settings')} />
           </fieldset>
         </Tabs.Panel>
         <Tabs.Panel value="source">
           <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <SourcePanel def={def} onChange={(d) => setDef(normalize(d))} />
+            <SourcePanel key={history.seq} def={def} onChange={(d) => history.change(normalize(d))} />
           </fieldset>
         </Tabs.Panel>
         <Tabs.Panel value="versions">
           <VersionsPanel
             processId={p.id}
             currentVersion={p.currentVersion}
+            workingCopy={dirty ? def : undefined}
             onRestore={(d, v) => {
               if (!canEdit) return notifyError(new Error('You may view but not change this process'));
-              setDef(normalize(d));
+              history.change(normalize(d));
               setTab('flow');
               notifyOk(`Version v${v} loaded as working copy – save to make it the current version.`);
             }}
@@ -262,6 +276,7 @@ export function ProcessEditorPage() {
           />
         </Tabs.Panel>
       </Tabs>
+      </ExprProvider>
 
       <SaveModal
         opened={saveOpen}

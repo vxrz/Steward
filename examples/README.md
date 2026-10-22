@@ -32,6 +32,8 @@ The processes are written in the compact sequential YAML format and become node 
 | 60 | Browser – Portal login and status screenshot | Sign in to a portal and keep a screenshot as evidence | daily | no | – |
 | 70 | Generic – Endpoint availability check | One check per endpoint of any API | 15–60 min | no | – |
 | 81 | Cross-platform – Weekly service report | Reachability and key figures of both platforms in one report | weekly (Mon 07:00) | no | `platform.service-report` |
+| 90 | Building block – Resolve an Insights Hub group | Reusable sub-process: group/role by name → id and members (returned as `outputs`) | – (called by other processes) | no | – |
+| 91 | Insights Hub – Add users to a group (with sub-process) | Resolves the group via #90 as a sub-process, looks up users in parallel, adds missing memberships after approval | on demand | yes (group membership) | – |
 
 ## Dashboards
 

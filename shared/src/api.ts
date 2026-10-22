@@ -371,8 +371,12 @@ export interface RunSummary {
   processVersion: number;
   status: RunStatus;
   dryRun: boolean;
-  trigger: 'manual' | 'schedule' | 'resume';
+  trigger: 'manual' | 'schedule' | 'resume' | 'subprocess';
   scheduleId?: string | null;
+  /** Set when this run was started by a "subprocess" node of another run */
+  parentRunId?: string | null;
+  /** Activation key of the parent's subprocess node */
+  parentStepKey?: string | null;
   actor: string;
   startedAt: string;
   finishedAt?: string | null;
@@ -449,6 +453,21 @@ export interface RunDetail extends RunSummary {
   tasks: TaskRecord[];
   artifacts: RunArtifact[];
   reports: RunReportSection[];
+  /** Evaluated definition outputs (when the run succeeded and the process declares outputs) */
+  outputs?: Record<string, unknown> | null;
+  /** Runs started by subprocess nodes of this run */
+  children?: RunChild[];
+}
+
+export interface RunChild {
+  id: string;
+  processId: string;
+  processName: string;
+  status: RunStatus;
+  /** Activation key of the subprocess node that started it */
+  parentStepKey: string | null;
+  startedAt: string;
+  finishedAt?: string | null;
 }
 
 export interface StartRunRequest {
@@ -569,4 +588,25 @@ export interface DashboardData {
   failedChecks: { runId: string; processName: string; name: string; message: string; severity: string; ts: string }[];
   upcoming: Schedule[];
   counts: { platforms: number; processes: number; schedules: number; runs24h: number; failed24h: number };
+}
+
+// ---------- API contract check (sandbox contract tests) ----------
+
+export interface ContractCheckResult {
+  platformId: string;
+  /** Operations called */
+  checked: number;
+  passed: number;
+  failed: number;
+  /** GET operations left out (required path parameters, over the cap of 30) */
+  skipped: number;
+  results: {
+    operationId?: string;
+    method: string;
+    path: string;
+    status: number;
+    ok: boolean;
+    problems: string[];
+    durationMs?: number;
+  }[];
 }
