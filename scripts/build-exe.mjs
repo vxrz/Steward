@@ -1,5 +1,5 @@
 // Builds a single-file executable (Node.js "single executable application"):
-// the server bundle, the built web UI and the example library are embedded
+// the server bundle, the built web UI, the example library and the report assets are embedded
 // into a copy of the node binary. Run on each target OS (see release workflow).
 //
 //   npm run build && npm run build:exe   →   dist-exe/<name>[.exe]
@@ -46,7 +46,7 @@ await build({
   logLevel: 'warning',
 });
 
-// 2. Assets: web UI + example library, one asset per file plus a manifest.
+// 2. Assets: web UI, example library and report assets, one asset per file plus a manifest.
 const assets = {};
 function addDir(dir, prefix) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -58,6 +58,9 @@ function addDir(dir, prefix) {
 }
 addDir(webDist, 'web');
 addDir(path.join(root, 'examples'), 'examples');
+// PDF reports: fonts, default logo and the sRGB profile PDFKit embeds for PDF/A.
+addDir(path.join(root, 'server', 'assets'), 'assets');
+assets['assets/pdfkit/sRGB_IEC61966_2_1.icc'] = path.join(root, 'node_modules', 'pdfkit', 'js', 'data', 'sRGB_IEC61966_2_1.icc');
 const manifestFile = path.join(work, 'manifest.json');
 fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets) }));
 assets['manifest.json'] = manifestFile;

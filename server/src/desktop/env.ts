@@ -74,4 +74,5 @@ if (inExecutable) {
   }
   process.env.SM_WEB_DIST ??= path.join(appDir, 'web');
   process.env.SM_EXAMPLES_DIR ??= path.join(appDir, 'examples');
+  process.env.SM_ASSETS_DIR ??= path.join(appDir, 'assets');
 }
