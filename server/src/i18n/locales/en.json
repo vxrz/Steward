@@ -63,10 +63,10 @@
       "rotation": "rotation",
       "review": "review"
     },
-    "titleBefore_one": "{{name}}: {{kind}} due in {{count}} day",
-    "titleBefore_other": "{{name}}: {{kind}} due in {{count}} days",
-    "titleOverdue": "{{name}}: {{kind}} is overdue",
-    "titleExpired": "{{name}} has expired",
+    "titleBefore_one": "Credential reminder: \"{{name}}\" – {{kind}} due in {{count}} day",
+    "titleBefore_other": "Credential reminder: \"{{name}}\" – {{kind}} due in {{count}} days",
+    "titleOverdue": "Credential reminder: \"{{name}}\" – {{kind}} is overdue",
+    "titleExpired": "Credential reminder: \"{{name}}\" has expired",
     "bodyBefore": "The {{kind}} of “{{name}}” ({{type}}{{platform}}) is due on {{date}}.",
     "bodyOverdue": "The {{kind}} of “{{name}}” ({{type}}{{platform}}) was due on {{date}}. Please rotate or review it and record it in the credentials register.",
     "bodyExpired": "“{{name}}” ({{type}}{{platform}}) expired on {{date}}.",
@@ -84,7 +84,7 @@
     }
   },
   "reportReady": {
-    "title": "Report ready: {{name}}",
+    "title": "Report ready: \"{{name}}\"",
     "body": "The scheduled report “{{name}}” for {{from}} – {{to}} was generated.",
     "attached": "The PDF is attached."
   }

@@ -43,6 +43,8 @@ const notificationSettingsBody = z.object({
     .partial()
     .default({}),
   baseUrl: z.string().max(500).optional(),
+  /** Omitted: keep the stored list */
+  allowedEmailDomains: z.array(z.string().max(255)).max(100).optional(),
 });
 
 /** Notifications, API tokens, maintenance (mounted under /api). */

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
@@ -77,6 +77,7 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  await allowEmailDomains(s, ['example.com']);
   [vera, audrey, dana] = await Promise.all(['vera', 'audrey', 'dana'].map((u) => s.as(u, PW)));
   hub = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
 

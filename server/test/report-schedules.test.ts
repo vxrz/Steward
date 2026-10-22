@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
 process.env.SM_MONITOR_AUTOSTART = '0';
@@ -45,6 +45,7 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  await allowEmailDomains(s, ['example.com']);
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
   // a monitor with a known history: up, down for 6 h, up again (inside the last 48 h)
@@ -226,9 +227,9 @@ describe('report schedules', () => {
     const { flushNotifications } = await import('../src/notifications/service.js');
     await flushNotifications();
     expect(mails.map((m) => m.to)).toEqual(['service-manager@example.com']);
-    expect(mails[0]!.subject).toContain('Report ready: Weekly service report');
+    expect(mails[0]!.subject).toContain('Report ready: "Weekly service report"');
     expect(mails[0]!.attachments?.[0]?.filename).toBe(rec.filename);
-    expect((await olivia('GET', '/notifications')).items.some((n: any) => n.title === 'Report ready: Weekly service report')).toBe(true);
+    expect((await olivia('GET', '/notifications')).items.some((n: any) => n.title === 'Report ready: "Weekly service report"')).toBe(true);
   });
 
   it('downloads: owner, recipients, auditors and admins; nobody else', async () => {

@@ -35,6 +35,28 @@ test('settings: notification routing, retention, maintenance status', async ({ p
   await expect(page.getByText('Settings saved').first()).toBeVisible();
 });
 
+test('settings: allowed e-mail domains for addresses outside Steward', async ({ page }) => {
+  await page.goto('/settings');
+  const domains = page.getByRole('textbox', { name: 'Allowed e-mail domains for addresses outside Steward' });
+  await expect(domains).toBeVisible();
+  await domains.fill('Example.com');
+  await domains.press('Enter');
+  await domains.fill('*.partner.example');
+  await domains.press('Enter');
+  await page.getByRole('button', { name: 'Save notification settings' }).click();
+  await expect(page.getByText('Notification settings saved')).toBeVisible();
+  await page.reload();
+  const card = page.getByRole('main');
+  await expect(card.getByText('*.partner.example', { exact: true })).toBeVisible();
+  await expect(card.getByText('example.com', { exact: true })).toBeVisible();
+  // back to the default (the domains of the users' own addresses)
+  await page.getByRole('textbox', { name: 'Allowed e-mail domains for addresses outside Steward' }).focus();
+  await page.keyboard.press('Backspace');
+  await page.keyboard.press('Backspace');
+  await page.getByRole('button', { name: 'Save notification settings' }).click();
+  await expect(page.getByText('Notification settings saved').first()).toBeVisible();
+});
+
 test('readiness and metrics endpoints', async ({ request }) => {
   const ready = await request.get('/api/ready');
   expect(ready.status()).toBe(200);

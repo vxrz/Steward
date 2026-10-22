@@ -5,7 +5,7 @@ import { vault } from '../vault.js';
 import { nowIso } from '../util.js';
 import { runAs } from '../auth/context.js';
 import { listTeams, listUsers } from '../auth/users.js';
-import { notify } from '../notifications/service.js';
+import { notify, titleName } from '../notifications/service.js';
 import { formatDateTime, t } from '../i18n/index.js';
 import { addEvent, reminderSettings, toCredential, type CredentialRow } from './service.js';
 
@@ -21,8 +21,9 @@ import { addEvent, reminderSettings, toCredential, type CredentialRow } from './
  *
  * Recipients: the Steward users and team members listed as owners (in-app and
  * e-mail per their settings), and the owners' e-mail addresses (e-mail only, when
- * SMTP is configured and the event is routed to e-mail). Entries without any
- * owner remind the administrators.
+ * SMTP is configured, the event is routed to e-mail and the address's domain is
+ * allowed – see notifications/domains.ts). Entries without any owner remind the
+ * administrators.
  */
 
 const DAY = 86400000;
@@ -85,12 +86,14 @@ function text(l: Locale, c: Credential, due: CredentialDue, r: PlannedReminder):
     platform: c.platformName || c.platformText ? `, ${c.platformName ?? c.platformText}` : '',
     date: formatDateTime(l, due.dueAt),
   };
+  // the subject carries the name only quoted and capped (it is written by whoever edits the entry)
+  const tv = { ...vars, name: titleName(c.name) };
   const title =
     r.phase === 'before'
-      ? t(l, 'credentialDue.titleBefore', { ...vars, count: r.days })
+      ? t(l, 'credentialDue.titleBefore', { ...tv, count: r.days })
       : r.phase === 'expired'
-        ? t(l, 'credentialDue.titleExpired', vars)
-        : t(l, 'credentialDue.titleOverdue', vars);
+        ? t(l, 'credentialDue.titleExpired', tv)
+        : t(l, 'credentialDue.titleOverdue', tv);
   const lines = [
     r.phase === 'before'
       ? t(l, 'credentialDue.bodyBefore', vars)

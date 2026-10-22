@@ -13,6 +13,7 @@ import {
   Stack,
   Switch,
   Table,
+  TagsInput,
   Text,
   TextInput,
   Title,
@@ -49,6 +50,7 @@ interface Draft {
   webhookEnabled: boolean;
   routes: Record<NotificationEvent, NotificationChannel[]>;
   baseUrl: string;
+  allowedEmailDomains: string[];
 }
 
 const toDraft = (s: NotificationSettings): Draft => ({
@@ -64,6 +66,7 @@ const toDraft = (s: NotificationSettings): Draft => ({
   webhookEnabled: s.webhook.enabled,
   routes: Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, s.routes?.[e] ?? ['inApp']])) as Draft['routes'],
   baseUrl: s.baseUrl ?? '',
+  allowedEmailDomains: s.allowedEmailDomains ?? [],
 });
 
 function SecretInput({
@@ -185,6 +188,7 @@ export function NotificationSettingsCard() {
       webhook: { enabled: d.webhookEnabled, ...(webhookUrl !== undefined ? { url: webhookUrl } : {}) },
       routes: d.routes,
       baseUrl: d.baseUrl.trim() || undefined,
+      allowedEmailDomains: d.allowedEmailDomains,
     };
     setBusy(true);
     try {
@@ -250,6 +254,16 @@ export function NotificationSettingsCard() {
             mt={{ sm: 'lg' }}
           />
         </SimpleGrid>
+        <TagsInput
+          label={t('notify.allowedDomains')}
+          description={t('notify.allowedDomainsHint')}
+          placeholder={d.allowedEmailDomains.length ? undefined : t('notify.allowedDomainsPlaceholder')}
+          classNames={{ input: 'mono' }}
+          maxTags={100}
+          splitChars={[',', ' ', ';']}
+          value={d.allowedEmailDomains}
+          onChange={(v) => setD({ ...d, allowedEmailDomains: v.map((x) => x.trim().toLowerCase()).filter(Boolean) })}
+        />
         <Group align="flex-end" gap="sm">
           <TextInput label={t('notify.testRecipient')} size="xs" w={260} maw="100%" value={testTo} onChange={(e) => setTestTo(e.currentTarget.value)} />
           <TestButton channel="email" to={testTo.trim() || undefined} disabled={!!dirty || !stored.email.enabled} />

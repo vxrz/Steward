@@ -96,3 +96,9 @@ export function authHeaders(cookie: string): Record<string, string> {
   const key = sessionKeys.get(cookie);
   return { cookie, ...(key ? { 'x-sm-session': key } : {}) };
 }
+
+/** Allows plain e-mail addresses of these domains (credential owners, report recipients; see notifications/domains.ts). */
+export async function allowEmailDomains(s: TestServer, domains: string[]): Promise<void> {
+  const current = await s.api('GET', '/settings/notifications');
+  await s.api('PUT', '/settings/notifications', { ...current, allowedEmailDomains: domains });
+}

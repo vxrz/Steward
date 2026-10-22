@@ -12,6 +12,7 @@ import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './chann
 import { BRAND } from '@sm/shared';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
+import { allowedDomainRules, domainAllowed } from './domains.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -34,10 +35,23 @@ export interface Notice {
   /** De-duplicates external sends (coarser, e.g. per process or schedule) */
   externalKey: string;
   data?: Record<string, unknown>;
-  /** Plain e-mail addresses outside Steward (e-mail only, when the event is routed to e-mail and SMTP is enabled) */
+  /**
+   * Plain e-mail addresses outside Steward (e-mail only, when the event is routed to e-mail and SMTP is
+   * enabled). Addresses whose domain is not allowed (see domains.ts) are left out.
+   */
   emails?: string[];
   /** E-mail attachments */
   attachments?: OutgoingMessage['attachments'];
+}
+
+/**
+ * A user-chosen name for a message title (e-mail subject): one line, at most `max` characters. Titles
+ * put it in quotes after a fixed prefix, so a name cannot pose as the whole subject.
+ */
+export function titleName(name: string, max = 80): string {
+  // eslint-disable-next-line no-control-regex -- control characters (line breaks) are the point
+  const one = name.replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim();
+  return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
 }
 
 // ---------- recipients ----------
@@ -146,13 +160,20 @@ export function notify(n: Notice): void {
       }
     }
     const userAddresses = new Set(n.recipients.map((u) => u.email?.toLowerCase()).filter(Boolean));
+    const rules = n.emails?.length ? allowedDomainRules() : [];
+    let refused = 0;
     for (const addr of new Set((n.emails ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+$/.test(e)))) {
       if (userAddresses.has(addr)) continue; // already reached as a Steward user (with their own settings)
+      if (!domainAllowed(addr, rules)) {
+        refused++;
+        continue;
+      }
       if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS)) {
         const msg = message(fallback);
         jobs.push({ channel: 'email', to: 'external address', send: () => sendEmail(settings.email, secrets, addr, msg) });
       }
     }
+    if (refused) logger.warn({ event: n.event, refused }, 'e-mail not sent to addresses outside the allowed domains');
   }
   if (external.includes('teams') && secrets.teamsWebhookUrl && claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
     const msg = message(fallback);

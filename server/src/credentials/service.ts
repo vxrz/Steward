@@ -22,6 +22,7 @@ import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { setCertificateExpiryHook } from '../gatus/metrics.js';
+import { assertEmailsAllowed } from '../notifications/domains.js';
 import { assertNoSecrets, SecretFoundError } from './secrets.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import * as platforms from '../platforms/service.js';
@@ -264,6 +265,8 @@ const dateish = z
 
 const linkSchema = z.object({ kind: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'lower-case kind, e.g. process'), id: z.string().trim().min(1).max(200) });
 const ownerSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.string().trim().max(80).default('') });
+/** Plain e-mail addresses per entry (each one gets the reminders of the entry). */
+export const MAX_CREDENTIAL_OWNER_EMAILS = 10;
 const subjectSchema = z
   .string()
   .trim()
@@ -278,7 +281,7 @@ export const credentialInputSchema = z.object({
   environment: z.string().trim().max(100).default(''),
   description: z.string().max(4000).default(''),
   usedBy: z.object({ text: z.string().max(2000).default(''), links: z.array(linkSchema).max(50).default([]) }).default({}),
-  owners: z.array(ownerSchema).max(20).default([]),
+  owners: z.array(ownerSchema).max(MAX_CREDENTIAL_OWNER_EMAILS).default([]),
   ownerSubjects: z.array(subjectSchema).max(20).default([]),
   location: z.object({ text: z.string().max(1000).default(''), url: z.string().trim().max(2000).nullable().optional() }).default({}),
   issuedAt: dateish.nullable().optional(),
@@ -510,10 +513,15 @@ const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   tags: (b) => JSON.stringify([...new Set(b.tags)]),
 };
 
-/** A non-admin editor may not hand an entry away from themselves by accident: owners keep editing what they own. */
-function prepare(b: CredentialInput): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
+const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.map((o) => o.email.trim().toLowerCase()))].sort();
+
+/** Validates an input (`before`: the stored entry on update) and maps it to columns. */
+function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
   secretCheck(b);
   checkPlatform(b.platformId);
+  // new owner addresses must have an allowed domain (stored ones stay; notify() checks them again on every send)
+  const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);
+  assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
   checkGatus(b.gatus);
   const values = Object.fromEntries(Object.entries(COLUMNS).map(([col, fn]) => [col, fn(b)]));
   let certificate: CertificateInfo | null | undefined;
@@ -577,10 +585,18 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
   const before = requireCredential(id, 'edit');
   if (b.version !== undefined && b.version !== before.version)
     throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
-  // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
-  const { values, certificate } = prepare(b);
-  if (!u.roles.some((x) => EDIT_ROLES.includes(x)) && !isOwner(u, { owner_subjects: String(values.owner_subjects) })) {
-    throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED');
+  const { values, certificate } = prepare(b, before);
+  if (!u.roles.some((x) => EDIT_ROLES.includes(x))) {
+    // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
+    if (!isOwner(u, { owner_subjects: String(values.owner_subjects) }))
+      throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED');
+    // … nor change who gets its reminders by e-mail
+    if (emailsOf(parseJson(before.owners, [])).join('\n') !== emailsOf(b.owners).join('\n'))
+      throw new HttpError(
+        403,
+        'You edit this entry as one of its owners: only designers, operators and administrators can change the owner e-mail addresses',
+        'FORBIDDEN',
+      );
   }
   if (certificate !== undefined) values.certificate = certificate ? JSON.stringify(certificate) : null;
   const changed = Object.keys(values).filter((k) => String((before as unknown as Record<string, unknown>)[k] ?? '') !== String(values[k] ?? ''));

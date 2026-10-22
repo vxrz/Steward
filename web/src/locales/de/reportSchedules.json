@@ -24,7 +24,7 @@
     "daily": "Jeden Tag um 06:00 über den Vortag.",
     "weekly": "Jeden Montag um 06:00 über die Vorwoche (Montag bis Sonntag).",
     "monthly": "Am 1. um 06:00 über den Vormonat.",
-    "custom": "Ihr Cron-Ausdruck; der Bericht umfasst die angegebene Zahl von Tagen vor jedem Lauf."
+    "custom": "Ihr Cron-Ausdruck (fünf Felder: Minute Stunde Tag Monat Wochentag; höchstens einmal pro Stunde); der Bericht umfasst die angegebene Zahl von Tagen vor jedem Lauf."
   },
   "sections": {
     "availability": {
@@ -90,7 +90,7 @@
     "users": "Benutzer",
     "teams": "Teams",
     "emails": "E-Mail-Adressen",
-    "emailsHint": "Erhalten den Bericht nur per E-Mail (wenn E-Mail eingerichtet ist). Nach jeder Adresse Enter drücken.",
+    "emailsHint": "Erhalten den Bericht nur per E-Mail (wenn E-Mail eingerichtet ist). Bis zu 20 Adressen; ihre Domain muss unter Einstellungen → Benachrichtigungen erlaubt sein. Nach jeder Adresse Enter drücken.",
     "attachPdf": "PDF an E-Mails anhängen",
     "attachPdfHint": "Sonst enthält die E-Mail einen Link (zum Öffnen ist ein Konto nötig).",
     "enabled": "Aktiv"

@@ -123,7 +123,10 @@
       "webhook": "Webhook"
     },
     "routesHint": "Each event goes to the people it concerns. E-mails are only sent to users who turned e-mail notifications on in their profile.",
-    "save": "Save notification settings"
+    "save": "Save notification settings",
+    "allowedDomains": "Allowed e-mail domains for addresses outside Steward",
+    "allowedDomainsHint": "Credential owners and report recipients that are not Steward users only get e-mails at these domains, e.g. corp.example or *.corp.example (all subdomains). Empty: the domains of the Steward users’ own addresses (used by an administrator, a single sign-on account or at least two users).",
+    "allowedDomainsPlaceholder": "corp.example, *.corp.example"
   },
   "publicApi": {
     "title": "REST API",

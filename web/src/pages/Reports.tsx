@@ -465,6 +465,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
         <TagsInput
           label={t('form.emails')}
           description={t('form.emailsHint')}
+          maxTags={20}
           value={d.recipients.emails}
           onChange={(v) => set({ recipients: { ...d.recipients, emails: v } })}
         />

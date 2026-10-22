@@ -19,6 +19,10 @@ test('a designer documents an agent certificate by uploading it and sees it as d
   await dialog.getByRole('textbox', { name: 'Where it is kept' }).fill('KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-hall3');
   await dialog.getByRole('textbox', { name: 'Link or path' }).fill('keepass://IT-Ops.kdbx');
   await dialog.getByRole('button', { name: 'Add owner e-mail' }).click();
+  // addresses outside the allowed domains are refused with a message that names the setting
+  await dialog.getByRole('textbox', { name: 'Owner e-mail' }).fill('plant.manager@outside.example');
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText(/Allowed e-mail domains for addresses outside Steward/)).toBeVisible();
   await dialog.getByRole('textbox', { name: 'Owner e-mail' }).fill('plant.manager@example.com');
 
   // the certificate fills the expiry; only its metadata is kept

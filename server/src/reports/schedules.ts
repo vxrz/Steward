@@ -17,7 +17,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { capabilities, isAdmin, matches } from '../auth/permissions.js';
 import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.js';
-import { notify } from '../notifications/service.js';
+import { notify, titleName } from '../notifications/service.js';
+import { assertEmailsAllowed } from '../notifications/domains.js';
 import { formatDateTime, t } from '../i18n/index.js';
 import { generateScheduledReport } from './service.js';
 import { parseSections, reportSection } from './sections.js';
@@ -40,6 +41,12 @@ export const PRESET_CRON: Record<Exclude<ReportSchedulePreset, 'custom'>, string
 const ATTACH_MAX_BYTES = 10 * 1024 * 1024;
 /** Roles that may create report schedules (viewers may not). */
 const CREATE_ROLES = ['admin', 'designer', 'operator', 'approver', 'auditor'];
+/** Report schedules per owner. */
+export const MAX_SCHEDULES_PER_OWNER = 20;
+/** Plain e-mail addresses per schedule. */
+export const MAX_EXTERNAL_RECIPIENTS = 20;
+/** Shortest time between two runs of a schedule. */
+const MIN_INTERVAL_MS = 3600000;
 
 interface Row {
   id: string;
@@ -214,26 +221,50 @@ export const scheduleInputSchema = z.object({
     .object({
       users: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
       teams: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
-      emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(50).default([]),
+      emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(MAX_EXTERNAL_RECIPIENTS).default([]),
     })
     .default({}),
   attachPdf: z.boolean().default(false),
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
 
+/**
+ * A report is a PDF that may be mailed with an attachment: at most once an hour. Five fields only (no
+ * seconds) with a single minute value – every other minute field runs more than once in some hour –
+ * and the next runs are checked as well.
+ */
+function checkCron(cron: string, tz: string): void {
+  let job: Cron;
+  try {
+    job = new Cron(cron, { paused: true, timezone: tz });
+  } catch (e) {
+    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`);
+  }
+  try {
+    const fields = cron.trim().split(/\s+/);
+    const nickname = /^@(yearly|annually|monthly|weekly|daily|midnight|hourly)$/i.test(cron.trim());
+    if (!nickname && fields.length !== 5) {
+      throw new HttpError(400, 'Use a cron expression with five fields (minute hour day month weekday) – seconds are not supported for reports');
+    }
+    const runs = job.nextRuns(48).map((d) => d.getTime());
+    if ((!nickname && !/^\d{1,2}$/.test(fields[0]!)) || runs.some((t, i) => i > 0 && t - runs[i - 1]! < MIN_INTERVAL_MS)) {
+      throw new HttpError(400, 'A report schedule may run at most once an hour – use a single minute value, e.g. "0 6 * * 1"');
+    }
+  } finally {
+    job.stop();
+  }
+}
+
 function normalize(
   b: ScheduleInput,
   owner: AuthUser,
+  before?: Row,
 ): Omit<Row, 'id' | 'owner' | 'created_at' | 'updated_at' | 'last_run_at' | 'last_report_id' | 'last_error'> {
   const tz = b.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   if (!validTz(tz)) throw new HttpError(400, `Unknown time zone "${tz}"`);
   const cron = b.preset === 'custom' ? b.cron : PRESET_CRON[b.preset];
   if (!cron) throw new HttpError(400, 'Enter a cron expression for a custom schedule');
-  try {
-    new Cron(cron, { paused: true, timezone: tz }).stop();
-  } catch (e) {
-    throw new HttpError(400, `Invalid cron expression: ${(e as Error).message}`);
-  }
+  checkCron(cron, tz);
   const sections = parseSections(b.sections);
   // references must be visible to the owner (the report would silently miss them otherwise)
   runAs(owner, () => {
@@ -243,6 +274,9 @@ function normalize(
   for (const n of b.recipients.users) if (!users.has(n.toLowerCase())) throw new HttpError(400, `User "${n}" not found`);
   const teams = new Set(listTeams().map((tm) => tm.name.toLowerCase()));
   for (const n of b.recipients.teams) if (!teams.has(n.toLowerCase())) throw new HttpError(400, `Team "${n}" not found`);
+  // new external addresses must have an allowed domain (notify() checks every address again when sending)
+  const stored = new Set(before ? parseJson<ReportRecipients>(before.recipients, { users: [], teams: [], emails: [] }).emails : []);
+  assertEmailsAllowed(b.recipients.emails.filter((e) => !stored.has(e)));
   return {
     name: b.name,
     enabled: b.enabled ? 1 : 0,
@@ -268,6 +302,10 @@ const me = (): AuthUser => {
 export function createReportSchedule(b: ScheduleInput): ReportSchedule {
   const u = me();
   if (!canCreateReportSchedules(u)) throw new HttpError(403, 'You are not allowed to create report schedules', 'FORBIDDEN');
+  const own = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM report_schedules WHERE lower(owner) = lower(?)', u.username)!;
+  if (Number(own.n) >= MAX_SCHEDULES_PER_OWNER) {
+    throw new HttpError(400, `You already own ${MAX_SCHEDULES_PER_OWNER} report schedules – delete one you no longer need first`, 'LIMIT_REACHED');
+  }
   const v = normalize(b, u);
   const id = newId('rsc_');
   const now = nowIso();
@@ -295,7 +333,7 @@ export function updateReportSchedule(id: string, b: ScheduleInput): ReportSchedu
   const r = rowOf(id);
   if (!canEdit(u, r)) throw new HttpError(403, 'Only the owner or an administrator can change this report schedule', 'FORBIDDEN');
   const owner = findUserByName(r.owner);
-  const v = normalize(b, owner ? toAuthUser(owner) : u);
+  const v = normalize(b, owner ? toAuthUser(owner) : u, r);
   const changed = (Object.keys(v) as (keyof typeof v)[]).filter((k) => String(r[k]) !== String(v[k]));
   db().tx(() => {
     db().run(
@@ -418,7 +456,7 @@ function sendReport(r: Row, rec: ReportRecord & { pdf: Buffer }): void {
   notify({
     event: 'report.ready',
     text: (l) => ({
-      title: t(l, 'reportReady.title', { name: r.name }),
+      title: t(l, 'reportReady.title', { name: titleName(r.name) }),
       body: [
         t(l, 'reportReady.body', { name: r.name, from: formatDateTime(l, rec.from!), to: formatDateTime(l, rec.to!) }),
         attach ? t(l, 'reportReady.attached') : '',
@@ -447,6 +485,15 @@ function arm(id: string): void {
   disarm(id);
   const r = db().get<Row>('SELECT * FROM report_schedules WHERE id = ?', id);
   if (!r || !r.enabled || !started) return;
+  try {
+    // schedules saved before the hourly limit existed do not run more often either
+    checkCron(r.cron, r.timezone);
+  } catch (e) {
+    const msg = `not started: ${(e as Error).message}`;
+    db().run('UPDATE report_schedules SET last_error = ? WHERE id = ?', msg, id);
+    logger.warn({ reportScheduleId: id, cron: r.cron }, 'report schedule not armed: it would run more than once an hour');
+    return;
+  }
   try {
     const job = new Cron(r.cron, { timezone: r.timezone, protect: true }, () => {
       if (!vault().unlocked) return;
