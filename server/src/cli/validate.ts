@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import { dashboardDefinitionSchema, validateProcess } from '@sm/shared';
+import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
 
 const args = process.argv.slice(2);
 const targets = args.length ? args : [path.resolve(import.meta.dirname, '../../../examples')];
@@ -32,7 +32,7 @@ for (const file of targets.flatMap(files).sort()) {
     continue;
   }
   const obj = raw as Record<string, unknown>;
-  if (obj && typeof obj === 'object' && obj.format === 'service-manager-bundle') {
+  if (obj && typeof obj === 'object' && (BUNDLE_FORMATS as readonly unknown[]).includes(obj.format)) {
     console.log(`• ${rel}: bundle (skipped)`);
     continue;
   }

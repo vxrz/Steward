@@ -23,7 +23,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconPlus, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
-import type { ConnectorPackage, Platform, PlatformPreset } from '@sm/shared';
+import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { Hint, KeyValueEditor, PageHeader } from '../components/common';
@@ -149,7 +149,7 @@ export function PlatformsPage() {
 async function importConnector(file: File): Promise<string | null> {
   try {
     const pkg = JSON.parse(await file.text()) as ConnectorPackage;
-    if (pkg?.format !== 'service-manager-connector') throw new Error('Not a Service Manager connector file');
+    if (!(CONNECTOR_FORMATS as readonly string[]).includes(pkg?.format)) throw new Error('Not a Steward connector file');
     await post('/platform-types/import', { package: pkg });
     notifyOk(`Connector type "${pkg.label}" imported`);
     return pkg.kind;

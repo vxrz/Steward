@@ -20,6 +20,8 @@ import {
 import type { AuthStatus, Capabilities, TaskRecord } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../shared/src/brand';
+import { Logo } from './components/brand/Logo';
+import { AppFooter } from './components/brand/AppFooter';
 import { get, setAuthChangeHandler } from './api';
 import { MeContext } from './auth';
 import { ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
@@ -119,9 +121,16 @@ function Shell({ status }: { status: AuthStatus }) {
         <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
-            <Text fw={700} truncate component="a" href="/" onClick={(e) => (e.preventDefault(), navigate('/'))} c="inherit" style={{ textDecoration: 'none' }}>
-              {BRAND.name}
-            </Text>
+            <a
+              href="/"
+              onClick={(e) => (e.preventDefault(), navigate('/'))}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', minWidth: 0 }}
+            >
+              <Logo size={26} />
+              <Text fw={700} truncate>
+                {BRAND.name}
+              </Text>
+            </a>
             {status.demo && (
               <Badge color="yellow" variant="light" visibleFrom="xs" style={{ flexShrink: 0 }}>
                 demo
@@ -170,7 +179,8 @@ function Shell({ status }: { status: AuthStatus }) {
           ))}
         </ScrollArea>
       </AppShell.Navbar>
-      <AppShell.Main>
+      <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage demo={status.demo} />} />
@@ -191,6 +201,8 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="*" element={<Text>Page not found</Text>} />
         </Routes>
         </Suspense>
+        </div>
+        <AppFooter />
       </AppShell.Main>
     </AppShell>
   );

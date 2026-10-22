@@ -3,6 +3,7 @@ import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, Segmented
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconTrashX } from '@tabler/icons-react';
 import type { ApiToken, AuthStatus, MaintenanceStatus, Settings } from '@sm/shared';
+import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { useMe } from '../auth';
@@ -139,7 +140,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
             Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), set the environment variable{' '}
             <Code>SM_MASTER_PASSPHRASE</Code>. To let colleagues use the tool over the network, start it with <Code>SM_HOST=0.0.0.0</Code>,{' '}
             <Code>SM_ALLOWED_HOSTS=&lt;hostname&gt;</Code> and HTTPS (<Code>SM_TLS_CERT</Code>/<Code>SM_TLS_KEY</Code>). Keep the data directory (<Code>data/</Code>) backed up – it contains the database, encrypted credentials, evidence files and the
-            audit log. See the <Anchor href="https://github.com/vxrz/service-manager#readme" target="_blank">README</Anchor> for details.
+            audit log. See the <Anchor href={`${BRAND.repoUrl}#readme`} target="_blank">README</Anchor> for details.
           </Text>
         </Card>
       </Stack>

@@ -1,6 +1,12 @@
-# Service Manager
+<p align="center"><img src="docs/logo.svg" width="96" alt="Steward logo"></p>
 
-A local tool for running standard service and platform procedures against **Siemens Insights Hub**, **Industrial Edge Management** and any other REST platform. Examples are onboarding users, access reviews and housekeeping, attribute-consumption optimization, health checks and status tests. Each procedure becomes a repeatable, versioned process. You can run it on demand or on a schedule, a person can approve or select items where needed, and every run leaves a tamper-evident protocol.
+<h1 align="center">Steward</h1>
+
+<p align="center"><em>Repeatable, auditable service procedures for your platforms.</em><br>
+Open source under the <a href="LICENSE">Apache License 2.0</a> · Made in Erlangen, Germany</p>
+
+
+Steward is a local tool for running standard service and platform procedures against **Siemens Insights Hub**, **Industrial Edge Management** and any other REST platform. Examples are onboarding users, access reviews and housekeeping, attribute-consumption optimization, health checks and status tests. Each procedure becomes a repeatable, versioned process. You can run it on demand or on a schedule, a person can approve or select items where needed, and every run leaves a tamper-evident protocol.
 
 - **Platform-agnostic.** You add platforms (base URL, credentials, OpenAPI specs, documentation). Processes refer to *connection slots*, so the same process runs against test and production tenants. A configured platform can be saved as a reusable **connector type**, exported and imported, so adding a new tool is a one-time job.
 - **Flow editor (Node-RED style).** Drag nodes from a palette onto a canvas and wire them together. Node types: API call (with pagination and OpenAPI operation picker), set variables, for each, if, user task / approval, check, report, browser automation, wait, fail, comment. Outputs are labelled (true/false, each item/done, approved/rejected, error). You can also edit the YAML source directly.
@@ -71,7 +77,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_MASTER_PASSPHRASE` | – | Unlock automatically at start-up, so schedules run after a reboot. |
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
-| `SM_PUBLIC_URL` | – | External URL (e.g. `https://service-manager.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI. |
+| `SM_PUBLIC_URL` | – | External URL (e.g. `https://steward.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI. |
 | `SM_CHROMIUM_PATH` | – | Use a specific Chromium/Chrome binary for browser steps |
 | `HTTPS_PROXY` / `NO_PROXY` | – | Corporate proxy, used for platform calls unless a platform overrides it |
 | `SM_DEMO` | – | `1` mounts the mock platforms under `/mock` |
@@ -118,13 +124,13 @@ Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [
 
 **Set it up in Microsoft Entra ID:**
 
-1. **Register the app.** In the Entra admin center go to *App registrations → New registration*. Name it e.g. "Service Manager" and choose single tenant.
+1. **Register the app.** In the Entra admin center go to *App registrations → New registration*. Name it e.g. "Steward" and choose single tenant.
 2. **Add the redirect URI.** Platform *Web*. Copy the exact value from **Users & teams → Single sign-on**; it looks like `https://<your host>/api/auth/oidc/callback`. For purely local use, `http://localhost:4310/api/auth/oidc/callback` works, because Entra only allows plain http for `localhost`. In that case open the tool via `http://localhost:4310`.
 3. **Create a client secret.** Under *Certificates & secrets*, create a new client secret and copy its value.
 4. **Define app roles.** Under *App roles*, create e.g. `SM.Admins`, `SM.Designers`, `SM.Operators`, `SM.Approvers`, `SM.Auditors`, `SM.Viewers`, with member types *Users/Groups*.
-5. **Assign people.** Under *Enterprise applications → Service Manager → Users and groups*, assign users or groups to these roles. Optionally set *Assignment required = Yes* so that only assigned people can sign in at all.
-6. **Add the provider in Service Manager.** Go to **Users & teams → Single sign-on → Add provider → Microsoft Entra ID**. Enter the tenant ID, client ID and secret, then click *Test discovery*.
-7. **Map the role values.** Map each app role to Service Manager roles and teams (claim `roles`). Alternatively let Entra emit the `groups` claim and map group object IDs; tokens carry at most 200 groups, so app roles are the better choice.
+5. **Assign people.** Under *Enterprise applications → Steward → Users and groups*, assign users or groups to these roles. Optionally set *Assignment required = Yes* so that only assigned people can sign in at all.
+6. **Add the provider in Steward.** Go to **Users & teams → Single sign-on → Add provider → Microsoft Entra ID**. Enter the tenant ID, client ID and secret, then click *Test discovery*.
+7. **Map the role values.** Map each app role to Steward roles and teams (claim `roles`). Alternatively let Entra emit the `groups` claim and map group object IDs; tokens carry at most 200 groups, so app roles are the better choice.
 
 **How accounts are handled:**
 
@@ -132,7 +138,7 @@ Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [
 - **Role sync.** Roles, and the teams named in the mappings, are updated from the token at every sign-in.
 - **Mapping required.** Users without a mapped role are rejected.
 - **Pre-created accounts.** An account with the same user name (e.g. the UPN) is linked on its first SSO sign-in.
-- **No passwords.** SSO accounts have no password in Service Manager.
+- **No passwords.** SSO accounts have no password in Steward.
 - **SSO only.** Under **Settings → Sign-in**, password sign-in can be limited to administrators. Local admin accounts stay as break-glass access, e.g. to unlock the vault after a restart.
 
 Any other OIDC provider works the same way with the *Generic OIDC* preset: issuer URL, client ID and secret (or a public client with PKCE), and claim names. In demo mode a simulated Entra ID is preconfigured. Its accounts (Max Admin, Erik Engineer, Oskar Operator, Sofia Approver, Nina Nobody) show the mappings in action.
@@ -340,3 +346,9 @@ Where things live:
 - See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 Contract checks against a sandbox tenant (for CI): `npm run contract -- --url http://127.0.0.1:4310 --token smt_… --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec.
+
+## License
+
+Copyright 2026 uebelacker.io. Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE).
+
+Insights Hub and Industrial Edge are products of Siemens AG. Steward is an independent project and is not affiliated with or endorsed by Siemens.

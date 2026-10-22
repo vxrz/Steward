@@ -3,6 +3,7 @@ import type { RunDetail } from '@sm/shared';
 import { getRunDetail, artifactFile, protocolHash } from './engine/store.js';
 import { allAuditAscending } from './audit.js';
 import { config } from './config.js';
+import { BRAND } from '@sm/shared';
 
 const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -84,7 +85,7 @@ figure{margin:12px 0;page-break-inside:avoid}img{max-width:100%;border:1px solid
 .dry{background:#fff7d6;border:1px solid #f0d77a;padding:8px 12px;border-radius:6px;margin:12px 0}
 </style></head><body>
 <h1>Run protocol: ${esc(run.processName)}</h1>
-<div class="muted">Generated ${fmtDate(new Date().toISOString())} by Service Manager ${esc(config.version)}</div>
+<div class="muted">Generated ${fmtDate(new Date().toISOString())} by ${BRAND.name} ${esc(config.version)}</div>
 ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations were simulated and not executed.</div>' : ''}
 <h2>Summary</h2>
 <table class="kv">

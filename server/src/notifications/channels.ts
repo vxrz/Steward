@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { EnvHttpProxyAgent, fetch } from 'undici';
 import type { NotificationSettings } from '@sm/shared';
 import type { ChannelSecrets } from './settings.js';
+import { BRAND } from '@sm/shared';
 
 /** What every external channel receives. `link` is absolute. */
 export interface OutgoingMessage {
@@ -20,7 +21,7 @@ const dispatcher = new EnvHttpProxyAgent();
 async function postJson(url: string, payload: unknown): Promise<void> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'user-agent': 'service-manager' },
+    headers: { 'content-type': 'application/json', 'user-agent': BRAND.slug },
     body: JSON.stringify(payload),
     dispatcher,
     signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -48,9 +49,9 @@ export function teamsCard(m: OutgoingMessage): unknown {
           body: [
             { type: 'TextBlock', text: m.title, weight: 'Bolder', size: 'Medium', wrap: true },
             ...(m.body ? [{ type: 'TextBlock', text: m.body, wrap: true }] : []),
-            { type: 'TextBlock', text: `Service Manager · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
+            { type: 'TextBlock', text: `${BRAND.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
           ],
-          actions: [{ type: 'Action.OpenUrl', title: 'Open in Service Manager', url: m.link }],
+          actions: [{ type: 'Action.OpenUrl', title: `Open in ${BRAND.name}`, url: m.link }],
         },
       },
     ],
@@ -77,9 +78,9 @@ export async function sendEmail(cfg: NotificationSettings['email'], secrets: Cha
     await transport.sendMail({
       from: cfg.from,
       to,
-      subject: `[Service Manager] ${m.title}`,
+      subject: `[${BRAND.name}] ${m.title}`,
       text: `${m.title}\n\n${m.body}\n\n${m.link}\n`,
-      html: `<p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">Open in Service Manager</a></p>`,
+      html: `<p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">Open in ${BRAND.name}</a></p>`,
     });
   } finally {
     transport.close();

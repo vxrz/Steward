@@ -1,8 +1,8 @@
-# Service Manager container image (for a shared team server or a VM).
+# Steward container image (for a shared team server or a VM).
 # For a single user the desktop executable or "npm start" is simpler.
 #
-#   docker build -t service-manager .
-#   docker build --build-arg WITH_BROWSER=1 -t service-manager .   # include Chromium for browser steps
+#   docker build -t steward .
+#   docker build --build-arg WITH_BROWSER=1 -t steward .   # include Chromium for browser steps
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1

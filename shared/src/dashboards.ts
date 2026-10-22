@@ -117,8 +117,12 @@ export interface Dashboard {
 }
 
 /** Bundle for exporting/importing processes, dashboards and connector types together. */
+/** File format ids. Imports also accept the legacy ids from before the rename. */
+export const BUNDLE_FORMATS = ['steward-bundle', 'service-manager-bundle'] as const;
+export const CONNECTOR_FORMATS = ['steward-connector', 'service-manager-connector'] as const;
+
 export interface ExportBundle {
-  format: 'service-manager-bundle';
+  format: (typeof BUNDLE_FORMATS)[number];
   version: 1;
   exportedAt: string;
   processes: { id: string; definition: unknown }[];

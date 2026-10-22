@@ -7,6 +7,7 @@ import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { createSession, findUserByName, getUser, listTeams, listUsers } from './users.js';
+import { BRAND } from '@sm/shared';
 
 /**
  * Single sign-on with OpenID Connect (authorization code flow + PKCE).
@@ -259,7 +260,7 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
     throw new HttpError(403, reason);
   };
   if (p.requireMapping && matched.length === 0) {
-    deny(`Your account has no role assigned for Service Manager (claim "${p.groupsClaim}")`);
+    deny(`Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")`);
   }
   const mappedRoles = [...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[];
   const managedTeams = new Set(p.mappings.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
@@ -269,8 +270,8 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   const linked = db().get<{ id: string; active: number }>('SELECT id, active FROM users WHERE external_id = ?', externalId);
   const existing = linked ? undefined : findUserByName(username);
   if (existing && existing.authSource !== 'local' && existing.authSource !== p.id) deny(`The user name "${username}" belongs to another sign-in provider`);
-  if (!linked && !existing && !p.autoProvision) deny(`No Service Manager account exists for "${username}" – ask an administrator`);
-  if ((linked && !linked.active) || (existing && !existing.active)) deny('Your Service Manager account is disabled');
+  if (!linked && !existing && !p.autoProvision) deny(`No ${BRAND.name} account exists for "${username}" – ask an administrator`);
+  if ((linked && !linked.active) || (existing && !existing.active)) deny(`Your ${BRAND.name} account is disabled`);
 
   // ----- apply -----
   let userId = linked?.id ?? existing?.id ?? '';

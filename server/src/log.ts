@@ -1,6 +1,7 @@
 import { pino } from 'pino';
 import { config } from './config.js';
 import { activeTraceIds } from './telemetry.js';
+import { BRAND } from '@sm/shared';
 
 /**
  * Operational log (JSON lines on stdout, ready for any log shipper). Separate
@@ -9,7 +10,7 @@ import { activeTraceIds } from './telemetry.js';
  */
 export const logger = pino({
   level: process.env.SM_LOG_LEVEL ?? (process.env.VITEST ? 'silent' : 'info'),
-  base: { service: 'service-manager', version: config.version },
+  base: { service: BRAND.slug, version: config.version },
   timestamp: pino.stdTimeFunctions.isoTime,
   messageKey: 'msg',
   redact: {

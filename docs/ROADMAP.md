@@ -1,4 +1,4 @@
-# Service Manager – improvements, standards and roadmap
+# Steward – improvements, standards and roadmap
 
 This document collects what makes sense next: improvements to the tool, standards to align with, UX ideas, how workflow engines such as Kestra or Temporal could fit, and the observability baseline. The example procedures themselves are described in [`examples/README.md`](../examples/README.md).
 
@@ -110,7 +110,7 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 1. CI is included in `.github/workflows/ci.yml` (typecheck, validate, tests, build, audit). Add ESLint/Prettier, and Playwright UI tests for the critical paths (sign-in, run with decision, dashboard).
 2. Contract tests against a real sandbox tenant (recorded fixtures), so API changes at Siemens are noticed before production runs fail.
-3. Our own OpenAPI description of the Service Manager API (generated from the zod schemas). That allows automation and integration with ITSM tools such as ServiceNow or Jira Service Management.
+3. Our own OpenAPI description of the Steward API (generated from the zod schemas). That allows automation and integration with ITSM tools such as ServiceNow or Jira Service Management.
 4. Semantic versioning, a changelog, migration tests.
 
 **Process design (what a "good" procedure looks like)**

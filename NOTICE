@@ -1,0 +1,6 @@
+Steward
+Copyright 2026 uebelacker.io
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+It includes third-party open-source packages under their own licenses; see
+the SBOM (sbom.cdx.json) attached to each release.

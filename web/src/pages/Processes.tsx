@@ -4,7 +4,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport, IconPackage, IconPackageExport, IconPackageImport } from '@tabler/icons-react';
-import type { ExportBundle, ProcessDetail, ProcessSummary, ProcessTemplate } from '@sm/shared';
+import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
@@ -362,7 +362,7 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
                 if (!f) return;
                 try {
                   const parsed = JSON.parse(await f.text()) as ExportBundle;
-                  if (parsed.format !== 'service-manager-bundle') throw new Error('Not a Service Manager bundle');
+                  if (!(BUNDLE_FORMATS as readonly string[]).includes(parsed.format)) throw new Error('Not a Steward bundle');
                   setBundle(parsed);
                   setFileName(f.name);
                   setResult(null);

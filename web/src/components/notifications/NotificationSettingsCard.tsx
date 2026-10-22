@@ -167,7 +167,7 @@ export function NotificationSettingsCard() {
       <Stack>
         <TextInput
           label="Base URL for links"
-          description="Used for links in e-mails and Teams messages, e.g. https://service-manager.example.com"
+          description="Used for links in e-mails and Teams messages, e.g. https://steward.example.com"
           classNames={{ input: 'mono' }}
           placeholder={typeof window !== 'undefined' ? window.location.origin : ''}
           value={d.baseUrl}
@@ -181,7 +181,7 @@ export function NotificationSettingsCard() {
           <NumberInput label="Port" min={1} max={65535} value={d.email.port} onChange={(v) => setEmail({ port: typeof v === 'number' ? v : 587 })} />
           <TextInput label="User" value={d.email.user ?? ''} onChange={(e) => setEmail({ user: e.currentTarget.value })} autoComplete="off" />
           <SecretInput label="Password" stored={stored.email.hasPassword} value={smtpPassword} onChange={setSmtpPassword} />
-          <TextInput label="From" placeholder="Service Manager <noreply@example.com>" value={d.email.from} onChange={(e) => setEmail({ from: e.currentTarget.value })} />
+          <TextInput label="From" placeholder="Steward <noreply@example.com>" value={d.email.from} onChange={(e) => setEmail({ from: e.currentTarget.value })} />
           <Switch
             label="TLS from the start"
             description="On for port 465. Off uses STARTTLS when the server offers it."

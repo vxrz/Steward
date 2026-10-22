@@ -1,13 +1,19 @@
 /**
- * Product branding in one place. Rename the product by changing these values
- * (UI title, app window, executables, PWA manifest use them).
+ * Product branding in one place. The UI title, header, footer, app window,
+ * PWA manifest, executable and data-folder names use these values.
  */
 export const BRAND = {
-  name: 'Service Manager',
-  shortName: 'Service Manager',
+  name: 'Steward',
+  shortName: 'Steward',
   tagline: 'Repeatable, auditable service procedures for your platforms',
-  /** Used for executables, data folder and service names */
-  slug: 'service-manager',
+  /** Used for executables, data folder, container and service names */
+  slug: 'steward',
   /** Theme colour (PWA, app window) */
-  color: '#228be6',
+  color: '#1c7ed6',
+  /** Source code. GitHub redirects automatically after the repository is renamed. */
+  repoUrl: 'https://github.com/vxrz/service-manager',
+  author: 'uebelacker.io',
+  authorUrl: 'https://uebelacker.io',
+  license: 'Apache-2.0',
+  copyrightYear: 2026,
 } as const;

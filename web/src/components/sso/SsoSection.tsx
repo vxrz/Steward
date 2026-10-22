@@ -74,7 +74,7 @@ export function SsoSection() {
           )}
         </Group>
         <Text size="xs" c="dimmed" mt={4}>
-          It must match exactly how users open Service Manager (host name and http/https). Entra ID only accepts http for localhost.
+          It must match exactly how users open Steward (host name and http/https). Entra ID only accepts http for localhost.
         </Text>
       </Card>
       {providers.data?.length === 0 && (

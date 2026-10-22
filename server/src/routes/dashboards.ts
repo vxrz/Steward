@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { DatasetMeta, ExportBundle } from '@sm/shared';
+import { BUNDLE_FORMATS, type DatasetMeta, type ExportBundle } from '@sm/shared';
 import { HttpError, nowIso, sha256 } from '../util.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -134,7 +134,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     const wantP = q.processes ? new Set(q.processes.split(',')) : null;
     const wantD = q.dashboards ? new Set(q.dashboards.split(',')) : null;
     const bundle: ExportBundle = {
-      format: 'service-manager-bundle',
+      format: 'steward-bundle',
       version: 1,
       exportedAt: nowIso(),
       processes: processes
@@ -147,7 +147,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         .map((d) => ({ id: d.id, definition: d.definition })),
     };
     audit({ action: 'bundle.exported', entityType: 'bundle', summary: `Exported ${bundle.processes.length} process(es) and ${bundle.dashboards.length} dashboard(s)` });
-    reply.header('content-disposition', `attachment; filename="service-manager-bundle-${bundle.exportedAt.slice(0, 10)}.json"`);
+    reply.header('content-disposition', `attachment; filename="steward-bundle-${bundle.exportedAt.slice(0, 10)}.json"`);
     return bundle;
   });
 
@@ -155,7 +155,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     const b = z
       .object({
         bundle: z.object({
-          format: z.literal('service-manager-bundle'),
+          format: z.enum(BUNDLE_FORMATS),
           processes: z.array(z.object({ id: z.string(), definition: z.any() })).default([]),
           dashboards: z.array(z.object({ id: z.string(), definition: z.any() })).default([]),
         }),

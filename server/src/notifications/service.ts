@@ -9,6 +9,7 @@ import { matches, processPermissions } from '../auth/permissions.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
 import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './channels.js';
+import { BRAND } from '@sm/shared';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -279,7 +280,7 @@ export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: strin
   const msg: OutgoingMessage = {
     event: 'test',
     title: 'Test notification',
-    body: 'If you can read this, notifications from Service Manager reach this channel.',
+    body: `If you can read this, notifications from ${BRAND.name} reach this channel.`,
     link: absoluteLink('/'),
     ts: nowIso(),
     data: { test: true },

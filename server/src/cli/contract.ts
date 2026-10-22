@@ -1,5 +1,5 @@
 /**
- * Sandbox contract test for CI: asks a running Service Manager to call the
+ * Sandbox contract test for CI: asks a running Steward to call the
  * documented GET operations of a platform and compare them with its OpenAPI
  * specifications. Exits non-zero when an operation fails.
  *

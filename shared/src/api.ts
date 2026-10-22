@@ -252,7 +252,8 @@ export interface PlatformPreset {
 
 /** Shareable connector definition (no credentials). */
 export interface ConnectorPackage {
-  format: 'service-manager-connector';
+  /** 'steward-connector' (legacy files: 'service-manager-connector') */
+  format: 'steward-connector' | 'service-manager-connector';
   version: 1;
   kind: string;
   label: string;

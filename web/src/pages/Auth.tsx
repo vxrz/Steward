@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from 'react';
 import { Alert, Anchor, Badge, Button, Center, Collapse, Divider, Group, Paper, PasswordInput, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
-import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock, IconUserCircle } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AuthStatus } from '@sm/shared';
 import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
+import { AppFooter } from '../components/brand/AppFooter';
+import { Logo } from '../components/brand/Logo';
+import { BRAND } from '../../../shared/src/brand';
 
 const POLICY = 'At least 10 characters, letters plus a digit or symbol.';
 
@@ -16,7 +19,8 @@ function policyError(pw: string): string | null {
 
 function Card({ icon, title, intro, children }: { icon: ReactNode; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
-    <Center mih="100vh" p="md">
+    <Stack mih="100vh" p="md" gap={0} justify="space-between" align="center">
+      <div />
       <Paper withBorder shadow="sm" p="xl" w="100%" maw={440}>
         <Stack>
           <Center>{icon}</Center>
@@ -31,7 +35,8 @@ function Card({ icon, title, intro, children }: { icon: ReactNode; title: string
           {children}
         </Stack>
       </Paper>
-    </Center>
+      <AppFooter />
+    </Stack>
   );
 }
 
@@ -72,7 +77,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   return (
     <Card
       icon={<IconShieldLock size={40} stroke={1.4} />}
-      title="Set up Service Manager"
+      title={`Set up ${BRAND.name}`}
       intro={
         existingVault
           ? 'This installation has no user accounts yet. Enter the existing master passphrase and create the first administrator.'
@@ -175,7 +180,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
   );
 
   return (
-    <Card icon={<IconUserCircle size={40} stroke={1.4} />} title="Sign in to Service Manager">
+    <Card icon={<Logo size={48} title={BRAND.name} />} title={`Sign in to ${BRAND.name}`}>
       <SsoErrorAlert error={ssoError} onClose={clearSsoError} />
       {ssoFirst ? (
         <>
@@ -293,7 +298,7 @@ export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onS
       <Card
         icon={<IconClockHour4 size={40} stroke={1.4} />}
         title="Waiting for an administrator"
-        intro="Service Manager was restarted and its vault is locked. An administrator has to unlock it with the master passphrase before you can continue."
+        intro={`${BRAND.name} was restarted and its vault is locked. An administrator has to unlock it with the master passphrase before you can continue.`}
       >
         <Group justify="center">
           <Button variant="light" onClick={() => refresh()}>

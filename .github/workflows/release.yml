@@ -58,11 +58,11 @@ jobs:
         shell: bash
         run: |
           cd dist-exe
-          if [ "${{ runner.os }}" = "Windows" ]; then 7z a ../service-manager-${{ matrix.target }}.zip ./*; else tar czf ../service-manager-${{ matrix.target }}.tar.gz ./*; fi
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a ../steward-${{ matrix.target }}.zip ./*; else tar czf ../steward-${{ matrix.target }}.tar.gz ./*; fi
       - uses: actions/upload-artifact@v4
         with:
-          name: service-manager-${{ matrix.target }}
-          path: service-manager-${{ matrix.target }}.*
+          name: steward-${{ matrix.target }}
+          path: steward-${{ matrix.target }}.*
 
   sbom:
     if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[build-exe]')

@@ -1,8 +1,8 @@
 # docker compose up -d   →   http://localhost:4310
 services:
-  service-manager:
+  steward:
     build: .
-    image: service-manager:latest
+    image: steward:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
@@ -13,7 +13,7 @@ services:
       SM_ALLOWED_HOSTS: ""
       # Unattended unlock so schedules run after a restart (use a Docker secret / env file in production)
       # SM_MASTER_PASSPHRASE: ""
-      # SM_PUBLIC_URL: "https://service-manager.example.com"
+      # SM_PUBLIC_URL: "https://steward.example.com"
       # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
       SM_LOG_LEVEL: info
 volumes:

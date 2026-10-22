@@ -13,18 +13,18 @@ All options run the same server and keep everything in one data folder. You can 
 
 A single file that contains Node.js, the server, the web UI and the example library.
 
-1. Download the file for your system from the GitHub release (`service-manager-windows-x64.zip`, `…-macos-arm64.tar.gz` for Apple silicon, `…-macos-x64.tar.gz` for Intel Macs, `…-linux-x64.tar.gz`, `…-linux-arm64.tar.gz`) and unpack it.
-2. Start `service-manager` (`service-manager.exe` on Windows).
+1. Download the file for your system from the GitHub release (`steward-windows-x64.zip`, `…-macos-arm64.tar.gz` for Apple silicon, `…-macos-x64.tar.gz` for Intel Macs, `…-linux-x64.tar.gz`, `…-linux-arm64.tar.gz`) and unpack it.
+2. Start `steward` (`steward.exe` on Windows).
    - A console window shows the address and stays open while the app runs. Close it to stop the app.
    - The UI opens as its own app window in Edge or Chrome (`--app` mode, no tabs or address bar). Without Edge/Chrome it opens in your default browser.
    - Starting it a second time only opens the window again.
 3. Data is kept per user:
-   - Windows: `%LOCALAPPDATA%\service-manager`
-   - macOS: `~/Library/Application Support/service-manager`
-   - Linux: `~/.local/share/service-manager`
+   - Windows: `%LOCALAPPDATA%\steward`
+   - macOS: `~/Library/Application Support/steward`
+   - Linux: `~/.local/share/steward`
 
 ```text
-service-manager [--port 4310] [--data-dir <folder>] [--no-open] [--demo] [--autostart on|off]
+steward [--port 4310] [--data-dir <folder>] [--no-open] [--demo] [--autostart on|off]
 ```
 
 | Option | Effect |
@@ -38,7 +38,7 @@ All `SM_*` and `OTEL_*` environment variables from the README work as well.
 **First start on Windows and macOS.** The release files are not code-signed, so you may see a warning:
 
 - Windows SmartScreen: *More info → Run anyway*.
-- macOS: right-click → *Open*, or `xattr -d com.apple.quarantine service-manager`.
+- macOS: right-click → *Open*, or `xattr -d com.apple.quarantine steward`.
 
 For a company rollout, sign the binaries (Authenticode on Windows, Developer ID and notarisation on macOS) and distribute them with Intune, Jamf or your software centre.
 
@@ -49,7 +49,7 @@ For a company rollout, sign the binaries (Authenticode on Windows, Developer ID 
 ```bash
 npm install
 npm run build        # web UI
-npm run build:exe    # → dist-exe/service-manager[.exe]
+npm run build:exe    # → dist-exe/steward[.exe]
 ```
 
 The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`. A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release. To build without a release, use *Actions → Release → Run workflow* or put `[build-exe]` in a commit message; the files are then attached to the workflow run as artifacts.
@@ -72,7 +72,7 @@ See *Quick start* and *Everyday use* in the [README](../README.md). `npm run des
 
 ```bash
 docker compose up -d                                   # http://localhost:4310
-docker build --build-arg WITH_BROWSER=1 -t service-manager .   # with Chromium for browser steps
+docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for browser steps
 ```
 
 - Data lives in the `sm-data` volume (`/data`). Back it up.

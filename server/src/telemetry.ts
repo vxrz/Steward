@@ -3,6 +3,7 @@ import { NodeTracerProvider, BatchSpanProcessor, type SpanExporter, SimpleSpanPr
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { config } from './config.js';
+import { BRAND } from '@sm/shared';
 
 /**
  * Optional OpenTelemetry tracing. Enabled when an OTLP endpoint is configured
@@ -25,7 +26,7 @@ export function initTelemetry(opts: { exporter?: SpanExporter; simple?: boolean 
   const exporter = opts.exporter ?? new OTLPTraceExporter();
   provider = new NodeTracerProvider({
     resource: resourceFromAttributes({
-      'service.name': process.env.OTEL_SERVICE_NAME ?? 'service-manager',
+      'service.name': process.env.OTEL_SERVICE_NAME ?? BRAND.slug,
       'service.version': config.version,
     }),
     spanProcessors: [opts.simple ? new SimpleSpanProcessor(exporter) : new BatchSpanProcessor(exporter)],
@@ -38,7 +39,7 @@ export async function shutdownTelemetry(): Promise<void> {
   await provider?.shutdown().catch(() => undefined);
 }
 
-export const tracer = () => trace.getTracer('service-manager', config.version);
+export const tracer = () => trace.getTracer(BRAND.slug, config.version);
 
 /** Run fn inside a new active span; records errors and ends the span. */
 export async function withSpan<T>(

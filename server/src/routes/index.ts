@@ -38,6 +38,7 @@ import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import { capabilities, decisionCheck, isAdmin, require, requireCapability } from '../auth/permissions.js';
 import { readCookie, sessionCookie, SESSION_COOKIE } from '../auth/cookies.js';
+import { BRAND } from '@sm/shared';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -173,7 +174,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     else vault().setup(b.passphrase);
     const { user } = users.createUser({ username: b.username, displayName: b.displayName, roles: ['admin'], password: b.password });
     runAs(users.toAuthUser(user), () =>
-      audit({ action: 'vault.initialized', entityType: 'vault', summary: `Service Manager set up by ${user.username} (first administrator)` }),
+      audit({ action: 'vault.initialized', entityType: 'vault', summary: `${BRAND.name} set up by ${user.username} (first administrator)` }),
     );
     const { token } = users.login(b.username, b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
     reply.header('set-cookie', sessionCookie(token));

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { fetch, EnvHttpProxyAgent } from 'undici';
-import type { ConnectorPackage, PlatformPreset } from '@sm/shared';
+import { CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
@@ -16,7 +16,7 @@ import { platformRequest, resolveBaseUrl } from './http.js';
  */
 
 const packageSchema = z.object({
-  format: z.literal('service-manager-connector'),
+  format: z.enum(CONNECTOR_FORMATS),
   version: z.literal(1),
   kind: z.string().min(2).max(64),
   label: z.string().min(1),
@@ -77,7 +77,7 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
   const p = getPlatform(platformId);
   const secretKeys = Object.keys(getSecrets(platformId));
   const pkg: ConnectorPackage = {
-    format: 'service-manager-connector',
+    format: 'steward-connector',
     version: 1,
     kind: slugify(opts.kind || p.kind || p.name),
     label: opts.label || p.name,
