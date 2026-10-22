@@ -5,10 +5,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconFileImport, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
 import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorSummary } from '@sm/shared';
+import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
 import { Hint, PageHeader } from '../components/common';
-import { fmtDate, fmtRelative } from '../format';
-import { MONITOR_COLORS, MONITOR_LABELS, MonitorStatusBadge, causeText, fmtUptime } from '../components/monitors/status';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
+import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 
 interface Meta {
@@ -17,6 +18,7 @@ interface Meta {
 }
 
 export function MonitorsPage() {
+  const { t } = useTranslation(['monitors', 'common']);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -32,12 +34,12 @@ export function MonitorsPage() {
   return (
     <>
       <PageHeader
-        title="Monitors"
-        description="Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet."
+        title={t('title')}
+        description={t('description')}
         actions={
           canCreate && (
             <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
-              New monitor
+              {t('new')}
             </Button>
           )
         }
@@ -48,18 +50,18 @@ export function MonitorsPage() {
           value={tab}
           onChange={(v) => setParams(v === 'monitors' ? {} : { tab: v })}
           data={[
-            { value: 'monitors', label: 'Monitors' },
-            { value: 'templates', label: 'Templates' },
-            ...(canCreate ? [{ value: 'gateways', label: 'Gateways' }] : []),
+            { value: 'monitors', label: t('tabs.monitors') },
+            { value: 'templates', label: t('tabs.templates') },
+            ...(canCreate ? [{ value: 'gateways', label: t('tabs.gateways') }] : []),
           ]}
         />
         <Group gap="xs">
           <Button size="xs" variant="default" leftSection={<IconLayoutGrid size={14} />} component={Link} to="/monitors/wall">
-            Status wall
+            {t('wall.title')}
           </Button>
           {canCreate && (
             <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
-              Import
+              {t('import')}
             </Button>
           )}
         </Group>
@@ -69,13 +71,13 @@ export function MonitorsPage() {
           <Group gap="xs" mb="sm">
             {MONITOR_STATUSES.filter((s) => counts[s]).map((s) => (
               <Badge key={s} color={MONITOR_COLORS[s]} variant="light">
-                {counts[s]} {MONITOR_LABELS[s]}
+                {t('list.count', { count: counts[s], status: monitorStatusLabel(s) })}
               </Badge>
             ))}
           </Group>
           {monitors.isSuccess && list.length === 0 && (
             <Text c="dimmed" size="sm">
-              No monitors yet.{canCreate ? ' Create one, or import an example from the library.' : ''}
+              {canCreate ? t('list.emptyCreate') : t('list.empty')}
             </Text>
           )}
           {list.length > 0 && <MonitorTable monitors={list} />}
@@ -99,11 +101,12 @@ export function MonitorsPage() {
 }
 
 function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
+  const { t } = useTranslation('monitors');
   const navigate = useNavigate();
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   if (narrow) {
     return (
-      <Stack gap="xs" role="list" aria-label="Monitors">
+      <Stack gap="xs" role="list" aria-label={t('title')}>
         {monitors.map((m) => (
           <Paper key={m.id} withBorder p="sm" role="listitem" style={{ borderLeft: `6px solid var(--mantine-color-${MONITOR_COLORS[m.status]}-filled)` }}>
             <Group justify="space-between" wrap="nowrap" align="flex-start">
@@ -114,11 +117,11 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
             </Group>
             {m.rootCauses.length > 0 && (
               <Text size="xs" c="red">
-                Root cause: {m.rootCauses.map((c) => causeText(c, m.id)).join(', ')}
+                {t('list.rootCauseLine', { causes: m.rootCauses.map((c) => causeText(c, m.id)).join(', ') })}
               </Text>
             )}
             <Text size="xs" c="dimmed">
-              Uptime 24 h {fmtUptime(m.uptime.h24)} · 7 d {fmtUptime(m.uptime.d7)} · {fmtRelative(m.since)}
+              {t('list.uptimeLine', { h24: fmtUptime(m.uptime.h24), d7: fmtUptime(m.uptime.d7), since: fmtRelative(m.since) })}
             </Text>
           </Paper>
         ))}
@@ -127,16 +130,16 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
   }
   return (
     <div className="table-scroll">
-      <Table highlightOnHover fz="sm" aria-label="Monitors">
+      <Table highlightOnHover fz="sm" aria-label={t('title')}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Monitor</Table.Th>
-            <Table.Th>Root cause</Table.Th>
-            <Table.Th>Uptime 24 h</Table.Th>
-            <Table.Th>Uptime 7 d</Table.Th>
-            <Table.Th>Last change</Table.Th>
-            <Table.Th>Checks</Table.Th>
+            <Table.Th>{t('list.status')}</Table.Th>
+            <Table.Th>{t('list.monitor')}</Table.Th>
+            <Table.Th>{t('list.rootCause')}</Table.Th>
+            <Table.Th>{t('list.uptime24h')}</Table.Th>
+            <Table.Th>{t('list.uptime7d')}</Table.Th>
+            <Table.Th>{t('list.lastChange')}</Table.Th>
+            <Table.Th>{t('list.checks')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -146,7 +149,7 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
                 <MonitorStatusBadge status={m.status} />
                 {m.acknowledged && (
                   <Badge ml={4} size="xs" variant="outline">
-                    acknowledged
+                    {t('list.acknowledged')}
                   </Badge>
                 )}
               </Table.Td>
@@ -156,14 +159,14 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
                 </Anchor>
                 <Text size="xs" c="dimmed" className="mono">
                   {m.key}
-                  {!m.enabled && ' · disabled'}
-                  {m.templateId && ' · from template'}
+                  {!m.enabled && ` · ${t('list.disabled')}`}
+                  {m.templateId && ` · ${t('list.fromTemplate')}`}
                 </Text>
                 {m.tags.length > 0 && (
                   <Group gap={4} mt={2}>
-                    {m.tags.map((t) => (
-                      <Badge key={t} size="xs" variant="default">
-                        {t}
+                    {m.tags.map((tag) => (
+                      <Badge key={tag} size="xs" variant="default">
+                        {tag}
                       </Badge>
                     ))}
                   </Group>
@@ -171,7 +174,7 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
               </Table.Td>
               <Table.Td maw={280}>
                 <Text size="xs" c={m.rootCauses.length ? 'red' : 'dimmed'} lineClamp={2}>
-                  {m.maintenance ? `Maintenance: ${m.maintenance.reason}` : m.rootCauses.map((c) => causeText(c, m.id)).join(', ') || '–'}
+                  {m.maintenance ? t('list.maintenanceLine', { reason: m.maintenance.reason }) : m.rootCauses.map((c) => causeText(c, m.id)).join(', ') || '–'}
                 </Text>
               </Table.Td>
               <Table.Td>{fmtUptime(m.uptime.h24)}</Table.Td>
@@ -184,8 +187,8 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
               <Table.Td>
                 <Group gap={4} wrap="nowrap">
                   {MONITOR_STATUSES.filter((s) => m.counts[s]).map((s) => (
-                    <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={MONITOR_LABELS[s]}>
-                      {m.counts[s]} {MONITOR_LABELS[s].toLowerCase()}
+                    <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={monitorStatusLabel(s)}>
+                      {t('list.count', { count: m.counts[s], status: monitorStatusLower(s) })}
                     </Badge>
                   ))}
                 </Group>
@@ -199,6 +202,7 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
 }
 
 function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated: (r: MonitorSaveResult[]) => void }) {
+  const { t } = useTranslation('monitors');
   const navigate = useNavigate();
   const templates = useQuery({ queryKey: ['monitor-templates'], queryFn: () => get<MonitorSummary[]>('/monitors?templates=1') });
   const all = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
@@ -206,41 +210,41 @@ function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated:
   return (
     <>
       <Text size="sm" c="dimmed" mb="sm">
-        A template is a monitor with parameters (IP address, asset id, cadence …). Create many monitors from it with a form or a CSV file; when the template changes, instances show "template updated" and can be re-synced.
+        {t('templates.intro')}
       </Text>
-      {templates.data?.length === 0 && <Text size="sm">No templates yet. Import "PowerMeter with machine data" from the example library.</Text>}
+      {templates.data?.length === 0 && <Text size="sm">{t('templates.none', { example: 'PowerMeter with machine data' })}</Text>}
       {!!templates.data?.length && (
         <div className="table-scroll">
-          <Table fz="sm" aria-label="Templates">
+          <Table fz="sm" aria-label={t('tabs.templates')}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Template</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Instances</Table.Th>
+                <Table.Th>{t('templates.template')}</Table.Th>
+                <Table.Th>{t('templates.version')}</Table.Th>
+                <Table.Th>{t('templates.instances')}</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {templates.data.map((t) => (
-                <Table.Tr key={t.id}>
+              {templates.data.map((tpl) => (
+                <Table.Tr key={tpl.id}>
                   <Table.Td>
                     <Text size="sm" fw={500}>
-                      {t.name}
+                      {tpl.name}
                     </Text>
                     <Text size="xs" c="dimmed" lineClamp={2}>
-                      {t.description}
+                      {tpl.description}
                     </Text>
                   </Table.Td>
-                  <Table.Td>{t.version}</Table.Td>
-                  <Table.Td>{(all.data ?? []).filter((m) => m.templateId === t.id).length}</Table.Td>
+                  <Table.Td>{tpl.version}</Table.Td>
+                  <Table.Td>{(all.data ?? []).filter((m) => m.templateId === tpl.id).length}</Table.Td>
                   <Table.Td>
                     <Group gap={4} justify="flex-end" wrap="nowrap">
                       {canCreate && (
-                        <Button size="compact-xs" onClick={async () => setUsing(await get<MonitorDetail>(`/monitors/${t.id}`))}>
-                          New monitors
+                        <Button size="compact-xs" onClick={async () => setUsing(await get<MonitorDetail>(`/monitors/${tpl.id}`))}>
+                          {t('templates.newMonitors')}
                         </Button>
                       )}
-                      <ActionIcon variant="subtle" aria-label="Open template" onClick={() => navigate(`/monitors/${t.id}`)}>
+                      <ActionIcon variant="subtle" aria-label={t('templates.open', { name: tpl.name })} onClick={() => navigate(`/monitors/${tpl.id}`)}>
                         <IconEdit size={16} />
                       </ActionIcon>
                     </Group>
@@ -256,9 +260,12 @@ function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated:
   );
 }
 
+const AUTH_MODES = ['token', 'hmac', 'either'] as const;
+
 type GatewayDraft = { id?: string; name: string; description: string; enabled: boolean; authMode: 'token' | 'hmac' | 'either'; allowedCidrs: string[]; allowedKeys: string[]; rateLimitPerMinute: number };
 
 function GatewaysTab() {
+  const { t } = useTranslation(['monitors', 'common']);
   const qc = useQueryClient();
   const gateways = useQuery({ queryKey: ['monitor-gateways'], queryFn: () => get<MonitorGateway[]>('/monitor-gateways'), refetchInterval: 15000 });
   const [draft, setDraft] = useState<GatewayDraft | null>(null);
@@ -272,29 +279,28 @@ function GatewaysTab() {
       setDraft(null);
       refresh();
     } catch (e) {
-      notifyError(e, 'Gateway not saved');
+      notifyError(e, t('gateways.notSaved'));
     }
   };
   return (
     <>
       <Group justify="space-between" mb="sm" align="flex-start">
         <Text size="sm" c="dimmed" maw={760}>
-          A gateway (for example the plant's IoT gateway) reports many heartbeat checks in one call to <span className="mono">POST /api/hooks/monitors</span>, mapped by the check key. It has
-          one secret; the allowed keys limit what it may report.
+          <Trans t={t} i18nKey="gateways.intro" values={{ endpoint: 'POST /api/hooks/monitors' }} components={{ c: <span className="mono" /> }} />
         </Text>
         <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft({ name: '', description: '', enabled: true, authMode: 'token', allowedCidrs: [], allowedKeys: [], rateLimitPerMinute: 120 })}>
-          New gateway
+          {t('gateways.new')}
         </Button>
       </Group>
       {!!gateways.data?.length && (
         <div className="table-scroll">
-          <Table fz="sm" aria-label="Gateways">
+          <Table fz="sm" aria-label={t('tabs.gateways')}>
             <Table.Thead>
               <Table.Tr>
-                <Table.Th>Gateway</Table.Th>
-                <Table.Th>Allowed keys</Table.Th>
-                <Table.Th>Last report</Table.Th>
-                <Table.Th>Accepted</Table.Th>
+                <Table.Th>{t('gateways.gateway')}</Table.Th>
+                <Table.Th>{t('gateways.allowedKeys')}</Table.Th>
+                <Table.Th>{t('gateways.lastReport')}</Table.Th>
+                <Table.Th>{t('gateways.accepted')}</Table.Th>
                 <Table.Th />
               </Table.Tr>
             </Table.Thead>
@@ -304,31 +310,31 @@ function GatewaysTab() {
                   <Table.Td>
                     <Text size="sm" fw={500}>
                       {g.name}
-                      {!g.enabled && ' (disabled)'}
+                      {!g.enabled && ` (${t('list.disabled')})`}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      secret {g.secretPrefix}… · {g.authMode} · {g.rateLimitPerMinute}/min · owner {g.owner}
+                      {t('gateways.line', { prefix: g.secretPrefix, auth: t(`auth.short.${g.authMode}`), rate: g.rateLimitPerMinute, owner: g.owner })}
                     </Text>
                   </Table.Td>
-                  <Table.Td className="mono">{g.allowedKeys.join(', ') || 'any'}</Table.Td>
+                  <Table.Td className="mono">{g.allowedKeys.join(', ') || t('gateways.anyKey')}</Table.Td>
                   <Table.Td>{fmtRelative(g.lastSeenAt)}</Table.Td>
                   <Table.Td>
-                    {g.acceptedCount}
+                    {fmtNumber(g.acceptedCount)}
                     {g.rejectedCount > 0 && (
                       <Text size="xs" c="orange">
-                        {g.rejectedCount} rejected
+                        {t('gateways.rejected', { count: g.rejectedCount })}
                       </Text>
                     )}
                   </Table.Td>
                   <Table.Td>
                     {g.canEdit && (
                       <Group gap={2} justify="flex-end" wrap="nowrap">
-                        <Tooltip label="Rotate secret">
+                        <Tooltip label={t('gateways.rotate')}>
                           <ActionIcon
                             variant="subtle"
-                            aria-label="Rotate secret"
+                            aria-label={t('gateways.rotateFor', { name: g.name })}
                             onClick={async () => {
-                              if (!confirm(`Rotate the secret of "${g.name}"? The current secret stops working immediately.`)) return;
+                              if (!confirm(t('gateways.rotateConfirm', { name: g.name }))) return;
                               setSecret(await post(`/monitor-gateways/${g.id}/rotate`));
                               refresh();
                             }}
@@ -336,15 +342,15 @@ function GatewaysTab() {
                             <IconKey size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <ActionIcon variant="subtle" aria-label="Edit" onClick={() => setDraft({ ...g })}>
+                        <ActionIcon variant="subtle" aria-label={t('gateways.editFor', { name: g.name })} onClick={() => setDraft({ ...g })}>
                           <IconEdit size={16} />
                         </ActionIcon>
                         <ActionIcon
                           variant="subtle"
                           color="red"
-                          aria-label="Delete"
+                          aria-label={t('gateways.deleteFor', { name: g.name })}
                           onClick={async () => {
-                            if (!confirm(`Delete gateway "${g.name}"? Its reports will be rejected.`)) return;
+                            if (!confirm(t('gateways.deleteConfirm', { name: g.name }))) return;
                             await del(`/monitor-gateways/${g.id}`).catch(notifyError);
                             refresh();
                           }}
@@ -362,19 +368,19 @@ function GatewaysTab() {
       )}
       {draft && <GatewayModal draft={draft} onClose={() => setDraft(null)} onSave={save} />}
       {secret && (
-        <Modal opened onClose={() => setSecret(null)} title={`Secret of "${secret.gateway.name}"`} size="xl" closeOnClickOutside={false}>
+        <Modal opened onClose={() => setSecret(null)} title={t('gateways.secretTitle', { name: secret.gateway.name })} size="xl" closeOnClickOutside={false}>
           <Stack>
-            <Alert color="orange" title="Copy the secret now">
-              It is shown only once. Store it in the gateway's configuration; rotate it if it may have leaked.
+            <Alert color="orange" title={t('gateways.copyNow')}>
+              {t('gateways.copyNowText')}
             </Alert>
-            <CopyBlock label="Secret" text={secret.secret} />
-            <CopyBlock label="URL" text={`${window.location.origin}/api/hooks/monitors`} />
-            <CopyBlock label="Report many checks in one call" text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace('*', 'example')))} />
+            <CopyBlock label={t('secrets.secret')} text={secret.secret} />
+            <CopyBlock label={t('secrets.url')} text={`${window.location.origin}/api/hooks/monitors`} />
+            <CopyBlock label={t('gateways.manyInOneCall')} text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace('*', 'example')))} />
             <Hint>
-              Each report: key (the check key), ts (ISO 8601 or Unix time, optional), value, status (up/degraded/down, optional) and data. HMAC mode: add X-Steward-Gateway with the gateway id and X-Steward-Signature.
+              {t('gateways.reportFormat')}
             </Hint>
             <Group justify="flex-end">
-              <Button onClick={() => setSecret(null)}>I have stored the secret</Button>
+              <Button onClick={() => setSecret(null)}>{t('gateways.stored')}</Button>
             </Group>
           </Stack>
         </Modal>
@@ -384,32 +390,29 @@ function GatewaysTab() {
 }
 
 function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose: () => void; onSave: (d: GatewayDraft) => void }) {
+  const { t } = useTranslation(['monitors', 'common']);
   const [d, setD] = useState(draft);
   return (
-    <Modal opened onClose={onClose} title={draft.id ? 'Edit gateway' : 'New gateway'} size="lg">
+    <Modal opened onClose={onClose} title={draft.id ? t('gateways.editTitle') : t('gateways.new')} size="lg">
       <Stack>
-        <TextInput label="Name" required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
-        <Textarea label="Description" autosize minRows={1} value={d.description} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
+        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
+        <Textarea label={t('form.description')} autosize minRows={1} value={d.description} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
         <SegmentedControl
           size="xs"
           value={d.authMode}
           onChange={(v) => setD({ ...d, authMode: v as GatewayDraft['authMode'] })}
-          data={[
-            { value: 'token', label: 'Static token' },
-            { value: 'hmac', label: 'HMAC signature' },
-            { value: 'either', label: 'Either' },
-          ]}
+          data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
         />
-        <TagsInput label="Allowed check keys" description="Wildcard *, e.g. m17.* – empty: every heartbeat check" value={d.allowedKeys} onChange={(v) => setD({ ...d, allowedKeys: v })} />
-        <TagsInput label="Allowed source addresses" description="IP or CIDR; empty: any" value={d.allowedCidrs} onChange={(v) => setD({ ...d, allowedCidrs: v })} />
-        <NumberInput label="Calls per minute" min={1} max={6000} value={d.rateLimitPerMinute} onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })} />
-        <Switch label="Enabled" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
+        <TagsInput label={t('gateways.allowedCheckKeys')} description={t('gateways.allowedCheckKeysHint')} value={d.allowedKeys} onChange={(v) => setD({ ...d, allowedKeys: v })} />
+        <TagsInput label={t('gateways.cidrs')} description={t('gateways.cidrsHint')} value={d.allowedCidrs} onChange={(v) => setD({ ...d, allowedCidrs: v })} />
+        <NumberInput label={t('gateways.callsPerMinute')} min={1} max={6000} value={d.rateLimitPerMinute} onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })} />
+        <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button disabled={!d.name.trim()} onClick={() => onSave(d)}>
-            {draft.id ? 'Save' : 'Create and show secret'}
+            {draft.id ? t('common:save') : t('gateways.create')}
           </Button>
         </Group>
       </Stack>

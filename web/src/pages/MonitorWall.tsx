@@ -3,15 +3,17 @@ import { ActionIcon, Box, Group, SimpleGrid, Text, Title, Tooltip } from '@manti
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconArrowLeft, IconMaximize } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { MonitorStatus, MonitorSummary } from '@sm/shared';
 import { get } from '../api';
-import { MONITOR_COLORS, MONITOR_LABELS, causeText, fmtUptime } from '../components/monitors/status';
+import { MONITOR_COLORS, causeText, fmtUptime, monitorStatusLabel } from '../components/monitors/status';
 import { fmtRelative } from '../format';
 
 const ORDER: Record<MonitorStatus, number> = { down: 0, degraded: 1, unknown: 2, blocked: 3, maintenance: 4, up: 5 };
 
 /** Status grid for a wall display: problems first, refreshed every 10 seconds. */
 export function MonitorWallPage() {
+  const { t } = useTranslation('monitors');
   const q = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -24,20 +26,20 @@ export function MonitorWallPage() {
     <Box>
       <Group justify="space-between" mb="md" wrap="wrap">
         <Group gap="xs">
-          <ActionIcon component={Link} to="/monitors" variant="subtle" aria-label="Back to the monitors">
+          <ActionIcon component={Link} to="/monitors" variant="subtle" aria-label={t('wall.back')}>
             <IconArrowLeft size={18} />
           </ActionIcon>
-          <Title order={2}>Status wall</Title>
+          <Title order={2}>{t('wall.title')}</Title>
         </Group>
         <Group gap="md">
           <Text size="lg" fw={700} c={problems ? 'red' : 'green'} aria-live="polite">
-            {problems ? `${problems} of ${list.length} monitors need attention` : `All ${list.length} monitors are healthy`}
+            {problems ? t('wall.problems', { count: problems, total: list.length }) : t('wall.allHealthy', { count: list.length })}
           </Text>
           <Text size="xs" c="dimmed">
-            Updated {fmtRelative(new Date(q.dataUpdatedAt || now).toISOString())}
+            {t('wall.updated', { when: fmtRelative(new Date(q.dataUpdatedAt || now).toISOString()) })}
           </Text>
-          <Tooltip label="Full screen">
-            <ActionIcon variant="subtle" aria-label="Full screen" onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined)}>
+          <Tooltip label={t('wall.fullScreen')}>
+            <ActionIcon variant="subtle" aria-label={t('wall.fullScreen')} onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined)}>
               <IconMaximize size={18} />
             </ActionIcon>
           </Tooltip>
@@ -67,15 +69,15 @@ export function MonitorWallPage() {
                 {m.name}
               </Text>
               <Text fw={800} size="sm" tt="uppercase" style={{ flexShrink: 0 }}>
-                {MONITOR_LABELS[m.status]}
+                {monitorStatusLabel(m.status)}
               </Text>
             </Group>
             <Text size="sm" mt={6} lineClamp={2}>
-              {m.maintenance ? m.maintenance.reason : m.rootCauses.length ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ') : `${m.checkCount} checks`}
+              {m.maintenance ? m.maintenance.reason : m.rootCauses.length ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ') : t('wall.checks', { count: m.checkCount })}
             </Text>
             <Text size="xs" mt={6}>
-              Uptime 24 h {fmtUptime(m.uptime.h24)} · since {fmtRelative(m.since)}
-              {m.acknowledged ? ` · acknowledged by ${m.acknowledged.by}` : ''}
+              {t('wall.uptimeSince', { uptime: fmtUptime(m.uptime.h24), since: fmtRelative(m.since) })}
+              {m.acknowledged ? ` · ${t('wall.acknowledgedBy', { user: m.acknowledged.by })}` : ''}
             </Text>
           </Box>
         ))}

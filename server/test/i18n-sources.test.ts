@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BROWSER_ACTIONS, CATEGORY_ORDER, COMMON_FIELDS, NOTIFICATION_EVENT_INFO, ROLE_INFO, STEP_META, WIDGET_INFO, validateProcess } from '@sm/shared';
+import { BROWSER_ACTIONS, CATEGORY_ORDER, CHECK_TYPE_INFO, COMMON_FIELDS, MONITOR_STATUS_INFO, NOTIFICATION_EVENT_INFO, ROLE_INFO, STEP_META, WIDGET_INFO, validateProcess } from '@sm/shared';
 
 // The shared package keeps English defaults for metadata shown in the UI; the web
 // translates it with keys derived from ids. These tests keep the English locale
@@ -39,6 +39,15 @@ describe('English locale files mirror the shared metadata', () => {
     for (const [type, info] of Object.entries(WIDGET_INFO)) expect(dashboards.widgets[type]?.info, type).toBe(info);
     const common = load('en', 'common');
     for (const [role, info] of Object.entries(ROLE_INFO)) expect(common.roleInfo[role], role).toBe(info);
+  });
+
+  it('monitor statuses and check types', () => {
+    const monitors = load('en', 'monitors');
+    for (const [status, info] of Object.entries(MONITOR_STATUS_INFO)) expect(monitors.statusInfo[status], `statusInfo.${status}`).toBe(info);
+    for (const [type, info] of Object.entries(CHECK_TYPE_INFO)) {
+      expect(monitors.checkTypes[type]?.label, `checkTypes.${type}.label`).toBe(info.label);
+      expect(monitors.checkTypes[type]?.help, `checkTypes.${type}.help`).toBe(info.help);
+    }
   });
 
   it('every validation code has a translation', () => {

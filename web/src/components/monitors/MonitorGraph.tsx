@@ -18,9 +18,10 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Badge, Box, Group, Text, Tooltip, useComputedColorScheme } from '@mantine/core';
-import { CHECK_TYPE_INFO, type CheckDef, type CheckState, type MonitorDefinition, type MonitorStatus } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
+import { type CheckDef, type CheckState, type MonitorDefinition, type MonitorStatus } from '@sm/shared';
 import { CHECK_ICONS } from './checkMeta';
-import { MONITOR_COLORS, MONITOR_LABELS } from './status';
+import { MONITOR_COLORS, checkTypeLabel, monitorStatusLabel } from './status';
 
 export const NODE_W = 250;
 export const NODE_H = 86;
@@ -35,6 +36,7 @@ type CheckRfNode = Node<CheckNodeData, 'check'>;
 
 const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfNode>) {
   const { check, state, root } = data;
+  const { t } = useTranslation('monitors');
   const status: MonitorStatus | undefined = state?.status;
   const color = status ? MONITOR_COLORS[status] : 'gray';
   const Icon = CHECK_ICONS[check.type];
@@ -65,14 +67,14 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
         </Group>
         {status && (
           <Badge size="xs" color={color} variant="filled" style={{ flexShrink: 0 }}>
-            {MONITOR_LABELS[status]}
+            {monitorStatusLabel(status)}
           </Badge>
         )}
       </Group>
       <Text size="xs" c="dimmed" truncate>
-        {CHECK_TYPE_INFO[check.type].label}
-        {check.critical === false ? ' · non-critical' : ''}
-        {check.enabled === false ? ' · disabled' : ''}
+        {checkTypeLabel(check.type)}
+        {check.critical === false ? ` · ${t('graph.nonCritical')}` : ''}
+        {check.enabled === false ? ` · ${t('list.disabled')}` : ''}
       </Text>
       {state?.last && (
         <Tooltip label={state.last.message} multiline w={320} withArrow openDelay={300}>
@@ -83,12 +85,12 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
       )}
       {root && (
         <Text size="xs" fw={700} c="red">
-          Root cause
+          {t('list.rootCause')}
         </Text>
       )}
       {caused && (
         <Text size="xs" c="orange" truncate>
-          Likely caused by {state!.causedBy.map((c) => c.checkName).join(', ')}
+          {t('detail.likelyCausedBy', { causes: state!.causedBy.map((c) => c.checkName).join(', ') })}
         </Text>
       )}
       <Handle type="source" position={Position.Bottom} isConnectable={data.editable} />
@@ -145,6 +147,7 @@ const NO_ROOTS: string[] = [];
 
 function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, onChange, onLinkClick, height = 460 }: MonitorGraphProps) {
   const scheme = useComputedColorScheme('light');
+  const { t } = useTranslation('monitors');
   const editable = !!onChange;
   const layout = useMemo(() => autoLayout(def), [def]);
   const stateOf = useMemo(() => new Map((states ?? []).map((s) => [s.checkId, s])), [states]);
@@ -177,11 +180,11 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
       id: `l${i}`,
       source: l.from,
       target: l.to,
-      label: l.mode === 'hard' ? 'hard' : undefined,
+      label: l.mode === 'hard' ? t('graph.hard') : undefined,
       style: { stroke, strokeWidth: hot ? 2.5 : 1.6, strokeDasharray: l.mode === 'hard' ? undefined : '6 4' },
       markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
       data: { index: i, mode: l.mode },
-      ariaLabel: `${l.mode} link from ${l.from} to ${l.to}`,
+      ariaLabel: t(l.mode === 'hard' ? 'graph.hardLinkAria' : 'graph.softLinkAria', { from: l.from, to: l.to }),
     };
   });
 

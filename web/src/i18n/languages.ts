@@ -23,6 +23,7 @@ export const NAMESPACES = [
   'tasks',
   'schedules',
   'triggers',
+  'monitors',
   'platforms',
   'dashboards',
   'audit',

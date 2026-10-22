@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import YAML from 'yaml';
 import { IconDeviceFloppy, IconTrash } from '@tabler/icons-react';
-import { CHECK_TYPES, CHECK_TYPE_INFO, type CheckDef, type CheckType, type MonitorDefinition, type MonitorDetail, type MonitorSaveResult, type MonitorSummary, type Platform, type ProcessSummary } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
+import { CHECK_TYPES, type CheckDef, type CheckType, type MonitorDefinition, type MonitorDetail, type MonitorSaveResult, type MonitorSummary, type Platform, type ProcessSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { MonitorGraph, NODE_H } from '../components/monitors/MonitorGraph';
@@ -12,6 +13,7 @@ import { CheckForm } from '../components/monitors/CheckForm';
 import { OutputsEditor } from '../components/monitors/OutputsEditor';
 import { CHECK_ICONS, newCheck } from '../components/monitors/checkMeta';
 import { SecretsModal } from '../components/monitors/dialogs';
+import { checkTypeHelp, checkTypeLabel } from '../components/monitors/status';
 
 const EMPTY: MonitorDefinition = {
   name: '',
@@ -28,6 +30,7 @@ const EMPTY: MonitorDefinition = {
 };
 
 export function MonitorEditorPage() {
+  const { t } = useTranslation(['monitors', 'common']);
   const { id } = useParams();
   const isNew = !id;
   const navigate = useNavigate();
@@ -113,7 +116,7 @@ export function MonitorEditorPage() {
       if (r.secrets.length) setSecrets(r);
       else navigate(`/monitors/${r.monitor.id}`);
     } catch (e) {
-      notifyError(e, 'Monitor not saved');
+      notifyError(e, t('editor.notSaved'));
     } finally {
       setSaving(false);
     }
@@ -123,36 +126,36 @@ export function MonitorEditorPage() {
   return (
     <>
       <PageHeader
-        title={isNew ? 'New monitor' : `Edit ${existing.data?.name ?? ''}`}
-        description="Add checks from the palette and connect them: drag from the lower handle of a check to the check that depends on it."
+        title={isNew ? t('new') : t('editor.editTitle', { name: existing.data?.name ?? '' })}
+        description={t('editor.description')}
         actions={
           <>
             <Button size="xs" variant="default" onClick={() => navigate(isNew ? '/monitors' : `/monitors/${id}`)}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} loading={saving} onClick={save} disabled={!def.name.trim()}>
-              Save
+              {t('common:save')}
             </Button>
           </>
         }
       />
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="sm">
-          {!isTemplate && <Tabs.Tab value="graph">Checks and links</Tabs.Tab>}
-          <Tabs.Tab value="settings">Settings</Tabs.Tab>
-          {!isTemplate && <Tabs.Tab value="outputs">Outputs</Tabs.Tab>}
+          {!isTemplate && <Tabs.Tab value="graph">{t('editor.tabs.graph')}</Tabs.Tab>}
+          <Tabs.Tab value="settings">{t('editor.tabs.settings')}</Tabs.Tab>
+          {!isTemplate && <Tabs.Tab value="outputs">{t('outputs.title')}</Tabs.Tab>}
           <Tabs.Tab value="yaml">YAML</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="graph">
           <Grid>
             <Grid.Col span={{ base: 12, md: 8 }}>
-              <Group gap={6} mb="xs" aria-label="Check palette">
-                {CHECK_TYPES.map((t) => {
-                  const Icon = CHECK_ICONS[t];
+              <Group gap={6} mb="xs" aria-label={t('editor.palette')}>
+                {CHECK_TYPES.map((type) => {
+                  const Icon = CHECK_ICONS[type];
                   return (
-                    <Tooltip key={t} label={CHECK_TYPE_INFO[t].help} multiline w={260} withArrow>
-                      <Button size="compact-xs" variant="light" leftSection={<Icon size={14} />} onClick={() => addCheck(t)}>
-                        {CHECK_TYPE_INFO[t].label}
+                    <Tooltip key={type} label={checkTypeHelp(type)} multiline w={260} withArrow>
+                      <Button size="compact-xs" variant="light" leftSection={<Icon size={14} />} onClick={() => addCheck(type)}>
+                        {checkTypeLabel(type)}
                       </Button>
                     </Tooltip>
                   );
@@ -172,9 +175,9 @@ export function MonitorEditorPage() {
                 {sel && (
                   <Stack gap="xs">
                     <Group justify="space-between">
-                      <Title order={4}>Check</Title>
+                      <Title order={4}>{t('detail.check')}</Title>
                       <Button size="compact-xs" color="red" variant="subtle" leftSection={<IconTrash size={12} />} onClick={() => removeCheck(sel.id)}>
-                        Remove
+                        {t('detail.remove')}
                       </Button>
                     </Group>
                     <CheckForm
@@ -189,7 +192,7 @@ export function MonitorEditorPage() {
                 )}
                 {l && (
                   <Stack gap="xs">
-                    <Title order={4}>Link</Title>
+                    <Title order={4}>{t('editor.link')}</Title>
                     <Text size="sm">
                       {def.checks.find((c) => c.id === l.from)?.name} → {def.checks.find((c) => c.id === l.to)?.name}
                     </Text>
@@ -197,22 +200,21 @@ export function MonitorEditorPage() {
                       value={l.mode}
                       onChange={(v) => setDef({ ...def, links: def.links.map((x, i) => (i === link ? { ...x, mode: v as 'soft' | 'hard' } : x)) })}
                       data={[
-                        { value: 'soft', label: 'Soft' },
-                        { value: 'hard', label: 'Hard' },
+                        { value: 'soft', label: t('editor.soft') },
+                        { value: 'hard', label: t('editor.hard') },
                       ]}
                     />
                     <Text size="xs" c="dimmed">
-                      Soft: both checks run; when both fail, the dependent check is reported as "likely caused by" the other and no separate alert is sent. Hard: the dependent check is not evaluated
-                      (blocked) while this one is down.
+                      {t('editor.linkHint')}
                     </Text>
                     <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />} onClick={() => (setDef({ ...def, links: def.links.filter((_, i) => i !== link) }), setLink(null))}>
-                      Remove link
+                      {t('editor.removeLink')}
                     </Button>
                   </Stack>
                 )}
                 {!sel && !l && (
                   <Text size="sm" c="dimmed">
-                    Select a check to edit it, or click a link to change it. {def.checks.length === 0 && 'Start with a check from the palette.'}
+                    {t('editor.selectHint')} {def.checks.length === 0 && t('editor.startHint')}
                   </Text>
                 )}
               </Paper>
@@ -221,46 +223,46 @@ export function MonitorEditorPage() {
         </Tabs.Panel>
         <Tabs.Panel value="settings">
           <Stack maw={760}>
-            <TextInput label="Name" required value={def.name} onChange={(e) => setDef({ ...def, name: e.currentTarget.value })} />
+            <TextInput label={t('form.name')} required value={def.name} onChange={(e) => setDef({ ...def, name: e.currentTarget.value })} />
             <TextInput
-              label="Key"
-              description="Stable identifier for integrations (Zabbix item keys, LLD, Prometheus, heartbeat keys); default from the name"
+              label={t('editor.key')}
+              description={t('editor.keyHint')}
               value={key}
               onChange={(e) => setKey(e.currentTarget.value.toLowerCase())}
               classNames={{ input: 'mono' }}
             />
-            <Textarea label="Description" autosize minRows={2} value={def.description} onChange={(e) => setDef({ ...def, description: e.currentTarget.value })} />
-            <TagsInput label="Tags" value={def.tags} onChange={(v) => setDef({ ...def, tags: v })} />
+            <Textarea label={t('form.description')} autosize minRows={2} value={def.description} onChange={(e) => setDef({ ...def, description: e.currentTarget.value })} />
+            <TagsInput label={t('editor.tags')} value={def.tags} onChange={(v) => setDef({ ...def, tags: v })} />
             <Group grow align="flex-start">
-              <NumberInput label="Interval (s)" min={5} value={def.intervalSeconds} onChange={(v) => setDef({ ...def, intervalSeconds: Number(v) || 60 })} />
-              <NumberInput label="Timeout (s)" min={1} max={300} value={def.timeoutSeconds} onChange={(v) => setDef({ ...def, timeoutSeconds: Number(v) || 10 })} />
+              <NumberInput label={t('form.interval')} min={5} value={def.intervalSeconds} onChange={(v) => setDef({ ...def, intervalSeconds: Number(v) || 60 })} />
+              <NumberInput label={t('form.timeout')} min={1} max={300} value={def.timeoutSeconds} onChange={(v) => setDef({ ...def, timeoutSeconds: Number(v) || 10 })} />
             </Group>
             <Group grow align="flex-start">
-              <NumberInput label="Failures before down" description="Consecutive failing results" min={1} max={20} value={def.failuresBeforeDown} onChange={(v) => setDef({ ...def, failuresBeforeDown: Number(v) || 1 })} />
-              <NumberInput label="Successes before up" min={1} max={20} value={def.successesBeforeUp} onChange={(v) => setDef({ ...def, successesBeforeUp: Number(v) || 1 })} />
+              <NumberInput label={t('form.failuresBeforeDown')} description={t('editor.failuresHint')} min={1} max={20} value={def.failuresBeforeDown} onChange={(v) => setDef({ ...def, failuresBeforeDown: Number(v) || 1 })} />
+              <NumberInput label={t('form.successesBeforeUp')} min={1} max={20} value={def.successesBeforeUp} onChange={(v) => setDef({ ...def, successesBeforeUp: Number(v) || 1 })} />
             </Group>
             <Group grow align="flex-start">
               <Select
-                label="Monitor status"
+                label={t('editor.aggregate')}
                 value={def.aggregate.rule}
                 onChange={(v) => setDef({ ...def, aggregate: { ...def.aggregate, rule: (v ?? 'worst') as 'worst' } })}
                 data={[
-                  { value: 'worst', label: 'Worst check' },
-                  { value: 'critical', label: 'Worst critical check (others only degrade)' },
-                  { value: 'quorum', label: 'Quorum: k of n critical checks up' },
+                  { value: 'worst', label: t('editor.rules.worst') },
+                  { value: 'critical', label: t('editor.rules.critical') },
+                  { value: 'quorum', label: t('editor.rules.quorum') },
                 ]}
               />
               {def.aggregate.rule === 'quorum' && (
-                <NumberInput label="k (checks that must be up)" min={1} value={def.aggregate.quorum ?? ''} onChange={(v) => setDef({ ...def, aggregate: { ...def.aggregate, quorum: Number(v) || undefined } })} />
+                <NumberInput label={t('editor.quorum')} min={1} value={def.aggregate.quorum ?? ''} onChange={(v) => setDef({ ...def, aggregate: { ...def.aggregate, quorum: Number(v) || undefined } })} />
               )}
             </Group>
             {isNew && (
               <Switch
-                label="This is a template (parameters as {{ params.name }}, edited as YAML)"
+                label={t('editor.isTemplate', { example: '{{ params.name }}' })}
                 checked={isTemplate}
                 onChange={(e) => {
                   setIsTemplate(e.currentTarget.checked);
-                  if (e.currentTarget.checked) setDef({ ...def, parameters: def.parameters ?? [{ name: 'host', label: 'Host', type: 'string', required: true }] });
+                  if (e.currentTarget.checked) setDef({ ...def, parameters: def.parameters ?? [{ name: 'host', label: t('form.host'), type: 'string', required: true }] });
                 }}
               />
             )}
@@ -273,13 +275,13 @@ export function MonitorEditorPage() {
           <Stack>
             {isTemplate && (
               <Alert color="blue">
-                Templates are edited as YAML: {'{{ params.<name> }}'} placeholders may stand anywhere, also where numbers are expected. They are replaced when monitors are created from the template.
+                {t('editor.templateYaml', { example: '{{ params.<name> }}' })}
               </Alert>
             )}
-            <Textarea autosize minRows={18} maxRows={40} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} aria-label="YAML source" error={yamlError} />
+            <Textarea autosize minRows={18} maxRows={40} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} aria-label={t('editor.yamlSource')} error={yamlError} />
             <Group>
               <Button size="xs" variant="light" onClick={() => applyYaml()}>
-                Apply
+                {t('editor.apply')}
               </Button>
             </Group>
           </Stack>

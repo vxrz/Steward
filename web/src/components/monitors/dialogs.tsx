@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { Alert, Button, Code, CopyButton, FileButton, Group, Modal, NumberInput, Select, Stack, Table, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import { IconCheck, IconCopy, IconUpload } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import type { MonitorDetail, MonitorSaveResult, TemplateParam } from '@sm/shared';
+import { MONITOR_STATUSES, type MonitorDetail, type MonitorSaveResult, type MonitorStatus, type TemplateParam } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
 import { get, notifyError, post } from '../../api';
+import { fmtDate, fmtNumber } from '../../format';
+import { monitorStatusLabel } from './status';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
+  const { t } = useTranslation('common');
   return (
     <div>
       <Group justify="space-between" mb={2}>
@@ -15,7 +19,7 @@ export function CopyBlock({ label, text }: { label: string; text: string }) {
         <CopyButton value={text}>
           {({ copied, copy }) => (
             <Button size="compact-xs" variant="subtle" leftSection={copied ? <IconCheck size={12} /> : <IconCopy size={12} />} onClick={copy}>
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? t('copied') : t('copy')}
             </Button>
           )}
         </CopyButton>
@@ -46,22 +50,23 @@ export function gatewayCurl(keys: string[]): string {
 /** Shows the secrets of new heartbeat endpoints once. */
 export function SecretsModal({ result, onClose }: { result: Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }; onClose: () => void }) {
   const names = new Map((result.monitor?.definition.checks ?? []).map((c) => [c.id, c.name]));
+  const { t } = useTranslation('monitors');
   return (
-    <Modal opened onClose={onClose} title="Heartbeat secrets" size="xl" closeOnClickOutside={false}>
+    <Modal opened onClose={onClose} title={t('secrets.title')} size="xl" closeOnClickOutside={false}>
       <Stack>
-        <Alert color="orange" title="Copy the secrets now">
-          Each secret is shown only once and cannot be recovered. Store it in the reporting system (for example the IoT gateway). If one is lost or leaked, rotate it on the check.
+        <Alert color="orange" title={t('secrets.copyNow')}>
+          {t('secrets.copyNowText')}
         </Alert>
         {result.secrets.map((s) => (
           <Stack key={s.checkId} gap={6}>
             <Text fw={600}>{names.get(s.checkId) ?? s.checkId}</Text>
-            <CopyBlock label="Secret" text={s.secret} />
-            <CopyBlock label="URL" text={`${origin()}${s.path}`} />
-            <CopyBlock label="Test with curl" text={heartbeatCurl(s.path)} />
+            <CopyBlock label={t('secrets.secret')} text={s.secret} />
+            <CopyBlock label={t('secrets.url')} text={`${origin()}${s.path}`} />
+            <CopyBlock label={t('secrets.curl')} text={heartbeatCurl(s.path)} />
           </Stack>
         ))}
         <Group justify="flex-end">
-          <Button onClick={onClose}>I have stored the secrets</Button>
+          <Button onClick={onClose}>{t('secrets.stored')}</Button>
         </Group>
       </Stack>
     </Modal>
@@ -75,6 +80,7 @@ export function MaintenanceModal({ monitor, onClose, onSaved }: { monitor: Monit
   const [hours, setHours] = useState<number>(2);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const { t } = useTranslation(['monitors', 'common']);
   const save = async () => {
     setBusy(true);
     try {
@@ -83,26 +89,26 @@ export function MaintenanceModal({ monitor, onClose, onSaved }: { monitor: Monit
       onSaved();
       onClose();
     } catch (e) {
-      notifyError(e, 'Maintenance not planned');
+      notifyError(e, t('maintenance.notPlanned'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened onClose={onClose} title={`Maintenance – ${monitor.name}`}>
+    <Modal opened onClose={onClose} title={t('maintenance.title', { name: monitor.name })}>
       <Stack>
         <Text size="sm" c="dimmed">
-          Checks keep running and their results are recorded, but the monitor shows "maintenance", notifications and runbooks are silenced, and the time does not count against uptime.
+          {t('maintenance.intro')}
         </Text>
-        <TextInput type="datetime-local" label="Start" value={start} onChange={(e) => setStart(e.currentTarget.value)} />
-        <NumberInput label="Duration (hours)" min={0.25} max={744} step={0.5} decimalScale={2} value={hours} onChange={(v) => setHours(Number(v) || 1)} />
-        <Textarea label="Reason" required autosize minRows={2} value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
+        <TextInput type="datetime-local" label={t('maintenance.start')} value={start} onChange={(e) => setStart(e.currentTarget.value)} />
+        <NumberInput label={t('maintenance.duration')} min={0.25} max={744} step={0.5} decimalScale={2} value={hours} onChange={(v) => setHours(Number(v) || 1)} />
+        <Textarea label={t('maintenance.reason')} required autosize minRows={2} value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button onClick={save} loading={busy} disabled={!reason.trim()}>
-            Plan maintenance
+            {t('maintenance.plan')}
           </Button>
         </Group>
       </Stack>
@@ -113,16 +119,17 @@ export function MaintenanceModal({ monitor, onClose, onSaved }: { monitor: Monit
 export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: MonitorDetail; onClose: () => void; onSaved: () => void }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const { t } = useTranslation(['monitors', 'common']);
   return (
-    <Modal opened onClose={onClose} title={`Acknowledge – ${monitor.name}`}>
+    <Modal opened onClose={onClose} title={t('acknowledge.title', { name: monitor.name })}>
       <Stack>
         <Text size="sm" c="dimmed">
-          Tells others that someone is working on the problem. Further notifications of this monitor are held back until it is up again.
+          {t('acknowledge.intro')}
         </Text>
-        <Textarea label="Comment" autosize minRows={2} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+        <Textarea label={t('acknowledge.comment')} autosize minRows={2} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button
             loading={busy}
@@ -139,7 +146,7 @@ export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: Monit
               }
             }}
           >
-            Acknowledge
+            {t('acknowledge.button')}
           </Button>
         </Group>
       </Stack>
@@ -154,6 +161,7 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
   const [csv, setCsv] = useState(`name,${params.map((p) => p.name).join(',')}\n`);
   const [tab, setTab] = useState<string | null>('form');
   const [busy, setBusy] = useState(false);
+  const { t } = useTranslation(['monitors', 'common']);
   const create = async () => {
     setBusy(true);
     try {
@@ -161,17 +169,17 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
       onCreated(await post<MonitorSaveResult[]>(`/monitors/${template.id}/instances`, body));
       onClose();
     } catch (e) {
-      notifyError(e, 'Instances not created');
+      notifyError(e, t('instances.notCreated'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened onClose={onClose} title={`New monitors from "${template.name}"`} size="lg">
+    <Modal opened onClose={onClose} title={t('instances.title', { name: template.name })} size="lg">
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
-          <Tabs.Tab value="form">One monitor</Tabs.Tab>
-          <Tabs.Tab value="csv">Many from CSV</Tabs.Tab>
+          <Tabs.Tab value="form">{t('instances.one')}</Tabs.Tab>
+          <Tabs.Tab value="csv">{t('instances.csv')}</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="form" pt="sm">
           <Stack gap="xs">
@@ -187,13 +195,13 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
         <Tabs.Panel value="csv" pt="sm">
           <Stack gap="xs">
             <Text size="sm" c="dimmed">
-              One line per monitor. Columns: the parameter names, plus optional "name" and "key". Comma or semicolon separated; the first line is the header.
+              {t('instances.csvHint')}
             </Text>
             <Textarea autosize minRows={6} maxRows={16} value={csv} onChange={(e) => setCsv(e.currentTarget.value)} classNames={{ input: 'mono' }} aria-label="CSV" />
             <FileButton accept=".csv,text/csv" onChange={async (f) => f && setCsv(await f.text())}>
               {(props) => (
                 <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} w="fit-content">
-                  Load a CSV file
+                  {t('instances.loadCsv')}
                 </Button>
               )}
             </FileButton>
@@ -202,10 +210,10 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
       </Tabs>
       <Group justify="flex-end" mt="md">
         <Button variant="default" onClick={onClose}>
-          Cancel
+          {t('common:cancel')}
         </Button>
         <Button onClick={create} loading={busy}>
-          Create
+          {t('instances.create')}
         </Button>
       </Group>
     </Modal>
@@ -225,44 +233,45 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
   const [yaml, setYaml] = useState('');
   const [example, setExample] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t } = useTranslation('monitors');
   const run = async (fn: () => Promise<MonitorSaveResult>) => {
     setBusy(true);
     try {
       onImported(await fn());
       onClose();
     } catch (e) {
-      notifyError(e, 'Import failed');
+      notifyError(e, t('importDialog.failed'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened onClose={onClose} title="Import a monitor" size="lg">
+    <Modal opened onClose={onClose} title={t('importDialog.title')} size="lg">
       <Stack>
         <Select
-          label="From the example library"
-          placeholder="Choose an example"
-          data={(examples.data ?? []).map((e) => ({ value: e.file, label: `${e.name}${e.kind === 'monitorTemplate' ? ' (template)' : ''}` }))}
+          label={t('importDialog.library')}
+          placeholder={t('importDialog.choose')}
+          data={(examples.data ?? []).map((e) => ({ value: e.file, label: e.kind === 'monitorTemplate' ? t('importDialog.templateName', { name: e.name }) : e.name }))}
           value={example}
           onChange={setExample}
         />
         {example && <Text size="xs" c="dimmed">{examples.data?.find((e) => e.file === example)?.description}</Text>}
         <Group justify="flex-end">
           <Button disabled={!example} loading={busy} onClick={() => run(() => post(`/monitors/examples/${encodeURIComponent(example!)}`))}>
-            Import example
+            {t('importDialog.importExample')}
           </Button>
         </Group>
-        <Textarea label="Or paste YAML" autosize minRows={6} maxRows={18} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} />
+        <Textarea label={t('importDialog.paste')} autosize minRows={6} maxRows={18} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} />
         <Group justify="space-between">
           <FileButton accept=".yaml,.yml" onChange={async (f) => f && setYaml(await f.text())}>
             {(props) => (
               <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />}>
-                Load a file
+                {t('importDialog.loadFile')}
               </Button>
             )}
           </FileButton>
           <Button disabled={!yaml.trim()} loading={busy} onClick={() => run(() => post('/monitors/import', { yaml }))}>
-            Import YAML
+            {t('importDialog.importYaml')}
           </Button>
         </Group>
       </Stack>
@@ -271,23 +280,24 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
 }
 
 export function ResultsTable({ rows }: { rows: { ts: string; status: string; message: string; durationMs?: number | null }[] }) {
+  const { t } = useTranslation('monitors');
   return (
     <div className="table-scroll">
       <Table fz="xs">
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Result</Table.Th>
-            <Table.Th>Duration</Table.Th>
-            <Table.Th>Message</Table.Th>
+            <Table.Th>{t('history.time')}</Table.Th>
+            <Table.Th>{t('history.result')}</Table.Th>
+            <Table.Th>{t('history.duration')}</Table.Th>
+            <Table.Th>{t('history.message')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {rows.map((r, i) => (
             <Table.Tr key={i}>
-              <Table.Td className="nowrap">{new Date(r.ts).toLocaleString()}</Table.Td>
-              <Table.Td>{r.status}</Table.Td>
-              <Table.Td>{r.durationMs != null ? `${r.durationMs} ms` : ''}</Table.Td>
+              <Table.Td className="nowrap">{fmtDate(r.ts)}</Table.Td>
+              <Table.Td>{(MONITOR_STATUSES as readonly string[]).includes(r.status) ? monitorStatusLabel(r.status as MonitorStatus) : r.status}</Table.Td>
+              <Table.Td>{r.durationMs != null ? `${fmtNumber(r.durationMs)} ms` : ''}</Table.Td>
               <Table.Td>{r.message}</Table.Td>
             </Table.Tr>
           ))}

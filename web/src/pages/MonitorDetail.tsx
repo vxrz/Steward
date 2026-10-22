@@ -17,16 +17,19 @@ import {
   IconTool,
   IconTrash,
 } from '@tabler/icons-react';
-import { CHECK_TYPE_INFO, type CheckResultInfo, type CheckState, type MaintenanceWindow, type MonitorDetail, type MonitorHistoryEntry, type MonitorSaveResult } from '@sm/shared';
+import { Trans, useTranslation } from 'react-i18next';
+import { type CheckResultInfo, type CheckState, type MaintenanceWindow, type MonitorDetail, type MonitorHistoryEntry, type MonitorSaveResult } from '@sm/shared';
 import { api, del, get, notifyError, notifyOk, post, put } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { AccessEditor } from '../components/AccessEditor';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
+import { errorText } from '../i18n/errors';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
-import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, uptimeText } from '../components/monitors/status';
+import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 
 export function MonitorDetailPage() {
+  const { t } = useTranslation(['monitors', 'common']);
   const { id } = useParams();
   const [search, setSearch] = useSearchParams();
   const navigate = useNavigate();
@@ -42,7 +45,7 @@ export function MonitorDetailPage() {
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
   const refresh = () => qc.invalidateQueries({ queryKey: ['monitor', id] });
 
-  if (q.error) return <Text c="red">{(q.error as Error).message}</Text>;
+  if (q.error) return <Text c="red">{errorText(q.error)}</Text>;
   const m = q.data;
   if (!m) return null;
   const can = (p: string) => m.permissions.includes(p as never);
@@ -67,13 +70,13 @@ export function MonitorDetailPage() {
         title={
           <Group gap="sm" wrap="wrap">
             <span>{m.name}</span>
-            {m.isTemplate ? <Badge variant="outline">template</Badge> : <MonitorStatusBadge status={m.status} size="lg" />}
+            {m.isTemplate ? <Badge variant="outline">{t('detail.template')}</Badge> : <MonitorStatusBadge status={m.status} size="lg" />}
           </Group>
         }
         description={
           <>
-            <span className="mono">{m.key}</span> · owner {m.owner}
-            {!m.isTemplate && m.since && ` · since ${fmtDate(m.since)}`}
+            <span className="mono">{m.key}</span> · {t('detail.owner', { owner: m.owner })}
+            {!m.isTemplate && m.since && ` · ${t('detail.since', { date: fmtDate(m.since) })}`}
           </>
         }
       />
@@ -81,45 +84,45 @@ export function MonitorDetailPage() {
         <>
           {!m.isTemplate && can('acknowledge') && (
             <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
-              Check now
+              {t('detail.checkNow')}
             </Button>
           )}
           {m.isTemplate && (
             <Button size="xs" onClick={() => setInstances(true)}>
-              New monitors from template
+              {t('detail.newFromTemplate')}
             </Button>
           )}
           {can('edit') && (
             <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
-              Edit
+              {t('detail.edit')}
             </Button>
           )}
           <Menu position="bottom-end">
             <Menu.Target>
-              <Button size="xs" variant="default" aria-label="More actions" px={8}>
+              <Button size="xs" variant="default" aria-label={t('detail.moreActions')} px={8}>
                 <IconDots size={16} />
               </Button>
             </Menu.Target>
             <Menu.Dropdown>
               {!m.isTemplate && can('acknowledge') && (
                 <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
-                  Plan maintenance
+                  {t('maintenance.plan')}
                 </Menu.Item>
               )}
               {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
                 <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
-                  Acknowledge problem
+                  {t('detail.acknowledgeProblem')}
                 </Menu.Item>
               )}
               <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/monitors/${m.id}/export`}>
-                Export YAML
+                {t('detail.exportYaml')}
               </Menu.Item>
               {can('manage') && (
                 <Menu.Item
                   color="red"
                   leftSection={<IconTrash size={14} />}
                   onClick={async () => {
-                    if (!confirm(`Delete "${m.name}" with its history? Heartbeat URLs stop working.`)) return;
+                    if (!confirm(t('detail.deleteConfirm', { name: m.name }))) return;
                     try {
                       await del(`/monitors/${m.id}`);
                       qc.invalidateQueries({ queryKey: ['monitors'] });
@@ -129,7 +132,7 @@ export function MonitorDetailPage() {
                     }
                   }}
                 >
-                  Delete
+                  {t('common:delete')}
                 </Menu.Item>
               )}
             </Menu.Dropdown>
@@ -139,11 +142,11 @@ export function MonitorDetailPage() {
       <Stack gap="sm" mb="md">
         {!m.isTemplate && (
           <Text size="sm" c="dimmed">
-            Uptime: {uptimeText(m.uptime)}
+            {t('detail.uptime', { uptime: uptimeText(m.uptime) })}
           </Text>
         )}
         {!m.isTemplate && m.rootCauses.length > 0 && (
-          <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Root cause">
+          <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('list.rootCause')}>
             {m.rootCauses.map((c) => (
               <Text key={`${c.monitorId}/${c.checkId}`} size="sm">
                 {c.monitorId === m.id ? (
@@ -159,35 +162,35 @@ export function MonitorDetailPage() {
           </Alert>
         )}
         {m.maintenance && (
-          <Alert color="blue" title="Maintenance window">
+          <Alert color="blue" title={t('maintenance.window')}>
             <Group justify="space-between">
               <Text size="sm">
-                Until {fmtDate(m.maintenance.endsAt)}: {m.maintenance.reason || 'no reason given'} (by {m.maintenance.createdBy})
+                {t('maintenance.until', { date: fmtDate(m.maintenance.endsAt), reason: m.maintenance.reason || t('maintenance.noReason'), user: m.maintenance.createdBy })}
               </Text>
               {can('acknowledge') && (
                 <Button size="compact-xs" variant="light" onClick={async () => (await del(`/monitors/${m.id}/maintenance/${m.maintenance!.id}`).catch(notifyError), refresh())}>
-                  End now
+                  {t('maintenance.endNow')}
                 </Button>
               )}
             </Group>
           </Alert>
         )}
         {m.acknowledged && (
-          <Alert color="gray" title={`Acknowledged by ${m.acknowledged.by} ${fmtRelative(m.acknowledged.at)}`}>
+          <Alert color="gray" title={t('detail.acknowledgedBy', { user: m.acknowledged.by, when: fmtRelative(m.acknowledged.at) })}>
             <Group justify="space-between">
-              <Text size="sm">{m.acknowledged.comment || 'No comment'}</Text>
+              <Text size="sm">{m.acknowledged.comment || t('detail.noComment')}</Text>
               {can('acknowledge') && (
                 <Button size="compact-xs" variant="light" onClick={async () => (await del(`/monitors/${m.id}/acknowledge`).catch(notifyError), refresh())}>
-                  Remove
+                  {t('detail.remove')}
                 </Button>
               )}
             </Group>
           </Alert>
         )}
         {m.templateOutdated && (
-          <Alert color="yellow" title="The template was updated">
+          <Alert color="yellow" title={t('detail.templateUpdated')}>
             <Group justify="space-between">
-              <Text size="sm">This monitor was created from an older version of its template. Re-sync replaces the definition with the current template version (parameters stay).</Text>
+              <Text size="sm">{t('detail.templateUpdatedText')}</Text>
               {can('edit') && (
                 <Button
                   size="compact-xs"
@@ -195,38 +198,37 @@ export function MonitorDetailPage() {
                   onClick={async () => {
                     try {
                       await post(`/monitors/${m.id}/resync`);
-                      notifyOk('Re-synced with the template');
+                      notifyOk(t('detail.resynced'));
                       refresh();
                     } catch (e) {
                       notifyError(e);
                     }
                   }}
                 >
-                  Re-sync
+                  {t('detail.resync')}
                 </Button>
               )}
             </Group>
           </Alert>
         )}
-        {!m.enabled && !m.isTemplate && <Alert color="gray">This monitor is disabled – its checks do not run.</Alert>}
+        {!m.enabled && !m.isTemplate && <Alert color="gray">{t('detail.disabled')}</Alert>}
       </Stack>
 
       <Tabs defaultValue="graph" keepMounted={false}>
         <Tabs.List mb="sm">
-          <Tabs.Tab value="graph">Overview</Tabs.Tab>
-          {!m.isTemplate && <Tabs.Tab value="history">History</Tabs.Tab>}
-          {!m.isTemplate && m.checks.some((c) => c.type === 'heartbeat') && <Tabs.Tab value="heartbeats">Heartbeat setup</Tabs.Tab>}
-          {!m.isTemplate && <Tabs.Tab value="maintenance">Maintenance</Tabs.Tab>}
-          <Tabs.Tab value="definition">Definition</Tabs.Tab>
-          {can('manage') && <Tabs.Tab value="access">Access</Tabs.Tab>}
+          <Tabs.Tab value="graph">{t('detail.tabs.overview')}</Tabs.Tab>
+          {!m.isTemplate && <Tabs.Tab value="history">{t('detail.tabs.history')}</Tabs.Tab>}
+          {!m.isTemplate && m.checks.some((c) => c.type === 'heartbeat') && <Tabs.Tab value="heartbeats">{t('detail.tabs.heartbeats')}</Tabs.Tab>}
+          {!m.isTemplate && <Tabs.Tab value="maintenance">{t('detail.tabs.maintenance')}</Tabs.Tab>}
+          <Tabs.Tab value="definition">{t('detail.tabs.definition')}</Tabs.Tab>
+          {can('manage') && <Tabs.Tab value="access">{t('detail.tabs.access')}</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="graph">
           <Grid>
             <Grid.Col span={{ base: 12, md: sel && !isMobile ? 8 : 12 }}>
               <MonitorGraph def={m.definition} states={m.isTemplate ? undefined : m.checks} rootCauseIds={rootIds} selected={selected} onSelect={select} height={isMobile ? 380 : 520} />
               <Text size="xs" c="dimmed" mt={4}>
-                Arrows point from a check to the checks that depend on it. Dashed: soft link (both run; a failing parent explains the child). Solid: hard link (the child is not evaluated while the parent is
-                down). Click a check for details.
+                {t('detail.graphHint')}
               </Text>
               {!m.isTemplate && <ChecksTable monitor={m} onSelect={select} />}
             </Grid.Col>
@@ -258,15 +260,15 @@ export function MonitorDetailPage() {
             {m.definition.outputs.length > 0 && (
               <Paper withBorder p="sm">
                 <Title order={4} mb="xs">
-                  Outputs
+                  {t('outputs.title')}
                 </Title>
                 {m.definition.outputs.map((o) => (
                   <Text key={o.id} size="sm">
                     <Badge size="xs" variant="light" mr={6}>
                       {o.type}
                     </Badge>
-                    {o.id} · {o.on === 'every' ? 'every evaluation' : 'on change'}
-                    {o.enabled ? '' : ' · disabled'}
+                    {o.id} · {o.on === 'every' ? t('detail.onEvery') : t('detail.onChange')}
+                    {o.enabled ? '' : ` · ${t('list.disabled')}`}
                   </Text>
                 ))}
               </Paper>
@@ -282,7 +284,7 @@ export function MonitorDetailPage() {
             onSave={async (acl, owner) => {
               try {
                 await put(`/monitors/${m.id}/access`, { acl, owner: owner ?? undefined });
-                notifyOk('Access saved');
+                notifyOk(t('detail.accessSaved'));
                 refresh();
               } catch (e) {
                 notifyError(e);
@@ -294,7 +296,7 @@ export function MonitorDetailPage() {
       {can('edit') && !m.isTemplate && (
         <Switch
           mt="md"
-          label="Enabled"
+          label={t('form.enabled')}
           checked={m.enabled}
           onChange={async (e) => {
             await post(`/monitors/${m.id}/enabled`, { enabled: e.currentTarget.checked }).catch(notifyError);
@@ -311,16 +313,17 @@ export function MonitorDetailPage() {
 }
 
 function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: (id: string) => void }) {
+  const { t } = useTranslation('monitors');
   return (
     <div className="table-scroll" style={{ marginTop: 12 }}>
-      <Table fz="sm" highlightOnHover aria-label="Checks">
+      <Table fz="sm" highlightOnHover aria-label={t('list.checks')}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Check</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Latest result</Table.Th>
-            <Table.Th>Uptime 24 h</Table.Th>
-            <Table.Th>Last check</Table.Th>
+            <Table.Th>{t('detail.check')}</Table.Th>
+            <Table.Th>{t('list.status')}</Table.Th>
+            <Table.Th>{t('detail.latestResult')}</Table.Th>
+            <Table.Th>{t('list.uptime24h')}</Table.Th>
+            <Table.Th>{t('detail.lastCheck')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -331,7 +334,7 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
                   {c.name}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {CHECK_TYPE_INFO[c.type].label}
+                  {checkTypeLabel(c.type)}
                 </Text>
               </Table.Td>
               <Table.Td className="nowrap">
@@ -343,7 +346,7 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
                 </Text>
                 {c.causedBy.length > 0 && (
                   <Text size="xs" c="orange">
-                    Likely caused by {c.causedBy.map((x) => causeText(x, monitor.id)).join(', ')}
+                    {t('detail.likelyCausedBy', { causes: c.causedBy.map((x) => causeText(x, monitor.id)).join(', ') })}
                   </Text>
                 )}
               </Table.Td>
@@ -361,31 +364,32 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
   const results = useQuery({ queryKey: ['monitor-results', monitor.id, c.checkId, c.last?.ts], queryFn: () => get<CheckResultInfo[]>(`/monitors/${monitor.id}/checks/${encodeURIComponent(c.checkId)}/results?limit=20`) });
   const history = useQuery({ queryKey: ['monitor-history', monitor.id, c.checkId, c.since], queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?check=${encodeURIComponent(c.checkId)}&limit=20`) });
   const def = monitor.definition.checks.find((x) => x.id === c.checkId);
+  const { t } = useTranslation(['monitors', 'common']);
   return (
     <Stack gap="xs" data-testid="check-panel">
       {!hideTitle && (
         <Group justify="space-between" wrap="nowrap">
           <Title order={4}>{c.name}</Title>
           <Button size="compact-xs" variant="subtle" onClick={onClose}>
-            Close
+            {t('common:close')}
           </Button>
         </Group>
       )}
       <Group gap="xs">
         <MonitorStatusBadge status={c.status} />
         <Text size="xs" c="dimmed">
-          {CHECK_TYPE_INFO[c.type].label} · since {fmtRelative(c.since)}
+          {checkTypeLabel(c.type)} · {t('detail.since', { date: fmtRelative(c.since) })}
         </Text>
       </Group>
       {c.last && (
         <Text size="sm">
           {c.last.message}
-          {c.last.durationMs != null ? ` (${c.last.durationMs} ms)` : ''}
+          {c.last.durationMs != null ? ` (${fmtNumber(c.last.durationMs)} ms)` : ''}
         </Text>
       )}
       {c.causedBy.length > 0 && (
         <Alert color="orange" p="xs">
-          Likely caused by {c.causedBy.map((x) => causeText(x, monitor.id)).join(', ')} – no separate alert is sent for this check.
+          {t('detail.likelyCausedByNoAlert', { causes: c.causedBy.map((x) => causeText(x, monitor.id)).join(', ') })}
         </Alert>
       )}
       {c.note && (
@@ -394,24 +398,24 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
         </Alert>
       )}
       <Text size="xs">
-        Uptime: {uptimeText(c.uptime)}
+        {t('detail.uptime', { uptime: uptimeText(c.uptime) })}
         <br />
-        Last ok: {fmtDate(c.lastOkAt)} · next check: {c.nextCheckAt ? fmtRelative(c.nextCheckAt) : '–'}
+        {t('detail.lastOkNext', { lastOk: fmtDate(c.lastOkAt), next: c.nextCheckAt ? fmtRelative(c.nextCheckAt) : '–' })}
         <br />
-        Key: <span className="mono">{c.key}</span>
+        <Trans t={t} i18nKey="detail.key" values={{ key: c.key }} components={{ c: <span className="mono" /> }} />
       </Text>
       {c.monitorRef && (
         <Anchor component={Link} to={`/monitors/${c.monitorRef.id}`} size="sm">
-          Open "{c.monitorRef.name}"
+          {t('detail.openMonitor', { name: c.monitorRef.name })}
         </Anchor>
       )}
       {c.heartbeat && <HeartbeatCard monitor={monitor} check={c} onSecret={onSecret} />}
       <Text size="sm" fw={600} mt="xs">
-        Status changes
+        {t('detail.statusChanges')}
       </Text>
       <Timeline bulletSize={12} lineWidth={2}>
         {(history.data ?? []).slice(0, 8).map((h) => (
-          <Timeline.Item key={h.id} color={MONITOR_COLORS[h.status]} title={<Text size="xs" fw={600}>{`${h.previous ?? '–'} → ${h.status}`}</Text>}>
+          <Timeline.Item key={h.id} color={MONITOR_COLORS[h.status]} title={<Text size="xs" fw={600}>{`${h.previous ? monitorStatusLabel(h.previous) : '–'} → ${monitorStatusLabel(h.status)}`}</Text>}>
             <Text size="xs" c="dimmed">
               {fmtDate(h.ts)}
             </Text>
@@ -422,7 +426,7 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
         ))}
       </Timeline>
       <Text size="sm" fw={600}>
-        Latest results
+        {t('detail.latestResults')}
       </Text>
       <ScrollArea.Autosize mah={260}>
         <Stack gap={6}>
@@ -432,7 +436,7 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
                 <MonitorStatusBadge status={r.status} size="xs" variant="light" />
                 <Text size="xs" c="dimmed">
                   {fmtDate(r.ts)}
-                  {r.durationMs != null ? ` · ${r.durationMs} ms` : ''}
+                  {r.durationMs != null ? ` · ${fmtNumber(r.durationMs)} ms` : ''}
                 </Text>
               </Group>
               <Text size="xs">{r.message}</Text>
@@ -441,7 +445,7 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
         </Stack>
       </ScrollArea.Autosize>
       <Text size="sm" fw={600}>
-        Configuration
+        {t('detail.configuration')}
       </Text>
       <JsonView value={def} maxHeight={240} />
     </Stack>
@@ -451,18 +455,19 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
 function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail; check: CheckState; onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void }) {
   const hb = c.heartbeat!;
   const canEdit = monitor.permissions.includes('edit');
+  const { t } = useTranslation('monitors');
   return (
     <Paper withBorder p="xs">
       <Stack gap={4}>
         <Text size="sm" fw={600}>
-          Heartbeat endpoint
+          {t('heartbeat.endpoint')}
         </Text>
         <Text size="xs" className="mono" style={{ wordBreak: 'break-all' }}>
           POST {window.location.origin}
           {hb.path}
         </Text>
         <Text size="xs" c="dimmed">
-          {hb.authMode} · secret {hb.secretPrefix}… · last report {fmtRelative(hb.lastPushAt)}
+          {t('heartbeat.line', { auth: t(`auth.short.${hb.authMode as 'token' | 'hmac' | 'either'}`, { defaultValue: hb.authMode }), prefix: hb.secretPrefix, when: fmtRelative(hb.lastPushAt) })}
         </Text>
         {hb.lastPush != null && <JsonView value={hb.lastPush} maxHeight={120} />}
         {canEdit && (
@@ -474,20 +479,20 @@ function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail
               onClick={async () => {
                 try {
                   const r = await post<{ status: number; response: { status?: string; error?: string } }>(`/monitors/${monitor.id}/checks/${c.checkId}/test-report`, { status: 'up', value: 1 });
-                  notifyOk(`HTTP ${r.status}: ${r.response.status ?? r.response.error ?? ''}`, 'Test report sent');
+                  notifyOk(`HTTP ${r.status}: ${r.response.status ?? r.response.error ?? ''}`, t('heartbeat.testSent'));
                 } catch (e) {
                   notifyError(e);
                 }
               }}
             >
-              Send test report
+              {t('heartbeat.sendTest')}
             </Button>
             <Button
               size="compact-xs"
               variant="subtle"
               leftSection={<IconKey size={12} />}
               onClick={async () => {
-                if (!confirm('Rotate the secret? The reporting system must use the new one right away.')) return;
+                if (!confirm(t('heartbeat.rotateConfirm'))) return;
                 try {
                   const r = await api<{ secret: string; path: string }>('POST', `/monitors/${monitor.id}/checks/${c.checkId}/rotate`);
                   onSecret({ secrets: [{ checkId: c.checkId, ...r }] });
@@ -496,7 +501,7 @@ function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail
                 }
               }}
             >
-              Rotate secret
+              {t('gateways.rotate')}
             </Button>
           </Group>
         )}
@@ -507,12 +512,11 @@ function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail
 
 function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void }) {
   const hbs = monitor.checks.filter((c) => c.heartbeat);
+  const { t } = useTranslation('monitors');
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Heartbeat checks are fed by another system, for example the IoT gateway: either one call per check with that check's secret, or one call for many checks with a gateway secret (Monitors →
-        Gateways), mapped by the check key. A missing report turns the check down without any request. Body (JSON, max. 64 KB): status (optional: up, degraded, down or true/false), value, ts (ISO 8601 or
-        Unix time) and data.
+        {t('heartbeat.setupIntro')}
       </Text>
       {hbs.map((c) => (
         <Paper key={c.checkId} withBorder p="sm">
@@ -521,18 +525,18 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
               <Text fw={600}>{c.name}</Text>
               <MonitorStatusBadge status={c.status} variant="light" />
             </Group>
-            <CopyBlock label="URL" text={`${window.location.origin}${c.heartbeat!.path}`} />
-            <CopyBlock label="One check (curl)" text={heartbeatCurl(c.heartbeat!.path, c.heartbeat!.authMode === 'hmac')} />
+            <CopyBlock label={t('secrets.url')} text={`${window.location.origin}${c.heartbeat!.path}`} />
+            <CopyBlock label={t('heartbeat.oneCheck')} text={heartbeatCurl(c.heartbeat!.path, c.heartbeat!.authMode === 'hmac')} />
             <Text size="xs" c="dimmed">
-              Gateway key: <span className="mono">{c.key}</span> · secret {c.heartbeat!.secretPrefix}… (shown only when created or rotated)
+              <Trans t={t} i18nKey="heartbeat.gatewayKey" values={{ key: c.key, prefix: c.heartbeat!.secretPrefix }} components={{ c: <span className="mono" /> }} />
             </Text>
             <HeartbeatCard monitor={monitor} check={c} onSecret={onSecret} />
           </Stack>
         </Paper>
       ))}
-      <CopyBlock label="Many checks in one call (gateway)" text={gatewayCurl(hbs.map((c) => c.key))} />
+      <CopyBlock label={t('heartbeat.manyChecks')} text={gatewayCurl(hbs.map((c) => c.key))} />
       <Button component={Link} to="/monitors?tab=gateways" size="xs" variant="light" w="fit-content" leftSection={<IconCopy size={14} />}>
-        Manage gateways
+        {t('heartbeat.manageGateways')}
       </Button>
     </Stack>
   );
@@ -541,22 +545,23 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
 function HistoryList({ monitor }: { monitor: MonitorDetail }) {
   const h = useQuery({ queryKey: ['monitor-history', monitor.id, 'all', monitor.lastEvaluatedAt], queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?limit=200`) });
   const name = new Map(monitor.checks.map((c) => [c.checkId, c.name]));
+  const { t } = useTranslation('monitors');
   return (
     <div className="table-scroll">
-      <Table fz="sm" aria-label="Status changes">
+      <Table fz="sm" aria-label={t('detail.statusChanges')}>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Check</Table.Th>
-            <Table.Th>Change</Table.Th>
-            <Table.Th>Message</Table.Th>
+            <Table.Th>{t('history.time')}</Table.Th>
+            <Table.Th>{t('detail.check')}</Table.Th>
+            <Table.Th>{t('history.change')}</Table.Th>
+            <Table.Th>{t('history.message')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {(h.data ?? []).map((x) => (
             <Table.Tr key={x.id}>
               <Table.Td className="nowrap">{fmtDate(x.ts)}</Table.Td>
-              <Table.Td>{x.checkId ? (name.get(x.checkId) ?? x.checkId) : <b>Monitor</b>}</Table.Td>
+              <Table.Td>{x.checkId ? (name.get(x.checkId) ?? x.checkId) : <b>{t('list.monitor')}</b>}</Table.Td>
               <Table.Td className="nowrap">
                 <Group gap={4} wrap="nowrap">
                   {x.previous && <MonitorStatusBadge status={x.previous} size="xs" variant="light" />}→<MonitorStatusBadge status={x.status} size="xs" />
@@ -566,7 +571,7 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
                 <Text size="xs">{x.message}</Text>
                 {x.causedBy.length > 0 && x.checkId && (
                   <Text size="xs" c="orange">
-                    Likely caused by {x.causedBy.map((c) => causeText(c, monitor.id)).join(', ')}
+                    {t('detail.likelyCausedBy', { causes: x.causedBy.map((c) => causeText(c, monitor.id)).join(', ') })}
                   </Text>
                 )}
               </Table.Td>
@@ -579,30 +584,31 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
 }
 
 function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: () => void }) {
+  const { t } = useTranslation('monitors');
   const w = useQuery({ queryKey: ['monitor-maintenance', monitor.id, monitor.maintenance?.id], queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`) });
   return (
     <Stack>
       {monitor.permissions.includes('acknowledge') && (
         <Button size="xs" w="fit-content" leftSection={<IconTool size={14} />} onClick={onPlan}>
-          Plan maintenance
+          {t('maintenance.plan')}
         </Button>
       )}
-      {(w.data ?? []).length === 0 && <Text size="sm" c="dimmed">No maintenance windows.</Text>}
+      {(w.data ?? []).length === 0 && <Text size="sm" c="dimmed">{t('maintenance.none')}</Text>}
       {(w.data ?? []).map((x) => (
         <Paper key={x.id} withBorder p="xs">
           <Group justify="space-between">
             <div>
               <Text size="sm" fw={500}>
-                {fmtDate(x.startsAt)} – {fmtDate(x.endsAt)} {x.active && <Badge size="xs">active</Badge>}
+                {fmtDate(x.startsAt)} – {fmtDate(x.endsAt)} {x.active && <Badge size="xs">{t('maintenance.active')}</Badge>}
               </Text>
               <Text size="xs" c="dimmed">
                 {x.reason} · {x.createdBy}
               </Text>
             </div>
             {monitor.permissions.includes('acknowledge') && Date.parse(x.endsAt) > Date.now() && (
-              <Tooltip label={x.active ? 'End now' : 'Remove'}>
+              <Tooltip label={x.active ? t('maintenance.endNow') : t('detail.remove')}>
                 <Button size="compact-xs" variant="subtle" color="red" onClick={async () => (await del(`/monitors/${monitor.id}/maintenance/${x.id}`).catch(notifyError), w.refetch())}>
-                  {x.active ? 'End now' : 'Remove'}
+                  {x.active ? t('maintenance.endNow') : t('detail.remove')}
                 </Button>
               </Tooltip>
             )}

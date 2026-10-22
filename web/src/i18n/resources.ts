@@ -6,6 +6,7 @@ import type audit from '../locales/en/audit.json';
 import type dashboard from '../locales/en/dashboard.json';
 import type dashboards from '../locales/en/dashboards.json';
 import type editor from '../locales/en/editor.json';
+import type monitors from '../locales/en/monitors.json';
 import type platforms from '../locales/en/platforms.json';
 import type processes from '../locales/en/processes.json';
 import type profile from '../locales/en/profile.json';
@@ -39,6 +40,7 @@ export interface Resources {
   tasks: typeof tasks;
   schedules: typeof schedules;
   triggers: typeof triggers;
+  monitors: typeof monitors;
   platforms: typeof platforms;
   dashboards: typeof dashboards;
   audit: typeof audit;
