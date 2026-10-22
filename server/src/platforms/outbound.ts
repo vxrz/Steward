@@ -115,15 +115,24 @@ function originOf(url: string): string | null {
   }
 }
 
+/** Cache of a platform's resolved base-URL origin, keyed by id+updatedAt (so it refreshes on change). */
+const originCache = new Map<string, { stamp: string; origin: string | undefined }>();
+
 /** Resolve the configured platforms' allowed origins (base URL origin + trusted origins). */
 async function platformOrigins(platforms: () => Promise<Platform[]> | Platform[], resolveOrigin: (p: Platform) => Promise<string | undefined>): Promise<Set<string>> {
   const out = new Set<string>();
-  for (const p of await platforms()) {
-    const base = await resolveOrigin(p).catch(() => undefined);
-    if (base) {
-      const o = originOf(base);
-      if (o) out.add(o);
+  const live = await platforms();
+  const seen = new Set(live.map((p) => p.id));
+  for (const id of originCache.keys()) if (!seen.has(id)) originCache.delete(id);
+  for (const p of live) {
+    const stamp = p.updatedAt ?? '';
+    let hit = originCache.get(p.id);
+    if (!hit || hit.stamp !== stamp) {
+      const base = await resolveOrigin(p).catch(() => undefined);
+      hit = { stamp, origin: base ? (originOf(base) ?? undefined) : undefined };
+      originCache.set(p.id, hit);
     }
+    if (hit.origin) out.add(hit.origin);
     for (const t of p.config.http?.trustedOrigins ?? []) {
       const o = originOf(t);
       if (o) out.add(o);
