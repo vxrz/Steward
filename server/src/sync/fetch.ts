@@ -5,8 +5,8 @@ import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { newId, nowIso, parseJson } from '../util.js';
-import { gitApi, gitBlobSha, resolveRepo, SyncError, type TreeEntry } from './providers.js';
+import { HttpError, newId, nowIso, parseJson } from '../util.js';
+import { gitApi, gitBlobSha, resolveRepo, type TreeEntry } from './providers.js';
 import { requireSource, sourceToken, type SourceRow } from './service.js';
 import { findLocal, localById, localHash, parseFile, sameAsLocal, type ParsedItem } from './items.js';
 
@@ -96,9 +96,11 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     result.commit = head.sha;
     result.verified = head.verified;
     if (r.require_signed && head.verified !== true) {
-      throw new SyncError(
-        `The head commit ${head.sha.slice(0, 10)} of ${r.branch} is not signed with a key the Git host verified – this source requires signed commits`,
+      throw new HttpError(
         409,
+        `The head commit ${head.sha.slice(0, 10)} of ${r.branch} is not signed with a key the Git host verified – this source requires signed commits`,
+        'GIT_COMMIT_UNSIGNED',
+        { commit: head.sha.slice(0, 10), branch: r.branch },
       );
     }
     if (head.sha === r.last_commit && trigger !== 'manual') {
@@ -114,13 +116,15 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         continue;
       }
       if (e.mode && !FILE_MODES.has(e.mode)) continue;
-      if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(e.sha)) throw new SyncError(`Tree entry ${e.path}: invalid object id`);
+      if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(e.sha)) throw new HttpError(502, `Tree entry ${e.path}: invalid object id`, 'GIT_BAD_RESPONSE');
       files.push(e);
     }
     if (files.length > SYNC_LIMITS.maxFiles) {
-      throw new SyncError(
-        `The folder holds ${files.length} definition files – more than the limit of ${SYNC_LIMITS.maxFiles}. Point the source at a smaller folder.`,
+      throw new HttpError(
         413,
+        `The folder holds ${files.length} definition files – more than the limit of ${SYNC_LIMITS.maxFiles}. Point the source at a smaller folder.`,
+        'GIT_TOO_MANY_FILES',
+        { context: 'folder', files: files.length, limit: SYNC_LIMITS.maxFiles },
       );
     }
     result.files = files.length;
@@ -153,8 +157,14 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
       const content = await api.blob(f.sha, SYNC_LIMITS.maxFileBytes);
       total += content.length;
       if (total > SYNC_LIMITS.maxTotalBytes)
-        throw new SyncError(`The definition files are larger than ${SYNC_LIMITS.maxTotalBytes} bytes together – point the source at a smaller folder`, 413);
-      if (gitBlobSha(content) !== f.sha && f.sha.length === 40) throw new SyncError(`File ${f.path}: the content does not match its Git object id`);
+        throw new HttpError(
+          413,
+          `The definition files are larger than ${SYNC_LIMITS.maxTotalBytes} bytes together – point the source at a smaller folder`,
+          'GIT_TOO_LARGE',
+          { limit: SYNC_LIMITS.maxTotalBytes },
+        );
+      if (gitBlobSha(content) !== f.sha && f.sha.length === 40)
+        throw new HttpError(502, `File ${f.path}: the content does not match its Git object id`, 'GIT_BAD_RESPONSE');
       const parsed = await parseFile(f.path, content.toString('utf8'), kinds);
       if (!parsed.ok) {
         if (latest?.status === 'invalid' && latest.content_hash === parsed.hash) {
@@ -246,7 +256,7 @@ function insertUpdate(
     entityName: string | null;
     action: 'create' | 'update';
     status: 'pending' | 'invalid';
-    conflict?: string | null;
+    conflict?: ConflictReason | null;
     errors?: string[];
     content: unknown;
     hash: string;
@@ -278,11 +288,17 @@ function insertUpdate(
   return id;
 }
 
-/** Why accepting would overwrite local work (null: no conflict). */
-export function conflictOf(kind: SyncKind, entityId: string, item: ItemRow | undefined): string | null {
-  if (!item) return 'The item exists in Steward but did not come from this source';
+export type ConflictReason = 'notFromGit' | 'changedLocally';
+export const CONFLICT_TEXT: Record<ConflictReason, string> = {
+  notFromGit: 'The item exists in Steward but did not come from this source',
+  changedLocally: 'The item was changed in Steward since it was last synced',
+};
+
+/** Why accepting would overwrite local work (null: no conflict); the UI translates the reason. */
+export function conflictOf(kind: SyncKind, entityId: string, item: ItemRow | undefined): ConflictReason | null {
+  if (!item) return 'notFromGit';
   const now = localHash(kind, entityId);
-  return now !== null && now !== item.local_hash ? 'The item was changed in Steward since it was last synced' : null;
+  return now !== null && now !== item.local_hash ? 'changedLocally' : null;
 }
 
 function stage(
@@ -349,7 +365,7 @@ function stage(
       action: 'sync.update_staged',
       entityType: 'sync_update',
       entityId: uid,
-      summary: `Git sync "${r.name}": ${f.path} staged for review (${action === 'create' ? `new ${it.kind}` : `change to ${it.kind} "${local!.name}"`}${conflict ? ', conflict with local changes' : ''})`,
+      summary: `Git sync "${r.name}": ${f.path} staged for review (${action === 'create' ? `new ${it.kind}` : `change to ${it.kind} "${local!.name}"`}${conflict ? `, conflict: ${CONFLICT_TEXT[conflict]}` : ''})`,
       details: { sourceId: r.id, path: f.path, commit: head.sha, kind: it.kind, entityId: local?.id ?? null, action, conflict },
     });
     return uid;

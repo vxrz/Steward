@@ -85,7 +85,7 @@ export type SourceInput = z.infer<typeof sourceSchema>;
 const SELECT = `SELECT s.*, (SELECT COUNT(*) FROM sync_updates u WHERE u.source_id = s.id AND u.status = 'pending') AS pending_count FROM sync_sources s`;
 
 export function requireAdmin(): void {
-  if (!isAdmin(currentUser())) throw new HttpError(403, 'Only administrators can manage Git sync sources', 'FORBIDDEN');
+  if (!isAdmin(currentUser())) throw new HttpError(403, 'Only administrators can manage Git sync sources', 'FORBIDDEN', { context: 'manageGitSync' });
 }
 
 export function toSource(r: SourceRow & { pending_count?: number }): SyncSource {
@@ -125,7 +125,7 @@ export function sourceRow(id: string): SourceRow | undefined {
 
 export function requireSource(id: string): SourceRow {
   const r = sourceRow(id);
-  if (!r) throw new HttpError(404, 'Git sync source not found');
+  if (!r) throw new HttpError(404, 'Git sync source not found', 'SYNC_SOURCE_NOT_FOUND');
   return r;
 }
 
@@ -134,9 +134,9 @@ export function listSources(): SyncSource[] {
 }
 
 export function getSource(id: string): SyncSource {
-  if (!SOURCE_ID_RE.test(id)) throw new HttpError(404, 'Git sync source not found');
+  if (!SOURCE_ID_RE.test(id)) throw new HttpError(404, 'Git sync source not found', 'SYNC_SOURCE_NOT_FOUND');
   const r = db().get<SourceRow & { pending_count: number }>(`${SELECT} WHERE s.id = ?`, id);
-  if (!r) throw new HttpError(404, 'Git sync source not found');
+  if (!r) throw new HttpError(404, 'Git sync source not found', 'SYNC_SOURCE_NOT_FOUND');
   return toSource(r);
 }
 
@@ -153,7 +153,7 @@ function newWebhookSecret(): { secret: string; enc: string; hash: string; prefix
 function checked(input: SourceInput): SourceInput {
   // throws a clear 400 for URLs that are not https, carry credentials or have no owner/repository
   resolveRepo(input.provider, input.repoUrl, input.apiUrl);
-  if (input.token !== undefined && /\s/.test(input.token.trim())) throw new HttpError(400, 'The token must not contain spaces');
+  if (input.token !== undefined && /\s/.test(input.token.trim())) throw new HttpError(400, 'The token must not contain spaces', 'SYNC_TOKEN_INVALID');
   return { ...input, kinds: [...new Set(input.kinds)] };
 }
 

@@ -229,7 +229,7 @@ export function GitUpdateDetailPage() {
         )}
         {u.status === 'pending' && u.conflict && (
           <Alert color="orange" title={t('detail.conflictTitle')}>
-            {t('detail.conflictText', { reason: u.conflictReason ?? '' })}
+            {t('detail.conflictText', { reason: u.conflictReason ? t(`detail.conflictReasons.${u.conflictReason}`) : '' })}
           </Alert>
         )}
         {u.decidedBy && u.decidedAt && (

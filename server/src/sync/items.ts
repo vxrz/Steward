@@ -302,12 +302,13 @@ export async function applyItem(
     case 'process': {
       if (target) {
         const p = processes.permissionsFor(target);
-        if (!p.includes('view')) throw new HttpError(404, `Process ${target} not found`);
-        if (!p.includes('edit')) throw new HttpError(403, 'You are not allowed to edit this process', 'FORBIDDEN');
+        if (!p.includes('view')) throw new HttpError(404, `Process ${target} not found`, 'PROCESS_NOT_FOUND', { id: target });
+        if (!p.includes('edit')) throw new HttpError(403, 'You are not allowed to edit this process', 'FORBIDDEN', { context: 'editProcess' });
         const d = processes.saveProcess(target, content, o.comment);
         return { entityId: d.id, version: d.currentVersion };
       }
-      if (!capabilities(currentUser()).createProcesses) throw new HttpError(403, 'You are not allowed to create processes', 'FORBIDDEN');
+      if (!capabilities(currentUser()).createProcesses)
+        throw new HttpError(403, 'You are not allowed to create processes', 'FORBIDDEN', { context: 'createProcess' });
       const d = processes.createProcess(content as ProcessDefinition, { id: o.identity, comment: o.comment });
       return { entityId: d.id, version: d.currentVersion };
     }

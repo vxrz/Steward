@@ -46,41 +46,38 @@ export interface GitApi {
   blob(sha: string, maxBytes: number): Promise<Buffer>;
 }
 
-export class SyncError extends HttpError {
-  constructor(message: string, status = 502) {
-    super(status, message, 'SYNC_FAILED');
-  }
-}
-
 const isLoopback = (host: string) => host === '127.0.0.1' || host === 'localhost' || host === '[::1]' || host === '::1';
 const NAME = /^[A-Za-z0-9._-]{1,100}$/;
 
-function parseHttpUrl(raw: string, what: string): URL {
+function parseHttpUrl(raw: string, field: 'repoUrl' | 'apiUrl'): URL {
+  const what = field === 'apiUrl' ? 'API URL' : 'Repository URL';
+  const ctx = { context: field };
   let u: URL;
   try {
     u = new URL(raw.trim());
   } catch {
-    throw new HttpError(400, `${what}: not a valid URL`);
+    throw new HttpError(400, `${what}: not a valid URL`, 'GIT_URL_INVALID', ctx);
   }
   if (u.protocol !== 'https:' && !(u.protocol === 'http:' && isLoopback(u.hostname))) {
-    throw new HttpError(400, `${what}: only https:// URLs are allowed (http:// only for localhost)`);
+    throw new HttpError(400, `${what}: only https:// URLs are allowed (http:// only for localhost)`, 'GIT_URL_HTTPS_ONLY', ctx);
   }
-  if (u.username || u.password) throw new HttpError(400, `${what}: put the access token in the token field, not in the URL`);
-  if (u.search || u.hash) throw new HttpError(400, `${what}: no query string or fragment`);
+  if (u.username || u.password) throw new HttpError(400, `${what}: put the access token in the token field, not in the URL`, 'GIT_URL_CREDENTIALS', ctx);
+  if (u.search || u.hash) throw new HttpError(400, `${what}: no query string or fragment`, 'GIT_URL_QUERY', ctx);
   return u;
 }
 
 /** Repository URL (+ optional API URL) → where the API lives and how the project is addressed. */
 export function resolveRepo(provider: GitProvider, repoUrlRaw: string, apiUrlRaw?: string): RepoRef {
-  const u = parseHttpUrl(repoUrlRaw, 'Repository URL');
+  const u = parseHttpUrl(repoUrlRaw, 'repoUrl');
   const segments = u.pathname
     .replace(/\.git\/?$/, '')
     .split('/')
     .filter(Boolean);
-  if (segments.some((s) => !NAME.test(s) || s === '.' || s === '..')) throw new HttpError(400, 'Repository URL: unexpected characters in the path');
-  if (segments.length < 2) throw new HttpError(400, 'Repository URL: expected https://host/<owner>/<repository>');
+  if (segments.some((s) => !NAME.test(s) || s === '.' || s === '..'))
+    throw new HttpError(400, 'Repository URL: unexpected characters in the path', 'GIT_REPO_PATH_INVALID');
+  if (segments.length < 2) throw new HttpError(400, 'Repository URL: expected https://host/<owner>/<repository>', 'GIT_REPO_PATH_INVALID');
   const repoUrl = `${u.origin}/${segments.join('/')}`;
-  const api = apiUrlRaw?.trim() ? parseHttpUrl(apiUrlRaw, 'API URL') : null;
+  const api = apiUrlRaw?.trim() ? parseHttpUrl(apiUrlRaw, 'apiUrl') : null;
   const apiOverride = api ? `${api.origin}${api.pathname.replace(/\/+$/, '')}` : null;
   if (provider === 'gitlab') {
     const apiBase = apiOverride ?? `${u.origin}/api/v4`;
@@ -93,7 +90,7 @@ export function resolveRepo(provider: GitProvider, repoUrlRaw: string, apiUrlRaw
       : [];
     const sameRoot = root.every((s, i) => segments[i] === s);
     const project = (sameRoot ? segments.slice(root.length) : segments).join('/');
-    if (project.split('/').length < 2) throw new HttpError(400, 'Repository URL: expected https://host/<group>/<project>');
+    if (project.split('/').length < 2) throw new HttpError(400, 'Repository URL: expected https://host/<group>/<project>', 'GIT_REPO_PATH_INVALID');
     return { provider, repoUrl, apiBase, project };
   }
   const owner = segments.at(-2)!;
@@ -126,7 +123,7 @@ async function readCapped(res: Response, max: number): Promise<Buffer> {
   const declared = Number(res.headers.get('content-length') ?? 0);
   if (declared > max) {
     await res.body?.cancel().catch(() => undefined);
-    throw new SyncError(`The Git host sent ${declared} bytes – more than the limit of ${max}`);
+    throw new HttpError(502, `The Git host sent ${declared} bytes – more than the limit of ${max}`, 'GIT_TOO_LARGE', { limit: max });
   }
   const chunks: Buffer[] = [];
   let total = 0;
@@ -138,19 +135,22 @@ async function readCapped(res: Response, max: number): Promise<Buffer> {
     total += value.byteLength;
     if (total > max) {
       await reader.cancel().catch(() => undefined);
-      throw new SyncError(`The Git host sent more than the limit of ${max} bytes`);
+      throw new HttpError(502, `The Git host sent more than the limit of ${max} bytes`, 'GIT_TOO_LARGE', { limit: max });
     }
     chunks.push(Buffer.from(value));
   }
   return Buffer.concat(chunks);
 }
 
-function statusError(status: number, what: string): SyncError {
+function statusError(status: number, what: string): HttpError {
   if (status === 401 || status === 403)
-    return new SyncError(`${what}: access denied (HTTP ${status}) – check the token and its read permission for the repository`);
-  if (status === 404) return new SyncError(`${what}: not found (HTTP 404) – check repository, branch and folder; private repositories need a token`);
-  if (status === 429) return new SyncError(`${what}: the Git host's rate limit was reached (HTTP 429) – try again later`);
-  return new SyncError(`${what}: HTTP ${status} from the Git host`);
+    return new HttpError(502, `${what}: access denied (HTTP ${status}) – check the token and its read permission for the repository`, 'GIT_ACCESS_DENIED', {
+      status,
+    });
+  if (status === 404)
+    return new HttpError(502, `${what}: not found (HTTP 404) – check repository, branch and folder; private repositories need a token`, 'GIT_NOT_FOUND');
+  if (status === 429) return new HttpError(502, `${what}: the Git host's rate limit was reached (HTTP 429) – try again later`, 'GIT_RATE_LIMITED');
+  return new HttpError(502, `${what}: HTTP ${status} from the Git host`, 'GIT_HTTP_ERROR', { status });
 }
 
 class Client {
@@ -181,13 +181,18 @@ class Client {
       } as RequestInit);
     } catch (e) {
       const err = e as Error & { cause?: Error & { code?: string } };
-      if (err.cause?.code === 'ESSRFBLOCKED') throw new SyncError(err.cause.message, 403);
-      throw new SyncError(`${what}: the Git host is not reachable (${err.cause?.message ?? err.message})`);
+      if (err.cause?.code === 'ESSRFBLOCKED') throw new HttpError(403, err.cause.message, 'GIT_BLOCKED', { detail: err.cause.message });
+      throw new HttpError(502, `${what}: the Git host is not reachable (${err.cause?.message ?? err.message})`, 'GIT_UNREACHABLE', {
+        detail: err.cause?.message ?? err.message,
+      });
     }
     if (res.status >= 300 && res.status < 400) {
       await res.body?.cancel().catch(() => undefined);
-      throw new SyncError(
+      throw new HttpError(
+        502,
         `${what}: the Git host answered with a redirect (HTTP ${res.status}). Redirects are not followed – check the repository and API URL.`,
+        'GIT_REDIRECT',
+        { status: res.status },
       );
     }
     if (res.status === 404 && opts.allow404) {
@@ -206,7 +211,7 @@ class Client {
     try {
       return JSON.parse(r.body.toString('utf8')) as T;
     } catch {
-      throw new SyncError(`${what}: the Git host did not answer with JSON`);
+      throw new HttpError(502, `${what}: the Git host did not answer with JSON`, 'GIT_BAD_RESPONSE');
     }
   }
 }
@@ -215,14 +220,14 @@ const enc = encodeURIComponent;
 const SHA = /^[0-9a-f]{40}([0-9a-f]{24})?$/;
 
 function checkSha(sha: unknown, what: string): string {
-  if (typeof sha !== 'string' || !SHA.test(sha)) throw new SyncError(`${what}: the Git host returned no valid commit id`);
+  if (typeof sha !== 'string' || !SHA.test(sha)) throw new HttpError(502, `${what}: the Git host returned no valid commit id`, 'GIT_BAD_RESPONSE');
   return sha;
 }
 
 function decodeBlob(j: { content?: string; encoding?: string }, max: number): Buffer {
-  if (typeof j.content !== 'string') throw new SyncError('Blob: no content in the answer');
+  if (typeof j.content !== 'string') throw new HttpError(502, 'Blob: no content in the answer', 'GIT_BAD_RESPONSE');
   const buf = j.encoding === 'base64' ? Buffer.from(j.content.replace(/\s/g, ''), 'base64') : Buffer.from(j.content, 'utf8');
-  if (buf.length > max) throw new SyncError(`A file is larger than the limit of ${max} bytes`);
+  if (buf.length > max) throw new HttpError(502, `A file is larger than the limit of ${max} bytes`, 'GIT_TOO_LARGE', { limit: max });
   return buf;
 }
 
@@ -249,7 +254,8 @@ function forgejo(ref: RepoRef, token?: string): GitApi {
         const items = j.tree ?? [];
         out.push(...items);
         if (!j.truncated || !items.length || (j.total_count !== undefined && out.length >= j.total_count)) break;
-        if (page === 50) throw new SyncError('The repository has too many files – point the source at a smaller repository or folder');
+        if (page === 50)
+          throw new HttpError(413, 'The repository has too many files – point the source at a smaller repository or folder', 'GIT_TOO_MANY_FILES');
       }
       return out.filter((e) => inFolder(e.path, folder));
     },
@@ -273,7 +279,7 @@ function github(ref: RepoRef, token?: string): GitApi {
     },
     async tree(sha, folder) {
       const j = await c.json<{ tree?: TreeEntry[]; truncated?: boolean }>(`${repo}/git/trees/${sha}?recursive=1`, 'Tree');
-      if (j.truncated) throw new SyncError('The repository tree is too large for the GitHub API – use a smaller repository');
+      if (j.truncated) throw new HttpError(413, 'The repository tree is too large for the GitHub API – use a smaller repository', 'GIT_TOO_MANY_FILES');
       return (j.tree ?? []).filter((e) => inFolder(e.path, folder));
     },
     async blob(sha, max) {
@@ -308,12 +314,12 @@ function gitlab(ref: RepoRef, token?: string): GitApi {
         try {
           items = JSON.parse(r.body.toString('utf8'));
         } catch {
-          throw new SyncError('Tree: the Git host did not answer with JSON');
+          throw new HttpError(502, 'Tree: the Git host did not answer with JSON', 'GIT_BAD_RESPONSE');
         }
         out.push(...items.map((i) => ({ path: i.path, type: i.type, mode: i.mode, sha: i.id })));
         const next = r.headers.get('x-next-page');
         if (!next || !items.length) break;
-        if (page === 100) throw new SyncError('The repository has too many files – point the source at a smaller folder');
+        if (page === 100) throw new HttpError(413, 'The repository has too many files – point the source at a smaller folder', 'GIT_TOO_MANY_FILES');
       }
       return out.filter((e) => inFolder(e.path, folder));
     },

@@ -137,7 +137,11 @@
     "decided": "{{status}} by {{by}} {{when}}",
     "cannotDecide": "You may view this update, but not decide it (it needs the right to create or edit this item).",
     "openItem": "Open the item",
-    "contextOnly": "Changed lines only"
+    "contextOnly": "Changed lines only",
+    "conflictReasons": {
+      "notFromGit": "The item exists in Steward but did not come from this source",
+      "changedLocally": "The item was changed in Steward since it was last synced"
+    }
   },
   "origin": {
     "badge": "From Git",

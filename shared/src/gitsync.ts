@@ -114,7 +114,7 @@ export interface SyncUpdate {
   action: 'create' | 'update';
   /** The local item was changed since it was last synced (or never came from Git) */
   conflict: boolean;
-  conflictReason: string | null;
+  conflictReason: 'notFromGit' | 'changedLocally' | null;
   status: SyncUpdateStatus;
   errors: string[];
   createdAt: string;

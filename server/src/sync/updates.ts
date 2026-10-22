@@ -9,7 +9,7 @@ import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { fileWebUrl } from './providers.js';
 import { requireSource, type SourceRow } from './service.js';
 import { applyItem, canDecide, incomingText, localById, localText } from './items.js';
-import { conflictOf, link } from './fetch.js';
+import { CONFLICT_TEXT, conflictOf, link } from './fetch.js';
 
 /**
  * The "Updates from Git" inbox: pending updates are reviewed (diff) and accepted or rejected.
@@ -30,7 +30,7 @@ interface UpdateRow {
   entity_name: string | null;
   action: 'create' | 'update';
   conflict: number;
-  conflict_reason: string | null;
+  conflict_reason: SyncUpdate['conflictReason'];
   status: SyncUpdateStatus;
   errors: string;
   content: string | null;
@@ -48,7 +48,8 @@ interface UpdateRow {
 const SELECT = `SELECT u.*, s.name AS source_name, s.provider, s.repo_url FROM sync_updates u JOIN sync_sources s ON s.id = u.source_id`;
 
 export function requireReviewer(): void {
-  if (!capabilities(currentUser()).createProcesses) throw new HttpError(403, 'Only designers and administrators can review updates from Git', 'FORBIDDEN');
+  if (!capabilities(currentUser()).createProcesses)
+    throw new HttpError(403, 'Only designers and administrators can review updates from Git', 'FORBIDDEN', { context: 'reviewGitUpdates' });
 }
 
 function toUpdate(r: UpdateRow): SyncUpdate {
@@ -99,7 +100,7 @@ export function listUpdates(q: { status?: SyncUpdateStatus[]; sourceId?: string;
 
 function updateRow(id: string): UpdateRow {
   const r = /^gsu_[A-Za-z0-9_-]{8,40}$/.test(id) ? db().get<UpdateRow>(`${SELECT} WHERE u.id = ?`, id) : undefined;
-  if (!r) throw new HttpError(404, 'Update not found');
+  if (!r) throw new HttpError(404, 'Update not found', 'SYNC_UPDATE_NOT_FOUND');
   return r;
 }
 
@@ -123,14 +124,15 @@ const entityTypeOf = (k: SyncKind) => (k === 'recordType' ? 'record_type' : k);
 export async function acceptUpdate(id: string, opts: { comment?: string; force?: boolean; auto?: boolean } = {}): Promise<SyncUpdate> {
   requireReviewer();
   const r = updateRow(id);
-  if (r.status !== 'pending' || !r.kind || r.content === null) throw new HttpError(409, `This update is ${r.status} – only pending updates can be accepted`);
+  if (r.status !== 'pending' || !r.kind || r.content === null)
+    throw new HttpError(409, `This update is ${r.status} – only pending updates can be accepted`, 'SYNC_UPDATE_DECIDED');
   const kind = r.kind;
   if (!canDecide(kind, r.entity_id))
-    throw new HttpError(403, `You are not allowed to ${r.action === 'create' ? 'create' : 'change'} this ${kind}`, 'FORBIDDEN');
+    throw new HttpError(403, `You are not allowed to ${r.action === 'create' ? 'create' : 'change'} this ${kind}`, 'FORBIDDEN', { context: 'decideGitUpdate' });
   const src = requireSource(r.source_id);
   // check again: the local item may have changed (or appeared) since the fetch
   const target = r.entity_id ? localById(kind, r.entity_id) : null;
-  if (r.entity_id && !target) throw new HttpError(409, 'The local item no longer exists – fetch again to stage it as a new item');
+  if (r.entity_id && !target) throw new HttpError(409, 'The local item no longer exists – fetch again to stage it as a new item', 'SYNC_ITEM_GONE');
   const item = target
     ? db().get<Parameters<typeof conflictOf>[2] & object>(
         'SELECT * FROM sync_items WHERE kind = ? AND entity_id = ? AND source_id = ?',
@@ -140,7 +142,8 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
       )
     : undefined;
   const conflict = target ? conflictOf(kind, target.id, item) : null;
-  if (conflict && !opts.force) throw new HttpError(409, `${conflict}. Review the difference and accept anyway to overwrite it.`, 'SYNC_CONFLICT');
+  if (conflict && !opts.force)
+    throw new HttpError(409, `${CONFLICT_TEXT[conflict]}. Review the difference and accept anyway to overwrite it.`, 'SYNC_CONFLICT', { context: conflict });
   const content = JSON.parse(r.content) as unknown;
   const sha = r.commit_sha.slice(0, 10);
   const note = `From Git: ${src.name} ${r.path} @ ${sha}${opts.comment?.trim() ? ` – ${opts.comment.trim()}` : ''}`.slice(0, 2000);
@@ -190,8 +193,9 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
 export function rejectUpdate(id: string, comment?: string): SyncUpdate {
   requireReviewer();
   const r = updateRow(id);
-  if (r.status !== 'pending' && r.status !== 'invalid') throw new HttpError(409, `This update is ${r.status}`);
-  if (r.status === 'pending' && r.kind && !canDecide(r.kind, r.entity_id)) throw new HttpError(403, 'You are not allowed to decide this update', 'FORBIDDEN');
+  if (r.status !== 'pending' && r.status !== 'invalid') throw new HttpError(409, `This update is ${r.status}`, 'SYNC_UPDATE_DECIDED');
+  if (r.status === 'pending' && r.kind && !canDecide(r.kind, r.entity_id))
+    throw new HttpError(403, 'You are not allowed to decide this update', 'FORBIDDEN', { context: 'decideGitUpdate' });
   db().tx(() => {
     db().run(
       "UPDATE sync_updates SET status = 'rejected', decided_by = ?, decided_at = ?, comment = ? WHERE id = ?",

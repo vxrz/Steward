@@ -137,7 +137,11 @@
     "decided": "{{status}} von {{by}} {{when}}",
     "cannotDecide": "Sie können diese Änderung ansehen, aber nicht entscheiden (dafür ist das Recht nötig, dieses Element anzulegen oder zu bearbeiten).",
     "openItem": "Element öffnen",
-    "contextOnly": "Nur geänderte Zeilen"
+    "contextOnly": "Nur geänderte Zeilen",
+    "conflictReasons": {
+      "notFromGit": "Das Element gibt es in Steward, es stammt aber nicht aus dieser Quelle",
+      "changedLocally": "Das Element wurde seit der letzten Synchronisierung in Steward geändert"
+    }
   },
   "origin": {
     "badge": "Aus Git",

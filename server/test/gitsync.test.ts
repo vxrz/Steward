@@ -186,7 +186,7 @@ describe('fetching and staging', () => {
     await commit(repo, { [file]: proc('Versioned from Git', 'v3') });
     await s.api('POST', `/sync-sources/${src.id}/fetch`);
     const [c] = await pending(src.id);
-    expect(c).toMatchObject({ conflict: true, conflictReason: expect.stringContaining('changed in Steward') });
+    expect(c).toMatchObject({ conflict: true, conflictReason: 'changedLocally' });
     const refused = await errorOf(dana('POST', `/sync-updates/${c.id}/accept`, {}));
     expect(refused).toContain('409');
     expect(refused).toContain('SYNC_CONFLICT');

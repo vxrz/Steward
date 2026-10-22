@@ -231,6 +231,10 @@ For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roa
 - **IEM device fields.** Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
 - Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's _Pick from API spec_ and the explorer then list all operations.
 
+## Git sync (optional)
+
+Keep processes, dashboards, monitors and record types in a Git repository (Forgejo/Gitea, GitHub or GitLab) and bring changes into Steward after a review. An administrator adds a source under _Settings → Git sync_; Steward fetches it by hand, on a schedule or after a push webhook. Steward only reads the repository, validates every file and stages it in **Updates from Git**, where a designer reviews the diff and accepts it as a new version or rejects it. Local edits show as conflicts instead of being overwritten. Setup, token scopes and webhooks: [docs/GIT-SYNC.md](docs/GIT-SYNC.md).
+
 ## PDF reports
 
 Steward creates PDF reports without a browser, also in the desktop executable.
