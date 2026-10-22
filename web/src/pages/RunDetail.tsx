@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Alert,
@@ -38,11 +38,16 @@ import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
+/** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
+const STEP_PAGE = 500;
+const LOG_PAGE = 1000;
 
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [rerun, setRerun] = useState(false);
+  const [stepLimit, setStepLimit] = useState(STEP_PAGE);
+  const [logLimit, setLogLimit] = useState(LOG_PAGE);
   const run = useQuery({
     queryKey: ['run', id],
     queryFn: () => get<RunDetail>(`/runs/${id}`),
@@ -55,6 +60,12 @@ export function RunDetailPage() {
     retry: false,
   });
   const canRun = !!proc.data?.permissions.includes('run');
+  // Child runs per step key: stable arrays keep the memoized step rows from re-rendering on every poll.
+  const childrenByStep = useMemo(() => {
+    const m = new Map<string, RunChild[]>();
+    for (const c of run.data?.children ?? []) if (c.parentStepKey) m.set(c.parentStepKey, [...(m.get(c.parentStepKey) ?? []), c]);
+    return m;
+  }, [run.data?.children]);
   const r = run.data;
   if (!r) return run.error ? <Alert color="red">{(run.error as Error).message}</Alert> : null;
 
@@ -184,9 +195,10 @@ export function RunDetailPage() {
           <Tabs.Panel value="timeline" pt="sm">
             <Stack gap={4}>
               {r.steps.length === 0 && <Text c="dimmed">No steps yet.</Text>}
-              {r.steps.map((s) => (
-                <StepRow key={s.id} runId={r.id} step={s} childRuns={r.children?.filter((c) => c.parentStepKey === s.key)} />
+              {r.steps.slice(0, stepLimit).map((s) => (
+                <StepRow key={s.id} runId={r.id} step={s} childRuns={childrenByStep.get(s.key)} />
               ))}
+              <ShowMore shown={Math.min(stepLimit, r.steps.length)} total={r.steps.length} page={STEP_PAGE} what="steps" onShow={setStepLimit} />
             </Stack>
           </Tabs.Panel>
 
@@ -296,7 +308,7 @@ export function RunDetailPage() {
             <div className="table-scroll">
               <Table fz="sm" verticalSpacing={2}>
                 <Table.Tbody>
-                  {r.logs.map((l) => (
+                  {r.logs.slice(0, logLimit).map((l) => (
                     <Table.Tr key={l.id}>
                       <Table.Td className="nowrap mono">{new Date(l.ts).toLocaleTimeString()}</Table.Td>
                       <Table.Td>
@@ -318,6 +330,7 @@ export function RunDetailPage() {
                 </Table.Tbody>
               </Table>
             </div>
+            <ShowMore shown={Math.min(logLimit, r.logs.length)} total={r.logs.length} page={LOG_PAGE} what="log lines" onShow={setLogLimit} />
           </Tabs.Panel>
 
           <Tabs.Panel value="inputs" pt="sm">
@@ -358,6 +371,23 @@ export function RunDetailPage() {
         </Tabs>
       </Stack>
     </>
+  );
+}
+
+function ShowMore({ shown, total, page, what, onShow }: { shown: number; total: number; page: number; what: string; onShow: (limit: number) => void }) {
+  if (shown >= total) return null;
+  return (
+    <Group gap="xs" mt={4}>
+      <Text size="xs" c="dimmed">
+        Showing {shown} of {total} {what}
+      </Text>
+      <Button size="compact-xs" variant="light" onClick={() => onShow(shown + page)}>
+        Show {Math.min(page, total - shown)} more
+      </Button>
+      <Button size="compact-xs" variant="subtle" onClick={() => onShow(Infinity)}>
+        Show all
+      </Button>
+    </Group>
   );
 }
 
@@ -408,7 +438,12 @@ function ChildRuns({ runs }: { runs: RunChild[] }) {
   );
 }
 
-function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
+/**
+ * One step of the timeline. Memoized (polling returns structurally shared step objects, so only
+ * changed steps re-render), and the details are only mounted while open: Collapse keeps its
+ * children mounted, which for thousands of steps meant thousands of hidden JSON views.
+ */
+const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
@@ -438,59 +473,61 @@ function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecor
         </Text>
       </Group>
       <Collapse in={open}>
-        <Stack gap="xs" mt="xs">
-          <Text size="xs" c="dimmed" className="mono">
-            {step.key} · started {fmtDate(step.startedAt)}
-          </Text>
-          {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
-          {childRuns && childRuns.length > 0 && (
-            <Group gap={6}>
-              <Text size="xs" fw={600}>
-                Child run:
-              </Text>
-              {childRuns.map((c) => (
-                <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
-                  {c.id} ({c.status})
-                </Anchor>
-              ))}
-            </Group>
-          )}
-          {s.input !== undefined && s.input !== null && (
-            <>
-              <Text size="xs" fw={600}>
-                Request / configuration
-              </Text>
-              <JsonView value={s.input} maxHeight={260} />
-            </>
-          )}
-          {s.output !== undefined && s.output !== null && (
-            <>
-              <Group gap="xs">
+        {open && (
+          <Stack gap="xs" mt="xs">
+            <Text size="xs" c="dimmed" className="mono">
+              {step.key} · started {fmtDate(step.startedAt)}
+            </Text>
+            {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
+            {childRuns && childRuns.length > 0 && (
+              <Group gap={6}>
                 <Text size="xs" fw={600}>
-                  Result
+                  Child run:
                 </Text>
-                {step.outputTruncated && !full && (
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    onClick={() =>
-                      get<RunStepRecord>(`/runs/${runId}/steps/${step.id}`)
-                        .then(setFull)
-                        .catch((e) => notifyError(e))
-                    }
-                  >
-                    Load full result
-                  </Button>
-                )}
+                {childRuns.map((c) => (
+                  <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
+                    {c.id} ({c.status})
+                  </Anchor>
+                ))}
               </Group>
-              <JsonView value={s.output} maxHeight={400} />
-            </>
-          )}
-        </Stack>
+            )}
+            {s.input !== undefined && s.input !== null && (
+              <>
+                <Text size="xs" fw={600}>
+                  Request / configuration
+                </Text>
+                <JsonView value={s.input} maxHeight={260} />
+              </>
+            )}
+            {s.output !== undefined && s.output !== null && (
+              <>
+                <Group gap="xs">
+                  <Text size="xs" fw={600}>
+                    Result
+                  </Text>
+                  {step.outputTruncated && !full && (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      onClick={() =>
+                        get<RunStepRecord>(`/runs/${runId}/steps/${step.id}`)
+                          .then(setFull)
+                          .catch((e) => notifyError(e))
+                      }
+                    >
+                      Load full result
+                    </Button>
+                  )}
+                </Group>
+                <JsonView value={s.output} maxHeight={400} />
+              </>
+            )}
+          </Stack>
+        )}
       </Collapse>
     </Paper>
   );
-}
+});
 
 function RunAudit({ runId }: { runId: string }) {
   const q = useQuery({ queryKey: ['audit', 'run', runId], queryFn: () => get<AuditEntry[]>(`/audit?runId=${runId}&limit=1000`) });
