@@ -5,7 +5,8 @@ const procs = [
   ['server', ['run', 'dev', '-w', 'server']],
   ['web', ['run', 'dev', '-w', 'web']],
 ].map(([name, args]) => {
-  const p = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env, shell: process.platform === 'win32' });
+  // Windows can only start npm.cmd through a shell (Node ≥ 20.12); the arguments are fixed strings, not user input.
+  const p = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { stdio: ['ignore', 'pipe', 'pipe'], env: process.env, shell: process.platform === 'win32' }); // nosemgrep
   const prefix = name === 'server' ? '\x1b[36m[server]\x1b[0m ' : '\x1b[35m[web]\x1b[0m    ';
   const pipe = (stream, out) => stream.on('data', (d) => out.write(d.toString().replace(/^(?=.)/gm, prefix)));
   pipe(p.stdout, process.stdout);
