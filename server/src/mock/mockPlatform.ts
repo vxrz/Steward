@@ -222,6 +222,14 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
 
   // /mock/test/echo-headers: the request headers as JSON (tests that credentials are masked in what tools return)
   app.get('/test/echo-headers', async (req) => ({ headers: req.headers, query: req.query }));
+  // /mock/test/echo-url[?lowerHex=1]: the request URL as the server saw it, in the body and a Link header
+  // (tests that query API keys are masked in every encoding; lowerHex re-encodes %XX with lowercase hex)
+  app.get('/test/echo-url', async (req, reply) => {
+    let url = req.url;
+    if ((req.query as { lowerHex?: string }).lowerHex) url = url.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase());
+    reply.header('link', `<${url}&page=2>; rel="next"`);
+    return { url };
+  });
   // /mock/test/big?kb=600: a JSON body of about that size (response size limits)
   app.get('/test/big', async (req) => {
     const kb = Math.min(Number((req.query as { kb?: string }).kb ?? 600), 4096);

@@ -74,12 +74,10 @@ export class Redactor {
   add(...vals: string[]): void {
     for (const v of vals) {
       if (!v || v.length < 4) continue;
-      // Mask the raw value and its simple encodings (base64, URL-encoding, JSON escaping) so a
-      // secret cannot be smuggled into a log/protocol field in an encoded form.
+      // Mask the raw value and its simple encodings (base64, URL and form encoding in upper- and
+      // lowercase hex, JSON escaping) so a secret cannot be smuggled into a log/protocol field in an
+      // encoded form – or come back from a platform that echoes a query API key (Link headers, bodies).
       for (const enc of secretEncodings(v)) this.values.add(enc);
-      const json = JSON.stringify(v).slice(1, -1);
-      const url = encodeURIComponent(v);
-      for (const variant of [json, url.replace(/%20/g, '+')]) if (variant !== v && variant.length >= 4) this.values.add(variant);
     }
   }
   /** The registered secret values (for scrubbing error reports). */

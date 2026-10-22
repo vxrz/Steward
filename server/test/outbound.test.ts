@@ -69,6 +69,22 @@ describe('F2 – secret encodings and egress scan', () => {
     await expect(assertNoSecretLeak('https://hub.example.com/login', { authorization: 'Bearer demo-secret' }, undefined, b)).resolves.toBeUndefined();
   });
 
+  it('covers form encoding (URLSearchParams) and lowercase percent-encoding', async () => {
+    const key = "k3y~Sup3r S3cret!(Value)'*";
+    const form = new URLSearchParams({ a: key }).toString().slice(2); // ~ ! ( ) ' escaped, space as +
+    const strict = encodeURIComponent(key).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+    const lower = (v: string) => v.replace(/%[0-9A-F]{2}/g, (m) => m.toLowerCase());
+    const forms = [form, lower(form), strict, lower(strict), lower(encodeURIComponent(key)), encodeURIComponent(key).replace(/%20/g, '+')];
+    const enc = secretEncodings(key);
+    for (const f of forms) expect(enc, f).toContain(f);
+    const { Redactor } = await import('../src/engine/runner.js');
+    const r = new Redactor();
+    r.add(key);
+    for (const f of forms) expect(r.apply(`<https://x.example/a?api_key=${f}&page=2>; rel="next"`), f).not.toMatch(/Sup3r/);
+    const b = [binding('Hub', [key], 'https://hub.example.com')];
+    for (const f of forms) await expect(assertNoSecretLeak(`https://evil.example.com/x?k=${f}`, {}, undefined, b), f).rejects.toThrow(/secret/i);
+  });
+
   it('egressSecretValues ignores trivially short values', () => {
     expect(egressSecretValues({ apiKey: 'SUPER-SECRET', pin: '12' })).toEqual(['SUPER-SECRET']);
   });
