@@ -10,9 +10,12 @@ import './styles.css';
 import { BRAND } from '../../shared/src/brand';
 import { App } from './App';
 import { initPwa } from './pwa';
+import { initErrorReporting } from './errorReporting';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 document.title = BRAND.name;
 initPwa();
+void initErrorReporting();
 
 const theme = createTheme({
   primaryColor: 'blue',
@@ -39,7 +42,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </BrowserRouter>
       </QueryClientProvider>
     </MantineProvider>

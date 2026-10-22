@@ -1,0 +1,97 @@
+# Builds the container image (not pushed), creates SBOMs with Syft and scans the
+# image with Grype and Trivy. Runs weekly as well: new advisories for the base
+# image appear without code changes. Details: docs/SECURITY-PIPELINE.md.
+#
+# On tags the SBOMs are kept as the "container-sbom" artifact; release.yml can
+# attach them to the GitHub release.
+name: Container
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    tags: ['v*']
+  pull_request:
+  schedule:
+    - cron: '53 5 * * 1' # Mondays 05:53 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image:
+    name: Build, SBOM and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # SARIF upload
+    env:
+      IMAGE: steward:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}
+          provenance: false
+          pull: true
+      - name: Install Syft, Grype and Trivy
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" syft grype trivy && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: SBOM (Syft – CycloneDX and SPDX)
+        run: |
+          mkdir -p reports
+          syft scan "docker:$IMAGE" --source-name steward --source-version "${GITHUB_REF_NAME//\//-}" \
+            -o cyclonedx-json=reports/sbom.cdx.json -o spdx-json=reports/sbom.spdx.json -o syft-json=reports/sbom.syft.json
+      - name: Grype (fails on high/critical with a fix available)
+        run: |
+          grype "sbom:reports/sbom.syft.json" --only-fixed -o sarif --file reports/grype.sarif || true
+          grype "sbom:reports/sbom.syft.json" --only-fixed --fail-on high -o table
+      - name: Trivy image (fails on high/critical with a fix available)
+        if: ${{ !cancelled() }}
+        run: |
+          trivy image --scanners vuln,secret --ignore-unfixed --severity HIGH,CRITICAL --format sarif --output reports/trivy-image.sarif "$IMAGE"
+          trivy image --scanners vuln,secret --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format table "$IMAGE"
+      - name: Upload Grype SARIF
+        if: ${{ !cancelled() && hashFiles('reports/grype.sarif') != '' }}
+        continue-on-error: true # not available for private repositories without GitHub Advanced Security
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: reports/grype.sarif
+          category: grype-image
+      - name: Upload Trivy SARIF
+        if: ${{ !cancelled() && hashFiles('reports/trivy-image.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: reports/trivy-image.sarif
+          category: trivy-image
+      - name: Keep SBOMs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-sbom
+          path: |
+            reports/sbom.cdx.json
+            reports/sbom.spdx.json
+          if-no-files-found: ignore
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 30 }}
+      - name: Keep scan reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-scan-reports
+          path: |
+            reports/*.sarif
+            reports/sbom.syft.json
+          if-no-files-found: ignore
+          retention-days: 30

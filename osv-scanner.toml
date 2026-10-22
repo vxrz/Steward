@@ -1,0 +1,12 @@
+# OSV-Scanner configuration (see docs/SECURITY-PIPELINE.md).
+# Every ignore needs a reason and an expiry date; after that date the finding fails CI again.
+
+[[IgnoredVulns]]
+id = "GHSA-82fw-gwwq-j7x9"
+ignoreUntil = 2027-01-31
+reason = "vitest/@vitest/mocker 3.x (dev only): path traversal via the mock redirect of the Vitest dev server. Not shipped; tests run headless in CI without a browser/UI server. Fix needs the Vitest 4 major upgrade."
+
+[[IgnoredVulns]]
+id = "GHSA-qxg6-89mg-rqv8"
+ignoreUntil = 2027-01-31
+reason = "@vitest/mocker 3.x (dev only): code injection via unauthenticated manual mock registration on the Vitest dev server. Not shipped, no Vitest server exposed in CI. Fix needs the Vitest 4 major upgrade."

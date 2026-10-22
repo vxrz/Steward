@@ -12,6 +12,7 @@ import {
   SimpleGrid,
   Stack,
   Switch,
+  TagsInput,
   Text,
   TextInput,
   Textarea,
@@ -411,6 +412,14 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
             description="Only turn on if the API handles repeated requests safely – they may create or change data twice."
             checked={!!retry.retryNonIdempotent}
             onChange={(e) => setRetry({ retryNonIdempotent: e.currentTarget.checked })}
+          />
+          <TagsInput
+            label="Trusted origins"
+            description="Credentials are only sent to the base URL's origin. Add further origins (https://host[:port]) that belong to this platform and may receive them, e.g. a separate gateway host. Requests to other hosts are sent without credentials."
+            placeholder="https://gateway.example.com"
+            value={http.trustedOrigins ?? []}
+            onChange={(v) => setHttp({ trustedOrigins: v.length ? v : undefined })}
+            disabled={readOnly}
           />
         </Stack>
       </Paper>

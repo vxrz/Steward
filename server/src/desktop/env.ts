@@ -12,28 +12,71 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import sea from 'node:sea';
 import { BRAND } from '@sm/shared';
+import { UsageError, parseCli } from '../cli/args.js';
 
 export interface DesktopArgs {
   open: boolean;
   autostart?: 'on' | 'off';
   help: boolean;
   version: boolean;
+  /** Send a test event to the configured error tracker and exit. */
+  sendTestError: boolean;
+  port?: string;
+  dataDir?: string;
+  demo: boolean;
 }
 
-function argValue(name: string): string | undefined {
-  const i = process.argv.indexOf(name);
-  if (i >= 0) return process.argv[i + 1];
-  const eq = process.argv.find((a) => a.startsWith(name + '='));
-  return eq?.slice(name.length + 1);
-}
-const flag = (name: string) => process.argv.includes(name);
+export const inExecutable = sea.isSea();
 
-export const args: DesktopArgs = {
-  open: !flag('--no-open'),
-  autostart: argValue('--autostart') as DesktopArgs['autostart'],
-  help: flag('--help') || flag('-h'),
-  version: flag('--version'),
-};
+/** Command-line arguments (in the single executable argv[1] is the executable as invoked, like a script path). */
+function userArgv(): string[] {
+  const rest = process.argv.slice(2);
+  // macOS may add a process serial number when started from the Finder
+  return rest.filter((a) => !a.startsWith('-psn_'));
+}
+
+/** Set when the arguments are invalid; the launcher prints it and exits with status 2. */
+export let usageError: UsageError | undefined;
+
+function parse(): DesktopArgs {
+  const fallback: DesktopArgs = { open: true, help: false, version: false, sendTestError: false, demo: false };
+  try {
+    const { values } = parseCli(userArgv(), {
+      port: { type: 'string' },
+      'data-dir': { type: 'string' },
+      'no-open': { type: 'boolean' },
+      demo: { type: 'boolean' },
+      autostart: { type: 'string' },
+      'send-test-error': { type: 'boolean' },
+      version: { type: 'boolean', short: 'V' },
+      help: { type: 'boolean', short: 'h' },
+    });
+    const port = values.port;
+    if (port !== undefined && !(/^\d+$/.test(port) && Number(port) > 0 && Number(port) < 65536)) {
+      throw new UsageError(`--port must be a number between 1 and 65535, not '${port}'`);
+    }
+    const autostart = values.autostart;
+    if (autostart !== undefined && autostart !== 'on' && autostart !== 'off') {
+      throw new UsageError(`--autostart takes 'on' or 'off', not '${autostart}'`);
+    }
+    return {
+      open: !values['no-open'],
+      autostart,
+      help: !!values.help,
+      version: !!values.version,
+      sendTestError: !!values['send-test-error'],
+      port,
+      dataDir: values['data-dir'],
+      demo: !!values.demo,
+    };
+  } catch (e) {
+    if (!(e instanceof UsageError)) throw e;
+    usageError = e;
+    return fallback;
+  }
+}
+
+export const args: DesktopArgs = parse();
 
 /** Per-user application data folder. */
 export function userDataDir(): string {
@@ -43,17 +86,16 @@ export function userDataDir(): string {
   return path.join(process.env.XDG_DATA_HOME ?? path.join(home, '.local', 'share'), BRAND.slug);
 }
 
-const port = argValue('--port');
-if (port) process.env.SM_PORT = port;
-const dataDir = argValue('--data-dir');
-if (dataDir) process.env.SM_DATA_DIR = path.resolve(dataDir);
-if (flag('--demo')) process.env.SM_DEMO = '1';
+if (args.port) process.env.SM_PORT = args.port;
+if (args.dataDir) process.env.SM_DATA_DIR = path.resolve(args.dataDir);
+if (args.demo) process.env.SM_DEMO = '1';
 process.env.SM_DATA_DIR ??= userDataDir();
 process.env.SM_LOG_LEVEL ??= 'warn';
 
-export const inExecutable = sea.isSea();
+/** Only unpack the embedded files when the server is going to start. */
+const willStart = !usageError && !args.help && !args.version && !args.autostart && !args.sendTestError;
 
-if (inExecutable) {
+if (inExecutable && willStart) {
   // The build embeds "manifest.json" (list of asset keys) plus one asset per file.
   const manifest = JSON.parse(sea.getAsset('manifest.json', 'utf8')) as { version: string; files: string[] };
   const hash = createHash('sha256').update(manifest.files.join('\n')).update(manifest.version).digest('hex').slice(0, 10);

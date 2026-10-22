@@ -34,6 +34,7 @@ import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
+import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -49,6 +50,10 @@ export class Redactor {
   private values = new Set<string>();
   add(...vals: string[]): void {
     for (const v of vals) if (v && v.length >= 4) this.values.add(v);
+  }
+  /** The registered secret values (for scrubbing error reports). */
+  list(): string[] {
+    return [...this.values];
   }
   apply<T>(v: T): T {
     if (this.values.size === 0) return v;
@@ -482,7 +487,10 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
     waiter({ decision: d, by: actor, at });
   } else {
     // Server was restarted while waiting: replay the run up to this task.
-    await resumeRun(t.runId, actor).catch((e) => logger.error({ err: e, runId: t.runId }, 'resume after decision failed'));
+    await resumeRun(t.runId, actor).catch((e) => {
+      logger.error({ err: e, runId: t.runId }, 'resume after decision failed');
+      if (isUnexpected(e)) reportError(e, { tags: { phase: 'resume', run_id: t.runId } });
+    });
   }
 }
 
@@ -497,6 +505,7 @@ export async function recoverRuns(): Promise<void> {
         await resumeRun(r.id, 'system');
       } catch (e) {
         logger.error({ err: e, runId: r.id }, 'could not resume run');
+        if (isUnexpected(e)) reportError(e, { tags: { phase: 'recover', run_id: r.id } });
       }
     } else {
       store.setRunStatus(r.id, 'interrupted');
@@ -545,6 +554,8 @@ async function execute(ctx: RunContext): Promise<void> {
     } else {
       status = 'failed';
       error = ctx.redactor.apply((e as Error).message);
+      // A failed run is a business outcome; only engine bugs (TypeError & co.) are reported.
+      if (!(e instanceof StepFailure) && isInternalError(e)) reportError(e, { tags: { phase: 'run', run_id: ctx.runId }, secrets: ctx.redactor.list() });
     }
   } finally {
     if (ctx.browser) await ctx.browser.close().catch(() => undefined);
@@ -724,6 +735,7 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
     }
   }
   const message = ctx.redactor.apply((lastErr as Error)?.message ?? String(lastErr));
+  if (isInternalError(lastErr)) reportError(lastErr, { tags: { phase: 'step', node_type: node.type, run_id: ctx.runId }, secrets: ctx.redactor.list() });
   db().tx(() => {
     finishStep(ctx, key, node.type, { status: 'failed', error: message, output: { error: message }, startedMs: started });
     ctx.stats.steps++;

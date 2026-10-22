@@ -90,6 +90,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug` or `trace`. Logs are JSON lines on stdout. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | – | Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`. |
 | `SM_OTEL_PROPAGATE` | `1` | `0` stops adding `traceparent` headers to platform calls |
+| `SM_SENTRY_DSN` | – | Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md) |
 | `SM_METRIC_RETENTION_DAYS` | `400` | How long dashboard metric history is kept |
 | `SM_METRICS_PUBLIC` | – | `1` serves `/api/metrics` without sign-in (otherwise admins, auditors or an API token) |
 | `SM_API_V1` | `on` | `off` turns the public REST API (`/api/v1`) and its documentation off |
@@ -345,11 +346,13 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 
 - Everyone signs in. Sessions are HttpOnly, SameSite=Strict cookies (12 h idle timeout). Every API call is checked against roles and access lists on the server.
 - Credentials are encrypted at rest (AES-256-GCM). The key is derived with scrypt from your master passphrase and only kept in memory. The API never returns secret values, and they are redacted from logs, protocols and audit entries.
+- Platform credentials only go to the platform: the auth header, API keys and default headers are attached when a request targets the origin of the platform's base URL (or an origin listed under *Trusted origins*). An API call with an absolute URL to any other host is sent without them.
 - The audit log is HMAC-chained with a key derived from the master key. *Audit log → Verify chain* detects modified, removed or re-ordered entries. Each finished run stores a fingerprint of its protocol in the chain, and the protocol shows whether it is still intact.
 - By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
 - The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
 - Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
+- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md).
 
 ## Development
 
@@ -384,7 +387,13 @@ Where things live:
 
 Public REST API: the OpenAPI document [`docs/openapi.json`](docs/openapi.json) is generated from the route schemas with `npm run openapi`; `npm run openapi -- --check` fails when it is outdated (run it in CI). Details in [docs/API.md](docs/API.md).
 
-Contract checks against a sandbox tenant (for CI): `npm run contract -- --url http://127.0.0.1:4310 --token smt_… --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec.
+Contract checks against a sandbox tenant (for CI): `STEWARD_TOKEN=smt_… npm run contract -- --url http://127.0.0.1:4310 --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec. Pass the token via `STEWARD_TOKEN` (or `--token-file`) rather than `--token`, so it does not end up in your shell history.
+
+The command-line tools (`npm run validate`, `npm run contract`, the desktop executable, `npm run build:exe`) all take `--help`, exit with `0` (ok), `1` (failure or findings) or `2` (usage error), and `validate`/`contract` print machine-readable results with `--json` (use `npm run --silent …` to keep npm's own header out of the output).
+
+## Contributing
+
+Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions (Conventional Commits, squash merges) and checks. Changes are listed in [CHANGELOG.md](CHANGELOG.md). Security issues: [SECURITY.md](SECURITY.md).
 
 ## License
 

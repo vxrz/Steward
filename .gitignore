@@ -8,3 +8,4 @@ dist-exe/
 playwright-report/
 blob-report/
 e2e/.auth/
+.tools/
