@@ -123,6 +123,12 @@ export function queryAudit(f: {
   entityId?: string;
   action?: string;
   q?: string;
+  /** Exact actor (user name or "system") */
+  actor?: string;
+  /** ts >= from (ISO 8601) */
+  from?: string;
+  /** ts < to (ISO 8601) */
+  to?: string;
   beforeSeq?: number;
   limit?: number;
 }): AuditEntry[] {
@@ -139,6 +145,9 @@ export function queryAudit(f: {
     where.push(`(${like('summary')} OR ${like('actor')} OR ${like('action')})`);
     params.push(q, q, q);
   }
+  if (f.actor) (where.push('actor = ?'), params.push(f.actor));
+  if (f.from) (where.push('ts >= ?'), params.push(f.from));
+  if (f.to) (where.push('ts < ?'), params.push(f.to));
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
   const sql = `SELECT * FROM audit_log ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY seq DESC LIMIT ?`;
   params.push(Math.min(f.limit ?? 200, 5000));

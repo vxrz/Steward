@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
+  API_DOCS_MODES,
   ROLES,
   validateProcess,
   type AuthStatus,
@@ -349,6 +350,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+        apiDocs: z.enum(API_DOCS_MODES).optional(),
       })
       .parse(req.body);
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
