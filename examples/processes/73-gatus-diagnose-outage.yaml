@@ -1,0 +1,179 @@
+name: "Diagnose endpoint outage (from Gatus alert)"
+description: |
+  Runbook started by a **webhook trigger** when Gatus raises an alert for an
+  endpoint (Gatus custom alerting provider → `POST /api/hooks/<trigger id>`,
+  see docs/GATUS.md for the Gatus configuration and the input mapping).
+
+  For a TRIGGERED alert it collects evidence – the recent results and errors
+  Gatus recorded for the endpoint, and a fresh HTTP probe of the endpoint
+  URL – writes it into the protocol and asks whether to run the remediation.
+  RESOLVED alerts are only logged.
+
+  Safety: the URL comes from the alert, so it is only probed when it lies
+  under the base URL of the `probe` platform (bind a platform with auth
+  "none", e.g. https://apps.corp.example). Other URLs are not called, and no
+  credentials are ever sent to an address taken from the request.
+  The remediation step is an EXAMPLE placeholder: it only writes a log line.
+  Replace it with your own steps (e.g. an API call that restarts the
+  service) – they run only after an approver other than the trigger owner
+  agrees.
+tags: [incident, runbook, webhook, gatus]
+connections:
+  - slot: gatus
+    kind: gatus
+    description: Gatus instance that sent the alert (for the endpoint history)
+  - slot: probe
+    kind: generic
+    description: Plain HTTP platform without credentials; only URLs below its base URL are probed
+inputs:
+  - name: endpointName
+    label: Endpoint name ([ENDPOINT_NAME])
+    type: string
+    required: true
+    default: Historian API
+  - name: endpointGroup
+    label: Endpoint group ([ENDPOINT_GROUP])
+    type: string
+    default: plant
+  - name: endpointUrl
+    label: Endpoint URL ([ENDPOINT_URL])
+    type: string
+    default: ""
+  - name: alertState
+    label: TRIGGERED or RESOLVED ([ALERT_TRIGGERED_OR_RESOLVED])
+    type: select
+    options: [TRIGGERED, RESOLVED]
+    default: TRIGGERED
+  - name: errors
+    label: Errors reported by Gatus ([RESULT_ERRORS])
+    type: string
+    default: ""
+  - name: description
+    label: Alert description ([ALERT_DESCRIPTION])
+    type: string
+    default: ""
+steps:
+  - id: setup
+    type: set
+    name: Endpoint key and probe target
+    values:
+      # Gatus key: <group>_<name>, lower case, " / _ . , # + &" → "-" (Gatus config/key/key.go)
+      key: >-
+        {{ (
+          $k := function($s) { $replace($lowercase($replace($s, /^\s+|\s+$/, '')), /[\/_.,\s#+&]/, '-') };
+          $k(inputs.endpointGroup) & '_' & $k(inputs.endpointName)
+        ) }}
+      resolved: "{{ $uppercase(inputs.alertState) = 'RESOLVED' }}"
+      # only a URL below the probe platform's base URL is probed (no open redirect to other hosts)
+      probePath: >-
+        {{ (
+          $u := inputs.endpointUrl;
+          $b := $replace(conn.probe.baseUrl, /\/+$/, '');
+          $rest := $u ? $substring($u, $length($b)) : '';
+          ($u and $length($b) > 0 and $lowercase($substring($u, 0, $length($b))) = $lowercase($b) and ($rest = '' or $substring($rest, 0, 1) in ['/', '?']))
+            ? ($rest = '' ? '/' : $rest)
+            : null
+        ) }}
+  - id: branch
+    type: if
+    name: Alert resolved?
+    condition: "vars.resolved"
+    then:
+      - id: resolvedLog
+        type: log
+        name: Log the resolution
+        message: "Gatus reports {{ inputs.endpointGroup }}/{{ inputs.endpointName }} as resolved – nothing to do."
+    else:
+      - id: history
+        type: http
+        name: Read the endpoint history from Gatus
+        connection: gatus
+        method: GET
+        path: "/api/v1/endpoints/{{ $encodeUrlComponent(vars.key) }}/statuses"
+        query: { pageSize: 20 }
+        onError: continue
+        saveAs: history
+      - id: summarise
+        type: set
+        name: Summarise the history
+        values:
+          results: "{{ [vars.history.body.results] }}"
+          failedCount: "{{ $count(vars.results[success = false]) }}"
+          lastSuccess: "{{ vars.results[success = true][-1].timestamp }}"
+          lastErrors: "{{ $join(vars.results[-1].errors, '; ') }}"
+      - id: knownToGatus
+        type: check
+        name: Endpoint known to Gatus
+        severity: warning
+        condition: "$exists(vars.history.status)"
+        message: "{{ $exists(vars.history.status) ? vars.key & ': ' & vars.failedCount & ' of the last ' & $count(vars.results) & ' check(s) failed' : 'Gatus has no endpoint ' & vars.key & ' (' & vars.history.error & ')' }}"
+      - id: canProbe
+        type: if
+        name: URL below the probe platform?
+        condition: "$exists(vars.probePath) and vars.probePath != null"
+        then:
+          - id: probe
+            type: http
+            name: Probe the endpoint now
+            connection: probe
+            method: GET
+            path: "{{ vars.probePath }}"
+            expectStatus: [200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 405, 408, 429, 500, 502, 503, 504]
+            onError: continue
+            saveAs: probe
+          - id: reachable
+            type: check
+            name: Endpoint answers now
+            severity: warning
+            condition: "vars.probe.status >= 200 and vars.probe.status < 400"
+            message: "{{ $exists(vars.probe.status) ? 'HTTP ' & vars.probe.status & ' in ' & vars.probe.durationMs & ' ms' : vars.probe.error }}"
+        else:
+          - id: notProbed
+            type: log
+            name: Not probed
+            level: warn
+            message: "{{ inputs.endpointUrl ? 'Not probed: ' & inputs.endpointUrl & ' is not below the probe platform ' & conn.probe.baseUrl : 'Not probed: the alert carried no URL' }}"
+      - id: evidence
+        type: report
+        name: Evidence
+        title: "Outage of {{ inputs.endpointGroup }}/{{ inputs.endpointName }}"
+        text: |
+          **Alert:** {{ inputs.description ? inputs.description : 'Gatus alert' }} ({{ inputs.alertState }})
+          **Errors reported by Gatus:** {{ inputs.errors ? inputs.errors : vars.lastErrors }}
+          **Failed checks:** {{ vars.failedCount }} of the last {{ $count(vars.results) }}; last success {{ vars.lastSuccess ? vars.lastSuccess : 'not in the returned history' }}
+          **Probe now:** {{ $exists(vars.probe.status) ? 'HTTP ' & vars.probe.status & ' in ' & vars.probe.durationMs & ' ms' & ($type(vars.probe.body) = 'object' ? ' – ' & $substring($string(vars.probe.body), 0, 300) : '') : ($exists(vars.probe.error) ? vars.probe.error : 'not probed') }}
+        rows: "[$reverse(vars.results)]"
+        columns:
+          - { label: Time, value: "$substring(timestamp, 0, 19)" }
+          - { label: Success, value: "success ? 'yes' : 'NO'" }
+          - { label: HTTP, value: "$exists(status) ? status : '–'" }
+          - { label: Duration (ms), value: "$round(duration / 1000000)" }
+          - { label: Errors, value: "$join(errors, '; ')" }
+      - id: approval
+        type: userTask
+        name: Run remediation?
+        mode: approve
+        title: "Run remediation for {{ inputs.endpointGroup }}/{{ inputs.endpointName }}?"
+        instructions: |
+          Gatus: {{ vars.failedCount }} of the last {{ $count(vars.results) }} check(s) failed. {{ inputs.errors ? 'Errors: ' & inputs.errors : '' }}
+          Probe: {{ $exists(vars.probe.status) ? 'HTTP ' & vars.probe.status : 'not probed' }}.
+          See the evidence in the run protocol. Rejecting ends the run without changes.
+        assignees: [role:approver, role:admin]
+        fourEyes: true
+        onReject: continue
+        saveAs: decision
+      - id: decided
+        type: if
+        name: Approved?
+        condition: "vars.decision.approved"
+        then:
+          - id: remediate
+            type: log
+            name: Remediation (EXAMPLE placeholder)
+            level: warn
+            message: "EXAMPLE ONLY – replace this step with your remediation for {{ vars.key }} (e.g. an http POST that restarts the service). Nothing was changed. Approved by {{ vars.decision.decidedBy }}."
+        else:
+          - id: noRemediation
+            type: log
+            name: No remediation
+            message: "Remediation for {{ vars.key }} declined by {{ vars.decision.decidedBy }}{{ vars.decision.comment ? ': ' & vars.decision.comment : '' }}"
