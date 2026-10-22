@@ -239,5 +239,6 @@ async function execute(
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
-  process.exitCode = await runAdmin(process.argv.slice(2), 'npm run admin --');
+  // no top-level await: the desktop executable bundles this file as CommonJS
+  void runAdmin(process.argv.slice(2), 'npm run admin --').then((code) => (process.exitCode = code));
 }

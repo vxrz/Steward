@@ -57,6 +57,8 @@ jobs:
         run: npm test
       - name: Build web UI
         run: npm run build
+      - name: Bundle the desktop executable's server (CommonJS)
+        run: node scripts/build-exe.mjs --bundle-only
       - name: Dependency audit (production dependencies)
         run: npm audit --omit=dev --audit-level=moderate
 

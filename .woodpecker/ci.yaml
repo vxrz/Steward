@@ -78,6 +78,7 @@ steps:
     depends_on: [install]
     commands:
       - npm run build # web UI → web/dist
+      - node scripts/build-exe.mjs --bundle-only # the desktop executable's server bundles as CommonJS
 
   - name: audit
     image: *node_image

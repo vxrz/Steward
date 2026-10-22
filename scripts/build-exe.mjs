@@ -26,13 +26,16 @@ Run "npm run build" first (the built web UI is embedded). The result is
 dist-exe/<name>[.exe]; Playwright (browser steps) is not embedded.
 
 Options:
-  -h, --help   Show this help
+  --bundle-only   Only bundle the server (checks that it bundles as CommonJS; used by CI)
+  -h, --help      Show this help
 
 Exit status: 0 = built, 1 = build failed, 2 = usage error.
 `;
 
+let bundleOnly = false;
 try {
-  const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' } }, strict: true });
+  const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' }, 'bundle-only': { type: 'boolean' } }, strict: true });
+  bundleOnly = !!values['bundle-only'];
   if (values.help) {
     process.stdout.write(HELP);
     process.exit(0);
@@ -57,7 +60,7 @@ const isMac = process.platform === 'darwin';
 const exe = path.join(out, `${slug}${isWin ? '.exe' : ''}`);
 
 const webDist = path.join(root, 'web', 'dist');
-if (!fs.existsSync(path.join(webDist, 'index.html'))) {
+if (!bundleOnly && !fs.existsSync(path.join(webDist, 'index.html'))) {
   console.error('web/dist is missing – run "npm run build" first.');
   process.exit(1);
 }
@@ -88,6 +91,11 @@ await build({
   banner: { js: 'const __sm_import_meta_url = require("node:url").pathToFileURL(__filename).href;' },
   logLevel: 'warning',
 });
+if (bundleOnly) {
+  fs.rmSync(out, { recursive: true, force: true });
+  console.log('Server bundle OK');
+  process.exit(0);
+}
 
 // 2. Assets: web UI, example library, Swagger UI (API documentation page) and report assets, one asset per file plus a manifest.
 const assets = {};
