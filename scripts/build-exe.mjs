@@ -5,6 +5,7 @@
 //   npm run build && npm run build:exe   →   dist-exe/<name>[.exe]
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -46,7 +47,7 @@ await build({
   logLevel: 'warning',
 });
 
-// 2. Assets: web UI + example library, one asset per file plus a manifest.
+// 2. Assets: web UI + example library + Swagger UI (API documentation page), one asset per file plus a manifest.
 const assets = {};
 function addDir(dir, prefix) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -58,6 +59,11 @@ function addDir(dir, prefix) {
 }
 addDir(webDist, 'web');
 addDir(path.join(root, 'examples'), 'examples');
+// @fastify/swagger-ui serves these files from disk, so they cannot be bundled by esbuild (see server/src/desktop/env.ts).
+const swaggerUiStatic = path.join(path.dirname(createRequire(path.join(root, 'server', 'package.json')).resolve('@fastify/swagger-ui/package.json')), 'static');
+for (const f of fs.readdirSync(swaggerUiStatic)) {
+  if (!/\.(map|html)$/.test(f) && f !== 'swagger-ui.js') assets[`swagger-ui/${f}`] = path.join(swaggerUiStatic, f);
+}
 const manifestFile = path.join(work, 'manifest.json');
 fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets) }));
 assets['manifest.json'] = manifestFile;

@@ -3,8 +3,8 @@
  * are in place before config.ts is evaluated.
  *
  * - per-user data folder (unless SM_DATA_DIR / --data-dir is given)
- * - in the single-file executable: unpacks the embedded web UI and example
- *   library once per version into the data folder
+ * - in the single-file executable: unpacks the embedded web UI, example
+ *   library and Swagger UI assets once per version into the data folder
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -74,4 +74,5 @@ if (inExecutable) {
   }
   process.env.SM_WEB_DIST ??= path.join(appDir, 'web');
   process.env.SM_EXAMPLES_DIR ??= path.join(appDir, 'examples');
+  if (fs.existsSync(path.join(appDir, 'swagger-ui'))) process.env.SM_SWAGGER_UI_DIR ??= path.join(appDir, 'swagger-ui');
 }
