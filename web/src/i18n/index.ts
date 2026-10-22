@@ -48,6 +48,8 @@ void i18n
     detection: {
       order: ['localStorage', 'navigator'],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
+      // "de-DE" → "de": the UI language is language-only; regional formats come from formatLocale().
+      convertDetectedLanguage: (lng: string) => lng.split('-')[0].toLowerCase(),
       // The detector's own localStorage cache guards against blocked storage.
       caches: ['localStorage'],
     },
@@ -58,12 +60,14 @@ void i18n
     missingKeyHandler: (lngs, ns, key) => console.warn(`[i18n] missing key "${ns}:${key}" (${lngs.join(', ')})`),
   });
 
-const applyToDocument = (lng: string) => {
+// <html lang> carries the UI language ("de", not the detected "de-DE"): screen readers and hyphenation follow it.
+const applyToDocument = () => {
+  const lng = currentLanguage();
   document.documentElement.lang = lng;
   document.documentElement.dir = i18n.dir(lng);
 };
 i18n.on('languageChanged', applyToDocument);
-if (i18n.resolvedLanguage) applyToDocument(i18n.resolvedLanguage);
+if (i18n.isInitialized) applyToDocument();
 
 /** The active UI language (one of LANGUAGES). */
 export function currentLanguage(): Locale {

@@ -107,6 +107,6 @@
       "webhook": "Webhook"
     },
     "routesHint": "Jedes Ereignis geht an die betroffenen Personen. E-Mails erhalten nur Benutzer, die E-Mail-Benachrichtigungen in ihrem Profil eingeschaltet haben.",
-    "save": "Benachrichtigungseinstellungen speichern"
+    "save": "Benachrichtigungen speichern"
   }
 }
