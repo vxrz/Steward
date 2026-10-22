@@ -53,6 +53,10 @@ const TAGS = [
     name: 'Ticket references',
     description: 'Tickets in other systems (ServiceNow incidents, vendor tickets) that Steward documents: status, responsible people, affected items',
   },
+  {
+    name: 'Compliance',
+    description: 'Access governance evidence: access change entries, access reconciliation findings, control catalogues and evidence coverage',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

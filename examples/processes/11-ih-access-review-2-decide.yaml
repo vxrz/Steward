@@ -145,6 +145,18 @@ steps:
                 method: DELETE
                 path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.user.id }}"
                 expectStatus: [200, 204, 404]
+  - id: documentRevoked
+    type: accessChange
+    name: Document revoked access
+    when: "vars.revokeApproval.approved = true"
+    connection: hub
+    kind: offboarding
+    items: vars.decision.unselected
+    subjectId: id
+    subjectName: userName
+    rights: "[groups[$not(type = 'INDIRECT')].display]"
+    reason: "Access review: access no longer needed ({{ inputs.revokeMode }})"
+    approvedBy: "{{ vars.revokeApproval.decidedBy }}"
   - id: summary
     type: report
     name: Summary

@@ -18,7 +18,11 @@
     "records": "Records",
     "services": "Services",
     "gitUpdates": "Updates from Git",
-    "tickets": "Tickets"
+    "tickets": "Tickets",
+    "controls": "Controls",
+    "accessChanges": "Access changes",
+    "reconciliation": "Access reconciliation",
+    "evidencePacks": "Evidence packs"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",
@@ -90,7 +94,8 @@
     "operate": "Operate",
     "automate": "Automate",
     "service": "Service management",
-    "admin": "Administration"
+    "admin": "Administration",
+    "compliance": "Compliance"
   },
   "mainNavigation": "Main navigation",
   "collapseSidebar": "Collapse sidebar",

@@ -23,13 +23,36 @@ export async function autoReport(runId: string): Promise<string | null> {
   return rec.id;
 }
 
+type AfterReport = (runId: string, reportId: string | null) => Promise<unknown> | unknown;
+const afterReport: AfterReport[] = [];
+/**
+ * Work that needs the run's archived protocol once a run has finished (e.g. automatic access change
+ * entries): called after the automatic report, with its id (null when the process has none).
+ */
+export function onRunReported(fn: AfterReport): void {
+  afterReport.push(fn);
+}
+
 let subscribed = false;
 export function initAutoReports(): void {
   if (subscribed) return;
   subscribed = true;
   on('run.finished', (e) => {
     setImmediate(() => {
-      autoReport(e.runId).catch((err) => logger.warn({ err, runId: e.runId }, 'automatic run report failed'));
+      void autoReport(e.runId)
+        .catch((err) => {
+          logger.warn({ err, runId: e.runId }, 'automatic run report failed');
+          return null;
+        })
+        .then(async (reportId) => {
+          for (const fn of afterReport) {
+            try {
+              await fn(e.runId, reportId);
+            } catch (err) {
+              logger.warn({ err, runId: e.runId }, 'work after the run report failed');
+            }
+          }
+        });
     });
   });
 }

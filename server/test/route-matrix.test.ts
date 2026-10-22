@@ -46,6 +46,9 @@ const USE: Role[] = ['admin', 'designer', 'operator'];
 /** Everyone but viewers (credentials register entries, report schedules). */
 const NOT_VIEWER: Role[] = ['admin', 'designer', 'operator', 'approver', 'auditor'];
 
+/** Access reconciliation: administrators, auditors and whoever may use the platform (the demo check's owner is the admin). */
+const RECON_READ: Role[] = ['admin', 'designer', 'operator', 'auditor'];
+
 const EXPECT: Record<string, Access> = {
   // ---- health, instance, sign-in ----
   'GET /api/health': PUBLIC,
@@ -306,6 +309,46 @@ const EXPECT: Record<string, Access> = {
   'POST /api/records/:id/pdf': ACTIVE,
   'POST /api/records/:id/signed': ACTIVE,
   'GET /api/record-types': ALL,
+  // ---- compliance: access changes, reconciliation, controls, evidence packs ----
+  'GET /api/compliance/access-changes': ALL,
+  'GET /api/compliance/access-changes/:accessChangeId': ALL,
+  'POST /api/compliance/access-changes': RUN,
+  'GET /api/compliance/reconciliation/meta': ALL,
+  'GET /api/compliance/access-checks': ALL,
+  'POST /api/compliance/access-checks': DESIGN,
+  'GET /api/compliance/access-checks/:accessCheckId': RECON_READ,
+  'PUT /api/compliance/access-checks/:accessCheckId': ADMIN,
+  'DELETE /api/compliance/access-checks/:accessCheckId': ADMIN,
+  'POST /api/compliance/access-checks/:accessCheckId/run': ADMIN,
+  'GET /api/compliance/access-checks/:accessCheckId/snapshots': RECON_READ,
+  'GET /api/compliance/access-checks/:accessCheckId/snapshots/:snapshotId': RECON_READ,
+  'GET /api/compliance/access-checks/:accessCheckId/verify': RECON_READ,
+  'GET /api/compliance/findings': ALL,
+  'POST /api/compliance/findings/:findingId/document': RUN,
+  'POST /api/compliance/findings/:findingId/dismiss': ADMIN,
+  'POST /api/compliance/demo/simulate-change': DESIGN,
+  'GET /api/compliance/meta': ALL,
+  'GET /api/compliance/catalogues': ALL,
+  'POST /api/compliance/catalogues': ADMIN,
+  'PUT /api/compliance/catalogues/:catalogueId': ADMIN,
+  'DELETE /api/compliance/catalogues/:catalogueId': ADMIN,
+  'POST /api/compliance/catalogues/import': ADMIN,
+  'POST /api/compliance/catalogues/:catalogueId/controls': ADMIN,
+  'GET /api/compliance/controls': ALL,
+  'GET /api/compliance/controls/:controlId': ALL,
+  'PUT /api/compliance/controls/:controlId': ADMIN,
+  'POST /api/compliance/controls/:controlId/tags': DESIGN,
+  'POST /api/compliance/controls/:controlId/tags/remove': DESIGN,
+  'GET /api/compliance/coverage': ALL,
+  'GET /api/compliance/tagged': ALL,
+  'GET /api/compliance/tag-targets': ALL,
+  'GET /api/compliance/evidence-packs/meta': ALL,
+  'GET /api/compliance/evidence-packs': ALL,
+  'POST /api/compliance/evidence-packs': NOT_VIEWER,
+  'GET /api/compliance/evidence-packs/:packId': ADMIN_AUDITOR,
+  'DELETE /api/compliance/evidence-packs/:packId': ADMIN,
+  'GET /api/compliance/evidence-packs/:packId/download': ADMIN_AUDITOR,
+
   'POST /api/record-types': ADMIN,
   'PUT /api/record-types/:id': ADMIN,
   'GET /api/link-targets': ALL,
@@ -398,6 +441,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records': ALL,
   'GET /api/v1/records/:recordId': ALL,
   'GET /api/v1/records/:recordId/versions': ALL,
+  'GET /api/v1/access-changes': ALL,
+  'GET /api/v1/access-findings': ALL,
+  'GET /api/v1/control-catalogues': ALL,
+  'GET /api/v1/controls': ALL,
+  'GET /api/v1/control-coverage': ALL,
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
 
@@ -508,6 +556,13 @@ function fill(url: string): string {
     .replace(/:ticketId/g, fx.ticket!)
     .replace(/:monitorId/g, fx.monitor!)
     .replace(/:recordId/g, fx.record!)
+    .replace(/:accessChangeId/g, fx.accessChange!)
+    .replace(/:accessCheckId/g, fx.accessCheck!)
+    .replace(/:snapshotId/g, fx.snapshot!)
+    .replace(/:findingId/g, fx.finding!)
+    .replace(/:catalogueId/g, fx.catalogue!)
+    .replace(/:controlId/g, fx.control!)
+    .replace(/:packId/g, fx.pack!)
     .replace(/:version/g, '1')
     .replace(/:checkId/g, fx.check!)
     .replace(/:wid/g, fx.maintenance!)
@@ -554,6 +609,10 @@ const QUERY: Record<string, string> = {
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/ticket-references/open-counts': '?kind=service',
+  'GET /api/compliance/coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
+  'GET /api/v1/control-coverage': `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`,
+  'GET /api/compliance/tag-targets': '?kind=process&q=',
+  'GET /api/compliance/tagged': '?kind=recordType&targetId=rty_ac',
 };
 
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
@@ -620,6 +679,28 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/tasks/:id/complete': { approved: true },
   'POST /api/sync-sources': SYNC_SOURCE,
   'PUT /api/sync-sources/:id': SYNC_SOURCE,
+  'POST /api/compliance/access-changes': {
+    platformId: fx.platform,
+    subjectId: 'x',
+    kind: 'grant',
+    rightsAfter: ['r'],
+    reason: 'r',
+    performedBy: 'x',
+    performedAt: new Date().toISOString(),
+  },
+  'POST /api/compliance/access-checks': { name: 'x', platformId: fx.accessPlatform, source: 'insights-hub', cron: '0 3 * * *' },
+  'PUT /api/compliance/access-checks/:accessCheckId': { name: 'x', platformId: fx.accessPlatform, source: 'insights-hub', cron: '0 3 * * *' },
+  'POST /api/compliance/findings/:findingId/document': { reason: 'x' },
+  'POST /api/compliance/findings/:findingId/dismiss': { comment: 'x' },
+  'POST /api/compliance/demo/simulate-change': { accessCheckId: fx.accessCheck },
+  'POST /api/compliance/catalogues': { key: 'MATRIX', name: 'x' },
+  'PUT /api/compliance/catalogues/:catalogueId': { name: 'x' },
+  'POST /api/compliance/catalogues/import': { key: 'MATRIX2', filename: 'x.csv', content: 'ref,title\n1,x\n' },
+  'POST /api/compliance/catalogues/:catalogueId/controls': { ref: 'X.1', title: 'x' },
+  'PUT /api/compliance/controls/:controlId': { title: 'x' },
+  'POST /api/compliance/controls/:controlId/tags': { kind: 'recordType', targetId: 'rty_cr' },
+  'POST /api/compliance/controls/:controlId/tags/remove': { kind: 'recordType', targetId: 'rty_ac' },
+  'POST /api/compliance/evidence-packs': { scope: { controlIds: [fx.control] }, from: '2026-01-01T00:00:00Z', to: new Date().toISOString() },
 });
 const SYNC_SOURCE = { name: 'Matrix library', provider: 'forgejo', repoUrl: 'https://git.example.com/team/library', kinds: ['process'] };
 const TRIGGER = {
@@ -752,6 +833,35 @@ beforeAll(async () => {
     syncUpdate,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
+  // compliance: the demo access check with a finding, a control, an access change entry, an evidence pack
+  const accessCheck = (await a('GET', '/compliance/access-checks'))[0];
+  const sim = await a('POST', '/compliance/demo/simulate-change', { accessCheckId: accessCheck.id });
+  const iso = await a('GET', '/compliance/controls?catalogue=ISO27001');
+  const control = iso.find((c: { ref: string }) => c.ref === '5.18');
+  const accessChange = await a('POST', '/compliance/access-changes', {
+    platformId: accessCheck.platformId,
+    subjectId: 'matrix',
+    kind: 'grant',
+    rightsAfter: ['x'],
+    reason: 'matrix',
+    performedBy: 'admin',
+    performedAt: new Date().toISOString(),
+  });
+  let pack = await a('POST', '/compliance/evidence-packs', { scope: { controlIds: [control.id] }, from: '2026-01-01T00:00:00Z', to: new Date().toISOString() });
+  for (let i = 0; i < 300 && pack.status === 'building'; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    pack = await a('GET', `/compliance/evidence-packs/${pack.id}`);
+  }
+  Object.assign(fx, {
+    accessCheck: accessCheck.id,
+    accessPlatform: accessCheck.platformId,
+    snapshot: sim.result.snapshot.id,
+    finding: sim.result.findings[0].id,
+    catalogue: control.catalogueId,
+    control: control.id,
+    accessChange: accessChange.recordId,
+    pack: pack.id,
+  });
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);
   for (const role of ROLES) {
     const res = await fetch(`${s.base}/api/me/tokens`, {

@@ -15,6 +15,7 @@ const errorsJson = (lang: string) =>
 const CODED_AREAS = [
   'records/',
   'sync/',
+  'compliance/',
   'catalogue/',
   'credentials/',
   'reports/',

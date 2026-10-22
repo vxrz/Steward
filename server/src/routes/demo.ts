@@ -18,6 +18,7 @@ import { startRun } from '../engine/runner.js';
 import { getProcess } from '../processes/service.js';
 import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
+import { setupComplianceDemo } from '../compliance/demo.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -253,6 +254,9 @@ export async function setupDemo(): Promise<{
   } catch (err) {
     logger.warn({ err: (err as Error).message }, 'demo monitors not created');
   }
+
+  // ---- access reconciliation of the simulated Insights Hub (baseline snapshot) ----
+  await setupComplianceDemo(platformByKind.get('insights-hub'));
 
   audit({
     action: 'demo.setup',

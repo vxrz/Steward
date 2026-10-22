@@ -3,8 +3,8 @@
  * app window (Edge/Chrome "--app" mode, falling back to the default browser).
  * Running it again while it is already running just opens the window.
  */
-import { adminArgv, args, inExecutable, mcpArgv, usageError } from './env.js';
-import { EXIT_FAILURE, EXIT_OK, usageFailure } from '../cli/args.js';
+import { adminArgv, args, evidenceArgv, inExecutable, mcpArgv, usageError } from './env.js';
+import { EXIT_FAILURE, EXIT_OK, UsageError, usageFailure } from '../cli/args.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -29,6 +29,7 @@ Options:
   --send-test-error    Send a test event to the error tracker ($SM_SENTRY_DSN) and exit
   admin …              Account recovery, e.g. 'admin reset-password <user>' (see 'admin --help')
   mcp …                MCP stdio bridge for desktop AI clients (see 'mcp --help')
+  evidence verify …    Check an audit evidence pack offline (see 'evidence verify --help')
   -V, --version        Print the version
   -h, --help           Show this help
 
@@ -162,6 +163,20 @@ async function main(): Promise<number> {
   if (mcpArgv) {
     const { runBridge } = await import('../mcp/bridge.js');
     return runBridge(mcpArgv, `${BRAND.slug} mcp`);
+  }
+  if (evidenceArgv) {
+    if (evidenceArgv[0] !== 'verify') {
+      if (evidenceArgv[0] === '--help' || evidenceArgv[0] === '-h') {
+        process.stdout.write(`Usage: ${BRAND.slug} evidence verify <pack.zip> [--public-key <key>] [--json]\n`);
+        return EXIT_OK;
+      }
+      return usageFailure(
+        new UsageError(evidenceArgv[0] ? `unknown command 'evidence ${evidenceArgv[0]}'` : 'missing command', "Use 'evidence verify <pack.zip>'"),
+        `${BRAND.slug} evidence verify`,
+      );
+    }
+    const { runEvidenceVerify } = await import('../cli/evidence-verify.js');
+    return runEvidenceVerify(evidenceArgv.slice(1), `${BRAND.slug} evidence verify`);
   }
   if (usageError) return usageFailure(usageError, BRAND.slug);
   if (args.help) {

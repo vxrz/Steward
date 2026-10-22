@@ -4047,7 +4047,8 @@
             "type": "string",
             "enum": [
               "change",
-              "decision"
+              "decision",
+              "access"
             ]
           },
           "title": {
@@ -4055,7 +4056,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified"
           },
           "tags": {
             "type": "array",
@@ -4133,7 +4134,8 @@
             "type": "string",
             "enum": [
               "change",
-              "decision"
+              "decision",
+              "access"
             ]
           },
           "title": {
@@ -4141,7 +4143,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified"
           },
           "tags": {
             "type": "array",
@@ -5106,6 +5108,530 @@
           "updatedAt",
           "updatedBy",
           "history"
+        ],
+        "additionalProperties": false
+      },
+      "AccessChange": {
+        "title": "AccessChange",
+        "type": "object",
+        "properties": {
+          "recordId": {
+            "type": "string",
+            "description": "Id of the record that holds the entry"
+          },
+          "number": {
+            "type": "string",
+            "description": "Record number, e.g. AC-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "draft, documented (frozen), verified (checked by a second person) or cancelled"
+          },
+          "platformId": {
+            "type": "string"
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "null when the token owner may not see the platform"
+          },
+          "subjectId": {
+            "type": "string",
+            "description": "User name, user id or technical user id on the platform"
+          },
+          "subjectName": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string",
+            "description": "user, technical or empty"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Change: grant, revoke, modify, onboarding, offboarding"
+          },
+          "rightsBefore": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Roles, groups or scopes before the change"
+          },
+          "rightsAfter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Roles, groups or scopes after the change"
+          },
+          "granted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "rightsAfter − rightsBefore"
+          },
+          "revoked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "rightsBefore − rightsAfter"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestRef": {
+            "type": "string",
+            "description": "Ticket number or link"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "performedBy": {
+            "type": "string"
+          },
+          "performedAt": {
+            "type": "string",
+            "description": "When the change was made (ISO 8601)"
+          },
+          "origin": {
+            "type": "string",
+            "description": "manual, run (created automatically by a run) or reconciliation (documented after the fact)"
+          },
+          "afterTheFact": {
+            "type": "boolean",
+            "description": "Documented after the access reconciliation found the change"
+          },
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "findingId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "frozenHash": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Content hash recorded when the entry was documented"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "recordId",
+          "number",
+          "title",
+          "status",
+          "platformId",
+          "platformName",
+          "subjectId",
+          "subjectName",
+          "subjectType",
+          "kind",
+          "rightsBefore",
+          "rightsAfter",
+          "granted",
+          "revoked",
+          "reason",
+          "requestedBy",
+          "requestRef",
+          "approvedBy",
+          "performedBy",
+          "performedAt",
+          "origin",
+          "afterTheFact",
+          "runId",
+          "findingId",
+          "frozenHash",
+          "createdAt",
+          "createdBy",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "AccessFinding": {
+        "title": "AccessFinding",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "checkId": {
+            "type": "string"
+          },
+          "checkName": {
+            "type": "string"
+          },
+          "platformId": {
+            "type": "string"
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "snapshotId": {
+            "type": "string"
+          },
+          "previousSnapshotId": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "windowFrom": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The change happened after this snapshot …"
+          },
+          "windowTo": {
+            "type": "string",
+            "format": "date-time",
+            "description": "… and before this one"
+          },
+          "subjectId": {
+            "type": "string"
+          },
+          "subjectName": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "grant",
+              "revoke",
+              "modify",
+              "onboarding",
+              "offboarding"
+            ]
+          },
+          "granted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rights granted without a matching access change entry"
+          },
+          "revoked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rights removed without a matching access change entry"
+          },
+          "rightsBefore": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "All rights of the subject in the previous snapshot"
+          },
+          "rightsAfter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "All rights of the subject in this snapshot"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "documented",
+              "dismissed"
+            ]
+          },
+          "recordId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Access change entry that documents the change"
+          },
+          "recordNumber": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolvedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Why a dismissed finding needs no entry"
+          }
+        },
+        "required": [
+          "id",
+          "checkId",
+          "checkName",
+          "platformId",
+          "platformName",
+          "snapshotId",
+          "previousSnapshotId",
+          "detectedAt",
+          "windowFrom",
+          "windowTo",
+          "subjectId",
+          "subjectName",
+          "kind",
+          "granted",
+          "revoked",
+          "rightsBefore",
+          "rightsAfter",
+          "status",
+          "recordId",
+          "recordNumber",
+          "resolvedBy",
+          "resolvedAt",
+          "comment"
+        ],
+        "additionalProperties": false
+      },
+      "Control": {
+        "title": "Control",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "catalogueId": {
+            "type": "string"
+          },
+          "catalogueKey": {
+            "type": "string",
+            "description": "e.g. ISO27001, IEC62443-2-1, NIS2"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Control identifier, e.g. 5.18"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short topic name (the standards’ own text is not shipped)"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "process",
+                    "recordType",
+                    "record",
+                    "monitor",
+                    "reportSchedule",
+                    "accessCheck"
+                  ]
+                },
+                "targetId": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Name of the item – empty when the token owner may not see it"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "label",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Steward items mapped to the control"
+          }
+        },
+        "required": [
+          "id",
+          "catalogueId",
+          "catalogueKey",
+          "ref",
+          "title",
+          "description",
+          "tags"
+        ],
+        "additionalProperties": false
+      },
+      "ControlTag": {
+        "title": "ControlTag",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "process",
+              "recordType",
+              "record",
+              "monitor",
+              "reportSchedule",
+              "accessCheck"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "Name of the item – empty when the token owner may not see it"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "targetId",
+          "label",
+          "visible"
+        ],
+        "additionalProperties": false
+      },
+      "ControlCatalogue": {
+        "title": "ControlCatalogue",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "builtin": {
+            "type": "boolean"
+          },
+          "controlCount": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "name",
+          "version",
+          "description",
+          "builtin",
+          "controlCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "ControlCoverage": {
+        "title": "ControlCoverage",
+        "type": "object",
+        "properties": {
+          "controlId": {
+            "type": "string"
+          },
+          "catalogueKey": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "covered",
+              "gap",
+              "unmapped"
+            ],
+            "description": "covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped"
+          },
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, report, monitor)"
+          }
+        },
+        "required": [
+          "controlId",
+          "catalogueKey",
+          "ref",
+          "title",
+          "status",
+          "counts"
         ],
         "additionalProperties": false
       }
@@ -9553,6 +10079,611 @@
           }
         }
       }
+    },
+    "/access-changes": {
+      "get": {
+        "operationId": "listAccessChanges",
+        "summary": "List access change entries",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Documented grants, revocations and changes of access rights (records of the type \"Access change\"), newest first. Includes entries created automatically by runs and entries documented after the fact.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "platformId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "description": "Part of the subject id or name (case-insensitive)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "grant",
+                "revoke",
+                "modify",
+                "onboarding",
+                "offboarding"
+              ]
+            },
+            "in": "query",
+            "name": "kind",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Performed at or after (ISO 8601)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Performed at or before (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of access change entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of access change entries",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessChange"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/access-findings": {
+      "get": {
+        "operationId": "listAccessFindings",
+        "summary": "List access reconciliation findings",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Access changes the reconciliation found without a matching access change entry (open), documented after the fact (documented) or dismissed with a reason. Only findings of checks the token owner may read.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "checkId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "platformId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "documented",
+                "dismissed"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Detected at or after"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Detected at or before"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of findings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of findings",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessFinding"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/control-catalogues": {
+      "get": {
+        "operationId": "listControlCatalogues",
+        "summary": "List control catalogues",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Built-in (ISO/IEC 27001:2022 Annex A, IEC 62443-2-1, NIS2 Art. 21(2) – identifiers and short topic names) and imported catalogues.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ControlCatalogue"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/controls": {
+      "get": {
+        "operationId": "listControls",
+        "summary": "List controls and the Steward items mapped to them",
+        "tags": [
+          "Compliance"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "catalogue",
+            "required": false,
+            "description": "Catalogue key or id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of controls",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of controls",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Control"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/control-coverage": {
+      "get": {
+        "operationId": "listControlCoverage",
+        "summary": "Evidence coverage of controls in a period",
+        "tags": [
+          "Compliance"
+        ],
+        "description": "Per control: covered (evidence in the period), gap (mapped items, but no evidence) or unmapped, with the number of evidence items per kind.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "catalogue",
+            "required": false,
+            "description": "Catalogue key or id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "description": "Start of the period"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "description": "End of the period"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of coverage entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of coverage entries",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ControlCoverage"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -9621,6 +10752,10 @@
     {
       "name": "Ticket references",
       "description": "Tickets in other systems (ServiceNow incidents, vendor tickets) that Steward documents: status, responsible people, affected items"
+    },
+    {
+      "name": "Compliance",
+      "description": "Access governance evidence: access change entries, access reconciliation findings, control catalogues and evidence coverage"
     }
   ],
   "externalDocs": {

@@ -11,6 +11,7 @@ export const NOTIFICATION_EVENTS = [
   'report.ready',
   'ticket.unchecked',
   'summary.daily',
+  'access.undocumented',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -25,6 +26,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'report.ready': 'A scheduled report you receive was generated',
   'ticket.unchecked': 'An open ticket reference you are responsible for was not checked for a while',
   'summary.daily': 'The daily summary of people who turned it on in their profile (in-app and e-mail only)',
+  'access.undocumented': 'The access reconciliation found access changes without an access change entry',
 };
 
 export interface AppNotification {

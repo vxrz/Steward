@@ -112,7 +112,12 @@
       "Widgets ({{count}})",
       "Zabbix",
       "{{step}} · sha256 {{hash}} · {{date}}",
-      "×{{count}} parallel"
+      "×{{count}} parallel",
+      "Compliance",
+      "Offboarding",
+      "Onboarding",
+      "Snapshot",
+      "Snapshots"
     ]
   }
 }

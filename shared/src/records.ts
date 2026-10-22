@@ -8,7 +8,7 @@ import type { ErrorParams } from './errors.js';
 
 // ---------- workflows ----------
 
-export const RECORD_WORKFLOW_KEYS = ['change', 'decision'] as const;
+export const RECORD_WORKFLOW_KEYS = ['change', 'decision', 'access'] as const;
 export type RecordWorkflowKey = (typeof RECORD_WORKFLOW_KEYS)[number];
 
 export interface RecordTransitionDef {
@@ -65,6 +65,19 @@ export const RECORD_WORKFLOWS: Record<RecordWorkflowKey, RecordWorkflow> = {
       { action: 'deprecate', from: ['accepted'], to: 'deprecated' },
     ],
   },
+  // Access change entries (compliance): documenting freezes the entry; verifying is a second person's check (four-eyes).
+  access: {
+    key: 'access',
+    initial: 'draft',
+    statuses: ['draft', 'documented', 'verified', 'cancelled'],
+    terminal: ['verified', 'cancelled'],
+    revisable: ['documented'],
+    transitions: [
+      { action: 'document', from: ['draft'], to: 'documented' },
+      { action: 'verify', from: ['documented'], to: 'verified', approval: true },
+      { action: 'cancel', from: ['draft'], to: 'cancelled' },
+    ],
+  },
 };
 
 /** Every status of every workflow (for filters and the API schema). */
@@ -84,6 +97,8 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   cancelled: 'gray',
   superseded: 'orange',
   deprecated: 'yellow',
+  documented: 'blue',
+  verified: 'green',
 };
 
 // ---------- record types ----------

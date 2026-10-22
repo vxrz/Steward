@@ -40,6 +40,15 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Services, credentials and records are connected: credentials register entries link to the services that use them, records and services link to credentials, and every side lists the others under _Linked from_ – always with the reader's rights (viewers only see credentials they own).
 - Scheduled reports: a _Records and change requests_ section (records created, changed, approved or implemented in the period, open change requests by status, planned change windows).
 
+**Compliance: access governance evidence** ([docs/COMPLIANCE.md](docs/COMPLIANCE.md)) – a new _Compliance_ section in the sidebar:
+
+- **Access changes**: a built-in record type _Access change_ (`AC-2026-0001`; draft → documented (frozen) → verified by a second person) for every grant, revocation and change of access rights – platform, subject, rights before and after, reason, request reference, approver, performer, time, attachments.
+- **Automatic entries from runs**: the new step _Document access change_ (`accessChange`) records what a run changed; when the run ends, Steward creates one documented entry per subject, linked to the run with its PDF protocol attached. The access review, privileged access review, offboarding and onboarding examples use it.
+- **Access reconciliation**: scheduled snapshots of who has which access (Insights Hub identity management, or any platform through a dataset in the access snapshot shape – example 16), compared with the documented entries; undocumented grants, removals, changes, new and removed accounts become findings with notifications and a one-click _Document this change_ (marked _documented after the fact_). Snapshots are immutable, hash-chained and audited. In demo mode: _Simulate a change outside Steward_.
+- **Controls**: built-in catalogues ISO/IEC 27001:2022 Annex A, IEC 62443-2-1 and NIS2 Art. 21(2) (identifiers and short topic names only), JSON/YAML/CSV import, mapping of processes, record types, records, monitors, report schedules and checks to controls, and the evidence coverage per period with gaps highlighted.
+- **Evidence packs**: a ZIP for controls, a platform or a service and a period – index (PDF/A and JSON), run protocols, record PDFs and files, access changes, snapshots and findings, scheduled reports, an audit log excerpt with a signed checkpoint, and a `manifest.json` with the SHA-256 of every file signed with the installation's Ed25519 key. Offline check: `npm run evidence:verify -- pack.zip` / `steward evidence verify pack.zip`.
+- REST API: `GET /api/v1/access-changes`, `/access-findings`, `/control-catalogues`, `/controls`, `/control-coverage`.
+
 **Processes and engine**
 
 - Node-RED-style flow editor with a node palette, labelled outputs and YAML source view.
@@ -147,6 +156,7 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 ### Security
 
 - Git sync: repository hosts must pass the outbound policy; the access token is vault-encrypted, never returned and only sent to the source's API base (redirects refused); responses are size-capped, blobs checked against their Git object ids, paths confined to the folder, YAML parsed as plain data, files with secret-looking values refused; optional signed-commit requirement; source configuration needs a signed-in session; the push webhook is HMAC/secret-authenticated and rate-limited; every fetch, staging and decision is audited.
+- Evidence packs only contain what the requester may see (the audit log excerpt only for auditors and administrators), are size-limited, written to disk as they are built and deleted after the retention period; requesting, building and downloading them is audited.
 - Holistic review (OWASP ASVS 4.0.3 level 2), see [docs/REVIEW-2026-10.md](docs/REVIEW-2026-10.md):
   - API specifications and operations of a platform (`/api/platforms/:id/specs`, `/operations`, `/api/specs/:id/content`) were readable by every signed-in user; they now need a permission on the platform, like the platform itself.
   - API tokens can no longer manage users, teams, single sign-on providers, sign-in and outbound settings or the master passphrase (`403 SESSION_REQUIRED`): before, a leaked full-access token of an administrator could create a new administrator or reset a password and so outlive its revocation.

@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { ActionIcon, Badge, Box, Collapse, Divider, Group, Indicator, NavLink, ScrollArea, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import {
+  IconArrowsDiff,
   IconCalendarTime,
   IconBrandGit,
+  IconChecklist,
   IconChartBar,
   IconChevronDown,
   IconFileCertificate,
@@ -14,6 +16,7 @@ import {
   IconLayoutDashboard,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
+  IconPackageExport,
   IconPlayerPlay,
   IconReportAnalytics,
   IconServer,
@@ -22,6 +25,7 @@ import {
   IconSitemap,
   IconStack2,
   IconTicket,
+  IconUserShield,
   IconUsers,
   IconWebhook,
   type Icon,
@@ -44,10 +48,14 @@ export type NavKey =
   | 'credentials'
   | 'tickets'
   | 'reports'
+  | 'controls'
+  | 'accessChanges'
+  | 'reconciliation'
+  | 'evidencePacks'
   | 'audit'
   | 'users'
   | 'settings';
-export type NavGroupKey = 'operate' | 'automate' | 'service' | 'admin';
+export type NavGroupKey = 'operate' | 'automate' | 'service' | 'compliance' | 'admin';
 
 interface NavItemDef {
   to: string;
@@ -95,6 +103,15 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/records', key: 'records', icon: IconFileCertificate },
       { to: '/reports', key: 'reports', icon: IconReportAnalytics },
+    ],
+  },
+  {
+    key: 'compliance',
+    items: [
+      { to: '/compliance/controls', key: 'controls', icon: IconChecklist },
+      { to: '/compliance/access-changes', key: 'accessChanges', icon: IconUserShield },
+      { to: '/compliance/reconciliation', key: 'reconciliation', icon: IconArrowsDiff },
+      { to: '/compliance/evidence-packs', key: 'evidencePacks', icon: IconPackageExport, cap: 'exportEvidence' },
     ],
   },
   {

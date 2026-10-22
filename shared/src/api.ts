@@ -122,6 +122,8 @@ export interface Capabilities {
   createPlatforms: boolean;
   /** Create monitors and manage heartbeat gateways */
   createMonitors: boolean;
+  /** Export evidence packs (Compliance) */
+  exportEvidence?: boolean;
 }
 
 export interface Me {

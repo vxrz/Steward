@@ -8,6 +8,7 @@ const NO_CAPS: Capabilities = {
   createProcesses: false,
   createPlatforms: false,
   createMonitors: false,
+  exportEvidence: false,
 };
 
 export const MeContext = createContext<Me | null>(null);

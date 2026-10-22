@@ -20,14 +20,15 @@ The **service catalogue** is a deliberately small list of the services the team 
 
 ## Record types
 
-Steward creates four types on first start. Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
+Steward creates five types on first start. Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
 
-| Key   | Name                         | Workflow | Fields                                                                                  |
-| ----- | ---------------------------- | -------- | --------------------------------------------------------------------------------------- |
-| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end |
-| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                            |
-| `DR`  | Decision record              | decision | as ADR                                                                                  |
-| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                               |
+| Key   | Name                         | Workflow | Fields                                                                                                            |
+| ----- | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                           |
+| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                      |
+| `DR`  | Decision record              | decision | as ADR                                                                                                            |
+| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                         |
+| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\* |
 
 \* required before the record can be submitted.
 
@@ -56,6 +57,8 @@ Draft ──submit──▶ Submitted ──approve──▶ Approved ──impl
   │                  │  └──reject──▶ Rejected
   └──cancel──▶ Cancelled ◀──cancel──┘
 ```
+
+**Access** (access change entries, see [COMPLIANCE.md](COMPLIANCE.md)): Draft ──document──▶ Documented ──verify──▶ Verified; Draft ──cancel──▶ Cancelled. _Verify_ is an approval (four-eyes; the person who performed the change cannot verify it either). The fields of the access change type cannot be removed: the reconciliation and the evidence packs read them.
 
 **Decision** (ADR, DR, SDR):
 

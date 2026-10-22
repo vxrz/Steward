@@ -18,7 +18,11 @@
     "records": "Dokumente",
     "services": "Services",
     "gitUpdates": "Änderungen aus Git",
-    "tickets": "Ticket-Referenzen"
+    "tickets": "Ticket-Referenzen",
+    "controls": "Kontrollen",
+    "accessChanges": "Zugriffsänderungen",
+    "reconciliation": "Zugriffsabgleich",
+    "evidencePacks": "Nachweispakete"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
@@ -90,7 +94,8 @@
     "operate": "Betrieb",
     "automate": "Automatisierung",
     "service": "Service-Management",
-    "admin": "Administration"
+    "admin": "Administration",
+    "compliance": "Compliance"
   },
   "mainNavigation": "Hauptnavigation",
   "collapseSidebar": "Seitenleiste einklappen",

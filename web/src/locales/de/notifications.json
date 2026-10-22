@@ -71,6 +71,12 @@
         "label": "Tageszusammenfassung",
         "info": "Die Tageszusammenfassung für Personen, die sie in ihrem Profil eingeschaltet haben (nur in der App und per E-Mail)"
       }
+    },
+    "access": {
+      "undocumented": {
+        "label": "Undokumentierter Zugriff",
+        "info": "Der Zugriffsabgleich hat Zugriffsänderungen ohne Eintrag gefunden"
+      }
     }
   }
 }

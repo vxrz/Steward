@@ -26,6 +26,7 @@ import type reportSchedules from '../locales/en/reportSchedules.json';
 import type gatus from '../locales/en/gatus.json';
 import type gitSync from '../locales/en/gitSync.json';
 import type tickets from '../locales/en/tickets.json';
+import type compliance from '../locales/en/compliance.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
 import errors from '../locales/en/errors.json';
@@ -65,4 +66,5 @@ export interface Resources {
   services: typeof services;
   gitSync: typeof gitSync;
   tickets: typeof tickets;
+  compliance: typeof compliance;
 }

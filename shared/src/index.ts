@@ -21,3 +21,4 @@ export * from './gitsync.js';
 export * from './errors.js';
 export * from './tickets.js';
 export * from './dailySummary.js';
+export * from './compliance.js';

@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import {
+  ACCESS_CHANGE_FIELD_KEYS,
+  ACCESS_RECORD_TYPE,
+  ACCESS_TYPE_ID,
   DEFAULT_RECORD_TYPES,
   RECORD_FIELD_KEY_RE,
   RECORD_FIELD_KINDS,
@@ -76,6 +79,7 @@ let seeded = false;
 /** Creates the default record types once (an installation that deleted or renamed them keeps its own). */
 export function ensureDefaultTypes(): void {
   if (seeded) return;
+  ensureAccessType();
   if (db().get("SELECT 1 FROM settings WHERE key = 'records.defaultTypesSeeded'")) {
     seeded = true;
     return;
@@ -103,6 +107,33 @@ export function ensureDefaultTypes(): void {
   });
   seeded = true;
 }
+/**
+ * The built-in type for access change entries (compliance), also in installations created before it
+ * existed. Its id is fixed (rty_ac); the key is AC unless an installation already uses that key.
+ */
+function ensureAccessType(): void {
+  if (db().get('SELECT 1 FROM record_types WHERE id = ?', ACCESS_TYPE_ID)) return;
+  db().tx(() => {
+    if (db().get('SELECT 1 FROM record_types WHERE id = ?', ACCESS_TYPE_ID)) return;
+    const key = ['AC', 'ACC', 'ACE', 'ACCESS'].find((k) => !db().get('SELECT 1 FROM record_types WHERE key = ?', k)) ?? 'ACX';
+    const now = nowIso();
+    const t = ACCESS_RECORD_TYPE;
+    db().run(
+      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, builtin, archived, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, 'system') ON CONFLICT (id) DO NOTHING`,
+      ACCESS_TYPE_ID,
+      key,
+      t.name,
+      t.description,
+      t.workflow,
+      t.template,
+      JSON.stringify(t.fields),
+      now,
+      now,
+    );
+  });
+}
+
 /** For tests that swap the database. */
 export function resetTypeSeed(): void {
   seeded = false;
@@ -205,6 +236,20 @@ export function updateType(id: string, input: TypeInput): RecordType {
     );
   if (input.workflow !== cur.workflow && used > 0)
     throw new HttpError(409, 'The workflow of a type that has records cannot be changed – create a new type instead', 'TYPE_WORKFLOW_LOCKED');
+  if (cur.id === ACCESS_TYPE_ID) {
+    // the reconciliation, automatic entries and evidence packs read these fields
+    const keys = new Set(input.fields.map((f) => f.key));
+    const missing = ACCESS_CHANGE_FIELD_KEYS.filter((k) => !keys.has(k));
+    if (missing.length || input.workflow !== 'access')
+      throw new HttpError(
+        409,
+        `The access change type keeps its workflow and the fields ${missing.join(', ') || ACCESS_CHANGE_FIELD_KEYS.join(', ')}`,
+        'TYPE_FIELDS_LOCKED',
+        {
+          fields: missing.length ? missing : ACCESS_CHANGE_FIELD_KEYS,
+        },
+      );
+  }
   const changes = (['key', 'name', 'description', 'workflow', 'template'] as const).filter((k) => input[k] !== cur[k]);
   if (JSON.stringify(input.fields) !== cur.fields) changes.push('fields' as never);
   const archived = input.archived ?? !!cur.archived;

@@ -39,6 +39,7 @@ export const NAMESPACES = [
   'services',
   'gitSync',
   'tickets',
+  'compliance',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

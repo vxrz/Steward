@@ -27,6 +27,7 @@ import { monitorApiRoutes } from '../../monitors/api-v1.js';
 import { credentialApiRoutes } from '../../credentials/api-v1.js';
 import { recordApiRoutes } from '../../records/api-v1.js';
 import { ticketApiRoutes } from '../../tickets/api-v1.js';
+import { complianceApiRoutes } from '../../compliance/api-v1.js';
 import { HttpError } from '../../util.js';
 import { API_VERSION } from './config.js';
 import { ProblemError } from './problem.js';
@@ -1154,4 +1155,6 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
   await recordApiRoutes(app, get);
   // ---------- ticket references ----------
   ticketApiRoutes(get);
+  // ---------- compliance ----------
+  complianceApiRoutes(get);
 }

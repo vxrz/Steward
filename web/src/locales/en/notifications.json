@@ -71,6 +71,12 @@
         "label": "Daily summary",
         "info": "The daily summary of people who turned it on in their profile (in-app and e-mail only)"
       }
+    },
+    "access": {
+      "undocumented": {
+        "label": "Undocumented access",
+        "info": "The access reconciliation found access changes without an access change entry"
+      }
     }
   }
 }

@@ -38,6 +38,8 @@ export interface DomainEvents {
   'check.failed': { runId: string; processId: string; processName: string; check: string; severity: string; message: string; dryRun: boolean };
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };
   'dataset.published': { key: string; title: string; processId: string; staleAfterMinutes?: number };
+  /** A record moved to another status (records workflow) or went back to draft (action "revise") */
+  'record.transitioned': { recordId: string; typeId: string; action: string; to: string };
   /** reason: English text (logs, audit); reasonCode + reasonVars: for translated notifications */
   'schedule.skipped': {
     scheduleId: string;
