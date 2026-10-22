@@ -246,7 +246,15 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
   return (
     <Modal opened={opened} onClose={onClose} title={t('import.title')} size="lg">
       <Stack>
-        <Textarea classNames={{ input: 'mono' }} autosize minRows={10} maxRows={24} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={'name: My dashboard\nwidgets:\n  - { id: w1, type: kpi, dataset: iem.devices }'} />
+        <Textarea
+          classNames={{ input: 'mono' }}
+          autosize
+          minRows={10}
+          maxRows={24}
+          value={text}
+          onChange={(e) => setText(e.currentTarget.value)}
+          placeholder={'name: My dashboard\nwidgets:\n  - { id: w1, type: kpi, dataset: iem.devices }'}
+        />
         <Group justify="space-between">
           <Button variant="default" size="xs" component="label" leftSection={<IconUpload size={14} />}>
             {t('import.loadFile')}

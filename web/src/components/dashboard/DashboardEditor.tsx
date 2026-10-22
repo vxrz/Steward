@@ -55,9 +55,7 @@ function newWidget(type: WidgetType, existing: DashboardWidget[]): DashboardWidg
 
 /** Strip undefined/empty fields so the YAML stays tidy. */
 function clean(w: DashboardWidget): DashboardWidget {
-  return Object.fromEntries(
-    Object.entries(w).filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0)),
-  ) as DashboardWidget;
+  return Object.fromEntries(Object.entries(w).filter(([, v]) => v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0))) as DashboardWidget;
 }
 
 export function DashboardEditor({ value, onChange }: { value: DashboardDefinition; onChange: (d: DashboardDefinition) => void }) {
@@ -95,7 +93,13 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
         <Tabs.Panel value="widgets" pt="sm">
           <Stack gap={6}>
             {widgets.map((w, i) => (
-              <Group key={w.id} justify="space-between" wrap="nowrap" gap="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', paddingBottom: 6 }}>
+              <Group
+                key={w.id}
+                justify="space-between"
+                wrap="nowrap"
+                gap="xs"
+                style={{ borderBottom: '1px solid var(--mantine-color-default-border)', paddingBottom: 6 }}
+              >
                 <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Badge variant="light" size="sm" style={{ flexShrink: 0 }}>
                     {widgetLabel(w.type)}
@@ -117,7 +121,13 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
                   <ActionIcon variant="subtle" size="sm" aria-label={t('common:edit')} onClick={() => setEditing(w)}>
                     <IconEdit size={14} />
                   </ActionIcon>
-                  <ActionIcon variant="subtle" color="red" size="sm" aria-label={t('common:remove')} onClick={() => setWidgets(widgets.filter((x) => x.id !== w.id))}>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    size="sm"
+                    aria-label={t('common:remove')}
+                    onClick={() => setWidgets(widgets.filter((x) => x.id !== w.id))}
+                  >
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Group>
@@ -155,7 +165,13 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
         <Tabs.Panel value="settings" pt="sm">
           <Stack gap="sm" maw={560}>
             <TextInput label={t('common:name')} required value={value.name} onChange={(e) => onChange({ ...value, name: e.currentTarget.value })} />
-            <Textarea label={t('editor.description')} autosize minRows={2} value={value.description ?? ''} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || undefined })} />
+            <Textarea
+              label={t('editor.description')}
+              autosize
+              minRows={2}
+              value={value.description ?? ''}
+              onChange={(e) => onChange({ ...value, description: e.currentTarget.value || undefined })}
+            />
             <NumberInput
               label={t('editor.refreshSeconds')}
               description={t('editor.refreshSecondsHint')}
@@ -224,8 +240,19 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
           {widgetInfo(w.type)}
         </Text>
         <Group grow align="flex-start">
-          <TextInput label={t('form.widgetTitle')} placeholder={t('form.automatic')} value={w.title ?? ''} onChange={(e) => set({ title: e.currentTarget.value || undefined })} />
-          <Select label={t('form.width')} data={WIDTHS.map((v) => ({ value: v, label: t(`form.widths.w${v}`) }))} value={String(w.width ?? defaultWidth(w.type))} onChange={(v) => set({ width: Number(v) || undefined })} allowDeselect={false} />
+          <TextInput
+            label={t('form.widgetTitle')}
+            placeholder={t('form.automatic')}
+            value={w.title ?? ''}
+            onChange={(e) => set({ title: e.currentTarget.value || undefined })}
+          />
+          <Select
+            label={t('form.width')}
+            data={WIDTHS.map((v) => ({ value: v, label: t(`form.widths.w${v}`) }))}
+            value={String(w.width ?? defaultWidth(w.type))}
+            onChange={(v) => set({ width: Number(v) || undefined })}
+            allowDeselect={false}
+          />
         </Group>
         {usesDataset && (
           <Autocomplete
@@ -276,7 +303,14 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
         )}
         {w.type === 'table' && (
           <>
-            <MultiSelect label={t('form.columns')} placeholder={t('form.allColumns')} data={meta?.columns ?? []} value={w.columns ?? []} onChange={(v) => set({ columns: v })} searchable />
+            <MultiSelect
+              label={t('form.columns')}
+              placeholder={t('form.allColumns')}
+              data={meta?.columns ?? []}
+              value={w.columns ?? []}
+              onChange={(v) => set({ columns: v })}
+              searchable
+            />
             <Group grow align="flex-end">
               <Switch label={t('form.problemsOnly')} checked={!!w.problemsOnly} onChange={(e) => set({ problemsOnly: e.currentTarget.checked || undefined })} />
               <NumberInput label={t('form.rowsShown')} min={5} max={5000} value={w.limit ?? 50} onChange={(v) => set({ limit: Number(v) || undefined })} />

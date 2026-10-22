@@ -155,13 +155,7 @@ export interface Subject {
 
 // ---------- Platforms ----------
 
-export type AuthType =
-  | 'none'
-  | 'basic'
-  | 'bearer'
-  | 'apiKey'
-  | 'oauth2_client_credentials'
-  | 'token_request';
+export type AuthType = 'none' | 'basic' | 'bearer' | 'apiKey' | 'oauth2_client_credentials' | 'token_request';
 
 export interface AuthConfig {
   type: AuthType;
@@ -373,14 +367,7 @@ export interface ProcessTemplate {
 
 // ---------- Runs ----------
 
-export type RunStatus =
-  | 'queued'
-  | 'running'
-  | 'waiting'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled'
-  | 'interrupted';
+export type RunStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
 
 export type StepStatus = 'running' | 'succeeded' | 'failed' | 'skipped' | 'waiting' | 'dryrun';
 

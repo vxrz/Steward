@@ -129,7 +129,9 @@ async function sendTestError(): Promise<number> {
   const { initErrorReporting, sendTestEvent, errorReportingSettings, parseDsn } = await import('../errorReporting.js');
   const settings = errorReportingSettings();
   if (!settings.dsn) {
-    console.error(process.env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.');
+    console.error(
+      process.env.SM_SENTRY_DSN ? 'SM_SENTRY_DSN is not a valid DSN (https://<key>@<host>/<project>).' : 'SM_SENTRY_DSN is not set – error reporting is off.',
+    );
     return EXIT_FAILURE;
   }
   if (!(await initErrorReporting())) {
@@ -141,7 +143,9 @@ async function sendTestError(): Promise<number> {
   const { id, status } = await sendTestEvent(10000);
   if (!id || !status || status >= 400) {
     console.error(
-      status ? `The error tracker at ${host} answered HTTP ${status} (wrong DSN or project?).` : `Could not deliver the test event to ${host} within 10 s (network, proxy or DSN?).`,
+      status
+        ? `The error tracker at ${host} answered HTTP ${status} (wrong DSN or project?).`
+        : `Could not deliver the test event to ${host} within 10 s (network, proxy or DSN?).`,
     );
     return EXIT_FAILURE;
   }
@@ -169,7 +173,9 @@ async function main(): Promise<number> {
     return EXIT_OK;
   }
   if (inExecutable && config.database.kind !== 'sqlite') {
-    console.error('The desktop executable always uses its built-in SQLite database – PostgreSQL (SM_DATABASE_URL) needs the Node.js or container version. Unset SM_DATABASE_URL.');
+    console.error(
+      'The desktop executable always uses its built-in SQLite database – PostgreSQL (SM_DATABASE_URL) needs the Node.js or container version. Unset SM_DATABASE_URL.',
+    );
     return EXIT_FAILURE;
   }
   if (args.sendTestError) return sendTestError();

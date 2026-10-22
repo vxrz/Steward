@@ -39,7 +39,11 @@ export function MonitorWallPage() {
             {t('wall.updated', { when: fmtRelative(new Date(q.dataUpdatedAt || now).toISOString()) })}
           </Text>
           <Tooltip label={t('wall.fullScreen')}>
-            <ActionIcon variant="subtle" aria-label={t('wall.fullScreen')} onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined)}>
+            <ActionIcon
+              variant="subtle"
+              aria-label={t('wall.fullScreen')}
+              onClick={() => document.documentElement.requestFullscreen?.().catch(() => undefined)}
+            >
               <IconMaximize size={18} />
             </ActionIcon>
           </Tooltip>
@@ -73,7 +77,11 @@ export function MonitorWallPage() {
               </Text>
             </Group>
             <Text size="sm" mt={6} lineClamp={2}>
-              {m.maintenance ? m.maintenance.reason : m.rootCauses.length ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ') : t('wall.checks', { count: m.checkCount })}
+              {m.maintenance
+                ? m.maintenance.reason
+                : m.rootCauses.length
+                  ? m.rootCauses.map((c) => causeText(c, m.id)).join(', ')
+                  : t('wall.checks', { count: m.checkCount })}
             </Text>
             <Text size="xs" mt={6}>
               {t('wall.uptimeSince', { uptime: fmtUptime(m.uptime.h24), since: fmtRelative(m.since) })}

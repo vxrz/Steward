@@ -56,7 +56,12 @@ const cmp = (a: Key, b: Key): number => {
 };
 
 /** Page through an in-memory list ordered ascending by `keyOf`. */
-export function pageArray<T>(all: T[], keyOf: (x: T) => Key, q: { cursor?: string; limit: number }, filters: Record<string, unknown>): { items: T[]; nextCursor: string | null } {
+export function pageArray<T>(
+  all: T[],
+  keyOf: (x: T) => Key,
+  q: { cursor?: string; limit: number },
+  filters: Record<string, unknown>,
+): { items: T[]; nextCursor: string | null } {
   const after = decodeCursor(q.cursor, filters);
   const sorted = [...all].sort((a, b) => cmp(keyOf(a), keyOf(b)));
   const rest = after ? sorted.filter((x) => cmp(keyOf(x), after) > 0) : sorted;

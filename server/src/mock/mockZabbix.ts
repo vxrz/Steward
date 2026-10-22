@@ -37,7 +37,8 @@ export async function mockZabbix(app: FastifyInstance): Promise<void> {
     if (b.method !== 'history.push') return err(-32601, 'Method not found.', 'Incorrect API "' + b.method + '".');
     const list = (Array.isArray(b.params) ? b.params : [b.params]) as Partial<Pushed & { itemid: string }>[];
     const data = list.map((p) => {
-      if (p.host !== DEMO_ZABBIX.host || !String(p.key ?? '').startsWith('steward.')) return { error: 'No permissions to referred object or it does not exist.' };
+      if (p.host !== DEMO_ZABBIX.host || !String(p.key ?? '').startsWith('steward.'))
+        return { error: 'No permissions to referred object or it does not exist.' };
       received.push({ host: p.host, key: String(p.key), value: String(p.value), clock: Number(p.clock), ns: p.ns });
       if (received.length > 1000) received.shift();
       return { itemid: itemId(String(p.key)) };

@@ -172,7 +172,11 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
     requestContext.run({ user: toAuthUser(p.user), ip: req.ip }, done);
   });
   app.setErrorHandler((err, req, reply) => {
-    const e = err as Error & { statusCode?: number; validation?: { instancePath?: string; params?: Record<string, string>; message?: string }[]; validationContext?: string };
+    const e = err as Error & {
+      statusCode?: number;
+      validation?: { instancePath?: string; params?: Record<string, string>; message?: string }[];
+      validationContext?: string;
+    };
     if (err instanceof ProblemError) return sendProblem(req, reply, err.status, err.init);
     if (e.validation) {
       const where = e.validationContext === 'params' ? 'path' : 'query';
@@ -249,7 +253,12 @@ export async function publicApi(app: FastifyInstance): Promise<void> {
       // absolute asset URLs in the page when it is opened without a trailing slash
       indexPrefix: '/api',
       baseDir: dir,
-      logo: { type: 'image/svg+xml', content: logoFile ? fs.readFileSync(logoFile) : Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), href: '/', target: '_self' },
+      logo: {
+        type: 'image/svg+xml',
+        content: logoFile ? fs.readFileSync(logoFile) : Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+        href: '/',
+        target: '_self',
+      },
       theme: { title: `${BRAND.name} API` },
       uiConfig: {
         deepLinking: true,

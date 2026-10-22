@@ -35,7 +35,11 @@ function demoize(text: string): string {
 }
 
 export async function setupMonitorDemo(): Promise<number> {
-  const names = new Set(db().all<{ name: string }>('SELECT name FROM platforms').map((r) => r.name));
+  const names = new Set(
+    db()
+      .all<{ name: string }>('SELECT name FROM platforms')
+      .map((r) => r.name),
+  );
   if (!names.has('Zabbix (demo)')) {
     createPlatform({
       name: 'Zabbix (demo)',
@@ -43,7 +47,11 @@ export async function setupMonitorDemo(): Promise<number> {
       environment: 'demo',
       description: 'Simulated Zabbix 7 JSON-RPC API (history.push) served by the built-in mock. A real Zabbix also accepts the trapper protocol on port 10051.',
       baseUrl: `http://127.0.0.1:${config.port}/mock/zabbix`,
-      config: { auth: { type: 'bearer' }, variables: { host: DEMO_ZABBIX.host, apiPath: '/api_jsonrpc.php', trapperHost: '127.0.0.1', trapperPort: '10051' }, http: { proxy: 'none' } },
+      config: {
+        auth: { type: 'bearer' },
+        variables: { host: DEMO_ZABBIX.host, apiPath: '/api_jsonrpc.php', trapperHost: '127.0.0.1', trapperPort: '10051' },
+        http: { proxy: 'none' },
+      },
       secrets: { token: DEMO_ZABBIX.token },
     });
   }
@@ -58,10 +66,19 @@ export async function setupMonitorDemo(): Promise<number> {
       rateLimitPerMinute: 120,
     });
   }
-  const have = new Set(db().all<{ key: string }>('SELECT key FROM monitors').map((r) => r.key));
+  const have = new Set(
+    db()
+      .all<{ key: string }>('SELECT key FROM monitors')
+      .map((r) => r.key),
+  );
   let created = 0;
   const dir = examplesDir();
-  for (const f of fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => /\.ya?ml$/.test(x)).sort() : []) {
+  for (const f of fs.existsSync(dir)
+    ? fs
+        .readdirSync(dir)
+        .filter((x) => /\.ya?ml$/.test(x))
+        .sort()
+    : []) {
     const text = demoize(fs.readFileSync(path.join(dir, f), 'utf8'));
     const key = (YAML.parse(text) as { key?: string }).key;
     if (key && have.has(key)) continue;
@@ -73,7 +90,10 @@ export async function setupMonitorDemo(): Promise<number> {
     }
   }
   // outputs to the simulated Zabbix (API) and Gatus (external endpoint) on the PowerMeter monitor
-  const pm = db().get<{ id: string; definition: string; version: number }>('SELECT id, definition, version FROM monitors WHERE key = ?', 'machine-17-powermeter');
+  const pm = db().get<{ id: string; definition: string; version: number }>(
+    'SELECT id, definition, version FROM monitors WHERE key = ?',
+    'machine-17-powermeter',
+  );
   if (pm) {
     const def = JSON.parse(pm.definition) as { outputs: { id: string }[] };
     if (!def.outputs.some((o) => o.id === 'zabbix')) {
@@ -133,7 +153,13 @@ async function simulateOnce(first = false): Promise<void> {
     { key: 'm18.machine', ts: new Date(now).toISOString(), value: 1380 + Math.round(Math.random() * 60), data: { unit: 'rpm' } },
   ];
   // machine 17 reports on change only: every few minutes
-  if (first || tick % 6 === 0) reports.push({ key: 'm17.machine', ts: new Date(now).toISOString(), value: 1450 + Math.round(Math.random() * 100), data: { unit: 'rpm', state: 'running' } });
+  if (first || tick % 6 === 0)
+    reports.push({
+      key: 'm17.machine',
+      ts: new Date(now).toISOString(),
+      value: 1450 + Math.round(Math.random() * 100),
+      data: { unit: 'rpm', state: 'running' },
+    });
   if (first) reports.push({ key: 'm18.powermeter', ts: new Date(now - 25 * 60000).toISOString(), value: 51.2, data: { unit: 'kW' } });
   try {
     const res = await fetch(`http://127.0.0.1:${config.port}/api/hooks/monitors`, {

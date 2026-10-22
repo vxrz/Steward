@@ -85,53 +85,53 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
   return (
     <Stack>
       {!readOnly && (
-      <Paper withBorder p="md">
-        <Title order={5} mb="sm">
-          {t('docs.addTitle')}
-        </Title>
-        <Stack>
-          <SegmentedControl
-            value={kind}
-            onChange={(v) => setKind(v as 'note' | 'link' | 'file')}
-            data={[
-              { value: 'note', label: t('docs.kinds.note') },
-              { value: 'link', label: t('docs.kinds.link') },
-              { value: 'file', label: t('docs.kinds.file') },
-            ]}
-          />
-          <TextInput label={t('docs.title')} required={kind === 'note'} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
-          {kind === 'note' && (
-            <Textarea
-              label={t('docs.note')}
-              autosize
-              minRows={4}
-              placeholder={t('docs.notePlaceholder')}
-              value={content}
-              onChange={(e) => setContent(e.currentTarget.value)}
+        <Paper withBorder p="md">
+          <Title order={5} mb="sm">
+            {t('docs.addTitle')}
+          </Title>
+          <Stack>
+            <SegmentedControl
+              value={kind}
+              onChange={(v) => setKind(v as 'note' | 'link' | 'file')}
+              data={[
+                { value: 'note', label: t('docs.kinds.note') },
+                { value: 'link', label: t('docs.kinds.link') },
+                { value: 'file', label: t('docs.kinds.file') },
+              ]}
             />
-          )}
-          {kind === 'link' && <TextInput label={t('docs.url')} placeholder="https://…" value={url} onChange={(e) => setUrl(e.currentTarget.value)} />}
-          {kind === 'file' && (
-            <Group>
-              <FileButton onChange={setFile}>
-                {(props) => (
-                  <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
-                    {t('docs.chooseFile')}
-                  </Button>
-                )}
-              </FileButton>
-              <Text size="sm" c="dimmed">
-                {file ? `${file.name} (${fmtSize(file.size)})` : t('docs.fileHint')}
-              </Text>
+            <TextInput label={t('docs.title')} required={kind === 'note'} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+            {kind === 'note' && (
+              <Textarea
+                label={t('docs.note')}
+                autosize
+                minRows={4}
+                placeholder={t('docs.notePlaceholder')}
+                value={content}
+                onChange={(e) => setContent(e.currentTarget.value)}
+              />
+            )}
+            {kind === 'link' && <TextInput label={t('docs.url')} placeholder="https://…" value={url} onChange={(e) => setUrl(e.currentTarget.value)} />}
+            {kind === 'file' && (
+              <Group>
+                <FileButton onChange={setFile}>
+                  {(props) => (
+                    <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
+                      {t('docs.chooseFile')}
+                    </Button>
+                  )}
+                </FileButton>
+                <Text size="sm" c="dimmed">
+                  {file ? `${file.name} (${fmtSize(file.size)})` : t('docs.fileHint')}
+                </Text>
+              </Group>
+            )}
+            <Group justify="flex-end">
+              <Button onClick={add} loading={busy} disabled={!canAdd}>
+                {t('common:add')}
+              </Button>
             </Group>
-          )}
-          <Group justify="flex-end">
-            <Button onClick={add} loading={busy} disabled={!canAdd}>
-              {t('common:add')}
-            </Button>
-          </Group>
-        </Stack>
-      </Paper>
+          </Stack>
+        </Paper>
       )}
 
       <Paper withBorder p="md">
@@ -156,7 +156,7 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                       </Anchor>
                     )}
                     {d.kind === 'link' && (
-                      <Anchor size="sm" fw={500} href={/^https?:\/\//i.test(d.url ?? "") ? d.url : undefined} target="_blank" rel="noreferrer">
+                      <Anchor size="sm" fw={500} href={/^https?:\/\//i.test(d.url ?? '') ? d.url : undefined} target="_blank" rel="noreferrer">
                         {d.title}
                       </Anchor>
                     )}
@@ -171,9 +171,11 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                   </div>
                 </Group>
                 <Tooltip label={t('common:delete')}>
-                  {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label={t('common:delete')}>
-                    <IconTrash size={16} />
-                  </ActionIcon>}
+                  {!readOnly && (
+                    <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label={t('common:delete')}>
+                      <IconTrash size={16} />
+                    </ActionIcon>
+                  )}
                 </Tooltip>
               </Group>
               {d.kind === 'note' && (

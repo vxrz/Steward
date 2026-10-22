@@ -92,7 +92,11 @@ export function resetTheme(): ThemeSettings {
  * scripts – is null.
  */
 export function imageInfo(data: Buffer): { mime: ThemeLogoType; width: number; height: number } | null {
-  if (data.length >= 24 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) && data.subarray(12, 16).toString('latin1') === 'IHDR') {
+  if (
+    data.length >= 24 &&
+    data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) &&
+    data.subarray(12, 16).toString('latin1') === 'IHDR'
+  ) {
     return { mime: 'image/png', width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
   }
   if (data.length >= 4 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
@@ -133,7 +137,8 @@ export function imageInfo(data: Buffer): { mime: ThemeLogoType; width: number; h
   return null;
 }
 
-const looksLikeSvg = (data: Buffer) => /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!doctype svg[^>]*>\s*)?<svg[\s>]/i.test(data.subarray(0, 2048).toString('utf8'));
+const looksLikeSvg = (data: Buffer) =>
+  /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!doctype svg[^>]*>\s*)?<svg[\s>]/i.test(data.subarray(0, 2048).toString('utf8'));
 
 export function setLogo(data: Buffer): ThemeSettings {
   if (!data.length) throw new HttpError(400, 'The file is empty', 'THEME_LOGO_EMPTY');

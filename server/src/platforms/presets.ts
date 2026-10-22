@@ -111,9 +111,7 @@ export const PRESETS: PlatformPreset[] = [
       { key: 'username', label: 'IEM user (e-mail)' },
       { key: 'password', label: 'Password' },
     ],
-    docs: [
-      { title: 'Industrial Edge documentation', url: 'https://docs.eu1.edge.siemens.cloud/' },
-    ],
+    docs: [{ title: 'Industrial Edge documentation', url: 'https://docs.eu1.edge.siemens.cloud/' }],
   },
   {
     kind: 'gatus',

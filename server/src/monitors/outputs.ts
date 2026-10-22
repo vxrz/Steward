@@ -1,15 +1,7 @@
 import { EnvHttpProxyAgent, fetch } from 'undici';
 import { assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import {
-  BRAND,
-  MONITOR_STATUS_CODE,
-  fillPlaceholders,
-  type CauseRef,
-  type MonitorStatus,
-  type OutputDef,
-  type UserInfo,
-} from '@sm/shared';
+import { BRAND, MONITOR_STATUS_CODE, fillPlaceholders, type CauseRef, type MonitorStatus, type OutputDef, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { logger } from '../log.js';
 import { runAs } from '../auth/context.js';
@@ -77,7 +69,12 @@ const statusesOf = (o: OutputDef): MonitorStatus[] | undefined => o.statuses ?? 
 const peopleFacing = (o: OutputDef) => o.type === 'notification' || o.type === 'process';
 
 function outState(mid: string, oid: string, subject: string): OutState | undefined {
-  return db().get<OutState>('SELECT last_status, last_sent_at, last_error, last_run_id FROM monitor_output_state WHERE monitor_id = ? AND output_id = ? AND subject = ?', mid, oid, subject);
+  return db().get<OutState>(
+    'SELECT last_status, last_sent_at, last_error, last_run_id FROM monitor_output_state WHERE monitor_id = ? AND output_id = ? AND subject = ?',
+    mid,
+    oid,
+    subject,
+  );
 }
 
 function saveOutState(mid: string, oid: string, subject: string, patch: Partial<OutState>): void {
@@ -160,7 +157,12 @@ export async function dispatchOutputs(ctx: DispatchContext): Promise<void> {
         (runIds) => {
           const ts = new Date(ctx.now).toISOString();
           send.forEach((e, i) => {
-            saveOutState(m.id, o.id, e.subject, { last_status: e.status, last_sent_at: ts, last_error: null, ...(runIds?.[i] ? { last_run_id: runIds[i] } : {}) });
+            saveOutState(m.id, o.id, e.subject, {
+              last_status: e.status,
+              last_sent_at: ts,
+              last_error: null,
+              ...(runIds?.[i] ? { last_run_id: runIds[i] } : {}),
+            });
             lastAttempt.delete(`${m.id}|${o.id}|${e.subject}`);
           });
         },
@@ -271,7 +273,12 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
   const body = { source: BRAND.slug, monitor: { id: m.id, key: m.key, name: m.name }, events: events.map(payload) };
   if (o.platform) {
     const { platform, secrets } = platformFor(m.owner, o.platform);
-    const r = await platformRequest(platform, secrets, { method: 'POST', url: fillPlaceholders(o.path || '/', placeholders(m, events[0]!)), body, bodyType: 'json' }, AbortSignal.timeout(15000));
+    const r = await platformRequest(
+      platform,
+      secrets,
+      { method: 'POST', url: fillPlaceholders(o.path || '/', placeholders(m, events[0]!)), body, bodyType: 'json' },
+      AbortSignal.timeout(15000),
+    );
     if (!r.ok) throw new Error(`HTTP ${r.status} from "${platform.name}"`);
     return;
   }
@@ -300,7 +307,11 @@ async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMoni
       {
         method: 'POST',
         url: `/api/v1/endpoints/${encodeURIComponent(key)}/external`,
-        query: { success: String(ok), ...(ok ? {} : { error: e.message.slice(0, 300) }), ...(e.durationMs ? { duration: `${Math.round(e.durationMs)}ms` } : {}) },
+        query: {
+          success: String(ok),
+          ...(ok ? {} : { error: e.message.slice(0, 300) }),
+          ...(e.durationMs ? { duration: `${Math.round(e.durationMs)}ms` } : {}),
+        },
         headers: { authorization: `Bearer ${token}` },
       },
       AbortSignal.timeout(15000),
@@ -343,7 +354,9 @@ async function sendZabbix(o: Extract<OutputDef, { type: 'zabbix' }>, m: LoadedMo
   await assertNetAllowed(host, port, outboundContext());
   const r = await zabbixSend(host, port, items);
   if (r.failed > 0 || r.processed < items.length) {
-    throw new Error(`Zabbix processed ${r.processed} of ${items.length} values (failed: ${r.failed}) – check the host name, the item keys and that the items are of type "Zabbix trapper"`);
+    throw new Error(
+      `Zabbix processed ${r.processed} of ${items.length} values (failed: ${r.failed}) – check the host name, the item keys and that the items are of type "Zabbix trapper"`,
+    );
   }
 }
 
@@ -391,4 +404,3 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
   }
   return ids;
 }
-

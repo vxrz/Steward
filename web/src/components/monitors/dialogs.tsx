@@ -43,7 +43,9 @@ export function heartbeatCurl(path: string, hmac = false): string {
 }
 
 export function gatewayCurl(keys: string[]): string {
-  const reports = (keys.length ? keys : ['m17.powermeter', 'm17.machine']).slice(0, 3).map((k, i) => ({ key: k, ts: '2026-10-22T08:15:00Z', value: i === 0 ? 42.7 : 1450 }));
+  const reports = (keys.length ? keys : ['m17.powermeter', 'm17.machine'])
+    .slice(0, 3)
+    .map((k, i) => ({ key: k, ts: '2026-10-22T08:15:00Z', value: i === 0 ? 42.7 : 1450 }));
   return `curl -sS -X POST '${origin()}/api/hooks/monitors' \\\n  -H 'Content-Type: application/json' \\\n  -H "Authorization: Bearer $STEWARD_GATEWAY_SECRET" \\\n  --data '${JSON.stringify({ reports })}'`;
 }
 
@@ -101,7 +103,15 @@ export function MaintenanceModal({ monitor, onClose, onSaved }: { monitor: Monit
           {t('maintenance.intro')}
         </Text>
         <TextInput type="datetime-local" label={t('maintenance.start')} value={start} onChange={(e) => setStart(e.currentTarget.value)} />
-        <NumberInput label={t('maintenance.duration')} min={0.25} max={744} step={0.5} decimalScale={2} value={hours} onChange={(v) => setHours(Number(v) || 1)} />
+        <NumberInput
+          label={t('maintenance.duration')}
+          min={0.25}
+          max={744}
+          step={0.5}
+          decimalScale={2}
+          value={hours}
+          onChange={(v) => setHours(Number(v) || 1)}
+        />
         <Textarea label={t('maintenance.reason')} required autosize minRows={2} value={reason} onChange={(e) => setReason(e.currentTarget.value)} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
@@ -155,7 +165,15 @@ export function AcknowledgeModal({ monitor, onClose, onSaved }: { monitor: Monit
 }
 
 /** Create instances of a template: one with a form, or many from CSV. */
-export function InstantiateModal({ template, onClose, onCreated }: { template: MonitorDetail; onClose: () => void; onCreated: (r: MonitorSaveResult[]) => void }) {
+export function InstantiateModal({
+  template,
+  onClose,
+  onCreated,
+}: {
+  template: MonitorDetail;
+  onClose: () => void;
+  onCreated: (r: MonitorSaveResult[]) => void;
+}) {
   const params = (template.definition.parameters ?? []) as TemplateParam[];
   const [values, setValues] = useState<Record<string, string | number>>(() => Object.fromEntries(params.map((p) => [p.name, p.default ?? ''])));
   const [csv, setCsv] = useState(`name,${params.map((p) => p.name).join(',')}\n`);
@@ -185,9 +203,23 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
           <Stack gap="xs">
             {params.map((p) =>
               p.type === 'number' ? (
-                <NumberInput key={p.name} label={p.label ?? p.name} description={p.description} required={p.required && p.default === undefined} value={values[p.name] ?? ''} onChange={(v) => setValues({ ...values, [p.name]: v })} />
+                <NumberInput
+                  key={p.name}
+                  label={p.label ?? p.name}
+                  description={p.description}
+                  required={p.required && p.default === undefined}
+                  value={values[p.name] ?? ''}
+                  onChange={(v) => setValues({ ...values, [p.name]: v })}
+                />
               ) : (
-                <TextInput key={p.name} label={p.label ?? p.name} description={p.description} required={p.required && p.default === undefined} value={String(values[p.name] ?? '')} onChange={(e) => setValues({ ...values, [p.name]: e.currentTarget.value })} />
+                <TextInput
+                  key={p.name}
+                  label={p.label ?? p.name}
+                  description={p.description}
+                  required={p.required && p.default === undefined}
+                  value={String(values[p.name] ?? '')}
+                  onChange={(e) => setValues({ ...values, [p.name]: e.currentTarget.value })}
+                />
               ),
             )}
           </Stack>
@@ -197,7 +229,15 @@ export function InstantiateModal({ template, onClose, onCreated }: { template: M
             <Text size="sm" c="dimmed">
               {t('instances.csvHint')}
             </Text>
-            <Textarea autosize minRows={6} maxRows={16} value={csv} onChange={(e) => setCsv(e.currentTarget.value)} classNames={{ input: 'mono' }} aria-label="CSV" />
+            <Textarea
+              autosize
+              minRows={6}
+              maxRows={16}
+              value={csv}
+              onChange={(e) => setCsv(e.currentTarget.value)}
+              classNames={{ input: 'mono' }}
+              aria-label="CSV"
+            />
             <FileButton accept=".csv,text/csv" onChange={async (f) => f && setCsv(await f.text())}>
               {(props) => (
                 <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />} w="fit-content">
@@ -251,17 +291,32 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
         <Select
           label={t('importDialog.library')}
           placeholder={t('importDialog.choose')}
-          data={(examples.data ?? []).map((e) => ({ value: e.file, label: e.kind === 'monitorTemplate' ? t('importDialog.templateName', { name: e.name }) : e.name }))}
+          data={(examples.data ?? []).map((e) => ({
+            value: e.file,
+            label: e.kind === 'monitorTemplate' ? t('importDialog.templateName', { name: e.name }) : e.name,
+          }))}
           value={example}
           onChange={setExample}
         />
-        {example && <Text size="xs" c="dimmed">{examples.data?.find((e) => e.file === example)?.description}</Text>}
+        {example && (
+          <Text size="xs" c="dimmed">
+            {examples.data?.find((e) => e.file === example)?.description}
+          </Text>
+        )}
         <Group justify="flex-end">
           <Button disabled={!example} loading={busy} onClick={() => run(() => post(`/monitors/examples/${encodeURIComponent(example!)}`))}>
             {t('importDialog.importExample')}
           </Button>
         </Group>
-        <Textarea label={t('importDialog.paste')} autosize minRows={6} maxRows={18} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} />
+        <Textarea
+          label={t('importDialog.paste')}
+          autosize
+          minRows={6}
+          maxRows={18}
+          value={yaml}
+          onChange={(e) => setYaml(e.currentTarget.value)}
+          classNames={{ input: 'mono' }}
+        />
         <Group justify="space-between">
           <FileButton accept=".yaml,.yml" onChange={async (f) => f && setYaml(await f.text())}>
             {(props) => (

@@ -47,7 +47,19 @@ test.describe('phone @mobile', () => {
     await expectNoHorizontalScroll(page);
   });
 
-  for (const path of ['/', '/tasks', '/runs', '/processes', '/schedules', '/dashboards', '/platforms', '/settings', '/profile', '/monitors', '/monitors/wall']) {
+  for (const path of [
+    '/',
+    '/tasks',
+    '/runs',
+    '/processes',
+    '/schedules',
+    '/dashboards',
+    '/platforms',
+    '/settings',
+    '/profile',
+    '/monitors',
+    '/monitors/wall',
+  ]) {
     test(`no horizontal scroll on ${path}`, async ({ page }) => {
       await page.goto(path);
       await expect(page.getByRole('main').getByRole('heading', { level: 2 }).first()).toBeVisible();

@@ -61,7 +61,12 @@ export function StatusLabel({ status, text, count, size = 'sm' }: { status?: Dat
 export function StatusCounts({ counts, size = 'xs' }: { counts: Partial<Record<DatasetStatus, number>>; size?: 'xs' | 'sm' }) {
   const { t } = useTranslation('dashboards');
   const present = STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
-  if (!present.length) return <Text size={size} c="dimmed">{t('status.none')}</Text>;
+  if (!present.length)
+    return (
+      <Text size={size} c="dimmed">
+        {t('status.none')}
+      </Text>
+    );
   return (
     <Group gap={10} wrap="wrap">
       {present.map((s) => (

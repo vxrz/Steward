@@ -23,7 +23,10 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const kid = crypto.randomBytes(6).toString('hex');
   const jwk = { ...(publicKey.export({ format: 'jwk' }) as Record<string, string>), kid, alg: 'RS256', use: 'sig' };
-  const codes = new Map<string, { identity: (typeof DEMO_IDENTITIES)[number]; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }>();
+  const codes = new Map<
+    string,
+    { identity: (typeof DEMO_IDENTITIES)[number]; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }
+  >();
 
   const issuerOf = (host: string | undefined) => `http://${host}/mock/oidc`;
 
@@ -91,7 +94,10 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'invalid_grant' });
     }
     if (entry.challenge) {
-      const expected = crypto.createHash('sha256').update(b.code_verifier ?? '').digest('base64url');
+      const expected = crypto
+        .createHash('sha256')
+        .update(b.code_verifier ?? '')
+        .digest('base64url');
       if (expected !== entry.challenge) return reply.code(400).send({ error: 'invalid_grant', error_description: 'PKCE verification failed' });
     }
     const now = Math.floor(Date.now() / 1000);

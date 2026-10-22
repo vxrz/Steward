@@ -86,7 +86,12 @@ export function ExpressionInput({
       setTok(null);
       return;
     }
-    const list = filterSuggestions(ctx.suggestions, t.token, t.exprStart && (force || text.slice(t.start - 2, t.start).endsWith('{{') || text.slice(t.start - 3, t.start).endsWith('{{ ')), force);
+    const list = filterSuggestions(
+      ctx.suggestions,
+      t.token,
+      t.exprStart && (force || text.slice(t.start - 2, t.start).endsWith('{{') || text.slice(t.start - 3, t.start).endsWith('{{ ')),
+      force,
+    );
     setItems(list);
     setActive(0);
     setTok({ start: t.start, caret });

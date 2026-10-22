@@ -43,6 +43,8 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
     setOwn(owner ?? null);
   }, [acl, owner]);
 
+  // `t`: recompute when the language changes (subjectOptionLabel translates with the global i18n instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const labelOf = useMemo(() => new Map((subjects.data ?? []).map((s) => [s.value, subjectOptionLabel(s)])), [subjects.data, t]);
   const dirty = JSON.stringify(rows) !== JSON.stringify(acl) || (own ?? null) !== (owner ?? null);
   const kindColor = (s: string) => (s.startsWith('user:') ? 'blue' : s.startsWith('team:') ? 'grape' : 'gray');
@@ -67,9 +69,17 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Alert variant="light" color={rows.length ? 'orange' : 'blue'} p="sm">
         <Text size="sm">
           {rows.length ? (
-            <Trans t={t} i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'} components={{ b: <b /> }} />
+            <Trans
+              t={t}
+              i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'}
+              components={{ b: <b /> }}
+            />
           ) : (
-            <Trans t={t} i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'} components={{ b: <b /> }} />
+            <Trans
+              t={t}
+              i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'}
+              components={{ b: <b /> }}
+            />
           )}
         </Text>
       </Alert>
@@ -154,7 +164,9 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               size="xs"
               label={t('addLabel')}
               placeholder={t('addPlaceholder')}
-              data={(subjects.data ?? []).filter((s) => !rows.some((r) => r.subject === s.value)).map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
+              data={(subjects.data ?? [])
+                .filter((s) => !rows.some((r) => r.subject === s.value))
+                .map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
               value={draft}
               onChange={setDraft}
               onOptionSubmit={(v) => setDraft(v)}

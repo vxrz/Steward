@@ -14,7 +14,11 @@ export function secretInputNames(defs: InputDef[] | undefined): string[] {
 }
 
 /** Splits inputs into what may be stored and shown, and the encrypted secret values (null when there are none). */
-export function sealInputs(defs: InputDef[] | undefined, inputs: Record<string, unknown>, previous?: string | null): { visible: Record<string, unknown>; sealed: string | null } {
+export function sealInputs(
+  defs: InputDef[] | undefined,
+  inputs: Record<string, unknown>,
+  previous?: string | null,
+): { visible: Record<string, unknown>; sealed: string | null } {
   const names = secretInputNames(defs);
   if (!names.length) return { visible: inputs, sealed: null };
   const kept = previous ? openSealed(previous) : {};

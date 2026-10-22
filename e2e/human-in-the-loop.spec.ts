@@ -57,7 +57,10 @@ test.describe('human in the loop', () => {
     // --- audrey (auditor) finds the decision in the audit log; the chain is intact
     const audrey = await loginAs('audrey');
     await audrey.goto('/audit');
-    const row = audrey.getByRole('row').filter({ has: audrey.locator(`a[href="/runs/${runId}"]`) }).filter({ hasText: 'task.completed' });
+    const row = audrey
+      .getByRole('row')
+      .filter({ has: audrey.locator(`a[href="/runs/${runId}"]`) })
+      .filter({ hasText: 'task.completed' });
     await expect(row).toBeVisible();
     await expect(row).toContainText('adam');
     await expect(row).toContainText(`${count} of ${count} items selected`);
@@ -90,7 +93,10 @@ test.describe('human in the loop', () => {
     // untick everybody, then tick exactly one user
     await task.getByRole('checkbox', { name: 'Select all' }).click();
     await expect(task.getByRole('button', { name: 'Submit selection (0)' })).toBeVisible();
-    const first = task.getByRole('row').filter({ has: adam.getByRole('checkbox', { name: /^Select .+@example\.com$/ }) }).first();
+    const first = task
+      .getByRole('row')
+      .filter({ has: adam.getByRole('checkbox', { name: /^Select .+@example\.com$/ }) })
+      .first();
     const userName = (await first.getByRole('cell').nth(1).innerText()).trim();
     await first.click();
     await task.getByRole('button', { name: 'Submit selection (1)' }).click();

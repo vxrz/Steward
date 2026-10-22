@@ -56,9 +56,7 @@ export function AuditAnchoringPanel({ canManage }: { canManage: boolean }) {
         <Text size="sm">
           {t('anchoring.fingerprint')} <Code>{a.fingerprint ?? '–'}</Code>
         </Text>
-        <Text size="sm">
-          {a.latest ? t('anchoring.latest', { seq: a.latest.seq, date: fmtDate(a.latest.ts) }) : t('anchoring.none')}
-        </Text>
+        <Text size="sm">{a.latest ? t('anchoring.latest', { seq: a.latest.seq, date: fmtDate(a.latest.ts) }) : t('anchoring.none')}</Text>
         {a.configuredAnchors.length > 0 && (
           <Text size="sm" c="dimmed">
             {t('anchoring.configured', { list: a.configuredAnchors.join(', ') })}
@@ -80,8 +78,7 @@ export function AuditAnchoringPanel({ canManage }: { canManage: boolean }) {
           </Button>
         </Group>
         <Text size="xs" c="dimmed">
-          {t('anchoring.offline')}{' '}
-          <Code>npm run audit:verify-export -- --file audit-log.json --public-key steward-audit-public-key.pem</Code>
+          {t('anchoring.offline')} <Code>npm run audit:verify-export -- --file audit-log.json --public-key steward-audit-public-key.pem</Code>
         </Text>
         {canManage && (
           <Group align="end" mt="xs" gap="xs">

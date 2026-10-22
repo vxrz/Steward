@@ -201,11 +201,7 @@ function NotificationsCard({ user }: { user: UserInfo }) {
         />
         {browserOn && (
           <Group>
-            <Button
-              size="xs"
-              variant="light"
-              onClick={() => showBrowserNotification(t('notifications.testTitle'), t('notifications.testBody'), 'sm-test')}
-            >
+            <Button size="xs" variant="light" onClick={() => showBrowserNotification(t('notifications.testTitle'), t('notifications.testBody'), 'sm-test')}>
               {t('notifications.test')}
             </Button>
           </Group>
@@ -322,7 +318,12 @@ function TokensCard() {
               </Code>
               <CopyButton value={created.token}>
                 {({ copied, copy }) => (
-                  <Button variant={copied ? 'light' : 'filled'} color={copied ? 'green' : undefined} leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />} onClick={copy}>
+                  <Button
+                    variant={copied ? 'light' : 'filled'}
+                    color={copied ? 'green' : undefined}
+                    leftSection={copied ? <IconCheck size={16} /> : <IconCopy size={16} />}
+                    onClick={copy}
+                  >
                     {copied ? t('common:copied') : t('common:copy')}
                   </Button>
                 )}
@@ -379,7 +380,14 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
         }}
       >
         <Stack>
-          <TextInput label={t('common:name')} description={t('tokens.nameHint')} required value={name} onChange={(e) => setName(e.currentTarget.value)} data-autofocus />
+          <TextInput
+            label={t('common:name')}
+            description={t('tokens.nameHint')}
+            required
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            data-autofocus
+          />
           <div>
             <Text size="sm" fw={500} mb={4}>
               {t('tokens.access')}

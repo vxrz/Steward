@@ -37,11 +37,7 @@ const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
 };
 
 export function subjectsOf(u: AuthUser): Set<string> {
-  return new Set([
-    `user:${u.username.toLowerCase()}`,
-    ...u.teams.map((t) => `team:${t.toLowerCase()}`),
-    ...u.roles.map((r) => `role:${r}`),
-  ]);
+  return new Set([`user:${u.username.toLowerCase()}`, ...u.teams.map((t) => `team:${t.toLowerCase()}`), ...u.roles.map((r) => `role:${r}`)]);
 }
 
 export function matches(u: AuthUser, subject: string): boolean {
@@ -101,7 +97,9 @@ export function require<P extends string>(perms: P[], needed: P, what: string): 
 export function cleanAcl<P extends string>(acl: unknown, allowed: readonly P[]): AclEntry<P>[] {
   if (!Array.isArray(acl)) throw new HttpError(400, 'Access list must be an array');
   return acl.map((e) => {
-    const subject = String((e as AclEntry).subject ?? '').trim().toLowerCase();
+    const subject = String((e as AclEntry).subject ?? '')
+      .trim()
+      .toLowerCase();
     if (!/^(user|team|role):.+/.test(subject)) throw new HttpError(400, `Invalid subject "${subject}" – use user:<name>, team:<name> or role:<role>`);
     const permissions = [...new Set(((e as AclEntry).permissions ?? []).filter((p): p is P => (allowed as readonly string[]).includes(p)))];
     return { subject, permissions };

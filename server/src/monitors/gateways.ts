@@ -82,7 +82,8 @@ function requireEdit(id: string): GatewayRow {
 function clean(input: GatewayInput): GatewayInput {
   const cidrs = [...new Set(input.allowedCidrs.map((c) => c.trim()).filter(Boolean))];
   cidrs.forEach(parseCidr);
-  for (const k of input.allowedKeys) if (!/^[A-Za-z0-9_.:/*-]+$/.test(k)) throw new HttpError(400, `Invalid key pattern "${k}" (letters, digits, _ . : / - and * as wildcard)`);
+  for (const k of input.allowedKeys)
+    if (!/^[A-Za-z0-9_.:/*-]+$/.test(k)) throw new HttpError(400, `Invalid key pattern "${k}" (letters, digits, _ . : / - and * as wildcard)`);
   return { ...input, allowedCidrs: cidrs, allowedKeys: [...new Set(input.allowedKeys.map((k) => k.trim()))] };
 }
 
@@ -145,7 +146,13 @@ export function updateGateway(id: string, raw: GatewayInput): MonitorGateway {
       nowIso(),
       id,
     );
-    audit({ action: 'monitor.gateway_updated', entityType: 'monitor-gateway', entityId: id, summary: `Monitor gateway "${s.name}" updated${s.enabled ? '' : ' (disabled)'}`, details: { ...s, previousName: before.name } });
+    audit({
+      action: 'monitor.gateway_updated',
+      entityType: 'monitor-gateway',
+      entityId: id,
+      summary: `Monitor gateway "${s.name}" updated${s.enabled ? '' : ' (disabled)'}`,
+      details: { ...s, previousName: before.name },
+    });
   });
   return toGateway(gatewayRow(id)!);
 }
@@ -155,7 +162,15 @@ export function rotateGatewaySecret(id: string): { gateway: MonitorGateway; secr
   const sec = newSecret();
   const ts = nowIso();
   db().tx(() => {
-    db().run('UPDATE monitor_gateways SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ?, updated_at = ? WHERE id = ?', sec.enc, sec.hash, sec.prefix, ts, ts, id);
+    db().run(
+      'UPDATE monitor_gateways SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ?, updated_at = ? WHERE id = ?',
+      sec.enc,
+      sec.hash,
+      sec.prefix,
+      ts,
+      ts,
+      id,
+    );
     audit({
       action: 'monitor.gateway_secret_rotated',
       entityType: 'monitor-gateway',

@@ -85,7 +85,13 @@ export function revokeToken(id: string, ownerId?: string): void {
   if (r.revoked_at) return;
   db().tx(() => {
     db().run('UPDATE api_tokens SET revoked_at = ? WHERE id = ?', nowIso(), id);
-    audit({ action: 'token.revoked', entityType: 'token', entityId: id, summary: `API token "${r.name}" of ${r.username} revoked`, details: { owner: r.username } });
+    audit({
+      action: 'token.revoked',
+      entityType: 'token',
+      entityId: id,
+      summary: `API token "${r.name}" of ${r.username} revoked`,
+      details: { owner: r.username },
+    });
   });
 }
 

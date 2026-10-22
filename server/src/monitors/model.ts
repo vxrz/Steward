@@ -108,7 +108,16 @@ export function parseDefinition(text: string): MonitorDefinition {
 }
 
 export function loadMonitor(r: MonitorRow): LoadedMonitor {
-  return { id: r.id, key: r.key, name: r.name, owner: r.owner, enabled: !!r.enabled, isTemplate: !!r.is_template, version: r.version, def: parseDefinition(r.definition) };
+  return {
+    id: r.id,
+    key: r.key,
+    name: r.name,
+    owner: r.owner,
+    enabled: !!r.enabled,
+    isTemplate: !!r.is_template,
+    version: r.version,
+    def: parseDefinition(r.definition),
+  };
 }
 
 export const monitorRow = (idOrKey: string): MonitorRow | undefined =>

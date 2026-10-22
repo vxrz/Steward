@@ -61,7 +61,9 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     console.log(`  Data directory: ${config.dataDir}`);
     if (db().dialect !== 'sqlite') console.log(`  Database: ${db().label}`);
     if (config.demo) console.log('  DEMO MODE: mock platforms available under /mock');
-    console.log(vault().initialized ? (vault().unlocked ? '  Vault unlocked.' : '  Open the UI to unlock the vault.') : '  Open the UI to set up your master passphrase.');
+    console.log(
+      vault().initialized ? (vault().unlocked ? '  Vault unlocked.' : '  Open the UI to unlock the vault.') : '  Open the UI to set up your master passphrase.',
+    );
     console.log('');
   }
 

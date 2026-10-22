@@ -99,7 +99,12 @@ function readKey(v: string): string {
   return v.trim();
 }
 
-export function verifyExport(input: { entries: AuditEntry[]; checkpoints: { source: string; cp: AuditCheckpoint }[]; publicKey: string | null; keySource: 'option' | 'export' }): VerifyExportResult {
+export function verifyExport(input: {
+  entries: AuditEntry[];
+  checkpoints: { source: string; cp: AuditCheckpoint }[];
+  publicKey: string | null;
+  keySource: 'option' | 'export';
+}): VerifyExportResult {
   const problems: string[] = [];
   const entries = [...input.entries].sort((a, b) => a.seq - b.seq);
   const bySeq = new Map(entries.map((e) => [e.seq, e]));
@@ -235,7 +240,12 @@ export function main(argv = process.argv.slice(2)): number {
       checkpoints.push({ source: fs.existsSync(a) ? `anchor ${a}` : 'anchor', cp: parseCheckpoint(text) });
     }
     const optionKey = values['public-key'] ? readKey(values['public-key']) : null;
-    const result = verifyExport({ entries: exported.entries, checkpoints, publicKey: optionKey ?? exported.publicKey, keySource: optionKey ? 'option' : 'export' });
+    const result = verifyExport({
+      entries: exported.entries,
+      checkpoints,
+      publicKey: optionKey ?? exported.publicKey,
+      keySource: optionKey ? 'option' : 'export',
+    });
     if (values.json) {
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
       return result.ok ? EXIT_OK : EXIT_FAILURE;
@@ -244,12 +254,20 @@ export function main(argv = process.argv.slice(2)): number {
     const err = palette(process.stderr);
     if (!values.quiet) {
       console.log(`${result.entries} entries (#${result.firstSeq ?? '–'}–#${result.lastSeq ?? '–'})`);
-      if (result.publicKey) console.log(`public key ${result.publicKey.fingerprint}${result.publicKey.source === 'export' ? c.yellow(' (taken from the export – compare this fingerprint with the one you trust)') : ''}`);
+      if (result.publicKey)
+        console.log(
+          `public key ${result.publicKey.fingerprint}${result.publicKey.source === 'export' ? c.yellow(' (taken from the export – compare this fingerprint with the one you trust)') : ''}`,
+        );
       for (const r of result.checkpoints) if (r.ok) console.log(`${c.green('ok')}   ${r.source}: ${r.message}`);
-      if (result.uncovered > 0) console.log(c.dim(`${result.uncovered} newer entr${result.uncovered === 1 ? 'y is' : 'ies are'} not covered by a checkpoint yet`));
+      if (result.uncovered > 0)
+        console.log(c.dim(`${result.uncovered} newer entr${result.uncovered === 1 ? 'y is' : 'ies are'} not covered by a checkpoint yet`));
     }
     for (const p of result.problems) process.stderr.write(`${err.red('FAIL')} ${p}\n`);
-    console.log(result.ok ? c.green(`The export is consistent with ${result.checkpoints.length} signed checkpoint(s).`) : err.red('The export does NOT match its checkpoints.'));
+    console.log(
+      result.ok
+        ? c.green(`The export is consistent with ${result.checkpoints.length} signed checkpoint(s).`)
+        : err.red('The export does NOT match its checkpoints.'),
+    );
     return result.ok ? EXIT_OK : EXIT_FAILURE;
   } catch (e) {
     if (e instanceof UsageError) return usageFailure(e, COMMAND);

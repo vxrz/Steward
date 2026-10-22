@@ -9,7 +9,8 @@ export function gatusOpenApiSpec(): Record<string, unknown> {
     name: 'key',
     in: 'path',
     required: true,
-    description: 'Endpoint key: <group>_<name>, lower case, with " ", "/", "_", ",", ".", "#", "+" and "&" replaced by "-" (e.g. core_frontend, _frontend without a group)',
+    description:
+      'Endpoint key: <group>_<name>, lower case, with " ", "/", "_", ",", ".", "#", "+" and "&" replaced by "-" (e.g. core_frontend, _frontend without a group)',
     schema: { type: 'string' },
   };
   const duration = (values: string[]) => ({ name: 'duration', in: 'path', required: true, schema: { type: 'string', enum: values } });
@@ -55,7 +56,13 @@ export function gatusOpenApiSpec(): Record<string, unknown> {
             group: { type: 'string' },
             key: { type: 'string' },
             results: { type: 'array', description: 'Oldest first; the last entry is the latest check', items: { $ref: '#/components/schemas/Result' } },
-            events: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: ['START', 'HEALTHY', 'UNHEALTHY'] }, timestamp: { type: 'string', format: 'date-time' } } } },
+            events: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { type: { type: 'string', enum: ['START', 'HEALTHY', 'UNHEALTHY'] }, timestamp: { type: 'string', format: 'date-time' } },
+              },
+            },
           },
         },
         Result: {
@@ -133,7 +140,12 @@ export function gatusOpenApiSpec(): Record<string, unknown> {
         },
       },
       '/health': {
-        get: { operationId: 'gatusHealth', tags: ['Status'], summary: 'Health of Gatus itself', responses: json({ type: 'object', properties: { status: { type: 'string' } } }) },
+        get: {
+          operationId: 'gatusHealth',
+          tags: ['Status'],
+          summary: 'Health of Gatus itself',
+          responses: json({ type: 'object', properties: { status: { type: 'string' } } }),
+        },
       },
     },
   };

@@ -124,7 +124,14 @@ export function listRuns(f: { processId?: string; status?: string; scheduleId?: 
   const where: string[] = [];
   const params: unknown[] = [];
   if (f.processId) (where.push('process_id = ?'), params.push(f.processId));
-  if (f.status) (where.push(`status IN (${f.status.split(',').map(() => '?').join(',')})`), params.push(...f.status.split(',')));
+  if (f.status)
+    (where.push(
+      `status IN (${f.status
+        .split(',')
+        .map(() => '?')
+        .join(',')})`,
+    ),
+      params.push(...f.status.split(',')));
   if (f.scheduleId) (where.push('schedule_id = ?'), params.push(f.scheduleId));
   if (f.before) (where.push('started_at < ?'), params.push(f.before));
   params.push(Math.min(f.limit ?? 100, 1000));
@@ -233,7 +240,15 @@ export function getRunDetail(id: string): RunDetail {
 
 export function listChildRuns(runId: string): RunChild[] {
   return db()
-    .all<{ id: string; process_id: string; process_name: string; status: RunStatus; parent_step_key: string | null; started_at: string; finished_at: string | null }>(
+    .all<{
+      id: string;
+      process_id: string;
+      process_name: string;
+      status: RunStatus;
+      parent_step_key: string | null;
+      started_at: string;
+      finished_at: string | null;
+    }>(
       'SELECT id, process_id, process_name, status, parent_step_key, started_at, finished_at FROM runs WHERE parent_run_id = ? ORDER BY started_at, rowid',
       runId,
     )
@@ -271,7 +286,10 @@ export function ancestorChain(runId: string): { id: string; processId: string }[
   const seen = new Set<string>();
   while (cur && !seen.has(cur) && out.length < 50) {
     seen.add(cur);
-    const r: { id: string; process_id: string; parent_run_id: string | null } | undefined = db().get('SELECT id, process_id, parent_run_id FROM runs WHERE id = ?', cur);
+    const r: { id: string; process_id: string; parent_run_id: string | null } | undefined = db().get(
+      'SELECT id, process_id, parent_run_id FROM runs WHERE id = ?',
+      cur,
+    );
     if (!r) break;
     out.push({ id: r.id, processId: r.process_id });
     cur = r.parent_run_id;
@@ -320,11 +338,7 @@ export function updateStepInput(runId: string, key: string, input: unknown): voi
   db().run('UPDATE run_steps SET input = ? WHERE run_id = ? AND key = ?', JSON.stringify(input ?? null), runId, key);
 }
 
-export function finishStep(
-  runId: string,
-  key: string,
-  f: { status: StepStatus; output?: unknown; summary?: string; error?: string; startedMs: number },
-): void {
+export function finishStep(runId: string, key: string, f: { status: StepStatus; output?: unknown; summary?: string; error?: string; startedMs: number }): void {
   db().run(
     'UPDATE run_steps SET status = ?, output = ?, summary = ?, error = ?, finished_at = ?, duration_ms = ? WHERE run_id = ? AND key = ?',
     f.status,
@@ -377,7 +391,9 @@ export function stepStatusCounts(runId: string): Record<string, number> {
 }
 
 /** Check results of a run (journal entries of type "check"). */
-export function listChecks(runId: string): { stepKey: string; name: string; status: StepStatus; passed: boolean; severity: string; message: string; finishedAt: string | null }[] {
+export function listChecks(
+  runId: string,
+): { stepKey: string; name: string; status: StepStatus; passed: boolean; severity: string; message: string; finishedAt: string | null }[] {
   return db()
     .all<StepRow>("SELECT * FROM run_steps WHERE run_id = ? AND type = 'check' ORDER BY id", runId)
     .map((s) => {
@@ -569,15 +585,35 @@ export function addArtifact(a: Omit<RunArtifact, 'createdAt'> & { path: string }
 
 export function listArtifacts(runId: string): RunArtifact[] {
   return db()
-    .all<{ id: string; run_id: string; step_key: string; kind: 'screenshot' | 'file'; name: string; mime: string; sha256: string; size: number; created_at: string }>(
-      'SELECT * FROM run_artifacts WHERE run_id = ? ORDER BY created_at',
-      runId,
-    )
-    .map((a) => ({ id: a.id, runId: a.run_id, stepKey: a.step_key, kind: a.kind, name: a.name, mime: a.mime, sha256: a.sha256, size: a.size, createdAt: a.created_at }));
+    .all<{
+      id: string;
+      run_id: string;
+      step_key: string;
+      kind: 'screenshot' | 'file';
+      name: string;
+      mime: string;
+      sha256: string;
+      size: number;
+      created_at: string;
+    }>('SELECT * FROM run_artifacts WHERE run_id = ? ORDER BY created_at', runId)
+    .map((a) => ({
+      id: a.id,
+      runId: a.run_id,
+      stepKey: a.step_key,
+      kind: a.kind,
+      name: a.name,
+      mime: a.mime,
+      sha256: a.sha256,
+      size: a.size,
+      createdAt: a.created_at,
+    }));
 }
 
 export function artifactFile(id: string): { path: string; mime: string; name: string; runId: string } {
-  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS "runId" FROM run_artifacts WHERE id = ?', id);
+  const r = db().get<{ path: string; mime: string; name: string; runId: string }>(
+    'SELECT path, mime, name, run_id AS "runId" FROM run_artifacts WHERE id = ?',
+    id,
+  );
   if (!r) throw new HttpError(404, 'Artifact not found');
   return r;
 }

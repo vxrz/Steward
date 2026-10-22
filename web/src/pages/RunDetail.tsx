@@ -1,23 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Card,
-  Collapse,
-  Group,
-  Image,
-  Menu,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Tooltip,
-} from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Card, Collapse, Group, Image, Menu, Paper, SimpleGrid, Stack, Table, Tabs, Text, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -411,7 +394,19 @@ export function RunDetailPage() {
   );
 }
 
-function ShowMore({ shown, total, page, what, onShow }: { shown: number; total: number; page: number; what: 'steps' | 'logLines'; onShow: (limit: number) => void }) {
+function ShowMore({
+  shown,
+  total,
+  page,
+  what,
+  onShow,
+}: {
+  shown: number;
+  total: number;
+  page: number;
+  what: 'steps' | 'logLines';
+  onShow: (limit: number) => void;
+}) {
   const { t } = useTranslation('runs');
   if (shown >= total) return null;
   return (
@@ -518,7 +513,11 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
             <Text size="xs" c="dimmed" className="mono">
               {t('detail.step.started', { key: step.key, date: fmtDate(step.startedAt) })}
             </Text>
-            {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
+            {step.error && (
+              <Alert color="red" p="xs">
+                {step.error}
+              </Alert>
+            )}
             {childRuns && childRuns.length > 0 && (
               <Group gap={6}>
                 <Text size="xs" fw={600}>

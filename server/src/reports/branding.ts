@@ -36,10 +36,15 @@ export function getBranding(): ReportBranding {
 
 export function updateBranding(patch: Partial<Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>>): ReportBranding {
   const cur = { ...DEFAULTS, ...readSetting<Partial<Stored>>(KEY, {}) };
-  if (patch.accentColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(patch.accentColor)) throw new HttpError(400, 'Accent colour must be a hex colour like #1c7ed6');
+  if (patch.accentColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(patch.accentColor))
+    throw new HttpError(400, 'Accent colour must be a hex colour like #1c7ed6');
   const next: Stored = {
     ...cur,
-    ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v).trim()])),
+    ...Object.fromEntries(
+      Object.entries(patch)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, String(v).trim()]),
+    ),
   };
   writeSetting(KEY, next);
   return getBranding();

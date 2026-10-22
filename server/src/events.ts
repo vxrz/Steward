@@ -24,13 +24,29 @@ export interface DomainEvents {
     durationMs: number;
   };
   'step.finished': { runId: string; processId: string; nodeType: string; status: string; durationMs: number };
-  'task.created': { taskId: string; runId: string; processId: string; processName: string; title: string; assignees: string[]; fourEyes: boolean; runActor: string };
+  'task.created': {
+    taskId: string;
+    runId: string;
+    processId: string;
+    processName: string;
+    title: string;
+    assignees: string[];
+    fourEyes: boolean;
+    runActor: string;
+  };
   'task.completed': { taskId: string; runId: string };
   'check.failed': { runId: string; processId: string; processName: string; check: string; severity: string; message: string; dryRun: boolean };
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };
   'dataset.published': { key: string; title: string; processId: string; staleAfterMinutes?: number };
   /** reason: English text (logs, audit); reasonCode + reasonVars: for translated notifications */
-  'schedule.skipped': { scheduleId: string; name: string; owner: string | null; reason: string; reasonCode?: ScheduleSkipReason; reasonVars?: Record<string, string> };
+  'schedule.skipped': {
+    scheduleId: string;
+    name: string;
+    owner: string | null;
+    reason: string;
+    reasonCode?: ScheduleSkipReason;
+    reasonVars?: Record<string, string>;
+  };
 }
 
 type Name = keyof DomainEvents;

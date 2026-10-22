@@ -216,9 +216,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
           <Alert color={task.mode === 'approve' && !task.decision?.approved ? 'red' : 'green'} variant="light">
             <Trans
               t={t}
-              i18nKey={
-                task.mode === 'approve' ? (task.decision?.approved ? 'panel.decidedApproved' : 'panel.decidedRejected') : 'panel.decidedSelected'
-              }
+              i18nKey={task.mode === 'approve' ? (task.decision?.approved ? 'panel.decidedApproved' : 'panel.decidedRejected') : 'panel.decidedSelected'}
               values={{ count: decided.size, user: task.decidedBy ?? '', date: fmtDate(task.decidedAt) }}
               components={{ b: <strong /> }}
             />

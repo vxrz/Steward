@@ -259,7 +259,8 @@ const mapUser = (u: ReturnType<typeof users.getUser>) => ({
 
 // ---------- route definitions ----------
 
-const ERR = { 400: 'Bad request', 401: 'Missing or invalid token', 403: 'Not allowed', 404: 'Not found', 409: 'Conflict', 429: 'Rate limit exceeded' } as const;
+/** Error statuses an operation can declare (their OpenAPI responses: RESPONSES in ../index.ts). */
+type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 429;
 
 export interface Op {
   operationId: string;
@@ -274,7 +275,7 @@ export interface Op {
   /** Paginated list (Link header, nextCursor) */
   paginated?: boolean;
   /** Extra documented error statuses */
-  errors?: (keyof typeof ERR)[];
+  errors?: ErrorStatus[];
 }
 
 /** Operations that return pages (documented with a Link header). */
@@ -332,21 +333,17 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     'none',
   );
 
-  get(
-    '/me',
-    { operationId: 'getMe', tag: 'Meta', summary: 'Owner and scope of the token', response: S.ref('Me') },
-    async (req) => {
-      const p = principal(req);
-      const caps = capabilities(currentUser());
-      return {
-        user: { id: p.user.id, username: p.user.username, displayName: p.user.displayName, roles: p.user.roles, teams: p.user.teams },
-        token: { id: p.tokenId, name: p.tokenName, scope: p.scope, createdAt: p.createdAt, expiresAt: p.expiresAt, lastUsedAt: p.lastUsedAt },
-        capabilities: { viewAudit: caps.viewAudit, manageUsers: caps.manageUsers },
-        serverVersion: config.version,
-        apiVersion: API_VERSION,
-      };
-    },
-  );
+  get('/me', { operationId: 'getMe', tag: 'Meta', summary: 'Owner and scope of the token', response: S.ref('Me') }, async (req) => {
+    const p = principal(req);
+    const caps = capabilities(currentUser());
+    return {
+      user: { id: p.user.id, username: p.user.username, displayName: p.user.displayName, roles: p.user.roles, teams: p.user.teams },
+      token: { id: p.tokenId, name: p.tokenName, scope: p.scope, createdAt: p.createdAt, expiresAt: p.expiresAt, lastUsedAt: p.lastUsedAt },
+      capabilities: { viewAudit: caps.viewAudit, manageUsers: caps.manageUsers },
+      serverVersion: config.version,
+      apiVersion: API_VERSION,
+    };
+  });
 
   const specResponse = { type: 'object', additionalProperties: true, description: 'OpenAPI 3.1 document' };
   get(
@@ -361,10 +358,8 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     async () => opts.spec(),
     'spec',
   );
-  app.get(
-    '/openapi.yaml',
-    { schema: { hide: true }, config: { smAuth: 'spec' } },
-    async (_req, reply) => reply.type('application/yaml; charset=utf-8').send(YAML.stringify(opts.spec())),
+  app.get('/openapi.yaml', { schema: { hide: true }, config: { smAuth: 'spec' } }, async (_req, reply) =>
+    reply.type('application/yaml; charset=utf-8').send(YAML.stringify(opts.spec())),
   );
 
   // ---------- processes ----------
@@ -386,13 +381,23 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         .listProcesses()
         .filter((p) => !q.tag || p.tags.includes(q.tag))
         .filter((p) => !needle || [p.id, p.name, p.description].some((x) => x?.toLowerCase().includes(needle)));
-      return paged(req, reply, pageArray(list.map(mapProcess), (p) => [p.name.toLowerCase(), p.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(list.map(mapProcess), (p) => [p.name.toLowerCase(), p.id], q, q),
+      );
     },
   );
 
   get(
     '/processes/:processId',
-    { operationId: 'getProcess', tag: 'Processes', summary: 'Get a process with its current definition', params: { processId: 'Process id' }, response: S.ref('ProcessDetail') },
+    {
+      operationId: 'getProcess',
+      tag: 'Processes',
+      summary: 'Get a process with its current definition',
+      params: { processId: 'Process id' },
+      response: S.ref('ProcessDetail'),
+    },
     async (req) => {
       viewableProcess(params(req).processId!);
       const p = processes.getProcess(params(req).processId!);
@@ -416,7 +421,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       const id = params(req).processId!;
       viewableProcess(id);
       const q = query<{ cursor?: string; limit: number }>(req);
-      return paged(req, reply, pageArray(processes.listVersions(id), (v) => [-v.version], q, { ...q, id }));
+      return paged(
+        req,
+        reply,
+        pageArray(processes.listVersions(id), (v) => [-v.version], q, { ...q, id }),
+      );
     },
   );
 
@@ -478,7 +487,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         after: after ? { startedAt: String(after[0]), id: String(after[1]) } : undefined,
         limit: q.limit + 1,
       });
-      return paged(req, reply, pageRows(rows.map(mapRun), q.limit, (r) => [r.startedAt, r.id], q));
+      return paged(
+        req,
+        reply,
+        pageRows(rows.map(mapRun), q.limit, (r) => [r.startedAt, r.id], q),
+      );
     },
   );
 
@@ -547,7 +560,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       const filters = { ...q, id };
       const after = decodeCursor(q.cursor, filters);
       const rows = store.listStepsPage(id, { afterId: after ? Number(after[0]) : undefined, limit: q.limit + 1, status: q.status, type: q.type });
-      return paged(req, reply, pageRows(rows.map(mapStep), q.limit, (s) => [Number(s.id)], filters));
+      return paged(
+        req,
+        reply,
+        pageRows(rows.map(mapStep), q.limit, (s) => [Number(s.id)], filters),
+      );
     },
   );
 
@@ -633,7 +650,16 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         limit: q.limit + 1,
       });
       const perms = taskPerms();
-      return paged(req, reply, pageRows(rows.map((t) => mapTask(t, perms(t.processId))), q.limit, (t) => [t.createdAt, t.id], q));
+      return paged(
+        req,
+        reply,
+        pageRows(
+          rows.map((t) => mapTask(t, perms(t.processId))),
+          q.limit,
+          (t) => [t.createdAt, t.id],
+          q,
+        ),
+      );
     },
   );
 
@@ -680,7 +706,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         .filter((s) => !q.processId || s.processId === q.processId)
         .filter((s) => q.enabled === undefined || s.enabled === q.enabled)
         .map(mapSchedule);
-      return paged(req, reply, pageArray(list, (s) => [s.name.toLowerCase(), s.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(list, (s) => [s.name.toLowerCase(), s.id], q, q),
+      );
     },
   );
 
@@ -718,13 +748,23 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         .filter((p) => !q.kind || p.kind === q.kind)
         .filter((p) => !q.environment || p.environment === q.environment)
         .map(mapPlatform);
-      return paged(req, reply, pageArray(list, (p) => [p.name.toLowerCase(), p.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(list, (p) => [p.name.toLowerCase(), p.id], q, q),
+      );
     },
   );
 
   get(
     '/platforms/:platformId',
-    { operationId: 'getPlatform', tag: 'Platforms', summary: 'Get a platform (metadata only)', params: { platformId: 'Platform id' }, response: S.ref('Platform') },
+    {
+      operationId: 'getPlatform',
+      tag: 'Platforms',
+      summary: 'Get a platform (metadata only)',
+      params: { platformId: 'Platform id' },
+      response: S.ref('Platform'),
+    },
     async (req) => {
       try {
         return mapPlatform(platforms.getPlatform(params(req).platformId!));
@@ -754,13 +794,23 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         .listDatasets()
         .filter((d) => monitorDatasetVisible(d.processId) ?? visible.has(d.processId))
         .map(mapDataset);
-      return paged(req, reply, pageArray(list, (d) => [d.key], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(list, (d) => [d.key], q, q),
+      );
     },
   );
 
   get(
     '/datasets/:datasetKey',
-    { operationId: 'getDataset', tag: 'Dashboards', summary: 'Get dataset metadata', params: { datasetKey: 'Dataset key, e.g. iem.devices' }, response: S.ref('Dataset') },
+    {
+      operationId: 'getDataset',
+      tag: 'Dashboards',
+      summary: 'Get dataset metadata',
+      params: { datasetKey: 'Dataset key, e.g. iem.devices' },
+      response: S.ref('Dataset'),
+    },
     async (req) => mapDataset(visibleDataset(params(req).datasetKey!)),
   );
 
@@ -784,7 +834,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       const filters = { ...q, key: meta.key };
       const after = decodeCursor(q.cursor, filters);
       if (after && after[1] !== meta.updatedAt) {
-        throw new ProblemError(409, { type: 'dataset-changed', title: 'Dataset changed', detail: 'The dataset was re-published since the first page – start again without a cursor' });
+        throw new ProblemError(409, {
+          type: 'dataset-changed',
+          title: 'Dataset changed',
+          detail: 'The dataset was re-published since the first page – start again without a cursor',
+        });
       }
       const rows: DatasetRow[] = datasets.getDataset(meta.key).rows.filter((r) => !q.status?.length || q.status.includes(r._status ?? 'unknown'));
       const offset = after ? Number(after[0]) : 0;
@@ -829,13 +883,23 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async (req, reply) => {
       const q = query<{ cursor?: string; limit: number }>(req);
-      return paged(req, reply, pageArray(dashboards.listDashboards().map(mapDashboard), (d) => [d.name.toLowerCase(), d.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(dashboards.listDashboards().map(mapDashboard), (d) => [d.name.toLowerCase(), d.id], q, q),
+      );
     },
   );
 
   get(
     '/dashboards/:dashboardId',
-    { operationId: 'getDashboard', tag: 'Dashboards', summary: 'Get a dashboard definition', params: { dashboardId: 'Dashboard id' }, response: S.ref('Dashboard') },
+    {
+      operationId: 'getDashboard',
+      tag: 'Dashboards',
+      summary: 'Get a dashboard definition',
+      params: { dashboardId: 'Dashboard id' },
+      response: S.ref('Dashboard'),
+    },
     async (req) => {
       try {
         return mapDashboard(dashboards.getDashboard(params(req).dashboardId!));
@@ -859,7 +923,18 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       response: S.pageOf('AuditEntry', 'A page of audit entries'),
     },
     async (req, reply) => {
-      const q = query<{ action?: string; actor?: string; entityType?: string; entityId?: string; runId?: string; q?: string; from?: string; to?: string; cursor?: string; limit: number }>(req);
+      const q = query<{
+        action?: string;
+        actor?: string;
+        entityType?: string;
+        entityId?: string;
+        runId?: string;
+        q?: string;
+        from?: string;
+        to?: string;
+        cursor?: string;
+        limit: number;
+      }>(req);
       if (q.runId && !capabilities(currentUser()).viewAudit) viewableRun(q.runId);
       else requireCapability(currentUser(), 'viewAudit', 'view the audit log');
       const after = decodeCursor(q.cursor, q);
@@ -875,7 +950,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         beforeSeq: after ? Number(after[0]) : undefined,
         limit: q.limit + 1,
       });
-      return paged(req, reply, pageRows(rows.map(mapAudit), q.limit, (a) => [a.seq], q));
+      return paged(
+        req,
+        reply,
+        pageRows(rows.map(mapAudit), q.limit, (a) => [a.seq], q),
+      );
     },
   );
 
@@ -917,13 +996,24 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         .listUsers()
         .filter((u) => q.active === undefined || u.active === q.active)
         .map(mapUser);
-      return paged(req, reply, pageArray(list, (u) => [u.username.toLowerCase(), u.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(list, (u) => [u.username.toLowerCase(), u.id], q, q),
+      );
     },
   );
 
   get(
     '/users/:userId',
-    { operationId: 'getUser', tag: 'Users', summary: 'Get a user', description: 'Administrators only.', params: { userId: 'User id' }, response: S.ref('User') },
+    {
+      operationId: 'getUser',
+      tag: 'Users',
+      summary: 'Get a user',
+      description: 'Administrators only.',
+      params: { userId: 'User id' },
+      response: S.ref('User'),
+    },
     async (req) => {
       requireCapability(currentUser(), 'manageUsers', 'view users');
       try {
@@ -948,7 +1038,11 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     async (req, reply) => {
       requireCapability(currentUser(), 'manageUsers', 'list teams');
       const q = query<{ cursor?: string; limit: number }>(req);
-      return paged(req, reply, pageArray(users.listTeams(), (t) => [t.name.toLowerCase(), t.id], q, q));
+      return paged(
+        req,
+        reply,
+        pageArray(users.listTeams(), (t) => [t.name.toLowerCase(), t.id], q, q),
+      );
     },
   );
 

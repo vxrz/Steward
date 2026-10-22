@@ -86,7 +86,10 @@ const summaryBody = runReportBody.extend({
 
 const brandingBody = z.object({
   companyName: z.string().max(120).optional(),
-  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Use a hex colour like #1c7ed6').optional(),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Use a hex colour like #1c7ed6')
+    .optional(),
   classification: z.string().max(60).optional(),
   footerNote: z.string().max(200).optional(),
 });
@@ -162,7 +165,13 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       (Object.keys(b) as (keyof typeof b)[]).filter((k) => before[k] !== after[k]).map((k) => [k, { from: before[k], to: after[k] }]),
     );
     if (Object.keys(changed).length) {
-      audit({ action: 'report.branding_updated', entityType: 'settings', entityId: 'report-branding', summary: `Report branding changed (${Object.keys(changed).join(', ')})`, details: changed });
+      audit({
+        action: 'report.branding_updated',
+        entityType: 'settings',
+        entityId: 'report-branding',
+        summary: `Report branding changed (${Object.keys(changed).join(', ')})`,
+        details: changed,
+      });
     }
     return after;
   });
@@ -249,7 +258,9 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       entityType: 'report',
       entityId: result.report?.id ?? null,
       runId: result.report?.runId ?? null,
-      summary: result.report ? `PDF verified: ${result.match === 'exact' ? 'unchanged' : 'signed copy of'} report ${result.report.id}` : 'PDF verified: not a report generated here',
+      summary: result.report
+        ? `PDF verified: ${result.match === 'exact' ? 'unchanged' : 'signed copy of'} report ${result.report.id}`
+        : 'PDF verified: not a report generated here',
       details: { sha256: result.sha256, match: result.match, auditChainOk: chain.ok, ...(result.forgedEntries ? { forgedEntries: result.forgedEntries } : {}) },
     });
     return result;
@@ -273,7 +284,8 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       throw new HttpError(410, 'The report file is no longer available');
     }
     const actual = sha256(data);
-    if (actual !== rec.sha256) throw new HttpError(409, `The stored report file does not match its recorded SHA-256 (${rec.sha256.slice(0, 16)}…) – it was modified on disk`);
+    if (actual !== rec.sha256)
+      throw new HttpError(409, `The stored report file does not match its recorded SHA-256 (${rec.sha256.slice(0, 16)}…) – it was modified on disk`);
     audit({
       action: 'report.downloaded',
       entityType: 'report',

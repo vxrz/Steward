@@ -126,7 +126,14 @@ export function TrendChart({ series, names, height = 220 }: { series: MetricSeri
             </g>
           ))}
           {xTicks.map((t, i) => (
-            <text key={i} x={x(t)} y={height - 6} textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'} fontSize={11} fill="var(--viz-muted)">
+            <text
+              key={i}
+              x={x(t)}
+              y={height - 6}
+              textAnchor={i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'}
+              fontSize={11}
+              fill="var(--viz-muted)"
+            >
               {axisLabel(t, t1 - t0)}
             </text>
           ))}
@@ -189,7 +196,13 @@ export function TrendTable({ series, names }: { series: MetricSeries[]; names: s
   const times = [...new Set(series.flatMap((s) => s.points.map((p) => p.ts)))].sort().reverse();
   const val = (name: string, ts: string) => series.find((s) => s.name === name)?.points.find((p) => p.ts === ts)?.value;
   return (
-    <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={t('charts.valuesOf', { names: names.join(', ') })}>
+    <div
+      className="table-scroll"
+      style={{ maxHeight: 260, overflowY: 'auto' }}
+      tabIndex={0}
+      role="region"
+      aria-label={t('charts.valuesOf', { names: names.join(', ') })}
+    >
       <Table fz="xs" striped>
         <Table.Thead>
           <Table.Tr>
@@ -250,7 +263,14 @@ export function Sparkline({ points, height = 36 }: { points: { ts: string; value
         }}
         onPointerLeave={() => setHover(null)}
       >
-        <path d={points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('')} fill="none" stroke="var(--viz-deemph)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <path
+          d={points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join('')}
+          fill="none"
+          stroke="var(--viz-deemph)"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         <circle cx={x(last)} cy={y(points[last]!.value)} r={4} fill="var(--viz-series-1)" stroke="var(--viz-surface)" strokeWidth={2} />
         {h !== undefined && <line x1={x(h)} x2={x(h)} y1={0} y2={height} stroke="var(--viz-crosshair)" strokeWidth={1} />}
       </svg>
@@ -279,7 +299,12 @@ export function StatusBar({
   const { t } = useTranslation('dashboards');
   const total = STATUS_ORDER.reduce((n, s) => n + (counts[s] ?? 0), 0);
   const present = STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
-  if (!total) return <Text size="sm" c="dimmed">{t('charts.noStatusRows')}</Text>;
+  if (!total)
+    return (
+      <Text size="sm" c="dimmed">
+        {t('charts.noStatusRows')}
+      </Text>
+    );
   const pct = (n: number) => percent(n / total);
   return (
     <div className="viz-root">

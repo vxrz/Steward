@@ -21,13 +21,16 @@ const en = {
   footerVerifySummary: 'Verify: the SHA-256 of this file is in the audit log (report.generated, {reportId}) · Audit log → Verify chain (GET /api/audit/verify)',
 
   dryRunTitle: 'DRY RUN – nothing was changed',
-  dryRunBody: 'Read calls were executed; write calls (POST/PUT/PATCH/DELETE) were only recorded and not sent to the platform. The changes listed below show what would have been changed.',
+  dryRunBody:
+    'Read calls were executed; write calls (POST/PUT/PATCH/DELETE) were only recorded and not sent to the platform. The changes listed below show what would have been changed.',
   interimTitle: 'INTERIM REPORT – the run has not finished',
-  interimBody: 'Status at the time of this report: {status}. Results, decisions and the sealed protocol hash may still change. Generate a new report when the run has finished.',
+  interimBody:
+    'Status at the time of this report: {status}. Results, decisions and the sealed protocol hash may still change. Generate a new report when the run has finished.',
   failedTitle: 'The run failed',
   cancelledTitle: 'The run was cancelled',
   modifiedTitle: 'WARNING: the run journal was modified after completion',
-  modifiedBody: 'The protocol hash recorded in the audit log when the run finished does not match the current journal. Treat the content of this report with caution and check the audit log.',
+  modifiedBody:
+    'The protocol hash recorded in the audit log when the run finished does not match the current journal. Treat the content of this report with caution and check the audit log.',
 
   summary: 'Summary',
   process: 'Process',
@@ -150,12 +153,14 @@ const en = {
   hash: 'Entry hash',
   auditTruncated: '{n} further audit entries are not listed.',
   howToVerify: 'How to verify this document',
-  verify1: '1. Compute the SHA-256 of this PDF file and compare it with the value in the audit log entry “report.generated” for report {reportId}. Signing adds an incremental update: for a signed copy, hash only as many leading bytes as the size recorded in the same entry.',
+  verify1:
+    '1. Compute the SHA-256 of this PDF file and compare it with the value in the audit log entry “report.generated” for report {reportId}. Signing adds an incremental update: for a signed copy, hash only as many leading bytes as the size recorded in the same entry.',
   verify2: '2. Verify the audit chain (Audit log → Verify chain, or GET /api/audit/verify). A valid chain proves that the recorded hash has not been altered.',
   verify3: '3. The protocol hash printed in the footer is the sealed fingerprint of the run journal; the run page shows whether the journal is still intact.',
 
   signoff: 'Sign-off',
-  signoffIntro: 'Sign by hand on a printout, or sign the digital signature fields with a PDF reader (e.g. Adobe Acrobat). Signing digitally keeps this archived PDF/A file valid.',
+  signoffIntro:
+    'Sign by hand on a printout, or sign the digital signature fields with a PDF reader (e.g. Adobe Acrobat). Signing digitally keeps this archived PDF/A file valid.',
   preparedBy: 'Prepared by',
   reviewedBy: 'Reviewed by',
   approvedBy: 'Approved by',
@@ -232,13 +237,16 @@ const de: Record<MsgKey, string> = {
   footerVerifySummary: 'Prüfung: Der SHA-256 dieser Datei steht im Audit-Log (report.generated, {reportId}) · Audit-Log → Kette prüfen (GET /api/audit/verify)',
 
   dryRunTitle: 'PROBELAUF (DRY RUN) – es wurde nichts geändert',
-  dryRunBody: 'Lesende Aufrufe wurden ausgeführt; schreibende Aufrufe (POST/PUT/PATCH/DELETE) wurden nur aufgezeichnet und nicht an die Plattform gesendet. Die aufgeführten Änderungen zeigen, was geändert worden wäre.',
+  dryRunBody:
+    'Lesende Aufrufe wurden ausgeführt; schreibende Aufrufe (POST/PUT/PATCH/DELETE) wurden nur aufgezeichnet und nicht an die Plattform gesendet. Die aufgeführten Änderungen zeigen, was geändert worden wäre.',
   interimTitle: 'ZWISCHENBERICHT – die Ausführung ist noch nicht abgeschlossen',
-  interimBody: 'Status zum Zeitpunkt dieses Berichts: {status}. Ergebnisse, Entscheidungen und der versiegelte Protokoll-Hash können sich noch ändern. Erstellen Sie nach Abschluss einen neuen Bericht.',
+  interimBody:
+    'Status zum Zeitpunkt dieses Berichts: {status}. Ergebnisse, Entscheidungen und der versiegelte Protokoll-Hash können sich noch ändern. Erstellen Sie nach Abschluss einen neuen Bericht.',
   failedTitle: 'Die Ausführung ist fehlgeschlagen',
   cancelledTitle: 'Die Ausführung wurde abgebrochen',
   modifiedTitle: 'WARNUNG: Das Ausführungsjournal wurde nach Abschluss verändert',
-  modifiedBody: 'Der beim Abschluss im Audit-Log eingetragene Protokoll-Hash stimmt nicht mit dem aktuellen Journal überein. Prüfen Sie den Inhalt dieses Berichts und das Audit-Log sorgfältig.',
+  modifiedBody:
+    'Der beim Abschluss im Audit-Log eingetragene Protokoll-Hash stimmt nicht mit dem aktuellen Journal überein. Prüfen Sie den Inhalt dieses Berichts und das Audit-Log sorgfältig.',
 
   summary: 'Zusammenfassung',
   process: 'Prozess',
@@ -361,12 +369,16 @@ const de: Record<MsgKey, string> = {
   hash: 'Eintrags-Hash',
   auditTruncated: '{n} weitere Audit-Einträge sind nicht aufgeführt.',
   howToVerify: 'So prüfen Sie dieses Dokument',
-  verify1: '1. Berechnen Sie den SHA-256 dieser PDF-Datei und vergleichen Sie ihn mit dem Wert im Audit-Log-Eintrag „report.generated“ für Bericht {reportId}. Eine Signatur wird als inkrementelle Aktualisierung angehängt: Bei einer signierten Kopie bilden Sie den Hash nur über so viele Bytes vom Dateianfang, wie die im selben Eintrag vermerkte Größe angibt.',
-  verify2: '2. Prüfen Sie die Audit-Kette (Audit-Log → Kette prüfen oder GET /api/audit/verify). Eine gültige Kette belegt, dass der eingetragene Hash nicht verändert wurde.',
-  verify3: '3. Der Protokoll-Hash in der Fußzeile ist der versiegelte Fingerabdruck des Ausführungsjournals; die Seite der Ausführung zeigt, ob das Journal unverändert ist.',
+  verify1:
+    '1. Berechnen Sie den SHA-256 dieser PDF-Datei und vergleichen Sie ihn mit dem Wert im Audit-Log-Eintrag „report.generated“ für Bericht {reportId}. Eine Signatur wird als inkrementelle Aktualisierung angehängt: Bei einer signierten Kopie bilden Sie den Hash nur über so viele Bytes vom Dateianfang, wie die im selben Eintrag vermerkte Größe angibt.',
+  verify2:
+    '2. Prüfen Sie die Audit-Kette (Audit-Log → Kette prüfen oder GET /api/audit/verify). Eine gültige Kette belegt, dass der eingetragene Hash nicht verändert wurde.',
+  verify3:
+    '3. Der Protokoll-Hash in der Fußzeile ist der versiegelte Fingerabdruck des Ausführungsjournals; die Seite der Ausführung zeigt, ob das Journal unverändert ist.',
 
   signoff: 'Freigabe und Unterschriften',
-  signoffIntro: 'Unterschreiben Sie handschriftlich auf einem Ausdruck oder digital in den Signaturfeldern mit einem PDF-Programm (z. B. Adobe Acrobat). Eine digitale Signatur erhält die Gültigkeit dieser PDF/A-Archivdatei.',
+  signoffIntro:
+    'Unterschreiben Sie handschriftlich auf einem Ausdruck oder digital in den Signaturfeldern mit einem PDF-Programm (z. B. Adobe Acrobat). Eine digitale Signatur erhält die Gültigkeit dieser PDF/A-Archivdatei.',
   preparedBy: 'Erstellt von',
   reviewedBy: 'Geprüft von',
   approvedBy: 'Freigegeben von',
@@ -486,7 +498,16 @@ export function translator(lang: ReportLang, timeZone?: string | null): Translat
     },
     dateTime(iso) {
       if (!valid(iso)) return '–';
-      return parts(iso, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short', hourCycle: 'h23' });
+      return parts(iso, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short',
+        hourCycle: 'h23',
+      });
     },
     date(iso) {
       if (!valid(iso)) return '–';
@@ -512,7 +533,7 @@ export function translator(lang: ReportLang, timeZone?: string | null): Translat
       const units = ['B', 'KB', 'MB', 'GB'];
       let v = n;
       let i = 0;
-      while (v >= 1024 && i < units.length - 1) (v /= 1024), i++;
+      while (v >= 1024 && i < units.length - 1) ((v /= 1024), i++);
       return `${new Intl.NumberFormat(locale, { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 }).format(v)} ${units[i]}`;
     },
   };

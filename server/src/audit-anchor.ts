@@ -2,15 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BRAND, type AuditAnchoring, type AuditCheckpoint, type AuditVerifyResult } from '@sm/shared';
 import { config } from './config.js';
-import {
-  audit,
-  checkpointPayload,
-  latestCheckpoint,
-  publicResult,
-  verifyAuditAsync,
-  type Anchor,
-  type VerifyOutcome,
-} from './audit.js';
+import { audit, checkpointPayload, latestCheckpoint, publicResult, verifyAuditAsync, type Anchor, type VerifyOutcome } from './audit.js';
 import { publicKeyFingerprint, publicKeyPem, vault, verifySignature } from './vault.js';
 import { logger } from './log.js';
 import { readSetting, writeSetting } from './settings.js';
@@ -59,7 +51,13 @@ export function parseAnchor(text: string, source: string): Anchor {
   if (!raw) throw new HttpError(400, `The ${source} is empty`);
   const simple = /^#?(\d+)\s*[:=,\s]\s*([0-9a-f]{64})$/i.exec(raw);
   if (simple) return { source, seq: Number(simple[1]), hash: simple[2]!.toLowerCase() };
-  const candidates = [raw, ...raw.split(/\r?\n/).filter((l) => l.trim()).reverse()];
+  const candidates = [
+    raw,
+    ...raw
+      .split(/\r?\n/)
+      .filter((l) => l.trim())
+      .reverse(),
+  ];
   for (const c of candidates) {
     let v: Record<string, unknown>;
     try {
@@ -109,7 +107,12 @@ export async function verifyWithAnchors(extra: Anchor[] = []): Promise<VerifyOut
   const conf = configuredAnchors();
   if (conf.errors.length) {
     const e = conf.errors[0]!;
-    return { ok: false, checked: 0, message: `The ${e.source} cannot be used: ${e.message}`, anchors: conf.errors.map((x) => ({ source: x.source, seq: 0, ok: false, message: x.message })) };
+    return {
+      ok: false,
+      checked: 0,
+      message: `The ${e.source} cannot be used: ${e.message}`,
+      anchors: conf.errors.map((x) => ({ source: x.source, seq: 0, ok: false, message: x.message })),
+    };
   }
   return verifyAuditAsync({ anchors: [...conf.anchors, ...extra] });
 }
@@ -151,7 +154,15 @@ async function doCheckpoint(reason: string, verified?: VerifyOutcome): Promise<A
   const head = r.head;
   if (head.seq === 0) return null;
   if (reason === 'interval' && prev && head.seq <= prev.entrySeq) return null; // nothing new since the last checkpoint
-  const body: Omit<AuditCheckpoint, 'signature'> = { v: 1, seq: head.seq, hash: head.hash, digest: head.digest, count: head.seq, ts: nowIso(), keyFingerprint: key.fingerprint };
+  const body: Omit<AuditCheckpoint, 'signature'> = {
+    v: 1,
+    seq: head.seq,
+    hash: head.hash,
+    digest: head.digest,
+    count: head.seq,
+    ts: nowIso(),
+    keyFingerprint: key.fingerprint,
+  };
   const cp: AuditCheckpoint = { ...body, signature: vault().sign(checkpointPayload(body)) };
   audit({ actor: 'system', action: 'audit.checkpoint', entityType: 'audit', summary: `Signed audit checkpoint at entry #${cp.seq} (${reason})`, details: cp });
   try {
@@ -180,7 +191,12 @@ export function saveEmailSettings(input: { to: string[]; intervalHours?: number 
   const intervalHours = Math.min(24 * 7, Math.max(1, Math.round(input.intervalHours ?? 24)));
   const v = { to, intervalHours };
   writeSetting(EMAIL_KEY, v);
-  audit({ action: 'audit.anchoring_updated', entityType: 'audit', summary: `Checkpoint e-mails: ${to.length ? `${to.join(', ')} every ${intervalHours} h` : 'off'}`, details: v });
+  audit({
+    action: 'audit.anchoring_updated',
+    entityType: 'audit',
+    summary: `Checkpoint e-mails: ${to.length ? `${to.join(', ')} every ${intervalHours} h` : 'off'}`,
+    details: v,
+  });
   return v;
 }
 
@@ -220,7 +236,7 @@ async function emailCheckpoint(cp: AuditCheckpoint, force = false): Promise<bool
 
 export function anchoringStatus(): AuditAnchoring {
   const key = ownKey();
-  const latest = vault().unlocked && key ? latestCheckpoint((c) => validCheckpoint(c, key.pub))?.checkpoint ?? null : null;
+  const latest = vault().unlocked && key ? (latestCheckpoint((c) => validCheckpoint(c, key.pub))?.checkpoint ?? null) : null;
   const s = emailSettings();
   return {
     publicKeyPem: key ? publicKeyPem(key.pub) : null,

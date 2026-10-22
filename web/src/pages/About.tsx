@@ -1,7 +1,36 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Button, Card, Code, ColorSwatch, Group, ScrollArea, SimpleGrid, Stack, Table, Text, TextInput, Title, useComputedColorScheme, useMantineColorScheme } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Card,
+  Code,
+  ColorSwatch,
+  Group,
+  ScrollArea,
+  SimpleGrid,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+  useComputedColorScheme,
+  useMantineColorScheme,
+} from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { IconBook, IconBrandGithub, IconExternalLink, IconFileText, IconLicense, IconRefresh, IconSearch, IconShieldLock, IconApi, IconList } from '@tabler/icons-react';
+import {
+  IconBook,
+  IconBrandGithub,
+  IconExternalLink,
+  IconFileText,
+  IconLicense,
+  IconRefresh,
+  IconSearch,
+  IconShieldLock,
+  IconApi,
+  IconList,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { BRAND } from '../../../shared/src/brand';
 import type { AboutInfo, BuildInfo } from '../../../shared/src/system';
@@ -61,7 +90,15 @@ function BuildRows({ build, label, kind }: { build: BuildInfo; label: string; ki
           </Text>
         )}
       </Row>
-      <Row label={t('about.buildDate')}>{build.date ? fmtDate(build.date) : <Text span size="sm" c="dimmed">{t('about.development')}</Text>}</Row>
+      <Row label={t('about.buildDate')}>
+        {build.date ? (
+          fmtDate(build.date)
+        ) : (
+          <Text span size="sm" c="dimmed">
+            {t('about.development')}
+          </Text>
+        )}
+      </Row>
     </>
   );
 }
@@ -100,9 +137,7 @@ export function AboutPage() {
               <Text size="sm" c="dimmed">
                 {BRAND.tagline}
               </Text>
-              {theme.appName && theme.appName !== BRAND.name && (
-                <Text size="sm">{t('about.providedAs', { name: theme.appName, brand: BRAND.name })}</Text>
-              )}
+              {theme.appName && theme.appName !== BRAND.name && <Text size="sm">{t('about.providedAs', { name: theme.appName, brand: BRAND.name })}</Text>}
               <Text size="sm">
                 © {BRAND.copyrightYear}{' '}
                 <Anchor href={BRAND.authorUrl} target="_blank" rel="noopener" inherit>

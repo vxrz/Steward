@@ -79,7 +79,9 @@ export function shapeProblems(doc: Doc, schema: Schema, body: unknown): string[]
   const type = schema.type ?? (schema.properties ? 'object' : schema.items ? 'array' : undefined);
   const actual = typeOf(body);
   if (type && !typeMatches(type, actual, !!schema.nullable)) {
-    problems.push(`response is ${actual === 'string' ? 'not JSON / a string' : `a${actual === 'array' || actual === 'object' || actual === 'integer' ? 'n' : ''} ${actual}`}, documented as ${String(type)}`);
+    problems.push(
+      `response is ${actual === 'string' ? 'not JSON / a string' : `a${actual === 'array' || actual === 'object' || actual === 'integer' ? 'n' : ''} ${actual}`}, documented as ${String(type)}`,
+    );
     return problems;
   }
   const checkObject = (obj: Record<string, unknown>, s: Schema, where: string) => {
@@ -166,7 +168,13 @@ export async function contractCheck(platformId: string): Promise<ContractCheckRe
     summary: results.length
       ? `Contract check "${p.name}": ${passed} of ${results.length} operation(s) passed`
       : `Contract check "${p.name}": no GET operations without path parameters to check`,
-    details: { checked: out.checked, passed, failed: out.failed, skipped, failures: results.filter((r) => !r.ok).map((r) => ({ path: r.path, status: r.status, problems: r.problems })) },
+    details: {
+      checked: out.checked,
+      passed,
+      failed: out.failed,
+      skipped,
+      failures: results.filter((r) => !r.ok).map((r) => ({ path: r.path, status: r.status, problems: r.problems })),
+    },
   });
   return out;
 }

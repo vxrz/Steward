@@ -1,0 +1,18 @@
+# Build output, dependencies, reports
+node_modules/
+dist/
+dist-exe/
+coverage/
+playwright-report/
+blob-report/
+test-results/
+data/
+.tools/
+e2e/.auth/
+
+# Generated: npm run openapi writes it with JSON.stringify and "npm run openapi -- --check" compares it byte for byte
+docs/openapi.json
+package-lock.json
+
+# Binary or third-party assets (fonts, licences, logo)
+server/assets/

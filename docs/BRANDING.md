@@ -1,16 +1,16 @@
 # Name and branding
 
-The product is called **Steward**. The tagline is *Repeatable, auditable service procedures for your platforms*.
+The product is called **Steward**. The tagline is _Repeatable, auditable service procedures for your platforms_.
 
 ## Where branding lives
 
-| What | Where |
-| --- | --- |
-| Name, tagline, slug, colour, repository URL, author, licence, copyright year | [`shared/src/brand.ts`](../shared/src/brand.ts) |
-| Logo: a flow drawn as an "S" that ends in a check mark | `web/public/icon.svg` (app icon), `web/public/icon-maskable.svg` (Android/PWA safe zone), `docs/logo.svg`, React component `web/src/components/brand/Logo.tsx`. The PNG icons are rendered from the SVGs. |
-| Footer (app and sign-in page) | `web/src/components/brand/AppFooter.tsx` |
-| Theme set by an administrator (colours, display name, logo) | *Settings → Appearance*, see [Theming](#theming-settings--appearance) |
-| Franconian rake shown in the footer | `web/src/components/brand/FrankenRechen.tsx` |
+| What                                                                         | Where                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name, tagline, slug, colour, repository URL, author, licence, copyright year | [`shared/src/brand.ts`](../shared/src/brand.ts)                                                                                                                                                           |
+| Logo: a flow drawn as an "S" that ends in a check mark                       | `web/public/icon.svg` (app icon), `web/public/icon-maskable.svg` (Android/PWA safe zone), `docs/logo.svg`, React component `web/src/components/brand/Logo.tsx`. The PNG icons are rendered from the SVGs. |
+| Footer (app and sign-in page)                                                | `web/src/components/brand/AppFooter.tsx`                                                                                                                                                                  |
+| Theme set by an administrator (colours, display name, logo)                  | _Settings → Appearance_, see [Theming](#theming-settings--appearance)                                                                                                                                     |
+| Franconian rake shown in the footer                                          | `web/src/components/brand/FrankenRechen.tsx`                                                                                                                                                              |
 
 The page title, PWA manifest, app window, console banner, notifications (e-mail subject, Teams card), protocols, log/trace service name, executable name (`steward[.exe]`), per-user data folder, container and release file names are all derived from `brand.ts`.
 
@@ -29,14 +29,14 @@ Export files are now written as `steward-bundle` and `steward-connector`. Files 
 
 Administrators can adapt the look of an installation for everyone, e.g. to the company colours. It applies at once (open pages pick it up within a minute) and already on the sign-in page.
 
-| Setting | Effect |
-| --- | --- |
-| **Primary colour** | Buttons, links, active navigation, focus, the primary colour of every component |
-| **Accent colour** | Counters and highlights, e.g. the open-tasks badge |
-| **Default colour scheme** | *Like the system*, *Light* or *Dark* for people who have not chosen one; everyone keeps their own light/dark switch |
-| **Corner radius** | Small, medium (default) or large |
-| **Display name** | Header, window title, sign-in page and installed-app name, e.g. "ACME Steward". The footer and the About page keep the product name *Steward*. |
-| **Logo** | Header and sign-in page. PNG, JPEG or WebP, at most 512 KB and 4096 × 4096 pixels, recognised by its content (not its file name). **SVG is refused** because an SVG file can contain scripts. Served from `/api/theme/logo` with `nosniff` and a restrictive content security policy. |
+| Setting                   | Effect                                                                                                                                                                                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Primary colour**        | Buttons, links, active navigation, focus, the primary colour of every component                                                                                                                                                                                                       |
+| **Accent colour**         | Counters and highlights, e.g. the open-tasks badge                                                                                                                                                                                                                                    |
+| **Default colour scheme** | _Like the system_, _Light_ or _Dark_ for people who have not chosen one; everyone keeps their own light/dark switch                                                                                                                                                                   |
+| **Corner radius**         | Small, medium (default) or large                                                                                                                                                                                                                                                      |
+| **Display name**          | Header, window title, sign-in page and installed-app name, e.g. "ACME Steward". The footer and the About page keep the product name _Steward_.                                                                                                                                        |
+| **Logo**                  | Header and sign-in page. PNG, JPEG or WebP, at most 512 KB and 4096 × 4096 pixels, recognised by its content (not its file name). **SVG is refused** because an SVG file can contain scripts. Served from `/api/theme/logo` with `nosniff` and a restrictive content security policy. |
 
 **Readable in every case.** From each colour Steward generates a ten-shade palette (OKLCH lightness ramp; the colour itself is shade 6, as in Mantine's palettes; Steward's defaults keep Mantine's blue and violet unchanged). Then, for the light and the dark scheme separately:
 
@@ -44,7 +44,7 @@ Administrators can adapt the look of an installation for everyone, e.g. to the c
 - **Links and coloured text** (light, outline and subtle variants, active navigation, alerts) use the first shade that reaches AA on the page and on the tinted backgrounds; in the dark scheme a lighter shade. If no shade of the palette does, a darker or lighter variant is computed.
 - In the dark scheme, filled buttons must also stand out from the page (at least 2 : 1), so very dark colours switch to a lighter shade with dark text.
 
-The settings card explains every adjustment (e.g. "too light for text on a white page, so links use the darker #826c00") and warns when filled buttons barely stand out from the page. The live preview shows header, navigation, buttons, badges, a link and an alert in both colour schemes before saving. *Reset to Steward defaults* restores everything and removes the logo. The UI tests run the accessibility checks with a bright yellow primary colour in light and dark mode.
+The settings card explains every adjustment (e.g. "too light for text on a white page, so links use the darker #826c00") and warns when filled buttons barely stand out from the page. The live preview shows header, navigation, buttons, badges, a link and an alert in both colour schemes before saving. _Reset to Steward defaults_ restores everything and removes the logo. The UI tests run the accessibility checks with a bright yellow primary colour in light and dark mode.
 
 **How it is delivered.** `GET /api/theme` is public (the sign-in page needs it) and contains only the theme: colours, scheme, radius, display name and the logo URL – no secrets. It is cacheable with an ETag (`304 Not Modified` while unchanged); the browser also keeps the last theme in local storage so the next visit starts in the right colours, and open pages check for changes every minute. The web app manifest is served by the server (`/manifest.webmanifest`) with the display name and the primary colour; the static manifest of the web build remains the fallback (e.g. `npm run dev`). The settings are stored in the database (internal settings `theme.*`, logo included), so all instances behind a load balancer show the same theme and database backups contain it.
 
@@ -57,9 +57,9 @@ API (administrators): `GET`/`PUT /api/settings/theme`, `POST /api/settings/theme
 > Made with ❤️ in Erlangen, Germany · Metropolregion Mittelfranken [Franconian rake] · Designed & built by uebelacker.io with AI
 > © 2026 uebelacker.io · Open source (Apache-2.0) · GitHub · Steward 0.1.0 · About Steward
 
-The version comes from the web build; *About Steward* (signed-in users) opens the About page with build details, links and the third-party licences.
+The version comes from the web build; _About Steward_ (signed-in users) opens the About page with build details, links and the third-party licences.
 
-**Franconian rake vs. coat of arms.** The footer shows the *Fränkischer Rechen*: in red, three silver points. It is the free regional symbol of Franconia, also used on the Franconian flag. The *official* coat of arms of the Bezirk Mittelfranken combines the rake with the Nuremberg burgraviate and the Hohenzollern arms. Under Bavarian law, third parties may only use official coats of arms of public bodies with permission. If you want the official Bezirk arms, ask the Bezirk Mittelfranken first.
+**Franconian rake vs. coat of arms.** The footer shows the _Fränkischer Rechen_: in red, three silver points. It is the free regional symbol of Franconia, also used on the Franconian flag. The _official_ coat of arms of the Bezirk Mittelfranken combines the rake with the Nuremberg burgraviate and the Hohenzollern arms. Under Bavarian law, third parties may only use official coats of arms of public bodies with permission. If you want the official Bezirk arms, ask the Bezirk Mittelfranken first.
 
 **Copyright notice.** A © line fits an open-source project: the licence grants rights, but copyright stays with the author.
 

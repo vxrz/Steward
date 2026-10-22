@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/prettierrc",
+  "printWidth": 160,
+  "singleQuote": true,
+  "semi": true,
+  "trailingComma": "all",
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": "*.md",
+      "options": { "proseWrap": "preserve" }
+    },
+    {
+      "files": ["examples/**/*.yaml", "docker-compose*.yml"],
+      "options": { "singleQuote": false }
+    }
+  ]
+}

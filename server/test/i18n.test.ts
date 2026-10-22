@@ -24,7 +24,11 @@ let receiverUrl: string;
 const received: { path: string; body: any }[] = [];
 let approvalProcess: string;
 
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 const flush = async () => (await import('../src/notifications/service.js')).flushNotifications();
 const inbox = async (c: Client) => ((await c('GET', '/notifications?limit=100')) as { items: any[] }).items;
 

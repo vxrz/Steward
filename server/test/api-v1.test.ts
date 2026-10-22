@@ -29,7 +29,7 @@ async function v1(token: string | null, url: string, init: RequestInit & { heade
     headers: { ...(token ? { authorization: `Bearer ${token}` } : {}), ...(init.headers ?? {}) },
   });
   const text = await res.text();
-  let body: any = null;
+  let body: any;
   try {
     body = text ? JSON.parse(text) : null;
   } catch {
@@ -604,7 +604,8 @@ describe('OpenAPI document', () => {
       expect(target, r).toBeTruthy();
     }
     // every component schema compiles as JSON Schema 2020-12
-    for (const name of Object.keys(doc.components.schemas)) ajv.getSchema(`openapi#/components/schemas/${name}`) ?? ajv.compile({ $ref: `openapi#/components/schemas/${name}` });
+    for (const name of Object.keys(doc.components.schemas))
+      ajv.getSchema(`openapi#/components/schemas/${name}`) ?? ajv.compile({ $ref: `openapi#/components/schemas/${name}` });
   });
 
   it('is committed and up to date (npm run openapi -- --check)', () => {

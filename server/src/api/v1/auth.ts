@@ -78,7 +78,7 @@ export function docsAccess(req: FastifyRequest): { allowed: true } | { allowed: 
   const { mode } = docsMode();
   if (mode === 'public') return { allowed: true };
   if (mode === 'authenticated') {
-    let user: UserInfo | null = null;
+    let user: UserInfo | null;
     try {
       // documentation only: page loads cannot carry the session key header, and the docs reveal nothing secret
       user = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE), 'skip');
@@ -122,7 +122,8 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
     return void sendProblem(req, reply, 400, {
       type: 'token-in-url',
       title: 'Token in URL',
-      detail: 'Tokens are not accepted in the URL (they end up in logs and browser history). Send them as "Authorization: Bearer <token>" – and revoke the token if it was real.',
+      detail:
+        'Tokens are not accepted in the URL (they end up in logs and browser history). Send them as "Authorization: Bearer <token>" – and revoke the token if it was real.',
     });
   }
 
@@ -135,7 +136,8 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
     if (mode === 'none') return;
     const access = docsAccess(req);
     if (access.allowed) return;
-    if (access.status === 404) return void sendProblem(req, reply, 404, { detail: 'The API documentation is turned off – send an API token to get the OpenAPI document' });
+    if (access.status === 404)
+      return void sendProblem(req, reply, 404, { detail: 'The API documentation is turned off – send an API token to get the OpenAPI document' });
     return unauthorized(req, reply, 'Sign in to the web UI or send an API token to get the OpenAPI document');
   }
 
@@ -169,7 +171,11 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
   }
   if (!vault().unlocked) {
     reply.header('retry-after', '60');
-    return void sendProblem(req, reply, 503, { type: 'vault-locked', title: 'Vault locked', detail: 'The vault is locked – an administrator has to unlock it' });
+    return void sendProblem(req, reply, 503, {
+      type: 'vault-locked',
+      title: 'Vault locked',
+      detail: 'The vault is locked – an administrator has to unlock it',
+    });
   }
   const p: ApiPrincipal = {
     user: r.user,

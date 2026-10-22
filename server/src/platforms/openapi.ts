@@ -47,7 +47,8 @@ export function exampleFrom(doc: Doc, schemaIn: unknown, depth = 0, seen: Set<st
     }
     return merged;
   }
-  for (const k of ['oneOf', 'anyOf'] as const) if (Array.isArray(s[k]) && (s[k] as unknown[]).length) return exampleFrom(doc, (s[k] as unknown[])[0], depth + 1, seen);
+  for (const k of ['oneOf', 'anyOf'] as const)
+    if (Array.isArray(s[k]) && (s[k] as unknown[]).length) return exampleFrom(doc, (s[k] as unknown[])[0], depth + 1, seen);
   const type = Array.isArray(s.type) ? s.type.find((t) => t !== 'null') : s.type;
   if (type === 'object' || s.properties) {
     const out: Record<string, unknown> = {};
@@ -84,12 +85,9 @@ export function exampleFrom(doc: Doc, schemaIn: unknown, depth = 0, seen: Set<st
 }
 
 /** Request body info for an operation (OAS3 requestBody or Swagger 2 body parameter). */
-export function requestBodyInfo(
-  doc: Doc,
-  op: Record<string, unknown>,
-  params: Record<string, unknown>[],
-): { contentType?: string; example?: unknown } {
-  const rb = resolveRef(doc, op.requestBody) as { content?: Record<string, { schema?: unknown; example?: unknown; examples?: Record<string, { value?: unknown }> }> } | undefined;
+export function requestBodyInfo(doc: Doc, op: Record<string, unknown>, params: Record<string, unknown>[]): { contentType?: string; example?: unknown } {
+  const rb = resolveRef(doc, op.requestBody) as
+    { content?: Record<string, { schema?: unknown; example?: unknown; examples?: Record<string, { value?: unknown }> }> } | undefined;
   if (rb?.content) {
     const types = Object.keys(rb.content);
     const ct = types.find((t) => t.includes('json')) ?? types[0];

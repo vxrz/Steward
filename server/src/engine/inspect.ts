@@ -283,8 +283,8 @@ export const FUNCTIONS: { name: string; signature: string; help: string }[] = [
   { name: '$floor', signature: '$floor(number)', help: 'Round down' },
   { name: '$abs', signature: '$abs(number)', help: 'Absolute value' },
   ...CUSTOM_FUNCTIONS,
-  { name: '$secret', signature: "$secret(slot, key)", help: 'Secret of a bound platform (not available in the expression assistant)' },
-  { name: '$pvar', signature: "$pvar(slot, name, fallback?)", help: 'Variable of the platform bound to a connection slot' },
+  { name: '$secret', signature: '$secret(slot, key)', help: 'Secret of a bound platform (not available in the expression assistant)' },
+  { name: '$pvar', signature: '$pvar(slot, name, fallback?)', help: 'Variable of the platform bound to a connection slot' },
 ];
 
 /** All activations of a node in a run (input/output previews) plus the variables before the first one. */

@@ -12,7 +12,11 @@ let receiver: http.Server;
 let receiverUrl: string;
 const received: { path: string; body: any }[] = [];
 
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 
 async function waitFor<T>(fn: () => Promise<T | undefined | null | false>, what: string): Promise<T> {
   for (let i = 0; i < 100; i++) {
@@ -99,7 +103,10 @@ describe('in-app notifications', () => {
   it('tells approvers about a new task, not the starter', async () => {
     const { id } = await olivia('POST', '/runs', { processId: approvalProcess });
     await s.waitRun(id, ['waiting']);
-    const n = await waitFor(async () => (await notifications(adam)).items.find((x) => x.event === 'task.assigned' && x.link === `/runs/${id}`), 'task notification');
+    const n = await waitFor(
+      async () => (await notifications(adam)).items.find((x) => x.event === 'task.assigned' && x.link === `/runs/${id}`),
+      'task notification',
+    );
     expect(n.title).toContain('Approve cleanup');
     expect(n.read).toBe(false);
     expect((await notifications(s.api)).items.some((x) => x.link === `/runs/${id}`)).toBe(true); // admin may approve too
@@ -212,12 +219,19 @@ describe('external channels', () => {
       await s.waitRun(id, ['failed']);
       ids.push(id);
     }
-    await waitFor(async () => (await notifications(olivia)).items.filter((x) => x.event === 'run.failed' && ids.includes(x.link.slice(6))).length === 2, 'in-app');
+    await waitFor(
+      async () => (await notifications(olivia)).items.filter((x) => x.event === 'run.failed' && ids.includes(x.link.slice(6))).length === 2,
+      'in-app',
+    );
     await flush();
     const hooks = received.filter((r) => r.path.startsWith('/hook'));
     const teams = received.filter((r) => r.path === '/teams');
     expect(hooks.length).toBe(1);
-    expect(hooks[0]!.body).toMatchObject({ event: 'run.failed', link: `https://sm.example.com/runs/${ids[0]}`, data: { processId: failingProcess, actor: 'olivia' } });
+    expect(hooks[0]!.body).toMatchObject({
+      event: 'run.failed',
+      link: `https://sm.example.com/runs/${ids[0]}`,
+      data: { processId: failingProcess, actor: 'olivia' },
+    });
     expect(hooks[0]!.body.title).toContain('Always fails');
     expect(teams.length).toBe(1);
     const card = teams[0]!.body.attachments[0];
@@ -311,7 +325,7 @@ describe('maintenance', () => {
       old,
     );
     d.run("UPDATE notifications SET ts = ? WHERE read = 1 AND user_id = (SELECT id FROM users WHERE username = 'olivia')", old);
-    const readBefore = d.get<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE read = 1 AND ts = ?", old)!.n;
+    const readBefore = d.get<{ n: number }>('SELECT COUNT(*) AS n FROM notifications WHERE read = 1 AND ts = ?', old)!.n;
     expect(readBefore).toBeGreaterThan(0);
 
     await s.api('PUT', '/settings', { retentionRunDays: 30, retentionNotificationDays: 7 });

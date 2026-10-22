@@ -9,7 +9,21 @@ type Patch = (p: Partial<CheckDef>) => void;
 
 const num = (v: string | number) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
-function PlatformSelect({ value, onChange, platforms, kind, label, disabled }: { value: string; onChange: (v: string) => void; platforms: Platform[]; kind?: string; label?: string; disabled?: boolean }) {
+function PlatformSelect({
+  value,
+  onChange,
+  platforms,
+  kind,
+  label,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  platforms: Platform[];
+  kind?: string;
+  label?: string;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation('monitors');
   const list = platforms.filter((p) => !kind || p.kind === kind);
   return (
@@ -27,7 +41,17 @@ function PlatformSelect({ value, onChange, platforms, kind, label, disabled }: {
   );
 }
 
-function FreshnessFields({ c, set, disabled, what }: { c: CheckOf<'freshness'> | CheckOf<'heartbeat'>; set: Patch; disabled?: boolean; what: 'data' | 'reports' }) {
+function FreshnessFields({
+  c,
+  set,
+  disabled,
+  what,
+}: {
+  c: CheckOf<'freshness'> | CheckOf<'heartbeat'>;
+  set: Patch;
+  disabled?: boolean;
+  what: 'data' | 'reports';
+}) {
   const { t } = useTranslation('monitors');
   return (
     <>
@@ -48,14 +72,49 @@ function FreshnessFields({ c, set, disabled, what }: { c: CheckOf<'freshness'> |
       </div>
       {c.mode === 'cadence' ? (
         <Group grow align="flex-start">
-          <NumberInput label={t('form.expectedEvery')} required min={1} disabled={disabled} value={c.expectedIntervalSeconds ?? ''} onChange={(v) => set({ expectedIntervalSeconds: num(v) })} />
-          <NumberInput label={t('form.degradedAfterMissed')} description={t('form.intervalsDefault', { n: 2 })} min={1} disabled={disabled} value={c.degradedAfterMissed ?? ''} onChange={(v) => set({ degradedAfterMissed: num(v) })} />
-          <NumberInput label={t('form.downAfterMissed')} description={t('form.intervalsDefault', { n: 4 })} min={1} disabled={disabled} value={c.downAfterMissed ?? ''} onChange={(v) => set({ downAfterMissed: num(v) })} />
+          <NumberInput
+            label={t('form.expectedEvery')}
+            required
+            min={1}
+            disabled={disabled}
+            value={c.expectedIntervalSeconds ?? ''}
+            onChange={(v) => set({ expectedIntervalSeconds: num(v) })}
+          />
+          <NumberInput
+            label={t('form.degradedAfterMissed')}
+            description={t('form.intervalsDefault', { n: 2 })}
+            min={1}
+            disabled={disabled}
+            value={c.degradedAfterMissed ?? ''}
+            onChange={(v) => set({ degradedAfterMissed: num(v) })}
+          />
+          <NumberInput
+            label={t('form.downAfterMissed')}
+            description={t('form.intervalsDefault', { n: 4 })}
+            min={1}
+            disabled={disabled}
+            value={c.downAfterMissed ?? ''}
+            onChange={(v) => set({ downAfterMissed: num(v) })}
+          />
         </Group>
       ) : (
         <Group grow align="flex-start">
-          <NumberInput label={t('form.downOlderThan')} required min={1} disabled={disabled} value={c.maxAgeSeconds ?? ''} onChange={(v) => set({ maxAgeSeconds: num(v) })} />
-          <NumberInput label={t('form.degradedOlderThan')} description={t('form.optional')} min={1} disabled={disabled} value={c.degradedAgeSeconds ?? ''} onChange={(v) => set({ degradedAgeSeconds: num(v) })} />
+          <NumberInput
+            label={t('form.downOlderThan')}
+            required
+            min={1}
+            disabled={disabled}
+            value={c.maxAgeSeconds ?? ''}
+            onChange={(v) => set({ maxAgeSeconds: num(v) })}
+          />
+          <NumberInput
+            label={t('form.degradedOlderThan')}
+            description={t('form.optional')}
+            min={1}
+            disabled={disabled}
+            value={c.degradedAgeSeconds ?? ''}
+            onChange={(v) => set({ degradedAgeSeconds: num(v) })}
+          />
         </Group>
       )}
     </>
@@ -104,7 +163,13 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
               value={c.fallbackPort ?? ''}
               onChange={(v) => set({ fallbackPort: num(v) })}
             />
-            <NumberInput label={t('form.degradedAbove')} min={1} disabled={disabled} value={c.degradedRttMs ?? ''} onChange={(v) => set({ degradedRttMs: num(v) })} />
+            <NumberInput
+              label={t('form.degradedAbove')}
+              min={1}
+              disabled={disabled}
+              value={c.degradedRttMs ?? ''}
+              onChange={(v) => set({ degradedRttMs: num(v) })}
+            />
           </Group>
         </>
       )}
@@ -118,13 +183,46 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
       {c.type === 'http' && (
         <>
           <Group grow align="flex-start">
-            <Select label={t('form.method')} data={['GET', 'HEAD', 'POST']} disabled={disabled} value={c.method} onChange={(v) => set({ method: (v ?? 'GET') as 'GET' })} maw={120} />
-            <TextInput label={t('secrets.url')} required disabled={disabled} value={c.url} onChange={(e) => set({ url: e.currentTarget.value })} style={{ flex: 4 }} />
+            <Select
+              label={t('form.method')}
+              data={['GET', 'HEAD', 'POST']}
+              disabled={disabled}
+              value={c.method}
+              onChange={(v) => set({ method: (v ?? 'GET') as 'GET' })}
+              maw={120}
+            />
+            <TextInput
+              label={t('secrets.url')}
+              required
+              disabled={disabled}
+              value={c.url}
+              onChange={(e) => set({ url: e.currentTarget.value })}
+              style={{ flex: 4 }}
+            />
           </Group>
           <Group grow align="flex-start">
-            <TextInput label={t('form.expectedStatus')} placeholder="200-399" disabled={disabled} value={c.expectStatus ?? ''} onChange={(e) => set({ expectStatus: e.currentTarget.value || undefined })} />
-            <NumberInput label={t('form.degradedAbove')} min={1} disabled={disabled} value={c.degradedResponseMs ?? ''} onChange={(v) => set({ degradedResponseMs: num(v) })} />
-            <NumberInput label={t('form.certWarning')} description={t('form.certWarningHint')} min={0} disabled={disabled} value={c.tlsExpiryWarnDays ?? ''} onChange={(v) => set({ tlsExpiryWarnDays: num(v) })} />
+            <TextInput
+              label={t('form.expectedStatus')}
+              placeholder="200-399"
+              disabled={disabled}
+              value={c.expectStatus ?? ''}
+              onChange={(e) => set({ expectStatus: e.currentTarget.value || undefined })}
+            />
+            <NumberInput
+              label={t('form.degradedAbove')}
+              min={1}
+              disabled={disabled}
+              value={c.degradedResponseMs ?? ''}
+              onChange={(v) => set({ degradedResponseMs: num(v) })}
+            />
+            <NumberInput
+              label={t('form.certWarning')}
+              description={t('form.certWarningHint')}
+              min={0}
+              disabled={disabled}
+              value={c.tlsExpiryWarnDays ?? ''}
+              onChange={(v) => set({ tlsExpiryWarnDays: num(v) })}
+            />
           </Group>
           <ExpressionInput
             label={t('form.condition')}
@@ -133,16 +231,41 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             value={c.condition ?? ''}
             onChange={(v) => set({ condition: v || undefined })}
           />
-          <Switch label={t('form.insecureTls')} disabled={disabled} checked={!!c.insecureTls} onChange={(e) => set({ insecureTls: e.currentTarget.checked || undefined })} />
-          <Switch label={t('form.useProxy')} disabled={disabled} checked={c.useProxy !== false} onChange={(e) => set({ useProxy: e.currentTarget.checked ? undefined : false })} />
+          <Switch
+            label={t('form.insecureTls')}
+            disabled={disabled}
+            checked={!!c.insecureTls}
+            onChange={(e) => set({ insecureTls: e.currentTarget.checked || undefined })}
+          />
+          <Switch
+            label={t('form.useProxy')}
+            disabled={disabled}
+            checked={c.useProxy !== false}
+            onChange={(e) => set({ useProxy: e.currentTarget.checked ? undefined : false })}
+          />
         </>
       )}
       {c.type === 'platform' && (
         <>
           <PlatformSelect value={c.platform} onChange={(v) => set({ platform: v })} platforms={platforms} disabled={disabled} />
           <Group grow align="flex-start">
-            <Select label={t('form.method')} data={['GET', 'HEAD', 'POST']} disabled={disabled} value={c.method} onChange={(v) => set({ method: (v ?? 'GET') as 'GET' })} maw={120} />
-            <TextInput label={t('form.path')} required disabled={disabled} value={c.path} onChange={(e) => set({ path: e.currentTarget.value })} style={{ flex: 4 }} classNames={{ input: 'mono' }} />
+            <Select
+              label={t('form.method')}
+              data={['GET', 'HEAD', 'POST']}
+              disabled={disabled}
+              value={c.method}
+              onChange={(v) => set({ method: (v ?? 'GET') as 'GET' })}
+              maw={120}
+            />
+            <TextInput
+              label={t('form.path')}
+              required
+              disabled={disabled}
+              value={c.path}
+              onChange={(e) => set({ path: e.currentTarget.value })}
+              style={{ flex: 4 }}
+              classNames={{ input: 'mono' }}
+            />
           </Group>
           <Text size="sm" fw={500}>
             {t('form.query')}
@@ -155,7 +278,13 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             value={c.condition ?? ''}
             onChange={(v) => set({ condition: v || undefined })}
           />
-          <NumberInput label={t('form.degradedAbove')} min={1} disabled={disabled} value={c.degradedResponseMs ?? ''} onChange={(v) => set({ degradedResponseMs: num(v) })} />
+          <NumberInput
+            label={t('form.degradedAbove')}
+            min={1}
+            disabled={disabled}
+            value={c.degradedResponseMs ?? ''}
+            onChange={(v) => set({ degradedResponseMs: num(v) })}
+          />
         </>
       )}
       {c.type === 'freshness' && (
@@ -170,20 +299,58 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
               { value: 'platform', label: t('form.sourcePlatform') },
             ]}
           />
-          <PlatformSelect value={c.platform} onChange={(v) => set({ platform: v })} platforms={platforms} kind={c.source === 'insightsHub' ? 'insights-hub' : undefined} disabled={disabled} />
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind={c.source === 'insightsHub' ? 'insights-hub' : undefined}
+            disabled={disabled}
+          />
           {c.source === 'insightsHub' ? (
             <>
               <Group grow align="flex-start">
-                <TextInput label={t('form.assetId')} required disabled={disabled} value={c.assetId ?? ''} onChange={(e) => set({ assetId: e.currentTarget.value })} classNames={{ input: 'mono' }} />
-                <TextInput label={t('form.aspect')} required disabled={disabled} value={c.aspect ?? ''} onChange={(e) => set({ aspect: e.currentTarget.value })} />
+                <TextInput
+                  label={t('form.assetId')}
+                  required
+                  disabled={disabled}
+                  value={c.assetId ?? ''}
+                  onChange={(e) => set({ assetId: e.currentTarget.value })}
+                  classNames={{ input: 'mono' }}
+                />
+                <TextInput
+                  label={t('form.aspect')}
+                  required
+                  disabled={disabled}
+                  value={c.aspect ?? ''}
+                  onChange={(e) => set({ aspect: e.currentTarget.value })}
+                />
               </Group>
-              <TagsInput label={t('form.variables')} description={t('form.variablesHint')} disabled={disabled} value={c.variables ?? []} onChange={(v) => set({ variables: v })} />
+              <TagsInput
+                label={t('form.variables')}
+                description={t('form.variablesHint')}
+                disabled={disabled}
+                value={c.variables ?? []}
+                onChange={(v) => set({ variables: v })}
+              />
               <Hint>{t('form.sharedCall')}</Hint>
             </>
           ) : (
             <>
-              <TextInput label={t('form.path')} required disabled={disabled} value={c.path ?? ''} onChange={(e) => set({ path: e.currentTarget.value })} classNames={{ input: 'mono' }} />
-              <ExpressionInput label={t('form.timestamp')} description={t('form.timestampHint')} preview={false} value={c.timestamp ?? ''} onChange={(v) => set({ timestamp: v || undefined })} />
+              <TextInput
+                label={t('form.path')}
+                required
+                disabled={disabled}
+                value={c.path ?? ''}
+                onChange={(e) => set({ path: e.currentTarget.value })}
+                classNames={{ input: 'mono' }}
+              />
+              <ExpressionInput
+                label={t('form.timestamp')}
+                description={t('form.timestampHint')}
+                preview={false}
+                value={c.timestamp ?? ''}
+                onChange={(v) => set({ timestamp: v || undefined })}
+              />
             </>
           )}
           <FreshnessFields c={c} set={set} disabled={disabled} what="data" />
@@ -201,7 +368,13 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
             classNames={{ input: 'mono' }}
           />
           <FreshnessFields c={c} set={set} disabled={disabled} what="reports" />
-          <ExpressionInput label={t('form.reportCondition')} description={t('form.reportConditionHint', { vars: '{ status, value, ts, data }', example: 'value > 0' })} preview={false} value={c.condition ?? ''} onChange={(v) => set({ condition: v || undefined })} />
+          <ExpressionInput
+            label={t('form.reportCondition')}
+            description={t('form.reportConditionHint', { vars: '{ status, value, ts, data }', example: 'value > 0' })}
+            preview={false}
+            value={c.condition ?? ''}
+            onChange={(v) => set({ condition: v || undefined })}
+          />
           <ExpressionInput
             label={t('form.statusExpression')}
             description={t('form.statusExpressionHint')}
@@ -221,18 +394,52 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
                 { value: 'either', label: t('auth.mode.either') },
               ]}
             />
-            <NumberInput label={t('form.reportsPerMinute')} description={t('form.default60')} min={1} max={600} disabled={disabled} value={c.rateLimitPerMinute ?? ''} onChange={(v) => set({ rateLimitPerMinute: num(v) })} />
+            <NumberInput
+              label={t('form.reportsPerMinute')}
+              description={t('form.default60')}
+              min={1}
+              max={600}
+              disabled={disabled}
+              value={c.rateLimitPerMinute ?? ''}
+              onChange={(v) => set({ rateLimitPerMinute: num(v) })}
+            />
           </Group>
-          <TagsInput label={t('gateways.cidrs')} description={t('form.cidrsHint')} disabled={disabled} value={c.allowedCidrs ?? []} onChange={(v) => set({ allowedCidrs: v.length ? v : undefined })} />
+          <TagsInput
+            label={t('gateways.cidrs')}
+            description={t('form.cidrsHint')}
+            disabled={disabled}
+            value={c.allowedCidrs ?? []}
+            onChange={(v) => set({ allowedCidrs: v.length ? v : undefined })}
+          />
         </>
       )}
       {c.type === 'gatus' && (
         <>
           <PlatformSelect value={c.platform} onChange={(v) => set({ platform: v })} platforms={platforms} kind="gatus" disabled={disabled} />
-          <TextInput label={t('form.endpointKey')} description={t('form.endpointKeyHint', { pattern: '<group>_<name>', example: 'plant_historian-api' })} required disabled={disabled} value={c.endpointKey} onChange={(e) => set({ endpointKey: e.currentTarget.value })} classNames={{ input: 'mono' }} />
+          <TextInput
+            label={t('form.endpointKey')}
+            description={t('form.endpointKeyHint', { pattern: '<group>_<name>', example: 'plant_historian-api' })}
+            required
+            disabled={disabled}
+            value={c.endpointKey}
+            onChange={(e) => set({ endpointKey: e.currentTarget.value })}
+            classNames={{ input: 'mono' }}
+          />
           <Group grow align="flex-start">
-            <NumberInput label={t('form.gatusMaxAge')} min={1} disabled={disabled} value={c.maxAgeSeconds ?? ''} onChange={(v) => set({ maxAgeSeconds: num(v) })} />
-            <NumberInput label={t('form.gatusRecent')} min={0} disabled={disabled} value={c.degradedOnRecentFailures ?? ''} onChange={(v) => set({ degradedOnRecentFailures: num(v) })} />
+            <NumberInput
+              label={t('form.gatusMaxAge')}
+              min={1}
+              disabled={disabled}
+              value={c.maxAgeSeconds ?? ''}
+              onChange={(v) => set({ maxAgeSeconds: num(v) })}
+            />
+            <NumberInput
+              label={t('form.gatusRecent')}
+              min={0}
+              disabled={disabled}
+              value={c.degradedOnRecentFailures ?? ''}
+              onChange={(v) => set({ degradedOnRecentFailures: num(v) })}
+            />
           </Group>
         </>
       )}
@@ -251,16 +458,62 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
 
       <Divider label={t('form.schedule')} labelPosition="left" />
       <Group grow align="flex-start">
-        <NumberInput label={t('form.interval')} description={t('form.monitorDefault')} min={5} disabled={disabled} value={c.intervalSeconds ?? ''} onChange={(v) => set({ intervalSeconds: num(v) })} />
-        <NumberInput label={t('form.timeout')} description={t('form.monitorDefault')} min={1} max={300} disabled={disabled} value={c.timeoutSeconds ?? ''} onChange={(v) => set({ timeoutSeconds: num(v) })} />
+        <NumberInput
+          label={t('form.interval')}
+          description={t('form.monitorDefault')}
+          min={5}
+          disabled={disabled}
+          value={c.intervalSeconds ?? ''}
+          onChange={(v) => set({ intervalSeconds: num(v) })}
+        />
+        <NumberInput
+          label={t('form.timeout')}
+          description={t('form.monitorDefault')}
+          min={1}
+          max={300}
+          disabled={disabled}
+          value={c.timeoutSeconds ?? ''}
+          onChange={(v) => set({ timeoutSeconds: num(v) })}
+        />
       </Group>
       <Group grow align="flex-start">
-        <NumberInput label={t('form.failuresBeforeDown')} min={1} max={20} disabled={disabled} value={c.failuresBeforeDown ?? ''} onChange={(v) => set({ failuresBeforeDown: num(v) })} />
-        <NumberInput label={t('form.successesBeforeUp')} min={1} max={20} disabled={disabled} value={c.successesBeforeUp ?? ''} onChange={(v) => set({ successesBeforeUp: num(v) })} />
+        <NumberInput
+          label={t('form.failuresBeforeDown')}
+          min={1}
+          max={20}
+          disabled={disabled}
+          value={c.failuresBeforeDown ?? ''}
+          onChange={(v) => set({ failuresBeforeDown: num(v) })}
+        />
+        <NumberInput
+          label={t('form.successesBeforeUp')}
+          min={1}
+          max={20}
+          disabled={disabled}
+          value={c.successesBeforeUp ?? ''}
+          onChange={(v) => set({ successesBeforeUp: num(v) })}
+        />
       </Group>
-      <Switch label={t('form.critical')} disabled={disabled} checked={c.critical !== false} onChange={(e) => set({ critical: e.currentTarget.checked ? undefined : false })} />
-      <Switch label={t('form.enabled')} disabled={disabled} checked={c.enabled !== false} onChange={(e) => set({ enabled: e.currentTarget.checked ? undefined : false })} />
-      <Textarea label={t('form.description')} autosize minRows={1} disabled={disabled} value={c.description ?? ''} onChange={(e) => set({ description: e.currentTarget.value || undefined })} />
+      <Switch
+        label={t('form.critical')}
+        disabled={disabled}
+        checked={c.critical !== false}
+        onChange={(e) => set({ critical: e.currentTarget.checked ? undefined : false })}
+      />
+      <Switch
+        label={t('form.enabled')}
+        disabled={disabled}
+        checked={c.enabled !== false}
+        onChange={(e) => set({ enabled: e.currentTarget.checked ? undefined : false })}
+      />
+      <Textarea
+        label={t('form.description')}
+        autosize
+        minRows={1}
+        disabled={disabled}
+        value={c.description ?? ''}
+        onChange={(e) => set({ description: e.currentTarget.value || undefined })}
+      />
     </Stack>
   );
 }

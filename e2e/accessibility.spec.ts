@@ -18,7 +18,13 @@ async function expectAccessible(page: Page, name: string) {
     .disableRules(KNOWN_ISSUES.map((k) => k.rule))
     .analyze();
   const bad = result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
-  const report = bad.map((v) => `${v.impact} ${v.id}: ${v.help}\n${v.nodes.slice(0, 5).map((n) => `   ${n.target.join(' ')}\n     ${n.failureSummary?.split('\n').join(' ')}`).join('\n')}`);
+  const report = bad.map(
+    (v) =>
+      `${v.impact} ${v.id}: ${v.help}\n${v.nodes
+        .slice(0, 5)
+        .map((n) => `   ${n.target.join(' ')}\n     ${n.failureSummary?.split('\n').join(' ')}`)
+        .join('\n')}`,
+  );
   expect(report, `accessibility violations on ${name}`).toEqual([]);
 }
 

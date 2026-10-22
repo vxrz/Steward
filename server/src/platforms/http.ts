@@ -99,12 +99,7 @@ export async function credentialsAllowed(p: Platform, secrets: Record<string, st
   return allowed.has(origin);
 }
 
-export async function buildUrl(
-  p: Platform,
-  secrets: Record<string, string>,
-  pathOrUrl: string,
-  query?: Record<string, unknown>,
-): Promise<string> {
+export async function buildUrl(p: Platform, secrets: Record<string, string>, pathOrUrl: string, query?: Record<string, unknown>): Promise<string> {
   let url: string;
   if (/^https?:\/\//i.test(pathOrUrl)) url = pathOrUrl;
   else {
@@ -155,7 +150,10 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal, a
       emit('http.request', { host: target?.host ?? 'unknown', method: req.method, status: res.status, durationMs: res.durationMs, error: res.status >= 500 });
       span.setAttribute('http.response.status_code', res.status);
       if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
-      logger.debug({ platform: p.name, method: req.method, host: target?.host, path: target?.pathname, status: res.status, ms: res.durationMs }, 'platform call');
+      logger.debug(
+        { platform: p.name, method: req.method, host: target?.host, path: target?.pathname, status: res.status, ms: res.durationMs },
+        'platform call',
+      );
       return res;
     },
     SpanKind.CLIENT,
@@ -227,11 +225,7 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   return { status: res.status, ok: res.ok, url: req.url, headers: resHeaders, body: parsed, durationMs: Date.now() - started };
 }
 
-async function obtainAuthHeader(
-  p: Platform,
-  secrets: Record<string, string>,
-  signal?: AbortSignal,
-): Promise<[string, string] | null> {
+async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<[string, string] | null> {
   const auth: AuthConfig = p.config.auth ?? { type: 'none' };
   const scope = authScope(p, secrets);
   switch (auth.type) {
@@ -391,7 +385,8 @@ class Semaphore {
       if (released) return;
       released = true;
       const next = this.queue.shift();
-      if (next) next(); // slot handed over, active count unchanged
+      if (next)
+        next(); // slot handed over, active count unchanged
       else this.active--;
     };
   }
@@ -502,12 +497,7 @@ const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
  * Retries 429/502/503/504 and network errors (honouring Retry-After; POST/PATCH
  * only with retryNonIdempotent) and limits concurrent calls per platform.
  */
-export async function platformRequest(
-  p: Platform,
-  secrets: Record<string, string>,
-  req: HttpRequest,
-  signal?: AbortSignal,
-): Promise<HttpResult> {
+export async function platformRequest(p: Platform, secrets: Record<string, string>, req: HttpRequest, signal?: AbortSignal): Promise<HttpResult> {
   if (!p.baseUrl && !/^https?:/i.test(req.url)) throw new HttpError(400, 'Platform has no base URL');
   // Credentials (auth header, API key, default headers) only go to the platform's own origin(s).
   const trusted = await credentialsAllowed(p, secrets, req.url);

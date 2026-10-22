@@ -321,7 +321,15 @@ export function UsersPage() {
   );
 }
 
-function UserModal({ user, onClose, onSaved }: { user: UserInfo | null; onClose: () => void; onSaved: (tempPw: string | undefined, username: string) => void }) {
+function UserModal({
+  user,
+  onClose,
+  onSaved,
+}: {
+  user: UserInfo | null;
+  onClose: () => void;
+  onSaved: (tempPw: string | undefined, username: string) => void;
+}) {
   const { t } = useTranslation(['users', 'common']);
   const [username, setUsername] = useState(user?.username ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');

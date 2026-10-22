@@ -51,7 +51,11 @@ function ReportPanel({ def, onChange }: { def: Def; onChange: (d: Def) => void }
   const lang = def.report?.lang ?? 'en';
   const set = (next: { auto: boolean; lang: ReportLang }) => {
     const { report: _r, ...rest } = def;
-    onChange(next.auto || next.lang !== 'en' ? { ...rest, report: { ...(next.auto ? { auto: true } : {}), ...(next.lang !== 'en' ? { lang: next.lang } : {}) } } : (rest as Def));
+    onChange(
+      next.auto || next.lang !== 'en'
+        ? { ...rest, report: { ...(next.auto ? { auto: true } : {}), ...(next.lang !== 'en' ? { lang: next.lang } : {}) } }
+        : (rest as Def),
+    );
   };
   return (
     <Stack gap="sm">

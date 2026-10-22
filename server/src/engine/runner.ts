@@ -28,7 +28,15 @@ import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { assertAddressSafe, assertNoSecretLeak, assertOutboundAllowed, egressSecretValues, secretEncodings, type OutboundContext, type SecretBinding } from '../platforms/outbound.js';
+import {
+  assertAddressSafe,
+  assertNoSecretLeak,
+  assertOutboundAllowed,
+  egressSecretValues,
+  secretEncodings,
+  type OutboundContext,
+  type SecretBinding,
+} from '../platforms/outbound.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
@@ -57,7 +65,8 @@ function userPseudonym(name: string): string {
 }
 
 /** Keys whose values are never stored in the protocol (headers, credentials, OAuth token responses). */
-const REDACT_KEY = /^(authorization|proxy-authorization|x-space-auth-key|x-api-key|api[-_]?key|cookie|set-cookie|password|passphrase|client_secret|access_token|refresh_token|id_token)$/i;
+const REDACT_KEY =
+  /^(authorization|proxy-authorization|x-space-auth-key|x-api-key|api[-_]?key|cookie|set-cookie|password|passphrase|client_secret|access_token|refresh_token|id_token)$/i;
 
 export class Redactor {
   private values = new Set<string>();
@@ -340,20 +349,18 @@ export function parseCsv(text: string): Record<string, string>[] {
   for (let i = 0; i < lines.length; i++) {
     const c = lines[i]!;
     if (q) {
-      if (c === '"' && lines[i + 1] === '"') (field += '"'), i++;
+      if (c === '"' && lines[i + 1] === '"') ((field += '"'), i++);
       else if (c === '"') q = false;
       else field += c;
     } else if (c === '"') q = true;
-    else if (c === delim) row.push(field), (field = '');
-    else if (c === '\n') row.push(field), rows.push(row), (row = []), (field = '');
+    else if (c === delim) (row.push(field), (field = ''));
+    else if (c === '\n') (row.push(field), rows.push(row), (row = []), (field = ''));
     else field += c;
   }
   row.push(field);
   rows.push(row);
   const header = rows.shift()!.map((h) => h.trim());
-  return rows
-    .filter((r) => r.some((x) => x.trim() !== ''))
-    .map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
+  return rows.filter((r) => r.some((x) => x.trim() !== '')).map((r) => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? '').trim()])));
 }
 
 async function resolveBindings(def: ProcessDefinition, requested: Record<string, string>): Promise<Record<string, Binding>> {
@@ -462,10 +469,7 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
   if (!['waiting', 'interrupted'].includes(r.status)) throw new HttpError(409, `Run is ${r.status}`);
   const proc = getProcess(r.process_id, r.process_version);
   const bindingInfo = parseJson<Record<string, { platformId: string }>>(r.bindings, {});
-  const bindings = await resolveBindings(
-    proc.definition,
-    Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId])),
-  );
+  const bindings = await resolveBindings(proc.definition, Object.fromEntries(Object.entries(bindingInfo).map(([k, v]) => [k, v.platformId])));
   store.setRunStatus(runId, 'running');
   audit({ actor, action: 'run.resumed', entityType: 'run', entityId: runId, runId, summary: `Run resumed (was ${r.status})` });
   launch(
@@ -974,7 +978,12 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
     const chain = store.ancestorChain(ctx.runId);
     const loop = chain.find((a) => a.processId === step.process);
     if (loop) {
-      throw new Error(`Recursion: process "${step.process}" is already running in this chain (${chain.map((a) => a.processId).reverse().join(' → ')})`);
+      throw new Error(
+        `Recursion: process "${step.process}" is already running in this chain (${chain
+          .map((a) => a.processId)
+          .reverse()
+          .join(' → ')})`,
+      );
     }
     if (chain.length > MAX_SUBPROCESS_DEPTH) throw new Error(`Sub-processes are nested too deeply (limit ${MAX_SUBPROCESS_DEPTH})`);
     if (!actorPermissions(ctx.actor, step.process).includes('run')) {
@@ -1069,7 +1078,12 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         out[k] = val === undefined ? null : val;
         ctx.vars[k] = out[k];
       }
-      return { output: out, summary: Object.keys(out).map((k) => `${k} = ${describe(out[k])}`).join(', ') };
+      return {
+        output: out,
+        summary: Object.keys(out)
+          .map((k) => `${k} = ${describe(out[k])}`)
+          .join(', '),
+      };
     }
     case 'log': {
       const message = await ctx.str(step.message);
@@ -1181,9 +1195,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
   const p = await ctx.str(step.path);
   const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>;
-  const headers = Object.fromEntries(
-    Object.entries((await ctx.render(step.headers ?? {})) as Record<string, unknown>).map(([k, v]) => [k, stringify(v)]),
-  );
+  const headers = Object.fromEntries(Object.entries((await ctx.render(step.headers ?? {})) as Record<string, unknown>).map(([k, v]) => [k, stringify(v)]));
   const body = step.body === undefined ? undefined : await ctx.render(step.body);
   const writes = isMutating(step);
   const requestInfo = { platform: b.platform.name, method: step.method, url: joinUrl(b.baseUrl, p), query, headers, body, write: writes };
@@ -1221,7 +1233,14 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
     const res = await doRequest(p, query);
     if (writes) auditWrite(ctx, b, step, p, res, key);
     return {
-      output: { status: res.status, ok: res.ok, headers: res.headers, body: res.body, durationMs: res.durationMs, ...(res.attempts ? { attempts: res.attempts } : {}) },
+      output: {
+        status: res.status,
+        ok: res.ok,
+        headers: res.headers,
+        body: res.body,
+        durationMs: res.durationMs,
+        ...(res.attempts ? { attempts: res.attempts } : {}),
+      },
       summary: `${step.method} ${p} → ${res.status} (${res.durationMs} ms${res.attempts ? `, ${res.attempts} attempts` : ''})`,
     };
   }
@@ -1390,7 +1409,9 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
   if (ctx.dryRun && owner && owner !== run.process_id) {
     const statusCounts: Record<string, number> = {};
     for (const r of rows) if (r._status) statusCounts[r._status] = (statusCounts[r._status] ?? 0) + 1;
-    const counts = Object.entries(statusCounts).map(([k, n]) => `${n} ${k}`).join(', ');
+    const counts = Object.entries(statusCounts)
+      .map(([k, n]) => `${n} ${k}`)
+      .join(', ');
     ctx.log('info', `DRY RUN – "${step.dataset}" is owned by another process; it was not written`, key);
     return {
       status: 'dryrun',
@@ -1410,10 +1431,18 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     metrics,
     staleAfterMinutes: step.staleAfterMinutes,
   });
-  const counts = Object.entries(meta.statusCounts).map(([k, n]) => `${n} ${k}`).join(', ');
+  const counts = Object.entries(meta.statusCounts)
+    .map(([k, n]) => `${n} ${k}`)
+    .join(', ');
   return {
     output: { dataset: step.dataset, rows: rows.length, statusCounts: meta.statusCounts, metrics },
-    summary: `${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}${Object.keys(metrics).length ? ` · ${Object.entries(metrics).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''}`,
+    summary: `${step.dataset}: ${rows.length} row(s)${counts ? ` (${counts})` : ''}${
+      Object.keys(metrics).length
+        ? ` · ${Object.entries(metrics)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ')}`
+        : ''
+    }`,
   };
 }
 
@@ -1438,7 +1467,18 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
   let task = store.findTask(ctx.runId, key);
   if (!task) {
     const id = newId('task_');
-    store.insertTask({ id, runId: ctx.runId, stepKey: key, mode: step.mode, title, instructions, columns, items: ctx.redactor.apply(items), assignees: step.assignees ?? [], fourEyes: !!step.fourEyes });
+    store.insertTask({
+      id,
+      runId: ctx.runId,
+      stepKey: key,
+      mode: step.mode,
+      title,
+      instructions,
+      columns,
+      items: ctx.redactor.apply(items),
+      assignees: step.assignees ?? [],
+      fourEyes: !!step.fourEyes,
+    });
     emit('task.created', {
       taskId: id,
       runId: ctx.runId,
@@ -1573,7 +1613,11 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       }
       if (!warnedDryInteraction) {
         warnedDryInteraction = true;
-        ctx.log('warn', 'DRY RUN – this browser step performs page interactions (click/fill/…) that may change data in the portal. Mark the step "changes data" or set dryRunReadOnly to skip them.', key);
+        ctx.log(
+          'warn',
+          'DRY RUN – this browser step performs page interactions (click/fill/…) that may change data in the portal. Mark the step "changes data" or set dryRunReadOnly to skip them.',
+          key,
+        );
       }
     }
     // An action that puts a value into the page would send it to the page's current origin:
@@ -1616,11 +1660,7 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
         case 'extract': {
           let v: unknown;
           if (a.all) {
-            v = await page.$$eval(
-              sel,
-              (els, attr) => els.map((e) => (attr ? e.getAttribute(attr as string) : (e.textContent ?? '').trim())),
-              a.attribute,
-            );
+            v = await page.$$eval(sel, (els, attr) => els.map((e) => (attr ? e.getAttribute(attr as string) : (e.textContent ?? '').trim())), a.attribute);
           } else if (a.attribute) v = await page.getAttribute(sel, a.attribute, opts);
           else v = ((await page.textContent(sel, opts)) ?? '').trim();
           extracted[a.as ?? `value${i + 1}`] = v;
@@ -1658,7 +1698,17 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
         fs.mkdirSync(dir, { recursive: true });
         const file = path.join(dir, `${id}.png`);
         fs.writeFileSync(file, buf);
-        store.addArtifact({ id, runId: ctx.runId, stepKey: key, kind: 'screenshot', name: `failure-${i + 1}`, mime: 'image/png', path: file, sha256: sha256(buf), size: buf.length });
+        store.addArtifact({
+          id,
+          runId: ctx.runId,
+          stepKey: key,
+          kind: 'screenshot',
+          name: `failure-${i + 1}`,
+          mime: 'image/png',
+          path: file,
+          sha256: sha256(buf),
+          size: buf.length,
+        });
       } catch {
         /* ignore */
       }

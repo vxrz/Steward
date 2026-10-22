@@ -119,7 +119,8 @@ function compare(lang, file, en, tr, problems) {
     if (!value.trim()) add('empty', key);
     const m = PLURAL_SUFFIX.exec(key);
     const base = m ? key.slice(0, -m[0].length) : null;
-    const source = key in en ? en[key] : base && enPlural.has(base) ? en[`${base}_other`] ?? Object.values(enPlural.get(base)).map((k) => en[k])[0] : undefined;
+    const source =
+      key in en ? en[key] : base && enPlural.has(base) ? (en[`${base}_other`] ?? Object.values(enPlural.get(base)).map((k) => en[k])[0]) : undefined;
     if (source === undefined) continue;
     let want = placeholders(source);
     let got = placeholders(value);
@@ -160,7 +161,8 @@ export function check(root) {
   const stats = {};
   const webDir = path.join(root, 'web/src/locales');
   const serverDir = path.join(root, 'server/src/i18n/locales');
-  if (!fs.existsSync(path.join(webDir, 'en'))) throw new UsageError(`No English locale folder at ${path.relative(process.cwd(), path.join(webDir, 'en')) || webDir}`);
+  if (!fs.existsSync(path.join(webDir, 'en')))
+    throw new UsageError(`No English locale folder at ${path.relative(process.cwd(), path.join(webDir, 'en')) || webDir}`);
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
 
   const langs = fs
@@ -170,11 +172,24 @@ export function check(root) {
     .sort();
   const declared = declaredLanguages(root);
   if (declared) {
-    for (const l of declared) if (!langs.includes(l)) problems.push({ lang: l, file: rel(webDir), type: 'missing', key: '', detail: `language "${l}" is declared in shared/src/locales.ts but has no folder` });
-    for (const l of langs) if (!declared.includes(l)) problems.push({ lang: l, file: rel(path.join(webDir, l)), type: 'extra', key: '', detail: `folder "${l}" is not declared in shared/src/locales.ts` });
+    for (const l of declared)
+      if (!langs.includes(l))
+        problems.push({
+          lang: l,
+          file: rel(webDir),
+          type: 'missing',
+          key: '',
+          detail: `language "${l}" is declared in shared/src/locales.ts but has no folder`,
+        });
+    for (const l of langs)
+      if (!declared.includes(l))
+        problems.push({ lang: l, file: rel(path.join(webDir, l)), type: 'extra', key: '', detail: `folder "${l}" is not declared in shared/src/locales.ts` });
   }
 
-  const enFiles = fs.readdirSync(path.join(webDir, 'en')).filter((f) => f.endsWith('.json')).sort();
+  const enFiles = fs
+    .readdirSync(path.join(webDir, 'en'))
+    .filter((f) => f.endsWith('.json'))
+    .sort();
   const enFlat = {};
   for (const f of enFiles) {
     const data = readJson(path.join(webDir, 'en', f), problems, 'en', rel(path.join(webDir, 'en', f)));
@@ -197,7 +212,8 @@ export function check(root) {
       keys += Object.keys(flat).length;
       compare(lang, rel(p), enFlat[f], flat, problems);
     }
-    for (const f of files) if (!enFiles.includes(f)) problems.push({ lang, file: rel(path.join(webDir, lang, f)), type: 'extra', key: '', detail: 'namespace has no English file' });
+    for (const f of files)
+      if (!enFiles.includes(f)) problems.push({ lang, file: rel(path.join(webDir, lang, f)), type: 'extra', key: '', detail: 'namespace has no English file' });
     stats[lang] = { files: files.length, keys };
   }
 
@@ -210,7 +226,8 @@ export function check(root) {
       const p = path.join(serverDir, f);
       const data = readJson(p, problems, lang, rel(p));
       if (en && data) compare(lang, rel(p), flatten(en), flatten(data), problems);
-      if (declared && !declared.includes(lang)) problems.push({ lang, file: rel(p), type: 'extra', key: '', detail: `language "${lang}" is not declared in shared/src/locales.ts` });
+      if (declared && !declared.includes(lang))
+        problems.push({ lang, file: rel(p), type: 'extra', key: '', detail: `language "${lang}" is not declared in shared/src/locales.ts` });
     }
   }
   return { ok: problems.length === 0, languages: langs, stats, problems };
@@ -232,8 +249,14 @@ function report(result, useColor) {
   }
   const langs = result.languages.filter((l) => l !== 'en');
   const summary = langs.map((l) => `${l}: ${result.stats[l]?.keys ?? 0}/${result.stats.en.keys} keys`).join(', ');
-  if (result.ok) process.stdout.write(`${c('32', '✓')} All languages match English (${result.stats.en.keys} keys in ${result.stats.en.files} namespaces${summary ? `; ${summary}` : ''}).\n`);
-  else process.stderr.write(`${c('31', '✗')} ${result.problems.length} problem(s) found${summary ? ` (${summary})` : ''}. English is the source of truth: add or fix the keys above.\n`);
+  if (result.ok)
+    process.stdout.write(
+      `${c('32', '✓')} All languages match English (${result.stats.en.keys} keys in ${result.stats.en.files} namespaces${summary ? `; ${summary}` : ''}).\n`,
+    );
+  else
+    process.stderr.write(
+      `${c('31', '✗')} ${result.problems.length} problem(s) found${summary ? ` (${summary})` : ''}. English is the source of truth: add or fix the keys above.\n`,
+    );
 }
 
 function main() {

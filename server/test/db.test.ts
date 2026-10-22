@@ -29,7 +29,11 @@ describe('SQL translation', () => {
   it('parses database targets and never shows passwords', () => {
     expect(parseDatabaseTarget('sqlite:/tmp/x.db')).toEqual({ kind: 'sqlite', file: '/tmp/x.db' });
     expect(parseDatabaseTarget('/tmp/x.db')).toEqual({ kind: 'sqlite', file: '/tmp/x.db' });
-    expect(parseDatabaseTarget('postgres://u:pw@db:5432/sm', { schema: 'steward' })).toEqual({ kind: 'postgres', url: 'postgres://u:pw@db:5432/sm', schema: 'steward' });
+    expect(parseDatabaseTarget('postgres://u:pw@db:5432/sm', { schema: 'steward' })).toEqual({
+      kind: 'postgres',
+      url: 'postgres://u:pw@db:5432/sm',
+      schema: 'steward',
+    });
     const withCa = parseDatabaseTarget('postgresql://u:pw@db/sm', { ca: '/etc/ca.pem' });
     expect(withCa.kind === 'postgres' && new URL(withCa.url).searchParams.get('sslrootcert')).toBe('/etc/ca.pem');
     expect(withCa.kind === 'postgres' && new URL(withCa.url).searchParams.get('sslmode')).toBe('verify-full');
@@ -50,7 +54,11 @@ describe('SQL translation', () => {
       }
     };
     walk(root);
-    const skip = (p: string) => p.includes(`${path.sep}database${path.sep}`) || p.endsWith(`${path.sep}db.ts`) || p.includes(`${path.sep}migrations${path.sep}`) || p.endsWith('db-copy.ts');
+    const skip = (p: string) =>
+      p.includes(`${path.sep}database${path.sep}`) ||
+      p.endsWith(`${path.sep}db.ts`) ||
+      p.includes(`${path.sep}migrations${path.sep}`) ||
+      p.endsWith('db-copy.ts');
     const rules: [RegExp, string][] = [
       [/\bINSERT\s+OR\s+(IGNORE|REPLACE)\b/, 'use INSERT … ON CONFLICT … DO NOTHING / DO UPDATE'],
       [/\bPRAGMA\b/, 'PRAGMAs are SQLite-only (add a Db method)'],
@@ -65,7 +73,8 @@ describe('SQL translation', () => {
         .forEach((line, i) => {
           if (/^\s*(\/\/|\*)/.test(line)) return;
           for (const [re, why] of rules) if (re.test(line)) problems.push(`${path.relative(root, f)}:${i + 1}: ${why}`);
-          if (/\bLIKE\b/.test(line) && !/lower\(/.test(line)) problems.push(`${path.relative(root, f)}:${i + 1}: LIKE is case-sensitive on PostgreSQL – use lower(x) LIKE lower(?)`);
+          if (/\bLIKE\b/.test(line) && !/lower\(/.test(line))
+            problems.push(`${path.relative(root, f)}:${i + 1}: LIKE is case-sensitive on PostgreSQL – use lower(x) LIKE lower(?)`);
         });
     }
     expect(problems).toEqual([]);
@@ -128,7 +137,9 @@ function sharedBehaviour(open: () => Db) {
     const ts = new Date().toISOString();
     d.run("INSERT INTO users (id, username, display_name, password_hash, created_at, updated_at) VALUES ('u1', 'Alice', 'A', 'x', ?, ?)", ts, ts);
     expect(d.get<{ id: string }>('SELECT id FROM users WHERE username = ?', 'aLiCe')?.id).toBe('u1');
-    expect(() => d.run("INSERT INTO users (id, username, display_name, password_hash, created_at, updated_at) VALUES ('u2', 'ALICE', 'A', 'x', ?, ?)", ts, ts)).toThrow();
+    expect(() =>
+      d.run("INSERT INTO users (id, username, display_name, password_hash, created_at, updated_at) VALUES ('u2', 'ALICE', 'A', 'x', ?, ?)", ts, ts),
+    ).toThrow();
     // other text sorts byte-wise, like SQLite
     d.run("INSERT INTO settings (key, value) VALUES ('b', '1'), ('B', '2'), ('a', '3')");
     expect(d.all<{ key: string }>('SELECT key FROM settings ORDER BY key').map((r) => r.key)).toEqual(['B', 'a', 'b']);
@@ -224,9 +235,11 @@ describe.skipIf(!PG_TEST_URL)('PostgreSQL driver (sync bridge)', () => {
   it('creates the same tables and columns as on SQLite', () => {
     const lite = new Db({ kind: 'sqlite', file: ':memory:' });
     const pg = open();
-    const liteTables = lite.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name").map((r) => r.name);
+    const liteTables = lite
+      .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name")
+      .map((r) => r.name);
     const pgTables = pg
-      .all<{ name: string }>("SELECT table_name AS name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name")
+      .all<{ name: string }>('SELECT table_name AS name FROM information_schema.tables WHERE table_schema = current_schema() ORDER BY table_name')
       .map((r) => r.name);
     expect(pgTables).toEqual(liteTables);
     const typeMap: Record<string, string> = { INTEGER: 'bigint', TEXT: 'text', REAL: 'double precision', BLOB: 'bytea' };

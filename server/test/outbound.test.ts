@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Platform } from '@sm/shared';
 import {
   allowListMatches,
   assertNoSecretLeak,

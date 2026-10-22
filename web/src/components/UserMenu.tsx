@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
-import { IconActivityHeartbeat, IconCheck, IconChevronDown, IconDownload, IconInfoCircle, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
+import {
+  IconActivityHeartbeat,
+  IconCheck,
+  IconChevronDown,
+  IconDownload,
+  IconInfoCircle,
+  IconKey,
+  IconLock,
+  IconLogout,
+  IconMoon,
+  IconSun,
+  IconUser,
+} from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';

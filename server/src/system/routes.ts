@@ -43,13 +43,16 @@ export function systemStatus(full: boolean): SystemStatus {
     .slice(0, 5)
     .map((s) => ({ id: s.id, name: s.name, nextRunAt: s.nextRunAt! }));
   const monitors = safe(
-    () => db().get<{ total: number; enabled: number }>('SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END), 0) AS enabled FROM monitors WHERE is_template = 0')!,
+    () =>
+      db().get<{ total: number; enabled: number }>(
+        'SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN enabled = 1 THEN 1 ELSE 0 END), 0) AS enabled FROM monitors WHERE is_template = 0',
+      )!,
     { total: 0, enabled: 0 },
   );
-  const checkStats = safe(
-    () => db().get<{ n: number; last: string | null }>('SELECT COUNT(*) AS n, MAX(last_checked_at) AS last FROM monitor_checks')!,
-    { n: 0, last: null },
-  );
+  const checkStats = safe(() => db().get<{ n: number; last: string | null }>('SELECT COUNT(*) AS n, MAX(last_checked_at) AS last FROM monitor_checks')!, {
+    n: 0,
+    last: null,
+  });
   const down = safe(() => db().get<{ n: number }>("SELECT COUNT(*) AS n FROM monitor_state WHERE status = 'down'")!.n, 0);
   const notifications = safe(() => getNotificationSettings(), null);
   const er = errorReportingSettings();

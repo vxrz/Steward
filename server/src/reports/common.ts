@@ -34,6 +34,16 @@ export function chrome(
 }
 
 export const statusTone = (s: string): Tone =>
-  s === 'succeeded' ? 'success' : s === 'failed' ? 'danger' : s === 'dryrun' ? 'warning' : s === 'waiting' || s === 'running' ? 'info' : s === 'skipped' ? 'muted' : 'default';
+  s === 'succeeded'
+    ? 'success'
+    : s === 'failed'
+      ? 'danger'
+      : s === 'dryrun'
+        ? 'warning'
+        : s === 'waiting' || s === 'running'
+          ? 'info'
+          : s === 'skipped'
+            ? 'muted'
+            : 'default';
 
 export const langTag = (lang: string): string => (lang === 'de' ? 'de-DE' : 'en-GB');

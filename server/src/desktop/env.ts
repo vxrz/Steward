@@ -113,7 +113,12 @@ if (inExecutable && willStart) {
       const want = manifest.sha256[key];
       if (!want) continue;
       try {
-        if (createHash('sha256').update(fs.readFileSync(path.join(appDir, ...key.split('/')))).digest('hex') !== want) return false;
+        if (
+          createHash('sha256')
+            .update(fs.readFileSync(path.join(appDir, ...key.split('/'))))
+            .digest('hex') !== want
+        )
+          return false;
       } catch {
         return false;
       }

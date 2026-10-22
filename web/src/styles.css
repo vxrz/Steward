@@ -1,14 +1,47 @@
-body { margin: 0; }
-.mono { font-family: var(--mantine-font-family-monospace); font-size: 12px; }
-.clickable { cursor: pointer; }
-.md p { margin: 0 0 6px; }
-.md ul { margin: 0 0 6px; padding-left: 20px; }
-.md code { font-family: var(--mantine-font-family-monospace); font-size: 12px; background: var(--mantine-color-default-hover); padding: 0 4px; border-radius: 4px; }
-.step-block { border-left: 2px solid var(--mantine-color-default-border); margin-left: 10px; padding-left: 10px; }
-.step-row { border: 1px solid var(--mantine-color-default-border); border-radius: 8px; background: var(--mantine-color-body); }
-.step-row.selected { border-color: var(--mantine-primary-color-filled); box-shadow: 0 0 0 1px var(--mantine-primary-color-filled); }
-.nowrap { white-space: nowrap; }
-.table-scroll { overflow-x: auto; }
+body {
+  margin: 0;
+}
+.mono {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+}
+.clickable {
+  cursor: pointer;
+}
+.md p {
+  margin: 0 0 6px;
+}
+.md ul {
+  margin: 0 0 6px;
+  padding-left: 20px;
+}
+.md code {
+  font-family: var(--mantine-font-family-monospace);
+  font-size: 12px;
+  background: var(--mantine-color-default-hover);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.step-block {
+  border-left: 2px solid var(--mantine-color-default-border);
+  margin-left: 10px;
+  padding-left: 10px;
+}
+.step-row {
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 8px;
+  background: var(--mantine-color-body);
+}
+.step-row.selected {
+  border-color: var(--mantine-primary-color-filled);
+  box-shadow: 0 0 0 1px var(--mantine-primary-color-filled);
+}
+.nowrap {
+  white-space: nowrap;
+}
+.table-scroll {
+  overflow-x: auto;
+}
 
 /*
  * Accessibility (WCAG 2.1 AA, 4.5:1 text contrast) for the light color scheme.
@@ -98,5 +131,9 @@ p .mantine-Anchor-root,
   text-decoration: underline;
 }
 /* Inactive rows (revoked tokens, deactivated users): dimmed text instead of opacity, which broke text contrast. */
-.mantine-Table-tr[data-inactive] { color: var(--mantine-color-dimmed); }
-.react-flow .react-flow__panel.react-flow__attribution a { color: var(--mantine-color-dimmed); }
+.mantine-Table-tr[data-inactive] {
+  color: var(--mantine-color-dimmed);
+}
+.react-flow .react-flow__panel.react-flow__attribution a {
+  color: var(--mantine-color-dimmed);
+}

@@ -1,18 +1,13 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import jsonata from 'jsonata';
 import YAML from 'yaml';
 import {
-  CHECK_TYPES,
   MONITOR_KEY_RE,
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
   definitionIssues,
   findCycle,
-  monitorDefinitionSchema,
-  monitorFileSchema,
-  templateParamSchema,
   type AclEntry,
   type CheckDef,
   type CheckResultInfo,
@@ -143,7 +138,9 @@ export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary
     .filter((r) => (opts.templates === undefined ? true : !!r.is_template === opts.templates))
     .filter((r) => permissionsOfRow(r).includes('view'));
   const counts = new Map<string, Partial<Record<MonitorStatus, number>>>();
-  for (const c of db().all<{ monitor_id: string; status: MonitorStatus; n: number }>('SELECT monitor_id, status, COUNT(*) AS n FROM monitor_checks GROUP BY monitor_id, status')) {
+  for (const c of db().all<{ monitor_id: string; status: MonitorStatus; n: number }>(
+    'SELECT monitor_id, status, COUNT(*) AS n FROM monitor_checks GROUP BY monitor_id, status',
+  )) {
     const x = counts.get(c.monitor_id) ?? {};
     x[c.status] = Number(c.n);
     counts.set(c.monitor_id, x);
@@ -152,7 +149,11 @@ export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary
 }
 
 function checkStates(r: Joined, def: MonitorDefinition): CheckState[] {
-  const rows = new Map(db().all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', r.id).map((x) => [x.check_id, x]));
+  const rows = new Map(
+    db()
+      .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', r.id)
+      .map((x) => [x.check_id, x]),
+  );
   const uptimes = checkUptimes([r.id], engine.monitorNow());
   const inMaint = !!engine.activeMaintenance(r.id);
   return def.checks.map((c) => {
@@ -240,7 +241,15 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
       ...params,
       limit,
     )
-    .map((h) => ({ id: Number(h.id), ts: h.ts, checkId: h.check_id || null, status: h.status, previous: h.previous, message: h.message, causedBy: parseCauses(h.caused_by) }));
+    .map((h) => ({
+      id: Number(h.id),
+      ts: h.ts,
+      checkId: h.check_id || null,
+      status: h.status,
+      previous: h.previous,
+      message: h.message,
+      causedBy: parseCauses(h.caused_by),
+    }));
 }
 
 export function listResults(idOrKey: string, checkId: string, limit = 50): CheckResultInfo[] {
@@ -297,7 +306,9 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
       for (const k of Object.keys(o.inputs)) if (!names.has(k)) throw new HttpError(400, `Output "${o.id}": the process has no input "${k}"`);
     }
     if (o.type === 'notification') {
-      for (const s of o.subscribers) if (!/^(user|team|role):.+/.test(s.trim())) throw new HttpError(400, `Output "${o.id}": subscriber "${s}" – use user:<name>, team:<name> or role:<role>`);
+      for (const s of o.subscribers)
+        if (!/^(user|team|role):.+/.test(s.trim()))
+          throw new HttpError(400, `Output "${o.id}": subscriber "${s}" – use user:<name>, team:<name> or role:<role>`);
       o.subscribers = o.subscribers.map((s) => s.trim().toLowerCase());
     }
   }
@@ -307,21 +318,29 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
   for (const m of db().all<{ id: string; definition: string }>('SELECT id, definition FROM monitors')) {
     if (m.id === selfId) continue;
     nodes.add(m.id);
-    for (const c of parseJson<{ checks?: { type: string; monitor?: string }[] }>(m.definition, {}).checks ?? []) if (c.type === 'monitor' && c.monitor) edges.push([m.id, c.monitor]);
+    for (const c of parseJson<{ checks?: { type: string; monitor?: string }[] }>(m.definition, {}).checks ?? [])
+      if (c.type === 'monitor' && c.monitor) edges.push([m.id, c.monitor]);
   }
   const me = selfId ?? '(new)';
   nodes.add(me);
   for (const c of out.checks) if (c.type === 'monitor') edges.push([me, c.monitor]);
   const cycle = findCycle([...nodes], edges);
   if (cycle) {
-    const names = new Map(db().all<{ id: string; name: string }>('SELECT id, name FROM monitors').map((r) => [r.id, r.name]));
+    const names = new Map(
+      db()
+        .all<{ id: string; name: string }>('SELECT id, name FROM monitors')
+        .map((r) => [r.id, r.name]),
+    );
     throw new HttpError(400, `Sub-monitors would form a cycle: ${cycle.map((id) => (id === me ? out.name : (names.get(id) ?? id))).join(' → ')}`);
   }
   // heartbeat keys are global (gateway batch reports)
   const keys = new Map<string, string>();
-  for (const m of db().all<{ id: string; key: string; name: string; definition: string; is_template: number }>('SELECT id, key, name, definition, is_template FROM monitors')) {
+  for (const m of db().all<{ id: string; key: string; name: string; definition: string; is_template: number }>(
+    'SELECT id, key, name, definition, is_template FROM monitors',
+  )) {
     if (m.id === selfId || m.is_template) continue;
-    for (const c of parseJson<{ checks?: CheckDef[] }>(m.definition, {}).checks ?? []) if (c.type === 'heartbeat') keys.set(checkKey(m, c).toLowerCase(), m.name);
+    for (const c of parseJson<{ checks?: CheckDef[] }>(m.definition, {}).checks ?? [])
+      if (c.type === 'heartbeat') keys.set(checkKey(m, c).toLowerCase(), m.name);
   }
   for (const c of out.checks) {
     if (c.type !== 'heartbeat') continue;
@@ -364,7 +383,11 @@ function newSecret(): { secret: string; enc: string; hash: string; prefix: strin
 /** Creates/removes check state rows to match the definition; returns secrets of new heartbeat checks. */
 function syncCheckRows(mid: string, key: string, def: MonitorDefinition, before: MonitorDefinition | null): MonitorSaveResult['secrets'] {
   const secrets: MonitorSaveResult['secrets'] = [];
-  const rows = new Map(db().all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', mid).map((r) => [r.check_id, r]));
+  const rows = new Map(
+    db()
+      .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', mid)
+      .map((r) => [r.check_id, r]),
+  );
   const ts = nowIso();
   const ids = new Set(def.checks.map((c) => c.id));
   for (const [cid] of rows) {
@@ -416,13 +439,28 @@ function changeSummary(before: MonitorDefinition | null, after: MonitorDefinitio
     const b = before.checks.find((x) => x.id === c.id);
     return b && JSON.stringify(b) !== JSON.stringify(c);
   });
-  const fields = (['name', 'description', 'tags', 'intervalSeconds', 'timeoutSeconds', 'failuresBeforeDown', 'successesBeforeUp', 'aggregate', 'links', 'outputs', 'parameters'] as const).filter(
-    (k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]),
-  );
+  const fields = (
+    [
+      'name',
+      'description',
+      'tags',
+      'intervalSeconds',
+      'timeoutSeconds',
+      'failuresBeforeDown',
+      'successesBeforeUp',
+      'aggregate',
+      'links',
+      'outputs',
+      'parameters',
+    ] as const
+  ).filter((k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   return { checksAdded: added, checksRemoved: removed, checksChanged: changed.map((c) => c.id), fields };
 }
 
-export async function createMonitor(input: MonitorInput, extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {}): Promise<MonitorSaveResult> {
+export async function createMonitor(
+  input: MonitorInput,
+  extra: { templateId?: string; templateVersion?: number; templateParams?: Record<string, unknown> } = {},
+): Promise<MonitorSaveResult> {
   const u = me();
   requireCreate();
   const id = newId('mon_');
@@ -469,7 +507,13 @@ export async function createMonitor(input: MonitorInput, extra: { templateId?: s
       entityType: 'monitor',
       entityId: id,
       summary: `${input.isTemplate ? 'Monitor template' : 'Monitor'} "${name}" (${key}) created${extra.templateId ? ` from template ${extra.templateId}` : ''}`,
-      details: { key, ...(def ? changeSummary(null, def) : {}), templateId: extra.templateId ?? null, templateParams: extra.templateParams ?? null, heartbeatSecrets: secrets.map((s) => s.checkId) },
+      details: {
+        key,
+        ...(def ? changeSummary(null, def) : {}),
+        templateId: extra.templateId ?? null,
+        templateParams: extra.templateParams ?? null,
+        heartbeatSecrets: secrets.map((s) => s.checkId),
+      },
     });
   });
   engine.reloadMonitor(id);
@@ -523,7 +567,8 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
       if (key !== r.key) {
         db().run('DELETE FROM datasets WHERE key = ?', `monitor.${r.key}`);
         for (const c of def.checks) {
-          if (c.type === 'heartbeat') db().run('UPDATE monitor_checks SET heartbeat_key = ? WHERE monitor_id = ? AND check_id = ?', checkKey({ key }, c).toLowerCase(), r.id, c.id);
+          if (c.type === 'heartbeat')
+            db().run('UPDATE monitor_checks SET heartbeat_key = ? WHERE monitor_id = ? AND check_id = ?', checkKey({ key }, c).toLowerCase(), r.id, c.id);
         }
       }
     }
@@ -532,7 +577,13 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
       entityType: 'monitor',
       entityId: r.id,
       summary: `${r.is_template ? 'Monitor template' : 'Monitor'} "${name}" updated to version ${r.version + 1}${enabled !== !!r.enabled ? (enabled ? ', enabled' : ', disabled') : ''}`,
-      details: { key, previousKey: key !== r.key ? r.key : undefined, enabled, ...(def ? changeSummary(before, def) : {}), heartbeatSecrets: secrets.map((s) => s.checkId) },
+      details: {
+        key,
+        previousKey: key !== r.key ? r.key : undefined,
+        enabled,
+        ...(def ? changeSummary(before, def) : {}),
+        heartbeatSecrets: secrets.map((s) => s.checkId),
+      },
     });
   });
   engine.reloadMonitor(r.id);
@@ -543,7 +594,13 @@ export function setEnabled(idOrKey: string, enabled: boolean): MonitorDetail {
   const r = requireMonitor(idOrKey, 'edit');
   db().tx(() => {
     db().run('UPDATE monitors SET enabled = ?, updated_at = ?, updated_by = ? WHERE id = ?', enabled ? 1 : 0, nowIso(), me().username, r.id);
-    audit({ action: 'monitor.updated', entityType: 'monitor', entityId: r.id, summary: `Monitor "${r.name}" ${enabled ? 'enabled' : 'disabled'}`, details: { enabled } });
+    audit({
+      action: 'monitor.updated',
+      entityType: 'monitor',
+      entityId: r.id,
+      summary: `Monitor "${r.name}" ${enabled ? 'enabled' : 'disabled'}`,
+      details: { enabled },
+    });
   });
   engine.reloadMonitor(r.id);
   return getMonitor(r.id);
@@ -553,16 +610,33 @@ export function deleteMonitor(idOrKey: string): void {
   const r = requireMonitor(idOrKey, 'manage', 'delete this monitor');
   const users = db()
     .all<MonitorRow>('SELECT * FROM monitors')
-    .filter((m) => m.id !== r.id && parseJson<{ checks?: { type: string; monitor?: string }[] }>(m.definition, {}).checks?.some((c) => c.type === 'monitor' && c.monitor === r.id));
+    .filter(
+      (m) =>
+        m.id !== r.id &&
+        parseJson<{ checks?: { type: string; monitor?: string }[] }>(m.definition, {}).checks?.some((c) => c.type === 'monitor' && c.monitor === r.id),
+    );
   if (users.length) throw new HttpError(409, `"${r.name}" is used as a sub-monitor by ${users.map((m) => `"${m.name}"`).join(', ')} – remove it there first`);
   db().tx(() => {
-    for (const t of ['monitor_checks', 'monitor_results', 'monitor_samples', 'monitor_history', 'monitor_maintenance', 'monitor_output_state', 'monitor_state']) {
+    for (const t of [
+      'monitor_checks',
+      'monitor_results',
+      'monitor_samples',
+      'monitor_history',
+      'monitor_maintenance',
+      'monitor_output_state',
+      'monitor_state',
+    ]) {
       db().run(`DELETE FROM ${t} WHERE monitor_id = ?`, r.id);
     }
     db().run('DELETE FROM datasets WHERE process_id = ?', `monitor:${r.id}`);
     db().run('UPDATE monitors SET template_id = NULL WHERE template_id = ?', r.id);
     db().run('DELETE FROM monitors WHERE id = ?', r.id);
-    audit({ action: r.is_template ? 'monitor.template_deleted' : 'monitor.deleted', entityType: 'monitor', entityId: r.id, summary: `Monitor${r.is_template ? ' template' : ''} "${r.name}" (${r.key}) deleted` });
+    audit({
+      action: r.is_template ? 'monitor.template_deleted' : 'monitor.deleted',
+      entityType: 'monitor',
+      entityId: r.id,
+      summary: `Monitor${r.is_template ? ' template' : ''} "${r.name}" (${r.key}) deleted`,
+    });
   });
   engine.forgetMonitor(r.id);
 }
@@ -591,7 +665,15 @@ export function rotateHeartbeatSecret(idOrKey: string, checkId: string): { secre
   if (!row?.hook_id) throw new HttpError(404, 'This check has no heartbeat endpoint');
   const s = newSecret();
   db().tx(() => {
-    db().run('UPDATE monitor_checks SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ? WHERE monitor_id = ? AND check_id = ?', s.enc, s.hash, s.prefix, nowIso(), r.id, checkId);
+    db().run(
+      'UPDATE monitor_checks SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ? WHERE monitor_id = ? AND check_id = ?',
+      s.enc,
+      s.hash,
+      s.prefix,
+      nowIso(),
+      r.id,
+      checkId,
+    );
     audit({
       action: 'monitor.secret_rotated',
       entityType: 'monitor',
@@ -661,14 +743,25 @@ export function addMaintenance(idOrKey: string, input: { startsAt?: string; ends
 
 export function endMaintenance(idOrKey: string, windowId: string): void {
   const r = requireMonitor(idOrKey, 'acknowledge', 'change maintenance of this monitor');
-  const w = db().get<{ starts_at: string; ends_at: string }>('SELECT starts_at, ends_at FROM monitor_maintenance WHERE id = ? AND monitor_id = ?', windowId, r.id);
+  const w = db().get<{ starts_at: string; ends_at: string }>(
+    'SELECT starts_at, ends_at FROM monitor_maintenance WHERE id = ? AND monitor_id = ?',
+    windowId,
+    r.id,
+  );
   if (!w) throw new HttpError(404, 'Maintenance window not found');
   const now = engine.monitorNow();
   db().tx(() => {
     // a running window ends now (history stays); a future one is removed
-    if (Date.parse(w.starts_at) <= now) db().run('UPDATE monitor_maintenance SET ends_at = ? WHERE id = ?', new Date(Math.min(now, Date.parse(w.ends_at))).toISOString(), windowId);
+    if (Date.parse(w.starts_at) <= now)
+      db().run('UPDATE monitor_maintenance SET ends_at = ? WHERE id = ?', new Date(Math.min(now, Date.parse(w.ends_at))).toISOString(), windowId);
     else db().run('DELETE FROM monitor_maintenance WHERE id = ?', windowId);
-    audit({ action: 'monitor.maintenance_ended', entityType: 'monitor', entityId: r.id, summary: `Maintenance window of monitor "${r.name}" ended or removed`, details: { windowId } });
+    audit({
+      action: 'monitor.maintenance_ended',
+      entityType: 'monitor',
+      entityId: r.id,
+      summary: `Maintenance window of monitor "${r.name}" ended or removed`,
+      details: { windowId },
+    });
   });
   engine.scheduleRecompute(r.id);
 }
@@ -678,7 +771,13 @@ export function acknowledge(idOrKey: string, comment: string): MonitorDetail {
   const st = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', r.id);
   if (!st || st.status === 'up') throw new HttpError(409, 'There is no problem to acknowledge');
   db().tx(() => {
-    db().run('UPDATE monitor_state SET ack_by = ?, ack_at = ?, ack_comment = ? WHERE monitor_id = ?', me().username, nowIso(), comment.trim().slice(0, 1000), r.id);
+    db().run(
+      'UPDATE monitor_state SET ack_by = ?, ack_at = ?, ack_comment = ? WHERE monitor_id = ?',
+      me().username,
+      nowIso(),
+      comment.trim().slice(0, 1000),
+      r.id,
+    );
     audit({
       action: 'monitor.acknowledged',
       entityType: 'monitor',
@@ -731,9 +830,14 @@ export async function instantiateTemplate(
   const out: MonitorSaveResult[] = [];
   for (const [i, p] of prepared.entries()) {
     try {
-      out.push(await createMonitor({ key: p.key, enabled: p.enabled, definition: p.def }, { templateId: t.id, templateVersion: t.version, templateParams: p.params }));
+      out.push(
+        await createMonitor({ key: p.key, enabled: p.enabled, definition: p.def }, { templateId: t.id, templateVersion: t.version, templateParams: p.params }),
+      );
     } catch (e) {
-      throw new HttpError((e as HttpError).statusCode ?? 400, `Row ${i + 1}${out.length ? ` (${out.length} instance(s) were created before)` : ''}: ${(e as Error).message}`);
+      throw new HttpError(
+        (e as HttpError).statusCode ?? 400,
+        `Row ${i + 1}${out.length ? ` (${out.length} instance(s) were created before)` : ''}: ${(e as Error).message}`,
+      );
     }
   }
   return out;
@@ -751,7 +855,12 @@ export async function resyncInstance(idOrKey: string): Promise<MonitorSaveResult
   rendered.name = r.name;
   const res = await updateMonitor(r.id, { definition: rendered });
   db().run('UPDATE monitors SET template_version = ? WHERE id = ?', t.version, r.id);
-  audit({ action: 'monitor.resynced', entityType: 'monitor', entityId: r.id, summary: `Monitor "${r.name}" re-synced with template "${t.name}" version ${t.version}` });
+  audit({
+    action: 'monitor.resynced',
+    entityType: 'monitor',
+    entityId: r.id,
+    summary: `Monitor "${r.name}" re-synced with template "${t.name}" version ${t.version}`,
+  });
   return { ...res, monitor: getMonitor(r.id) };
 }
 
@@ -760,15 +869,24 @@ export async function resyncInstance(idOrKey: string): Promise<MonitorSaveResult
 export function exportMonitor(idOrKey: string): string {
   const r = requireMonitor(idOrKey);
   const def = parseJson<Record<string, unknown>>(r.definition, {});
-  const platformNames = new Map(db().all<{ id: string; name: string }>('SELECT id, name FROM platforms').map((p) => [p.id, p.name]));
-  const monitorKeys = new Map(db().all<{ id: string; key: string }>('SELECT id, key FROM monitors').map((m) => [m.id, m.key]));
+  const platformNames = new Map(
+    db()
+      .all<{ id: string; name: string }>('SELECT id, name FROM platforms')
+      .map((p) => [p.id, p.name]),
+  );
+  const monitorKeys = new Map(
+    db()
+      .all<{ id: string; key: string }>('SELECT id, key FROM monitors')
+      .map((m) => [m.id, m.key]),
+  );
   // portable references: platform names and monitor keys instead of ids
   const portable = JSON.parse(JSON.stringify(def), (k, v) => {
     if (k === 'platform' && typeof v === 'string') return platformNames.get(v) ?? v;
     if (k === 'monitor' && typeof v === 'string') return monitorKeys.get(v) ?? v;
     return v;
   });
-  for (const c of (portable.checks ?? []) as Record<string, unknown>[]) if (c.x !== undefined) (c.x = Math.round(Number(c.x))), (c.y = Math.round(Number(c.y)));
+  for (const c of (portable.checks ?? []) as Record<string, unknown>[])
+    if (c.x !== undefined) ((c.x = Math.round(Number(c.x))), (c.y = Math.round(Number(c.y))));
   return YAML.stringify({ kind: r.is_template ? 'monitorTemplate' : 'monitor', key: r.key, ...portable }, { lineWidth: 0 });
 }
 
@@ -782,7 +900,12 @@ export async function importMonitor(text: string, opts: { key?: string } = {}): 
   const obj = (raw ?? {}) as Record<string, unknown>;
   if (obj.kind !== 'monitor' && obj.kind !== 'monitorTemplate') throw new HttpError(400, 'Not a monitor file: "kind" must be monitor or monitorTemplate');
   const { kind, key, enabled, ...definition } = obj;
-  return createMonitor({ key: opts.key ?? (key as string | undefined), enabled: enabled as boolean | undefined, isTemplate: kind === 'monitorTemplate', definition });
+  return createMonitor({
+    key: opts.key ?? (key as string | undefined),
+    enabled: enabled as boolean | undefined,
+    isTemplate: kind === 'monitorTemplate',
+    definition,
+  });
 }
 
 const examplesDir = () => path.join(process.env.SM_EXAMPLES_DIR ?? path.join(config.templatesDir, '..'), 'monitors');

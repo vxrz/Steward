@@ -6,8 +6,7 @@ import { allAuditAscending } from './audit.js';
 import { config } from './config.js';
 import { BRAND } from '@sm/shared';
 
-const esc = (s: unknown): string =>
-  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 /** Very small markdown subset: headings, lists, bold, italics, code, paragraphs. */
 export function miniMarkdown(md: string): string {
@@ -23,11 +22,11 @@ export function miniMarkdown(md: string): string {
     const h = /^(#{1,4})\s+(.*)$/.exec(l);
     const li = /^\s*[-*]\s+(.*)$/.exec(l);
     if (li) {
-      if (!list) out.push('<ul>'), (list = true);
+      if (!list) (out.push('<ul>'), (list = true));
       out.push(`<li>${inline(li[1]!)}</li>`);
       continue;
     }
-    if (list) out.push('</ul>'), (list = false);
+    if (list) (out.push('</ul>'), (list = false));
     if (h) out.push(`<h${h[1]!.length + 2}>${inline(h[2]!)}</h${h[1]!.length + 2}>`);
     else if (l.trim()) out.push(`<p>${inline(l)}</p>`);
   }
@@ -108,11 +107,17 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
 
 <h2>Connections</h2>
 <table><tr><th>Slot</th><th>Platform</th><th>Base URL</th></tr>
-${Object.entries(run.bindings).map(([k, b]) => `<tr><td>${esc(k)}</td><td>${esc(b.platformName)}</td><td class="mono">${esc(b.baseUrl)}</td></tr>`).join('')}
+${Object.entries(run.bindings)
+  .map(([k, b]) => `<tr><td>${esc(k)}</td><td>${esc(b.platformName)}</td><td class="mono">${esc(b.baseUrl)}</td></tr>`)
+  .join('')}
 </table>
 
 <h2>Inputs</h2>
-<table>${Object.entries(run.inputs).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="mono">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</td></tr>`).join('') || '<tr><td class="muted">none</td></tr>'}</table>
+<table>${
+    Object.entries(run.inputs)
+      .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="mono">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</td></tr>`)
+      .join('') || '<tr><td class="muted">none</td></tr>'
+  }</table>
 
 ${
   checks.length
@@ -133,7 +138,10 @@ ${
           const rows =
             t.mode === 'select'
               ? `<table><tr><th>Selected</th>${t.columns.map((c) => `<th>${esc(c.label)}</th>`).join('')}</tr>${t.items
-                  .map((i) => `<tr><td>${t.status === 'completed' ? (sel.has(i.key) ? '☑' : '☐') : '–'}</td>${i.cells.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`)
+                  .map(
+                    (i) =>
+                      `<tr><td>${t.status === 'completed' ? (sel.has(i.key) ? '☑' : '☐') : '–'}</td>${i.cells.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`,
+                  )
                   .join('')}</table>`
               : '';
           return `<h3>${esc(t.title)}</h3><p>${statusBadge(t.status)} ${
@@ -150,7 +158,9 @@ ${run.reports
   .map(
     (r) =>
       `<h2>${esc(r.title)}</h2>${r.text ? miniMarkdown(r.text) : ''}${
-        r.rows ? `<table><tr>${(r.columns ?? []).map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${r.rows.map((row) => `<tr>${row.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>` : ''
+        r.rows
+          ? `<table><tr>${(r.columns ?? []).map((c) => `<th>${esc(c)}</th>`).join('')}</tr>${r.rows.map((row) => `<tr>${row.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`
+          : ''
       }`,
   )
   .join('')}

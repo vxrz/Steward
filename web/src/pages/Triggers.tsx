@@ -243,7 +243,12 @@ export function TriggersPage() {
                       {tr.canEdit && (
                         <>
                           <Tooltip label={t('test.action')}>
-                            <ActionIcon variant="subtle" onClick={() => setTesting(tr)} aria-label={t('test.actionFor', { name: tr.name })} disabled={!tr.enabled}>
+                            <ActionIcon
+                              variant="subtle"
+                              onClick={() => setTesting(tr)}
+                              aria-label={t('test.actionFor', { name: tr.name })}
+                              disabled={!tr.enabled}
+                            >
                               <IconSend size={16} />
                             </ActionIcon>
                           </Tooltip>
@@ -360,7 +365,13 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
           />
         </Group>
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
-        <Textarea label={t('form.description')} autosize minRows={1} value={d.description ?? ''} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
+        <Textarea
+          label={t('form.description')}
+          autosize
+          minRows={1}
+          value={d.description ?? ''}
+          onChange={(e) => setD({ ...d, description: e.currentTarget.value })}
+        />
         {proc.data && (
           <>
             <Divider label={t('form.connections')} labelPosition="left" />
@@ -385,7 +396,11 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
                 </Button>
               </Group>
             )}
-            {inputs.length === 0 && <Text size="sm" c="dimmed">{t('form.noInputs')}</Text>}
+            {inputs.length === 0 && (
+              <Text size="sm" c="dimmed">
+                {t('form.noInputs')}
+              </Text>
+            )}
             {inputs.map((i) => (
               <Group key={i.name} align="flex-start" wrap="nowrap" gap="xs">
                 <TextInput
@@ -399,7 +414,9 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
                   error={preview.data?.errors[i.name]}
                 />
                 <Text size="xs" c="dimmed" mt={26} w={200} truncate title={JSON.stringify(preview.data?.inputs[i.name])}>
-                  {d.inputMapping[i.name] ? `→ ${preview.data && i.name in preview.data.inputs ? JSON.stringify(preview.data.inputs[i.name]) : '–'}` : t('form.default')}
+                  {d.inputMapping[i.name]
+                    ? `→ ${preview.data && i.name in preview.data.inputs ? JSON.stringify(preview.data.inputs[i.name]) : '–'}`
+                    : t('form.default')}
                 </Text>
               </Group>
             ))}
@@ -428,7 +445,15 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
           />
           <Text size="xs" c="dimmed" mt={4}>
-            <Trans t={t} i18nKey="form.authHint" components={{ bearer: <Code>{'Authorization: Bearer <secret>'}</Code>, token: <Code>X-Steward-Token</Code>, sig: <Code>{t('form.sigHeader')}</Code> }} />
+            <Trans
+              t={t}
+              i18nKey="form.authHint"
+              components={{
+                bearer: <Code>{'Authorization: Bearer <secret>'}</Code>,
+                token: <Code>X-Steward-Token</Code>,
+                sig: <Code>{t('form.sigHeader')}</Code>,
+              }}
+            />
           </Text>
         </div>
         <TagsInput
@@ -462,20 +487,10 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
             onChange={(v) => setD({ ...d, dedupeSeconds: Number(v) || 0 })}
           />
         </Group>
-        <Switch
-          label={t('form.skipIfRunning')}
-          checked={d.skipIfRunning}
-          onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })}
-        />
+        <Switch label={t('form.skipIfRunning')} checked={d.skipIfRunning} onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })} />
         <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
-        <Hint>
-          {draft.owner ? (
-            <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} />
-          ) : (
-            t('form.rightsOfYou')
-          )}
-        </Hint>
+        <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
@@ -516,7 +531,13 @@ function SecretModal({ created, onClose }: { created: WebhookTriggerSecret; onCl
   const { t } = useTranslation('triggers');
   const tr = created.trigger;
   const url = hookUrl(tr);
-  const sample = JSON.stringify({ event: 'TRIGGERED', name: 'Historian API', group: 'plant', url: 'https://apps.example.com/historian/health', errors: 'test' });
+  const sample = JSON.stringify({
+    event: 'TRIGGERED',
+    name: 'Historian API',
+    group: 'plant',
+    url: 'https://apps.example.com/historian/health',
+    errors: 'test',
+  });
   const curl =
     tr.authMode === 'hmac'
       ? `BODY='${sample}'\nSIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$STEWARD_WEBHOOK_SECRET" | sed 's/^.* //')\ncurl -sS -X POST '${url}' \\\n  -H 'Content-Type: application/json' \\\n  -H "X-Steward-Signature: sha256=$SIG" \\\n  --data "$BODY"`
@@ -603,7 +624,16 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
         <Text size="sm" c="dimmed">
           {t('test.intro')}
         </Text>
-        <JsonInput label={t('test.payload')} autosize minRows={6} maxRows={16} value={payload} onChange={setPayload} error={parsed.error} classNames={{ input: 'mono' }} />
+        <JsonInput
+          label={t('test.payload')}
+          autosize
+          minRows={6}
+          maxRows={16}
+          value={payload}
+          onChange={setPayload}
+          error={parsed.error}
+          classNames={{ input: 'mono' }}
+        />
         <Switch label={t('form.dryRun')} checked={dryRun || trigger.dryRun} disabled={trigger.dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} />
         {result && (
           <Alert color={result.status === 202 && result.response.runId ? 'green' : 'orange'} title={`HTTP ${result.status}`}>
@@ -648,7 +678,11 @@ function HistoryModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: 
       <Text size="xs" c="dimmed" mb="xs">
         {trigger.rejectedCount ? t('history.introCount', { count: trigger.rejectedCount }) : t('history.intro')}
       </Text>
-      {rows.length === 0 && <Text size="sm" c="dimmed">{t('history.none')}</Text>}
+      {rows.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('history.none')}
+        </Text>
+      )}
       {rows.length > 0 && (
         <div className="table-scroll">
           <Table fz="xs">

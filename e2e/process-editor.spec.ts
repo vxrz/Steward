@@ -15,7 +15,10 @@ test.describe('process editor (designer)', () => {
     // create from a template
     await page.goto('/processes');
     await page.getByRole('button', { name: 'From template' }).click();
-    await page.getByRole('dialog', { name: 'Start from a template' }).getByRole('button', { name: `Use template ${HEALTH}` }).click();
+    await page
+      .getByRole('dialog', { name: 'Start from a template' })
+      .getByRole('button', { name: `Use template ${HEALTH}` })
+      .click();
     await expect(page).toHaveURL(/\/processes\/[^/]+$/);
     const processId = page.url().split('/').pop()!;
     await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('v1');

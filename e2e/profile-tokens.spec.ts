@@ -30,7 +30,11 @@ test('API token: create (read-only), copy once, use, revoke', async ({ page }) =
   expect(await page.content()).not.toContain(token);
 
   // use it like a script would: no cookie, bearer header only
-  const script = await pwRequest.newContext({ baseURL: baseURL(), storageState: { cookies: [], origins: [] }, extraHTTPHeaders: { authorization: `Bearer ${token}` } });
+  const script = await pwRequest.newContext({
+    baseURL: baseURL(),
+    storageState: { cookies: [], origins: [] },
+    extraHTTPHeaders: { authorization: `Bearer ${token}` },
+  });
   try {
     expect((await script.get('/api/runs')).status()).toBe(200);
     expect((await script.post('/api/runs', { data: { processId: 'ih-health-check' } })).status()).toBe(403);

@@ -28,9 +28,7 @@ export function shortDate(ts: string | number): string {
 
 /** Axis label: time of day for short ranges (< 2 days), date otherwise. */
 export function axisLabel(ts: number, spanMs: number): string {
-  return spanMs < 2 * 86400000
-    ? dateTimeFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(ts))
-    : shortDate(ts);
+  return spanMs < 2 * 86400000 ? dateTimeFormat({ hour: '2-digit', minute: '2-digit' }).format(new Date(ts)) : shortDate(ts);
 }
 
 export function dateTime(ts: string | number): string {

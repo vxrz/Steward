@@ -39,9 +39,9 @@ describe('F1 – guarded expression evaluation (defaults)', () => {
   it('can be cancelled via an AbortSignal', async () => {
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 150);
-    await expect(
-      evalExpr('$count($map([1..30000], function($i){ $sum([1..30000]) }))', {}, {}, { timeoutMs: 10000, signal: ac.signal }),
-    ).rejects.toThrow(/cancel/i);
+    await expect(evalExpr('$count($map([1..30000], function($i){ $sum([1..30000]) }))', {}, {}, { timeoutMs: 10000, signal: ac.signal })).rejects.toThrow(
+      /cancel/i,
+    );
   });
 });
 

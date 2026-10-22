@@ -47,6 +47,7 @@ export interface Fixtures {
 
 export const test = base.extend<Fixtures>({
   consoleGuard: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument
     async ({}, use) => {
       const state: GuardState = { problems: [], allow: [] };
       await use(state);
@@ -73,10 +74,15 @@ export const test = base.extend<Fixtures>({
     });
     for (const c of contexts) await c.close();
   },
+  // eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument
   apiAs: async ({}, use) => {
     const clients: APIRequestContext[] = [];
     await use(async (user) => {
-      const c = await pwRequest.newContext({ baseURL: baseURL(), storageState: authFile(user), extraHTTPHeaders: { 'x-sm-client': '1', ...sessionHeaders(user) } });
+      const c = await pwRequest.newContext({
+        baseURL: baseURL(),
+        storageState: authFile(user),
+        extraHTTPHeaders: { 'x-sm-client': '1', ...sessionHeaders(user) },
+      });
       clients.push(c);
       return c;
     });

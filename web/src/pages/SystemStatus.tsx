@@ -196,7 +196,11 @@ export function SystemStatusPage() {
                 {fmtUptime(s.runtime.uptimeSeconds)} · {t('status.runtime.since', { when: fmtDate(s.runtime.startedAt) })}
               </Row>
               <Row label={t('status.runtime.memory')}>
-                {t('status.runtime.memoryValue', { rss: fmtBytes(s.runtime.memory.rss), heap: fmtBytes(s.runtime.memory.heapUsed), heapTotal: fmtBytes(s.runtime.memory.heapTotal) })}
+                {t('status.runtime.memoryValue', {
+                  rss: fmtBytes(s.runtime.memory.rss),
+                  heap: fmtBytes(s.runtime.memory.heapUsed),
+                  heapTotal: fmtBytes(s.runtime.memory.heapTotal),
+                })}
               </Row>
               <Row label={t('status.runtime.timeZone')}>{s.runtime.timeZone}</Row>
               {s.runtime.hostname && <Row label={t('status.runtime.hostname')}>{s.runtime.hostname}</Row>}
@@ -217,12 +221,18 @@ export function SystemStatusPage() {
                 </Row>
               )}
               <Row label={t('status.vault.title')}>
-                <State ok={s.vault.unlocked} on={t('status.vault.unlocked')} off={s.vault.initialized ? t('status.vault.locked') : t('status.vault.notSetUp')} />
+                <State
+                  ok={s.vault.unlocked}
+                  on={t('status.vault.unlocked')}
+                  off={s.vault.initialized ? t('status.vault.locked') : t('status.vault.notSetUp')}
+                />
               </Row>
               <Row label={t('status.vault.unattended')}>
                 <Toggle on={s.vault.unattendedUnlock} />
               </Row>
-              <Row label={t('status.retention.runs')}>{s.retention.runDays ? t('status.retention.days', { count: s.retention.runDays }) : t('status.retention.forever')}</Row>
+              <Row label={t('status.retention.runs')}>
+                {s.retention.runDays ? t('status.retention.days', { count: s.retention.runDays }) : t('status.retention.forever')}
+              </Row>
               <Row label={t('status.retention.notifications')}>{t('status.retention.days', { count: s.retention.notificationDays })}</Row>
               <Row label={t('status.retention.monitors')}>{t('status.retention.days', { count: s.retention.monitorDays })}</Row>
               <Row label={t('status.retention.lastCleanup')}>
@@ -238,7 +248,9 @@ export function SystemStatusPage() {
             </Section>
 
             <Section title={t('status.sections.engines')}>
-              <Row label={t('status.scheduler.schedules')}>{t('status.scheduler.counts', { enabled: s.scheduler.enabled, total: s.scheduler.total, armed: s.scheduler.armed })}</Row>
+              <Row label={t('status.scheduler.schedules')}>
+                {t('status.scheduler.counts', { enabled: s.scheduler.enabled, total: s.scheduler.total, armed: s.scheduler.armed })}
+              </Row>
               <Row label={t('status.scheduler.next')}>
                 {s.scheduler.next.length ? (
                   <Stack gap={0}>
@@ -255,7 +267,9 @@ export function SystemStatusPage() {
               <Row label={t('status.monitors.engine')}>
                 <State ok={s.monitors.engineRunning} on={t('status.monitors.running')} off={t('status.monitors.stopped')} />
               </Row>
-              <Row label={t('status.monitors.monitors')}>{t('status.monitors.counts', { enabled: s.monitors.enabled, total: s.monitors.total, checks: s.monitors.checks })}</Row>
+              <Row label={t('status.monitors.monitors')}>
+                {t('status.monitors.counts', { enabled: s.monitors.enabled, total: s.monitors.total, checks: s.monitors.checks })}
+              </Row>
               <Row label={t('status.monitors.down')}>{fmtNumber(s.monitors.down)}</Row>
               <Row label={t('status.monitors.lastCheck')}>
                 {s.monitors.lastCheckAt ? <span title={fmtDate(s.monitors.lastCheckAt)}>{fmtRelative(s.monitors.lastCheckAt)}</span> : t('status.never')}
@@ -282,7 +296,9 @@ export function SystemStatusPage() {
               <Row label={t('status.observability.tracing')}>
                 <Toggle on={s.tracing.enabled} />
               </Row>
-              <Row label={t('status.observability.metrics')}>{s.metrics.access === 'public' ? t('status.observability.metricsPublic') : t('status.observability.metricsAuth')}</Row>
+              <Row label={t('status.observability.metrics')}>
+                {s.metrics.access === 'public' ? t('status.observability.metricsPublic') : t('status.observability.metricsAuth')}
+              </Row>
               <Row label={t('status.api.title')}>
                 {s.publicApi.enabled ? (
                   <>
@@ -300,7 +316,9 @@ export function SystemStatusPage() {
                 <Toggle on={s.security.tls} />
               </Row>
               {s.security.allowedHosts && (
-                <Row label={t('status.security.allowedHosts')}>{s.security.allowedHosts.length ? s.security.allowedHosts.join(', ') : t('status.security.localOnly')}</Row>
+                <Row label={t('status.security.allowedHosts')}>
+                  {s.security.allowedHosts.length ? s.security.allowedHosts.join(', ') : t('status.security.localOnly')}
+                </Row>
               )}
               {s.security.proxyFromEnvironment !== undefined && (
                 <Row label={t('status.security.proxy')}>

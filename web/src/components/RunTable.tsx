@@ -8,7 +8,12 @@ import { StatusBadge } from './common';
 export function RunTable({ runs, compact = false }: { runs: RunSummary[]; compact?: boolean }) {
   const { t } = useTranslation('runs');
   const navigate = useNavigate();
-  if (!runs.length) return <Text c="dimmed" size="sm">{t('table.empty')}</Text>;
+  if (!runs.length)
+    return (
+      <Text c="dimmed" size="sm">
+        {t('table.empty')}
+      </Text>
+    );
   return (
     <div className="table-scroll">
       <Table highlightOnHover fz="sm" verticalSpacing={6}>
@@ -77,7 +82,8 @@ export function RunTable({ runs, compact = false }: { runs: RunSummary[]; compac
                     r.stats.failedSteps ? t('table.failedSteps', { count: r.stats.failedSteps }) : '',
                   ]
                     .filter(Boolean)
-                    .join(' · ') || (r.error ?? '')}
+                    .join(' · ') ||
+                    (r.error ?? '')}
                 </Text>
               </Table.Td>
             </Table.Tr>

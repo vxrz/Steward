@@ -27,7 +27,8 @@ type Detail =
   | 'rootFunctions';
 const d = (key: Detail): string => i18n.t(`editor:suggest.${key}`);
 /** Help of a function in the UI language (server-provided help is the English default). */
-const fnHelp = (name: string, fallback: string): string => i18n.t(`editor:functions.${name.replace(/^\$/, '')}` as 'editor:functions.count', { defaultValue: fallback });
+const fnHelp = (name: string, fallback: string): string =>
+  i18n.t(`editor:functions.${name.replace(/^\$/, '')}` as 'editor:functions.count', { defaultValue: fallback });
 
 /** One autocomplete suggestion. `insert` replaces the token before the caret. */
 export interface Suggestion {
@@ -172,11 +173,12 @@ export function buildSuggestions(def: ProcessDefinition, scope: ScopeHints | und
     add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: d('loopItem') });
     add({ label: `vars.${as}Index`, insert: `vars.${as}Index`, kind: 'loop', detail: d('loopIndex') });
   }
-  for (const i of def.inputs ?? []) add({ label: `inputs.${i.name}`, insert: `inputs.${i.name}`, kind: 'input', detail: i.label ? `${i.type} · ${i.label}` : i.type });
+  for (const i of def.inputs ?? [])
+    add({ label: `inputs.${i.name}`, insert: `inputs.${i.name}`, kind: 'input', detail: i.label ? `${i.type} · ${i.label}` : i.type });
   for (const n of scope?.inputs ?? []) add({ label: `inputs.${n}`, insert: `inputs.${n}`, kind: 'input', detail: d('input') });
   for (const k of Object.keys(def.constants ?? {})) {
     const v = (def.constants ?? {})[k];
-    add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: short(typeof v === 'string' ? v : JSON.stringify(v) ?? '', 40) });
+    add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: short(typeof v === 'string' ? v : (JSON.stringify(v) ?? ''), 40) });
   }
   for (const k of scope?.constants ?? []) add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: d('constant') });
   for (const v of scope?.vars ?? []) {
@@ -185,18 +187,22 @@ export function buildSuggestions(def: ProcessDefinition, scope: ScopeHints | und
   }
   // variables the definition will create
   for (const n of def.nodes) {
-    if (n.saveAs) add({ label: `vars.${n.saveAs}`, insert: `vars.${n.saveAs}`, kind: 'var', detail: i18n.t('editor:suggest.resultOf', { node: n.name || n.id }) });
+    if (n.saveAs)
+      add({ label: `vars.${n.saveAs}`, insert: `vars.${n.saveAs}`, kind: 'var', detail: i18n.t('editor:suggest.resultOf', { node: n.name || n.id }) });
     if (n.type === 'set')
-      for (const k of Object.keys(n.values ?? {})) add({ label: `vars.${k}`, insert: `vars.${k}`, kind: 'var', detail: i18n.t('editor:suggest.setBy', { node: n.name || n.id }) });
+      for (const k of Object.keys(n.values ?? {}))
+        add({ label: `vars.${k}`, insert: `vars.${k}`, kind: 'var', detail: i18n.t('editor:suggest.setBy', { node: n.name || n.id }) });
   }
   for (const as of allLoops) if (!loops.includes(as)) add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: d('loopItemOutside') });
   const connVars = new Map((scope?.connections ?? []).map((c) => [c.slot, c.vars]));
   for (const c of def.connections ?? []) {
     add({ label: `conn.${c.slot}.baseUrl`, insert: `conn.${c.slot}.baseUrl`, kind: 'conn', detail: c.kind ?? d('connection') });
     add({ label: `conn.${c.slot}.name`, insert: `conn.${c.slot}.name`, kind: 'conn', detail: d('platformName') });
-    for (const v of connVars.get(c.slot) ?? []) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
+    for (const v of connVars.get(c.slot) ?? [])
+      add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
   }
-  for (const c of scope?.connections ?? []) for (const v of c.vars) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
+  for (const c of scope?.connections ?? [])
+    for (const v of c.vars) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
   for (const [k, key] of [
     ['run.id', 'runId'],
     ['run.dryRun', 'dryRun'],
@@ -210,7 +216,8 @@ export function buildSuggestions(def: ProcessDefinition, scope: ScopeHints | und
   add({ label: '$const', insert: '$const', kind: 'root', detail: d('constInFilters') });
   const fns = new Map<string, FnHint>();
   for (const f of STATIC_FUNCTIONS) fns.set(f.name, f);
-  for (const f of scope?.functions ?? []) fns.set(f.name.startsWith('$') ? f.name : `$${f.name}`, { ...f, name: f.name.startsWith('$') ? f.name : `$${f.name}` });
+  for (const f of scope?.functions ?? [])
+    fns.set(f.name.startsWith('$') ? f.name : `$${f.name}`, { ...f, name: f.name.startsWith('$') ? f.name : `$${f.name}` });
   for (const f of fns.values()) add({ label: f.name, insert: `${f.name}(`, kind: 'fn', detail: f.signature, help: fnHelp(f.name, f.help) });
   return list;
 }

@@ -73,10 +73,26 @@ function SummaryView({ s }: { s: DiffSummary }) {
   return (
     <Stack gap={4}>
       <Group gap={6}>
-        {s.added.length > 0 && <Badge color="green" variant="light">{t('diff.added', { count: s.added.length })}</Badge>}
-        {s.removed.length > 0 && <Badge color="red" variant="light">{t('diff.removed', { count: s.removed.length })}</Badge>}
-        {s.changed.length > 0 && <Badge color="orange" variant="light">{t('diff.changed', { count: s.changed.length })}</Badge>}
-        {s.moved.length > 0 && <Badge color="gray" variant="light">{t('diff.moved', { count: s.moved.length })}</Badge>}
+        {s.added.length > 0 && (
+          <Badge color="green" variant="light">
+            {t('diff.added', { count: s.added.length })}
+          </Badge>
+        )}
+        {s.removed.length > 0 && (
+          <Badge color="red" variant="light">
+            {t('diff.removed', { count: s.removed.length })}
+          </Badge>
+        )}
+        {s.changed.length > 0 && (
+          <Badge color="orange" variant="light">
+            {t('diff.changed', { count: s.changed.length })}
+          </Badge>
+        )}
+        {s.moved.length > 0 && (
+          <Badge color="gray" variant="light">
+            {t('diff.moved', { count: s.moved.length })}
+          </Badge>
+        )}
         {(s.wiresAdded > 0 || s.wiresRemoved > 0) && (
           <Badge color="blue" variant="light">
             {t('diff.wires', { added: s.wiresAdded, removed: s.wiresRemoved })}
@@ -146,7 +162,14 @@ function UnifiedDiff({ oldText, newText, oldName, newName, context }: { oldText:
               <>
                 <span style={num}>{r.a ?? ''}</span>
                 <span style={num}>{r.b ?? ''}</span>
-                <span style={{ width: 14, flexShrink: 0, userSelect: 'none', color: r.kind === '+' ? 'var(--mantine-color-green-text)' : r.kind === '-' ? 'var(--mantine-color-red-text)' : undefined }}>
+                <span
+                  style={{
+                    width: 14,
+                    flexShrink: 0,
+                    userSelect: 'none',
+                    color: r.kind === '+' ? 'var(--mantine-color-green-text)' : r.kind === '-' ? 'var(--mantine-color-red-text)' : undefined,
+                  }}
+                >
                   {r.kind === ' ' ? '' : r.kind === '-' ? '−' : '+'}
                 </span>
                 <span style={{ whiteSpace: 'pre', paddingRight: 8 }}>{r.text}</span>

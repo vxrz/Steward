@@ -79,114 +79,126 @@ export function NodeForm({
 
   return (
     <ExprNodeScope nodeId={node.id} enabled={node.type !== 'note'}>
-    <Stack gap="sm">
-      <Group gap="xs" wrap="nowrap">
-        <Badge size="lg" variant="light" color={nodeColor(node.type)} leftSection={<Icon size={14} />}>
-          {stepLabel(node.type, meta)}
-        </Badge>
-      </Group>
-      <Text size="xs" c="dimmed">
-        {stepDescription(node.type, meta)}
-      </Text>
-      {node.type === 'start' && (
-        <Text size="xs">
-          <Trans t={t} i18nKey="form.startHint" components={{ b: <b /> }} />
+      <Stack gap="sm">
+        <Group gap="xs" wrap="nowrap">
+          <Badge size="lg" variant="light" color={nodeColor(node.type)} leftSection={<Icon size={14} />}>
+            {stepLabel(node.type, meta)}
+          </Badge>
+        </Group>
+        <Text size="xs" c="dimmed">
+          {stepDescription(node.type, meta)}
         </Text>
-      )}
-      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
-        <TextInput
-          label={t('form.nodeId')}
-          description={t('form.nodeIdHint')}
-          classNames={{ input: 'mono' }}
-          value={idDraft}
-          error={idDraft !== node.id ? idError : null}
-          onChange={(e) => {
-            const v = e.currentTarget.value;
-            setIdDraft(v);
-            if (ID_RE.test(v) && !otherIds.has(v) && v !== node.id) onRename(v);
-          }}
-        />
-        {node.type !== 'note' && (
-          <TextInput label={t('form.name')} description={t('form.nameHint')} value={node.name ?? ''} onChange={(e) => set('name', e.currentTarget.value || undefined)} />
-        )}
-      </SimpleGrid>
-      {executable && (
-        <Textarea label={t('form.description')} autosize minRows={1} maxRows={4} value={node.description ?? ''} onChange={(e) => set('description', e.currentTarget.value || undefined)} />
-      )}
-      {fields.map((f) => (
-        <Fragment key={f.key}>
-          {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
-            <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
-          )}
-          {node.type === 'subprocess' && f.key === 'inputs' && (
-            <SubprocessSection
-              node={node}
-              connections={connections}
-              onChange={(patch) => {
-                const next: Record<string, unknown> = { ...node, ...patch };
-                for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
-                onChange(next as unknown as FlowNode);
-              }}
-            />
-          )}
-          {node.type === 'http' && f.key === 'connection' && (
-            <ApiOperationSection
-              node={node}
-              connections={connections}
-              onChange={(patch) => {
-                const next: Record<string, unknown> = { ...node, ...patch };
-                for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
-                onChange(next as unknown as FlowNode);
-              }}
-            />
-          )}
-        </Fragment>
-      ))}
-      {ports.length > 0 && (
-        <Paper withBorder p="xs">
-          <Text size="xs" fw={600} mb={4}>
-            {t('form.outputs')}
+        {node.type === 'start' && (
+          <Text size="xs">
+            <Trans t={t} i18nKey="form.startHint" components={{ b: <b /> }} />
           </Text>
-          <Stack gap={4}>
-            {ports.map((p) => (
-              <Group key={p.id} gap={6} wrap="nowrap" align="flex-start">
-                <Badge size="xs" variant="outline" color={p.id === 'error' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>
-                  {portLabel(p.id, p.label) || p.id}
-                </Badge>
-                <Text size="xs" c="dimmed">
-                  {portHelp(p.id)}
-                </Text>
-              </Group>
+        )}
+        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+          <TextInput
+            label={t('form.nodeId')}
+            description={t('form.nodeIdHint')}
+            classNames={{ input: 'mono' }}
+            value={idDraft}
+            error={idDraft !== node.id ? idError : null}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              setIdDraft(v);
+              if (ID_RE.test(v) && !otherIds.has(v) && v !== node.id) onRename(v);
+            }}
+          />
+          {node.type !== 'note' && (
+            <TextInput
+              label={t('form.name')}
+              description={t('form.nameHint')}
+              value={node.name ?? ''}
+              onChange={(e) => set('name', e.currentTarget.value || undefined)}
+            />
+          )}
+        </SimpleGrid>
+        {executable && (
+          <Textarea
+            label={t('form.description')}
+            autosize
+            minRows={1}
+            maxRows={4}
+            value={node.description ?? ''}
+            onChange={(e) => set('description', e.currentTarget.value || undefined)}
+          />
+        )}
+        {fields.map((f) => (
+          <Fragment key={f.key}>
+            {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
+              <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
+            )}
+            {node.type === 'subprocess' && f.key === 'inputs' && (
+              <SubprocessSection
+                node={node}
+                connections={connections}
+                onChange={(patch) => {
+                  const next: Record<string, unknown> = { ...node, ...patch };
+                  for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                  onChange(next as unknown as FlowNode);
+                }}
+              />
+            )}
+            {node.type === 'http' && f.key === 'connection' && (
+              <ApiOperationSection
+                node={node}
+                connections={connections}
+                onChange={(patch) => {
+                  const next: Record<string, unknown> = { ...node, ...patch };
+                  for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                  onChange(next as unknown as FlowNode);
+                }}
+              />
+            )}
+          </Fragment>
+        ))}
+        {ports.length > 0 && (
+          <Paper withBorder p="xs">
+            <Text size="xs" fw={600} mb={4}>
+              {t('form.outputs')}
+            </Text>
+            <Stack gap={4}>
+              {ports.map((p) => (
+                <Group key={p.id} gap={6} wrap="nowrap" align="flex-start">
+                  <Badge size="xs" variant="outline" color={p.id === 'error' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>
+                    {portLabel(p.id, p.label) || p.id}
+                  </Badge>
+                  <Text size="xs" c="dimmed">
+                    {portHelp(p.id)}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+        {executable && (
+          <>
+            <Divider label={t('form.execution')} labelPosition="left" />
+            {commonFields.map((f) => (
+              <FieldInput key={f.key} field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
             ))}
-          </Stack>
-        </Paper>
-      )}
-      {executable && (
-        <>
-          <Divider label={t('form.execution')} labelPosition="left" />
-          {commonFields.map((f) => (
-            <FieldInput key={f.key} field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
-          ))}
-          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
-            <NumberInput
-              label={t('form.retryAttempts')}
-              description={t('form.retryAttemptsHint')}
-              min={1}
-              max={10}
-              value={node.retry?.attempts ?? ''}
-              onChange={(v) => set('retry', v === '' || Number(v) <= 1 ? undefined : { ...(node.retry ?? {}), attempts: Number(v) })}
-            />
-            <NumberInput
-              label={t('form.retryDelay')}
-              min={0}
-              disabled={!node.retry}
-              value={node.retry?.delayMs ?? ''}
-              onChange={(v) => node.retry && set('retry', { ...node.retry, delayMs: v === '' ? undefined : Number(v) })}
-            />
-          </SimpleGrid>
-        </>
-      )}
-    </Stack>
+            <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+              <NumberInput
+                label={t('form.retryAttempts')}
+                description={t('form.retryAttemptsHint')}
+                min={1}
+                max={10}
+                value={node.retry?.attempts ?? ''}
+                onChange={(v) => set('retry', v === '' || Number(v) <= 1 ? undefined : { ...(node.retry ?? {}), attempts: Number(v) })}
+              />
+              <NumberInput
+                label={t('form.retryDelay')}
+                min={0}
+                disabled={!node.retry}
+                value={node.retry?.delayMs ?? ''}
+                onChange={(v) => node.retry && set('retry', { ...node.retry, delayMs: v === '' ? undefined : Number(v) })}
+              />
+            </SimpleGrid>
+          </>
+        )}
+      </Stack>
     </ExprNodeScope>
   );
 }

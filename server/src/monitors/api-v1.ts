@@ -52,7 +52,10 @@ const pageOf = (name: keyof typeof A.MONITOR_COMPONENTS & string, description: s
   type: 'object',
   description,
   required: ['items', 'nextCursor'],
-  properties: { items: { type: 'array', items: ref(name) }, nextCursor: { type: ['string', 'null'], description: 'Opaque cursor for the next page; null on the last page.' } },
+  properties: {
+    items: { type: 'array', items: ref(name) },
+    nextCursor: { type: ['string', 'null'], description: 'Opaque cursor for the next page; null on the last page.' },
+  },
   additionalProperties: false,
 });
 
@@ -118,7 +121,13 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
 
   get(
     '/monitors/:monitorId',
-    { operationId: 'getMonitor', tag: 'Monitors', summary: 'Get a monitor with its definition', params: { monitorId: 'Monitor id or key' }, response: ref('MonitorDetail') },
+    {
+      operationId: 'getMonitor',
+      tag: 'Monitors',
+      summary: 'Get a monitor with its definition',
+      params: { monitorId: 'Monitor id or key' },
+      response: ref('MonitorDetail'),
+    },
     async (req) => {
       const m = viewable(params(req).monitorId!);
       return { ...mapMonitor(m), definition: m.definition as unknown as Record<string, unknown> };
@@ -179,11 +188,12 @@ export async function monitorApiRoutes(_app: FastifyInstance, get: Get): Promise
       const q = req.query as { check?: string; cursor?: string; limit: number };
       const filters = { check: q.check, id: m.id };
       const after = decodeCursor(q.cursor, filters);
-      const rows = svc.listHistory(m.id, { checkId: q.check, limit: q.limit + 1, beforeId: after ? Number(after[0]) : undefined }).map((h) => ({ ...h, id: String(h.id) }));
+      const rows = svc
+        .listHistory(m.id, { checkId: q.check, limit: q.limit + 1, beforeId: after ? Number(after[0]) : undefined })
+        .map((h) => ({ ...h, id: String(h.id) }));
       const page = pageRows(rows, q.limit, (h) => [Number(h.id)], filters);
       linkNext(req, reply, page.nextCursor);
       return page;
     },
   );
 }
-

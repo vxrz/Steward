@@ -22,7 +22,11 @@ async function createProcess(def: Record<string, unknown>, client: Client = s.ap
   return p.id;
 }
 
-async function start(processId: string, opts: { bindings?: Record<string, string>; inputs?: Record<string, unknown>; dryRun?: boolean } = {}, client: Client = s.api) {
+async function start(
+  processId: string,
+  opts: { bindings?: Record<string, string>; inputs?: Record<string, unknown>; dryRun?: boolean } = {},
+  client: Client = s.api,
+) {
   const { id } = await client('POST', '/runs', { processId, bindings: opts.bindings ?? {}, inputs: opts.inputs ?? {}, dryRun: opts.dryRun });
   return id as string;
 }
@@ -76,7 +80,10 @@ describe('HTTP retries', () => {
   it('caps Retry-After at maxDelayMs and retries 503', async () => {
     const id = await createProcess({
       connections: [{ slot: 'api' }],
-      nodes: [n('start', 'start'), n('call', 'http', { connection: 'api', method: 'GET', path: '/test/flaky', query: { key: 'k1b', fail: 1, status: 503, retryAfter: 3600 } })],
+      nodes: [
+        n('start', 'start'),
+        n('call', 'http', { connection: 'api', method: 'GET', path: '/test/flaky', query: { key: 'k1b', fail: 1, status: 503, retryAfter: 3600 } }),
+      ],
       wires: [w('start', 'call')],
     });
     const t0 = Date.now();
@@ -89,7 +96,10 @@ describe('HTTP retries', () => {
   it('does not repeat POST requests by default', async () => {
     const id = await createProcess({
       connections: [{ slot: 'api' }],
-      nodes: [n('start', 'start'), n('call', 'http', { connection: 'api', method: 'POST', path: '/test/flaky', query: { key: 'k2', fail: 1 }, body: { a: 1 } })],
+      nodes: [
+        n('start', 'start'),
+        n('call', 'http', { connection: 'api', method: 'POST', path: '/test/flaky', query: { key: 'k2', fail: 1 }, body: { a: 1 } }),
+      ],
       wires: [w('start', 'call')],
     });
     const r = await runToEnd(id, { bindings: { api: flaky } });
@@ -109,7 +119,10 @@ describe('parallel for-each', () => {
         n('loop', 'forEach', { items: '[1..8]', as: 'i', concurrency, saveAs: 'loopOut' }),
         n('fetch', 'http', { connection: 'api', method: 'GET', path: '/test/delay', query: { ms: 300, value: '{{ vars.i }}' }, saveAs: 'r' }),
         n('calc', 'set', { values: { doubled: '{{ vars.i * 2 }}', echoed: '{{ vars.r.body.value }}', seenOuter: '{{ vars.outer }}' } }),
-        n('after', 'log', { message: '{{ $exists(vars.doubled) }}|{{ $join(vars.loopOut.results.$string(doubled), ",") }}|{{ $join(vars.loopOut.results.echoed, ",") }}|{{ vars.outer }}' }),
+        n('after', 'log', {
+          message:
+            '{{ $exists(vars.doubled) }}|{{ $join(vars.loopOut.results.$string(doubled), ",") }}|{{ $join(vars.loopOut.results.echoed, ",") }}|{{ vars.outer }}',
+        }),
       ],
       wires: [w('start', 'init'), w('init', 'loop'), w('loop', 'fetch', 'each'), w('fetch', 'calc'), w('loop', 'after', 'done')],
     });
@@ -129,7 +142,11 @@ describe('parallel for-each', () => {
 
   it('fails the run when an item fails and stops on cancel', async () => {
     const failing = await createProcess({
-      nodes: [n('start', 'start'), n('loop', 'forEach', { items: '[1..6]', as: 'i', concurrency: 3 }), n('maybe', 'fail', { message: 'item {{ vars.i }} broke', when: 'vars.i = 2' })],
+      nodes: [
+        n('start', 'start'),
+        n('loop', 'forEach', { items: '[1..6]', as: 'i', concurrency: 3 }),
+        n('maybe', 'fail', { message: 'item {{ vars.i }} broke', when: 'vars.i = 2' }),
+      ],
       wires: [w('start', 'loop'), w('loop', 'maybe', 'each')],
     });
     const r = await runToEnd(failing);
@@ -220,7 +237,13 @@ describe('sub-processes', () => {
     const a = await createProcess({ nodes: [n('start', 'start'), n('log', 'log', { message: 'placeholder' })], wires: [w('start', 'log')] });
     const b = await createProcess({ nodes: [n('start', 'start'), n('callA', 'subprocess', { process: a })], wires: [w('start', 'callA')] });
     await s.api('PUT', `/processes/${a}`, {
-      definition: { name: 'recursive a', connections: [], inputs: [], nodes: [n('start', 'start'), n('callB', 'subprocess', { process: b })], wires: [w('start', 'callB')] },
+      definition: {
+        name: 'recursive a',
+        connections: [],
+        inputs: [],
+        nodes: [n('start', 'start'), n('callB', 'subprocess', { process: b })],
+        wires: [w('start', 'callB')],
+      },
     });
     const r = await runToEnd(a);
     expect(r.status).toBe('failed');
@@ -231,7 +254,13 @@ describe('sub-processes', () => {
 
     const self = await createProcess({ nodes: [n('start', 'start')], wires: [] });
     await s.api('PUT', `/processes/${self}`, {
-      definition: { name: 'self', connections: [], inputs: [], nodes: [n('start', 'start'), n('me', 'subprocess', { process: self })], wires: [w('start', 'me')] },
+      definition: {
+        name: 'self',
+        connections: [],
+        inputs: [],
+        nodes: [n('start', 'start'), n('me', 'subprocess', { process: self })],
+        wires: [w('start', 'me')],
+      },
     });
     const r3 = await runToEnd(self);
     expect(r3.status).toBe('failed');
@@ -357,7 +386,9 @@ describe('editor support', () => {
     expect((await ev({ expression: '$count(vars.users.body.resources)', nodeId: 'b' })).value).toBe(15);
     expect((await ev({ expression: 'vars.users', nodeId: 'users' })).value).toBeUndefined();
     expect((await ev({ expression: 'vars.item & "/" & vars.itemIndex', nodeId: 'each' })).value).toBe('p/0');
-    expect((await ev({ expression: 'Limit {{ inputs.limit }} for {{ const.team }} on {{ conn.hub.vars.region }}', template: true })).value).toBe('Limit 5 for ops on eu1');
+    expect((await ev({ expression: 'Limit {{ inputs.limit }} for {{ const.team }} on {{ conn.hub.vars.region }}', template: true })).value).toBe(
+      'Limit 5 for ops on eu1',
+    );
     expect((await ev({ expression: 'name & "!"', item: { name: 'x' } })).value).toBe('x!');
     expect((await ev({ expression: "$pvar('hub', 'tenant')" })).value).toBe('demotenant');
     // secrets never leave the server
@@ -465,7 +496,15 @@ describe('sub-process after a restart', () => {
     new Promise<ChildProcess>((resolve, reject) => {
       const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
         cwd: path.resolve(__dirname, '..'),
-        env: { ...process.env, ...dbEnv, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+        env: {
+          ...process.env,
+          ...dbEnv,
+          SM_LOG_LEVEL: 'info',
+          SM_DATA_DIR: dataDir,
+          SM_PORT: String(port),
+          SM_DEMO: '1',
+          SM_MASTER_PASSPHRASE: 'restart-test-pass',
+        },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let out = '';
@@ -480,7 +519,12 @@ describe('sub-process after a restart', () => {
   const api = async (method: string, url: string, body?: unknown): Promise<any> => {
     const res = await fetch(base + '/api' + url, {
       method,
-      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: {
+        'x-sm-client': '1',
+        ...(cookie ? { cookie } : {}),
+        ...(sessionKey ? { 'x-sm-session': sessionKey } : {}),
+        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const set = res.headers.get('set-cookie');
@@ -517,7 +561,11 @@ describe('sub-process after a restart', () => {
       await api('POST', '/processes', {
         definition: {
           name: 'restart parent',
-          nodes: [n('start', 'start'), n('sub', 'subprocess', { process: childId, saveAs: 'res' }), n('show', 'log', { message: 'answer {{ vars.res.answer }}' })],
+          nodes: [
+            n('start', 'start'),
+            n('sub', 'subprocess', { process: childId, saveAs: 'res' }),
+            n('show', 'log', { message: 'answer {{ vars.res.answer }}' }),
+          ],
           wires: [w('start', 'sub'), w('sub', 'show')],
         },
       })

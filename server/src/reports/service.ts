@@ -100,9 +100,11 @@ function serialized<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const prev = locks.get(key) ?? Promise.resolve();
   const next = prev.catch(() => undefined).then(fn);
   locks.set(key, next);
-  void next.finally(() => {
-    if (locks.get(key) === next) locks.delete(key);
-  }).catch(() => undefined);
+  void next
+    .finally(() => {
+      if (locks.get(key) === next) locks.delete(key);
+    })
+    .catch(() => undefined);
   return next;
 }
 
@@ -319,7 +321,9 @@ interface GeneratedEntry {
  * copy that was signed later (signatures are appended as incremental
  * updates) – by the SHA-256 of its first <recorded size> bytes.
  */
-export function findGenerated(data: Buffer): { match: 'exact' | 'signed-copy'; entry: GeneratedEntry; forged: number } | { match: null; forged: number } | null {
+export function findGenerated(
+  data: Buffer,
+): { match: 'exact' | 'signed-copy'; entry: GeneratedEntry; forged: number } | { match: null; forged: number } | null {
   // Only authentic entries count (HMAC and chain position checked): a row inserted into the database
   // with the SHA-256 of a forged PDF must not make that PDF verify.
   let forged = 0;
@@ -340,7 +344,13 @@ export function findGenerated(data: Buffer): { match: 'exact' | 'signed-copy'; e
     .filter((n) => n > 0);
   for (const size of sizes) {
     // the original ends with %%EOF; an incremental update follows it
-    if (!data.subarray(Math.max(0, size - 7), size).toString('latin1').includes('%%EOF')) continue;
+    if (
+      !data
+        .subarray(Math.max(0, size - 7), size)
+        .toString('latin1')
+        .includes('%%EOF')
+    )
+      continue;
     const entry = lookup(sha256(data.subarray(0, size)));
     if (entry) return { match: 'signed-copy', entry, forged };
   }
@@ -374,7 +384,12 @@ export function verificationOf(data: Buffer, found: ReturnType<typeof findGenera
 // ---------- branding preview ----------
 
 /** A sample run report with invented data and the given (unsaved) branding. Not stored, not audited. */
-export async function previewReport(o: { lang: ReportLang; actor: string; branding?: Partial<ReportBranding>; timeZone?: string | null }): Promise<RenderResult> {
+export async function previewReport(o: {
+  lang: ReportLang;
+  actor: string;
+  branding?: Partial<ReportBranding>;
+  timeZone?: string | null;
+}): Promise<RenderResult> {
   const tr = translator(o.lang, o.timeZone);
   const now = Date.now();
   const iso = (offsetS: number) => new Date(now - 3600_000 + offsetS * 1000).toISOString();
@@ -406,17 +421,93 @@ export async function previewReport(o: { lang: ReportLang; actor: string; brandi
     connections: [{ slot: 'hub', platformName: 'Insights Hub (production)', kind: 'insights-hub', environment: 'production' }],
     inputs: [{ name: 'days', label: 'Inactive for (days)', value: '90' }],
     steps: [
-      { startedAt: iso(1), key: 'users', depth: 0, name: 'List all users', type: 'http', status: 'succeeded', result: 'GET /Users → 200 (148 items)', durationMs: 820, failed: false },
-      { startedAt: iso(3), key: 'inactive', depth: 0, name: 'Find inactive users', type: 'set', status: 'succeeded', result: 'inactive = [2 items]', durationMs: 4, failed: false },
-      { startedAt: iso(4), key: 'pick', depth: 0, name: 'Confirm removal', type: 'userTask', status: 'succeeded', result: 'Approved', durationMs: 80000, failed: false },
-      { startedAt: iso(85), key: 'remove[0]/del', depth: 1, name: 'Remove from group', type: 'http', status: 'succeeded', result: 'DELETE … → 204', durationMs: 310, failed: false },
-      { startedAt: iso(86), key: 'remove[1]/del', depth: 1, name: 'Remove from group', type: 'http', status: 'succeeded', result: 'DELETE … → 204', durationMs: 290, failed: false },
-      { startedAt: iso(90), key: 'check', depth: 0, name: 'No admin removed', type: 'check', status: 'succeeded', result: 'Passed', durationMs: 2, failed: false },
+      {
+        startedAt: iso(1),
+        key: 'users',
+        depth: 0,
+        name: 'List all users',
+        type: 'http',
+        status: 'succeeded',
+        result: 'GET /Users → 200 (148 items)',
+        durationMs: 820,
+        failed: false,
+      },
+      {
+        startedAt: iso(3),
+        key: 'inactive',
+        depth: 0,
+        name: 'Find inactive users',
+        type: 'set',
+        status: 'succeeded',
+        result: 'inactive = [2 items]',
+        durationMs: 4,
+        failed: false,
+      },
+      {
+        startedAt: iso(4),
+        key: 'pick',
+        depth: 0,
+        name: 'Confirm removal',
+        type: 'userTask',
+        status: 'succeeded',
+        result: 'Approved',
+        durationMs: 80000,
+        failed: false,
+      },
+      {
+        startedAt: iso(85),
+        key: 'remove[0]/del',
+        depth: 1,
+        name: 'Remove from group',
+        type: 'http',
+        status: 'succeeded',
+        result: 'DELETE … → 204',
+        durationMs: 310,
+        failed: false,
+      },
+      {
+        startedAt: iso(86),
+        key: 'remove[1]/del',
+        depth: 1,
+        name: 'Remove from group',
+        type: 'http',
+        status: 'succeeded',
+        result: 'DELETE … → 204',
+        durationMs: 290,
+        failed: false,
+      },
+      {
+        startedAt: iso(90),
+        key: 'check',
+        depth: 0,
+        name: 'No admin removed',
+        type: 'check',
+        status: 'succeeded',
+        result: 'Passed',
+        durationMs: 2,
+        failed: false,
+      },
     ],
     stepsOmitted: 0,
     writes: [
-      { startedAt: iso(85), name: 'Remove from group', method: 'DELETE', url: 'https://gateway.eu1.mindsphere.io/api/identitymanagement/v3/Groups/g-1/members/u-17', status: 'succeeded', httpStatus: 204, result: '' },
-      { startedAt: iso(86), name: 'Remove from group', method: 'DELETE', url: 'https://gateway.eu1.mindsphere.io/api/identitymanagement/v3/Groups/g-1/members/u-42', status: 'succeeded', httpStatus: 204, result: '' },
+      {
+        startedAt: iso(85),
+        name: 'Remove from group',
+        method: 'DELETE',
+        url: 'https://gateway.eu1.mindsphere.io/api/identitymanagement/v3/Groups/g-1/members/u-17',
+        status: 'succeeded',
+        httpStatus: 204,
+        result: '',
+      },
+      {
+        startedAt: iso(86),
+        name: 'Remove from group',
+        method: 'DELETE',
+        url: 'https://gateway.eu1.mindsphere.io/api/identitymanagement/v3/Groups/g-1/members/u-42',
+        status: 'succeeded',
+        httpStatus: 204,
+        result: '',
+      },
     ],
     decisions: [
       {

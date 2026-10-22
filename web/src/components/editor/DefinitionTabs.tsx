@@ -23,7 +23,15 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { INPUT_TYPES, type ConnectionSlot, type InputDef, type ProcessDefinition, type ProcessDetail, type ProcessVersion, type ValidationIssue } from '@sm/shared';
+import {
+  INPUT_TYPES,
+  type ConnectionSlot,
+  type InputDef,
+  type ProcessDefinition,
+  type ProcessDetail,
+  type ProcessVersion,
+  type ValidationIssue,
+} from '@sm/shared';
 import { get, notifyError, post } from '../../api';
 import { fmtDate } from '../../format';
 import { ExpressionInput } from './ExpressionInput';
@@ -102,7 +110,13 @@ export function InputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
             </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
-            <TextInput size="xs" label={t('inputs.name')} classNames={{ input: 'mono' }} value={inp.name} onChange={(e) => patch(i, { name: e.currentTarget.value })} />
+            <TextInput
+              size="xs"
+              label={t('inputs.name')}
+              classNames={{ input: 'mono' }}
+              value={inp.name}
+              onChange={(e) => patch(i, { name: e.currentTarget.value })}
+            />
             <TextInput size="xs" label={t('inputs.label')} value={inp.label ?? ''} onChange={(e) => patch(i, { label: e.currentTarget.value || undefined })} />
             <Select
               size="xs"
@@ -122,8 +136,18 @@ export function InputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
               {inp.type === 'table' && (
                 <TagsInput size="xs" label={t('inputs.columns')} value={inp.columns ?? []} onChange={(c) => patch(i, { columns: c.length ? c : undefined })} />
               )}
-              <TextInput size="xs" label={t('inputs.description')} value={inp.description ?? ''} onChange={(e) => patch(i, { description: e.currentTarget.value || undefined })} />
-              <Switch size="xs" label={t('inputs.required')} checked={!!inp.required} onChange={(e) => patch(i, { required: e.currentTarget.checked || undefined })} />
+              <TextInput
+                size="xs"
+                label={t('inputs.description')}
+                value={inp.description ?? ''}
+                onChange={(e) => patch(i, { description: e.currentTarget.value || undefined })}
+              />
+              <Switch
+                size="xs"
+                label={t('inputs.required')}
+                checked={!!inp.required}
+                onChange={(e) => patch(i, { required: e.currentTarget.checked || undefined })}
+              />
             </Stack>
           </SimpleGrid>
         </Paper>
@@ -174,7 +198,16 @@ function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown)
         />
       );
     case 'select':
-      return <Select size="xs" label={t('inputs.default')} data={inp.options ?? []} clearable value={(v as string) ?? null} onChange={(x) => onChange(x ?? undefined)} />;
+      return (
+        <Select
+          size="xs"
+          label={t('inputs.default')}
+          data={inp.options ?? []}
+          clearable
+          value={(v as string) ?? null}
+          onChange={(x) => onChange(x ?? undefined)}
+        />
+      );
     case 'list':
     case 'table':
     case 'json':
@@ -208,7 +241,14 @@ export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef
       {conns.map((c, i) => (
         <Paper withBorder p="sm" key={i}>
           <Group align="flex-end" wrap="wrap" gap="xs">
-            <TextInput size="xs" label={t('connections.slot')} w={140} classNames={{ input: 'mono' }} value={c.slot} onChange={(e) => patch(i, { slot: e.currentTarget.value })} />
+            <TextInput
+              size="xs"
+              label={t('connections.slot')}
+              w={140}
+              classNames={{ input: 'mono' }}
+              value={c.slot}
+              onChange={(e) => patch(i, { slot: e.currentTarget.value })}
+            />
             <Autocomplete
               size="xs"
               label={t('connections.kind')}
@@ -314,7 +354,15 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
       <Text size="sm" c="dimmed">
         <Trans t={t} i18nKey="source.hint" components={{ c: <Code /> }} />
       </Text>
-      <Textarea autosize minRows={16} maxRows={60} classNames={{ input: 'mono' }} value={text} onChange={(e) => setText(e.currentTarget.value)} spellCheck={false} />
+      <Textarea
+        autosize
+        minRows={16}
+        maxRows={60}
+        classNames={{ input: 'mono' }}
+        value={text}
+        onChange={(e) => setText(e.currentTarget.value)}
+        spellCheck={false}
+      />
       {issues && issues.length > 0 && (
         <Alert color="red" title={t('issues.count', { count: issues.length })}>
           <Stack gap={2}>
@@ -359,7 +407,10 @@ export function VersionsPanel({
   onRestore: (d: Def, version: number) => void;
 }) {
   const { t } = useTranslation('editor');
-  const versions = useQuery({ queryKey: ['process-versions', processId, currentVersion], queryFn: () => get<ProcessVersion[]>(`/processes/${processId}/versions`) });
+  const versions = useQuery({
+    queryKey: ['process-versions', processId, currentVersion],
+    queryFn: () => get<ProcessVersion[]>(`/processes/${processId}/versions`),
+  });
   const [viewing, setViewing] = useState<ProcessDetail | null>(null);
   const [viewVersion, setViewVersion] = useState<number | null>(null);
   const open = async (v: number) => {
@@ -380,7 +431,13 @@ export function VersionsPanel({
           <Text fw={600} size="sm" mb="xs">
             {t('versions.compare')}
           </Text>
-          <VersionCompare key={`${currentVersion}-${!!workingCopy}`} processId={processId} versions={versions.data} currentVersion={currentVersion} workingCopy={workingCopy} />
+          <VersionCompare
+            key={`${currentVersion}-${!!workingCopy}`}
+            processId={processId}
+            versions={versions.data}
+            currentVersion={currentVersion}
+            workingCopy={workingCopy}
+          />
         </Paper>
       )}
       <div className="table-scroll">
@@ -398,9 +455,7 @@ export function VersionsPanel({
           <Table.Tbody>
             {(versions.data ?? []).map((v) => (
               <Table.Tr key={v.version}>
-                <Table.Td>
-                  {v.version === currentVersion ? t('versions.current', { version: v.version }) : `v${v.version}`}
-                </Table.Td>
+                <Table.Td>{v.version === currentVersion ? t('versions.current', { version: v.version }) : `v${v.version}`}</Table.Td>
                 <Table.Td className="nowrap">{fmtDate(v.createdAt)}</Table.Td>
                 <Table.Td>{v.author}</Table.Td>
                 <Table.Td>{v.comment}</Table.Td>
@@ -479,7 +534,13 @@ export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
             value={v}
             onChange={(text) => update(entries.map((x, j) => (j === i ? [x[0], text] : x)))}
           />
-          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('outputs.remove', { name: k })}>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            mt={4}
+            onClick={() => update(entries.filter((_, j) => j !== i))}
+            aria-label={t('outputs.remove', { name: k })}
+          >
             <IconTrash size={14} />
           </ActionIcon>
         </Group>

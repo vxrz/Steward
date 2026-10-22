@@ -8,13 +8,13 @@ Security Policy until you set a DSN.
 
 ## Turning it on
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `SM_SENTRY_DSN` | – | DSN for server errors, e.g. `https://<public key>@glitchtip.corp.example/3`. Also used for the web UI unless `SM_SENTRY_DSN_WEB` is set. |
-| `SM_SENTRY_DSN_WEB` | = `SM_SENTRY_DSN` | DSN for errors in the browser (another project, or `off` to report server errors only). |
-| `SM_SENTRY_ENVIRONMENT` | `production` | Environment shown in the error tracker (`test`, `prod-eu`, …). |
-| `SM_SENTRY_RELEASE` | `steward@<version>` | Release name. |
-| `SM_SENTRY_TRACES_SAMPLE_RATE` | `0` | `0`–`1`. Above 0, performance traces (runs, steps, platform calls, HTTP requests) go to Sentry as well. Ignored while OpenTelemetry export is on (see below). |
+| Variable                       | Default             | Purpose                                                                                                                                                       |
+| ------------------------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SM_SENTRY_DSN`                | –                   | DSN for server errors, e.g. `https://<public key>@glitchtip.corp.example/3`. Also used for the web UI unless `SM_SENTRY_DSN_WEB` is set.                      |
+| `SM_SENTRY_DSN_WEB`            | = `SM_SENTRY_DSN`   | DSN for errors in the browser (another project, or `off` to report server errors only).                                                                       |
+| `SM_SENTRY_ENVIRONMENT`        | `production`        | Environment shown in the error tracker (`test`, `prod-eu`, …).                                                                                                |
+| `SM_SENTRY_RELEASE`            | `steward@<version>` | Release name.                                                                                                                                                 |
+| `SM_SENTRY_TRACES_SAMPLE_RATE` | `0`                 | `0`–`1`. Above 0, performance traces (runs, steps, platform calls, HTTP requests) go to Sentry as well. Ignored while OpenTelemetry export is on (see below). |
 
 The same settings work for `npm start`, the Docker image and the desktop
 executable. The web UI gets its DSN from the server at runtime
@@ -37,12 +37,12 @@ readable without signing in (errors on the sign-in page are reported too).
 
 ## What is reported
 
-| Reported | Not reported (business outcomes, visible in Steward itself) |
-| --- | --- |
-| API requests answered with a 5xx status by the error handler | 4xx responses: validation errors, missing permissions, not found, locked vault |
-| Unhandled exceptions and unhandled promise rejections (the process still exits as before, after reporting) | Failed runs and failed steps, platforms answering with 4xx/5xx, timeouts, network errors |
-| Internal engine errors: programming errors (`TypeError`, `ReferenceError`, `RangeError`) in a step or run, failed resume/recovery of runs, failed schedules | A wrong configured master passphrase and other expected errors (`HttpError` < 500) |
-| Browser: uncaught errors, unhandled rejections, rendering errors caught by the error boundary | |
+| Reported                                                                                                                                                    | Not reported (business outcomes, visible in Steward itself)                              |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| API requests answered with a 5xx status by the error handler                                                                                                | 4xx responses: validation errors, missing permissions, not found, locked vault           |
+| Unhandled exceptions and unhandled promise rejections (the process still exits as before, after reporting)                                                  | Failed runs and failed steps, platforms answering with 4xx/5xx, timeouts, network errors |
+| Internal engine errors: programming errors (`TypeError`, `ReferenceError`, `RangeError`) in a step or run, failed resume/recovery of runs, failed schedules | A wrong configured master passphrase and other expected errors (`HttpError` < 500)       |
+| Browser: uncaught errors, unhandled rejections, rendering errors caught by the error boundary                                                               |                                                                                          |
 
 ## What is sent
 

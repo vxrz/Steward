@@ -119,7 +119,8 @@ export function parseDatabaseTarget(spec: string, opts: { schema?: string; ca?: 
     }
     return { kind: 'postgres', url, schema };
   }
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(spec)) throw new Error(`Unsupported database URL "${maskDatabaseUrl(spec)}" – use postgres://user:password@host:5432/database`);
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(spec))
+    throw new Error(`Unsupported database URL "${maskDatabaseUrl(spec)}" – use postgres://user:password@host:5432/database`);
   const file = spec.startsWith('sqlite:') ? spec.slice('sqlite:'.length) : spec;
   if (!file) throw new Error('Missing SQLite file path');
   return { kind: 'sqlite', file };

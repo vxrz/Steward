@@ -13,7 +13,14 @@ export const WEBHOOK_AUTH_MODES = ['token', 'hmac', 'either'] as const;
 export type WebhookAuthMode = (typeof WEBHOOK_AUTH_MODES)[number];
 
 /** Request headers that can never be mapped into inputs (they carry credentials). */
-export const WEBHOOK_FORBIDDEN_HEADERS = ['authorization', 'proxy-authorization', 'cookie', 'x-steward-token', 'x-steward-signature', 'x-steward-test'] as const;
+export const WEBHOOK_FORBIDDEN_HEADERS = [
+  'authorization',
+  'proxy-authorization',
+  'cookie',
+  'x-steward-token',
+  'x-steward-signature',
+  'x-steward-test',
+] as const;
 
 /** Largest accepted request body (bytes). */
 export const WEBHOOK_MAX_BODY_BYTES = 64 * 1024;

@@ -82,7 +82,11 @@ export async function renderRunReport(
   let n = 0;
   const section = (title: string) => w.section(`${++n}. ${title}`);
   section(t('summary'));
-  const trig = tr.v('trigger', m.run.trigger) + (m.run.triggerName ? ` – ${m.run.triggerName}` : '') + (m.run.scheduleName ? ` – ${m.run.scheduleName}` : '') + (m.run.parentRunId ? ` – ${t('parentRun')} ${m.run.parentRunId}` : '');
+  const trig =
+    tr.v('trigger', m.run.trigger) +
+    (m.run.triggerName ? ` – ${m.run.triggerName}` : '') +
+    (m.run.scheduleName ? ` – ${m.run.scheduleName}` : '') +
+    (m.run.parentRunId ? ` – ${t('parentRun')} ${m.run.parentRunId}` : '');
   w.keyValues([
     { label: t('process'), value: m.process.name },
     { label: t('processVersion'), value: String(m.process.version) },
@@ -176,7 +180,10 @@ export async function renderRunReport(
       x.url,
       x.status === 'dryrun'
         ? { text: t('notExecuted'), tone: 'warning' }
-        : { text: `${x.httpStatus ? `HTTP ${x.httpStatus} · ` : ''}${tr.v('status', x.status)}${x.status === 'failed' && x.result ? ` – ${x.result}` : ''}`, tone: statusTone(x.status) },
+        : {
+            text: `${x.httpStatus ? `HTTP ${x.httpStatus} · ` : ''}${tr.v('status', x.status)}${x.status === 'failed' && x.result ? ` – ${x.result}` : ''}`,
+            tone: statusTone(x.status),
+          },
     ]),
     { empty: t('noChanges') },
   );
@@ -206,7 +213,9 @@ export async function renderRunReport(
     if (d.fourEyes)
       items.push({
         label: t('fourEyes'),
-        value: d.decidedBy ? t('fourEyesOk', { decider: personLabel(d.decidedBy), starter: personLabel(d.startedBy) }) : t('fourEyesOpen', { starter: personLabel(d.startedBy) }),
+        value: d.decidedBy
+          ? t('fourEyesOk', { decider: personLabel(d.decidedBy), starter: personLabel(d.startedBy) })
+          : t('fourEyesOpen', { starter: personLabel(d.startedBy) }),
         span: 2,
       });
     items.push({ label: t('decisionComment'), value: d.comment ?? '–', span: 2 });
@@ -368,7 +377,13 @@ export function signOff(w: ReportWriter, tr: Translator, m: { generatedBy: Perso
   w.paragraph(t('signoffIntro'), { tone: 'muted', size: 8 });
   w.signatureBlocks(
     [
-      { title: t('preparedBy'), name: personLabel(m.generatedBy), date: tr.date(m.generatedAt), fieldName: 'Signature_PreparedBy', fieldHint: `${t('preparedBy')} – ${m.reportId}` },
+      {
+        title: t('preparedBy'),
+        name: personLabel(m.generatedBy),
+        date: tr.date(m.generatedAt),
+        fieldName: 'Signature_PreparedBy',
+        fieldHint: `${t('preparedBy')} – ${m.reportId}`,
+      },
       { title: t('reviewedBy'), fieldName: 'Signature_ReviewedBy', fieldHint: `${t('reviewedBy')} – ${m.reportId}` },
       { title: t('approvedBy'), fieldName: 'Signature_ApprovedBy', fieldHint: `${t('approvedBy')} – ${m.reportId}` },
     ],

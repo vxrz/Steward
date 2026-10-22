@@ -119,12 +119,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
           {proc.data.definition.inputs.length > 0 && <Divider label={t('dialog.inputs')} labelPosition="left" />}
           <InputsForm defs={proc.data.definition.inputs} value={inputs} onChange={setInputs} />
           <Divider />
-          <Switch
-            checked={dryRun}
-            onChange={(e) => setDryRun(e.currentTarget.checked)}
-            label={t('dialog.dryRun')}
-            description={t('dialog.dryRunHint')}
-          />
+          <Switch checked={dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} label={t('dialog.dryRun')} description={t('dialog.dryRunHint')} />
           {!dryRun && hasWrites && (
             <Alert color="orange" title={t('dialog.writesTitle')}>
               {t('dialog.writesText')}

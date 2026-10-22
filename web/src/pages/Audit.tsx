@@ -94,7 +94,11 @@ export function AuditPage() {
       />
       {verify && (
         <Alert color={verify.ok ? 'green' : 'red'} mb="md" withCloseButton onClose={() => setVerify(null)} title={verify.ok ? t('intact') : t('broken')}>
-          {verify.ok ? t('intactText', { count: verify.checked }) : verify.firstBadSeq ? t('brokenText', { seq: verify.firstBadSeq, message: verify.message }) : verify.message}
+          {verify.ok
+            ? t('intactText', { count: verify.checked })
+            : verify.firstBadSeq
+              ? t('brokenText', { seq: verify.firstBadSeq, message: verify.message })
+              : verify.message}
           {!!verify.anchors?.length && (
             <List size="sm" mt={4}>
               {verify.anchors.map((a, i) => (

@@ -115,7 +115,11 @@ describe('error reporting (Sentry-compatible)', () => {
     const { reportError, flushErrorReporting } = await import('../src/errorReporting.js');
     const { withSpan } = await import('../src/telemetry.js');
     const before = sentry.events().length;
-    await withSpan('step', {}, async () => void reportError(new RangeError('engine bug'), { tags: { phase: 'step', run_id: 'r_123456789012' }, secrets: ['run-only-secret'] }));
+    await withSpan(
+      'step',
+      {},
+      async () => void reportError(new RangeError('engine bug'), { tags: { phase: 'step', run_id: 'r_123456789012' }, secrets: ['run-only-secret'] }),
+    );
     await flushErrorReporting();
     const events = await sentry.waitForEvents(before + 1);
     const ev = events.at(-1);
@@ -151,7 +155,21 @@ describe('scrubbing', () => {
         'ghp_abcdefghijklmnopqrstuvwxyz0123456789 0123456789abcdef0123456789abcdef01234567 at 10:30:45',
       { secrets: ['my-own-secret'] },
     );
-    for (const leaked of ['token=abc', API_TOKEN, 'abc.def.ghi', 'dXNlcjpwYXNzd29yZA', JWT, 'hunter2', 's3cr3t', 'john@', '192.168.0.12', 'fe80::1ff', 'jdoe', 'ghp_', '0123456789abcdef0123']) {
+    for (const leaked of [
+      'token=abc',
+      API_TOKEN,
+      'abc.def.ghi',
+      'dXNlcjpwYXNzd29yZA',
+      JWT,
+      'hunter2',
+      's3cr3t',
+      'john@',
+      '192.168.0.12',
+      'fe80::1ff',
+      'jdoe',
+      'ghp_',
+      '0123456789abcdef0123',
+    ]) {
       expect(s).not.toContain(leaked);
     }
     expect(s).toContain('https://hub.example.com/api/assets?***');
@@ -163,11 +181,24 @@ describe('scrubbing', () => {
     const e = scrubEvent({
       server_name: 'LAPTOP-JDOE',
       user: { id: 'abc', email: 'a@b.example', ip_address: '1.2.3.4', username: 'jdoe' },
-      request: { method: 'POST', url: 'https://x.example/api/p?token=1', headers: { Cookie: 'a=b', Authorization: 'x', 'User-Agent': 'UA' }, cookies: { a: 'b' }, data: { password: 'p' }, query_string: 'token=1' },
+      request: {
+        method: 'POST',
+        url: 'https://x.example/api/p?token=1',
+        headers: { Cookie: 'a=b', Authorization: 'x', 'User-Agent': 'UA' },
+        cookies: { a: 'b' },
+        data: { password: 'p' },
+        query_string: 'token=1',
+      },
       extra: { nested: { password: 'p', note: `uses ${API_TOKEN}` } },
-      contexts: { device: { device_name: 'LAPTOP-JDOE', arch: 'x64' }, trace: { trace_id: '0123456789abcdef0123456789abcdef', data: { 'enduser.id': 'jdoe' } } },
+      contexts: {
+        device: { device_name: 'LAPTOP-JDOE', arch: 'x64' },
+        trace: { trace_id: '0123456789abcdef0123456789abcdef', data: { 'enduser.id': 'jdoe' } },
+      },
       exception: { values: [{ type: 'Error', value: 'x', stacktrace: { frames: [{ filename: '/home/jdoe/app/x.js', vars: { secret: 'v' } }] } }] },
-      breadcrumbs: [{ category: 'console', message: 'secret log line' }, { category: 'fetch', data: { url: '/api/runs?q=secret', method: 'GET' } }],
+      breadcrumbs: [
+        { category: 'console', message: 'secret log line' },
+        { category: 'fetch', data: { url: '/api/runs?q=secret', method: 'GET' } },
+      ],
     });
     expect(e.server_name).toBeUndefined();
     expect(e.user).toEqual({ id: 'abc' });

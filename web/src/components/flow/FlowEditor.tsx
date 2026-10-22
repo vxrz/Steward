@@ -221,8 +221,14 @@ function FlowEditorInner({
 
   const onDelete = useCallback(
     ({ nodes, edges: es }: { nodes: Node[]; edges: Edge[] }) => {
-      let d = removeWires(defRef.current, es.map((e) => e.id));
-      d = removeNodes(d, nodes.map((n) => n.id));
+      let d = removeWires(
+        defRef.current,
+        es.map((e) => e.id),
+      );
+      d = removeNodes(
+        d,
+        nodes.map((n) => n.id),
+      );
       if (nodes.some((n) => n.id === selectedId)) select(null);
       setSelectedEdges(new Set());
       onChange(d);
@@ -331,7 +337,6 @@ function FlowEditorInner({
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onChange, readOnly, t]);
 
   const selectedNode = selectedId ? def.nodes.find((n) => n.id === selectedId) : undefined;
@@ -388,12 +393,25 @@ function FlowEditorInner({
         </Text>
         <Group gap={4}>
           <Tooltip label={t('flow.duplicate')}>
-            <ActionIcon variant="subtle" size="sm" onClick={duplicateSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label={t('flow.duplicate')}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={duplicateSelected}
+              disabled={readOnly || selectedNode.type === 'start'}
+              aria-label={t('flow.duplicate')}
+            >
               <IconCopy size={15} />
             </ActionIcon>
           </Tooltip>
           <Tooltip label={t('flow.deleteHint')}>
-            <ActionIcon variant="subtle" color="red" size="sm" onClick={deleteSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label={t('flow.delete')}>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              size="sm"
+              onClick={deleteSelected}
+              disabled={readOnly || selectedNode.type === 'start'}
+              aria-label={t('flow.delete')}
+            >
               <IconTrash size={15} />
             </ActionIcon>
           </Tooltip>
@@ -434,10 +452,15 @@ function FlowEditorInner({
   );
 
   const canvas = (
-    <Box ref={wrapper} style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }} onDragOver={(e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-    }} onDrop={readOnly ? undefined : onDrop}>
+    <Box
+      ref={wrapper}
+      style={{ flex: 1, minWidth: 0, height: '100%', position: 'relative' }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={readOnly ? undefined : onDrop}
+    >
       <ReactFlow<FlowRfNode, Edge>
         nodes={rfNodes}
         edges={edges}
@@ -465,13 +488,24 @@ function FlowEditorInner({
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         <Controls showInteractive={false} />
         {!isMobile && (
-          <MiniMap pannable zoomable nodeColor={(n) => `var(--mantine-color-${nodeColor((n.data as FlowNodeData).node.type)}-5)`} style={{ height: 90, width: 140 }} />
+          <MiniMap
+            pannable
+            zoomable
+            nodeColor={(n) => `var(--mantine-color-${nodeColor((n.data as FlowNodeData).node.type)}-5)`}
+            style={{ height: 90, width: 140 }}
+          />
         )}
         <Panel position="top-right">
           <Group gap={6}>
             {toolbar}
             {!readOnly && (onUndo || onRedo) && (
-              <Group gap={2} wrap="nowrap" px={2} py={1} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
+              <Group
+                gap={2}
+                wrap="nowrap"
+                px={2}
+                py={1}
+                style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}
+              >
                 <Tooltip label={t('flow.undoHint', { key: `${modKey}Z` })}>
                   <ActionIcon size="sm" variant="subtle" color="gray" onClick={onUndo} disabled={!canUndo} aria-label={t('flow.undo')}>
                     <IconArrowBackUp size={16} />
@@ -485,19 +519,19 @@ function FlowEditorInner({
               </Group>
             )}
             {!readOnly && (
-            <Tooltip label={t('flow.tidyHint')}>
-              <Button
-                size="compact-xs"
-                variant="default"
-                leftSection={<IconLayoutDistributeHorizontal size={14} />}
-                onClick={() => {
-                  onChange(tidy(defRef.current));
-                  setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1.1, duration: 300 }), 60);
-                }}
-              >
-                {t('flow.tidy')}
-              </Button>
-            </Tooltip>
+              <Tooltip label={t('flow.tidyHint')}>
+                <Button
+                  size="compact-xs"
+                  variant="default"
+                  leftSection={<IconLayoutDistributeHorizontal size={14} />}
+                  onClick={() => {
+                    onChange(tidy(defRef.current));
+                    setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1.1, duration: 300 }), 60);
+                  }}
+                >
+                  {t('flow.tidy')}
+                </Button>
+              </Tooltip>
             )}
           </Group>
         </Panel>

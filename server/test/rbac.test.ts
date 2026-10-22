@@ -6,7 +6,11 @@ let hub: string;
 const PW = 'Demo-password-1';
 let olivia: Client, adam: Client, dana: Client, vera: Client, audrey: Client;
 
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 
 beforeAll(async () => {
   s = await startTestServer();
@@ -96,7 +100,12 @@ describe('decisions', () => {
         wires: [{ from: 'start', port: 'out', to: 'ok' }],
       },
     });
-    await s.api('PUT', `/processes/${p.id}/access`, { acl: [{ subject: 'role:operator', permissions: ['run'] }, { subject: 'role:approver', permissions: ['view'] }] });
+    await s.api('PUT', `/processes/${p.id}/access`, {
+      acl: [
+        { subject: 'role:operator', permissions: ['run'] },
+        { subject: 'role:approver', permissions: ['view'] },
+      ],
+    });
     const { id } = await olivia('POST', '/runs', { processId: p.id });
     const run = await s.waitRun(id);
     const task = run.tasks[0];

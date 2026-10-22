@@ -71,7 +71,8 @@ async function checkTcp(c: CheckOf<'tcp'>, ctx: ExecContext): Promise<RawResult>
   await assertNetAllowed(c.host, c.port, outboundContext());
   const r = await tcpConnect(c.host, c.port, ctx.timeoutMs, ctx.signal);
   if (!r.ok) return { status: 'down', message: `${c.host}:${c.port} – ${TCP_MESSAGES[r.code ?? ''] ?? r.code}`, durationMs: r.ms };
-  if (c.degradedMs && r.ms > c.degradedMs) return { status: 'degraded', message: `Connected in ${r.ms} ms (warning above ${c.degradedMs} ms)`, durationMs: r.ms };
+  if (c.degradedMs && r.ms > c.degradedMs)
+    return { status: 'degraded', message: `Connected in ${r.ms} ms (warning above ${c.degradedMs} ms)`, durationMs: r.ms };
   return { status: 'up', message: `Connected to ${c.host}:${c.port} in ${r.ms} ms`, durationMs: r.ms };
 }
 
@@ -87,14 +88,21 @@ function pingArgs(host: string, timeoutMs: number): string[] {
 
 function runPing(host: string, timeoutMs: number): Promise<{ unavailable: string } | { ok: boolean; rttMs?: number; output: string }> {
   return new Promise((resolve) => {
-    execFile('ping', pingArgs(host, timeoutMs), { timeout: timeoutMs + 2000, windowsHide: true, env: { PATH: process.env.PATH ?? '', LANG: 'C', LC_ALL: 'C' } }, (err, stdout, stderr) => {
-      const out = `${stdout}\n${stderr}`;
-      const e = err as (NodeJS.ErrnoException & { code?: string | number }) | null;
-      if (e && (e.code === 'ENOENT' || e.code === 'EACCES')) return resolve({ unavailable: e.code === 'ENOENT' ? 'the ping command is not installed' : 'ping may not be executed' });
-      if (/operation not permitted|permission denied|socket: |cap_net_raw/i.test(out)) return resolve({ unavailable: 'ICMP is not permitted for this process' });
-      const rtt = /time[=<]\s*([\d.]+)\s*ms/i.exec(out);
-      resolve({ ok: !e, rttMs: rtt ? Number(rtt[1]) : undefined, output: out.trim().split('\n').slice(-2).join(' ').slice(0, 200) });
-    });
+    execFile(
+      'ping',
+      pingArgs(host, timeoutMs),
+      { timeout: timeoutMs + 2000, windowsHide: true, env: { PATH: process.env.PATH ?? '', LANG: 'C', LC_ALL: 'C' } },
+      (err, stdout, stderr) => {
+        const out = `${stdout}\n${stderr}`;
+        const e = err as (NodeJS.ErrnoException & { code?: string | number }) | null;
+        if (e && (e.code === 'ENOENT' || e.code === 'EACCES'))
+          return resolve({ unavailable: e.code === 'ENOENT' ? 'the ping command is not installed' : 'ping may not be executed' });
+        if (/operation not permitted|permission denied|socket: |cap_net_raw/i.test(out))
+          return resolve({ unavailable: 'ICMP is not permitted for this process' });
+        const rtt = /time[=<]\s*([\d.]+)\s*ms/i.exec(out);
+        resolve({ ok: !e, rttMs: rtt ? Number(rtt[1]) : undefined, output: out.trim().split('\n').slice(-2).join(' ').slice(0, 200) });
+      },
+    );
   });
 }
 
@@ -106,7 +114,8 @@ async function checkPing(c: CheckOf<'ping'>, ctx: ExecContext): Promise<RawResul
     if (!('unavailable' in r)) {
       const ms = r.rttMs ?? Date.now() - t0;
       if (!r.ok) return { status: 'down', message: `${c.host} does not answer ping`, durationMs: Date.now() - t0 };
-      if (c.degradedRttMs && ms > c.degradedRttMs) return { status: 'degraded', message: `Round trip ${ms} ms (warning above ${c.degradedRttMs} ms)`, durationMs: Math.round(ms) };
+      if (c.degradedRttMs && ms > c.degradedRttMs)
+        return { status: 'degraded', message: `Round trip ${ms} ms (warning above ${c.degradedRttMs} ms)`, durationMs: Math.round(ms) };
       return { status: 'up', message: `${c.host} answers ping in ${ms} ms`, durationMs: Math.round(ms) };
     }
     pingUnavailableReason = r.unavailable;
@@ -148,7 +157,14 @@ function certExpiry(host: string, port: number, timeoutMs: number): Promise<numb
   const hit = certCache.get(key);
   if (hit && Date.now() - hit.at < 6 * 3600000) return Promise.resolve(hit.validTo);
   return new Promise((resolve) => {
-    const sock = tls.connect({ host, port, servername: net.isIP(host) ? undefined : host, rejectUnauthorized: false, timeout: timeoutMs, lookup: guardedLookup });
+    const sock = tls.connect({
+      host,
+      port,
+      servername: net.isIP(host) ? undefined : host,
+      rejectUnauthorized: false,
+      timeout: timeoutMs,
+      lookup: guardedLookup,
+    });
     const done = (v: number | null) => {
       sock.destroy();
       if (v !== null) certCache.set(key, { at: Date.now(), validTo: v });
@@ -235,7 +251,11 @@ async function checkHttp(c: CheckOf<'http'>, ctx: ExecContext): Promise<RawResul
   } catch (e) {
     const err = e as Error & { cause?: Error & { code?: string } };
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
-    return { status: 'down', message: `${c.method} ${c.url} failed: ${timedOut ? 'timeout' : (err.cause?.message ?? err.message)}`.slice(0, 300), durationMs: Date.now() - t0 };
+    return {
+      status: 'down',
+      message: `${c.method} ${c.url} failed: ${timedOut ? 'timeout' : (err.cause?.message ?? err.message)}`.slice(0, 300),
+      durationMs: Date.now() - t0,
+    };
   }
   const text = c.method === 'HEAD' ? '' : await readLimited(res).catch(() => '');
   const durationMs = Date.now() - t0;
@@ -283,7 +303,11 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
       AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
     );
   } catch (e) {
-    return { status: 'down', message: `${c.method} ${c.path} on "${platform.name}" failed: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+    return {
+      status: 'down',
+      message: `${c.method} ${c.path} on "${platform.name}" failed: ${(e as Error).message}`.slice(0, 500),
+      durationMs: Date.now() - t0,
+    };
   }
   const durationMs = r.durationMs;
   const scope = { status: r.status, headers: r.headers, body: r.body, durationMs };
@@ -314,7 +338,11 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
     const vars = c.variables ?? [];
     let latest;
     try {
-      latest = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!), { owner: ctx.owner, vars, windowSeconds: Math.ceil(freshnessWindowSeconds(c) * 1.5) });
+      latest = await ihFetch.get(ihKey(c.platform, c.assetId!, c.aspect!), {
+        owner: ctx.owner,
+        vars,
+        windowSeconds: Math.ceil(freshnessWindowSeconds(c) * 1.5),
+      });
     } catch (e) {
       if (e instanceof CheckSetupError) throw e;
       return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`, durationMs: Date.now() - t0 };
@@ -332,7 +360,12 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   const { platform, secrets } = platformFor(ctx.owner, c.platform);
   let r;
   try {
-    r = await platformRequest(platform, secrets, { method: 'GET', url: c.path!, query: c.query }, AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]));
+    r = await platformRequest(
+      platform,
+      secrets,
+      { method: 'GET', url: c.path!, query: c.query },
+      AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
+    );
   } catch (e) {
     return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
   }
@@ -380,11 +413,21 @@ async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawRes
   if (!last) return { status: 'unknown', message: `Gatus has no results for "${e.name}" yet`, durationMs: Date.now() - t0 };
   const age = (ctx.now() - Date.parse(last.timestamp)) / 1000;
   const ms = last.duration !== undefined ? Math.round(last.duration / 1e6) : undefined;
-  if (c.maxAgeSeconds && age > c.maxAgeSeconds) return { status: 'down', message: `The newest Gatus result is ${fmtAge(age)} old (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
-  if (!last.success) return { status: 'down', message: `Gatus: ${e.group ? `${e.group}/` : ''}${e.name} is failing${last.errors?.length ? ` – ${last.errors.join('; ')}` : ''}`.slice(0, 500), durationMs: ms };
+  if (c.maxAgeSeconds && age > c.maxAgeSeconds)
+    return { status: 'down', message: `The newest Gatus result is ${fmtAge(age)} old (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
+  if (!last.success)
+    return {
+      status: 'down',
+      message: `Gatus: ${e.group ? `${e.group}/` : ''}${e.name} is failing${last.errors?.length ? ` – ${last.errors.join('; ')}` : ''}`.slice(0, 500),
+      durationMs: ms,
+    };
   const recent = e.results.slice(-(c.degradedOnRecentFailures ?? 0));
   if ((c.degradedOnRecentFailures ?? 0) > 0 && recent.some((r) => !r.success)) {
-    return { status: 'degraded', message: `Gatus: ${e.name} is up, but ${recent.filter((r) => !r.success).length} of the last ${recent.length} results failed`, durationMs: ms };
+    return {
+      status: 'degraded',
+      message: `Gatus: ${e.name} is up, but ${recent.filter((r) => !r.success).length} of the last ${recent.length} results failed`,
+      durationMs: ms,
+    };
   }
   return { status: 'up', message: `Gatus: ${e.name} is up`, durationMs: ms };
 }

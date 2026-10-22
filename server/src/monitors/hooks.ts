@@ -76,7 +76,12 @@ function overLimit(key: string, perMinute: number): number | null {
   return null;
 }
 
-function reject(entity: { type: 'monitor' | 'monitor-gateway'; id: string; name: string }, ip: string, reason: string, res: MonitorHookResponse): MonitorHookResponse {
+function reject(
+  entity: { type: 'monitor' | 'monitor-gateway'; id: string; name: string },
+  ip: string,
+  reason: string,
+  res: MonitorHookResponse,
+): MonitorHookResponse {
   const key = `${entity.id}|${reason}`;
   const now = Date.now();
   const st = rejectionAudit.get(key);
@@ -96,7 +101,8 @@ function reject(entity: { type: 'monitor' | 'monitor-gateway'; id: string; name:
 }
 
 function parseBody(req: MonitorHookRequest): { ok: true; body: unknown } | { ok: false; res: MonitorHookResponse; reason: string } {
-  if (!isJson(req.contentType)) return { ok: false, reason: 'content type is not JSON', res: { status: 415, body: { error: 'Content-Type must be application/json' } } };
+  if (!isJson(req.contentType))
+    return { ok: false, reason: 'content type is not JSON', res: { status: 415, body: { error: 'Content-Type must be application/json' } } };
   const raw = req.raw ?? Buffer.alloc(0);
   try {
     return { ok: true, body: raw.length ? JSON.parse(raw.toString('utf8')) : {} };
@@ -127,7 +133,13 @@ function normalizeReport(x: unknown): HeartbeatReport | string {
 
 function store(row: Pick<CheckRow, 'monitor_id' | 'check_id'>, report: HeartbeatReport): void {
   const { key: _k, ...rest } = report;
-  db().run('UPDATE monitor_checks SET last_push_at = ?, last_push = ? WHERE monitor_id = ? AND check_id = ?', new Date(engine.monitorNow()).toISOString(), JSON.stringify(rest), row.monitor_id, row.check_id);
+  db().run(
+    'UPDATE monitor_checks SET last_push_at = ?, last_push = ? WHERE monitor_id = ? AND check_id = ?',
+    new Date(engine.monitorNow()).toISOString(),
+    JSON.stringify(rest),
+    row.monitor_id,
+    row.check_id,
+  );
 }
 
 interface Target extends CheckRow {
@@ -160,12 +172,17 @@ export async function handleHeartbeat(hookId: string, req: MonitorHookRequest): 
   const parsed = parseBody(req);
   if (!parsed.ok) return reject(entity, req.ip, parsed.reason, parsed.res);
   const retry = overLimit(`hb:${hookId}`, c.rateLimitPerMinute ?? 60);
-  if (retry !== null) return reject(entity, req.ip, 'rate limit exceeded', { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': String(retry) } });
+  if (retry !== null)
+    return reject(entity, req.ip, 'rate limit exceeded', { status: 429, body: { error: 'Too many requests' }, headers: { 'retry-after': String(retry) } });
   const report = normalizeReport(parsed.body);
   if (typeof report === 'string') return reject(entity, req.ip, `invalid report: ${report}`, { status: 400, body: { error: report } });
   store(t, report);
   await withTimeout(engine.evaluateCheck(t.monitor_id, t.check_id), 3000);
-  const status = db().get<{ status: MonitorStatus }>('SELECT status FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', t.monitor_id, t.check_id)?.status;
+  const status = db().get<{ status: MonitorStatus }>(
+    'SELECT status FROM monitor_checks WHERE monitor_id = ? AND check_id = ?',
+    t.monitor_id,
+    t.check_id,
+  )?.status;
   return { status: 202, body: { accepted: true, status: status ?? 'unknown' } };
 }
 
@@ -223,8 +240,10 @@ export async function handleGatewayBatch(req: MonitorHookRequest): Promise<Monit
   }
   const b = parsed.body as { reports?: unknown } | unknown[];
   const list = Array.isArray(b) ? b : (b as { reports?: unknown }).reports;
-  if (!Array.isArray(list)) return reject(entity, req.ip, 'no reports array', { status: 400, body: { error: 'Expected { "reports": [ … ] } or an array of reports' } });
-  if (list.length > HEARTBEAT_MAX_BATCH) return reject(entity, req.ip, 'too many reports', { status: 400, body: { error: `At most ${HEARTBEAT_MAX_BATCH} reports per call` } });
+  if (!Array.isArray(list))
+    return reject(entity, req.ip, 'no reports array', { status: 400, body: { error: 'Expected { "reports": [ … ] } or an array of reports' } });
+  if (list.length > HEARTBEAT_MAX_BATCH)
+    return reject(entity, req.ip, 'too many reports', { status: 400, body: { error: `At most ${HEARTBEAT_MAX_BATCH} reports per call` } });
   const patterns = parseJson<string[]>(g.allowed_keys, []);
   const rejected: { index: number; key: string | null; reason: string }[] = [];
   const accepted: { key: string; monitorId: string; checkId: string }[] = [];
@@ -247,7 +266,16 @@ export async function handleGatewayBatch(req: MonitorHookRequest): Promise<Monit
     const t = db().get<Target>(`${TARGET} WHERE c.heartbeat_key = ?`, k);
     const monitorRow = t ? db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', t.monitor_id) : undefined;
     if (!heartbeatCheck(t) || !monitorRow || !permissionsOfRow(monitorRow, ownerUser).includes('edit')) {
-      rejected.push({ index: list.findIndex((x) => String((x as { key?: string })?.key ?? '').trim().toLowerCase() === k), key: r.key!, reason: 'unknown key' });
+      rejected.push({
+        index: list.findIndex(
+          (x) =>
+            String((x as { key?: string })?.key ?? '')
+              .trim()
+              .toLowerCase() === k,
+        ),
+        key: r.key!,
+        reason: 'unknown key',
+      });
       continue;
     }
     store(t!, r);

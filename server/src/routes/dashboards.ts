@@ -40,7 +40,12 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/datasets/:key/metrics', async (req) => {
     const meta = visibleDataset(params(req).key!);
     const q = req.query as { names?: string; days?: string; points?: string };
-    return datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, Math.min(Number(q.days ?? 30), 400), Math.min(Number(q.points ?? 200), 2000));
+    return datasets.metricSeries(
+      meta.key,
+      q.names ? q.names.split(',') : undefined,
+      Math.min(Number(q.days ?? 30), 400),
+      Math.min(Number(q.points ?? 200), 2000),
+    );
   });
 
   app.delete('/datasets/:key', async (req) => {
@@ -113,7 +118,9 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         skipped.push({ processId: pid, reason: 'never ran – start it once from the process page' });
         continue;
       }
-      const bindings = Object.fromEntries(Object.entries(parseJson<Record<string, { platformId: string }>>(last.bindings, {})).map(([k, v]) => [k, v.platformId]));
+      const bindings = Object.fromEntries(
+        Object.entries(parseJson<Record<string, { platformId: string }>>(last.bindings, {})).map(([k, v]) => [k, v.platformId]),
+      );
       const forbidden = Object.values(bindings).find((p) => !getPlatform(p).permissions.includes('use'));
       if (forbidden) {
         skipped.push({ processId: pid, reason: `no permission to use platform ${forbidden}` });
@@ -147,7 +154,11 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         .filter((d) => !wantD || wantD.has(d.id))
         .map((d) => ({ id: d.id, definition: d.definition })),
     };
-    audit({ action: 'bundle.exported', entityType: 'bundle', summary: `Exported ${bundle.processes.length} process(es) and ${bundle.dashboards.length} dashboard(s)` });
+    audit({
+      action: 'bundle.exported',
+      entityType: 'bundle',
+      summary: `Exported ${bundle.processes.length} process(es) and ${bundle.dashboards.length} dashboard(s)`,
+    });
     reply.header('content-disposition', `attachment; filename="steward-bundle-${bundle.exportedAt.slice(0, 10)}.json"`);
     return bundle;
   });

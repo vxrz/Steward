@@ -39,7 +39,9 @@ export function useMetrics(key: string | undefined, names: string[], days: numbe
   return useQuery({
     queryKey: ['dataset-metrics', key, names.join(','), days],
     queryFn: () =>
-      get<MetricSeries[]>(`/datasets/${encodeURIComponent(key!)}/metrics?days=${days}&points=200${names.length ? `&names=${encodeURIComponent(names.join(','))}` : ''}`),
+      get<MetricSeries[]>(
+        `/datasets/${encodeURIComponent(key!)}/metrics?days=${days}&points=200${names.length ? `&names=${encodeURIComponent(names.join(','))}` : ''}`,
+      ),
     enabled: !!key && names.length > 0,
     ...opts(refreshMs),
   });

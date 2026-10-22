@@ -127,7 +127,11 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
   return (
     <Box pos="relative">
       {hasInput(node.type) && (
-        <Handle type="target" position={Position.Left} style={{ width: 10, height: 10, background: 'var(--mantine-color-gray-5)', border: '2px solid var(--mantine-color-body)' }} />
+        <Handle
+          type="target"
+          position={Position.Left}
+          style={{ width: 10, height: 10, background: 'var(--mantine-color-gray-5)', border: '2px solid var(--mantine-color-body)' }}
+        />
       )}
       {issue || warning ? (
         <Tooltip label={issue ?? warning} multiline w={260} withArrow color={issue ? 'red' : 'orange'}>

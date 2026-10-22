@@ -1,11 +1,11 @@
 # Ways to run it
 
-| Option | Best for | Needs | Effort |
-| --- | --- | --- | --- |
-| **1. Desktop executable** | One person on a Windows/Mac/Linux laptop | Nothing (Node.js is built in) | Download, double-click |
-| **2. Installed web app (PWA)** | Getting an app window, taskbar/dock icon and Start-menu entry for any running instance | Edge or Chrome | One click in the browser |
-| **3. Node.js** (`npm start`) | Developers, customising | Node.js 24 (LTS) | `npm install && npm run build && npm start` |
-| **4. Container** (Docker/Podman) | A shared team instance on a VM or server | Docker | `docker compose up -d` |
+| Option                           | Best for                                                                               | Needs                         | Effort                                      |
+| -------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------- |
+| **1. Desktop executable**        | One person on a Windows/Mac/Linux laptop                                               | Nothing (Node.js is built in) | Download, double-click                      |
+| **2. Installed web app (PWA)**   | Getting an app window, taskbar/dock icon and Start-menu entry for any running instance | Edge or Chrome                | One click in the browser                    |
+| **3. Node.js** (`npm start`)     | Developers, customising                                                                | Node.js 24 (LTS)              | `npm install && npm run build && npm start` |
+| **4. Container** (Docker/Podman) | A shared team instance on a VM or server                                               | Docker                        | `docker compose up -d`                      |
 
 All options run the same server and keep everything in one data folder. You can move between them by copying that folder.
 
@@ -27,22 +27,22 @@ A single file that contains Node.js, the server, the web UI and the example libr
 steward [--port 4310] [--data-dir <folder>] [--no-open] [--demo] [--autostart on|off]
 ```
 
-| Option | Effect |
-| --- | --- |
+| Option           | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--autostart on` | Starts the app in the background when you sign in, so schedules keep running. It uses the Startup folder on Windows, a LaunchAgent on macOS and XDG autostart on Linux; no admin rights needed. If schedules must run before anyone unlocks the vault, put the passphrase in a file only you can read and set `SM_MASTER_PASSPHRASE_FILE` (on Windows preferably a DPAPI-protected file, see [SECURITY-HARDENING.md](SECURITY-HARDENING.md#master-passphrase)) – not in a user environment variable, which every program you start inherits. `--autostart off` removes it. |
-| `--no-open` | Start without opening a window. |
-| `--demo` | Demo mode with simulated platforms. |
+| `--no-open`      | Start without opening a window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `--demo`         | Demo mode with simulated platforms.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 All `SM_*` and `OTEL_*` environment variables from the README work as well.
 
 **First start on Windows and macOS.** The release files are not code-signed, so you may see a warning:
 
-- Windows SmartScreen: *More info → Run anyway*.
-- macOS: right-click → *Open*, or `xattr -d com.apple.quarantine steward`.
+- Windows SmartScreen: _More info → Run anyway_.
+- macOS: right-click → _Open_, or `xattr -d com.apple.quarantine steward`.
 
 For a company rollout, sign the binaries (Authenticode on Windows, Developer ID and notarisation on macOS) and distribute them with Intune, Jamf or your software centre.
 
-**Browser steps** (the *Browser* node) need Playwright and Chromium, which are not embedded because they are large. Use option 3 or 4 (with `WITH_BROWSER=1`) if you need them. Everything else works in the executable, including PDF reports: their fonts, logo and colour profile are embedded and unpacked next to the web UI.
+**Browser steps** (the _Browser_ node) need Playwright and Chromium, which are not embedded because they are large. Use option 3 or 4 (with `WITH_BROWSER=1`) if you need them. Everything else works in the executable, including PDF reports: their fonts, logo and colour profile are embedded and unpacked next to the web UI.
 
 **Build it yourself:**
 
@@ -52,21 +52,21 @@ npm run build        # web UI
 npm run build:exe    # → dist-exe/steward[.exe]
 ```
 
-The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`. A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release. To build without a release, use *Actions → Release → Run workflow* or put `[build-exe]` in a commit message; the files are then attached to the workflow run as artifacts.
+The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`. A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release. To build without a release, use _Actions → Release → Run workflow_ or put `[build-exe]` in a commit message; the files are then attached to the workflow run as artifacts.
 
 ## 2. Installed web app (PWA)
 
-With any running instance (executable, Node.js or container), open the address in Edge or Chrome and choose **Install** (address-bar icon, or the *Install app* item in the user menu). You get:
+With any running instance (executable, Node.js or container), open the address in Edge or Chrome and choose **Install** (address-bar icon, or the _Install app_ item in the user menu). You get:
 
 - your own window, taskbar/dock icon and Start-menu entry,
-- shortcuts to *Tasks*, *Dashboards* and *Runs* (right-click the icon),
+- shortcuts to _Tasks_, _Dashboards_ and _Runs_ (right-click the icon),
 - browser notifications for new tasks and failed checks, if you enable them on your profile page.
 
 This works for `localhost` and for HTTPS addresses. The app shell is cached, but data is always live: nothing from the API is stored offline.
 
 ## 3. Node.js
 
-See *Quick start* and *Everyday use* in the [README](../README.md). `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
+See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run desktop` starts the desktop launcher from source, i.e. per-user data folder and app window.
 
 ## 4. Container
 
@@ -97,11 +97,11 @@ SM_DATABASE_URL=postgres://steward:secret@db.corp.example:5432/steward npm start
 docker compose -f docker-compose.postgres.yml up -d    # app + postgres:16, see the file's header
 ```
 
-| Variable | Purpose |
-| --- | --- |
-| `SM_DATABASE_URL` | `postgres://user:password@host:5432/database`. URL-encode special characters in the password. TLS: add `?sslmode=verify-full` (or `require`, which `pg` currently treats like `verify-full`). `sslmode=no-verify` encrypts without checking the certificate. The standard `PG*` variables (e.g. `PGPASSWORD`) fill in missing parts. |
-| `SM_DATABASE_SCHEMA` | Schema for all tables. Default `public`. It is created if it does not exist, so one database can host several installations, or test runs. |
-| `SM_DATABASE_CA` | Path to the CA certificate (PEM) of the database server. Adds `sslrootcert` and, unless the URL sets one, `sslmode=verify-full`. |
+| Variable             | Purpose                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SM_DATABASE_URL`    | `postgres://user:password@host:5432/database`. URL-encode special characters in the password. TLS: add `?sslmode=verify-full` (or `require`, which `pg` currently treats like `verify-full`). `sslmode=no-verify` encrypts without checking the certificate. The standard `PG*` variables (e.g. `PGPASSWORD`) fill in missing parts. |
+| `SM_DATABASE_SCHEMA` | Schema for all tables. Default `public`. It is created if it does not exist, so one database can host several installations, or test runs.                                                                                                                                                                                           |
+| `SM_DATABASE_CA`     | Path to the CA certificate (PEM) of the database server. Adds `sslrootcert` and, unless the URL sets one, `sslmode=verify-full`.                                                                                                                                                                                                     |
 
 **Requirements.** You need PostgreSQL 12 or later; it was tested with 16. The server must be built with ICU, as the official images and the Debian, Ubuntu and RHEL packages are. ICU provides the case-insensitive collation for user and team names. The database user needs to be able to create tables in the schema: the database owner can, and with another schema `CREATE` on the database is enough. Tables are created and upgraded automatically at start-up, the same way as on SQLite.
 
@@ -135,7 +135,7 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 
 - The **desktop executable always uses SQLite**. If `SM_DATABASE_URL` is set there, it refuses to start. Use the Node.js or container version for PostgreSQL.
 - The app talks to PostgreSQL through one connection, and each query waits for the answer. On the same host or LAN this costs about 0.2–0.3 ms per query, against about 0.01 ms for SQLite, and is not noticeable in the UI. Keep the database close to the app: a slow network link makes every request slower. A statement that runs longer than about 25 s is cancelled.
-- Size on the *Settings → Maintenance* page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
+- Size on the _Settings → Maintenance_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
 
 ## Resetting a demo and recovering access
@@ -177,15 +177,15 @@ Accounts that sign in with single sign-on have no password. If the identity prov
 
 Every installation answers two public endpoints, without signing in:
 
-| Endpoint | Answers | Use it for |
-| --- | --- | --- |
-| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check |
-| `GET /api/ready` | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}` | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
+| Endpoint          | Answers                                                                                                                                                                                                                          | Use it for                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/health` | Always `200 {"ok": true, "version": "…"}` while the process runs                                                                                                                                                                 | Liveness: container `HEALTHCHECK`, Kubernetes `livenessProbe`, a simple uptime check                                                  |
+| `GET /api/ready`  | `200` when the vault is unlocked, the database is writable and the enabled schedules are armed; otherwise `503` with the failing checks: `{"ready": false, "checks": {"vault": {"ok": false, "message": "Vault is locked"}, …}}` | Readiness: Kubernetes `readinessProbe`, load balancers, Gatus/Zabbix/Uptime Kuma alerts ("Steward needs someone to unlock the vault") |
 
 ```yaml
 # Kubernetes
-livenessProbe:  { httpGet: { path: /api/health, port: 4310 }, periodSeconds: 30 }
-readinessProbe: { httpGet: { path: /api/ready,  port: 4310 }, periodSeconds: 15 }
+livenessProbe: { httpGet: { path: /api/health, port: 4310 }, periodSeconds: 30 }
+readinessProbe: { httpGet: { path: /api/ready, port: 4310 }, periodSeconds: 15 }
 ```
 
 ```yaml
@@ -193,23 +193,23 @@ readinessProbe: { httpGet: { path: /api/ready,  port: 4310 }, periodSeconds: 15 
 endpoints:
   - name: steward
     url: https://steward.example.com/api/ready
-    conditions: ["[STATUS] == 200", "[BODY].ready == true"]
+    conditions: ['[STATUS] == 200', '[BODY].ready == true']
 ```
 
-For Zabbix, use an *HTTP agent* item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.
+For Zabbix, use an _HTTP agent_ item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.
 
 **Version in `/api/health`.** The health endpoint keeps returning the version: monitoring and rollout checks use it to confirm which version runs, and the version is public anyway (the web UI's code and footer contain it), so hiding it here would add no protection. There is no separate `/api/version`. Signed-in users see the build details on the **About** page (`GET /api/about`).
 
-**System status page.** *Settings → System status* (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the two URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
+**System status page.** _Settings → System status_ (administrators; auditors get a view without paths, host names and connection details) shows the readiness checks, database type and size, vault, scheduler with the next runs, monitor engine, notification channels, error reporting, tracing, metrics access, public API, retention, TLS and runtime details (Node.js, platform, uptime, memory, time zone, installation type), with the two URLs above ready to copy. It reads `GET /api/system/status`, which never contains secrets.
 
 ## Version and build information
 
 The **About** page (user menu or footer) shows the version, build commit and build date of the web UI and of the server, and warns when a tab still runs an older web UI than the server ("Reload").
 
-| Installation | Where commit and date come from |
-| --- | --- |
-| Desktop executable | `scripts/build-exe.mjs` compiles them in (`SM_BUILD_COMMIT`/`SM_BUILD_DATE`, else `git rev-parse HEAD` and the build time). |
-| Container | Build arguments `SM_BUILD_COMMIT` and `SM_BUILD_DATE` (set by the container workflow). |
+| Installation            | Where commit and date come from                                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Desktop executable      | `scripts/build-exe.mjs` compiles them in (`SM_BUILD_COMMIT`/`SM_BUILD_DATE`, else `git rev-parse HEAD` and the build time).         |
+| Container               | Build arguments `SM_BUILD_COMMIT` and `SM_BUILD_DATE` (set by the container workflow).                                              |
 | Node.js from a checkout | The web build reads the commit from git; the server reports a "development" build unless `SM_BUILD_COMMIT`/`SM_BUILD_DATE` are set. |
 
 The installation type (desktop executable, container, Node.js) is detected automatically; the container image also sets `SM_DEPLOYMENT=container`.

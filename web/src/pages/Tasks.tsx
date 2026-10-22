@@ -36,7 +36,9 @@ export function TasksPage() {
             {filter === 'mine' ? t('emptyMine') : t('empty')}
           </Text>
         )}
-        {tasks.data?.map((task) => <TaskPanel key={`${task.id}-${task.status}`} task={task} />)}
+        {tasks.data?.map((task) => (
+          <TaskPanel key={`${task.id}-${task.status}`} task={task} />
+        ))}
       </Stack>
     </>
   );

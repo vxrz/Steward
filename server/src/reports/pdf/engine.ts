@@ -106,11 +106,13 @@ const MAX_CELL_CHARS = 3000;
 
 /** Characters PDFKit cannot place sensibly (tabs, other control characters). */
 export function clean(s: unknown): string {
-  return String(s ?? '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/\t/g, '    ')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '');
+  return (
+    String(s ?? '')
+      .replace(/\r\n?/g, '\n')
+      .replace(/\t/g, '    ')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '')
+  );
 }
 
 const xmlEsc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
@@ -174,7 +176,8 @@ export class ReportWriter {
     if (!props.length) return;
     const schemaProps = props
       .map(
-        (p) => `<rdf:li rdf:parseType="Resource"><pdfaProperty:name>${xmlEsc(p)}</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>${xmlEsc(p)} of the Steward report</pdfaProperty:description></rdf:li>`,
+        (p) =>
+          `<rdf:li rdf:parseType="Resource"><pdfaProperty:name>${xmlEsc(p)}</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>${xmlEsc(p)} of the Steward report</pdfaProperty:description></rdf:li>`,
       )
       .join('');
     this.doc.appendXML(`
@@ -265,12 +268,14 @@ export class ReportWriter {
    */
   private glyphSafe(s: string): string {
     const f = (this.doc as unknown as { _font?: { font?: { hasGlyphForCodePoint(cp: number): boolean } } })._font?.font;
+    // eslint-disable-next-line no-control-regex -- an ASCII-only check, control characters included
     if (!f || /^[\x00-\x7f]*$/.test(s)) return s;
     let out = '';
     for (const ch of s) {
       const cp = ch.codePointAt(0)!;
       if (cp < 0x80 || cp === 0xad || f.hasGlyphForCodePoint(cp)) out += ch;
-      else if (/[\u{fe0f}\u{200d}]/u.test(ch)) continue; // emoji variation selectors / joiners
+      else if (/[\u{fe0f}\u{200d}]/u.test(ch))
+        continue; // emoji variation selectors / joiners
       else {
         const alt = GLYPH_FALLBACK[ch];
         out += alt && [...alt].every((c) => f.hasGlyphForCodePoint(c.codePointAt(0)!)) ? alt : '?';
@@ -289,7 +294,12 @@ export class ReportWriter {
   /** Font size at which the longest word of `s` fits into `width` (labels in narrow columns, e.g. German compounds). */
   fitSize(s: string, width: number, kind: 'sans' | 'bold' | 'mono', size: number, min = 5.2): number {
     this.font(kind, size);
-    const longest = Math.max(0, ...clean(s).split(/\s+/).map((w) => this.doc.widthOfString(this.glyphSafe(w))));
+    const longest = Math.max(
+      0,
+      ...clean(s)
+        .split(/\s+/)
+        .map((w) => this.doc.widthOfString(this.glyphSafe(w))),
+    );
     return longest > width ? Math.max(min, Math.floor((size * width * 10) / longest) / 10) : size;
   }
 
@@ -304,7 +314,7 @@ export class ReportWriter {
   cover(o: { title: string; subtitle: string; meta: string[] }): void {
     const top = 34;
     const logoH = 42;
-    let logoW = 0;
+    let logoW: number;
     try {
       const img = this.logoImage();
       logoW = Math.min(150, (img.width / img.height) * logoH);
@@ -384,7 +394,11 @@ export class ReportWriter {
 
   /** Markdown subset used by report steps: headings, bullet lists, bold/italics/code markers removed. */
   markdown(md: string): void {
-    const plain = (s: string) => s.replace(/`([^`]+)`/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+    const plain = (s: string) =>
+      s
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1');
     let para: string[] = [];
     const flush = () => {
       if (para.length) this.paragraph(plain(para.join(' ')));
@@ -414,7 +428,9 @@ export class ReportWriter {
     const c = BANNER[tone];
     this.doc.rect(this.left, y, this.width, h).fill(c.bg);
     this.doc.rect(this.left, y, 4, h).fill(c.bar);
-    this.font('bold', 10).fillColor(tone === 'warning' ? COLORS.warning : tone === 'danger' ? COLORS.danger : tone === 'success' ? COLORS.success : COLORS.info);
+    this.font('bold', 10).fillColor(
+      tone === 'warning' ? COLORS.warning : tone === 'danger' ? COLORS.danger : tone === 'success' ? COLORS.success : COLORS.info,
+    );
     this.text(title, this.left + 4 + pad, y + pad, { width: w });
     if (body) {
       this.font('sans', 8.5).fillColor(COLORS.text);
@@ -430,7 +446,7 @@ export class ReportWriter {
     const gap = 16;
     const colW = (this.width - 2 * pad - gap) / 2;
     const rows: (typeof items)[] = [];
-    for (let i = 0; i < items.length; ) {
+    for (let i = 0; i < items.length;) {
       const a = items[i]!;
       if (a.span === 2 || !items[i + 1] || items[i + 1]!.span === 2) {
         rows.push([a]);
@@ -440,7 +456,8 @@ export class ReportWriter {
         i += 2;
       }
     }
-    const cellH = (it: (typeof items)[number], w: number) => this.measure(it.label, w, 'sans', 7) + 1 + this.measure(it.value || '–', w, it.mono ? 'mono' : 'sans', it.mono ? 7.5 : 9);
+    const cellH = (it: (typeof items)[number], w: number) =>
+      this.measure(it.label, w, 'sans', 7) + 1 + this.measure(it.value || '–', w, it.mono ? 'mono' : 'sans', it.mono ? 7.5 : 9);
     const widthsOf = (row: typeof items) => (row.length === 1 ? [this.width - 2 * pad] : [colW, colW]);
     const heights = rows.map((row) => Math.max(...row.map((it, j) => cellH(it, widthsOf(row)[j]!))) + 7);
     const total = heights.reduce((a, b) => a + b, 0) + 2 * pad;
@@ -511,7 +528,11 @@ export class ReportWriter {
         this.font('bold', headSizes[i]!).fillColor(COLORS.muted);
         this.text(c.header, xs[i]! + padX, y + padY, { width: widths[i]! - 2 * padX, align: c.align ?? 'left' });
       });
-      this.doc.moveTo(this.left, y + headH).lineTo(this.right, y + headH).lineWidth(0.8).stroke(COLORS.border);
+      this.doc
+        .moveTo(this.left, y + headH)
+        .lineTo(this.right, y + headH)
+        .lineWidth(0.8)
+        .stroke(COLORS.border);
       this.y = y + headH;
     };
 
@@ -557,7 +578,11 @@ export class ReportWriter {
           lineGap: 1,
         });
       });
-      this.doc.moveTo(this.left, y + h).lineTo(this.right, y + h).lineWidth(0.5).stroke(COLORS.rowLine);
+      this.doc
+        .moveTo(this.left, y + h)
+        .lineTo(this.right, y + h)
+        .lineWidth(0.5)
+        .stroke(COLORS.rowLine);
       this.y = y + h;
     });
     this.y += 8;
@@ -597,7 +622,10 @@ export class ReportWriter {
    * in a PDF reader. PDF/A-2b allows unsigned signature fields as long as the
    * widget has an appearance stream and is printable.
    */
-  signatureBlocks(blocks: { title: string; name?: string; role?: string; date?: string; fieldName: string; fieldHint: string }[], labels: { name: string; role: string; date: string; signature: string; digital: string }): void {
+  signatureBlocks(
+    blocks: { title: string; name?: string; role?: string; date?: string; fieldName: string; fieldHint: string }[],
+    labels: { name: string; role: string; date: string; signature: string; digital: string },
+  ): void {
     const gap = 12;
     const n = blocks.length;
     const w = (this.width - gap * (n - 1)) / n;
@@ -618,7 +646,11 @@ export class ReportWriter {
           this.font('sans', 8.5).fillColor(COLORS.text);
           this.text(value, x + 8, ly + 9, { width: w - 16, lineBreak: false, ellipsis: true, height: 11 });
         }
-        this.doc.moveTo(x + 8, ly + 21).lineTo(x + w - 8, ly + 21).lineWidth(0.5).stroke(COLORS.light);
+        this.doc
+          .moveTo(x + 8, ly + 21)
+          .lineTo(x + w - 8, ly + 21)
+          .lineWidth(0.5)
+          .stroke(COLORS.light);
         ly += 29;
       };
       line(labels.name, b.name);
@@ -629,7 +661,12 @@ export class ReportWriter {
       this.text(labels.signature.toUpperCase(), x + 8, ly, { width: w - 16, lineBreak: false, characterSpacing: 0.3 });
       const fy = ly + 10;
       const fh = h - (fy - y) - 22;
-      this.doc.rect(x + 8, fy, w - 16, fh).lineWidth(0.6).dash(2, { space: 2 }).stroke(COLORS.light).undash();
+      this.doc
+        .rect(x + 8, fy, w - 16, fh)
+        .lineWidth(0.6)
+        .dash(2, { space: 2 })
+        .stroke(COLORS.light)
+        .undash();
       this.signatureField(b.fieldName, b.fieldHint, x + 8, fy, w - 16, fh);
       this.font('sans', 6.3).fillColor(COLORS.light);
       this.text(labels.digital, x + 8, fy + fh + 3, { width: w - 16, height: 16, ellipsis: true });
@@ -685,10 +722,23 @@ export class ReportWriter {
         }
         this.font('bold', 8).fillColor(COLORS.text);
         this.text(this.chrome.companyName, x, y + 2, { width: 180, lineBreak: false, ellipsis: true, height: 10 });
-        const tags = [this.chrome.classification, ...this.chrome.tags.map((t) => t.text)].filter(Boolean).map((t) => t.toUpperCase()).join('  ·  ');
+        const tags = [this.chrome.classification, ...this.chrome.tags.map((t) => t.text)]
+          .filter(Boolean)
+          .map((t) => t.toUpperCase())
+          .join('  ·  ');
         this.font('sans', 7.5).fillColor(COLORS.muted);
-        this.text(`${tags ? tags + '   ·   ' : ''}${this.chrome.shortTitle}`, this.right - 320, y + 2.5, { width: 320, align: 'right', lineBreak: false, ellipsis: true, height: 10 });
-        this.doc.moveTo(this.left, y + 18).lineTo(this.right, y + 18).lineWidth(0.8).stroke(this.accent);
+        this.text(`${tags ? tags + '   ·   ' : ''}${this.chrome.shortTitle}`, this.right - 320, y + 2.5, {
+          width: 320,
+          align: 'right',
+          lineBreak: false,
+          ellipsis: true,
+          height: 10,
+        });
+        this.doc
+          .moveTo(this.left, y + 18)
+          .lineTo(this.right, y + 18)
+          .lineWidth(0.8)
+          .stroke(this.accent);
       }
       const f = this.chrome.footer(pageNo, total);
       const fy = page.height - 62;

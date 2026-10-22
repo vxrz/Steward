@@ -40,9 +40,7 @@ export class ErrorBoundary extends Component<Props, State> {
       <Stack p="md" maw={720}>
         <Alert color="red" variant="light" icon={<IconAlertTriangle />} title={t('errors:boundary.title')}>
           <Stack gap="sm">
-            <Text size="sm">
-              {t('errors:boundary.text')}
-            </Text>
+            <Text size="sm">{t('errors:boundary.text')}</Text>
             <Code block>{error.message || String(error)}</Code>
             <Group gap="sm">
               <Button size="xs" variant="light" onClick={() => this.setState({ error: null })}>

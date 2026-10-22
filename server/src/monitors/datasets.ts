@@ -38,7 +38,11 @@ export function publishDirtyDatasets(): number {
     const m = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
     if (!m || m.is_template) continue;
     const def = parseJson<{ checks?: { id: string; name: string; type: string }[] }>(m.definition, {});
-    const rows = new Map(db().all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', id).map((r) => [r.check_id, r]));
+    const rows = new Map(
+      db()
+        .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', id)
+        .map((r) => [r.check_id, r]),
+    );
     const uptimes = checkUptimes([id]);
     const out: DatasetRow[] = (def.checks ?? []).map((c) => {
       const r = rows.get(c.id);
@@ -120,9 +124,11 @@ export function monitorDatasetVisible(processId: string): boolean | undefined {
   const u = currentUser();
   const id = processId.slice('monitor:'.length);
   if (id === '*') {
-    return db()
-      .all<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE is_template = 0')
-      .every((r) => monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view')) && !!u;
+    return (
+      db()
+        .all<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE is_template = 0')
+        .every((r) => monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view')) && !!u
+    );
   }
   const r = db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', id);
   return !!r && monitorPermissions(u, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view');

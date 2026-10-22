@@ -164,7 +164,9 @@ export async function initErrorReporting(opts: InitOptions = {}): Promise<boolea
         S.contextLinesIntegration(),
         S.nodeContextIntegration({ cloudResource: false }),
         S.systemErrorIntegration(),
-        ...(sentryTracing ? [S.httpIntegration({ breadcrumbs: false }), S.nativeNodeFetchIntegration({ breadcrumbs: false }), ...S.getAutoPerformanceIntegrations()] : []),
+        ...(sentryTracing
+          ? [S.httpIntegration({ breadcrumbs: false }), S.nativeNodeFetchIntegration({ breadcrumbs: false }), ...S.getAutoPerformanceIntegrations()]
+          : []),
       ],
       ...(sentryTracing ? { tracesSampleRate: traces } : { skipOpenTelemetrySetup: true }),
       registerEsmLoaderHooks: false,
@@ -264,6 +266,7 @@ export function reportError(err: unknown, ctx: ReportContext = {}): string | und
 export async function sendTestEvent(timeoutMs = 10000): Promise<{ id?: string; status?: number }> {
   const client = sentry?.getClient();
   if (!sentry || !client) return {};
+  // eslint-disable-next-line prefer-const -- assigned after the listener is registered (which reads it), so it cannot be const
   let id: string | undefined;
   const answered = new Promise<number | undefined>((resolve) => {
     client.on('afterSendEvent', (event, response) => {

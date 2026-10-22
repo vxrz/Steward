@@ -1,10 +1,4 @@
-import {
-  NOTIFICATION_EVENTS,
-  type NotificationChannel,
-  type NotificationEvent,
-  type NotificationSettings,
-  type NotificationSettingsInput,
-} from '@sm/shared';
+import { NOTIFICATION_EVENTS, type NotificationChannel, type NotificationEvent, type NotificationSettings, type NotificationSettingsInput } from '@sm/shared';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';

@@ -9,10 +9,10 @@ Steward is pre-1.0. Security fixes are made on `main` and released as a new
 version; only the **latest release** receives them. Please update before
 reporting, and check whether the issue still exists on `main`.
 
-| Version | Supported |
-| --- | --- |
-| latest release (0.x) | ✅ |
-| older releases | ❌ – please update |
+| Version              | Supported          |
+| -------------------- | ------------------ |
+| latest release (0.x) | ✅                 |
+| older releases       | ❌ – please update |
 
 This covers the server, the web UI, the desktop executables and the container
 image built from this repository's `Dockerfile`.
@@ -40,12 +40,12 @@ Please include, as far as you can:
 
 ## What happens next
 
-| Step | Target time |
-| --- | --- |
-| Acknowledgement of your report | 3 working days |
-| First assessment (confirmed or not, severity) | 10 working days |
-| Fix released – critical / high | 14 / 30 days after confirmation |
-| Fix released – medium / low | 90 days after confirmation |
+| Step                                          | Target time                     |
+| --------------------------------------------- | ------------------------------- |
+| Acknowledgement of your report                | 3 working days                  |
+| First assessment (confirmed or not, severity) | 10 working days                 |
+| Fix released – critical / high                | 14 / 30 days after confirmation |
+| Fix released – medium / low                   | 90 days after confirmation      |
 
 We keep you informed about progress, agree on a disclosure date with you
 (normally when the fix is released, at the latest 90 days after the report) and
@@ -93,7 +93,7 @@ Before using Steward at work – in particular when its audit log and PDF report
 serve as compliance evidence – go through the hardening checklist in
 [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md): dedicated host, TLS and
 reverse proxy settings, SSO, the master passphrase as a file or secret, encrypted
-backups of database *and* `vault.json`, signed audit checkpoints shipped to a
+backups of database _and_ `vault.json`, signed audit checkpoints shipped to a
 SIEM, and keeping Chromium current. Personal data and retention:
 [docs/PRIVACY.md](docs/PRIVACY.md).
 

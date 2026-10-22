@@ -30,8 +30,20 @@ describe('npm run i18n:check', () => {
 
   it('reports missing and extra keys, placeholders, tags and empty texts', () => {
     const root = fixture({
-      'web/src/locales/en/a.json': { hello: 'Hello {{name}}', nested: { x: 'X', bold: 'a <b>b</b>' }, items_one: '{{count}} item', items_other: '{{count}} items', gone: 'Gone' },
-      'web/src/locales/de/a.json': { hello: 'Hallo {{nom}}', nested: { x: '', bold: 'a b' }, items_one: 'ein Eintrag', items_other: '{{count}} Einträge', extra: 'Extra' },
+      'web/src/locales/en/a.json': {
+        hello: 'Hello {{name}}',
+        nested: { x: 'X', bold: 'a <b>b</b>' },
+        items_one: '{{count}} item',
+        items_other: '{{count}} items',
+        gone: 'Gone',
+      },
+      'web/src/locales/de/a.json': {
+        hello: 'Hallo {{nom}}',
+        nested: { x: '', bold: 'a b' },
+        items_one: 'ein Eintrag',
+        items_other: '{{count}} Einträge',
+        extra: 'Extra',
+      },
       'server/src/i18n/locales/en.json': { a: 'A {{x}}' },
       'server/src/i18n/locales/de.json': { a: 'A' },
     });
@@ -58,9 +70,7 @@ describe('npm run i18n:check', () => {
   it('reports undeclared and missing language folders and missing namespaces', () => {
     const root = fixture({ 'web/src/locales/en/a.json': { a: 'A' }, 'web/src/locales/en/b.json': { b: 'B' }, 'web/src/locales/fr/a.json': { a: 'A' } });
     const problems = check(root).problems.map((p: { lang: string; type: string; detail?: string; file: string }) => `${p.lang}:${p.type}:${p.file}`);
-    expect(problems).toEqual(
-      expect.arrayContaining(['de:missing:web/src/locales', 'fr:extra:web/src/locales/fr', 'fr:missing:web/src/locales/fr/b.json']),
-    );
+    expect(problems).toEqual(expect.arrayContaining(['de:missing:web/src/locales', 'fr:extra:web/src/locales/fr', 'fr:missing:web/src/locales/fr/b.json']));
   });
 
   it('follows CLI conventions: help, JSON output, exit codes, errors on stderr', () => {

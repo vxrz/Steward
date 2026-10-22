@@ -71,7 +71,10 @@ function computeHash(key: Buffer, prevHash: string, e: Omit<AuditEntry, 'hash'>)
     summary: e.summary,
     details: e.details ?? null,
   });
-  return crypto.createHmac('sha256', key).update(prevHash + '\n' + payload).digest('hex');
+  return crypto
+    .createHmac('sha256', key)
+    .update(prevHash + '\n' + payload)
+    .digest('hex');
 }
 
 /** One step of the public digest chain (verifiable without the HMAC key, e.g. on an export). */
@@ -104,7 +107,8 @@ export function audit(input: AuditInput): AuditEntry {
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {
-      if (droppedWhileLocked++ === 0) logger.warn({ max: PENDING_MAX }, 'audit buffer full while the vault is locked – further entries are dropped and counted');
+      if (droppedWhileLocked++ === 0)
+        logger.warn({ max: PENDING_MAX }, 'audit buffer full while the vault is locked – further entries are dropped and counted');
     } else {
       pending.push(e);
     }
@@ -251,7 +255,9 @@ export function queryAudit(f: {
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
   const sql = `SELECT * FROM audit_log WHERE ${where.join(' AND ')} ORDER BY seq DESC LIMIT ?`;
   params.push(Math.min(Math.max(1, f.limit ?? 200), 5000));
-  return db().all<AuditRow>(sql, ...params).map(toEntry);
+  return db()
+    .all<AuditRow>(sql, ...params)
+    .map(toEntry);
 }
 
 export function allAuditAscending(runId?: string): AuditEntry[] {

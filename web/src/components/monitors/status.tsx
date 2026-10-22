@@ -35,7 +35,15 @@ export const monitorStatusInfo = (s: MonitorStatus): string => tx(`monitors:stat
 export const checkTypeLabel = (t: CheckType): string => tx(`monitors:checkTypes.${t}.label`, CHECK_TYPE_INFO[t].label);
 export const checkTypeHelp = (t: CheckType): string => tx(`monitors:checkTypes.${t}.help`, CHECK_TYPE_INFO[t].help);
 
-export function MonitorStatusBadge({ status, size = 'sm', variant = 'filled' }: { status: MonitorStatus; size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'; variant?: 'filled' | 'light' | 'outline' }) {
+export function MonitorStatusBadge({
+  status,
+  size = 'sm',
+  variant = 'filled',
+}: {
+  status: MonitorStatus;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'filled' | 'light' | 'outline';
+}) {
   useTranslation('monitors'); // re-render on a language switch
   return (
     <Tooltip label={monitorStatusInfo(status)} withArrow>
@@ -56,4 +64,5 @@ export function uptimeText(u: UptimeSet): string {
   return tx('monitors:uptime.all', '24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}', { h24: fmtUptime(u.h24), d7: fmtUptime(u.d7), d30: fmtUptime(u.d30) });
 }
 
-export const causeText = (c: CauseRef, currentMonitorId?: string): string => (c.monitorId === currentMonitorId ? c.checkName : `${c.monitorName} › ${c.checkName}`);
+export const causeText = (c: CauseRef, currentMonitorId?: string): string =>
+  c.monitorId === currentMonitorId ? c.checkName : `${c.monitorName} › ${c.checkName}`;

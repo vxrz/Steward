@@ -90,18 +90,31 @@ function seed() {
   // assets
   const v = (name: string, unit = '') => ({ name, dataType: 'DOUBLE', unit, searchable: true, qualityCode: true });
   const aspectTypes = {
-    motor: { id: 'demo.MotorData', name: 'MotorData', variables: [v('speed', 'rpm'), v('current', 'A'), v('temperature', '°C'), v('vibration', 'mm/s'), v('torque', 'Nm')] },
+    motor: {
+      id: 'demo.MotorData',
+      name: 'MotorData',
+      variables: [v('speed', 'rpm'), v('current', 'A'), v('temperature', '°C'), v('vibration', 'mm/s'), v('torque', 'Nm')],
+    },
     env: { id: 'demo.Environment', name: 'Environment', variables: [v('humidity', '%'), v('ambientTemp', '°C'), v('pressure', 'hPa')] },
     energy: { id: 'demo.Energy', name: 'Energy', variables: [v('activePower', 'kW'), v('reactivePower', 'kvar'), v('energy', 'kWh'), v('powerFactor')] },
   };
   const assetTypes = [
-    { id: 'demo.Motor', name: 'Motor', variables: [v('ratedPower', 'kW')], aspects: [{ name: 'MotorData', aspectType: aspectTypes.motor }, { name: 'Energy', aspectType: aspectTypes.energy }] },
+    {
+      id: 'demo.Motor',
+      name: 'Motor',
+      variables: [v('ratedPower', 'kW')],
+      aspects: [
+        { name: 'MotorData', aspectType: aspectTypes.motor },
+        { name: 'Energy', aspectType: aspectTypes.energy },
+      ],
+    },
     { id: 'demo.Hall', name: 'Hall', variables: [], aspects: [{ name: 'Environment', aspectType: aspectTypes.env }] },
     { id: 'demo.Pump', name: 'Pump', variables: [v('ratedFlow', 'm3/h')], aspects: [{ name: 'MotorData', aspectType: aspectTypes.motor }] },
     { id: 'demo.LegacyCompressor', name: 'LegacyCompressor', variables: [v('serial')], aspects: [{ name: 'Energy', aspectType: aspectTypes.energy }] },
   ];
   const assets: { assetId: string; name: string; typeId: string; description: string }[] = [];
-  const add = (name: string, typeId: string) => assets.push({ assetId: crypto.createHash('md5').update(`asset:${name}`).digest('hex'), name, typeId, description: '' });
+  const add = (name: string, typeId: string) =>
+    assets.push({ assetId: crypto.createHash('md5').update(`asset:${name}`).digest('hex'), name, typeId, description: '' });
   for (let i = 1; i <= 6; i++) add(`Motor M${i}`, 'demo.Motor');
   for (let i = 1; i <= 2; i++) add(`Hall ${i}`, 'demo.Hall');
   for (let i = 1; i <= 4; i++) add(`Pump P${i}`, 'demo.Pump');
@@ -210,7 +223,9 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   // ---------------- Insights Hub ----------------
   app.post('/ih/oauth/token', async (req, reply) => {
     const auth = String(req.headers.authorization ?? '');
-    const [id, secret] = Buffer.from(auth.replace(/^Basic\s+/i, ''), 'base64').toString().split(':');
+    const [id, secret] = Buffer.from(auth.replace(/^Basic\s+/i, ''), 'base64')
+      .toString()
+      .split(':');
     if (id !== DEMO_CLIENT.id || secret !== DEMO_CLIENT.secret) return reply.code(401).send({ error: 'invalid_client' });
     const t = crypto.randomBytes(24).toString('hex');
     tokens.add(t);
@@ -237,13 +252,24 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     groups: [...state.groups.values()].filter((g) => g.members.has(u.id)).map((g) => ({ display: g.displayName, value: g.id, type: 'DIRECT' })),
     schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
   });
-  const groupView = (g: Group) => ({ id: g.id, displayName: g.displayName, description: g.description, members: [...g.members].map((m) => ({ type: 'USER', value: m })) });
+  const groupView = (g: Group) => ({
+    id: g.id,
+    displayName: g.displayName,
+    description: g.description,
+    members: [...g.members].map((m) => ({ type: 'USER', value: m })),
+  });
 
   const page = <T>(all: T[], q: Record<string, string>) => {
     const start = Math.max(1, Number(q.startIndex ?? 1));
     const count = Math.min(Math.max(1, Number(q.count ?? 100)), 500);
     const slice = all.slice(start - 1, start - 1 + count);
-    return { resources: slice, totalResults: all.length, itemsPerPage: slice.length, startIndex: start, schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'] };
+    return {
+      resources: slice,
+      totalResults: all.length,
+      itemsPerPage: slice.length,
+      startIndex: start,
+      schemas: ['urn:ietf:params:scim:api:messages:2.0:ListResponse'],
+    };
   };
 
   const IDM = '/ih/api/identitymanagement/v3';
@@ -281,7 +307,10 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   });
   app.get(`${IDM}/Groups`, { preHandler: ihAuth }, async (req) => {
     const q = req.query as Record<string, string>;
-    return page([...state.groups.values()].map(groupView).filter((g) => scimFilter(q.filter, g as never)), q);
+    return page(
+      [...state.groups.values()].map(groupView).filter((g) => scimFilter(q.filter, g as never)),
+      q,
+    );
   });
   app.get(`${IDM}/Groups/:id/members`, { preHandler: ihAuth }, async (req, reply) => {
     const g = state.groups.get((req.params as { id: string }).id);
@@ -344,7 +373,10 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     const d = state.devices.find((x) => x.id === id);
     if (!d) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
     if (d.deviceStatus === 'INACTIVE') return reply.code(409).send({ errors: [{ message: 'device is not onboarded' }] });
-    const list = (state.installed[id] ?? []).map((a) => ({ ...a, title: state.catalog.find((c) => c.applicationId === a.applicationId)?.title ?? a.applicationId }));
+    const list = (state.installed[id] ?? []).map((a) => ({
+      ...a,
+      title: state.catalog.find((c) => c.applicationId === a.applicationId)?.title ?? a.applicationId,
+    }));
     return { data: list };
   });
   app.delete('/iem/portal/api/v1/devices/:id', { preHandler: iemAuth }, async (req, reply) => {

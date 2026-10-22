@@ -4,16 +4,16 @@
 
 The two work together in four directions:
 
-| # | Direction | How |
-| --- | --- | --- |
-| 1 | **Gatus monitors Steward** | Gatus endpoints for `/api/health` and `/api/ready` |
-| 2 | **Steward shows Gatus status** (read-only) | Connector type *Gatus*, process *Gatus – uptime overview*, dashboard *Uptime* |
-| 3 | **Steward reports its own checks to Gatus** | Gatus *external endpoint*, process *Gatus – report Steward check to Gatus* |
-| 4 | **A Gatus alert starts a Steward runbook** | Gatus *custom alerting provider* → Steward **webhook trigger** → *Diagnose endpoint outage* |
+| #   | Direction                                   | How                                                                                         |
+| --- | ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 1   | **Gatus monitors Steward**                  | Gatus endpoints for `/api/health` and `/api/ready`                                          |
+| 2   | **Steward shows Gatus status** (read-only)  | Connector type _Gatus_, process _Gatus – uptime overview_, dashboard _Uptime_               |
+| 3   | **Steward reports its own checks to Gatus** | Gatus _external endpoint_, process _Gatus – report Steward check to Gatus_                  |
+| 4   | **A Gatus alert starts a Steward runbook**  | Gatus _custom alerting provider_ → Steward **webhook trigger** → _Diagnose endpoint outage_ |
 
 Everything below was written against the Gatus README and source (`api/*.go`, `alerting/provider/custom/custom.go`, `config/key/key.go`) on `master`, latest release **v5.37.0**, checked on 2026-10-22. Gatus has no formally versioned API, so check a release's README if you run an older version.
 
-In demo mode (`npm run demo` → *Load demo data*) a simulated Gatus with healthy, degraded and failing endpoints is available as the platform **Gatus (demo)**, so you can try everything here without a Gatus instance.
+In demo mode (`npm run demo` → _Load demo data_) a simulated Gatus with healthy, degraded and failing endpoints is available as the platform **Gatus (demo)**, so you can try everything here without a Gatus instance.
 
 ## 1. Gatus monitors Steward
 
@@ -27,20 +27,20 @@ Steward has two probes that need no sign-in:
 endpoints:
   - name: steward-api
     group: steward
-    url: "https://steward.corp.example/api/health"
+    url: 'https://steward.corp.example/api/health'
     interval: 1m
     conditions:
-      - "[STATUS] == 200"
-      - "[RESPONSE_TIME] < 1000"
+      - '[STATUS] == 200'
+      - '[RESPONSE_TIME] < 1000'
   - name: steward-ready
     group: steward
-    url: "https://steward.corp.example/api/ready"
+    url: 'https://steward.corp.example/api/ready'
     interval: 1m
     conditions:
-      - "[STATUS] == 200"
-      - "[BODY].ready == true"
+      - '[STATUS] == 200'
+      - '[BODY].ready == true'
     alerts:
-      - type: slack            # or any other provider; a locked vault after a restart shows up here
+      - type: slack # or any other provider; a locked vault after a restart shows up here
         send-on-resolved: true
 ```
 
@@ -51,79 +51,79 @@ endpoints:
 
 ### Add the platform
 
-*Platforms → Add platform → Gatus (status monitoring)*:
+_Platforms → Add platform → Gatus (status monitoring)_:
 
-| Field | Value |
-| --- | --- |
-| Base URL | The Gatus address without `/api`, e.g. `https://status.corp.example` |
+| Field          | Value                                                                                                                                                                                                       |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Base URL       | The Gatus address without `/api`, e.g. `https://status.corp.example`                                                                                                                                        |
 | Authentication | `none` if the Gatus API is open. `basic` if Gatus has `security.basic`: enter the user name and the **plain** password as the credentials `username`/`password` (Gatus itself only stores the bcrypt hash). |
-| Credentials | `externalToken` only for direction 3 |
+| Credentials    | `externalToken` only for direction 3                                                                                                                                                                        |
 
 - **Gatus OIDC** (`security.oidc`) protects the API with a browser session cookie only; automation cannot use it. Either use `security.basic` instead (with both configured, Gatus applies OIDC), or expose the read-only status API through a reverse proxy that checks a token. In that case choose `bearer` and set the credential `token`.
 - Use a Gatus account that can only read. The status API is read-only anyway.
-- The platform comes with an OpenAPI description of the Gatus routes Steward uses, so *Pick from API spec* in the editor and the API explorer list them. *Test connection* calls `/api/v1/endpoints/statuses?pageSize=1`.
+- The platform comes with an OpenAPI description of the Gatus routes Steward uses, so _Pick from API spec_ in the editor and the API explorer list them. _Test connection_ calls `/api/v1/endpoints/statuses?pageSize=1`.
 
 ### Gatus API facts the processes rely on
 
-| Route | Auth in Gatus | Notes |
-| --- | --- | --- |
-| `GET /api/v1/endpoints/statuses?page=&pageSize=` | protected (`security.*`) | **All** endpoints in one array: `key`, `name`, `group`, `results[]`. `page`/`pageSize` page the *results of each endpoint*, not the endpoint list (defaults 1 and 50; page 1 is capped at `storage.maximum-number-of-results`, default 100). |
-| `GET /api/v1/endpoints/{key}/statuses` | protected | One endpoint, plus `events` (`START`, `HEALTHY`, `UNHEALTHY`). |
-| `GET /api/v1/endpoints/{key}/uptimes/{1h\|24h\|7d\|30d}` | open | `text/plain` fraction, e.g. `0.958333`. |
-| `GET /api/v1/endpoints/{key}/response-times/{1h\|24h\|7d\|30d}` | open | `text/plain` average in ms. |
-| `POST /api/v1/endpoints/{key}/external?success=&error=&duration=` | `Authorization: Bearer <external endpoint token>` | See direction 3. |
+| Route                                                             | Auth in Gatus                                     | Notes                                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/endpoints/statuses?page=&pageSize=`                  | protected (`security.*`)                          | **All** endpoints in one array: `key`, `name`, `group`, `results[]`. `page`/`pageSize` page the _results of each endpoint_, not the endpoint list (defaults 1 and 50; page 1 is capped at `storage.maximum-number-of-results`, default 100). |
+| `GET /api/v1/endpoints/{key}/statuses`                            | protected                                         | One endpoint, plus `events` (`START`, `HEALTHY`, `UNHEALTHY`).                                                                                                                                                                               |
+| `GET /api/v1/endpoints/{key}/uptimes/{1h\|24h\|7d\|30d}`          | open                                              | `text/plain` fraction, e.g. `0.958333`.                                                                                                                                                                                                      |
+| `GET /api/v1/endpoints/{key}/response-times/{1h\|24h\|7d\|30d}`   | open                                              | `text/plain` average in ms.                                                                                                                                                                                                                  |
+| `POST /api/v1/endpoints/{key}/external?success=&error=&duration=` | `Authorization: Bearer <external endpoint token>` | See direction 3.                                                                                                                                                                                                                             |
 
 - A result has `success`, `timestamp`, `duration` (**nanoseconds**), `status` (HTTP status, omitted for TCP/ICMP/DNS checks), `hostname`, `errors[]` and `conditionResults[]`. Results are ordered oldest first; the last one is the latest check.
 - The endpoint **key** is `<group>_<name>`, both lower-cased, with space, `/`, `_`, `,`, `.`, `#`, `+` and `&` replaced by `-`. An endpoint without a group has the key `_<name>`.
 
 ### Process and dashboard
 
-1. *Processes → From template → Gatus – uptime overview* (`examples/processes/71-gatus-uptime-overview.yaml`).
-2. *Dashboards → From template → Uptime* (`examples/dashboards/40-uptime.yaml`).
-3. *Schedules → New schedule*: the process, cron `*/10 * * * *` (every 10 minutes; 5–15 minutes is sensible), the Gatus platform for the `gatus` connection. Use a service account as the owner.
+1. _Processes → From template → Gatus – uptime overview_ (`examples/processes/71-gatus-uptime-overview.yaml`).
+2. _Dashboards → From template → Uptime_ (`examples/dashboards/40-uptime.yaml`).
+3. _Schedules → New schedule_: the process, cron `*/10 * * * *` (every 10 minutes; 5–15 minutes is sensible), the Gatus platform for the `gatus` connection. Use a service account as the owner.
 
 Per run the process reads all statuses, computes per endpoint
 
-| Column | Meaning |
-| --- | --- |
-| Healthy | `success` of the latest result |
-| Uptime (%) | from Gatus' uptime API for the chosen window (input `uptimeWindow`, default `24h`; one call per endpoint, four at a time), or with `results` from the returned results |
-| Avg / last response (ms) | average over the returned results / the latest one |
-| Last check (UTC), last error | timestamp and `errors` of the latest result |
+| Column                       | Meaning                                                                                                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Healthy                      | `success` of the latest result                                                                                                                                         |
+| Uptime (%)                   | from Gatus' uptime API for the chosen window (input `uptimeWindow`, default `24h`; one call per endpoint, four at a time), or with `results` from the returned results |
+| Avg / last response (ms)     | average over the returned results / the latest one                                                                                                                     |
+| Last check (UTC), last error | timestamp and `errors` of the latest result                                                                                                                            |
 
-and publishes the dataset **`gatus-uptime`**: row status `critical` when down, `warning` below `minUptimePercent` (99) or above `maxResponseMs` (1000 ms average), otherwise `good`; metrics `endpoints`, `down`, `avgUptime`. The check *All endpoints healthy* (severity warning) fails while an endpoint is down, so the failed-check notification fires, but the run itself succeeds. Gatus remains the place for alerting; you do not need to alert on this check twice.
+and publishes the dataset **`gatus-uptime`**: row status `critical` when down, `warning` below `minUptimePercent` (99) or above `maxResponseMs` (1000 ms average), otherwise `good`; metrics `endpoints`, `down`, `avgUptime`. The check _All endpoints healthy_ (severity warning) fails while an endpoint is down, so the failed-check notification fires, but the run itself succeeds. Gatus remains the place for alerting; you do not need to alert on this check twice.
 
 ## 3. Push Steward check results into Gatus
 
-Gatus can show results that someone else measured, as *external endpoints*. Steward can be that someone: a scheduled check (e.g. a login flow or an API sequence Gatus cannot do) reports pass/fail, and Gatus shows it on the status page and alerts on it, including when results stop arriving (`heartbeat`).
+Gatus can show results that someone else measured, as _external endpoints_. Steward can be that someone: a scheduled check (e.g. a login flow or an API sequence Gatus cannot do) reports pass/fail, and Gatus shows it on the status page and alerts on it, including when results stop arriving (`heartbeat`).
 
 ```yaml
 # Gatus config.yaml
 external-endpoints:
   - name: steward-checks
     group: steward
-    token: "${STEWARD_EXTERNAL_TOKEN}"   # Gatus substitutes environment variables
+    token: '${STEWARD_EXTERNAL_TOKEN}' # Gatus substitutes environment variables
     heartbeat:
-      interval: 30m                      # alert when Steward stops reporting
+      interval: 30m # alert when Steward stops reporting
     alerts:
       - type: slack
         send-on-resolved: true
 ```
 
 1. Generate a long random token (e.g. `openssl rand -base64 32`), give it to Gatus as `STEWARD_EXTERNAL_TOKEN` and store it on the Gatus platform in Steward as the credential **`externalToken`**.
-2. *From template → Gatus – report Steward check to Gatus* (`72-gatus-report-check.yaml`). Inputs: the endpoint key (`steward_steward-checks` for the snippet above), the path to check on the `target` platform, the latency limit and the name of the token credential (one credential per external endpoint if you push to several).
+2. _From template → Gatus – report Steward check to Gatus_ (`72-gatus-report-check.yaml`). Inputs: the endpoint key (`steward_steward-checks` for the snippet above), the path to check on the `target` platform, the latency limit and the name of the token credential (one credential per external endpoint if you push to several).
 3. Schedule it more often than the heartbeat interval.
 
 The first two steps are the check; replace them with any check of your own. Only `success`, `error` and `duration` are sent: `POST /api/v1/endpoints/<key>/external?success=true|false&error=…&duration=<ms>ms` with `Authorization: Bearer <token>`. That token belongs to the external endpoint, not to the Gatus login; the step sets the header itself. It is read with `$secret()` and redacted from the protocol. Dry runs record the POST without sending it.
 
 ## 4. Gatus alerts start a Steward runbook
 
-Gatus' **custom alerting provider** can call any URL. Point it at a Steward **webhook trigger**, and every alert starts a process: here the runbook *Diagnose endpoint outage (from Gatus alert)* (`73-gatus-diagnose-outage.yaml`). It
+Gatus' **custom alerting provider** can call any URL. Point it at a Steward **webhook trigger**, and every alert starts a process: here the runbook _Diagnose endpoint outage (from Gatus alert)_ (`73-gatus-diagnose-outage.yaml`). It
 
 1. reads the recent results of the endpoint from Gatus,
 2. probes the endpoint URL once more, but **only if the URL lies below the base URL of the `probe` platform**,
 3. writes the evidence into the protocol,
-4. asks *Run remediation?* (approvers or admins, four-eyes: not the trigger's owner), and
+4. asks _Run remediation?_ (approvers or admins, four-eyes: not the trigger's owner), and
 5. runs the remediation step, which is an **example placeholder** that only writes a log line. Replace it with your own steps.
 
 A `RESOLVED` alert is only logged.
@@ -131,22 +131,22 @@ A `RESOLVED` alert is only logged.
 ### Set up Steward
 
 1. Import the runbook from the template.
-2. Add a platform for the probe: *Generic REST API*, auth `none`, base URL covering the applications Gatus watches (e.g. `https://apps.corp.example`). The runbook never sends credentials to an address taken from the alert; URLs outside the probe platform are not called.
-3. *Triggers → New webhook trigger*:
-   - Process *Diagnose endpoint outage*, connections `gatus` and `probe`.
-   - *Map a Gatus alert* fills the input mapping below.
-   - Ignore identical payloads for **300 s** (Gatus re-sends an alert as a reminder when `minimum-reminder-interval` is set) and keep *Skip while the previous run is still running or waiting* on.
-   - Allowed source addresses: the address of the Gatus host (see *Security*).
+2. Add a platform for the probe: _Generic REST API_, auth `none`, base URL covering the applications Gatus watches (e.g. `https://apps.corp.example`). The runbook never sends credentials to an address taken from the alert; URLs outside the probe platform are not called.
+3. _Triggers → New webhook trigger_:
+   - Process _Diagnose endpoint outage_, connections `gatus` and `probe`.
+   - _Map a Gatus alert_ fills the input mapping below.
+   - Ignore identical payloads for **300 s** (Gatus re-sends an alert as a reminder when `minimum-reminder-interval` is set) and keep _Skip while the previous run is still running or waiting_ on.
+   - Allowed source addresses: the address of the Gatus host (see _Security_).
 4. **Save → copy the secret.** It is shown once. The dialog also shows the URL and ready-to-copy curl and Gatus snippets.
 
-| Process input | Mapping (JSONata over the request) | Gatus placeholder in the body |
-| --- | --- | --- |
-| `endpointName` | `body.name` | `[ENDPOINT_NAME]` |
-| `endpointGroup` | `body.group` | `[ENDPOINT_GROUP]` |
-| `endpointUrl` | `body.url` | `[ENDPOINT_URL]` |
-| `alertState` | `body.event` | `[ALERT_TRIGGERED_OR_RESOLVED]` |
-| `errors` | `body.errors` | `[RESULT_ERRORS]` |
-| `description` | `body.description` | `[ALERT_DESCRIPTION]` |
+| Process input   | Mapping (JSONata over the request) | Gatus placeholder in the body   |
+| --------------- | ---------------------------------- | ------------------------------- |
+| `endpointName`  | `body.name`                        | `[ENDPOINT_NAME]`               |
+| `endpointGroup` | `body.group`                       | `[ENDPOINT_GROUP]`              |
+| `endpointUrl`   | `body.url`                         | `[ENDPOINT_URL]`                |
+| `alertState`    | `body.event`                       | `[ALERT_TRIGGERED_OR_RESOLVED]` |
+| `errors`        | `body.errors`                      | `[RESULT_ERRORS]`               |
+| `description`   | `body.description`                 | `[ALERT_DESCRIPTION]`           |
 
 ### Configure Gatus
 
@@ -154,11 +154,11 @@ A `RESOLVED` alert is only logged.
 # Gatus config.yaml
 alerting:
   custom:
-    url: "https://steward.corp.example/api/hooks/wht_XXXXXXXXXXXX"
-    method: "POST"
+    url: 'https://steward.corp.example/api/hooks/wht_XXXXXXXXXXXX'
+    method: 'POST'
     headers:
-      Content-Type: "application/json"                       # Gatus sends no content type on its own
-      Authorization: "Bearer ${STEWARD_WEBHOOK_SECRET}"      # from Gatus' environment, never in the file
+      Content-Type: 'application/json' # Gatus sends no content type on its own
+      Authorization: 'Bearer ${STEWARD_WEBHOOK_SECRET}' # from Gatus' environment, never in the file
     body: |
       {
         "event": "[ALERT_TRIGGERED_OR_RESOLVED]",
@@ -176,14 +176,14 @@ alerting:
 endpoints:
   - name: historian-api
     group: plant
-    url: "https://apps.corp.example/historian/health"
+    url: 'https://apps.corp.example/historian/health'
     interval: 1m
     conditions:
-      - "[STATUS] == 200"
-      - "[BODY].status == UP"
+      - '[STATUS] == 200'
+      - '[BODY].status == UP'
     alerts:
       - type: custom
-        description: "historian health check failed"
+        description: 'historian health check failed'
 ```
 
 - Start Gatus with `STEWARD_WEBHOOK_SECRET` in its environment (Docker: `-e STEWARD_WEBHOOK_SECRET=…` or a secret file mapped into the variable). The secret contains no `$`, so Gatus' `$$` escaping does not apply.
@@ -213,24 +213,24 @@ Webhook triggers are a general Steward feature: any system that can send an HTTP
 
 **Answers.**
 
-| Status | Body | When |
-| --- | --- | --- |
-| 202 | `{"runId": "run_…"}` | Run started |
-| 202 | `{"skipped": "duplicate"}` | Same payload within the de-duplication window |
-| 202 | `{"skipped": "previous run still active"}` | *Skip while running* is on and the last run of this trigger is running or waiting |
-| 202 | `{"skipped": "not permitted"}` | The owner is deactivated, lost the run right on the process or the use right on a bound platform, or the process is archived (the details are in the audit log) |
-| 400 | `{"error": "Invalid JSON"}` | Body is not valid JSON |
-| 401 | `{"error": "Unauthorized"}` | Missing or wrong secret or signature |
-| 404 | `{"error": "Not found"}` | Unknown or disabled trigger, or the source address is not allowed (same answer, so nothing is revealed) |
-| 413 | | Body over 64 KB |
-| 415 | | Content type is not JSON |
-| 422 | `{"error": "Input mapping failed"}` / `{"error": "Run could not be started"}` | Mapping expression failed, or a required input is missing or of the wrong type |
-| 429 | `{"error": "Too many requests"}` + `Retry-After` | More calls than the trigger's limit per minute (default 30) |
-| 503 | | The vault is locked |
+| Status | Body                                                                          | When                                                                                                                                                            |
+| ------ | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 202    | `{"runId": "run_…"}`                                                          | Run started                                                                                                                                                     |
+| 202    | `{"skipped": "duplicate"}`                                                    | Same payload within the de-duplication window                                                                                                                   |
+| 202    | `{"skipped": "previous run still active"}`                                    | _Skip while running_ is on and the last run of this trigger is running or waiting                                                                               |
+| 202    | `{"skipped": "not permitted"}`                                                | The owner is deactivated, lost the run right on the process or the use right on a bound platform, or the process is archived (the details are in the audit log) |
+| 400    | `{"error": "Invalid JSON"}`                                                   | Body is not valid JSON                                                                                                                                          |
+| 401    | `{"error": "Unauthorized"}`                                                   | Missing or wrong secret or signature                                                                                                                            |
+| 404    | `{"error": "Not found"}`                                                      | Unknown or disabled trigger, or the source address is not allowed (same answer, so nothing is revealed)                                                         |
+| 413    |                                                                               | Body over 64 KB                                                                                                                                                 |
+| 415    |                                                                               | Content type is not JSON                                                                                                                                        |
+| 422    | `{"error": "Input mapping failed"}` / `{"error": "Run could not be started"}` | Mapping expression failed, or a required input is missing or of the wrong type                                                                                  |
+| 429    | `{"error": "Too many requests"}` + `Retry-After`                              | More calls than the trigger's limit per minute (default 30)                                                                                                     |
+| 503    |                                                                               | The vault is locked                                                                                                                                             |
 
-**Runs.** A trigger runs its process as its **owner** (the person who created it), with the owner's rights, exactly like a schedule. The rights are checked again on every call. Runs show *webhook trigger "<name>"* as their origin, in the run list, the run page and the protocol. Failed runs send the usual *run failed* notifications. A trigger can pin a process version and can be set to dry run.
+**Runs.** A trigger runs its process as its **owner** (the person who created it), with the owner's rights, exactly like a schedule. The rights are checked again on every call. Runs show _webhook trigger "<name>"_ as their origin, in the run list, the run page and the protocol. Failed runs send the usual _run failed_ notifications. A trigger can pin a process version and can be set to dry run.
 
-**Managing triggers** needs the same rights as schedules: run rights on the process and use rights on the bound platforms to create one; the owner, an administrator or a process manager to change, rotate or delete it. Everyone who can see the process sees its triggers, but never the secret. *Send a test call* sends a sample payload through the real endpoint (dry run by default), and *Recent calls* lists accepted calls with source address, outcome and payload hash.
+**Managing triggers** needs the same rights as schedules: run rights on the process and use rights on the bound platforms to create one; the owner, an administrator or a process manager to change, rotate or delete it. Everyone who can see the process sees its triggers, but never the secret. _Send a test call_ sends a sample payload through the real endpoint (dry run by default), and _Recent calls_ lists accepted calls with source address, outcome and payload hash.
 
 **Audit log.** `trigger.created`, `trigger.updated` (with the changed fields), `trigger.secret_rotated`, `trigger.deleted`; per accepted call `trigger.fired` (source address, payload SHA-256, run id), `trigger.skipped` or `trigger.failed`, followed by the run's own `run.started`. Rejected calls (wrong secret, address, rate limit, duplicates, bad content) are counted on the trigger and written as `trigger.rejected` at most once per trigger and reason every 10 minutes, with the number of suppressed calls, so a flood cannot fill the audit log.
 
@@ -242,8 +242,8 @@ Webhook triggers are a general Steward feature: any system that can send an HTTP
 - **Source addresses.** Restrict each trigger to the Gatus host's address or CIDR. Steward checks the address of the TCP peer and deliberately ignores `X-Forwarded-For` (which a caller can forge). Behind a reverse proxy it therefore sees the proxy: allow the proxy's address and restrict the source at the proxy.
 - **Least privilege.** Create triggers as a service account that may run only the runbooks it needs. The owner's rights are checked on every call, and deactivating the account stops all its triggers.
 - **Untrusted payload.** Everything in the request is data from outside. Map only the fields the process needs, do not use `$eval()` on payload values, and never let a payload choose where credentials go: an HTTP step with an absolute URL sends the platform's credentials to that URL. The runbook therefore probes only below a credential-less probe platform.
-- **Human in the loop.** Changes after an alert should wait for an approval by someone other than the trigger owner (`fourEyes: true`), as in the runbook. Turn on *Dry run* on the trigger while you try things out.
-- **Floods.** Bodies are limited to 64 KB of JSON; calls are rate-limited per trigger; identical payloads are ignored for the de-duplication window; *skip while running* keeps one runbook per incident.
+- **Human in the loop.** Changes after an alert should wait for an approval by someone other than the trigger owner (`fourEyes: true`), as in the runbook. Turn on _Dry run_ on the trigger while you try things out.
+- **Floods.** Bodies are limited to 64 KB of JSON; calls are rate-limited per trigger; identical payloads are ignored for the de-duplication window; _skip while running_ keeps one runbook per incident.
 - **Gatus credentials** (basic-auth password, external endpoint tokens) are stored as platform credentials in Steward's vault, encrypted at rest and redacted from protocols.
 
 ## Limitations

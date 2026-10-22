@@ -21,7 +21,14 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
     [stepLabel(t, STEP_META[t]), stepDescription(t, STEP_META[t]), STEP_META[t].label, STEP_META[t].description].some((s) => s.toLowerCase().includes(needle));
   return (
     <Stack gap={6} h="100%">
-      <TextInput size="xs" placeholder={tr('palette.search')} aria-label={tr('palette.search')} leftSection={<IconSearch size={12} />} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+      <TextInput
+        size="xs"
+        placeholder={tr('palette.search')}
+        aria-label={tr('palette.search')}
+        leftSection={<IconSearch size={12} />}
+        value={q}
+        onChange={(e) => setQ(e.currentTarget.value)}
+      />
       <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
         <Stack gap={8}>
           {CATEGORY_ORDER.map((cat) => {

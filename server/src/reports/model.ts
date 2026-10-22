@@ -55,7 +55,17 @@ export interface RunReportModel extends ReportContext {
   process: { id: string; name: string; version: number; definitionHash: string; description: string | null };
   connections: { slot: string; platformName: string; kind: string | null; environment: string | null }[];
   inputs: { name: string; label: string | null; value: string }[];
-  steps: { startedAt: string; key: string; depth: number; name: string; type: string; status: string; result: string; durationMs: number | null; failed: boolean }[];
+  steps: {
+    startedAt: string;
+    key: string;
+    depth: number;
+    name: string;
+    type: string;
+    status: string;
+    result: string;
+    durationMs: number | null;
+    failed: boolean;
+  }[];
   stepsOmitted: number;
   writes: { startedAt: string; name: string; method: string; url: string; status: string; httpStatus: number | null; result: string }[];
   decisions: {
@@ -91,7 +101,8 @@ export function person(username: string | null | undefined): Person {
   return { username: u, displayName: info?.displayName || (u === 'system' ? 'System' : u) };
 }
 
-export const personLabel = (p: Person | null | undefined): string => (!p ? '–' : p.displayName && p.displayName !== p.username ? `${p.displayName} (${p.username})` : p.username);
+export const personLabel = (p: Person | null | undefined): string =>
+  !p ? '–' : p.displayName && p.displayName !== p.username ? `${p.displayName} (${p.username})` : p.username;
 
 const SECRET_KEY = /pass(word)?|secret|token|api[-_]?key|credential|private/i;
 
@@ -144,7 +155,9 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
 
   let inputLabels: Record<string, string> = {};
   try {
-    inputLabels = Object.fromEntries((getProcess(run.processId, run.processVersion).definition.inputs ?? []).filter((i) => i.label).map((i) => [i.name, i.label!]));
+    inputLabels = Object.fromEntries(
+      (getProcess(run.processId, run.processVersion).definition.inputs ?? []).filter((i) => i.label).map((i) => [i.name, i.label!]),
+    );
   } catch {
     /* ignore */
   }
@@ -201,7 +214,9 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
         startedBy: person(t.startedBy ?? run.actor),
         assignees: t.assignees,
         columns: t.columns.map((c) => c.label),
-        items: items.slice(0, LIMITS.items).map((i) => ({ selected: t.status === 'completed' ? sel.has(i.key) : null, cells: i.cells.map((c) => short(c, 200)) })),
+        items: items
+          .slice(0, LIMITS.items)
+          .map((i) => ({ selected: t.status === 'completed' ? sel.has(i.key) : null, cells: i.cells.map((c) => short(c, 200)) })),
         itemsOmitted: Math.max(0, items.length - LIMITS.items),
       };
     });
@@ -221,11 +236,21 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
     rowsOmitted: Math.max(0, (r.rows?.length ?? 0) - LIMITS.rows),
   }));
 
-  const evidence = run.artifacts.map((a) => ({ id: a.id, name: a.name, stepKey: a.stepKey, kind: a.kind, mime: a.mime, sha256: a.sha256, size: a.size, createdAt: a.createdAt }));
+  const evidence = run.artifacts.map((a) => ({
+    id: a.id,
+    name: a.name,
+    stepKey: a.stepKey,
+    kind: a.kind,
+    mime: a.mime,
+    sha256: a.sha256,
+    size: a.size,
+    createdAt: a.createdAt,
+  }));
 
   const errors: RunReportModel['errors'] = [];
   if (run.error && run.status === 'failed') errors.push({ at: run.finishedAt ?? null, where: '', message: run.error });
-  for (const s of run.steps) if (s.status === 'failed' && s.type !== 'check' && s.error) errors.push({ at: s.startedAt, where: s.name || s.stepId, message: short(s.error, 600) });
+  for (const s of run.steps)
+    if (s.status === 'failed' && s.type !== 'check' && s.error) errors.push({ at: s.startedAt, where: s.name || s.stepId, message: short(s.error, 600) });
   const seen = new Set(errors.map((e) => e.message));
   for (const l of run.logs) {
     if (l.level !== 'error' || seen.has(l.message) || [...seen].some((m) => l.message.includes(m))) continue;

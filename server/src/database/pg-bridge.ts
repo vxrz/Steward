@@ -270,9 +270,12 @@ export class PgBridge {
         void this.worker.terminate();
         this.spawn();
         if (this.inTx) this.poisoned = true;
-        throw Object.assign(new Error(`The database did not answer within ${Math.round(timeoutMs / 1000)} s (${req.op}${req.sql ? ': ' + req.sql.slice(0, 120) : ''})`), {
-          code: 'SM_DB_TIMEOUT',
-        });
+        throw Object.assign(
+          new Error(`The database did not answer within ${Math.round(timeoutMs / 1000)} s (${req.op}${req.sql ? ': ' + req.sql.slice(0, 120) : ''})`),
+          {
+            code: 'SM_DB_TIMEOUT',
+          },
+        );
       }
       Atomics.wait(this.state, 0, v, left);
     }
@@ -285,7 +288,8 @@ export class PgBridge {
     if (this.poisoned && ending) {
       this.poisoned = false;
       this.inTx = false;
-      if (req.op === 'commit') throw Object.assign(new Error('The database transaction was aborted after a timeout; nothing was committed'), { code: 'SM_DB_TIMEOUT' });
+      if (req.op === 'commit')
+        throw Object.assign(new Error('The database transaction was aborted after a timeout; nothing was committed'), { code: 'SM_DB_TIMEOUT' });
       return { id: 0, ok: true };
     }
     if (!this.connected) this.connect();

@@ -14,17 +14,14 @@ export function defaultInputs(defs: InputDef[]): Record<string, unknown> {
   return out;
 }
 
-export function InputsForm({
-  defs,
-  value,
-  onChange,
-}: {
-  defs: InputDef[];
-  value: Record<string, unknown>;
-  onChange: (v: Record<string, unknown>) => void;
-}) {
+export function InputsForm({ defs, value, onChange }: { defs: InputDef[]; value: Record<string, unknown>; onChange: (v: Record<string, unknown>) => void }) {
   const { t } = useTranslation('runs');
-  if (!defs.length) return <Text size="sm" c="dimmed">{t('inputs.none')}</Text>;
+  if (!defs.length)
+    return (
+      <Text size="sm" c="dimmed">
+        {t('inputs.none')}
+      </Text>
+    );
   const set = (k: string, v: unknown) => onChange({ ...value, [k]: v });
   return (
     <Stack gap="sm">
@@ -42,7 +39,8 @@ export function InputsForm({
           case 'list':
             return (
               <Textarea
-                key={d.name} {...common}
+                key={d.name}
+                {...common}
                 description={d.description ?? t('inputs.listHint')}
                 autosize
                 minRows={2}

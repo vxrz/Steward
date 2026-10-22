@@ -39,12 +39,7 @@ export function PublicApiInfo({ status }: { status: PublicApiStatus | null | und
   return (
     <Group gap="sm" wrap="wrap">
       <Text size="sm">
-        <Trans
-          t={t}
-          i18nKey="publicApi.baseUrl"
-          values={{ url: `${origin()}${status.basePath}`, version: status.apiVersion }}
-          components={{ c: <Code /> }}
-        />
+        <Trans t={t} i18nKey="publicApi.baseUrl" values={{ url: `${origin()}${status.basePath}`, version: status.apiVersion }} components={{ c: <Code /> }} />
       </Text>
       <ApiDocsLink status={status} />
     </Group>

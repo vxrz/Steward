@@ -71,7 +71,11 @@ export function buildSummaryModel(o: { processIds: string[]; from: string; to: s
     o.from,
     o.to,
   );
-  const names = new Map(db().all<{ id: string; name: string }>(`SELECT id, name FROM processes WHERE id IN (${marks})`, ...ids).map((p) => [p.id, p.name]));
+  const names = new Map(
+    db()
+      .all<{ id: string; name: string }>(`SELECT id, name FROM processes WHERE id IN (${marks})`, ...ids)
+      .map((p) => [p.id, p.name]),
+  );
   for (const r of rows) if (!names.has(r.process_id)) names.set(r.process_id, r.process_name);
   const processes = ids.map((id) => ({ id, name: names.get(id) ?? id })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -121,7 +125,12 @@ export function buildSummaryModel(o: { processIds: string[]; from: string; to: s
   };
 }
 
-export async function renderSummaryReport(m: SummaryReportModel, contentHash: string, brand: BrandingInput, o: { compress?: boolean } = {}): Promise<RenderResult> {
+export async function renderSummaryReport(
+  m: SummaryReportModel,
+  contentHash: string,
+  brand: BrandingInput,
+  o: { compress?: boolean } = {},
+): Promise<RenderResult> {
   const tr = translator(m.lang, m.timeZone);
   const { t } = tr;
   const period = `${tr.dateTime(m.from)} – ${tr.dateTime(m.to)}`;
@@ -154,7 +163,14 @@ export async function renderSummaryReport(m: SummaryReportModel, contentHash: st
       classification: m.classification,
       tags: [],
       lines: () => [
-        t('footerSummary', { count: m.processes.length, from: tr.date(m.from), to: tr.date(m.to), date: tr.dateTime(m.generatedAt), user: personLabel(m.generatedBy), reportId: m.reportId }),
+        t('footerSummary', {
+          count: m.processes.length,
+          from: tr.date(m.from),
+          to: tr.date(m.to),
+          date: tr.dateTime(m.generatedAt),
+          user: personLabel(m.generatedBy),
+          reportId: m.reportId,
+        }),
         `${t('contentHash')}: ${contentHash}`,
         t('footerVerifySummary', { reportId: m.reportId }),
       ],
@@ -243,7 +259,8 @@ export async function renderSummaryReport(m: SummaryReportModel, contentHash: st
 
   section(t('comments'));
   w.subheading(t('reviewerComment'));
-  if (m.comment) w.keyValues([{ label: t('reviewerCommentBy', { user: personLabel(m.generatedBy), date: tr.dateTime(m.generatedAt) }), value: m.comment, span: 2 }]);
+  if (m.comment)
+    w.keyValues([{ label: t('reviewerCommentBy', { user: personLabel(m.generatedBy), date: tr.dateTime(m.generatedAt) }), value: m.comment, span: 2 }]);
   else w.paragraph(t('noReviewerComment'), { tone: 'muted' });
 
   section(t('integrity'));
