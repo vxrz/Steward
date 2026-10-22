@@ -47,7 +47,7 @@ On the first start, set a master passphrase and create an admin account. Then cl
 | `npm run openapi -- --check` | `docs/openapi.json` matches the API (run `npm run openapi` to regenerate) |
 | `scripts/security/scan.sh` | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md)) |
 
-CI runs all of these on every push and pull request.
+CI runs all of these on every push and pull request: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
 
 ## Conventions
 
@@ -127,6 +127,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 3. Tag and push: `git tag -a v0.2.0 -m v0.2.0 && git push --tags`.
    - The **Release** workflow builds the desktop executables for Windows, macOS and Linux, smoke-tests them, adds SBOMs and checksums, and publishes a GitHub release.
    - A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release.
+   - On the Forgejo mirror, Woodpecker pushes the container image to Harbor (`0.2.0`, `0.2`, `0`, `latest`), sends the SBOMs to Dependency-Track and builds the Linux executable (optionally as a Forgejo release); see [docs/WOODPECKER.md](docs/WOODPECKER.md#9-releases).
 
 ## Questions
 

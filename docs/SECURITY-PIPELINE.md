@@ -29,6 +29,14 @@ what to do with a finding. The vulnerability disclosure policy is in
 The weekly runs matter: new advisories are published for code that has not
 changed.
 
+**Woodpecker CI.** A Forgejo mirror of the repository runs the same checks with
+Woodpecker (`.woodpecker/security.yaml`, `container.yaml`, weekly via a cron
+named `weekly`), with the same pinned tools from `scripts/security/install-tools.sh`.
+There, `container.yaml` also pushes the image to Harbor (branch and version tags
+only after Grype and Trivy passed), can sign it with cosign, and uploads the image
+and npm SBOMs to Dependency-Track. Setup and differences:
+[WOODPECKER.md](WOODPECKER.md).
+
 ## Reading the results
 
 - **Job log**: every scanner also prints a human-readable table, so a red job
@@ -146,4 +154,5 @@ the old esbuild Go binary (Go 1.23 stdlib CVEs) in the runtime image.
 These parts cannot be tested outside GitHub Actions: SARIF upload and code
 scanning alerts, CodeQL, Scorecard publishing, Dependabot, artifact upload, and
 Grype's database download in some restricted networks. Everything else runs with
-`scripts/security/scan.sh`.
+`scripts/security/scan.sh`. CodeQL, Scorecard, Dependabot and code scanning have
+no Woodpecker counterpart (see [WOODPECKER.md](WOODPECKER.md#differences-to-github-actions)).
