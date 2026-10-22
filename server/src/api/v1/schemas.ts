@@ -284,6 +284,28 @@ export const Schedule = z.object({
   createdAt: ts(),
 });
 
+export const Trigger = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    processId: z.string(),
+    processName: z.string(),
+    processVersion: z.number().int().nullable().describe('Pinned process version (null: always the current version)'),
+    enabled: z.boolean(),
+    dryRun: z.boolean(),
+    authMode: z.string().describe('How callers authenticate (the secret itself is never part of the API)'),
+    owner: z.string().describe('Runs use the rights of this user'),
+    createdAt: ts(),
+    updatedAt: ts(),
+    lastFiredAt: nullableTs('Last accepted call'),
+    lastRunId: z.string().nullable(),
+    lastRunStatus: z.string().nullable(),
+    fireCount: z.number().int().describe('Accepted calls'),
+    rejectedCount: z.number().int().describe('Rejected calls (wrong secret, address, rate limit …)'),
+  })
+  .describe('Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API.');
+
 export const Platform = z
   .object({
     id: z.string(),
@@ -393,6 +415,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   TaskDetail,
   Schedule,
   Platform,
+  Trigger,
   Dataset,
   DatasetRow,
   MetricSeries,
@@ -491,6 +514,31 @@ export const ScheduleListQuery = z.object({
   ...page,
   processId: z.string().max(200).optional(),
   enabled: z.boolean().optional(),
+});
+
+/** Response schema of /semantic-model: an Ossie document (validated against the vendored Ossie schemas in the tests). */
+export const ossieDocumentSchema = {
+  type: 'object',
+  description: 'Apache Ossie semantic model document (0.1.1: `semantic_model` array; 0.2.0.dev0: one model at the root)',
+  required: ['version'],
+  properties: {
+    version: { type: 'string', enum: ['0.1.1', '0.2.0.dev0'], description: 'Ossie specification version' },
+    semantic_model: { type: 'array', items: { type: 'object', additionalProperties: true } },
+    name: { type: 'string' },
+    datasets: { type: 'array', items: { type: 'object', additionalProperties: true } },
+  },
+  additionalProperties: true,
+};
+
+export const TriggerListQuery = z.object({
+  ...page,
+  processId: z.string().max(200).optional(),
+  enabled: z.boolean().optional(),
+});
+
+export const SemanticModelQuery = z.object({
+  format: z.enum(['json', 'yaml']).optional().describe('Response format; default from the Accept header (application/yaml or application/json), else JSON'),
+  version: z.enum(['0.1.1', '0.2.0.dev0']).default('0.1.1').describe('Apache Ossie revision: 0.1.1 (released, default) or 0.2.0.dev0 (in development)'),
 });
 
 export const PlatformListQuery = z.object({

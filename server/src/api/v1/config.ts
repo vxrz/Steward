@@ -3,7 +3,7 @@ import { getSettings } from '../../settings.js';
 import { logger } from '../../log.js';
 
 /** Semantic version of the public API description (info.version). Bump minor for additive changes. */
-export const API_VERSION = '1.0.0';
+export const API_VERSION = '1.1.0';
 /** Mount points */
 export const API_BASE = '/api/v1';
 export const DOCS_BASE = '/api/docs';
