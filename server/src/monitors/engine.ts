@@ -630,7 +630,7 @@ function rootMessage(roots: CauseRef[], rows: Map<string, CheckRow>): string | n
   for (const r of roots) {
     const row = rows.get(r.checkId);
     const last = row && parseJson<{ message?: string } | null>(row.last_result, null);
-    if (last?.message && row.monitor_id === r.monitorId) return last.message;
+    if (last?.message && row!.monitor_id === r.monitorId) return last.message;
   }
   return null;
 }
