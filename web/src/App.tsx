@@ -3,6 +3,7 @@ import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   IconLayoutDashboard,
   IconChartBar,
@@ -181,6 +182,7 @@ function Shell({ status }: { status: AuthStatus }) {
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+        <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage demo={status.demo} />} />
@@ -201,6 +203,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="*" element={<Text>Page not found</Text>} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
         </div>
         <AppFooter />
       </AppShell.Main>
