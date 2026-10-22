@@ -346,7 +346,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       },
     });
     app.setNotFoundHandler((req, reply) => {
-      const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(req.url) && !/\.[a-z0-9]+(\?|$)/i.test(req.url);
+      // the file-extension check looks at the path only: /records?subject=a@example.com is a page, /missing.js is not
+      const pathname = req.url.split('?')[0]!;
+      const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(pathname) && !/\.[a-z0-9]+$/i.test(pathname);
       if (!isPage) return reply.code(404).send({ error: 'Not found' });
       return reply.type('text/html').send(fs.readFileSync(path.join(config.webDist, 'index.html')));
     });
