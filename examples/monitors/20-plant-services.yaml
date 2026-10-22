@@ -16,7 +16,7 @@ checks:
     expectStatus: "200"
     condition: "body.ok = true"
     degradedResponseMs: 1000
-    x: -240
+    x: -300
     y: 0
   - id: ih-api
     name: Insights Hub API
@@ -32,14 +32,14 @@ checks:
     type: gatus
     platform: Gatus
     endpointKey: edge_opc-ua-gateway
-    x: 240
+    x: 300
     y: 0
   - id: historian
     name: Historian API (Gatus)
     type: gatus
     platform: Gatus
     endpointKey: plant_historian-api
-    x: 240
+    x: 300
     y: 160
   - id: mes
     name: MES frontend (Gatus)

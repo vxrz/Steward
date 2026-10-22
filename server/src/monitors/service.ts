@@ -516,6 +516,7 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
     if (def) {
       secrets = syncCheckRows(r.id, key, def, before);
       if (key !== r.key) {
+        db().run('DELETE FROM datasets WHERE key = ?', `monitor.${r.key}`);
         for (const c of def.checks) {
           if (c.type === 'heartbeat') db().run('UPDATE monitor_checks SET heartbeat_key = ? WHERE monitor_id = ? AND check_id = ?', checkKey({ key }, c).toLowerCase(), r.id, c.id);
         }
