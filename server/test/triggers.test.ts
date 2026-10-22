@@ -261,7 +261,9 @@ describe('webhook triggers', () => {
       sock.on('end', () => resolve(data));
       sock.on('error', reject);
     });
-    expect(raw.split('\r\n')[0]).toMatch(/ 40[14] /);
+    // 401 (sign in), 403 (static file server refuses ..) or 404 – never the process list
+    expect(raw.split('\r\n')[0], raw).toMatch(/ 40[134] /);
+    expect(raw).not.toContain('hook-target');
   });
 
   it('never leaks secrets into responses, logs, audit entries or run data', async () => {
