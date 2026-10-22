@@ -12,6 +12,7 @@ import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
 import i18n from '../i18n';
+import { errorText } from '../i18n/errors';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -255,7 +256,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
               classNames={{ input: 'mono' }}
               value={d.cron}
               onChange={(e) => setD({ ...d, cron: e.currentTarget.value })}
-              error={preview.error ? (preview.error as Error).message : undefined}
+              error={preview.error ? errorText(preview.error) : undefined}
             />
             <TextInput label={t('form.timezone')} value={d.timezone ?? ''} onChange={(e) => setD({ ...d, timezone: e.currentTarget.value })} />
           </Group>

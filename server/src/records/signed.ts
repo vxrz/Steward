@@ -1,4 +1,4 @@
-import type { RecordAttachment, SignatureInfo, SignedPdfDetails } from '@sm/shared';
+import type { ErrorParams, RecordAttachment, SignatureInfo, SignedPdfDetails } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows } from '../audit.js';
 import { isAdmin } from '../auth/permissions.js';
@@ -217,13 +217,19 @@ function derivedFrom(recordId: string, data: Buffer): AttachmentRow | null {
  * revision, generated while its content was frozen, with the frozen content
  * hash (from its authentic audit entry). Null when it may.
  */
-function notSignable(r: RecordRow, g: AttachmentRow): string | null {
+function notSignable(r: RecordRow, g: AttachmentRow): { message: string; params: ErrorParams } | null {
   const wf = workflowOf(requireType(r.type_id));
   const d = parseJson<{ revision?: number; status?: string; contentHash?: string } | null>(g.details, null);
   if (!d || d.status === undefined || d.status === wf.initial)
-    return `${g.filename} was generated from a draft: generate the PDF again once the content is frozen and sign that one`;
+    return {
+      message: `${g.filename} was generated from a draft: generate the PDF again once the content is frozen and sign that one`,
+      params: { context: 'draft', file: g.filename },
+    };
   if (Number(d.revision) !== Number(r.revision) || r.status === wf.initial || !r.frozen_hash || d.contentHash !== r.frozen_hash)
-    return `${g.filename} shows an older revision of ${r.number}: generate the PDF of the current revision and sign that one`;
+    return {
+      message: `${g.filename} shows an older revision of ${r.number}: generate the PDF of the current revision and sign that one`,
+      params: { context: 'olderRevision', file: g.filename, number: r.number },
+    };
   return null;
 }
 
@@ -232,6 +238,7 @@ export interface SignedCheck {
   message: string;
   /** Error code when not ok and more specific than the defaults */
   code?: string;
+  params?: ErrorParams;
   generated: AttachmentRow | null;
   signatures: SignatureInfo[];
   exactCopy: boolean;
@@ -241,7 +248,7 @@ export interface SignedCheck {
 export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
   const none = { generated: null, signatures: [], exactCopy: false };
   const r = requireRecordRow(recordId);
-  if (!data.subarray(0, 1024).includes('%PDF-')) return { ok: false, message: 'This is not a PDF file', ...none };
+  if (!data.subarray(0, 1024).includes('%PDF-')) return { ok: false, message: 'This is not a PDF file', ...none, code: 'NOT_PDF' };
   const exact = attachmentRows(recordId, 'generated').find((g) => g.sha256 === sha256(data));
   if (exact)
     return { ok: false, message: 'This is the unsigned PDF exactly as Steward generated it – sign it first', ...none, generated: exact, exactCopy: true };
@@ -254,7 +261,7 @@ export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
       ...none,
     };
   const stale = notSignable(r, g);
-  if (stale) return { ok: false, message: stale, generated: g, signatures: [], exactCopy: false, code: 'PDF_NOT_CURRENT' };
+  if (stale) return { ok: false, message: stale.message, params: stale.params, generated: g, signatures: [], exactCopy: false, code: 'PDF_NOT_CURRENT' };
   const signatures = findSignatures(data, Number(g.size));
   if (!signatures.length)
     return {
@@ -289,16 +296,24 @@ export function uploadSignedPdf(
 ): RecordAttachment & { check: Omit<SignedCheck, 'generated'> } {
   const u = me();
   const r = requireRecordRow(recordId);
-  if (!canEditRecord(u, r) && !canApproveRecords(u)) forbid('upload signed PDFs');
-  if (o.plain && !isAdmin(u)) forbid('attach unverified PDFs');
-  if (data.length > MAX_ATTACHMENT_BYTES) throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`);
+  if (!canEditRecord(u, r) && !canApproveRecords(u)) forbid('upload signed PDFs', 'uploadSigned');
+  if (o.plain && !isAdmin(u)) forbid('attach unverified PDFs', 'attachPlainPdf');
+  if (data.length > MAX_ATTACHMENT_BYTES)
+    throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`, 'FILE_TOO_LARGE', {
+      maxMb: MAX_ATTACHMENT_BYTES / 1024 / 1024,
+    });
   checkPdfLimits(r.id, 'signed', data.length);
   const check = checkSignedPdf(r.id, data);
   if (!check.ok && !o.plain)
-    throw new HttpError(422, check.message, check.code ?? (check.exactCopy ? 'PDF_NOT_SIGNED' : check.generated ? 'PDF_NO_SIGNATURE' : 'PDF_NOT_DERIVED'));
-  if (o.plain && !data.subarray(0, 1024).includes('%PDF-')) throw new HttpError(415, 'This is not a PDF file');
+    throw new HttpError(
+      422,
+      check.message,
+      check.code ?? (check.exactCopy ? 'PDF_NOT_SIGNED' : check.generated ? 'PDF_NO_SIGNATURE' : 'PDF_NOT_DERIVED'),
+      check.params,
+    );
+  if (o.plain && !data.subarray(0, 1024).includes('%PDF-')) throw new HttpError(415, 'This is not a PDF file', 'NOT_PDF');
   const hash = sha256(data);
-  if (attachmentRows(r.id).some((a) => a.sha256 === hash)) throw new HttpError(409, 'This file is attached to the record already');
+  if (attachmentRows(r.id).some((a) => a.sha256 === hash)) throw new HttpError(409, 'This file is attached to the record already', 'ATTACHMENT_EXISTS');
   const name = safeFilename(filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`);
   const id = newId('rsig_');
   const details: SignedPdfDetails = check.ok
@@ -349,6 +364,11 @@ export function checkPdfLimits(recordId: string, kind: 'generated' | 'signed', s
   );
   const n = Number(rows.find((x) => x.kind === kind)?.n ?? 0);
   const bytes = rows.reduce((sum, x) => sum + Number(x.bytes ?? 0), 0);
-  if (n >= PDF_LIMITS[kind]) throw new HttpError(409, `At most ${PDF_LIMITS[kind]} ${kind} PDFs per record`, 'PDF_LIMIT');
-  if (bytes + size > PDF_LIMITS.bytes) throw new HttpError(409, `The PDFs of this record take ${PDF_LIMITS.bytes / 1024 / 1024} MB at most`, 'PDF_LIMIT');
+  if (n >= PDF_LIMITS[kind])
+    throw new HttpError(409, `At most ${PDF_LIMITS[kind]} ${kind} PDFs per record`, 'PDF_LIMIT', { context: kind, max: PDF_LIMITS[kind] });
+  if (bytes + size > PDF_LIMITS.bytes)
+    throw new HttpError(409, `The PDFs of this record take ${PDF_LIMITS.bytes / 1024 / 1024} MB at most`, 'PDF_LIMIT', {
+      context: 'bytes',
+      maxMb: PDF_LIMITS.bytes / 1024 / 1024,
+    });
 }

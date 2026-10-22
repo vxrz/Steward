@@ -7,7 +7,7 @@ import {
   type ProcessPermission,
   type Role,
 } from '@sm/shared';
-import { HttpError } from '../util.js';
+import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
 
 /**
@@ -90,17 +90,19 @@ export function requireCapability(u: AuthUser | null, cap: keyof Capabilities, w
   if (!capabilities(u)[cap]) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN');
 }
 
+/** 403 FORBIDDEN unless `needed` is among `perms`; the web UI says which right is missing (errors:codes.FORBIDDEN_<needed>). */
 export function require<P extends string>(perms: P[], needed: P, what: string): void {
-  if (!perms.includes(needed)) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN');
+  if (!perms.includes(needed)) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', { context: `right_${needed}` });
 }
 
 export function cleanAcl<P extends string>(acl: unknown, allowed: readonly P[]): AclEntry<P>[] {
-  if (!Array.isArray(acl)) throw new HttpError(400, 'Access list must be an array');
+  if (!Array.isArray(acl)) throw new HttpError(400, 'Access list must be an array', 'ACL_INVALID');
   return acl.map((e) => {
     const subject = String((e as AclEntry).subject ?? '')
       .trim()
       .toLowerCase();
-    if (!/^(user|team|role):.+/.test(subject)) throw new HttpError(400, `Invalid subject "${subject}" – use user:<name>, team:<name> or role:<role>`);
+    if (!/^(user|team|role):.+/.test(subject))
+      throw new HttpError(400, `Invalid subject "${subject}" – use user:<name>, team:<name> or role:<role>`, 'ACL_SUBJECT_INVALID', { subject });
     const permissions = [...new Set(((e as AclEntry).permissions ?? []).filter((p): p is P => (allowed as readonly string[]).includes(p)))];
     return { subject, permissions };
   });
@@ -112,16 +114,16 @@ export function decisionCheck(
   task: { assignees: string[]; fourEyes: boolean; status: string },
   run: { actor: string },
   perms: ProcessPermission[],
-): { ok: boolean; reason?: string } {
-  if (!u) return { ok: false, reason: 'Not signed in' };
-  if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}` };
+): { ok: boolean; reason?: string; code?: string; params?: ErrorParams } {
+  if (!u) return { ok: false, reason: 'Not signed in', code: 'NOT_SIGNED_IN' };
+  if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}`, code: 'TASK_CLOSED' };
   if (task.fourEyes && run.actor.toLowerCase() === u.username.toLowerCase()) {
-    return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide' };
+    return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide', code: 'FOUR_EYES_RUN' };
   }
   if (task.assignees.length) {
     if (task.assignees.some((s) => matches(u, s)) || isAdmin(u)) return { ok: true };
-    return { ok: false, reason: `Assigned to ${task.assignees.join(', ')}` };
+    return { ok: false, reason: `Assigned to ${task.assignees.join(', ')}`, code: 'TASK_ASSIGNED', params: { assignees: task.assignees } };
   }
   if (perms.includes('approve') || perms.includes('run')) return { ok: true };
-  return { ok: false, reason: 'You need run or approve rights on this process' };
+  return { ok: false, reason: 'You need run or approve rights on this process', code: 'TASK_RIGHTS' };
 }

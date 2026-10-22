@@ -273,7 +273,8 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
   app.put('/mcp-server', async (req) => {
     requireCapability(currentUser(), 'manageSettings', 'change the MCP settings');
     const b = z.object({ enabled: z.boolean() }).strict().parse(req.body);
-    if (b.enabled && mcpForcedOff()) throw new HttpError(409, 'SM_MCP=off turns the MCP server off on this server – remove it to turn the server on here');
+    if (b.enabled && mcpForcedOff())
+      throw new HttpError(409, 'SM_MCP=off turns the MCP server off on this server – remove it to turn the server on here', 'MCP_FORCED_OFF');
     setMcpEnabled(b.enabled);
     return mcpServerStatus();
   });
@@ -281,7 +282,7 @@ export async function mcpRoutes(app: FastifyInstance): Promise<void> {
   app.put('/platforms/:id/mcp-gateway', async (req) => {
     const id = (req.params as { id: string }).id;
     const p = platforms.getPlatform(id);
-    if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`);
+    if (!p.permissions.length) throw new HttpError(404, `Platform ${id} not found`, 'PLATFORM_NOT_FOUND', { id });
     requirePermission(p.permissions, 'manage', 'change the MCP gateway of this platform');
     return platforms.setMcpGateway(id, gatewayBody.parse(req.body));
   });

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   lint:
-    # ESLint and Prettier (npm run lint / npm run format:check, see CONTRIBUTING.md)
+    # ESLint, Prettier and the translation checks (npm run lint / format:check / i18n:check / i18n:literals, see CONTRIBUTING.md)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,6 +32,10 @@ jobs:
         run: npm run lint
       - name: Formatting (Prettier)
         run: npm run format:check
+      - name: Translations in sync (npm run i18n:check, docs/I18N.md)
+        run: npm run i18n:check
+      - name: No untranslated texts in the web UI (npm run i18n:literals)
+        run: npm run i18n:literals
 
   build-test:
     runs-on: ubuntu-latest

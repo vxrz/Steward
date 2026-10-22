@@ -9,6 +9,7 @@ import { get, notifyError, notifyOk, put } from '../api';
 import { PageHeader } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { useTypeName } from '../components/records/common';
+import { fieldHelp, fieldLabel, optionLabel } from '../components/records/builtin';
 import { errorText } from '../i18n/errors';
 
 interface Draft {
@@ -23,9 +24,9 @@ const fromRecord = (r: RecordDetail): Draft => ({ title: r.title, body: r.body, 
 /** datetime-local inputs want "YYYY-MM-DDTHH:mm" */
 const localValue = (v: string | undefined) => (v ? v.slice(0, 16) : '');
 
-function FieldInput({ def, value, onChange }: { def: RecordFieldDef; value: string; onChange: (v: string) => void }) {
+function FieldInput({ typeKey, def, value, onChange }: { typeKey: string; def: RecordFieldDef; value: string; onChange: (v: string) => void }) {
   // Drafts may be incomplete: required fields are marked, but only checked on submit (by the server).
-  const common = { label: def.label, description: def.help, withAsterisk: def.required, value };
+  const common = { label: fieldLabel(typeKey, def), description: fieldHelp(typeKey, def), withAsterisk: def.required, value };
   switch (def.kind) {
     case 'textarea':
       return <Textarea {...common} autosize minRows={2} maxRows={10} onChange={(e) => onChange(e.currentTarget.value)} />;
@@ -34,7 +35,15 @@ function FieldInput({ def, value, onChange }: { def: RecordFieldDef; value: stri
     case 'datetime':
       return <TextInput {...common} value={localValue(value)} type="datetime-local" onChange={(e) => onChange(e.currentTarget.value)} />;
     case 'select':
-      return <Select {...common} value={value || null} data={def.options ?? []} clearable onChange={(v) => onChange(v ?? '')} />;
+      return (
+        <Select
+          {...common}
+          value={value || null}
+          data={(def.options ?? []).map((o) => ({ value: o, label: optionLabel(typeKey, def, o) }))}
+          clearable
+          onChange={(v) => onChange(v ?? '')}
+        />
+      );
     default:
       return <TextInput {...common} onChange={(e) => onChange(e.currentTarget.value)} />;
   }
@@ -154,7 +163,13 @@ export function RecordEditorPage() {
           <Grid.Col span={{ base: 12, md: 4 }}>
             <Stack gap="sm">
               {rec.type.fields.map((f) => (
-                <FieldInput key={f.key} def={f} value={draft.fields[f.key] ?? ''} onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })} />
+                <FieldInput
+                  key={f.key}
+                  typeKey={rec.typeKey}
+                  def={f}
+                  value={draft.fields[f.key] ?? ''}
+                  onChange={(v) => set({ fields: { ...draft.fields, [f.key]: v } })}
+                />
               ))}
               <TagsInput
                 label={t('editor.tags')}

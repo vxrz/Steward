@@ -43,5 +43,6 @@
     "quoted": "„{{text}}“",
     "cancelled": "Abgebrochen",
     "selectItem": "{{name}} auswählen"
-  }
+  },
+  "panelLabel": "Aufgabe: {{title}}"
 }

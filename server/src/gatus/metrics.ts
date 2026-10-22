@@ -125,7 +125,7 @@ export function checkMetricsPath(p: string): string {
     /%(?![0-9a-f]{2})/i.test(path) ||
     /(^|\/)\.{1,2}(\/|$)/.test(path)
   ) {
-    throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics');
+    throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics', 'GATUS_METRICS_PATH');
   }
   return path;
 }
@@ -136,7 +136,7 @@ export function metricsUrlBelow(baseUrl: string, path: string): string {
   const url = new URL(baseUrl.replace(/\/+$/, '') + checkMetricsPath(path));
   const basePath = base.pathname.replace(/\/+$/, '') + '/';
   if (url.origin !== base.origin || !(url.pathname + '/').startsWith(basePath)) {
-    throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics');
+    throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics', 'GATUS_METRICS_PATH');
   }
   return url.toString();
 }
@@ -376,7 +376,7 @@ const running = new Set<string>();
 /** One scrape of a source: fetch /metrics, store it, optionally refresh the uptime figures from Gatus' API. */
 export async function scrape(platformId: string, now = Date.now()): Promise<ScrapeResult> {
   const src = sourceRow(platformId);
-  if (!src) throw new HttpError(404, 'Metrics mode is not configured for this platform');
+  if (!src) throw new HttpError(404, 'Metrics mode is not configured for this platform', 'GATUS_METRICS_OFF');
   if (running.has(platformId)) return { ok: false, endpoints: 0, samples: 0, malformed: 0, resets: 0, durationMs: 0, error: 'A scrape is already running' };
   running.add(platformId);
   const t0 = Date.now();
@@ -439,14 +439,11 @@ const manualScrapes = new Map<string, number>();
 
 /** "Scrape now" from the UI/API: at most every MANUAL_SCRAPE_MIN_MS per source (429 otherwise). */
 export async function manualScrape(platformId: string, now = Date.now()): Promise<ScrapeResult> {
-  if (!sourceRow(platformId)) throw new HttpError(404, 'Metrics mode is not configured for this platform');
+  if (!sourceRow(platformId)) throw new HttpError(404, 'Metrics mode is not configured for this platform', 'GATUS_METRICS_OFF');
   const last = manualScrapes.get(platformId);
   if (last !== undefined && now - last < MANUAL_SCRAPE_MIN_MS) {
-    throw new HttpError(
-      429,
-      `This source was scraped a moment ago – try again in ${Math.ceil((MANUAL_SCRAPE_MIN_MS - (now - last)) / 1000)} s`,
-      'RATE_LIMITED',
-    );
+    const seconds = Math.ceil((MANUAL_SCRAPE_MIN_MS - (now - last)) / 1000);
+    throw new HttpError(429, `This source was scraped a moment ago – try again in ${seconds} s`, 'RATE_LIMITED', { context: 'scrape', seconds });
   }
   manualScrapes.set(platformId, now);
   return scrape(platformId, now);

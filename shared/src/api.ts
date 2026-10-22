@@ -1,3 +1,4 @@
+import type { ErrorParams } from './errors.js';
 import type { Column, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 
@@ -537,6 +538,9 @@ export interface TaskRecord {
   canDecide?: boolean;
   /** Why not (when canDecide is false). */
   cannotDecideReason?: string;
+  /** cannotDecideReason as a code and parameters the web UI translates (errors:codes.<code>) */
+  cannotDecideCode?: string;
+  cannotDecideParams?: ErrorParams;
 }
 
 export interface TaskDecision {

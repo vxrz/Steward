@@ -27,7 +27,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
-import { HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { errorParam, HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { currentUser } from '../auth/context.js';
 import { cleanAcl } from '../auth/permissions.js';
 import { getPlatform } from '../platforms/service.js';
@@ -64,7 +64,7 @@ const MONITOR_ID_RE = /^mon_[A-Za-z0-9_-]{6,40}$/;
 
 const me = () => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -73,13 +73,19 @@ const me = () => {
 /** The monitor if the current user may see it (404 otherwise) and has `perm` (403 otherwise). */
 export function requireMonitor(idOrKey: string, perm: MonitorPermission = 'view', what = 'change this monitor'): MonitorRow {
   const r = monitorRow(idOrKey);
-  if (!r || !permissionsOfRow(r).includes('view')) throw new HttpError(404, 'Monitor not found');
-  if (!permissionsOfRow(r).includes(perm)) throw new HttpError(403, `You are not allowed to ${what}`);
+  if (!r || !permissionsOfRow(r).includes('view')) throw new HttpError(404, 'Monitor not found', 'MONITOR_NOT_FOUND');
+  if (!permissionsOfRow(r).includes(perm)) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN', { context: `right_${perm}` });
   return r;
 }
 
 export function requireCreate(): void {
-  if (!canCreateMonitors(me())) throw new HttpError(403, 'Only designers and administrators can create monitors');
+  if (!canCreateMonitors(me())) throw new HttpError(403, 'Only designers and administrators can create monitors', 'FORBIDDEN', { context: 'createMonitors' });
+}
+
+/** 400 for a monitor definition with problems (the problems themselves stay English, like schema messages). */
+function invalidMonitor(issues: { path: string; message: string }[]): HttpError {
+  const details = issues.map((i) => `${i.path}: ${i.message}`).join('; ');
+  return new HttpError(400, details, 'MONITOR_INVALID', { details });
 }
 
 // ---------- read ----------
@@ -295,7 +301,7 @@ const PLATFORM_KIND: Partial<Record<string, string>> = { freshness: 'insights-hu
 
 function requirePlatformUse(id: string): void {
   const p = getPlatform(id);
-  if (!p.permissions.includes('use')) throw new HttpError(403, `You are not allowed to use platform "${p.name}"`);
+  if (!p.permissions.includes('use')) throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
 }
 
 /** Resolves platform names and monitor keys to ids and checks the rights and rules that need the database. */
@@ -305,7 +311,7 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     // a sub-monitor the editor may not view comes back as HIDDEN_MONITOR_REF: the stored reference stays
     if (c.type === 'monitor' && c.monitor === HIDDEN_MONITOR_REF) {
       const old = before?.checks.find((x) => x.id === c.id);
-      if (old?.type !== 'monitor') throw new HttpError(400, `Check "${c.name}": choose the monitor to include`);
+      if (old?.type !== 'monitor') throw new HttpError(400, `Check "${c.name}": choose the monitor to include`, 'SUBMONITOR_REQUIRED', { check: c.name });
       c.monitor = old.monitor;
       continue;
     }
@@ -316,9 +322,11 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
     if (c.type === 'monitor') {
       const sub = monitorRow(c.monitor);
-      if (!sub || !permissionsOfRow(sub).includes('view')) throw new HttpError(400, `Check "${c.name}": monitor "${c.monitor}" not found`);
-      if (sub.is_template) throw new HttpError(400, `Check "${c.name}": "${sub.name}" is a template`);
-      if (sub.id === selfId) throw new HttpError(400, `Check "${c.name}": a monitor cannot include itself`);
+      if (!sub || !permissionsOfRow(sub).includes('view'))
+        throw new HttpError(400, `Check "${c.name}": monitor "${c.monitor}" not found`, 'SUBMONITOR_NOT_FOUND', { check: c.name, monitor: c.monitor });
+      if (sub.is_template)
+        throw new HttpError(400, `Check "${c.name}": "${sub.name}" is a template`, 'SUBMONITOR_TEMPLATE', { check: c.name, monitor: sub.name });
+      if (sub.id === selfId) throw new HttpError(400, `Check "${c.name}": a monitor cannot include itself`, 'SUBMONITOR_SELF', { check: c.name });
       c.monitor = sub.id;
     }
   }
@@ -330,17 +338,26 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
     if (o.type === 'process') {
       const perms = permissionsFor(o.processId);
-      if (!perms.includes('view')) throw new HttpError(400, `Output "${o.id}": process ${o.processId} not found`);
-      if (!perms.includes('run')) throw new HttpError(403, `Output "${o.id}": you are not allowed to run process ${o.processId}`);
+      if (!perms.includes('view'))
+        throw new HttpError(400, `Output "${o.id}": process ${o.processId} not found`, 'OUTPUT_PROCESS_NOT_FOUND', { output: o.id, process: o.processId });
+      if (!perms.includes('run'))
+        throw new HttpError(403, `Output "${o.id}": you are not allowed to run process ${o.processId}`, 'OUTPUT_PROCESS_FORBIDDEN', {
+          output: o.id,
+          process: o.processId,
+        });
       const proc = getProcess(o.processId);
       for (const pid of Object.values(o.bindings)) requirePlatformUse(pid);
       const names = new Set((proc.definition.inputs ?? []).map((i) => i.name));
-      for (const k of Object.keys(o.inputs)) if (!names.has(k)) throw new HttpError(400, `Output "${o.id}": the process has no input "${k}"`);
+      for (const k of Object.keys(o.inputs))
+        if (!names.has(k)) throw new HttpError(400, `Output "${o.id}": the process has no input "${k}"`, 'OUTPUT_PROCESS_INPUT', { output: o.id, input: k });
     }
     if (o.type === 'notification') {
       for (const s of o.subscribers)
         if (!/^(user|team|role):.+/.test(s.trim()))
-          throw new HttpError(400, `Output "${o.id}": subscriber "${s}" – use user:<name>, team:<name> or role:<role>`);
+          throw new HttpError(400, `Output "${o.id}": subscriber "${s}" – use user:<name>, team:<name> or role:<role>`, 'OUTPUT_SUBSCRIBER_INVALID', {
+            output: o.id,
+            subscriber: s,
+          });
       o.subscribers = o.subscribers.map((s) => s.trim().toLowerCase());
     }
   }
@@ -363,7 +380,8 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
         .all<{ id: string; name: string }>('SELECT id, name FROM monitors')
         .map((r) => [r.id, r.name]),
     );
-    throw new HttpError(400, `Sub-monitors would form a cycle: ${cycle.map((id) => (id === me ? out.name : (names.get(id) ?? id))).join(' → ')}`);
+    const path = cycle.map((id) => (id === me ? out.name : (names.get(id) ?? id))).join(' → ');
+    throw new HttpError(400, `Sub-monitors would form a cycle: ${path}`, 'SUBMONITOR_CYCLE', { path });
   }
   // heartbeat keys are global (gateway batch reports)
   const keys = new Map<string, string>();
@@ -377,17 +395,22 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
   for (const c of out.checks) {
     if (c.type !== 'heartbeat') continue;
     const k = checkKey({ key: selfKey }, c).toLowerCase();
-    if (keys.has(k)) throw new HttpError(409, `Heartbeat key "${checkKey({ key: selfKey }, c)}" is already used by monitor "${keys.get(k)}"`);
+    if (keys.has(k))
+      throw new HttpError(409, `Heartbeat key "${checkKey({ key: selfKey }, c)}" is already used by monitor "${keys.get(k)}"`, 'HEARTBEAT_KEY_USED', {
+        key: checkKey({ key: selfKey }, c),
+        monitor: keys.get(k) ?? '',
+      });
   }
   return out;
 }
 
 function validateKey(key: string, selfId: string | null): string {
   const k = key.trim().toLowerCase();
-  if (!MONITOR_KEY_RE.test(k)) throw new HttpError(400, 'Key: lower-case letters, digits, "." "_" and "-" (max. 64), starting with a letter or digit');
-  if (RESERVED_MONITOR_KEYS.includes(k)) throw new HttpError(400, `"${k}" is reserved – choose another key`);
+  if (!MONITOR_KEY_RE.test(k))
+    throw new HttpError(400, 'Key: lower-case letters, digits, "." "_" and "-" (max. 64), starting with a letter or digit', 'MONITOR_KEY_INVALID');
+  if (RESERVED_MONITOR_KEYS.includes(k)) throw new HttpError(400, `"${k}" is reserved – choose another key`, 'MONITOR_KEY_RESERVED', { key: k });
   const other = db().get<{ id: string }>('SELECT id FROM monitors WHERE key = ?', k);
-  if (other && other.id !== selfId) throw new HttpError(409, `The key "${k}" is already used by another monitor`);
+  if (other && other.id !== selfId) throw new HttpError(409, `The key "${k}" is already used by another monitor`, 'MONITOR_KEY_USED', { key: k });
   return k;
 }
 
@@ -506,7 +529,7 @@ export async function createMonitor(
   } else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
-    if (issues.length) throw new HttpError(400, issues.map((i) => `${i.path}: ${i.message}`).join('; '));
+    if (issues.length) throw invalidMonitor(issues);
     checkExpressions(def);
     name = def.name;
   }
@@ -555,9 +578,18 @@ export async function createMonitor(
 export async function updateMonitor(idOrKey: string, input: MonitorInput & { version?: number }): Promise<MonitorSaveResult> {
   const r = requireMonitor(idOrKey, 'edit');
   if (input.version !== undefined && input.version !== r.version) {
-    throw new HttpError(409, `The monitor was changed by ${r.updated_by} in the meantime (version ${r.version}) – reload and apply your changes again`);
+    throw new HttpError(
+      409,
+      `The monitor was changed by ${r.updated_by} in the meantime (version ${r.version}) – reload and apply your changes again`,
+      'VERSION_CONFLICT',
+      {
+        context: 'monitor',
+        user: r.updated_by,
+      },
+    );
   }
-  if (input.isTemplate !== undefined && !!input.isTemplate !== !!r.is_template) throw new HttpError(400, 'A monitor cannot be turned into a template or back');
+  if (input.isTemplate !== undefined && !!input.isTemplate !== !!r.is_template)
+    throw new HttpError(400, 'A monitor cannot be turned into a template or back', 'MONITOR_TEMPLATE_SWITCH');
   const key = input.key && input.key.toLowerCase() !== r.key ? validateKey(input.key, r.id) : r.key;
   if (key !== r.key && usedBy(r.id).length) {
     /* references use the id, so a new key is fine */
@@ -569,13 +601,15 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
   else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
-    if (issues.length) throw new HttpError(400, issues.map((i) => `${i.path}: ${i.message}`).join('; '));
+    if (issues.length) throw invalidMonitor(issues);
     checkExpressions(def);
     def = resolveReferences(def, r.id, key, before);
     // Outputs act on behalf of the owner (runbooks start as the owner, notifications/webhooks/Zabbix send in
     // the monitor's name) – changing them needs 'manage', not just 'edit'.
     if (before && JSON.stringify(before.outputs ?? []) !== JSON.stringify(def.outputs ?? []) && !permissionsOfRow(r).includes('manage')) {
-      throw new HttpError(403, 'Changing the outputs of this monitor needs the manage right (owner, administrators or the access list)');
+      throw new HttpError(403, 'Changing the outputs of this monitor needs the manage right (owner, administrators or the access list)', 'FORBIDDEN', {
+        context: 'monitorOutputs',
+      });
     }
     stored = def as unknown as Record<string, unknown>;
   }
@@ -647,7 +681,16 @@ export function deleteMonitor(idOrKey: string): void {
         m.id !== r.id &&
         parseJson<{ checks?: { type: string; monitor?: string }[] }>(m.definition, {}).checks?.some((c) => c.type === 'monitor' && c.monitor === r.id),
     );
-  if (users.length) throw new HttpError(409, `"${r.name}" is used as a sub-monitor by ${users.map((m) => `"${m.name}"`).join(', ')} – remove it there first`);
+  if (users.length)
+    throw new HttpError(
+      409,
+      `"${r.name}" is used as a sub-monitor by ${users.map((m) => `"${m.name}"`).join(', ')} – remove it there first`,
+      'MONITOR_IN_USE',
+      {
+        name: r.name,
+        users: users.map((m) => m.name),
+      },
+    );
   db().tx(() => {
     for (const t of [
       'monitor_checks',
@@ -694,7 +737,7 @@ export function setAccess(idOrKey: string, input: { acl: unknown; owner?: string
 export function rotateHeartbeatSecret(idOrKey: string, checkId: string): { secret: string; path: string } {
   const r = requireMonitor(idOrKey, 'edit');
   const row = db().get<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', r.id, checkId);
-  if (!row?.hook_id) throw new HttpError(404, 'This check has no heartbeat endpoint');
+  if (!row?.hook_id) throw new HttpError(404, 'This check has no heartbeat endpoint', 'NO_HEARTBEAT');
   const s = newSecret();
   db().tx(() => {
     db().run(
@@ -746,9 +789,9 @@ export function addMaintenance(idOrKey: string, input: { startsAt?: string; ends
   const r = requireMonitor(idOrKey, 'acknowledge', 'plan maintenance for this monitor');
   const start = input.startsAt ? Date.parse(input.startsAt) : engine.monitorNow();
   const end = Date.parse(input.endsAt);
-  if (Number.isNaN(start) || Number.isNaN(end)) throw new HttpError(400, 'Invalid start or end time');
-  if (end <= start) throw new HttpError(400, 'The end must be after the start');
-  if (end - start > 31 * 86400000) throw new HttpError(400, 'A maintenance window can last at most 31 days');
+  if (Number.isNaN(start) || Number.isNaN(end)) throw new HttpError(400, 'Invalid start or end time', 'PERIOD_INVALID');
+  if (end <= start) throw new HttpError(400, 'The end must be after the start', 'PERIOD_END_BEFORE_START');
+  if (end - start > 31 * 86400000) throw new HttpError(400, 'A maintenance window can last at most 31 days', 'MAINTENANCE_TOO_LONG', { days: 31 });
   const id = newId('mw_');
   db().tx(() => {
     db().run(
@@ -780,7 +823,7 @@ export function endMaintenance(idOrKey: string, windowId: string): void {
     windowId,
     r.id,
   );
-  if (!w) throw new HttpError(404, 'Maintenance window not found');
+  if (!w) throw new HttpError(404, 'Maintenance window not found', 'MAINTENANCE_NOT_FOUND');
   const now = engine.monitorNow();
   db().tx(() => {
     // a running window ends now (history stays); a future one is removed
@@ -801,7 +844,7 @@ export function endMaintenance(idOrKey: string, windowId: string): void {
 export function acknowledge(idOrKey: string, comment: string): MonitorDetail {
   const r = requireMonitor(idOrKey, 'acknowledge', 'acknowledge problems of this monitor');
   const st = db().get<StateRow>('SELECT * FROM monitor_state WHERE monitor_id = ?', r.id);
-  if (!st || st.status === 'up') throw new HttpError(409, 'There is no problem to acknowledge');
+  if (!st || st.status === 'up') throw new HttpError(409, 'There is no problem to acknowledge', 'NOTHING_TO_ACKNOWLEDGE');
   db().tx(() => {
     db().run(
       'UPDATE monitor_state SET ack_by = ?, ack_at = ?, ack_comment = ? WHERE monitor_id = ?',
@@ -838,10 +881,10 @@ export async function instantiateTemplate(
   rows: { params: Record<string, unknown>; name?: string; key?: string; enabled?: boolean }[],
 ): Promise<MonitorSaveResult[]> {
   const t = requireMonitor(templateIdOrKey, 'view');
-  if (!t.is_template) throw new HttpError(400, `"${t.name}" is not a template`);
+  if (!t.is_template) throw new HttpError(400, `"${t.name}" is not a template`, 'NOT_A_TEMPLATE', { name: t.name });
   requireCreate();
-  if (!rows.length) throw new HttpError(400, 'No instances given');
-  if (rows.length > 500) throw new HttpError(400, 'At most 500 instances at once');
+  if (!rows.length) throw new HttpError(400, 'No instances given', 'NO_INSTANCES');
+  if (rows.length > 500) throw new HttpError(400, 'At most 500 instances at once', 'TOO_MANY_INSTANCES', { max: 500 });
   const def = parseJson<Record<string, unknown>>(t.definition, {});
   const params = (def.parameters as TemplateParam[] | undefined) ?? [];
   // render and validate everything first, so a bad row creates nothing
@@ -853,10 +896,10 @@ export async function instantiateTemplate(
       if (row.name?.trim()) rendered.name = row.name.trim();
       const d = parseDefinitionInput(rendered);
       const issues = definitionIssues(d);
-      if (issues.length) throw new HttpError(400, issues.map((x) => `${x.path}: ${x.message}`).join('; '));
+      if (issues.length) throw invalidMonitor(issues);
       prepared.push({ def: d as unknown as Record<string, unknown>, params: p, key: row.key || undefined, enabled: row.enabled });
     } catch (e) {
-      throw new HttpError((e as HttpError).statusCode ?? 400, `Row ${i + 1}: ${(e as Error).message}`);
+      throw new HttpError((e as HttpError).statusCode ?? 400, `Row ${i + 1}: ${(e as Error).message}`, 'TEMPLATE_ROW', { row: i + 1, error: errorParam(e) });
     }
   }
   const out: MonitorSaveResult[] = [];
@@ -869,6 +912,8 @@ export async function instantiateTemplate(
       throw new HttpError(
         (e as HttpError).statusCode ?? 400,
         `Row ${i + 1}${out.length ? ` (${out.length} instance(s) were created before)` : ''}: ${(e as Error).message}`,
+        'TEMPLATE_ROW',
+        { row: i + 1, ...(out.length ? { context: 'partial', created: out.length } : {}), error: errorParam(e) },
       );
     }
   }
@@ -878,9 +923,9 @@ export async function instantiateTemplate(
 /** Re-renders an instance from the current template version with its stored parameters. */
 export async function resyncInstance(idOrKey: string): Promise<MonitorSaveResult> {
   const r = requireMonitor(idOrKey, 'edit');
-  if (!r.template_id) throw new HttpError(400, 'This monitor was not created from a template');
+  if (!r.template_id) throw new HttpError(400, 'This monitor was not created from a template', 'NOT_FROM_TEMPLATE');
   const t = monitorRow(r.template_id);
-  if (!t) throw new HttpError(404, 'The template no longer exists');
+  if (!t) throw new HttpError(404, 'The template no longer exists', 'TEMPLATE_GONE');
   const def = parseJson<Record<string, unknown>>(t.definition, {});
   const params = coerceParams((def.parameters as TemplateParam[] | undefined) ?? [], parseJson(r.template_params, {}));
   const rendered = await renderTemplate(def, params);
@@ -929,10 +974,11 @@ export async function importMonitor(text: string, opts: { key?: string } = {}): 
   try {
     raw = YAML.parse(text);
   } catch (e) {
-    throw new HttpError(400, `Invalid YAML: ${(e as Error).message}`);
+    throw new HttpError(400, `Invalid YAML: ${(e as Error).message}`, 'YAML_INVALID', { detail: (e as Error).message });
   }
   const obj = (raw ?? {}) as Record<string, unknown>;
-  if (obj.kind !== 'monitor' && obj.kind !== 'monitorTemplate') throw new HttpError(400, 'Not a monitor file: "kind" must be monitor or monitorTemplate');
+  if (obj.kind !== 'monitor' && obj.kind !== 'monitorTemplate')
+    throw new HttpError(400, 'Not a monitor file: "kind" must be monitor or monitorTemplate', 'MONITOR_FILE_KIND');
   const { kind, key, enabled, ...definition } = obj;
   return createMonitor({
     key: opts.key ?? (key as string | undefined),
@@ -962,9 +1008,9 @@ export function listExamples(): { file: string; kind: string; key: string | null
 }
 
 export async function importExample(file: string): Promise<MonitorSaveResult> {
-  if (!/^[\w.-]+\.ya?ml$/i.test(file)) throw new HttpError(400, 'Invalid example name');
+  if (!/^[\w.-]+\.ya?ml$/i.test(file)) throw new HttpError(400, 'Invalid example name', 'EXAMPLE_NOT_FOUND');
   const p = path.join(examplesDir(), file);
-  if (!fs.existsSync(p)) throw new HttpError(404, 'Example not found');
+  if (!fs.existsSync(p)) throw new HttpError(404, 'Example not found', 'EXAMPLE_NOT_FOUND');
   return importMonitor(fs.readFileSync(p, 'utf8'));
 }
 

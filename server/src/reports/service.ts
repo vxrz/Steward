@@ -12,7 +12,8 @@ import { buildRunModel, contentHash, evidenceImages, person, type ReportContext,
 import { renderRunReport, type RenderResult } from './run-report.js';
 import { buildSummaryModel, renderSummaryReport } from './summary-report.js';
 import { buildScheduledModel, renderScheduledReport } from './scheduled-report.js';
-import { runAs, type AuthUser } from '../auth/context.js';
+import { currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { getUser } from '../auth/users.js';
 
 /**
  * Generation, storage and listing of archived PDF reports.
@@ -89,13 +90,25 @@ export function listSummaryReports(limit = 200): ReportRecord[] {
 
 export function getReport(id: string): ReportRecord & { file: string } {
   const r = db().get<Row>('SELECT * FROM reports WHERE id = ?', id);
-  if (!r) throw new HttpError(404, `Report ${id} not found`);
+  if (!r) throw new HttpError(404, `Report ${id} not found`, 'REPORT_NOT_FOUND', { id });
   return { ...toRecord(r), file: path.join(reportsDir(), ...r.path.split('/')) };
 }
 
 export function resolveLang(explicit?: string | null, userLocale?: string | null): ReportLang {
   const pick = (v?: string | null) => (v ? (v.toLowerCase().startsWith('de') ? 'de' : v.toLowerCase().startsWith('en') ? 'en' : null) : null);
   return pick(explicit) ?? pick(userLocale) ?? 'en';
+}
+
+/** Report language when the request names none: the requesting user's language (profile), else English. */
+export function requestLang(explicit?: string | null): ReportLang {
+  const u = currentUser();
+  let locale: string | null | undefined;
+  try {
+    locale = u ? getUser(u.id).locale : undefined;
+  } catch {
+    locale = undefined; // e.g. a user deleted while the request ran
+  }
+  return resolveLang(explicit, locale);
 }
 
 // Generations of the same run are serialized so version numbers stay unique.
@@ -220,7 +233,9 @@ export async function generateRunReport(runId: string, o: GenerateOptions): Prom
   return serialized(`run:${runId}`, async () => {
     const run = runRow(runId);
     if (!FINISHED.includes(run.status) && !INTERIM_OK.includes(run.status)) {
-      throw new HttpError(409, `The run is ${run.status}. Reports can be generated when it has finished or is waiting for a decision.`);
+      throw new HttpError(409, `The run is ${run.status}. Reports can be generated when it has finished or is waiting for a decision.`, 'REPORT_RUN_ACTIVE', {
+        status: { message: run.status, code: 'RUN_STATUS', params: { status: run.status } },
+      });
     }
     const version = (db().get<{ v: number | null }>('SELECT MAX(version) AS v FROM reports WHERE run_id = ?', runId)?.v ?? 0) + 1;
     const id = newId('rpt_');
@@ -269,9 +284,9 @@ export interface SummaryOptions extends GenerateOptions {
 export async function generateSummaryReport(o: SummaryOptions): Promise<ReportRecord & { texts: string[] }> {
   const from = new Date(o.from);
   const to = new Date(o.to);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) throw new HttpError(400, 'Invalid period');
-  if (to <= from) throw new HttpError(400, 'The end of the period must be after its start');
-  if (!o.processIds.length) throw new HttpError(400, 'Select at least one process');
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) throw new HttpError(400, 'Invalid period', 'PERIOD_INVALID');
+  if (to <= from) throw new HttpError(400, 'The end of the period must be after its start', 'PERIOD_END_BEFORE_START');
+  if (!o.processIds.length) throw new HttpError(400, 'Select at least one process', 'PROCESS_REQUIRED');
   const id = newId('rpt_');
   const model = buildSummaryModel({ processIds: o.processIds, from: from.toISOString(), to: to.toISOString(), title: o.title }, context(o, id, 1));
   const hash = contentHash(model);
@@ -331,7 +346,7 @@ export interface ScheduledOptions extends GenerateOptions {
 
 /** Scheduled summary report: collected as the owner, archived (immutable, hashed, audited) like every report. */
 export async function generateScheduledReport(o: ScheduledOptions): Promise<ReportRecord & { texts: string[]; pdf: Buffer }> {
-  if (o.to <= o.from) throw new HttpError(400, 'The end of the period must be after its start');
+  if (o.to <= o.from) throw new HttpError(400, 'The end of the period must be after its start', 'PERIOD_END_BEFORE_START');
   const id = newId('rpt_');
   const ctx = context({ ...o, actor: o.owner.username }, id, 1);
   const model = runAs(o.owner, () =>

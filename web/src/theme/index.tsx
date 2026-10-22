@@ -9,6 +9,7 @@ import {
   type VariantColorsResolver,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 // Direct imports: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../../shared/src/brand';
 import { THEME_COLOR_NAMES, THEME_DEFAULTS, generatePalette, themeCssVariables, type PublicTheme } from '../../../shared/src/theme';
@@ -73,17 +74,21 @@ const BASE: MantineThemeOverride = {
     Button: { defaultProps: { variant: 'filled' } },
     ActionIcon: { defaultProps: { variant: 'filled' } },
     ThemeIcon: { defaultProps: { variant: 'filled' } },
-    Modal: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
-    Drawer: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
     // the command palette's result list scrolls; make it reachable by keyboard (axe "scrollable-region-focusable")
     SpotlightActionsList: { defaultProps: { viewportProps: { tabIndex: 0 } } },
     TableScrollContainer: { defaultProps: { scrollAreaProps: { viewportProps: { tabIndex: 0 } } } },
   },
 };
 
-export function mantineTheme(t: PublicTheme) {
+/** `closeLabel`: accessible name of the close buttons of modals and drawers, in the UI language. */
+export function mantineTheme(t: PublicTheme, closeLabel = 'Close') {
   return createTheme({
     ...BASE,
+    components: {
+      ...BASE.components,
+      Modal: { defaultProps: { closeButtonProps: { 'aria-label': closeLabel } } },
+      Drawer: { defaultProps: { closeButtonProps: { 'aria-label': closeLabel } } },
+    },
     primaryColor: THEME_COLOR_NAMES.primary,
     colors: { [THEME_COLOR_NAMES.primary]: generatePalette(t.primaryColor), [THEME_COLOR_NAMES.accent]: generatePalette(t.accentColor) },
     defaultRadius: t.radius,
@@ -128,7 +133,9 @@ export function ThemedMantineProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [waited]);
   const t = q.data ?? DEFAULT_THEME;
-  const theme = useMemo(() => mantineTheme(t), [t]);
+  const { t: tr } = useTranslation('common');
+  const closeLabel = tr('close');
+  const theme = useMemo(() => mantineTheme(t, closeLabel), [t, closeLabel]);
   const resolver = useMemo(() => cssVariablesResolver(t), [t]);
   useEffect(() => {
     if (q.data) writeCache(q.data);

@@ -1,8 +1,8 @@
 import path from 'node:path';
 import YAML from 'yaml';
-import type { RecordFieldDef, RecordImportItem } from '@sm/shared';
-import { HttpError } from '../util.js';
-import { canCreateRecords, forbid, me } from './access.js';
+import type { ErrorParams, RecordFieldDef, RecordImportItem } from '@sm/shared';
+import { errorParam, HttpError } from '../util.js';
+import { canCreateRecords, fieldParam, forbid, me } from './access.js';
 import { cleanFields, cleanTags, createRecord, getRecord, LIMITS, workflowOf } from './service.js';
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
 
@@ -36,7 +36,14 @@ export interface ParsedMarkdown {
   tags: string[];
   body: string;
   meta: Record<string, unknown>;
-  warnings: string[];
+  warnings: ImportWarning[];
+}
+
+/** A note about an imported file: English text and a code the web UI translates (errors:codes.<code>). */
+export interface ImportWarning {
+  code: string;
+  params?: ErrorParams;
+  message: string;
 }
 
 function scalar(v: unknown): string | null {
@@ -51,19 +58,26 @@ function scalar(v: unknown): string | null {
 /** YAML frontmatter as a plain object: core schema, no custom tags, few aliases. */
 export function parseFrontmatter(src: string): Record<string, unknown> {
   if (Buffer.byteLength(src) > IMPORT_LIMITS.frontmatterBytes)
-    throw new HttpError(400, `The frontmatter is too large (at most ${IMPORT_LIMITS.frontmatterBytes / 1024} KiB)`);
+    throw new HttpError(400, `The frontmatter is too large (at most ${IMPORT_LIMITS.frontmatterBytes / 1024} KiB)`, 'IMPORT_FRONTMATTER_TOO_LARGE', {
+      maxKib: IMPORT_LIMITS.frontmatterBytes / 1024,
+    });
   const doc = YAML.parseDocument(src, { schema: 'core', uniqueKeys: true, merge: false, prettyErrors: false, strict: true, customTags: [] });
-  if (doc.errors.length) throw new HttpError(400, `Invalid YAML frontmatter: ${doc.errors[0]!.message.split('\n')[0]}`);
+  if (doc.errors.length) {
+    const detail = doc.errors[0]!.message.split('\n')[0]!;
+    throw new HttpError(400, `Invalid YAML frontmatter: ${detail}`, 'IMPORT_FRONTMATTER_INVALID', { detail });
+  }
   const tagWarning = doc.warnings.find((w) => w.code === 'TAG_RESOLVE_FAILED');
-  if (tagWarning) throw new HttpError(400, 'Invalid YAML frontmatter: custom tags (!tag) are not allowed');
+  if (tagWarning) throw new HttpError(400, 'Invalid YAML frontmatter: custom tags (!tag) are not allowed', 'IMPORT_FRONTMATTER_TAGS');
   let data: unknown;
   try {
     data = doc.toJS({ maxAliasCount: 20 });
   } catch (e) {
-    throw new HttpError(400, `Invalid YAML frontmatter: ${(e as Error).message.split('\n')[0]}`);
+    const detail = (e as Error).message.split('\n')[0]!;
+    throw new HttpError(400, `Invalid YAML frontmatter: ${detail}`, 'IMPORT_FRONTMATTER_INVALID', { detail });
   }
   if (data === null || data === undefined) return {};
-  if (typeof data !== 'object' || Array.isArray(data)) throw new HttpError(400, 'Invalid YAML frontmatter: expected key: value pairs');
+  if (typeof data !== 'object' || Array.isArray(data))
+    throw new HttpError(400, 'Invalid YAML frontmatter: expected key: value pairs', 'IMPORT_FRONTMATTER_NOT_MAP');
   return data as Record<string, unknown>;
 }
 
@@ -109,7 +123,7 @@ function stripComments(s: string): string {
 
 /** Reads a Markdown file into title, status, values and body (no database access). */
 export function parseRecordMarkdown(text: string): ParsedMarkdown {
-  const warnings: string[] = [];
+  const warnings: ImportWarning[] = [];
   const meta: Record<string, unknown> = {};
   let src = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   let fm: Record<string, unknown> = {};
@@ -120,7 +134,7 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
     hasFm = true;
     src = src.slice(m[0].length);
   } else if (/^---[ \t]*\n/.test(src) && !/\n(?:---|\.\.\.)[ \t]*(\n|$)/.test(src.slice(4))) {
-    throw new HttpError(400, 'The frontmatter is not closed (a line with --- is missing)');
+    throw new HttpError(400, 'The frontmatter is not closed (a line with --- is missing)', 'IMPORT_FRONTMATTER_OPEN');
   }
   const values: Record<string, string> = {};
   let title = scalar(fm.title);
@@ -158,7 +172,7 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
       continue;
     }
     const s = scalar(v);
-    if (s === null) warnings.push(`Frontmatter key "${k}" ignored (not a text value)`);
+    if (s === null) warnings.push({ code: 'IMPORT_KEY_IGNORED', params: { key: k }, message: `Frontmatter key "${k}" ignored (not a text value)` });
     else values[k] = s;
   }
 
@@ -240,10 +254,11 @@ const ALIASES: Record<string, string> = { date: 'decisionDate', decisionmakers: 
 export function mapFields(
   defs: RecordFieldDef[],
   values: Record<string, string>,
-): { fields: Record<string, string>; rest: Record<string, string>; warnings: string[] } {
+  typeKey?: string,
+): { fields: Record<string, string>; rest: Record<string, string>; warnings: ImportWarning[] } {
   const fields: Record<string, string> = {};
   const rest: Record<string, string> = {};
-  const warnings: string[] = [];
+  const warnings: ImportWarning[] = [];
   for (const [k, raw] of Object.entries(values)) {
     const n = norm(k);
     const def = defs.find((d) => norm(d.key) === n || norm(d.label) === n) ?? defs.find((d) => d.key === ALIASES[n]);
@@ -264,9 +279,13 @@ export function mapFields(
         .filter(Boolean)
         .join(' '); // = v.replace(/\s*\n\s*/g, ' ') for a trimmed v, without the backtracking
     try {
-      Object.assign(fields, cleanFields([def], { [def.key]: v }));
+      Object.assign(fields, cleanFields([def], { [def.key]: v }, { typeKey }));
     } catch (e) {
-      warnings.push(`${def.label}: ${(e as Error).message} – kept in the import notes`);
+      warnings.push({
+        code: 'IMPORT_FIELD_KEPT',
+        params: { field: fieldParam(typeKey, def), error: errorParam(e) },
+        message: `${def.label}: ${(e as Error).message} – kept in the import notes`,
+      });
       rest[k] = raw;
     }
   }
@@ -281,8 +300,8 @@ export interface ImportFile {
 function pickType(parsed: ParsedMarkdown, fallback: TypeRow | undefined): TypeRow {
   if (parsed.typeKey) {
     const t = typeRow(parsed.typeKey);
-    if (!t) throw new HttpError(400, `Unknown record type "${parsed.typeKey}" in the frontmatter`);
-    if (t.archived) throw new HttpError(400, `The record type ${t.key} is archived`);
+    if (!t) throw new HttpError(400, `Unknown record type "${parsed.typeKey}" in the frontmatter`, 'IMPORT_TYPE_UNKNOWN', { type: parsed.typeKey });
+    if (t.archived) throw new HttpError(400, `The record type ${t.key} is archived`, 'RECORD_TYPE_ARCHIVED', { type: t.key });
     return t;
   }
   if (fallback) return fallback;
@@ -290,32 +309,40 @@ function pickType(parsed: ParsedMarkdown, fallback: TypeRow | undefined): TypeRo
     const adr = typeRow('ADR');
     if (adr && !adr.archived) return adr;
   }
-  throw new HttpError(400, 'Choose a record type (the file does not name one)');
+  throw new HttpError(400, 'Choose a record type (the file does not name one)', 'IMPORT_TYPE_REQUIRED');
 }
 
 /** Preview (dryRun) or import of several Markdown files; each file succeeds or fails on its own. */
 export function importMarkdown(files: ImportFile[], o: { type?: string; dryRun?: boolean }): RecordImportItem[] {
   const u = me();
-  if (!canCreateRecords(u)) forbid('import records');
-  if (!files.length) throw new HttpError(400, 'No files');
-  if (files.length > IMPORT_LIMITS.files) throw new HttpError(400, `At most ${IMPORT_LIMITS.files} files at once`);
+  if (!canCreateRecords(u)) forbid('import records', 'importRecords');
+  if (!files.length) throw new HttpError(400, 'No files', 'NO_FILE');
+  if (files.length > IMPORT_LIMITS.files)
+    throw new HttpError(400, `At most ${IMPORT_LIMITS.files} files at once`, 'IMPORT_TOO_MANY_FILES', { max: IMPORT_LIMITS.files });
   const total = files.reduce((s, f) => s + Buffer.byteLength(f.content), 0);
-  if (total > IMPORT_LIMITS.totalBytes) throw new HttpError(413, `The files are too large together (at most ${IMPORT_LIMITS.totalBytes / 1024 / 1024} MB)`);
+  if (total > IMPORT_LIMITS.totalBytes)
+    throw new HttpError(413, `The files are too large together (at most ${IMPORT_LIMITS.totalBytes / 1024 / 1024} MB)`, 'IMPORT_TOO_LARGE', {
+      maxMb: IMPORT_LIMITS.totalBytes / 1024 / 1024,
+    });
   const fallback = o.type ? requireType(o.type) : undefined;
-  if (fallback?.archived) throw new HttpError(400, `The record type ${fallback.key} is archived`);
+  if (fallback?.archived) throw new HttpError(400, `The record type ${fallback.key} is archived`, 'RECORD_TYPE_ARCHIVED', { type: fallback.key });
   return files.map((f) => {
     const filename = path.basename(f.filename || 'record.md').slice(0, 200);
     try {
       if (!IMPORT_EXTENSIONS.includes(path.extname(filename).toLowerCase()))
-        throw new HttpError(415, `Only Markdown files (${IMPORT_EXTENSIONS.join(', ')}) can be imported`);
+        throw new HttpError(415, `Only Markdown files (${IMPORT_EXTENSIONS.join(', ')}) can be imported`, 'IMPORT_NOT_MARKDOWN', {
+          extensions: IMPORT_EXTENSIONS.join(', '),
+        });
       if (Buffer.byteLength(f.content) > IMPORT_LIMITS.fileBytes)
-        throw new HttpError(413, `The file is too large (at most ${IMPORT_LIMITS.fileBytes / 1024} KiB)`);
-      if (f.content.includes('\u0000')) throw new HttpError(400, 'This is not a text file');
+        throw new HttpError(413, `The file is too large (at most ${IMPORT_LIMITS.fileBytes / 1024} KiB)`, 'FILE_TOO_LARGE_KIB', {
+          maxKib: IMPORT_LIMITS.fileBytes / 1024,
+        });
+      if (f.content.includes('\u0000')) throw new HttpError(400, 'This is not a text file', 'NOT_TEXT_FILE');
       const parsed = parseRecordMarkdown(f.content);
       const t = pickType(parsed, fallback);
       const type = toType(t, 0);
       const wf = workflowOf(t);
-      const { fields, rest, warnings } = mapFields(type.fields, parsed.values);
+      const { fields, rest, warnings } = mapFields(type.fields, parsed.values, t.key);
       const title = (parsed.title || path.basename(filename, path.extname(filename)).replace(/[-_]+/g, ' ')).trim().slice(0, LIMITS.title);
       const rawStatus = parsed.status?.trim() ?? '';
       const normalized = rawStatus
@@ -342,8 +369,12 @@ export function importMarkdown(files: ImportFile[], o: { type?: string; dryRun?:
         format: parsed.format,
         fields,
         tags,
-        warnings: [...parsed.warnings, ...warnings, ...(Object.keys(rest).length ? [`Kept in the import notes: ${Object.keys(rest).join(', ')}`] : [])],
       };
+      const notes: ImportWarning[] = [...parsed.warnings, ...warnings];
+      if (Object.keys(rest).length)
+        notes.push({ code: 'IMPORT_KEPT_IN_NOTES', params: { keys: Object.keys(rest) }, message: `Kept in the import notes: ${Object.keys(rest).join(', ')}` });
+      item.warnings = notes.map((w) => w.message);
+      item.warningCodes = notes.map(({ code, params }) => ({ code, ...(params ? { params } : {}) }));
       if (!o.dryRun) {
         const rec = createRecord({ type: t.id, title, body: parsed.body, fields, tags, importMeta, lenientFields: true });
         item.record = { id: rec.id, number: rec.number };
@@ -352,7 +383,8 @@ export function importMarkdown(files: ImportFile[], o: { type?: string; dryRun?:
     } catch (e) {
       const status = (e as HttpError).statusCode;
       if (status === 403 || !status) throw e;
-      return { filename, ok: false, error: (e as Error).message };
+      const err = e as HttpError;
+      return { filename, ok: false, error: err.message, ...(err.code ? { errorCode: err.code } : {}), ...(err.params ? { errorParams: err.params } : {}) };
     }
   });
 }

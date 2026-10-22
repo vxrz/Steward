@@ -273,7 +273,7 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
 
 export function searchTargets(kind: LinkKind, q: string, limit = 20): LinkTarget[] {
   const r = RESOLVERS.get(kind);
-  if (!r) throw new HttpError(400, `Unknown link kind ${kind}`);
+  if (!r) throw new HttpError(400, `Unknown link kind ${kind}`, 'LINK_KIND_UNKNOWN', { kind });
   return r.search(q.slice(0, 100), Math.min(Math.max(limit, 1), 50));
 }
 
@@ -287,17 +287,17 @@ export function describeTarget(kind: string, id: string): string | null {
 /** Adds a link (the caller checked that the user may change the source). */
 export function addLink(from: LinkSource, fromId: string, input: LinkInput, entityLabel: string): ItemLink {
   const count = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM item_links WHERE from_kind = ? AND from_id = ?', from, fromId)!.n;
-  if (Number(count) >= MAX_LINKS_PER_ITEM) throw new HttpError(400, `At most ${MAX_LINKS_PER_ITEM} links per item`);
+  if (Number(count) >= MAX_LINKS_PER_ITEM) throw new HttpError(400, `At most ${MAX_LINKS_PER_ITEM} links per item`, 'LINK_LIMIT', { max: MAX_LINKS_PER_ITEM });
   const id = newId('lnk_');
   const now = nowIso();
   const actor = currentActor();
   if ('kind' in input) {
-    if (input.kind === from && input.id === fromId) throw new HttpError(400, 'An item cannot link to itself');
+    if (input.kind === from && input.id === fromId) throw new HttpError(400, 'An item cannot link to itself', 'LINK_SELF');
     // Only targets the user can see can be linked (no probing for ids of hidden items).
     const target = RESOLVERS.get(input.kind)?.resolve(input.id);
-    if (!target) throw new HttpError(404, `${input.kind} ${input.id} not found`);
+    if (!target) throw new HttpError(404, `${input.kind} ${input.id} not found`, 'LINK_TARGET_NOT_FOUND', { kind: input.kind, id: input.id });
     if (db().get('SELECT 1 FROM item_links WHERE from_kind = ? AND from_id = ? AND to_kind = ? AND to_id = ?', from, fromId, input.kind, input.id)) {
-      throw new HttpError(409, 'This link exists already');
+      throw new HttpError(409, 'This link exists already', 'LINK_EXISTS');
     }
     db().tx(() => {
       db().run(
@@ -347,7 +347,7 @@ export function addLink(from: LinkSource, fromId: string, input: LinkInput, enti
 
 export function removeLink(from: LinkSource, fromId: string, linkId: string, entityLabel: string): void {
   const r = db().get<LinkRow>('SELECT * FROM item_links WHERE id = ? AND from_kind = ? AND from_id = ?', linkId, from, fromId);
-  if (!r) throw new HttpError(404, 'Link not found');
+  if (!r) throw new HttpError(404, 'Link not found', 'LINK_NOT_FOUND');
   db().tx(() => {
     db().run('DELETE FROM item_links WHERE id = ?', linkId);
     audit({

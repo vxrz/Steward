@@ -128,6 +128,16 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Command-line tools follow clig.dev conventions (`--help`, exit codes, `--json`, `NO_COLOR`).
 - ESLint, Prettier and EditorConfig for the whole repository (`npm run lint`, `npm run format:check`, checked in CI), with pre-commit hooks for staged files, a gitleaks scan and a Conventional Commits check of the message ([CONTRIBUTING.md](CONTRIBUTING.md#pre-commit-hooks)).
 
+### Fixed
+
+- **German UI** – everything is translated now, also on the _Dokumente_ pages:
+  - server errors of records, services, credentials, reports, report schedules, Gatus, MCP, monitors and gateways (about 240 messages) carry a `code` and `params`; the UI shows them in its language, with the details filled in, numbers formatted and lists joined in the UI language. Zod validation errors are shown inside a translated sentence;
+  - the four-eyes and other reasons why a record action is not possible (`reasonCode`), the errors and notes of the Markdown import (`errorCode`, `warningCodes`) and why a task cannot be decided (`cannotDecideCode`);
+  - the built-in record types: description, Markdown template, field labels and help, select options (_niedrig/mittel/hoch_) in the web UI, the record PDF and the records section of scheduled reports – as long as an administrator has not changed them. New records start with the template in the UI language (API/MCP: in the creator's profile language);
+  - a few hard-coded English texts (task panel, report language names, close buttons of dialogs, the default name of a new sign-in provider) and German texts that were still English (_Protokoll_, _Audit-Log_, _Anfrageinhalt_, …); dates and numbers in the theme settings follow the UI language;
+  - the PDF of a record is generated in the requester's profile language when the request names none (was English).
+- New checks: `npm run i18n:literals` finds texts in the web UI that do not go through `t()`; `npm run i18n:check` also reports texts that are still English (allow-list `scripts/i18n-allow.json`); both run in CI. A server test makes sure every error code has a text, and a UI test visits the main pages in German. See [docs/I18N.md](docs/I18N.md).
+
 ### Security
 
 - Credentials register: no field holds a secret; free text, links and comments are checked for private keys, JWTs, well-known token formats, passwords in URLs and random-looking tokens and refused (the value is never echoed); only `http(s)` links are clickable (`javascript:`/`data:` refused); uploaded certificates are parsed and only their metadata is stored, files with a private key (PEM, DER, PKCS#12) are rejected; CSV exports are protected against formula injection.

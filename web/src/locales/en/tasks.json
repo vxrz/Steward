@@ -43,5 +43,6 @@
     "quoted": "“{{text}}”",
     "cancelled": "Cancelled",
     "selectItem": "Select {{name}}"
-  }
+  },
+  "panelLabel": "Task: {{title}}"
 }

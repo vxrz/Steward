@@ -294,6 +294,32 @@ describe('workflow: change requests', () => {
     expect((await adam('POST', `/records/${rec.id}/transition`, { action: 'approve' })).status).toBe('approved');
   });
 
+  it('errors carry a code and the details for the translated text', async () => {
+    const body = (p: Promise<unknown>) => errorOf(p).then((e) => JSON.parse(e.text.slice(e.text.indexOf('{'))));
+    expect(await body(s.api('GET', '/records/CR-1999-0001'))).toMatchObject({ code: 'RECORD_NOT_FOUND', params: { id: 'CR-1999-0001' } });
+    const rec = await newCr(dana, 'Incomplete', { reason: 'x', risk: 'low' });
+    const e = await body(dana('POST', `/records/${rec.id}/transition`, { action: 'submit' }));
+    expect(e.code).toBe('RECORD_INCOMPLETE');
+    // the missing fields as values the UI translates (labels of built-in types)
+    expect(e.params.fields).toEqual([
+      { message: 'Rollback plan', code: 'RECORD_FIELD', params: { type: 'CR', field: 'rollbackPlan', label: 'Rollback plan' } },
+    ]);
+    expect(e.error).toContain('Rollback plan');
+  });
+
+  it("a record created without a body starts with the template in the creator's language", async () => {
+    await olivia('PATCH', '/me', { locale: 'de' });
+    try {
+      const de = await olivia('POST', '/records', { type: 'CR', title: 'Vorlage auf Deutsch' });
+      expect(de.body).toContain('## Umsetzungsplan');
+      // what the client sends is kept as it is
+      expect((await olivia('POST', '/records', { type: 'CR', title: 'Eigener Text', body: '## Plan\n' })).body).toBe('## Plan\n');
+    } finally {
+      await olivia('PATCH', '/me', { locale: null });
+    }
+    expect((await olivia('POST', '/records', { type: 'CR', title: 'English template' })).body).toContain('## Implementation plan');
+  });
+
   it('four-eyes also covers the owner and authors of the revision', async () => {
     // an administrator who wrote the record cannot approve it
     const own = await s.api('POST', '/records', { type: 'CR', title: 'Admin change', fields: CR_FIELDS });
@@ -305,8 +331,13 @@ describe('workflow: change requests', () => {
     const rec = await newCr(dana, 'Edited by admin');
     await s.api('PUT', `/records/${rec.id}`, { body: 'admin edit' });
     await dana('POST', `/records/${rec.id}/transition`, { action: 'submit' });
-    expect((await s.api('GET', `/records/${rec.id}`)).actions.find((a: any) => a.action === 'approve').reason).toMatch(/author of the content/);
-    expect(await status(s.api('POST', `/records/${rec.id}/transition`, { action: 'approve' }))).toBe(403);
+    const approve = (await s.api('GET', `/records/${rec.id}`)).actions.find((a: any) => a.action === 'approve');
+    expect(approve.reason).toMatch(/author of the content/);
+    // … with a code the web UI translates (errors:codes.FOUR_EYES_CONTENT_AUTHOR)
+    expect(approve.reasonCode).toBe('FOUR_EYES_CONTENT_AUTHOR');
+    const refused = await errorOf(s.api('POST', `/records/${rec.id}/transition`, { action: 'approve' }));
+    expect(refused.status).toBe(403);
+    expect(JSON.parse(refused.text.slice(refused.text.indexOf('{')))).toMatchObject({ code: 'FOUR_EYES_CONTENT_AUTHOR' });
     // an administrator who did not write it may
     const other = await newCr(dana, 'Approved by admin');
     await dana('POST', `/records/${other.id}/transition`, { action: 'submit' });
@@ -696,6 +727,10 @@ describe('PDF', () => {
       'Erika Mustermann',
       'Freigegeben',
       '<script>alert(1)</script>',
+      // the built-in type, its field labels and select values in the PDF's language
+      'Änderungsantrag',
+      'RÜCKFALLPLAN', // labels are set in capitals
+      'niedrig',
     ]) {
       expect(text, fact).toContain(fact);
     }
@@ -950,5 +985,38 @@ describe('web texts', () => {
     for (const a of RECORD_ACTIONS) expect(en.actions[a], a).toBeTypeOf('string');
     for (const k of LINK_KINDS) expect(en.links.kinds[k], k).toBeTypeOf('string');
     for (const t of DEFAULT_RECORD_TYPES) expect(en.builtinTypes[t.key], t.key).toBe(t.name);
+  });
+
+  it('the English texts of the built-in types mirror DEFAULT_RECORD_TYPES (description, template, fields, options)', () => {
+    const en = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../web/src/locales/en/records.json'), 'utf8'));
+    // the server catalog has the templates too (records created through the API or MCP), in sync with the web texts
+    for (const lang of ['en', 'de']) {
+      const server = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../src/i18n/locales/${lang}.json`), 'utf8'));
+      const web = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../../web/src/locales/${lang}/records.json`), 'utf8'));
+      for (const t of DEFAULT_RECORD_TYPES) expect(server.recordTemplates[t.key], `${lang} ${t.key}`).toBe(web.builtin.types[t.key].template);
+    }
+    for (const t of DEFAULT_RECORD_TYPES) {
+      expect(en.builtin.types[t.key]?.description, `${t.key} description`).toBe(t.description);
+      expect(en.builtin.types[t.key]?.template, `${t.key} template`).toBe(t.template);
+      for (const f of t.fields) {
+        expect(en.builtin.fields[f.key]?.label, `${t.key}.${f.key} label`).toBe(f.label);
+        if (f.help) expect(en.builtin.fields[f.key]?.help, `${t.key}.${f.key} help`).toBe(f.help);
+        for (const o of f.options ?? []) expect(en.builtin.options[f.key]?.[o], `${t.key}.${f.key} option ${o}`).toBe(o);
+      }
+    }
+  });
+
+  it('the record PDF translates the built-in names, labels and options like the web UI', async () => {
+    const { BUILTIN_TEXTS } = await import('../src/records/pdf-i18n.js');
+    for (const [lang, texts] of Object.entries(BUILTIN_TEXTS)) {
+      const web = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../../web/src/locales/${lang}/records.json`), 'utf8'));
+      for (const t of DEFAULT_RECORD_TYPES) {
+        expect(texts!.types[t.key], `${lang} ${t.key}`).toBe(web.builtinTypes[t.key]);
+        for (const f of t.fields) {
+          expect(texts!.fields[f.key], `${lang} ${t.key}.${f.key}`).toBe(web.builtin.fields[f.key].label);
+          for (const o of f.options ?? []) expect(texts!.options[f.key]?.[o], `${lang} ${f.key}.${o}`).toBe(web.builtin.options[f.key][o]);
+        }
+      }
+    }
   });
 });

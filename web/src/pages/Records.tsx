@@ -10,7 +10,8 @@ import { get, notifyError, post } from '../api';
 import { PageHeader } from '../components/common';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/records/common';
 import { fmtDate, fmtRelative } from '../format';
-import { errorText } from '../i18n/errors';
+import { codeText, errorText } from '../i18n/errors';
+import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
 
 export function RecordsPage() {
   const { t } = useTranslation(['records', 'common']);
@@ -225,7 +226,9 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
     if (!type || !title.trim()) return;
     setBusy(true);
     try {
-      const r = await post<RecordDetail>('/records', { type, title: title.trim() });
+      // a built-in type starts with its template in the UI language (the server would use the stored, English one)
+      const body = selected && typeTemplate(selected) !== selected.template ? typeTemplate(selected) : undefined;
+      const r = await post<RecordDetail>('/records', { type, title: title.trim(), ...(body !== undefined ? { body } : {}) });
       qc.invalidateQueries({ queryKey: ['records'] });
       onCreated(r);
     } catch (e) {
@@ -252,7 +255,7 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
           />
           {selected?.description && (
             <Text size="xs" c="dimmed">
-              {selected.description}
+              {typeDescription(selected)}
             </Text>
           )}
           <TextInput label={t('create.recordTitle')} value={title} onChange={(e) => setTitle(e.currentTarget.value)} required maxLength={300} />
@@ -268,6 +271,12 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
       </form>
     </Modal>
   );
+}
+
+/** The fields an import fills in, by their label in the UI language. */
+function importedFields(it: RecordImportItem): string {
+  const keys = Object.keys(it.fields ?? {});
+  return keys.map((k) => (it.typeKey ? fieldLabelByKey(it.typeKey, k) : k)).join(', ');
 }
 
 interface Picked {
@@ -425,7 +434,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                         </>
                       ) : (
                         <Text size="sm" c="red">
-                          {it.error}
+                          {codeText(it.errorCode, it.errorParams, it.error) ?? it.error}
                         </Text>
                       )}
                     </Table.Td>
@@ -436,12 +445,12 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                           {it.originalStatus && <Text size="xs">{t('importer.originalStatus', { status: it.originalStatus })}</Text>}
                           {Object.keys(it.fields ?? {}).length > 0 && (
                             <Text size="xs" c="dimmed">
-                              {t('importer.fieldsLine', { fields: Object.keys(it.fields ?? {}).join(', ') })}
+                              {t('importer.fieldsLine', { fields: importedFields(it) })}
                             </Text>
                           )}
-                          {(it.warnings ?? []).map((w) => (
-                            <Text key={w} size="xs" c="orange">
-                              {w}
+                          {(it.warnings ?? []).map((w, i) => (
+                            <Text key={i} size="xs" c="orange">
+                              {codeText(it.warningCodes?.[i]?.code, it.warningCodes?.[i]?.params, w) ?? w}
                             </Text>
                           ))}
                         </Stack>

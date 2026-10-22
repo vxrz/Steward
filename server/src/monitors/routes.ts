@@ -122,8 +122,11 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   );
   app.post('/monitors/:id/run', async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'acknowledge', 'run the checks of this monitor');
-    if (!vault().unlocked) throw new HttpError(423, 'The vault is locked');
-    if (!engine.loadedMonitor(r.id)) throw new HttpError(409, r.is_template ? 'Templates are not evaluated' : 'The monitor is not loaded');
+    if (!vault().unlocked) throw new HttpError(423, 'The vault is locked', 'VAULT_LOCKED');
+    if (!engine.loadedMonitor(r.id))
+      throw new HttpError(409, r.is_template ? 'Templates are not evaluated' : 'The monitor is not loaded', 'MONITOR_NOT_LOADED', {
+        context: r.is_template ? 'template' : '',
+      });
     await engine.evaluateMonitorNow(r.id);
     return svc.getMonitor(r.id);
   });
@@ -133,7 +136,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   app.post('/monitors/:id/checks/:checkId/test-report', async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'edit');
     const row = db().get<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', r.id, params(req).checkId);
-    if (!row?.hook_id || !row.secret_enc) throw new HttpError(404, 'This check has no heartbeat endpoint');
+    if (!row?.hook_id || !row.secret_enc) throw new HttpError(404, 'This check has no heartbeat endpoint', 'NO_HEARTBEAT');
     const report = z
       .object({ status: z.union([z.string(), z.boolean()]).optional(), value: z.unknown().optional(), data: z.unknown().optional() })
       .parse(req.body ?? {});

@@ -10,9 +10,11 @@ const HELP = `Usage: npm run i18n:check -- [options]
 Compares every language with English (the source of truth):
   web/src/locales/<lang>/<namespace>.json   (web UI)
   server/src/i18n/locales/<lang>.json       (notifications, e-mails)
-and reports missing keys, extra keys, empty texts, and {{placeholders}} or
-<tags> that differ from English. Plural keys (_one, _other, …) are checked
-against the plural forms the language needs.
+and reports missing keys, extra keys, empty texts, {{placeholders}} or
+<tags> that differ from English, and texts that are still the English ones
+(allowed where a word is the same in both languages: scripts/i18n-allow.json,
+"sameAsEnglish"). Plural keys (_one, _other, …) are checked against the
+plural forms the language needs.
 
 Options:
   --json         Print the result as JSON on stdout
@@ -79,8 +81,25 @@ function pluralForms(lang) {
   }
 }
 
+/** Texts a language may share with English (scripts/i18n-allow.json → sameAsEnglish.<lang>). */
+function loadSameAsEnglish(root) {
+  const file = path.join(root, 'scripts/i18n-allow.json');
+  if (!fs.existsSync(file)) return {};
+  return JSON.parse(fs.readFileSync(file, 'utf8')).sameAsEnglish ?? {};
+}
+
+/** Words to translate in a text: placeholders, tags, URLs, code and ACRONYMS do not count. */
+function hasWords(s) {
+  const rest = String(s)
+    .replace(/\{\{[^}]*\}\}/g, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/`[^`]*`/g, ' ');
+  return (rest.match(/[\p{L}][\p{L}'’-]*/gu) ?? []).some((w) => w.length >= 2 && !/^[\p{Lu}\d-]+s?$/u.test(w));
+}
+
 /** Compare one file (flat) with its English counterpart (flat). */
-function compare(lang, file, en, tr, problems) {
+function compare(lang, file, en, tr, problems, sameOk = new Set()) {
   const add = (type, key, detail) => problems.push({ lang, file, type, key, ...(detail ? { detail } : {}) });
   const enPlural = pluralGroups(en);
   const trPlural = pluralGroups(tr);
@@ -118,6 +137,8 @@ function compare(lang, file, en, tr, problems) {
     }
     if (!value.trim()) add('empty', key);
     const m = PLURAL_SUFFIX.exec(key);
+    if (lang !== 'en' && en[key] === value && hasWords(value) && !sameOk.has(value))
+      add('untranslated', key, `same as English: ${JSON.stringify(value.slice(0, 80))}`);
     const base = m ? key.slice(0, -m[0].length) : null;
     const source =
       key in en ? en[key] : base && enPlural.has(base) ? (en[`${base}_other`] ?? Object.values(enPlural.get(base)).map((k) => en[k])[0]) : undefined;
@@ -164,6 +185,7 @@ export function check(root) {
   if (!fs.existsSync(path.join(webDir, 'en')))
     throw new UsageError(`No English locale folder at ${path.relative(process.cwd(), path.join(webDir, 'en')) || webDir}`);
   const rel = (p) => path.relative(root, p).split(path.sep).join('/');
+  const sameAsEnglish = loadSameAsEnglish(root);
 
   const langs = fs
     .readdirSync(webDir, { withFileTypes: true })
@@ -210,7 +232,7 @@ export function check(root) {
       if (!data || !enFlat[f]) continue;
       const flat = flatten(data);
       keys += Object.keys(flat).length;
-      compare(lang, rel(p), enFlat[f], flat, problems);
+      compare(lang, rel(p), enFlat[f], flat, problems, new Set(sameAsEnglish[lang] ?? []));
     }
     for (const f of files)
       if (!enFiles.includes(f)) problems.push({ lang, file: rel(path.join(webDir, lang, f)), type: 'extra', key: '', detail: 'namespace has no English file' });
@@ -225,7 +247,7 @@ export function check(root) {
       const lang = f.slice(0, -5);
       const p = path.join(serverDir, f);
       const data = readJson(p, problems, lang, rel(p));
-      if (en && data) compare(lang, rel(p), flatten(en), flatten(data), problems);
+      if (en && data) compare(lang, rel(p), flatten(en), flatten(data), problems, new Set(sameAsEnglish[lang] ?? []));
       if (declared && !declared.includes(lang))
         problems.push({ lang, file: rel(p), type: 'extra', key: '', detail: `language "${lang}" is not declared in shared/src/locales.ts` });
     }
