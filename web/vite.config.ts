@@ -51,5 +51,13 @@ export default defineConfig({
     proxy: { '/api': target, '/mock': target },
     fs: { allow: ['..'] },
   },
-  build: { outDir: 'dist', chunkSizeWarningLimit: 2000 },
+  build: {
+    outDir: 'dist',
+    chunkSizeWarningLimit: 2000,
+    rollupOptions: {
+      // The shared sources have no import-time side effects (constants, types, zod schemas), so a page
+      // that only needs e.g. ROLES from the @sm/shared barrel does not pull in zod and dagre (~30 kB gzip).
+      treeshake: { moduleSideEffects: (id) => !/[\\/]shared[\\/]src[\\/]/.test(id) },
+    },
+  },
 });
