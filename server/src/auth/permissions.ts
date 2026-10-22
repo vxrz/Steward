@@ -90,11 +90,11 @@ export function capabilities(u: AuthUser | null): Capabilities {
 }
 
 export function requireCapability(u: AuthUser | null, cap: keyof Capabilities, what: string): void {
-  if (!capabilities(u)[cap]) throw new HttpError(403, `You are not allowed to ${what}`);
+  if (!capabilities(u)[cap]) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN');
 }
 
 export function require<P extends string>(perms: P[], needed: P, what: string): void {
-  if (!perms.includes(needed)) throw new HttpError(403, `You are not allowed to ${what}`);
+  if (!perms.includes(needed)) throw new HttpError(403, `You are not allowed to ${what}`, 'FORBIDDEN');
 }
 
 export function cleanAcl<P extends string>(acl: unknown, allowed: readonly P[]): AclEntry<P>[] {

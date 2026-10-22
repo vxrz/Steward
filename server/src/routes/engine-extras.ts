@@ -40,7 +40,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   app.get('/metrics', async (_req, reply) => {
     if (process.env.SM_METRICS_PUBLIC !== '1') {
       const u = currentUser();
-      if (!u) throw new HttpError(401, 'Please sign in');
+      if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
       if (!u.roles.includes('admin') && !u.roles.includes('auditor')) throw new HttpError(403, 'Metrics are available to administrators and auditors');
     }
     const m = await metricsText();

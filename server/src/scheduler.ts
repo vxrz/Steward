@@ -10,7 +10,7 @@ import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
 import { logger } from './log.js';
-import { emit } from './events.js';
+import { emit, type ScheduleSkipReason } from './events.js';
 
 interface ScheduleRow {
   id: string;
@@ -187,26 +187,39 @@ export async function fire(id: string, manual = false): Promise<string | null> {
         entityId: id,
         summary: `Schedule "${r.name}" skipped: previous run ${r.last_run_id} is still ${last.status}`,
       });
-      emit('schedule.skipped', { scheduleId: id, name: r.name, owner: r.owner, reason: `previous run ${r.last_run_id} is still ${last.status}` });
+      emit('schedule.skipped', {
+        scheduleId: id,
+        name: r.name,
+        owner: r.owner,
+        reason: `previous run ${r.last_run_id} is still ${last.status}`,
+        reasonCode: 'overlap',
+        reasonVars: { runId: r.last_run_id, status: last.status },
+      });
       return null;
     }
   }
   // Scheduled runs execute with the rights of the schedule owner.
   const owner = r.owner ? findUserByName(r.owner) : undefined;
   const runner = manual ? currentUser() : owner && owner.active ? toAuthUser(owner) : null;
-  const problem = !runner
-    ? `owner ${r.owner ?? '(none)'} is missing or disabled`
-    : runAs(runner, () => {
-        if (!permissionsFor(r.process_id).includes('run')) return `${runner.username} may not run this process`;
+  // `text` is English (log and audit); code + vars let notifications say the same in the recipient's language.
+  type Problem = { text: string; code: ScheduleSkipReason; vars: Record<string, string> };
+  const problem: Problem | null = !runner
+    ? { text: `owner ${r.owner ?? '(none)'} is missing or disabled`, code: 'ownerMissing', vars: { owner: r.owner ?? '–' } }
+    : runAs(runner, (): Problem | null => {
+        if (!permissionsFor(r.process_id).includes('run')) {
+          return { text: `${runner.username} may not run this process`, code: 'mayNotRun', vars: { user: runner.username } };
+        }
         for (const pid of Object.values(parseJson<Record<string, string>>(r.bindings, {}))) {
-          if (!getPlatform(pid).permissions.includes('use')) return `${runner.username} may not use platform ${pid}`;
+          if (!getPlatform(pid).permissions.includes('use')) {
+            return { text: `${runner.username} may not use platform ${pid}`, code: 'mayNotUsePlatform', vars: { user: runner.username, platform: pid } };
+          }
         }
         return null;
       });
   if (problem) {
-    logger.warn({ scheduleId: id, reason: problem }, 'schedule skipped');
-    audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem}` });
-    emit('schedule.skipped', { scheduleId: id, name: r.name, owner: r.owner, reason: problem });
+    logger.warn({ scheduleId: id, reason: problem.text }, 'schedule skipped');
+    audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem.text}` });
+    emit('schedule.skipped', { scheduleId: id, name: r.name, owner: r.owner, reason: problem.text, reasonCode: problem.code, reasonVars: problem.vars });
     return null;
   }
   try {

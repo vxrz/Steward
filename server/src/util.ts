@@ -87,6 +87,8 @@ export class HttpError extends Error {
   constructor(
     public statusCode: number,
     message: string,
+    /** Stable machine-readable code (e.g. WRONG_CREDENTIALS). The web UI shows a translated text for known codes; the message stays English for logs and audit. */
+    public code?: string,
   ) {
     super(message);
   }

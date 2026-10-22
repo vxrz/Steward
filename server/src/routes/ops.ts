@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { NOTIFICATION_EVENTS, type NotificationSettingsInput } from '@sm/shared';
+import { LOCALE_CODES, NOTIFICATION_EVENTS, type NotificationSettingsInput } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
@@ -13,7 +13,7 @@ import { maintenanceStatus, runCleanup } from '../maintenance.js';
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 const admin = (what: string): AuthUser => {
@@ -62,7 +62,13 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   // ---------- own profile ----------
   app.patch('/me', async (req) => {
     const b = z
-      .object({ displayName: z.string().max(100).optional(), email: z.string().max(254).optional(), emailNotifications: z.boolean().optional() })
+      .object({
+        displayName: z.string().max(100).optional(),
+        email: z.string().max(254).optional(),
+        emailNotifications: z.boolean().optional(),
+        /** null = back to the default (browser language / Settings.defaultLocale) */
+        locale: z.enum(LOCALE_CODES).nullable().optional(),
+      })
       .parse(req.body ?? {});
     return updateProfile(me().id, b);
   });

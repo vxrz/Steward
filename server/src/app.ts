@@ -130,7 +130,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof HttpError) {
-      return reply.code(err.statusCode).send({ error: err.message, issues: (err as HttpError & { issues?: unknown }).issues });
+      return reply.code(err.statusCode).send({ error: err.message, code: err.code, issues: (err as HttpError & { issues?: unknown }).issues });
     }
     if (err instanceof ZodError) {
       return reply.code(400).send({ error: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') });

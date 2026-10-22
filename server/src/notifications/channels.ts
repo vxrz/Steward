@@ -1,14 +1,18 @@
 import nodemailer from 'nodemailer';
 import { EnvHttpProxyAgent, fetch } from 'undici';
-import type { NotificationSettings } from '@sm/shared';
+import type { Locale, NotificationSettings } from '@sm/shared';
 import type { ChannelSecrets } from './settings.js';
 import { BRAND } from '@sm/shared';
+import { t } from '../i18n/index.js';
 
 /** What every external channel receives. `link` is absolute. */
 export interface OutgoingMessage {
   event: string;
+  /** Already in `locale` */
   title: string;
   body: string;
+  /** Language of title/body; used for the fixed texts around them (button, link) */
+  locale: Locale;
   link: string;
   ts: string;
   data?: Record<string, unknown>;
@@ -31,7 +35,7 @@ async function postJson(url: string, payload: unknown): Promise<void> {
 }
 
 export async function sendWebhook(url: string, m: OutgoingMessage): Promise<void> {
-  await postJson(url, { event: m.event, title: m.title, body: m.body, link: m.link, ts: m.ts, data: m.data ?? {} });
+  await postJson(url, { event: m.event, title: m.title, body: m.body, locale: m.locale, link: m.link, ts: m.ts, data: m.data ?? {} });
 }
 
 /** Adaptive Card message – accepted by Teams Workflows ("post to a channel") and classic incoming webhooks. */
@@ -51,7 +55,7 @@ export function teamsCard(m: OutgoingMessage): unknown {
             ...(m.body ? [{ type: 'TextBlock', text: m.body, wrap: true }] : []),
             { type: 'TextBlock', text: `${BRAND.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
           ],
-          actions: [{ type: 'Action.OpenUrl', title: `Open in ${BRAND.name}`, url: m.link }],
+          actions: [{ type: 'Action.OpenUrl', title: t(m.locale, 'common.openIn', { brand: BRAND.name }), url: m.link }],
         },
       },
     ],
@@ -80,7 +84,7 @@ export async function sendEmail(cfg: NotificationSettings['email'], secrets: Cha
       to,
       subject: `[${BRAND.name}] ${m.title}`,
       text: `${m.title}\n\n${m.body}\n\n${m.link}\n`,
-      html: `<p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">Open in ${BRAND.name}</a></p>`,
+      html: `<div lang="${m.locale}"><p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">${esc(t(m.locale, 'common.openIn', { brand: BRAND.name }))}</a></p></div>`,
     });
   } finally {
     transport.close();

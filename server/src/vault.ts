@@ -54,7 +54,7 @@ export class Vault {
     try {
       if (decryptWith(key, vf.check) !== CHECK_TEXT) throw new Error();
     } catch {
-      throw new HttpError(401, 'Wrong passphrase');
+      throw new HttpError(401, 'Wrong passphrase', 'WRONG_PASSPHRASE');
     }
     this.key = key;
   }
@@ -64,7 +64,7 @@ export class Vault {
   }
 
   private requireKey(): Buffer {
-    if (!this.key) throw new HttpError(423, 'Vault is locked');
+    if (!this.key) throw new HttpError(423, 'Vault is locked', 'VAULT_LOCKED');
     return this.key;
   }
 

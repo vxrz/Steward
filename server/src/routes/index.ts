@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
+  LOCALE_CODES,
   ROLES,
   validateProcess,
   type AuthStatus,
@@ -72,7 +73,7 @@ const platformBody = z.object({
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -341,6 +342,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+        defaultLocale: z.enum(LOCALE_CODES).optional(),
       })
       .parse(req.body);
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
