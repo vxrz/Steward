@@ -133,7 +133,7 @@ steps:
       - { label: Uptime (%), value: uptime }
       - { label: Avg response (ms), value: avgMs }
       - { label: Last response (ms), value: lastMs }
-      - { label: Last check, value: "$exists(lastCheck) and lastCheck != null ? $substring(lastCheck, 0, 16) : '–'" }
+      - { label: Last check (UTC), value: "$exists(lastCheck) and lastCheck != null ? $replace($substring(lastCheck, 0, 16), 'T', ' ') : '–'" }
       - { label: Last error, value: error }
     status: "healthy = false ? 'critical' : (healthy = null ? 'unknown' : ((uptime != null and uptime < $inputs.minUptimePercent) or (avgMs != null and avgMs > $inputs.maxResponseMs) ? 'warning' : 'good'))"
     statusText: "healthy = false ? (error ? error : 'down') : (uptime != null and uptime < $inputs.minUptimePercent ? 'uptime ' & uptime & ' %' : (avgMs != null and avgMs > $inputs.maxResponseMs ? avgMs & ' ms average' : 'up'))"

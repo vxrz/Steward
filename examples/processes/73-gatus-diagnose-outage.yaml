@@ -144,7 +144,7 @@ steps:
           **Probe now:** {{ $exists(vars.probe.status) ? 'HTTP ' & vars.probe.status & ' in ' & vars.probe.durationMs & ' ms' & ($type(vars.probe.body) = 'object' ? ' – ' & $substring($string(vars.probe.body), 0, 300) : '') : ($exists(vars.probe.error) ? vars.probe.error : 'not probed') }}
         rows: "[$reverse(vars.results)]"
         columns:
-          - { label: Time, value: "$substring(timestamp, 0, 19)" }
+          - { label: Time (UTC), value: "$replace($substring(timestamp, 0, 19), 'T', ' ')" }
           - { label: Success, value: "success ? 'yes' : 'NO'" }
           - { label: HTTP, value: "$exists(status) ? status : '–'" }
           - { label: Duration (ms), value: "$round(duration / 1000000)" }
