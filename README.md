@@ -391,6 +391,10 @@ Contract checks against a sandbox tenant (for CI): `STEWARD_TOKEN=smt_… npm ru
 
 The command-line tools (`npm run validate`, `npm run contract`, the desktop executable, `npm run build:exe`) all take `--help`, exit with `0` (ok), `1` (failure or findings) or `2` (usage error), and `validate`/`contract` print machine-readable results with `--json` (use `npm run --silent …` to keep npm's own header out of the output).
 
+## Contributing
+
+Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions (Conventional Commits, squash merges) and checks. Changes are listed in [CHANGELOG.md](CHANGELOG.md). Security issues: [SECURITY.md](SECURITY.md).
+
 ## License
 
 Copyright 2026 uebelacker.io. Licensed under the [Apache License, Version 2.0](LICENSE). See [NOTICE](NOTICE).
