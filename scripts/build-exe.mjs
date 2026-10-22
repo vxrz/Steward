@@ -1,0 +1,89 @@
+// Builds a single-file executable (Node.js "single executable application"):
+// the server bundle, the built web UI and the example library are embedded
+// into a copy of the node binary. Run on each target OS (see release workflow).
+//
+//   npm run build && npm run build:exe   →   dist-exe/<name>[.exe]
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const out = path.join(root, 'dist-exe');
+const work = path.join(out, 'work');
+const brandSrc = fs.readFileSync(path.join(root, 'shared/src/brand.ts'), 'utf8');
+const slug = /slug:\s*'([^']+)'/.exec(brandSrc)[1];
+const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+const isWin = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
+const exe = path.join(out, `${slug}${isWin ? '.exe' : ''}`);
+
+const webDist = path.join(root, 'web', 'dist');
+if (!fs.existsSync(path.join(webDist, 'index.html'))) {
+  console.error('web/dist is missing – run "npm run build" first.');
+  process.exit(1);
+}
+
+fs.rmSync(out, { recursive: true, force: true });
+fs.mkdirSync(work, { recursive: true });
+
+// 1. Bundle the server into one CommonJS file (SEA runs CommonJS).
+await build({
+  entryPoints: [path.join(root, 'server/src/desktop/launcher.ts')],
+  outfile: path.join(work, 'app.cjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node22',
+  minify: false,
+  sourcemap: false,
+  legalComments: 'none',
+  // Browser automation needs a separate Playwright installation; not embedded.
+  external: ['playwright', 'playwright-core', 'chromium-bidi', 'electron'],
+  define: { 'import.meta.url': '__sm_import_meta_url', 'import.meta.dirname': '__dirname' },
+  banner: { js: 'const __sm_import_meta_url = require("node:url").pathToFileURL(__filename).href;' },
+  logLevel: 'warning',
+});
+
+// 2. Assets: web UI + example library, one asset per file plus a manifest.
+const assets = {};
+function addDir(dir, prefix) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    const key = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) addDir(full, key);
+    else assets[key] = full;
+  }
+}
+addDir(webDist, 'web');
+addDir(path.join(root, 'examples'), 'examples');
+const manifestFile = path.join(work, 'manifest.json');
+fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets) }));
+assets['manifest.json'] = manifestFile;
+
+const seaConfig = path.join(work, 'sea-config.json');
+fs.writeFileSync(
+  seaConfig,
+  JSON.stringify(
+    { main: path.join(work, 'app.cjs'), output: path.join(work, 'sea-prep.blob'), disableExperimentalSEAWarning: true, useCodeCache: false, useSnapshot: false, assets },
+    null,
+    2,
+  ),
+);
+execFileSync(process.execPath, ['--experimental-sea-config', seaConfig], { stdio: 'inherit' });
+
+// 3. Copy the node binary and inject the blob.
+fs.copyFileSync(process.execPath, exe);
+if (isMac) execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' });
+const postject = path.join(root, 'node_modules', 'postject', 'dist', 'cli.js');
+execFileSync(
+  process.execPath,
+  [postject, exe, 'NODE_SEA_BLOB', path.join(work, 'sea-prep.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(isMac ? ['--macho-segment-name', 'NODE_SEA'] : [])],
+  { stdio: 'inherit' },
+);
+if (isMac) execFileSync('codesign', ['--sign', '-', exe], { stdio: 'inherit' });
+fs.rmSync(work, { recursive: true, force: true });
+
+const mb = (fs.statSync(exe).size / 1024 / 1024).toFixed(0);
+console.log(`\nBuilt ${path.relative(root, exe)} (${mb} MB, ${Object.keys(assets).length} embedded files)`);

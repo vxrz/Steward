@@ -4,3 +4,4 @@ data/
 *.log
 .env
 test-results/
+dist-exe/

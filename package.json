@@ -20,7 +20,9 @@
     "test": "npm run test -w server",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p web",
     "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs",
-    "validate": "tsx server/src/cli/validate.ts"
+    "validate": "tsx server/src/cli/validate.ts",
+    "build:exe": "node scripts/build-exe.mjs",
+    "desktop": "tsx server/src/desktop/launcher.ts"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

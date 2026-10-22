@@ -2,7 +2,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
+// In the single-file executable import.meta is not available; paths then come from SM_* variables.
+const here = typeof import.meta.url === 'string' ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
 export const ROOT_DIR = path.resolve(here, '..', '..');
 
 export const config = {
@@ -11,9 +12,9 @@ export const config = {
   port: Number(process.env.SM_PORT ?? 4310),
   dataDir: path.resolve(process.env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'data')),
   demo: process.env.SM_DEMO === '1' || process.env.SM_DEMO === 'true',
-  webDist: path.join(ROOT_DIR, 'web', 'dist'),
-  templatesDir: path.join(ROOT_DIR, 'examples', 'processes'),
-  dashboardsDir: path.join(ROOT_DIR, 'examples', 'dashboards'),
+  webDist: process.env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
+  templatesDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'processes'),
+  dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),
   /** Optional passphrase for unattended start (scheduled runs after reboot). */
   masterPassphrase: process.env.SM_MASTER_PASSPHRASE,
   /** Serve HTTPS (recommended when other people access the tool over the network). */

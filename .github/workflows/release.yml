@@ -1,0 +1,91 @@
+# Builds the desktop executables for Windows, macOS and Linux.
+# Push a tag like v0.2.0 to publish a GitHub release; "Run workflow" builds without releasing.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  executable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: macos-13
+            target: macos-x64
+          - os: ubuntu-latest
+            target: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npm run build
+      - run: npm run build:exe
+      - name: Smoke test
+        shell: bash
+        run: |
+          EXE=$(ls dist-exe/* | head -1)
+          "$EXE" --version
+          "$EXE" --no-open --port 4399 --data-dir "$RUNNER_TEMP/sm-data" &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4399/api/health && break; sleep 1; done
+          curl -sf http://127.0.0.1:4399/api/health
+          curl -sf http://127.0.0.1:4399/ | grep -q '<div id="root">'
+      - name: Package
+        shell: bash
+        run: |
+          cd dist-exe
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a ../service-manager-${{ matrix.target }}.zip ./*; else tar czf ../service-manager-${{ matrix.target }}.tar.gz ./*; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: service-manager-${{ matrix.target }}
+          path: service-manager-${{ matrix.target }}.*
+
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npx --yes @cyclonedx/cyclonedx-npm@4 --omit dev --output-file sbom.cdx.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [executable, sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        run: cd out && sha256sum * > SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
