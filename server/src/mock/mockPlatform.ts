@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
+import { mockGatus } from './mockGatus.js';
 
 /**
  * In-memory simulation of the parts of Insights Hub, Industrial Edge Management
@@ -169,6 +170,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   const iemTokens = new Set<string>();
 
   await mockOidc(app);
+  await mockGatus(app);
 
   app.post('/reset', async () => {
     state = seed();

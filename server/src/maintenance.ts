@@ -20,7 +20,6 @@ const FINISHED = ['succeeded', 'failed', 'cancelled'];
 const BATCH = 200;
 const DAY_MS = 86400000;
 
-const dbFile = () => path.join(config.dataDir, 'service-manager.db');
 const artifactsDir = () => path.join(config.dataDir, 'artifacts');
 const reportsDir = () => path.join(config.dataDir, 'reports');
 
@@ -50,7 +49,7 @@ function dirSize(dir: string): number {
 export function maintenanceStatus(): MaintenanceStatus {
   const runs = db().get<{ n: number; oldest: string | null }>('SELECT COUNT(*) AS n, MIN(started_at) AS oldest FROM runs')!;
   return {
-    databaseBytes: fileSize(dbFile()) + fileSize(dbFile() + '-wal'),
+    databaseBytes: db().sizeBytes(),
     artifactBytes: dirSize(artifactsDir()),
     runs: runs.n,
     oldestRun: runs.oldest,
@@ -71,7 +70,8 @@ function deleteRunFiles(runId: string, artifactPaths: string[]): void {
     for (const p of artifactPaths) removeInside(artifactsDir(), p);
     removeInside(artifactsDir(), path.join(artifactsDir(), runId));
     for (const f of fs.existsSync(reportsDir()) ? fs.readdirSync(reportsDir()) : []) {
-      if (f.startsWith(runId)) removeInside(reportsDir(), path.join(reportsDir(), f));
+      // reports/<runId>/ holds the run's generated PDFs (see reports/service.ts)
+      if (f === runId || f.startsWith(runId + '.') || f.startsWith(runId + '-')) removeInside(reportsDir(), path.join(reportsDir(), f));
     }
   } catch (err) {
     logger.warn({ err, runId }, 'could not remove run files');
@@ -99,7 +99,8 @@ export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: num
         const paths = db().all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id).map((r) => r.path);
         files.set(id, paths);
         artifacts += paths.length;
-        for (const t of ['run_artifacts', 'run_tasks', 'run_logs', 'run_steps']) db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
+        // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
+        for (const t of ['run_artifacts', 'run_tasks', 'run_logs', 'run_steps', 'reports']) db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
         db().run('DELETE FROM runs WHERE id = ?', id);
       }
     });
@@ -121,7 +122,7 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
     const removed = s.retentionRunDays > 0 ? deleteRunsBefore(new Date(now - s.retentionRunDays * DAY_MS).toISOString()) : { runs: 0, artifacts: 0 };
     const notificationsDeleted = s.retentionNotificationDays > 0 ? deleteReadOlderThan(s.retentionNotificationDays) : 0;
     const result: LastCleanup = { at: new Date(now).toISOString(), runsDeleted: removed.runs, artifactsDeleted: removed.artifacts, notificationsDeleted };
-    if (removed.runs) db().raw.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+    if (removed.runs) db().compact();
     writeSetting(LAST_KEY, result);
     if (opts.manual || removed.runs || notificationsDeleted) {
       audit({

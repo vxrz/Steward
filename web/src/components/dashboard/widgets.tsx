@@ -68,7 +68,15 @@ function WidgetCard({
 }) {
   const { t } = useTranslation('dashboards');
   return (
-    <Paper withBorder p="sm" h="100%" className="viz-root" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+    <Paper
+      withBorder
+      p="sm"
+      h="100%"
+      className="viz-root"
+      style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}
+      component="section"
+      aria-label={typeof title === 'string' ? title : undefined}
+    >
       {(title || toggle || actions) && (
         <Group justify="space-between" align="flex-start" wrap="nowrap" mb={6} gap="xs">
           <div style={{ minWidth: 0 }}>
@@ -393,7 +401,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
           {t('w.rowsOf', { shown: rows.length, total: d.rowCount })}
         </Text>
       </Group>
-      <div className="table-scroll">
+      <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
         <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + cols.length * 140}>
           <Table.Thead>
             <Table.Tr>
@@ -525,7 +533,7 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
       .sort()[0];
   return (
     <WidgetCard title={w.title || t('widgets.freshness.label')} fetching={metas.isFetching}>
-      <div className="table-scroll">
+      <div className="table-scroll" tabIndex={0} role="region" aria-label={w.title || t('widgets.freshness.label')}>
         <Table fz="sm" verticalSpacing={4} miw={520}>
           <Table.Thead>
             <Table.Tr>

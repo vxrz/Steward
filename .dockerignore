@@ -7,3 +7,4 @@ test-results
 .git
 *.log
 .env
+.tools

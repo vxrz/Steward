@@ -9,36 +9,45 @@ import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
-import { requestContext } from './auth/context.js';
+import { currentUser, requestContext } from './auth/context.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
+import { publicApi } from './api/index.js';
+import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready'];
+const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config'];
+/** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
+const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
 
-/** Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only). */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "worker-src 'self'",
-  "manifest-src 'self'",
-].join('; ');
-/** The single sign-on callback page finishes with a small inline script. */
-const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
+/**
+ * Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only).
+ * connect-src additionally allows the error reporting host when browser error reporting is configured.
+ */
+function contentSecurityPolicy(connectExtra: string[] = []): string {
+  return [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    ["connect-src 'self'", ...connectExtra].join(' '),
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
+  ].join('; ');
+}
 
 const isRead = (method: string) => method === 'GET' || method === 'HEAD';
+/** The public REST API (/api/v1) authenticates with API tokens only (see api/v1/auth.ts). */
+const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/api/v1/') || url.startsWith('/api/v1?');
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -48,6 +57,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) } } : {}),
   }) as unknown as FastifyInstance;
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+  const CSP = contentSecurityPolicy(cspConnectSources());
+  /** The single sign-on callback page finishes with a small inline script. */
+  const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 
   // --- local-only safety net ---
   app.addHook('onRequest', async (req, reply) => {
@@ -56,6 +68,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...(process.env.SM_ALLOWED_HOSTS?.split(',') ?? [])];
     if (!allowedHosts.includes(host)) {
+      if (isPublicApiPath(url)) {
+        return reply.code(403).type('application/problem+json').send(JSON.stringify({ type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Host not allowed' }));
+      }
       return reply.code(403).send({ error: 'Host not allowed' });
     }
     reply.header('x-frame-options', 'DENY');
@@ -65,11 +80,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('cross-origin-opener-policy', 'same-origin');
     if (config.tls) reply.header('strict-transport-security', 'max-age=31536000');
-    if (!url.startsWith('/api/')) return;
+    if (!url.startsWith('/api/') || isPublicApiPath(url)) return;
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
     // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
     const bearerOnly = !!bearerToken(req.headers.authorization) && !req.headers.cookie;
-    if (!isRead(req.method) && !bearerOnly && req.headers['x-sm-client'] !== '1') {
+    if (!isRead(req.method) && !bearerOnly && req.headers['x-sm-client'] !== '1' && !url.startsWith(HOOKS_PREFIX)) {
       return reply.code(403).send({ error: 'Missing x-sm-client header' });
     }
   });
@@ -79,9 +94,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   app.addHook('preHandler', (req, reply, done) => {
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
+    // Public API and its documentation: own authentication (API tokens), see api/.
+    if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();
     let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
     const isPublic =
-      PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/') || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
+      PUBLIC_PATHS.includes(url) ||
+      url.startsWith('/api/auth/oidc/') ||
+      url.startsWith(HOOKS_PREFIX) ||
+      (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
     // API tokens act as their owner when there is no signed-in session.
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {
@@ -119,16 +139,18 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       status,
       ms,
       user: (req as unknown as { smUser?: string }).smUser,
+      token: (req as unknown as { smToken?: string }).smToken,
       ip: req.ip,
     };
-    if (status >= 500) logger.error(entry, 'request failed');
-    else if (status >= 400 && ![401, 404, 423].includes(status)) logger.warn(entry, 'request rejected');
+    // 503 = temporarily unavailable (e.g. /api/v1 while the vault is locked), not a server failure
+    if (status >= 500 && status !== 503) logger.error(entry, 'request failed');
+    else if (status >= 400 && ![401, 404, 423, 503].includes(status)) logger.warn(entry, 'request rejected');
     else if (ms > 2000) logger.warn(entry, 'slow request');
     else if (req.method !== 'GET') logger.info(entry, 'request');
     else logger.debug(entry, 'request');
   });
 
-  app.setErrorHandler((err, _req, reply) => {
+  app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
       return reply.code(err.statusCode).send({ error: err.message, code: err.code, issues: (err as HttpError & { issues?: unknown }).issues });
     }
@@ -138,15 +160,34 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const e = err as Error & { statusCode?: number };
     if (e.statusCode && e.statusCode < 500) return reply.code(e.statusCode).send({ error: e.message });
     logger.error({ err }, 'unhandled error');
+    reportError(err, {
+      tags: { route: req.routeOptions?.url ?? 'unknown', method: req.method, request_id: req.id },
+      userId: currentUser()?.id,
+      request: { method: req.method, url: req.url },
+    });
     return reply.code(500).send({ error: e.message || 'Internal error' });
+  });
+
+  // Runtime settings for the web UI (one build works with and without error reporting).
+  app.get('/api/client-config', async (_req, reply) => {
+    reply.header('cache-control', 'no-store');
+    return clientConfig();
   });
 
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
 
+  await app.register(publicApi, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
 
   if (fs.existsSync(config.webDist)) {
-    await app.register(fastifyStatic, { root: config.webDist });
+    await app.register(fastifyStatic, {
+      root: config.webDist,
+      preCompressed: true, // serves the .br/.gz files written by the web build
+      setHeaders: (res, file) => {
+        // hashed build assets never change
+        if (/[\\/]assets[\\/]/.test(file)) res.header('cache-control', 'public, max-age=31536000, immutable');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(req.url) && !/\.[a-z0-9]+(\?|$)/i.test(req.url);
       if (!isPage) return reply.code(404).send({ error: 'Not found' });

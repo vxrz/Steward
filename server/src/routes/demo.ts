@@ -6,6 +6,8 @@ import { DEMO_OIDC } from '../mock/mockOidc.js';
 import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
+import { DEMO_GATUS } from '../mock/mockGatus.js';
+import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
 import type { Role } from '@sm/shared';
@@ -38,6 +40,7 @@ const FEEDERS: { process: string; cron: string }[] = [
   { process: 'iem-app-version-compliance', cron: '20 6 * * *' },
   { process: 'ih-group-hygiene', cron: '30 6 * * 1' },
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
+  { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
 ];
 
 export async function setupDemo(): Promise<{
@@ -102,6 +105,30 @@ export async function setupDemo(): Promise<{
         portalUrl: `${base}/portal`,
       },
       secrets: { username: DEMO_CREDENTIALS.iem.username, password: DEMO_CREDENTIALS.iem.password },
+    });
+    platforms++;
+  }
+  if (!existing.has('Gatus (demo)')) {
+    const g = createPlatform({
+      name: 'Gatus (demo)',
+      kind: 'gatus',
+      environment: 'demo',
+      description: 'Simulated Gatus status page (basic auth) served by the built-in mock. See docs/GATUS.md for a real instance.',
+      baseUrl: `${base}/gatus`,
+      config: { auth: { type: 'basic' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/endpoints/statuses?pageSize=1' },
+      secrets: { username: DEMO_GATUS.username, password: DEMO_GATUS.password, externalToken: DEMO_GATUS.externalToken },
+    });
+    addSpec(g.id, 'Gatus API', JSON.stringify(gatusOpenApiSpec(), null, 2));
+    platforms++;
+  }
+  if (!existing.has('Web probe (demo)')) {
+    createPlatform({
+      name: 'Web probe (demo)',
+      kind: 'generic',
+      environment: 'demo',
+      description: 'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Diagnose endpoint outage" to probe a failing URL.',
+      baseUrl: base,
+      config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/gatus-apps/mes' },
     });
     platforms++;
   }

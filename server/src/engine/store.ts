@@ -47,6 +47,8 @@ export interface RunRow {
   parent_run_id?: string | null;
   parent_step_key?: string | null;
   outputs?: string | null;
+  trigger_id?: string | null;
+  trigger_name?: string | null;
 }
 
 export interface StepRow {
@@ -95,9 +97,9 @@ export function runRow(id: string): RunRow {
   return r;
 }
 
-function toSummary(r: RunRow): RunSummary {
+function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
   const stats = { ...emptyStats(), ...parseJson<Partial<RunStats>>(r.stats, {}) };
-  stats.openTasks = db().get<{ n: number }>("SELECT COUNT(*) AS n FROM run_tasks WHERE run_id = ? AND status = 'open'", r.id)!.n;
+  stats.openTasks = r.open_tasks ?? db().get<{ n: number }>("SELECT COUNT(*) AS n FROM run_tasks WHERE run_id = ? AND status = 'open'", r.id)!.n;
   return {
     id: r.id,
     processId: r.process_id,
@@ -107,6 +109,7 @@ function toSummary(r: RunRow): RunSummary {
     dryRun: !!r.dry_run,
     trigger: r.trigger,
     scheduleId: r.schedule_id,
+    ...(r.trigger_id ? { triggerId: r.trigger_id, triggerName: r.trigger_name ?? null } : {}),
     actor: r.actor,
     startedAt: r.started_at,
     finishedAt: r.finished_at,
@@ -126,7 +129,51 @@ export function listRuns(f: { processId?: string; status?: string; scheduleId?: 
   if (f.before) (where.push('started_at < ?'), params.push(f.before));
   params.push(Math.min(f.limit ?? 100, 1000));
   return db()
-    .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`, ...params)
+    .all<RunRow & { open_tasks: number }>(
+      `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
+       FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`,
+      ...params,
+    )
+    .map(toSummary);
+}
+
+/** Keyset-paginated run list (newest first) for the public API. */
+export interface RunPageFilter {
+  /** Restrict to these processes (visibility); an empty list matches nothing. */
+  processIds?: string[];
+  status?: string[];
+  trigger?: string[];
+  dryRun?: boolean;
+  scheduleId?: string;
+  parentRunId?: string;
+  /** started_at >= from (ISO 8601, normalised) */
+  from?: string;
+  /** started_at < to */
+  to?: string;
+  /** Continue after this run (exclusive) */
+  after?: { startedAt: string; id: string };
+  limit: number;
+}
+
+export function listRunsPage(f: RunPageFilter): RunSummary[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  const inList = (col: string, vals: string[]) => (where.push(`${col} IN (${vals.map(() => '?').join(',')})`), params.push(...vals));
+  if (f.processIds) {
+    if (!f.processIds.length) return [];
+    inList('process_id', f.processIds);
+  }
+  if (f.status?.length) inList('status', f.status);
+  if (f.trigger?.length) inList('trigger', f.trigger);
+  if (f.dryRun !== undefined) (where.push('dry_run = ?'), params.push(f.dryRun ? 1 : 0));
+  if (f.scheduleId) (where.push('schedule_id = ?'), params.push(f.scheduleId));
+  if (f.parentRunId) (where.push('parent_run_id = ?'), params.push(f.parentRunId));
+  if (f.from) (where.push('started_at >= ?'), params.push(f.from));
+  if (f.to) (where.push('started_at < ?'), params.push(f.to));
+  if (f.after) (where.push('(started_at < ? OR (started_at = ? AND id < ?))'), params.push(f.after.startedAt, f.after.startedAt, f.after.id));
+  params.push(f.limit);
+  return db()
+    .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC, id DESC LIMIT ?`, ...params)
     .map(toSummary);
 }
 
@@ -307,6 +354,61 @@ export function addLog(runId: string, level: RunLog['level'], message: string, s
   );
 }
 
+/** Journal entries of a run in execution order, paginated by row id (public API). Outputs are previews. */
+export function listStepsPage(runId: string, f: { afterId?: number; limit: number; status?: string[]; type?: string }): RunStepRecord[] {
+  const where = ['run_id = ?'];
+  const params: unknown[] = [runId];
+  if (f.afterId !== undefined) (where.push('id > ?'), params.push(f.afterId));
+  if (f.status?.length) (where.push(`status IN (${f.status.map(() => '?').join(',')})`), params.push(...f.status));
+  if (f.type) (where.push('type = ?'), params.push(f.type));
+  params.push(f.limit);
+  return db()
+    .all<StepRow>(`SELECT * FROM run_steps WHERE ${where.join(' AND ')} ORDER BY id LIMIT ?`, ...params)
+    .map((r) => stepRecord(r));
+}
+
+/** Number of journal entries of a run per status. */
+export function stepStatusCounts(runId: string): Record<string, number> {
+  return Object.fromEntries(
+    db()
+      .all<{ status: string; n: number }>('SELECT status, COUNT(*) AS n FROM run_steps WHERE run_id = ? GROUP BY status ORDER BY status', runId)
+      .map((r) => [r.status, Number(r.n)]),
+  );
+}
+
+/** Check results of a run (journal entries of type "check"). */
+export function listChecks(runId: string): { stepKey: string; name: string; status: StepStatus; passed: boolean; severity: string; message: string; finishedAt: string | null }[] {
+  return db()
+    .all<StepRow>("SELECT * FROM run_steps WHERE run_id = ? AND type = 'check' ORDER BY id", runId)
+    .map((s) => {
+      const o = parseJson<{ passed?: boolean; severity?: string; message?: string }>(s.output, {});
+      return {
+        stepKey: s.key,
+        name: s.name,
+        status: s.status,
+        passed: o.passed ?? s.status === 'succeeded',
+        severity: o.severity ?? 'error',
+        message: o.message ?? s.error ?? '',
+        finishedAt: s.finished_at,
+      };
+    });
+}
+
+/** Run log entries paginated by id (public API). */
+export function listLogsPage(runId: string, f: { afterId?: number; limit: number; level?: string[] }): RunLog[] {
+  const where = ['run_id = ?'];
+  const params: unknown[] = [runId];
+  if (f.afterId !== undefined) (where.push('id > ?'), params.push(f.afterId));
+  if (f.level?.length) (where.push(`level IN (${f.level.map(() => '?').join(',')})`), params.push(...f.level));
+  params.push(f.limit);
+  return db()
+    .all<{ id: number; ts: string; level: RunLog['level']; step_key: string | null; message: string; data: string | null }>(
+      `SELECT * FROM run_logs WHERE ${where.join(' AND ')} ORDER BY id LIMIT ?`,
+      ...params,
+    )
+    .map((l) => ({ id: l.id, ts: l.ts, level: l.level, stepKey: l.step_key, message: l.message, data: parseJson(l.data, undefined) }));
+}
+
 export function listLogs(runId: string): RunLog[] {
   return db()
     .all<{ id: number; ts: string; level: RunLog['level']; step_key: string | null; message: string; data: string | null }>(
@@ -337,6 +439,7 @@ function toTask(r: TaskRow): TaskRecord {
     id: r.id,
     runId: r.run_id,
     processName: r.process_name,
+    processId: r.process_id,
     stepKey: r.step_key,
     mode: r.mode,
     title: r.title,
@@ -374,6 +477,30 @@ export function listTasks(f: { runId?: string; status?: string }): TaskRecord[] 
       ...params,
     )
     .map(toTask);
+}
+
+/** Keyset-paginated task list (newest first) for the public API. */
+export function listTasksPage(f: {
+  processIds: string[];
+  status?: string[];
+  runId?: string;
+  after?: { createdAt: string; id: string };
+  limit: number;
+}): (TaskRecord & { processId: string })[] {
+  if (!f.processIds.length) return [];
+  const where = [`r.process_id IN (${f.processIds.map(() => '?').join(',')})`];
+  const params: unknown[] = [...f.processIds];
+  if (f.status?.length) (where.push(`t.status IN (${f.status.map(() => '?').join(',')})`), params.push(...f.status));
+  if (f.runId) (where.push('t.run_id = ?'), params.push(f.runId));
+  if (f.after) (where.push('(t.created_at < ? OR (t.created_at = ? AND t.id < ?))'), params.push(f.after.createdAt, f.after.createdAt, f.after.id));
+  params.push(f.limit);
+  return db()
+    .all<TaskRow>(
+      `SELECT t.*, r.process_name, r.dry_run, r.process_id, r.actor AS run_actor FROM run_tasks t JOIN runs r ON r.id = t.run_id
+       WHERE ${where.join(' AND ')} ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
+      ...params,
+    )
+    .map((r) => ({ ...toTask(r), processId: r.process_id ?? '' }));
 }
 
 export function getTask(id: string): TaskRecord {
@@ -450,7 +577,7 @@ export function listArtifacts(runId: string): RunArtifact[] {
 }
 
 export function artifactFile(id: string): { path: string; mime: string; name: string; runId: string } {
-  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS runId FROM run_artifacts WHERE id = ?', id);
+  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS "runId" FROM run_artifacts WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'Artifact not found');
   return r;
 }

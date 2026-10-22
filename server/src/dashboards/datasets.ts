@@ -142,7 +142,11 @@ export function metricSeries(key: string, names: string[] | undefined, days: num
     ...(names ?? []),
   );
   const byName = new Map<string, { ts: string; value: number }[]>();
-  for (const r of rows) byName.set(r.name, [...(byName.get(r.name) ?? []), { ts: r.ts, value: r.value }]);
+  for (const r of rows) {
+    let points = byName.get(r.name);
+    if (!points) byName.set(r.name, (points = []));
+    points.push({ ts: r.ts, value: r.value });
+  }
   return [...byName.entries()].map(([name, points]) => {
     if (points.length <= maxPoints) return { name, points };
     const bucket = Math.ceil(points.length / maxPoints);

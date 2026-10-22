@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Alert,
@@ -30,6 +30,7 @@ import {
   IconCircleCheck,
   IconCircleX,
   IconBoxMultiple,
+  IconFileCertificate,
 } from '@tabler/icons-react';
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post } from '../api';
@@ -37,14 +38,21 @@ import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format
 import { JsonView, Markdown, PageHeader, StatusBadge, severityLabel, statusLabel } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
+import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
+/** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
+const STEP_PAGE = 500;
+const LOG_PAGE = 1000;
 
 export function RunDetailPage() {
   const { t } = useTranslation(['runs', 'common']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [rerun, setRerun] = useState(false);
+  const [stepLimit, setStepLimit] = useState(STEP_PAGE);
+  const [logLimit, setLogLimit] = useState(LOG_PAGE);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const run = useQuery({
     queryKey: ['run', id],
     queryFn: () => get<RunDetail>(`/runs/${id}`),
@@ -57,6 +65,12 @@ export function RunDetailPage() {
     retry: false,
   });
   const canRun = !!proc.data?.permissions.includes('run');
+  // Child runs per step key: stable arrays keep the memoized step rows from re-rendering on every poll.
+  const childrenByStep = useMemo(() => {
+    const m = new Map<string, RunChild[]>();
+    for (const c of run.data?.children ?? []) if (c.parentStepKey) m.set(c.parentStepKey, [...(m.get(c.parentStepKey) ?? []), c]);
+    return m;
+  }, [run.data?.children]);
   const r = run.data;
   if (!r) return run.error ? <Alert color="red">{(run.error as Error).message}</Alert> : null;
 
@@ -93,7 +107,10 @@ export function RunDetailPage() {
               id: r.id,
               version: r.processVersion,
               actor: r.actor,
-              trigger: t(`trigger.${r.trigger}`, { defaultValue: r.trigger }),
+              trigger:
+                r.trigger === 'webhook'
+                  ? t('trigger.webhookNamed', { name: r.triggerName ?? r.triggerId ?? '' })
+                  : t(`trigger.${r.trigger}`, { defaultValue: r.trigger }),
               date: fmtDate(r.startedAt),
               duration: runDuration(r.startedAt, r.finishedAt),
             }}
@@ -129,8 +146,8 @@ export function RunDetailPage() {
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html`} target="_blank">
                   {t('detail.openHtml')}
                 </Menu.Item>
-                <Menu.Item component="a" href={`/api/runs/${r.id}/report.pdf`}>
-                  {t('detail.downloadPdf')}
+                <Menu.Item leftSection={<IconFileCertificate size={14} />} disabled={!canReport(r.status)} onClick={() => setPdfOpen(true)}>
+                  {t('detail.generatePdf')}
                 </Menu.Item>
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html?download=1`}>
                   {t('detail.downloadHtml')}
@@ -144,6 +161,7 @@ export function RunDetailPage() {
         }
       />
       <RunDialog processId={r.processId} opened={rerun} onClose={() => setRerun(false)} />
+      <GenerateReportDialog runId={r.id} status={r.status} opened={pdfOpen} onClose={() => setPdfOpen(false)} />
 
       <Stack>
         {r.parentRunId && (
@@ -197,15 +215,17 @@ export function RunDetailPage() {
             {r.artifacts.length > 0 && <Tabs.Tab value="evidence">{t('detail.tabs.evidence', { count: r.artifacts.length })}</Tabs.Tab>}
             <Tabs.Tab value="log">{t('detail.tabs.log', { count: r.logs.length })}</Tabs.Tab>
             <Tabs.Tab value="inputs">{t('detail.tabs.inputs')}</Tabs.Tab>
+            <Tabs.Tab value="pdf">{t('detail.tabs.pdf')}</Tabs.Tab>
             <Tabs.Tab value="audit">{t('detail.tabs.audit')}</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="timeline" pt="sm">
             <Stack gap={4}>
               {r.steps.length === 0 && <Text c="dimmed">{t('detail.noSteps')}</Text>}
-              {r.steps.map((s) => (
-                <StepRow key={s.id} runId={r.id} step={s} childRuns={r.children?.filter((c) => c.parentStepKey === s.key)} />
+              {r.steps.slice(0, stepLimit).map((s) => (
+                <StepRow key={s.id} runId={r.id} step={s} childRuns={childrenByStep.get(s.key)} />
               ))}
+              <ShowMore shown={Math.min(stepLimit, r.steps.length)} total={r.steps.length} page={STEP_PAGE} what="steps" onShow={setStepLimit} />
             </Stack>
           </Tabs.Panel>
 
@@ -319,7 +339,7 @@ export function RunDetailPage() {
             <div className="table-scroll">
               <Table fz="sm" verticalSpacing={2}>
                 <Table.Tbody>
-                  {r.logs.map((l) => (
+                  {r.logs.slice(0, logLimit).map((l) => (
                     <Table.Tr key={l.id}>
                       <Table.Td className="nowrap mono">{fmtTime(l.ts)}</Table.Td>
                       <Table.Td>
@@ -341,6 +361,7 @@ export function RunDetailPage() {
                 </Table.Tbody>
               </Table>
             </div>
+            <ShowMore shown={Math.min(logLimit, r.logs.length)} total={r.logs.length} page={LOG_PAGE} what="logLines" onShow={setLogLimit} />
           </Tabs.Panel>
 
           <Tabs.Panel value="inputs" pt="sm">
@@ -375,12 +396,34 @@ export function RunDetailPage() {
             </Stack>
           </Tabs.Panel>
 
+          <Tabs.Panel value="pdf" pt="sm">
+            <RunReportsPanel runId={r.id} status={r.status} />
+          </Tabs.Panel>
+
           <Tabs.Panel value="audit" pt="sm">
             <RunAudit runId={r.id} />
           </Tabs.Panel>
         </Tabs>
       </Stack>
     </>
+  );
+}
+
+function ShowMore({ shown, total, page, what, onShow }: { shown: number; total: number; page: number; what: 'steps' | 'logLines'; onShow: (limit: number) => void }) {
+  const { t } = useTranslation('runs');
+  if (shown >= total) return null;
+  return (
+    <Group gap="xs" mt={4}>
+      <Text size="xs" c="dimmed">
+        {t(`detail.showMore.${what}`, { shown: fmtNumber(shown), count: total, total: fmtNumber(total) })}
+      </Text>
+      <Button size="compact-xs" variant="light" onClick={() => onShow(shown + page)}>
+        {t('detail.showMore.more', { count: Math.min(page, total - shown) })}
+      </Button>
+      <Button size="compact-xs" variant="subtle" onClick={() => onShow(Infinity)}>
+        {t('detail.showMore.all')}
+      </Button>
+    </Group>
   );
 }
 
@@ -432,7 +475,12 @@ function ChildRuns({ runs }: { runs: RunChild[] }) {
   );
 }
 
-function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
+/**
+ * One step of the timeline. Memoized (polling returns structurally shared step objects, so only
+ * changed steps re-render), and the details are only mounted while open: Collapse keeps its
+ * children mounted, which for thousands of steps meant thousands of hidden JSON views.
+ */
+const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
   const { t } = useTranslation('runs');
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<RunStepRecord | null>(null);
@@ -463,59 +511,61 @@ function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecor
         </Text>
       </Group>
       <Collapse in={open}>
-        <Stack gap="xs" mt="xs">
-          <Text size="xs" c="dimmed" className="mono">
-            {t('detail.step.started', { key: step.key, date: fmtDate(step.startedAt) })}
-          </Text>
-          {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
-          {childRuns && childRuns.length > 0 && (
-            <Group gap={6}>
-              <Text size="xs" fw={600}>
-                {t('detail.step.childRun')}
-              </Text>
-              {childRuns.map((c) => (
-                <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
-                  {c.id} ({statusLabel(c.status)})
-                </Anchor>
-              ))}
-            </Group>
-          )}
-          {s.input !== undefined && s.input !== null && (
-            <>
-              <Text size="xs" fw={600}>
-                {t('detail.step.request')}
-              </Text>
-              <JsonView value={s.input} maxHeight={260} />
-            </>
-          )}
-          {s.output !== undefined && s.output !== null && (
-            <>
-              <Group gap="xs">
+        {open && (
+          <Stack gap="xs" mt="xs">
+            <Text size="xs" c="dimmed" className="mono">
+              {t('detail.step.started', { key: step.key, date: fmtDate(step.startedAt) })}
+            </Text>
+            {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
+            {childRuns && childRuns.length > 0 && (
+              <Group gap={6}>
                 <Text size="xs" fw={600}>
-                  {t('detail.step.result')}
+                  {t('detail.step.childRun')}
                 </Text>
-                {step.outputTruncated && !full && (
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    onClick={() =>
-                      get<RunStepRecord>(`/runs/${runId}/steps/${step.id}`)
-                        .then(setFull)
-                        .catch((e) => notifyError(e))
-                    }
-                  >
-                    {t('detail.step.loadFull')}
-                  </Button>
-                )}
+                {childRuns.map((c) => (
+                  <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
+                    {c.id} ({statusLabel(c.status)})
+                  </Anchor>
+                ))}
               </Group>
-              <JsonView value={s.output} maxHeight={400} />
-            </>
-          )}
-        </Stack>
+            )}
+            {s.input !== undefined && s.input !== null && (
+              <>
+                <Text size="xs" fw={600}>
+                  {t('detail.step.request')}
+                </Text>
+                <JsonView value={s.input} maxHeight={260} />
+              </>
+            )}
+            {s.output !== undefined && s.output !== null && (
+              <>
+                <Group gap="xs">
+                  <Text size="xs" fw={600}>
+                    {t('detail.step.result')}
+                  </Text>
+                  {step.outputTruncated && !full && (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      onClick={() =>
+                        get<RunStepRecord>(`/runs/${runId}/steps/${step.id}`)
+                          .then(setFull)
+                          .catch((e) => notifyError(e))
+                      }
+                    >
+                      {t('detail.step.loadFull')}
+                    </Button>
+                  )}
+                </Group>
+                <JsonView value={s.output} maxHeight={400} />
+              </>
+            )}
+          </Stack>
+        )}
       </Collapse>
     </Paper>
   );
-}
+});
 
 function RunAudit({ runId }: { runId: string }) {
   const { t } = useTranslation('runs');

@@ -189,7 +189,7 @@ export function TrendTable({ series, names }: { series: MetricSeries[]; names: s
   const times = [...new Set(series.flatMap((s) => s.points.map((p) => p.ts)))].sort().reverse();
   const val = (name: string, ts: string) => series.find((s) => s.name === name)?.points.find((p) => p.ts === ts)?.value;
   return (
-    <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }}>
+    <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={`Values of ${names.join(', ')}`}>
       <Table fz="xs" striped>
         <Table.Thead>
           <Table.Tr>

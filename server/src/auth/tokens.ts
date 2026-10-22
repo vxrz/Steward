@@ -89,24 +89,45 @@ export function revokeToken(id: string, ownerId?: string): void {
   });
 }
 
-/** Resolves a bearer token to its (active) owner; null when unknown, revoked, expired or the owner is disabled. */
-export function tokenUser(token: string): { user: UserInfo; tokenId: string; scope: ApiTokenScope } | null {
-  if (!token.startsWith(TOKEN_PREFIX)) return null;
+/** Outcome of looking up a bearer token (used by the public API to tell the caller why a token was refused). */
+export type TokenResolution =
+  | {
+      ok: true;
+      user: UserInfo;
+      tokenId: string;
+      name: string;
+      scope: ApiTokenScope;
+      createdAt: string;
+      expiresAt: string | null;
+      lastUsedAt: string | null;
+    }
+  | { ok: false; reason: 'unknown' | 'revoked' | 'expired' | 'owner_disabled' };
+
+/** Looks a bearer token up and records its use (lastUsedAt, at most once a minute). */
+export function resolveToken(token: string): TokenResolution {
+  if (!token.startsWith(TOKEN_PREFIX)) return { ok: false, reason: 'unknown' };
   const r = db().get<TokenRow>('SELECT * FROM api_tokens WHERE hash = ?', hashOf(token));
-  if (!r || r.revoked_at) return null;
+  if (!r) return { ok: false, reason: 'unknown' };
+  if (r.revoked_at) return { ok: false, reason: 'revoked' };
   const now = Date.now();
-  if (r.expires_at && Date.parse(r.expires_at) < now) return null;
+  if (r.expires_at && Date.parse(r.expires_at) < now) return { ok: false, reason: 'expired' };
   let user: UserInfo;
   try {
     user = getUser(r.user_id);
   } catch {
-    return null;
+    return { ok: false, reason: 'unknown' };
   }
-  if (!user.active) return null;
+  if (!user.active) return { ok: false, reason: 'owner_disabled' };
   if (!r.last_used_at || now - Date.parse(r.last_used_at) > 60000) {
     db().run('UPDATE api_tokens SET last_used_at = ? WHERE id = ?', new Date(now).toISOString(), r.id);
   }
-  return { user, tokenId: r.id, scope: r.scope };
+  return { ok: true, user, tokenId: r.id, name: r.name, scope: r.scope, createdAt: r.created_at, expiresAt: r.expires_at, lastUsedAt: r.last_used_at };
+}
+
+/** Resolves a bearer token to its (active) owner; null when unknown, revoked, expired or the owner is disabled. */
+export function tokenUser(token: string): { user: UserInfo; tokenId: string; scope: ApiTokenScope } | null {
+  const r = resolveToken(token);
+  return r.ok ? { user: r.user, tokenId: r.tokenId, scope: r.scope } : null;
 }
 
 /** `Authorization: Bearer <token>` → token, else undefined. */

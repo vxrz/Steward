@@ -8,10 +8,11 @@ const DEFAULTS = (): Settings => ({
   retentionRunDays: 0,
   retentionNotificationDays: 30,
   defaultLocale: DEFAULT_LOCALE,
+  apiDocs: 'authenticated',
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
-const INTERNAL = ['notifications.', 'maintenance.'];
+const INTERNAL = ['notifications.', 'maintenance.', 'reports.'];
 
 export function getSettings(): Settings {
   const rows = db().all<{ key: string; value: string }>('SELECT key, value FROM settings');
@@ -28,7 +29,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'defaultLocale'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'defaultLocale', 'apiDocs'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

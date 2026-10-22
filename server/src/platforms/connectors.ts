@@ -4,7 +4,7 @@ import { CONNECTOR_FORMATS, type ConnectorPackage, type PlatformPreset } from '@
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
-import { PRESETS } from './presets.js';
+import { PRESETS, PRESET_SPECS } from './presets.js';
 import { addSpec, createPlatform, getPlatform, getSecrets, listDocs, listSpecs, getSpecContent, type PlatformInput } from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
 
@@ -48,7 +48,8 @@ export function listPresets(): PlatformPreset[] {
       createdAt: r.created_at,
     } satisfies PlatformPreset;
   });
-  return [...PRESETS, ...custom];
+  const builtIn = PRESETS.map((p) => (PRESET_SPECS[p.kind] ? { ...p, specCount: PRESET_SPECS[p.kind]!().length } : p));
+  return [...builtIn, ...custom];
 }
 
 export function getPackage(kind: string): ConnectorPackage {
@@ -113,7 +114,9 @@ export function createPlatformFromType(input: PlatformInput & { typeKind?: strin
   const { typeKind, ...rest } = input;
   const pkg = typeKind ? getPackage(typeKind) : undefined;
   const platform = createPlatform({ ...rest, kind: rest.kind || pkg?.kind });
-  for (const s of pkg?.specs ?? []) addSpec(platform.id, s.name, s.content);
+  // built-in presets (no typeKind) bring their API specs by kind, e.g. Gatus
+  const specs = pkg ? pkg.specs : (PRESET_SPECS[platform.kind]?.() ?? []);
+  for (const s of specs) addSpec(platform.id, s.name, s.content);
   return getPlatform(platform.id);
 }
 

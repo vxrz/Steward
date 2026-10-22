@@ -10,6 +10,7 @@ import { listInApp, markAllRead, markRead } from '../notifications/store.js';
 import { getNotificationSettings, saveNotificationSettings } from '../notifications/settings.js';
 import { initNotifications, sendTest } from '../notifications/service.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
+import { publicApiStatus } from '../api/v1/config.js';
 
 const me = (): AuthUser => {
   const u = currentUser();
@@ -95,6 +96,12 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage API tokens of other users');
     revokeToken(params(req).id!);
     return { ok: true };
+  });
+
+  // ---------- public REST API (/api/v1): effective configuration for the web UI ----------
+  app.get('/public-api', async () => {
+    me();
+    return publicApiStatus();
   });
 
   // ---------- notification settings ----------

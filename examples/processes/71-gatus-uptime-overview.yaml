@@ -1,0 +1,144 @@
+name: "Gatus – uptime overview"
+description: |
+  Shows what Gatus monitors, without monitoring anything itself: reads the
+  status of every Gatus endpoint, computes per endpoint whether it is healthy
+  (latest result), its uptime, average and latest response time and the last
+  error, and raises a warning check while endpoints are down. Read-only.
+
+  Uptime comes from Gatus' uptime API for the chosen window (1h, 24h, 7d,
+  30d) or, with "results", from the results returned by the status API.
+  Gatus pages the results of each endpoint, not the endpoint list, so one
+  call returns all endpoints.
+
+  Recommended schedule: every 10 minutes (`*/10 * * * *`). Publishes
+  `gatus-uptime` (one row per endpoint; metrics endpoints, down, avgUptime)
+  for the "Uptime" dashboard. Needs a platform of kind `gatus` (see
+  docs/GATUS.md).
+tags: [status, health, uptime, gatus]
+connections:
+  - slot: gatus
+    kind: gatus
+    description: Gatus instance (base URL of the status page)
+inputs:
+  - name: resultsPerEndpoint
+    label: Recent results per endpoint (Gatus keeps 100 by default)
+    type: number
+    default: 50
+  - name: uptimeWindow
+    label: Uptime window
+    type: select
+    options: [results, 1h, 24h, 7d, 30d]
+    default: 24h
+  - name: minUptimePercent
+    label: Warn below this uptime (%)
+    type: number
+    default: 99
+  - name: maxResponseMs
+    label: Warn above this average response time (ms)
+    type: number
+    default: 1000
+steps:
+  - id: statuses
+    type: http
+    name: Read endpoint statuses
+    connection: gatus
+    method: GET
+    path: /api/v1/endpoints/statuses
+    query:
+      page: 1
+      pageSize: "{{ inputs.resultsPerEndpoint }}"
+    saveAs: statuses
+  - id: useUptimeApi
+    type: if
+    name: Uptime from the Gatus uptime API?
+    condition: "inputs.uptimeWindow != 'results'"
+    then:
+      - id: uptimes
+        type: forEach
+        name: Uptime per endpoint (4 in parallel)
+        items: "vars.statuses.body"
+        as: ep
+        concurrency: 4
+        maxItems: 500
+        saveAs: uptimes
+        steps:
+          - id: uptimeCall
+            type: http
+            name: Read uptime
+            connection: gatus
+            method: GET
+            path: "/api/v1/endpoints/{{ $encodeUrlComponent(vars.ep.key) }}/uptimes/{{ inputs.uptimeWindow }}"
+            onError: continue
+            saveAs: up
+          - id: keepUptime
+            type: set
+            name: Keep uptime
+            values:
+              key: "{{ vars.ep.key }}"
+              fraction: "{{ $exists(vars.up.error) ? null : $number($trim($string(vars.up.body))) }}"
+  - id: evaluate
+    type: set
+    name: Evaluate endpoints
+    values:
+      rows: >-
+        {{ [$map(vars.statuses.body, function($e) {(
+          $res := [$e.results];
+          $last := $res[-1];
+          $okCount := $count($res[success = true]);
+          $api := $vars.uptimes.results[key = $e.key][0].fraction;
+          {
+            "key": $e.key,
+            "endpoint": $e.name,
+            "group": $exists($e.group) ? $e.group : '',
+            "healthy": $exists($last) ? $last.success : null,
+            "uptime": $exists($api) and $api != null ? $round($api * 100, 2) : ($count($res) > 0 ? $round(100 * $okCount / $count($res), 2) : null),
+            "avgMs": $count($res) > 0 ? $round($average($res.duration) / 1000000) : null,
+            "lastMs": $exists($last) ? $round($last.duration / 1000000) : null,
+            "lastCheck": $exists($last) ? $last.timestamp : null,
+            "status": $exists($last.status) ? $last.status : null,
+            "error": $exists($last.errors) ? $join($last.errors, '; ') : ''
+          }
+        )})] }}
+      down: "{{ [vars.rows[healthy = false]] }}"
+  - id: allHealthy
+    type: check
+    name: All endpoints healthy
+    severity: warning
+    condition: "$count(vars.down) = 0"
+    message: "{{ $count(vars.down) = 0 ? 'All ' & $count(vars.rows) & ' endpoint(s) healthy' : $count(vars.down) & ' of ' & $count(vars.rows) & ' endpoint(s) down: ' & $join(vars.down.(group & '/' & endpoint & (error ? ' (' & error & ')' : '')), ', ') }}"
+  - id: report
+    type: report
+    name: Uptime overview
+    title: Gatus endpoints
+    text: "Uptime window: {{ inputs.uptimeWindow }}. Down: {{ $count(vars.down) }} of {{ $count(vars.rows) }}."
+    rows: vars.rows
+    columns:
+      - { label: Group, value: group }
+      - { label: Endpoint, value: endpoint }
+      - { label: Healthy, value: "healthy = true ? 'yes' : (healthy = false ? 'NO' : '–')" }
+      - { label: Uptime (%), value: uptime }
+      - { label: Avg (ms), value: avgMs }
+      - { label: Last error, value: error }
+  - id: publish
+    type: publish
+    name: Publish endpoint uptime
+    dataset: gatus-uptime
+    title: Gatus endpoint uptime
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Endpoint, value: endpoint }
+      - { label: Group, value: group }
+      - { label: Healthy, value: "healthy = true ? 'yes' : (healthy = false ? 'no' : '–')" }
+      - { label: Uptime (%), value: uptime }
+      - { label: Avg response (ms), value: avgMs }
+      - { label: Last response (ms), value: lastMs }
+      - { label: Last check (UTC), value: "$exists(lastCheck) and lastCheck != null ? $replace($substring(lastCheck, 0, 16), 'T', ' ') : '–'" }
+      - { label: Last error, value: error }
+    status: "healthy = false ? 'critical' : (healthy = null ? 'unknown' : ((uptime != null and uptime < $inputs.minUptimePercent) or (avgMs != null and avgMs > $inputs.maxResponseMs) ? 'warning' : 'good'))"
+    statusText: "healthy = false ? (error ? error : 'down') : (uptime != null and uptime < $inputs.minUptimePercent ? 'uptime ' & uptime & ' %' : (avgMs != null and avgMs > $inputs.maxResponseMs ? avgMs & ' ms average' : 'up'))"
+    metrics:
+      endpoints: "$count(vars.rows)"
+      down: "$count(vars.down)"
+      avgUptime: "$round($average(vars.rows[uptime != null].uptime), 2)"
+    staleAfterMinutes: 30

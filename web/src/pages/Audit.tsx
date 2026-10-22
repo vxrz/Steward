@@ -9,8 +9,9 @@ import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { get, notifyError } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
+import { VerifyReportButton } from '../components/reports/VerifyReportButton';
 
-const CATEGORIES = ['run', 'api', 'task', 'check', 'platform', 'process', 'schedule', 'vault'] as const;
+const CATEGORIES = ['run', 'api', 'task', 'check', 'platform', 'process', 'schedule', 'vault', 'report'] as const;
 
 /** The audit log itself stays English: entries are evidence and must read the same for every auditor (see docs/I18N.md). */
 export function AuditPage() {
@@ -42,6 +43,7 @@ export function AuditPage() {
         description={t('description')}
         actions={
           <>
+            <VerifyReportButton />
             <Button
               size="xs"
               variant="light"

@@ -110,14 +110,14 @@ export function ProcessesPage() {
               <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 {p.permissions.includes('run') && (
                   <Tooltip label={t('card.run')}>
-                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={t('card.run')}>
+                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={t('card.runNamed', { name: p.name })}>
                       <IconPlayerPlay size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Menu position="bottom-end">
                   <Menu.Target>
-                    <ActionIcon variant="subtle" aria-label={t('card.more')}>
+                    <ActionIcon variant="subtle" aria-label={t('card.moreFor', { name: p.name })}>
                       <IconDots size={16} />
                     </ActionIcon>
                   </Menu.Target>
@@ -212,6 +212,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
               </div>
               <Button
                 size="xs"
+                aria-label={t('templates.useNamed', { name: tpl.name })}
                 loading={busy === tpl.id}
                 onClick={async () => {
                   setBusy(tpl.id);

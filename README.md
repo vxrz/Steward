@@ -15,13 +15,16 @@ Steward is a local tool for running standard service and platform procedures aga
 - **Human in the loop.** A run can pause and ask you to pick items from a list, e.g. "untick the users who still need access", or to approve a change. The decision, who made it and when are all recorded.
 - **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what *would* change.
 - **Scheduling.** Cron schedules with time zones. Scheduled runs that need a decision wait in *My tasks*.
-- **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/PDF/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
+- **Webhook triggers.** An inbound URL with its own secret (static token or HMAC signature) starts a process with inputs mapped from the request, e.g. a [Gatus](docs/GATUS.md) alert starts a diagnosis runbook. Runs use the owner's rights; calls are rate-limited, de-duplicated and audited.
+- **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
+- **PDF reports for the archive.** Branded PDF/A-2b reports of finished runs (what was done, when, results, decisions, comments) and periodic summaries, ready to be archived and signed later. Every PDF is stored unchanged and its SHA-256 is recorded in the audit log. See [PDF reports](#pdf-reports).
 - **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
 - **Example library.** [`examples/`](examples/README.md) contains service-management and housekeeping procedures for Insights Hub and Industrial Edge, plus dashboards, all importable.
 - **Sub-processes and parallel loops.** A *Run sub-process* node calls another process as a reusable building block (inputs in, outputs back, linked child runs). *For each* can process items in parallel. Platform calls retry on 429/5xx with backoff and honour `Retry-After`.
 - **Editor help.** Expression autocomplete with a live preview using the data of the last run, a *Last run* inspector per node, undo/redo, copy/paste between processes, and a YAML diff between versions.
 - **Notifications.** In-app notification centre, plus e-mail (SMTP), Microsoft Teams and generic webhooks for decisions waiting, failed runs and checks, stale dashboard data and skipped schedules. Optional browser notifications.
-- **Automation API.** Personal API tokens (read-only or full) for scripts and CI, e.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/runs`.
+- **Automation API.** Personal API tokens (read-only or full) for scripts and CI.
+- **Public REST API.** A versioned, read-only API under `/api/v1` with an OpenAPI 3.1 description and an optional Swagger UI (`/api/docs/`): processes and versions, runs with steps, logs, decisions and checks, tasks, schedules, platform metadata (never credentials), dashboard datasets, the audit log, users and teams. Token-only, rate-limited, cursor pagination, RFC 9457 errors. E.g. `curl -H "Authorization: Bearer smt_…" http://127.0.0.1:4310/api/v1/runs`. See [docs/API.md](docs/API.md).
 - **Observability.** Structured JSON logs, optional OpenTelemetry tracing, Prometheus metrics (`/api/metrics`), readiness probe (`/api/ready`).
 - **Runs anywhere.** A single-file desktop executable (no Node.js needed), an installable web app (PWA), Node.js, or a container. See [docs/INSTALL.md](docs/INSTALL.md).
 - **Durable.** Runs are journaled step by step. If the app stops while a run waits for a decision, it resumes after a restart without repeating finished steps.
@@ -33,7 +36,7 @@ Requirements: **Node.js 24 (LTS)** (it uses the built-in SQLite). Windows, macOS
 
 ```bash
 npm install
-npx playwright install chromium   # only needed for browser automation / PDF export
+npx playwright install chromium   # only needed for browser automation
 npm run demo
 ```
 
@@ -67,13 +70,16 @@ npm run build      # builds the web UI once (again after updates)
 npm start          # http://127.0.0.1:4310
 ```
 
-All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up. Use `SM_DATA_DIR` to keep it somewhere else.
+All data lives in `./data`: the SQLite database, encrypted credentials, screenshots, uploaded docs and the vault file. Back it up. Use `SM_DATA_DIR` to keep it somewhere else. A shared installation can keep the database in PostgreSQL instead; see [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql).
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SM_PORT` | `4310` | HTTP port |
 | `SM_HOST` | `127.0.0.1` | Bind address. Keep it local unless you know what you are doing. |
 | `SM_DATA_DIR` | `./data` | Data directory |
+| `SM_DATABASE_URL` | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql). |
+| `SM_DATABASE_SCHEMA` | `public` | PostgreSQL schema (created if missing) |
+| `SM_DATABASE_CA` | – | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate |
 | `SM_MASTER_PASSPHRASE` | – | Unlock automatically at start-up, so schedules run after a reboot. |
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
@@ -84,8 +90,12 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_LOG_LEVEL` | `info` | `fatal`, `error`, `warn`, `info`, `debug` or `trace`. Logs are JSON lines on stdout. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | – | Turns on OpenTelemetry tracing (OTLP/HTTP). Standard `OTEL_*` variables apply, e.g. `OTEL_SERVICE_NAME` and `OTEL_EXPORTER_OTLP_HEADERS`. |
 | `SM_OTEL_PROPAGATE` | `1` | `0` stops adding `traceparent` headers to platform calls |
+| `SM_SENTRY_DSN` | – | Report unexpected errors to Sentry, GlitchTip or Bugsink (off by default; scrubbed, no personal data). More variables and exactly what is sent: [docs/ERROR-REPORTING.md](docs/ERROR-REPORTING.md) |
 | `SM_METRIC_RETENTION_DAYS` | `400` | How long dashboard metric history is kept |
 | `SM_METRICS_PUBLIC` | – | `1` serves `/api/metrics` without sign-in (otherwise admins, auditors or an API token) |
+| `SM_API_V1` | `on` | `off` turns the public REST API (`/api/v1`) and its documentation off |
+| `SM_API_DOCS` | – | Who may open the API documentation (`/api/docs/`, `openapi.json` without a token): `off`, `authenticated` (signed-in users, the default) or `public`. Overrides the setting under **Settings → REST API**. |
+| `SM_API_RATE_LIMIT` | `600` | Requests per minute and API token on `/api/v1`; `0` = unlimited |
 
 Retention of runs and notifications, and the notification channels, are set under **Settings**.
 
@@ -99,6 +109,7 @@ Retention of runs and notifications, and the notification channels, are set unde
 | **Run** | One execution of a pinned process version, manual or scheduled, real or dry. It has a full step journal, logs, decisions, checks, reports and evidence. |
 | **Task** | A decision a run is waiting for: select items or approve/reject. Tasks are listed in **My tasks** and on the run page. |
 | **Schedule** | Cron plus time zone, with preset inputs and connections. It skips a new run while the previous one is still waiting, unless overlap is allowed. |
+| **Webhook trigger** | `POST /api/hooks/<id>` with a secret starts a process as the trigger's owner; inputs are mapped from the JSON body, allow-listed headers and the query with JSONata. See [docs/GATUS.md](docs/GATUS.md#webhook-trigger-reference). |
 | **Audit log** | Everything that changed anything, attributed to the signed-in user: sign-ins, user/role/access changes, platform/credential changes, process versions, runs, every write call, skipped (dry-run) writes, decisions, failed checks, screenshots, exports. |
 
 ## Users, roles and access
@@ -116,6 +127,7 @@ Retention of runs and notifications, and the notification channels, are set unde
 - **Platform access list.** Rights are `use` (bind it in runs; read-only explorer calls) and `manage` (configuration, credentials, access, write calls in the explorer). Use this to restrict e.g. the production tenant to one team.
 - **Decisions.** A user task can name `assignees` (users, teams, roles). Otherwise everyone with `run` or `approve` on the process may decide. With `fourEyes: true`, the person who started the run may not decide.
 - **Schedules.** A schedule runs with the rights of its owner (the person who created it). If the owner loses the rights or is deactivated, the run is skipped and recorded in the audit log.
+- **Webhook triggers** follow the same rules as schedules: creating one needs run rights on the process, runs use the owner's rights (checked on every call), and the owner, an admin or a process manager can change it.
 - New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
 
 ### Single sign-on (Microsoft Entra ID / OpenID Connect)
@@ -189,6 +201,8 @@ Who can see what: a dataset is visible to everyone who may view the process that
 
 Templates are YAML files in [`examples/processes/`](examples/README.md); example dashboards are in `examples/dashboards/`. Adding a file there makes it available in *From template*. The examples README lists the whole library, including privileged-access review, offboarding, group hygiene, inventories, data freshness, firmware and app compliance, stale device clean-up and a weekly service report. Check files with `npm run validate`, which runs in CI too.
 
+**Gatus.** Steward works alongside the [Gatus](https://github.com/TwiN/gatus) uptime monitor instead of re-implementing monitoring: Gatus monitors Steward's `/api/health` and `/api/ready`, Steward shows the Gatus endpoint status on the *Uptime* dashboard, pushes its own check results to Gatus external endpoints, and a Gatus alert can start a runbook through a webhook trigger. Configuration snippets and security notes: [docs/GATUS.md](docs/GATUS.md).
+
 For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roadmap) see [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ### Notes on the Siemens APIs (please verify on your tenant)
@@ -198,6 +212,26 @@ For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roa
 - **Asset attributes.** These are billed per asset: the asset type's variables plus the variables of its aspects. The optimization template estimates potential from sampled latest values. Cross-check with the Asset Manager attribute calculator before changing models.
 - **IEM device fields.** Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
 - Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's *Pick from API spec* and the explorer then list all operations.
+
+## PDF reports
+
+Steward creates PDF reports without a browser, also in the desktop executable.
+
+- **Run report.** On a run page, open *PDF reports → Generate PDF report* (or *Protocol → Generate PDF report…*). Choose English or German and add a reviewer comment if you like. The report contains:
+  - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent *dry run* banner;
+  - the platforms used (names and kinds only, never credentials) and the inputs;
+  - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;
+  - the reviewer comment, an integrity section with the sealed protocol hash and the run's audit trail, and a sign-off block (*Prepared / Reviewed / Approved by*) with empty digital signature fields.
+- **Interim reports.** Runs that wait for a decision can be reported too. These reports are marked *interim*.
+- **Summary report.** *Runs → Summary report* lists all runs of one or more processes in a period, e.g. "Access reviews Q3", with totals.
+- **Automatic reports.** In the process editor, *Settings → PDF report* (YAML: `report: { auto: true, lang: de }`) generates the report whenever a run finishes, e.g. for scheduled reviews.
+- **Branding.** *Settings → Report branding* (administrators) sets the company name, logo (PNG/JPEG, max. 1 MB; default: the Steward logo), accent colour, default classification (e.g. *Internal*) and a footer note, with a sample preview.
+
+**Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
+
+**Verifying a copy.** *Audit log → Verify PDF report* (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
+
+API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the *settings* capability.
 
 ## Writing processes
 
@@ -315,6 +349,9 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 - The audit log is HMAC-chained with a key derived from the master key. *Audit log → Verify chain* detects modified, removed or re-ordered entries. Each finished run stores a fingerprint of its protocol in the chain, and the protocol shows whether it is still intact.
 - By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
+- The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
+- Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
+- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md).
 
 ## Development
 
@@ -322,14 +359,16 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 npm install
 npm run dev:demo   # API with auto-reload + Vite UI on http://127.0.0.1:5173 (with mock platforms)
 npm test           # end-to-end tests against the mock platforms (incl. browser + crash/resume)
+npm run test:pg    # the same suite on PostgreSQL (SM_TEST_DATABASE_URL, default postgres://postgres@127.0.0.1:5432/postgres)
 npm run typecheck
+npm run test:ui    # Playwright browser tests (after npm run build), see docs/TESTING.md
 ```
 
 Code layout:
 
 ```
 shared/   process model (zod schemas), step metadata for the editor, API types
-server/   Fastify API, SQLite (node:sqlite), engine, platforms, audit, scheduler, reports, mock platforms, templates
+server/   Fastify API, SQLite (node:sqlite) or PostgreSQL (server/src/database), engine, platforms, audit, scheduler, reports, mock platforms, templates
 web/      React + Mantine UI
 ```
 
@@ -345,7 +384,11 @@ Where things live:
 - Import a Postman collection as a platform spec.
 - See [docs/ROADMAP.md](docs/ROADMAP.md).
 
-Contract checks against a sandbox tenant (for CI): `npm run contract -- --url http://127.0.0.1:4310 --token smt_… --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec.
+Public REST API: the OpenAPI document [`docs/openapi.json`](docs/openapi.json) is generated from the route schemas with `npm run openapi`; `npm run openapi -- --check` fails when it is outdated (run it in CI). Details in [docs/API.md](docs/API.md).
+
+Contract checks against a sandbox tenant (for CI): `STEWARD_TOKEN=smt_… npm run contract -- --url http://127.0.0.1:4310 --platform <id>` calls every documented GET operation without required parameters and compares the responses with the OpenAPI spec. Pass the token via `STEWARD_TOKEN` (or `--token-file`) rather than `--token`, so it does not end up in your shell history.
+
+The command-line tools (`npm run validate`, `npm run contract`, the desktop executable, `npm run build:exe`) all take `--help`, exit with `0` (ok), `1` (failure or findings) or `2` (usage error), and `validate`/`contract` print machine-readable results with `--json` (use `npm run --silent …` to keep npm's own header out of the output).
 
 ## License
 

@@ -11,15 +11,26 @@ import { BRAND } from '../../shared/src/brand';
 import './i18n';
 import { App } from './App';
 import { initPwa } from './pwa';
+import { initErrorReporting } from './errorReporting';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 document.title = BRAND.name;
 initPwa();
+void initErrorReporting();
 
 const theme = createTheme({
   primaryColor: 'blue',
   defaultRadius: 'md',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  // Icon-only close buttons need an accessible name (screen readers, axe "button-name").
+  components: {
+    Modal: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
+    Drawer: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
+    // the command palette's result list scrolls; make it reachable by keyboard (axe "scrollable-region-focusable")
+    SpotlightActionsList: { defaultProps: { viewportProps: { tabIndex: 0 } } },
+    TableScrollContainer: { defaultProps: { scrollAreaProps: { viewportProps: { tabIndex: 0 } } } },
+  },
 });
 
 const queryClient = new QueryClient({
@@ -32,16 +43,18 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          {/* Suspends while the language files of a non-English UI load. */}
-          <Suspense
-            fallback={
-              <Center h="100vh">
-                <Loader />
-              </Center>
-            }
-          >
-            <App />
-          </Suspense>
+          <ErrorBoundary>
+            {/* Suspends while the language files of a non-English UI load. */}
+            <Suspense
+              fallback={
+                <Center h="100vh">
+                  <Loader />
+                </Center>
+              }
+            >
+              <App />
+            </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
       </QueryClientProvider>
     </MantineProvider>

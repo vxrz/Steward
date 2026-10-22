@@ -1,0 +1,5147 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Steward API",
+    "version": "1.0.0",
+    "summary": "Read-only REST API of Steward",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    },
+    "contact": {
+      "name": "Steward",
+      "url": "https://github.com/vxrz/service-manager"
+    }
+  },
+  "components": {
+    "schemas": {
+      "Problem": {
+        "title": "Problem",
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "URI reference identifying the problem type"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short, human-readable summary of the problem type"
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code"
+          },
+          "detail": {
+            "type": "string",
+            "description": "Explanation specific to this occurrence"
+          },
+          "instance": {
+            "type": "string",
+            "description": "Request path of this occurrence"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "in": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "in",
+                "name",
+                "message"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Validation problems (400 only)"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "additionalProperties": false,
+        "description": "Problem details (RFC 9457), served as application/problem+json",
+        "example": {
+          "type": "https://github.com/vxrz/service-manager/blob/main/docs/API.md#invalid-token",
+          "title": "Unauthorized",
+          "status": 401,
+          "detail": "Invalid, expired or revoked API token",
+          "instance": "/api/v1/runs"
+        }
+      },
+      "Health": {
+        "title": "Health",
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "unavailable"
+            ],
+            "description": "\"unavailable\" while the vault is locked: data endpoints answer 503 until an administrator unlocks it"
+          },
+          "apiVersion": {
+            "type": "string",
+            "description": "Semantic version of this API description"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "status",
+          "apiVersion",
+          "time"
+        ],
+        "additionalProperties": false
+      },
+      "Me": {
+        "title": "Me",
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              },
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "admin",
+                    "designer",
+                    "operator",
+                    "approver",
+                    "auditor",
+                    "viewer"
+                  ]
+                }
+              },
+              "teams": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id",
+              "username",
+              "displayName",
+              "roles",
+              "teams"
+            ],
+            "additionalProperties": false
+          },
+          "token": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "full"
+                ],
+                "description": "Both scopes may call every /api/v1 endpoint (all are read-only)"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Expiry; null = never"
+              },
+              "lastUsedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Previous use (updated at most once a minute)"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "scope",
+              "createdAt",
+              "expiresAt",
+              "lastUsedAt"
+            ],
+            "additionalProperties": false
+          },
+          "capabilities": {
+            "type": "object",
+            "properties": {
+              "viewAudit": {
+                "type": "boolean",
+                "description": "May read /audit (auditor, admin)"
+              },
+              "manageUsers": {
+                "type": "boolean",
+                "description": "May read /users and /teams (admin)"
+              }
+            },
+            "required": [
+              "viewAudit",
+              "manageUsers"
+            ],
+            "additionalProperties": false
+          },
+          "serverVersion": {
+            "type": "string"
+          },
+          "apiVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "user",
+          "token",
+          "capabilities",
+          "serverVersion",
+          "apiVersion"
+        ],
+        "additionalProperties": false
+      },
+      "Process": {
+        "title": "Process",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentVersion": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the owner (full rights)"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "view",
+                "run",
+                "edit",
+                "approve",
+                "manage"
+              ]
+            },
+            "description": "What the token owner may do with this process"
+          },
+          "lastRun": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted"
+                    ]
+                  },
+                  "startedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "startedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "currentVersion",
+          "updatedAt",
+          "owner",
+          "permissions",
+          "lastRun"
+        ],
+        "additionalProperties": false
+      },
+      "ProcessDetail": {
+        "title": "ProcessDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "currentVersion": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "User name of the owner (full rights)"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "view",
+                "run",
+                "edit",
+                "approve",
+                "manage"
+              ]
+            },
+            "description": "What the token owner may do with this process"
+          },
+          "lastRun": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "queued",
+                      "running",
+                      "waiting",
+                      "succeeded",
+                      "failed",
+                      "cancelled",
+                      "interrupted"
+                    ]
+                  },
+                  "startedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "startedAt"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Current process definition (nodes, wires, inputs, connections …)"
+          },
+          "definitionHash": {
+            "type": "string",
+            "description": "SHA-256 of the canonical definition"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "tags",
+          "currentVersion",
+          "updatedAt",
+          "owner",
+          "permissions",
+          "lastRun",
+          "definition",
+          "definitionHash"
+        ],
+        "additionalProperties": false
+      },
+      "ProcessVersion": {
+        "title": "ProcessVersion",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "version",
+          "hash",
+          "author",
+          "comment",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "ProcessVersionDetail": {
+        "title": "ProcessVersionDetail",
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Process definition of this version"
+          }
+        },
+        "required": [
+          "version",
+          "hash",
+          "author",
+          "comment",
+          "createdAt",
+          "processId",
+          "definition"
+        ],
+        "additionalProperties": false
+      },
+      "Run": {
+        "title": "Run",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "processVersion": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ]
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "schedule",
+              "resume",
+              "subprocess"
+            ]
+          },
+          "scheduleId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "parentRunId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Run that started this one through a sub-process node"
+          },
+          "parentStepKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "description": "User who started the run (schedule owner for scheduled runs)"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the run is not finished"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "steps": {
+                "type": "integer"
+              },
+              "failedSteps": {
+                "type": "integer"
+              },
+              "writes": {
+                "type": "integer",
+                "description": "Write calls (POST/PUT/PATCH/DELETE) sent to platforms"
+              },
+              "skippedWrites": {
+                "type": "integer",
+                "description": "Write calls only recorded because of a dry run"
+              },
+              "checksPassed": {
+                "type": "integer"
+              },
+              "checksFailed": {
+                "type": "integer"
+              },
+              "openTasks": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "steps",
+              "failedSteps",
+              "writes",
+              "skippedWrites",
+              "checksPassed",
+              "checksFailed",
+              "openTasks"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "processId",
+          "processName",
+          "processVersion",
+          "status",
+          "dryRun",
+          "trigger",
+          "scheduleId",
+          "parentRunId",
+          "parentStepKey",
+          "actor",
+          "startedAt",
+          "finishedAt",
+          "error",
+          "stats"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "id": "run_8xQ2mK1pZt4a",
+          "processId": "ih-health-check",
+          "processName": "Insights Hub – Platform health check",
+          "processVersion": 3,
+          "status": "succeeded",
+          "dryRun": false,
+          "trigger": "schedule",
+          "scheduleId": "sch_Hn3r0dYw1kQe",
+          "parentRunId": null,
+          "parentStepKey": null,
+          "actor": "olivia",
+          "startedAt": "2026-10-22T06:00:00.012Z",
+          "finishedAt": "2026-10-22T06:00:04.871Z",
+          "error": null,
+          "stats": {
+            "steps": 12,
+            "failedSteps": 0,
+            "writes": 0,
+            "skippedWrites": 0,
+            "checksPassed": 5,
+            "checksFailed": 0,
+            "openTasks": 0
+          }
+        }
+      },
+      "RunDetail": {
+        "title": "RunDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "processVersion": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "interrupted"
+            ]
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "schedule",
+              "resume",
+              "subprocess"
+            ]
+          },
+          "scheduleId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "parentRunId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Run that started this one through a sub-process node"
+          },
+          "parentStepKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "actor": {
+            "type": "string",
+            "description": "User who started the run (schedule owner for scheduled runs)"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the run is not finished"
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "stats": {
+            "type": "object",
+            "properties": {
+              "steps": {
+                "type": "integer"
+              },
+              "failedSteps": {
+                "type": "integer"
+              },
+              "writes": {
+                "type": "integer",
+                "description": "Write calls (POST/PUT/PATCH/DELETE) sent to platforms"
+              },
+              "skippedWrites": {
+                "type": "integer",
+                "description": "Write calls only recorded because of a dry run"
+              },
+              "checksPassed": {
+                "type": "integer"
+              },
+              "checksFailed": {
+                "type": "integer"
+              },
+              "openTasks": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "steps",
+              "failedSteps",
+              "writes",
+              "skippedWrites",
+              "checksPassed",
+              "checksFailed",
+              "openTasks"
+            ],
+            "additionalProperties": false
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Inputs the run was started with"
+          },
+          "bindings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "platformId": {
+                  "type": "string"
+                },
+                "platformName": {
+                  "type": "string"
+                },
+                "baseUrl": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "platformId",
+                "platformName",
+                "baseUrl"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Connection slot → platform used by this run"
+          },
+          "definitionHash": {
+            "type": "string",
+            "description": "Hash of the pinned process version"
+          },
+          "outputs": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {},
+                "description": "Evaluated process outputs"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Evaluated process outputs"
+          },
+          "steps": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "byStatus": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              }
+            },
+            "required": [
+              "total",
+              "byStatus"
+            ],
+            "additionalProperties": false,
+            "description": "Summary of the step journal; page through GET /runs/{runId}/steps for the entries"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "taskId": {
+                  "type": "string"
+                },
+                "stepKey": {
+                  "type": "string"
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "select",
+                    "approve"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "open",
+                    "completed",
+                    "cancelled"
+                  ]
+                },
+                "approved": {
+                  "type": [
+                    "null",
+                    "boolean"
+                  ]
+                },
+                "selectedKeys": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "comment": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "decidedBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "decidedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When the decision was made"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                }
+              },
+              "required": [
+                "taskId",
+                "stepKey",
+                "mode",
+                "title",
+                "status",
+                "approved",
+                "selectedKeys",
+                "comment",
+                "decidedBy",
+                "decidedAt",
+                "createdAt"
+              ],
+              "additionalProperties": false
+            },
+            "description": "User tasks of this run and their decisions"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stepKey": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "passed": {
+                  "type": "boolean"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "When the check was evaluated"
+                }
+              },
+              "required": [
+                "stepKey",
+                "name",
+                "passed",
+                "severity",
+                "message",
+                "finishedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "protocol": {
+            "type": "object",
+            "properties": {
+              "hash": {
+                "type": "string",
+                "description": "SHA-256 fingerprint of everything recorded for the run"
+              },
+              "recordedHash": {
+                "type": [
+                  "null",
+                  "string"
+                ],
+                "description": "Fingerprint sealed in the audit log when the run finished"
+              },
+              "intact": {
+                "type": [
+                  "null",
+                  "boolean"
+                ],
+                "description": "hash = recordedHash; null while the run is not finished"
+              }
+            },
+            "required": [
+              "hash",
+              "recordedHash",
+              "intact"
+            ],
+            "additionalProperties": false,
+            "description": "Tamper evidence of the run protocol"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "processId": {
+                  "type": "string"
+                },
+                "processName": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "running",
+                    "waiting",
+                    "succeeded",
+                    "failed",
+                    "cancelled",
+                    "interrupted"
+                  ]
+                },
+                "parentStepKey": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "startedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "finishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Null while the run is not finished"
+                }
+              },
+              "required": [
+                "id",
+                "processId",
+                "processName",
+                "status",
+                "parentStepKey",
+                "startedAt",
+                "finishedAt"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Sub-process runs started by this run (only those you may view)"
+          }
+        },
+        "required": [
+          "id",
+          "processId",
+          "processName",
+          "processVersion",
+          "status",
+          "dryRun",
+          "trigger",
+          "scheduleId",
+          "parentRunId",
+          "parentStepKey",
+          "actor",
+          "startedAt",
+          "finishedAt",
+          "error",
+          "stats",
+          "inputs",
+          "bindings",
+          "definitionHash",
+          "outputs",
+          "steps",
+          "decisions",
+          "checks",
+          "protocol",
+          "children"
+        ],
+        "additionalProperties": false
+      },
+      "RunStep": {
+        "title": "RunStep",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Journal entry id (increasing in execution order)"
+          },
+          "key": {
+            "type": "string",
+            "description": "Activation key (loop scope + node id)"
+          },
+          "parentKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "running",
+              "succeeded",
+              "failed",
+              "skipped",
+              "waiting",
+              "dryrun"
+            ]
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the step runs"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "error": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "input": {
+            "description": "Resolved request or configuration (secrets redacted); truncated preview"
+          },
+          "output": {
+            "description": "Output; truncated preview in lists, complete from GET /runs/{runId}/steps/{stepId}"
+          },
+          "outputTruncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "parentKey",
+          "nodeId",
+          "type",
+          "name",
+          "status",
+          "startedAt",
+          "finishedAt",
+          "durationMs",
+          "summary",
+          "error",
+          "outputTruncated"
+        ],
+        "additionalProperties": false
+      },
+      "RunLog": {
+        "title": "RunLog",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "debug",
+              "info",
+              "warn",
+              "error"
+            ]
+          },
+          "stepKey": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "description": "Structured data attached to the log entry (may be absent)"
+          }
+        },
+        "required": [
+          "id",
+          "ts",
+          "level",
+          "stepKey",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "Task": {
+        "title": "Task",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "stepKey": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "select",
+              "approve"
+            ],
+            "description": "select: pick items; approve: approve or reject"
+          },
+          "title": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed",
+              "cancelled"
+            ]
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "user:/team:/role: subjects; empty = everyone with run or approve rights"
+          },
+          "fourEyes": {
+            "type": "boolean"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "startedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the task was decided"
+          },
+          "approved": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "canDecide": {
+            "type": "boolean",
+            "description": "Whether the token owner may decide it (in the web UI)"
+          },
+          "cannotDecideReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "processId",
+          "processName",
+          "stepKey",
+          "mode",
+          "title",
+          "instructions",
+          "status",
+          "assignees",
+          "fourEyes",
+          "dryRun",
+          "startedBy",
+          "createdAt",
+          "decidedBy",
+          "decidedAt",
+          "approved",
+          "itemCount",
+          "canDecide",
+          "cannotDecideReason"
+        ],
+        "additionalProperties": false
+      },
+      "TaskDetail": {
+        "title": "TaskDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "stepKey": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "select",
+              "approve"
+            ],
+            "description": "select: pick items; approve: approve or reject"
+          },
+          "title": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "completed",
+              "cancelled"
+            ]
+          },
+          "assignees": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "user:/team:/role: subjects; empty = everyone with run or approve rights"
+          },
+          "fourEyes": {
+            "type": "boolean"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "startedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "decidedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the task was decided"
+          },
+          "approved": {
+            "type": [
+              "null",
+              "boolean"
+            ]
+          },
+          "itemCount": {
+            "type": "integer"
+          },
+          "canDecide": {
+            "type": "boolean",
+            "description": "Whether the token owner may decide it (in the web UI)"
+          },
+          "cannotDecideReason": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Column labels of the items"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "cells": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "preselected": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "cells",
+                "preselected"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "selectedKeys": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comment": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "runId",
+          "processId",
+          "processName",
+          "stepKey",
+          "mode",
+          "title",
+          "instructions",
+          "status",
+          "assignees",
+          "fourEyes",
+          "dryRun",
+          "startedBy",
+          "createdAt",
+          "decidedBy",
+          "decidedAt",
+          "approved",
+          "itemCount",
+          "canDecide",
+          "cannotDecideReason",
+          "columns",
+          "items",
+          "selectedKeys",
+          "comment"
+        ],
+        "additionalProperties": false
+      },
+      "Schedule": {
+        "title": "Schedule",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "cron": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "allowOverlap": {
+            "type": "boolean"
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Preset inputs"
+          },
+          "bindings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Connection slot → platform id"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Scheduled runs use the rights of this user"
+          },
+          "nextRunAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next planned run (null when disabled or the scheduler is stopped)"
+          },
+          "lastRunAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last run"
+          },
+          "lastRunId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastRunStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "waiting",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "interrupted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "processId",
+          "processName",
+          "cron",
+          "timezone",
+          "enabled",
+          "dryRun",
+          "allowOverlap",
+          "inputs",
+          "bindings",
+          "owner",
+          "nextRunAt",
+          "lastRunAt",
+          "lastRunId",
+          "lastRunStatus",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Platform": {
+        "title": "Platform",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string",
+            "description": "Base URL without user info and query string"
+          },
+          "authType": {
+            "type": "string",
+            "description": "Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request)"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "use",
+                "manage"
+              ]
+            },
+            "description": "What the token owner may do with this platform"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "environment",
+          "baseUrl",
+          "authType",
+          "permissions",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "description": "Platform metadata. Credentials, variables and authentication settings are never part of the API.",
+        "example": {
+          "id": "pf_2bV9xLq0aYc1",
+          "name": "Insights Hub (production)",
+          "kind": "insights-hub",
+          "description": "EU1 tenant",
+          "environment": "production",
+          "baseUrl": "https://gateway.eu1.mindsphere.io",
+          "authType": "oauth2_client_credentials",
+          "permissions": [
+            "use"
+          ],
+          "createdAt": "2026-09-01T08:15:00.000Z",
+          "updatedAt": "2026-10-01T10:00:00.000Z"
+        }
+      },
+      "Dataset": {
+        "title": "Dataset",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string",
+            "description": "Run that published the current snapshot"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "rowCount": {
+            "type": "integer"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "statusCounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Rows per status (good, warning, serious, critical, unknown)"
+          },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Latest value per metric"
+          },
+          "staleAfterMinutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "processId",
+          "processName",
+          "runId",
+          "dryRun",
+          "updatedAt",
+          "rowCount",
+          "columns",
+          "statusCounts",
+          "metrics",
+          "staleAfterMinutes",
+          "stale"
+        ],
+        "additionalProperties": false
+      },
+      "DatasetRow": {
+        "title": "DatasetRow",
+        "type": "object",
+        "additionalProperties": {},
+        "description": "One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText."
+      },
+      "MetricSeries": {
+        "title": "MetricSeries",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ts": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "value": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "ts",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "name",
+          "points"
+        ],
+        "additionalProperties": false
+      },
+      "Dashboard": {
+        "title": "Dashboard",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Dashboard definition (widgets referencing datasets)"
+          },
+          "owner": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "definition",
+          "owner",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "AuditEntry": {
+        "title": "AuditEntry",
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "description": "Position in the hash chain (1, 2, 3 …)"
+          },
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "runId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "summary": {
+            "type": "string"
+          },
+          "details": {
+            "description": "Structured details (never contains secret values)"
+          },
+          "hash": {
+            "type": "string",
+            "description": "HMAC-SHA-256 chained to the previous entry"
+          }
+        },
+        "required": [
+          "seq",
+          "ts",
+          "actor",
+          "action",
+          "entityType",
+          "entityId",
+          "runId",
+          "summary",
+          "hash"
+        ],
+        "additionalProperties": false
+      },
+      "AuditVerifyResult": {
+        "title": "AuditVerifyResult",
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "checked": {
+            "type": "integer"
+          },
+          "firstBadSeq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok",
+          "checked",
+          "firstBadSeq",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "User": {
+        "title": "User",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "designer",
+                "operator",
+                "approver",
+                "auditor",
+                "viewer"
+              ]
+            }
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "authSource": {
+            "type": "string",
+            "description": "\"local\" or the id of the single sign-on provider"
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "lastLoginAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last sign-in"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "displayName",
+          "email",
+          "roles",
+          "teams",
+          "active",
+          "authSource",
+          "mustChangePassword",
+          "lastLoginAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Team": {
+        "title": "Team",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "User names"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "members",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "smt_ token",
+        "description": "Personal API token from the profile page of the web UI (`smt_…`). Read-only tokens are sufficient."
+      }
+    },
+    "headers": {
+      "RateLimit-Limit": {
+        "description": "Requests allowed per window (per token)",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RateLimit-Remaining": {
+        "description": "Requests left in the current window",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RateLimit-Reset": {
+        "description": "Seconds until the quota is fully restored",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RateLimit-Policy": {
+        "description": "Quota policy, e.g. `600;w=60` (600 requests per 60 seconds)",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Retry-After": {
+        "description": "Seconds to wait before retrying",
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "Link": {
+        "description": "RFC 8288 link to the next page (`rel=\"next\"`), when there is one",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Invalid query parameter, path parameter or cursor",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing, invalid, expired or revoked API token",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The token owner is not allowed to do this (or is deactivated)",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Does not exist, or the token owner may not see it",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "The data changed while paging; start again without a cursor",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Rate limit exceeded; see Retry-After",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The vault is locked; an administrator has to unlock it",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health of the API",
+        "tags": [
+          "Meta"
+        ],
+        "description": "No token needed. Answers 503 with status \"unavailable\" while the vault is locked.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "The vault is locked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Owner and scope of the token",
+        "tags": [
+          "Meta"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApiDocument",
+        "summary": "This OpenAPI document (JSON)",
+        "tags": [
+          "Meta"
+        ],
+        "description": "Available with a token, or without one when the documentation is enabled (signed-in users or public, see SM_API_DOCS).",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OpenAPI 3.1 document",
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ]
+      }
+    },
+    "/processes": {
+      "get": {
+        "operationId": "listProcesses",
+        "summary": "List processes",
+        "tags": [
+          "Processes"
+        ],
+        "description": "Processes you may view (archived ones are left out), ordered by name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "description": "Only processes with this tag"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Case-insensitive search in id, name and description"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of processes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of processes",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Process"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/processes/{processId}": {
+      "get": {
+        "operationId": "getProcess",
+        "summary": "Get a process with its current definition",
+        "tags": [
+          "Processes"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "processId",
+            "required": true,
+            "description": "Process id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/processes/{processId}/versions": {
+      "get": {
+        "operationId": "listProcessVersions",
+        "summary": "List versions of a process",
+        "tags": [
+          "Processes"
+        ],
+        "description": "Newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "processId",
+            "required": true,
+            "description": "Process id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of versions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of versions",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProcessVersion"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/processes/{processId}/versions/{version}": {
+      "get": {
+        "operationId": "getProcessVersion",
+        "summary": "Get a specific version of a process",
+        "tags": [
+          "Processes"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "processId",
+            "required": true,
+            "description": "Process id"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "description": "Version number (1, 2, …)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessVersionDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/runs": {
+      "get": {
+        "operationId": "listRuns",
+        "summary": "List runs",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Runs of processes you may view, newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "processId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "waiting",
+                  "succeeded",
+                  "failed",
+                  "cancelled",
+                  "interrupted"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "One or more statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "schedule",
+                  "resume",
+                  "subprocess"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "trigger",
+            "required": false,
+            "description": "One or more triggers (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "scheduleId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "dryRun",
+            "required": false,
+            "description": "true: only dry runs, false: only real runs"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Started at or after this time (ISO 8601)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Started before this time (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of runs",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Run"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/runs/{runId}": {
+      "get": {
+        "operationId": "getRun",
+        "summary": "Get a run",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Inputs, platforms used, step summary, decisions, checks, statistics, protocol fingerprint and sub-process runs.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "description": "Run id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/runs/{runId}/steps": {
+      "get": {
+        "operationId": "listRunSteps",
+        "summary": "List the step journal of a run",
+        "tags": [
+          "Runs"
+        ],
+        "description": "In execution order. Inputs and outputs are previews (outputTruncated tells whether the output was cut).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "skipped",
+                  "waiting",
+                  "dryrun"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "One or more step statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "description": "Node type, e.g. http, check, userTask"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "description": "Run id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of journal entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of journal entries",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RunStep"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/runs/{runId}/steps/{stepId}": {
+      "get": {
+        "operationId": "getRunStep",
+        "summary": "Get one journal entry with its complete output",
+        "tags": [
+          "Runs"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "description": "Run id"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "stepId",
+            "required": true,
+            "description": "Journal entry id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStep"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/runs/{runId}/logs": {
+      "get": {
+        "operationId": "listRunLogs",
+        "summary": "List the log of a run",
+        "tags": [
+          "Runs"
+        ],
+        "description": "Oldest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "debug",
+                  "info",
+                  "warn",
+                  "error"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "description": "One or more levels (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "runId",
+            "required": true,
+            "description": "Run id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of log entries",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RunLog"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "operationId": "listTasks",
+        "summary": "List user tasks (decisions)",
+        "tags": [
+          "Tasks"
+        ],
+        "description": "Tasks of runs you may view, newest first. Items are left out; get a task for them.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "completed",
+                  "cancelled"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "open, completed, cancelled (repeat the parameter); default all"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "processId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "runId",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of tasks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of tasks",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Task"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/tasks/{taskId}": {
+      "get": {
+        "operationId": "getTask",
+        "summary": "Get a task with its items and decision",
+        "tags": [
+          "Tasks"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "description": "Task id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/schedules": {
+      "get": {
+        "operationId": "listSchedules",
+        "summary": "List schedules",
+        "tags": [
+          "Schedules"
+        ],
+        "description": "Schedules of processes you may view, ordered by name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "processId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "enabled",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of schedules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of schedules",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Schedule"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/schedules/{scheduleId}": {
+      "get": {
+        "operationId": "getSchedule",
+        "summary": "Get a schedule",
+        "tags": [
+          "Schedules"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "scheduleId",
+            "required": true,
+            "description": "Schedule id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schedule"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms": {
+      "get": {
+        "operationId": "listPlatforms",
+        "summary": "List platforms (metadata only)",
+        "tags": [
+          "Platforms"
+        ],
+        "description": "Credentials, variables and authentication settings are never returned.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "kind",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of platforms",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of platforms",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Platform"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/platforms/{platformId}": {
+      "get": {
+        "operationId": "getPlatform",
+        "summary": "Get a platform (metadata only)",
+        "tags": [
+          "Platforms"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "platformId",
+            "required": true,
+            "description": "Platform id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Platform"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/datasets": {
+      "get": {
+        "operationId": "listDatasets",
+        "summary": "List datasets",
+        "tags": [
+          "Dashboards"
+        ],
+        "description": "Datasets published by processes you may view, ordered by key.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of datasets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of datasets",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Dataset"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/datasets/{datasetKey}": {
+      "get": {
+        "operationId": "getDataset",
+        "summary": "Get dataset metadata",
+        "tags": [
+          "Dashboards"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "datasetKey",
+            "required": true,
+            "description": "Dataset key, e.g. iem.devices"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dataset"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/datasets/{datasetKey}/rows": {
+      "get": {
+        "operationId": "listDatasetRows",
+        "summary": "List the rows of a dataset snapshot",
+        "tags": [
+          "Dashboards"
+        ],
+        "description": "In published order. When the dataset is re-published while you page through it, the next page answers 409 (dataset-changed) – start again without a cursor.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–1000, default 100)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "good",
+                  "warning",
+                  "serious",
+                  "critical",
+                  "unknown"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only rows with these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "datasetKey",
+            "required": true,
+            "description": "Dataset key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of rows",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DatasetRow"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/datasets/{datasetKey}/metrics": {
+      "get": {
+        "operationId": "getDatasetMetrics",
+        "summary": "Metric history of a dataset",
+        "tags": [
+          "Dashboards"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            "in": "query",
+            "name": "names",
+            "required": false,
+            "description": "Metric names (repeat the parameter); default all"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 400,
+              "default": 30
+            },
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "description": "History window in days (1–400, default 30)"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 2000,
+              "default": 200
+            },
+            "in": "query",
+            "name": "points",
+            "required": false,
+            "description": "Maximum points per series (downsampled, default 200)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "datasetKey",
+            "required": true,
+            "description": "Dataset key"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "days",
+                    "series"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "days": {
+                      "type": "integer"
+                    },
+                    "series": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MetricSeries"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/dashboards": {
+      "get": {
+        "operationId": "listDashboards",
+        "summary": "List dashboard definitions",
+        "tags": [
+          "Dashboards"
+        ],
+        "description": "Ordered by name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of dashboards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of dashboards",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Dashboard"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/dashboards/{dashboardId}": {
+      "get": {
+        "operationId": "getDashboard",
+        "summary": "Get a dashboard definition",
+        "tags": [
+          "Dashboards"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "dashboardId",
+            "required": true,
+            "description": "Dashboard id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "listAuditEntries",
+        "summary": "List audit log entries",
+        "tags": [
+          "Audit"
+        ],
+        "description": "Auditors and administrators; others only with `runId` of a run they may view. Newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "description": "Action prefix, e.g. \"run.\" or \"platform.secrets_changed\""
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "actor",
+            "required": false,
+            "description": "Exact user name (or \"system\")"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "entityType",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "entityId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "runId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Search in summary, actor and action"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "At or after this time (ISO 8601)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Before this time (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of audit entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of audit entries",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "operationId": "verifyAuditLog",
+        "summary": "Verify the hash chain of the audit log",
+        "tags": [
+          "Audit"
+        ],
+        "description": "Auditors and administrators. The verification itself is recorded in the audit log.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditVerifyResult"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "List users",
+        "tags": [
+          "Users"
+        ],
+        "description": "Administrators only. Ordered by user name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "active",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of users",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/User"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/users/{userId}": {
+      "get": {
+        "operationId": "getUser",
+        "summary": "Get a user",
+        "tags": [
+          "Users"
+        ],
+        "description": "Administrators only.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "description": "User id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/teams": {
+      "get": {
+        "operationId": "listTeams",
+        "summary": "List teams",
+        "tags": [
+          "Users"
+        ],
+        "description": "Administrators only. Ordered by name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of teams",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of teams",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Team"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "This server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Meta",
+      "description": "Health, the token in use and this document"
+    },
+    {
+      "name": "Processes",
+      "description": "Process definitions and their version history"
+    },
+    {
+      "name": "Runs",
+      "description": "Executions with step journal, logs, decisions and checks"
+    },
+    {
+      "name": "Tasks",
+      "description": "User tasks (selections and approvals) of runs"
+    },
+    {
+      "name": "Schedules",
+      "description": "Cron schedules"
+    },
+    {
+      "name": "Platforms",
+      "description": "Connected systems – metadata only, never credentials"
+    },
+    {
+      "name": "Dashboards",
+      "description": "Datasets published by processes, and dashboard definitions"
+    },
+    {
+      "name": "Audit",
+      "description": "Tamper-evident audit log (auditors and administrators)"
+    },
+    {
+      "name": "Users",
+      "description": "Accounts and teams (administrators)"
+    }
+  ],
+  "externalDocs": {
+    "description": "API guide (docs/API.md)",
+    "url": "https://github.com/vxrz/service-manager/blob/main/docs/API.md"
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
+}

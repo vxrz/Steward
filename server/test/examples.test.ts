@@ -20,6 +20,8 @@ beforeAll(async () => {
   demo = await s.api('POST', '/demo/setup', {});
   adam = await s.as('adam', demo.password);
   for (const p of await s.api('GET', '/platforms')) platformByKind[p.kind] = p.id;
+  // the diagnosis runbook probes an URL below the "Web probe (demo)" platform
+  INPUTS['gatus-diagnose-outage'] = { endpointUrl: `${s.base}/mock/gatus-apps/historian/health`, errors: '[STATUS] (503) == 200' };
 });
 afterAll(async () => {
   await s?.app.close();
@@ -49,7 +51,10 @@ function hasWrites(def: ProcessDefinition): boolean {
 const INPUTS: Record<string, Record<string, unknown>> = {
   'ih-offboard-users': { users: 'karla.lang@example.com\nnobody@example.com' },
   'generic-endpoint-check': { paths: '/api/identitymanagement/v3/Users' },
+  'gatus-report-check': { path: '/api/identitymanagement/v3/Users' },
 };
+/** Slots without a kind are bound to the Insights Hub demo tenant, except these. */
+const SLOT_KIND: Record<string, string> = { portal: 'industrial-edge-management' };
 
 describe('example library', () => {
   it.each(processFiles)('process %s is valid', (f) => {
@@ -68,7 +73,7 @@ describe('example library', () => {
     expect(demo.schedules).toBeGreaterThanOrEqual(9);
     expect(demo.runs).toBeGreaterThanOrEqual(9);
     const dashboards = await s.api('GET', '/dashboards');
-    expect(dashboards.map((d: any) => d.id)).toEqual(expect.arrayContaining(['platform-operations', 'access-governance', 'edge-fleet']));
+    expect(dashboards.map((d: any) => d.id)).toEqual(expect.arrayContaining(['platform-operations', 'access-governance', 'edge-fleet', 'uptime']));
     const schedules = await s.api('GET', '/schedules');
     expect(schedules.filter((x: any) => x.name.startsWith('Demo:') && x.enabled && x.owner === 'admin').length).toBeGreaterThanOrEqual(9);
     for (let i = 0; i < 300; i++) {
@@ -85,7 +90,7 @@ describe('example library', () => {
     const id = f.replace(/\.yaml$/, '').replace(/^\d+-/, '');
     const proc = await s.api('GET', `/processes/${id}`);
     const bindings: Record<string, string> = {};
-    for (const c of proc.definition.connections) bindings[c.slot] = platformByKind[c.kind ?? (c.slot === 'portal' ? 'industrial-edge-management' : 'insights-hub')]!;
+    for (const c of proc.definition.connections) bindings[c.slot] = platformByKind[c.kind ?? SLOT_KIND[c.slot] ?? 'insights-hub']!;
     const { id: runId } = await s.api('POST', '/runs', { processId: id, bindings, inputs: INPUTS[id] ?? {}, dryRun: hasWrites(proc.definition) });
     const r = await finish(runId);
     expect([r.status, r.error]).toEqual(['succeeded', null]);
@@ -127,6 +132,17 @@ describe('example library', () => {
     expect((await s.api('GET', '/datasets/platform.service-report')).rowCount).toBe(5);
     expect((await s.api('GET', '/datasets/ih.attribute-optimization')).metrics.potentialSavings).toBeGreaterThan(0);
     expect((await s.api('GET', '/datasets/iem.firmware')).metrics.outdated).toBe(4);
+
+    const uptime = await s.api('GET', '/datasets/gatus-uptime');
+    expect(uptime.rowCount).toBe(6);
+    expect(uptime.metrics).toMatchObject({ endpoints: 6, down: 1 });
+    expect(uptime.metrics.avgUptime).toBeGreaterThan(90);
+    const byEndpoint = Object.fromEntries(uptime.rows.map((r: any) => [r.Endpoint, r]));
+    expect(byEndpoint['Historian API']).toMatchObject({ _status: 'critical', Healthy: 'no', Group: 'plant' });
+    expect(byEndpoint['Historian API']['Last error']).toContain('[STATUS] (503) == 200');
+    expect(byEndpoint['MES frontend']._status).toBe('warning'); // 95.83 % uptime (24h)
+    expect(byEndpoint['OPC UA gateway']._status).toBe('warning'); // ~1450 ms average
+    expect(byEndpoint['Steward API']).toMatchObject({ _status: 'good', 'Uptime (%)': 100 });
   });
 
   it('privileged access review removes stale admins after a second person confirms', async () => {

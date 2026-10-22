@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { db } from './db.js';
+import { likeEscape } from './database/sql.js';
 import { vault } from './vault.js';
 import { canonicalJson, nowIso, parseJson } from './util.js';
 import { currentActor } from './auth/context.js';
@@ -122,6 +123,12 @@ export function queryAudit(f: {
   entityId?: string;
   action?: string;
   q?: string;
+  /** Exact actor (user name or "system") */
+  actor?: string;
+  /** ts >= from (ISO 8601) */
+  from?: string;
+  /** ts < to (ISO 8601) */
+  to?: string;
   beforeSeq?: number;
   limit?: number;
 }): AuditEntry[] {
@@ -130,8 +137,17 @@ export function queryAudit(f: {
   if (f.runId) (where.push('run_id = ?'), params.push(f.runId));
   if (f.entityType) (where.push('entity_type = ?'), params.push(f.entityType));
   if (f.entityId) (where.push('entity_id = ?'), params.push(f.entityId));
-  if (f.action) (where.push('action LIKE ?'), params.push(f.action + '%'));
-  if (f.q) (where.push('(summary LIKE ? OR actor LIKE ? OR action LIKE ?)'), params.push(`%${f.q}%`, `%${f.q}%`, `%${f.q}%`));
+  // case-insensitive on SQLite and PostgreSQL alike; user input is matched literally
+  const like = (col: string) => `lower(${col}) LIKE lower(?) ESCAPE '\\'`;
+  if (f.action) (where.push(like('action')), params.push(likeEscape(f.action) + '%'));
+  if (f.q) {
+    const q = `%${likeEscape(f.q)}%`;
+    where.push(`(${like('summary')} OR ${like('actor')} OR ${like('action')})`);
+    params.push(q, q, q);
+  }
+  if (f.actor) (where.push('actor = ?'), params.push(f.actor));
+  if (f.from) (where.push('ts >= ?'), params.push(f.from));
+  if (f.to) (where.push('ts < ?'), params.push(f.to));
   if (f.beforeSeq) (where.push('seq < ?'), params.push(f.beforeSeq));
   const sql = `SELECT * FROM audit_log ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY seq DESC LIMIT ?`;
   params.push(Math.min(f.limit ?? 200, 5000));
@@ -144,22 +160,48 @@ export function allAuditAscending(runId?: string): AuditEntry[] {
     : db().all<AuditRow>('SELECT * FROM audit_log ORDER BY seq').map(toEntry);
 }
 
-export function verifyAudit(): AuditVerifyResult {
+/**
+ * Verifies the chain in pages of 5000 rows. The generator yields after each page,
+ * so the async variant can let the server breathe on large logs.
+ */
+function* verifySteps(): Generator<void, AuditVerifyResult> {
   const key = vault().auditKey();
-  const rows = db().all<AuditRow>('SELECT * FROM audit_log ORDER BY seq');
   let prev = GENESIS;
   let expectedSeq = 1;
-  for (const r of rows) {
-    if (r.seq !== expectedSeq) {
-      return { ok: false, checked: expectedSeq - 1, firstBadSeq: expectedSeq, message: `Entry #${expectedSeq} is missing` };
+  for (;;) {
+    const rows = db().all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT 5000', expectedSeq);
+    if (!rows.length) break;
+    for (const r of rows) {
+      if (r.seq !== expectedSeq) {
+        return { ok: false, checked: expectedSeq - 1, firstBadSeq: expectedSeq, message: `Entry #${expectedSeq} is missing` };
+      }
+      const hash = computeHash(key, prev, toEntry(r));
+      if (r.prev_hash !== prev || hash !== r.hash) {
+        return { ok: false, checked: expectedSeq - 1, firstBadSeq: r.seq, message: `Entry #${r.seq} was modified or re-ordered` };
+      }
+      prev = r.hash;
+      expectedSeq++;
     }
-    const entry = toEntry(r);
-    const hash = computeHash(key, prev, entry);
-    if (r.prev_hash !== prev || hash !== r.hash) {
-      return { ok: false, checked: expectedSeq - 1, firstBadSeq: r.seq, message: `Entry #${r.seq} was modified or re-ordered` };
-    }
-    prev = r.hash;
-    expectedSeq++;
+    yield;
   }
-  return { ok: true, checked: rows.length, message: `All ${rows.length} entries are intact` };
+  const checked = expectedSeq - 1;
+  return { ok: true, checked, message: `All ${checked} entries are intact` };
+}
+
+export function verifyAudit(): AuditVerifyResult {
+  const it = verifySteps();
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** Same as verifyAudit, but yields to the event loop between pages. */
+export async function verifyAuditAsync(): Promise<AuditVerifyResult> {
+  const it = verifySteps();
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 }

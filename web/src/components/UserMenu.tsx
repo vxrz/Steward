@@ -18,8 +18,17 @@ export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<vo
   } catch {
     /* ignore */
   }
-  qc.clear();
-  await qc.invalidateQueries();
+  await resetToAuth(qc);
+}
+
+/**
+ * Drop all cached data and re-check the session. (qc.clear() alone detaches the mounted ['auth'] query from
+ * the cache, so the app kept showing the signed-in shell after signing out.)
+ */
+async function resetToAuth(qc: ReturnType<typeof useQueryClient>): Promise<void> {
+  await qc.cancelQueries();
+  qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
+  await qc.invalidateQueries({ queryKey: ['auth'] });
 }
 
 export function UserMenu() {
@@ -104,8 +113,7 @@ export function UserMenu() {
                 if (!confirm(t('userMenu.lockVaultConfirm'))) return;
                 try {
                   await post('/vault/lock');
-                  qc.clear();
-                  await qc.invalidateQueries();
+                  await resetToAuth(qc);
                 } catch (e) {
                   notifyError(e);
                 }

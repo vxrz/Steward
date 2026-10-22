@@ -33,7 +33,7 @@ export function ApiTokenTable({ tokens, showOwner, onRevoke }: { tokens: ApiToke
           {tokens.map((tk) => {
             const st = tokenState(tk);
             return (
-              <Table.Tr key={tk.id} style={{ opacity: st.state === 'active' ? 1 : 0.6 }}>
+              <Table.Tr key={tk.id} data-inactive={st.state !== 'active' || undefined}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
                     {tk.name}

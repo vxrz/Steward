@@ -93,7 +93,7 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
 <tr><td>Status</td><td>${statusBadge(run.status)} ${run.error ? esc(run.error) : ''}</td></tr>
 <tr><td>Process</td><td>${esc(run.processName)} (<span class="mono">${esc(run.processId)}</span>) version ${run.processVersion}</td></tr>
 <tr><td>Definition hash</td><td class="mono">${esc(run.definitionHash)}</td></tr>
-<tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)})</td></tr>
+<tr><td>Started by</td><td>${esc(run.actor)} (${esc(run.trigger)}${run.triggerName ? `: ${esc(run.triggerName)}` : ''})</td></tr>
 <tr><td>Started / finished</td><td>${fmtDate(run.startedAt)} / ${fmtDate(run.finishedAt)}</td></tr>
 <tr><td>Steps</td><td>${run.stats.steps} executed, ${run.stats.failedSteps} failed · ${run.stats.writes} write call(s), ${run.stats.skippedWrites} simulated</td></tr>
 <tr><td>Checks</td><td>${run.stats.checksPassed} passed, ${run.stats.checksFailed} failed</td></tr>
@@ -191,22 +191,4 @@ ${run.logs.map((l) => `<tr><td>${fmtDate(l.ts)}</td><td>${esc(l.level)}</td><td>
 ${auditEntries.map((a) => `<tr><td>${a.seq}</td><td>${fmtDate(a.ts)}</td><td>${esc(a.actor)}</td><td class="mono">${esc(a.action)}</td><td>${esc(a.summary)}</td><td class="mono">${esc(a.hash.slice(0, 16))}…</td></tr>`).join('')}
 </table>
 </body></html>`;
-}
-
-export async function runReportPdf(runId: string): Promise<Buffer> {
-  const html = runReportHtml(runId);
-  let pw: { chromium: { launch(o?: unknown): Promise<{ newPage(): Promise<{ setContent(h: string, o?: unknown): Promise<void>; pdf(o: unknown): Promise<Buffer> }>; close(): Promise<void> }> } };
-  try {
-    pw = (await import('playwright')) as never;
-  } catch {
-    throw new Error('PDF export needs Playwright (npm install playwright -w server). Use the HTML report and print to PDF instead.');
-  }
-  const browser = await pw.chromium.launch();
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'load' });
-    return await page.pdf({ format: 'A4', printBackground: true, margin: { top: '12mm', bottom: '12mm', left: '10mm', right: '10mm' } });
-  } finally {
-    await browser.close();
-  }
 }

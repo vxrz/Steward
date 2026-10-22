@@ -156,7 +156,7 @@ export function UsersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {users.data?.map((u) => (
-                  <Table.Tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
+                  <Table.Tr key={u.id} data-inactive={!u.active || undefined}>
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
                         <Text size="sm" fw={500}>
@@ -239,13 +239,13 @@ export function UsersPage() {
                   )}
                 </div>
                 <Group gap={2} wrap="nowrap">
-                  <ActionIcon variant="subtle" onClick={() => setTeamEdit(team)} aria-label={t('teams.edit')}>
+                  <ActionIcon variant="subtle" onClick={() => setTeamEdit(team)} aria-label={t('teams.edit', { name: team.name })}>
                     <IconEdit size={16} />
                   </ActionIcon>
                   <ActionIcon
                     variant="subtle"
                     color="red"
-                    aria-label={t('teams.delete')}
+                    aria-label={t('teams.delete', { name: team.name })}
                     onClick={async () => {
                       if (!confirm(t('teams.deleteConfirm', { name: team.name }))) return;
                       await del(`/teams/${team.id}`).catch(notifyError);

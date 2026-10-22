@@ -6,3 +6,6 @@ export * from './dashboards.js';
 export * from './ops.js';
 export * from './brand.js';
 export * from './locales.js';
+export * from './reports.js';
+export * from './triggers.js';
+export * from './scrub.js';

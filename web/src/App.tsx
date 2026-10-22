@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, type ComponentType } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   IconLayoutDashboard,
   IconChartBar,
@@ -11,6 +12,7 @@ import {
   IconPlayerPlay,
   IconSitemap,
   IconCalendarTime,
+  IconWebhook,
   IconServer,
   IconShieldCheck,
   IconSettings,
@@ -45,6 +47,7 @@ const RunDetailPage = page(() => import('./pages/RunDetail'), 'RunDetailPage');
 const ProcessesPage = page(() => import('./pages/Processes'), 'ProcessesPage');
 const ProcessEditorPage = page(() => import('./pages/ProcessEditor'), 'ProcessEditorPage');
 const SchedulesPage = page(() => import('./pages/Schedules'), 'SchedulesPage');
+const TriggersPage = page(() => import('./pages/Triggers'), 'TriggersPage');
 const PlatformsPage = page(() => import('./pages/Platforms'), 'PlatformsPage');
 const PlatformDetailPage = page(() => import('./pages/PlatformDetail'), 'PlatformDetailPage');
 const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
@@ -60,7 +63,7 @@ function PageLoader() {
   );
 }
 
-type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'platforms' | 'audit' | 'users' | 'settings';
+type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'platforms' | 'audit' | 'users' | 'settings';
 const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
   { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
@@ -68,6 +71,7 @@ const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: ke
   { to: '/runs', key: 'runs', icon: IconPlayerPlay },
   { to: '/processes', key: 'processes', icon: IconSitemap },
   { to: '/schedules', key: 'schedules', icon: IconCalendarTime },
+  { to: '/triggers', key: 'triggers', icon: IconWebhook },
   { to: '/platforms', key: 'platforms', icon: IconServer },
   { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
   { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
@@ -170,6 +174,8 @@ function Shell({ status }: { status: AuthStatus }) {
           {navItems.map((n) => (
             <NavLink
               key={n.to}
+              component={Link}
+              to={n.to}
               label={n.label}
               leftSection={<n.icon size={18} stroke={1.6} />}
               active={isActive(n.to)}
@@ -180,10 +186,7 @@ function Shell({ status }: { status: AuthStatus }) {
                   </Badge>
                 ) : undefined
               }
-              onClick={() => {
-                navigate(n.to);
-                close();
-              }}
+              onClick={close}
               style={{ borderRadius: 6 }}
             />
           ))}
@@ -191,6 +194,7 @@ function Shell({ status }: { status: AuthStatus }) {
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+        <ErrorBoundary resetKey={location.pathname}>
         <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<DashboardPage demo={status.demo} />} />
@@ -202,6 +206,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="/processes" element={<ProcessesPage />} />
           <Route path="/processes/:id" element={<ProcessEditorPage />} />
           <Route path="/schedules" element={<SchedulesPage />} />
+          <Route path="/triggers" element={<TriggersPage />} />
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/platforms/:id" element={<PlatformDetailPage />} />
           {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
@@ -211,6 +216,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
         </div>
         <AppFooter />
       </AppShell.Main>
