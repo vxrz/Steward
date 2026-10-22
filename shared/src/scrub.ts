@@ -216,10 +216,8 @@ export function scrubEvent<T>(event: T, opts: ScrubOptions = {}): T {
       ctx.device = rest;
     }
     delete ctx.cloud_resource;
-    for (const [k, v] of Object.entries(ctx)) {
-      // trace ids are random identifiers, keep them as they are
-      if (k !== 'trace') ctx[k] = deep(v, secrets, 0, new WeakSet());
-    }
+    // (trace and span ids are kept as they are, see KEEP_KEY; span attributes such as enduser.id are not)
+    for (const [k, v] of Object.entries(ctx)) ctx[k] = deep(v, secrets, 0, new WeakSet());
     e.contexts = ctx;
   }
   return e as T;

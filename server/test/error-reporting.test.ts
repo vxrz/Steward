@@ -165,7 +165,7 @@ describe('scrubbing', () => {
       user: { id: 'abc', email: 'a@b.example', ip_address: '1.2.3.4', username: 'jdoe' },
       request: { method: 'POST', url: 'https://x.example/api/p?token=1', headers: { Cookie: 'a=b', Authorization: 'x', 'User-Agent': 'UA' }, cookies: { a: 'b' }, data: { password: 'p' }, query_string: 'token=1' },
       extra: { nested: { password: 'p', note: `uses ${API_TOKEN}` } },
-      contexts: { device: { device_name: 'LAPTOP-JDOE', arch: 'x64' }, trace: { trace_id: '0123456789abcdef0123456789abcdef' } },
+      contexts: { device: { device_name: 'LAPTOP-JDOE', arch: 'x64' }, trace: { trace_id: '0123456789abcdef0123456789abcdef', data: { 'enduser.id': 'jdoe' } } },
       exception: { values: [{ type: 'Error', value: 'x', stacktrace: { frames: [{ filename: '/home/jdoe/app/x.js', vars: { secret: 'v' } }] } }] },
       breadcrumbs: [{ category: 'console', message: 'secret log line' }, { category: 'fetch', data: { url: '/api/runs?q=secret', method: 'GET' } }],
     });
@@ -173,7 +173,7 @@ describe('scrubbing', () => {
     expect(e.user).toEqual({ id: 'abc' });
     expect(e.request).toEqual({ method: 'POST', url: '/api/p', headers: { 'User-Agent': 'UA' } });
     expect(e.extra).toEqual({ nested: { password: '***', note: 'uses smt_***' } });
-    expect(e.contexts).toEqual({ device: { arch: 'x64' }, trace: { trace_id: '0123456789abcdef0123456789abcdef' } });
+    expect(e.contexts).toEqual({ device: { arch: 'x64' }, trace: { trace_id: '0123456789abcdef0123456789abcdef', data: { 'enduser.id': '***' } } });
     const frame = (e.exception as any).values[0].stacktrace.frames[0];
     expect(frame).toEqual({ filename: '/home/<user>/app/x.js' });
     expect(e.breadcrumbs).toEqual([{ category: 'fetch', data: { url: '/api/runs', method: 'GET' } }]);
