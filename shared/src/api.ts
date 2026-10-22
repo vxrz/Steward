@@ -580,6 +580,30 @@ export interface Settings {
   /** Delete read notifications older than this many days */
   retentionNotificationDays: number;
   browserTimeoutMs: number;
+  /** Who may open the public API documentation (Swagger UI) and its OpenAPI document. SM_API_DOCS overrides it. */
+  apiDocs: ApiDocsMode;
+}
+
+// ---------- Public REST API (/api/v1) ----------
+
+/** off: no documentation page; authenticated: signed-in users (session); public: everyone who can reach the server */
+export const API_DOCS_MODES = ['off', 'authenticated', 'public'] as const;
+export type ApiDocsMode = (typeof API_DOCS_MODES)[number];
+
+/** Effective configuration of the public API, for the web UI (GET /api/public-api). */
+export interface PublicApiStatus {
+  enabled: boolean;
+  /** Base path of the versioned API, e.g. "/api/v1" */
+  basePath: string;
+  /** Effective documentation mode (environment overrides the setting) */
+  docs: ApiDocsMode;
+  /** "env" when SM_API_DOCS decides the documentation mode (the setting is then ignored) */
+  docsSource: 'env' | 'settings';
+  /** Link to the Swagger UI when the current user may open it, else null */
+  docsUrl: string | null;
+  /** Requests per minute and token; 0 = unlimited */
+  rateLimitPerMinute: number;
+  apiVersion: string;
 }
 
 export interface DashboardData {

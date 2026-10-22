@@ -14,6 +14,7 @@ import { sessionUser, toAuthUser } from './auth/users.js';
 import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
+import { publicApi } from './api/index.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready'];
@@ -39,6 +40,8 @@ const CSP = [
 const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 
 const isRead = (method: string) => method === 'GET' || method === 'HEAD';
+/** The public REST API (/api/v1) authenticates with API tokens only (see api/v1/auth.ts). */
+const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/api/v1/') || url.startsWith('/api/v1?');
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -56,6 +59,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...(process.env.SM_ALLOWED_HOSTS?.split(',') ?? [])];
     if (!allowedHosts.includes(host)) {
+      if (isPublicApiPath(url)) {
+        return reply.code(403).type('application/problem+json').send(JSON.stringify({ type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Host not allowed' }));
+      }
       return reply.code(403).send({ error: 'Host not allowed' });
     }
     reply.header('x-frame-options', 'DENY');
@@ -65,7 +71,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('cross-origin-opener-policy', 'same-origin');
     if (config.tls) reply.header('strict-transport-security', 'max-age=31536000');
-    if (!url.startsWith('/api/')) return;
+    if (!url.startsWith('/api/') || isPublicApiPath(url)) return;
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
     // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
     const bearerOnly = !!bearerToken(req.headers.authorization) && !req.headers.cookie;
@@ -79,6 +85,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   app.addHook('preHandler', (req, reply, done) => {
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
+    // Public API and its documentation: own authentication (API tokens), see api/.
+    if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();
     let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
     const isPublic =
       PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/') || (url === '/api/metrics' && process.env.SM_METRICS_PUBLIC === '1');
@@ -119,10 +127,12 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       status,
       ms,
       user: (req as unknown as { smUser?: string }).smUser,
+      token: (req as unknown as { smToken?: string }).smToken,
       ip: req.ip,
     };
-    if (status >= 500) logger.error(entry, 'request failed');
-    else if (status >= 400 && ![401, 404, 423].includes(status)) logger.warn(entry, 'request rejected');
+    // 503 = temporarily unavailable (e.g. /api/v1 while the vault is locked), not a server failure
+    if (status >= 500 && status !== 503) logger.error(entry, 'request failed');
+    else if (status >= 400 && ![401, 404, 423, 503].includes(status)) logger.warn(entry, 'request rejected');
     else if (ms > 2000) logger.warn(entry, 'slow request');
     else if (req.method !== 'GET') logger.info(entry, 'request');
     else logger.debug(entry, 'request');
@@ -143,6 +153,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
 
+  await app.register(publicApi, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
 
   if (fs.existsSync(config.webDist)) {
