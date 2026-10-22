@@ -19,7 +19,9 @@ import {
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconApi, IconSearch } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, ConnectionSlot, NodeOf, Platform } from '@sm/shared';
+import i18n from '../../i18n';
 import { get } from '../../api';
 
 type HttpNode = NodeOf<'http'>;
@@ -87,6 +89,7 @@ export function applyOperation(node: HttpNode, op: ApiOperation): Partial<HttpNo
 
 /** API operation section of an http node: pick an operation from an OpenAPI spec and fill its parameters. */
 export function ApiOperationSection({ node, connections, onChange }: { node: HttpNode; connections: ConnectionSlot[]; onChange: (patch: Partial<HttpNode>) => void }) {
+  const { t } = useTranslation(['editor', 'common']);
   const slot = connections.find((c) => c.slot === node.connection);
   const key = storageKey(slot, node.connection ?? '');
   const [platformId, setPlatformIdState] = useState<string | null>(() => loadPlatform(key));
@@ -111,12 +114,12 @@ export function ApiOperationSection({ node, connections, onChange }: { node: Htt
   const platformSelect = (
     <Select
       size="xs"
-      label="Look up operations on"
-      description={slot?.kind ? `Platforms of kind ${slot.kind} (with an imported API spec)` : 'Any platform with an imported API spec'}
+      label={t('api.lookUpOn')}
+      description={slot?.kind ? t('api.kindHint', { kind: slot.kind }) : t('api.anyHint')}
       data={candidates.map((p) => ({ value: p.id, label: p.name }))}
       value={effectivePlatform}
       onChange={setPlatformId}
-      placeholder={platforms.isLoading ? 'Loading…' : candidates.length ? 'Select platform' : 'No matching platforms'}
+      placeholder={platforms.isLoading ? t('common:loading') : candidates.length ? t('api.selectPlatform') : t('api.noPlatforms')}
       allowDeselect={false}
     />
   );
@@ -125,26 +128,27 @@ export function ApiOperationSection({ node, connections, onChange }: { node: Htt
     <Paper withBorder p="xs">
       <Group justify="space-between" wrap="nowrap" mb={op || node.operationId ? 6 : 0}>
         <Text size="xs" fw={600}>
-          API operation
+          {t('api.title')}
         </Text>
         <Button size="compact-xs" variant="light" leftSection={<IconApi size={12} />} onClick={() => setPickerOpen(true)} disabled={!node.connection}>
-          {node.operationId ? 'Change' : 'Pick from API spec'}
+          {node.operationId ? t('api.change') : t('api.pick')}
         </Button>
       </Group>
       {!node.connection && (
         <Text size="xs" c="dimmed">
-          Select a connection first.
+          {t('api.connectionFirst')}
         </Text>
       )}
       {node.operationId && !op && (
         <Text size="xs" c="dimmed">
           <span className="mono">{node.operationId}</span>
-          {ops.isLoading ? ' – loading spec…' : effectivePlatform ? ' – not found in the selected platform’s specs.' : ' – no platform with a spec to look it up.'}
+          {' – '}
+          {ops.isLoading ? t('api.loadingSpec') : effectivePlatform ? t('api.notInSpec') : t('api.noSpecPlatform')}
         </Text>
       )}
       {op && <OperationDetails node={node} op={op} onChange={onChange} />}
 
-      <Modal opened={pickerOpen} onClose={() => setPickerOpen(false)} title="Pick an API operation" size="xl">
+      <Modal opened={pickerOpen} onClose={() => setPickerOpen(false)} title={t('api.pickTitle')} size="xl">
         <Stack>
           {platformSelect}
           {effectivePlatform && (
@@ -164,6 +168,7 @@ export function ApiOperationSection({ node, connections, onChange }: { node: Htt
 }
 
 function OperationList({ ops, loading, onPick }: { ops?: ApiOperation[]; loading: boolean; onPick: (o: ApiOperation) => void }) {
+  const { t } = useTranslation('editor');
   const [q, setQ] = useState('');
   const filtered = useMemo(() => {
     const needle = q.toLowerCase().trim();
@@ -171,10 +176,10 @@ function OperationList({ ops, loading, onPick }: { ops?: ApiOperation[]; loading
   }, [ops, q]);
   return (
     <>
-      <TextInput leftSection={<IconSearch size={14} />} placeholder="Search path, summary, operationId…" value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+      <TextInput leftSection={<IconSearch size={14} />} placeholder={t('api.search')} aria-label={t('api.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
       {!loading && ops && ops.length === 0 && (
         <Text size="sm" c="dimmed">
-          This platform has no API specification yet. Upload one on the platform page (tab "API specs").
+          {t('api.noSpec')}
         </Text>
       )}
       <ScrollArea.Autosize mah={440}>
@@ -207,6 +212,7 @@ function OperationList({ ops, loading, onPick }: { ops?: ApiOperation[]; loading
 }
 
 function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOperation; onChange: (patch: Partial<HttpNode>) => void }) {
+  const { t } = useTranslation('editor');
   const params = (op.parameters ?? []).filter((p) => ['path', 'query', 'header'].includes(p.in));
   const pathValues = extractPathParams(op.path, node.path);
   const methodDiffers = node.method.toUpperCase() !== op.method.toUpperCase();
@@ -258,7 +264,7 @@ function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOpera
         </Text>
       )}
       {op.description && op.description !== op.summary && (
-        <Spoiler maxHeight={54} showLabel="more" hideLabel="less" styles={{ control: { fontSize: 11 } }}>
+        <Spoiler maxHeight={54} showLabel={t('api.more')} hideLabel={t('api.less')} styles={{ control: { fontSize: 11 } }}>
           <Text size="xs" c="dimmed" style={{ whiteSpace: 'pre-line' }}>
             {op.description}
           </Text>
@@ -266,21 +272,21 @@ function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOpera
       )}
       {methodDiffers && (
         <Alert color="orange" p={6} fz="xs">
-          The node uses {node.method} but the operation is {op.method}.{' '}
+          {t('api.methodDiffers', { node: node.method, op: op.method })}{' '}
           <Anchor size="xs" onClick={() => onChange({ method: op.method.toUpperCase() as HttpNode['method'] })}>
-            Use {op.method}
+            {t('api.useMethod', { method: op.method })}
           </Anchor>
         </Alert>
       )}
       {pathValues === null && params.some((p) => p.in === 'path') && (
         <Alert color="orange" p={6} fz="xs">
-          The path was edited by hand and no longer matches <span className="mono">{op.path}</span>. Editing a path parameter below rebuilds it.
+          <Trans t={t} i18nKey="api.pathEdited" values={{ path: op.path }} components={{ path: <span className="mono" /> }} />
         </Alert>
       )}
       {params.length > 0 && (
         <Stack gap={4}>
           <Text size="xs" fw={600} c="dimmed">
-            Parameters
+            {t('api.parameters')}
           </Text>
           {params.map((p) => (
             <ParamInput key={`${p.in}:${p.name}`} param={p} value={valueOf(p)} onChange={(v) => setParam(p, v)} />
@@ -290,7 +296,7 @@ function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOpera
       {(op.hasBody || op.requestBodyExample !== undefined) && (
         <Group gap={6}>
           <Button size="compact-xs" variant="default" disabled={op.requestBodyExample === undefined} onClick={insertBody}>
-            Insert example body
+            {t('api.insertBody')}
           </Button>
           {op.requestContentType && (
             <Text size="xs" c="dimmed" className="mono">
@@ -301,7 +307,7 @@ function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOpera
       )}
       {!node.expectStatus?.length && successCodes(op) && (
         <Anchor size="xs" onClick={() => onChange({ expectStatus: successCodes(op) })}>
-          Accept the documented success codes ({successCodes(op)!.join(', ')})
+          {t('api.acceptCodes', { codes: successCodes(op)!.join(', ') })}
         </Anchor>
       )}
     </Stack>
@@ -320,7 +326,8 @@ function ParamInput({ param, value, onChange }: { param: Param; value: string; o
     </>
   );
   const description = param.description ? (param.description.length > 160 ? param.description.slice(0, 159) + '…' : param.description) : undefined;
-  const placeholder = param.schema?.default !== undefined ? `default: ${String(param.schema.default)}` : 'value or {{ expression }}';
+  const placeholder =
+    param.schema?.default !== undefined ? i18n.t('editor:sub.default', { value: String(param.schema.default) }) : i18n.t('editor:fields.valueOrExpr', { expr: '{{ expression }}' });
   if (param.schema?.enum?.length) {
     return (
       <Autocomplete

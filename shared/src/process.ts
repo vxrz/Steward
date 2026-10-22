@@ -519,7 +519,11 @@ const processInputSchema = z.object({
 
 export interface ValidationIssue {
   path: string;
+  /** English text (API responses, CLI) */
   message: string;
+  /** Stable id of the rule (e.g. "duplicateNodeId"); the web UI translates code + params */
+  code?: string;
+  params?: Record<string, string | number>;
   /** Node the issue belongs to (graph format). */
   nodeId?: string;
   severity?: 'error' | 'warning';
@@ -597,34 +601,40 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
   const byId = new Map<string, FlowNode>();
   const slots = new Set(d.connections.map((c) => c.slot));
   d.nodes.forEach((n, i) => {
-    if (byId.has(n.id)) issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: `Duplicate node id "${n.id}"` });
+    if (byId.has(n.id)) issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'duplicateNodeId', params: { id: n.id }, message: `Duplicate node id "${n.id}"` });
     byId.set(n.id, n);
     if ((n.type === 'http' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
-      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: `Unknown connection "${n.connection}". Declare it under Connections.` });
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'unknownConnection', params: { slot: n.connection ?? '' }, message: `Unknown connection "${n.connection}". Declare it under Connections.` });
     }
     if (n.type === 'userTask' && n.mode === 'select' && !n.items) {
-      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: 'Select tasks need an "items" expression' });
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'selectNeedsItems', message: 'Select tasks need an "items" expression' });
     }
     if (n.type === 'subprocess') {
       for (const [childSlot, parentSlot] of Object.entries(n.connections ?? {})) {
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot)) issues.push({ path: `nodes[${i}].connections`, nodeId: n.id, message: `Invalid connection slot name "${childSlot}"` });
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot)) issues.push({ path: `nodes[${i}].connections`, nodeId: n.id, code: 'invalidSlotName', params: { slot: childSlot }, message: `Invalid connection slot name "${childSlot}"` });
         if (!slots.has(parentSlot)) {
-          issues.push({ path: `nodes[${i}].connections.${childSlot}`, nodeId: n.id, message: `Unknown connection "${parentSlot}" for sub-process slot "${childSlot}". Declare it under Connections.` });
+          issues.push({
+            path: `nodes[${i}].connections.${childSlot}`,
+            nodeId: n.id,
+            code: 'unknownSubprocessConnection',
+            params: { slot: parentSlot, childSlot },
+            message: `Unknown connection "${parentSlot}" for sub-process slot "${childSlot}". Declare it under Connections.`,
+          });
         }
       }
       for (const k of Object.keys(n.inputs ?? {})) {
-        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `nodes[${i}].inputs`, nodeId: n.id, message: `Invalid input name "${k}"` });
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `nodes[${i}].inputs`, nodeId: n.id, code: 'invalidInputName', params: { name: k }, message: `Invalid input name "${k}"` });
       }
     }
     if (n.type === 'if' && n.when) {
-      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: '"Only run when" is not supported on if nodes – put it into the condition' });
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'whenOnIf', message: '"Only run when" is not supported on if nodes – put it into the condition' });
     }
   });
   for (const k of Object.keys(d.outputs ?? {})) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `outputs.${k}`, message: `Invalid output name "${k}" (letters, digits and _ only)` });
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) issues.push({ path: `outputs.${k}`, code: 'invalidOutputName', params: { name: k }, message: `Invalid output name "${k}" (letters, digits and _ only)` });
   }
   const starts = d.nodes.filter((n) => n.type === 'start');
-  if (starts.length !== 1) issues.push({ path: 'nodes', message: `A process needs exactly one start node (found ${starts.length})` });
+  if (starts.length !== 1) issues.push({ path: 'nodes', code: 'startCount', params: { count: starts.length }, message: `A process needs exactly one start node (found ${starts.length})` });
 
   const out = new Map<string, Wire[]>();
   const seen = new Set<string>();
@@ -632,15 +642,15 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     const from = byId.get(w.from);
     const to = byId.get(w.to);
     if (!from || !to) {
-      issues.push({ path: `wires[${i}]`, message: `Wire references unknown node (${w.from} → ${w.to})` });
+      issues.push({ path: `wires[${i}]`, code: 'wireUnknownNode', params: { from: w.from, to: w.to }, message: `Wire references unknown node (${w.from} → ${w.to})` });
       return;
     }
     if (!nodePorts(from as never).some((p) => p.id === w.port)) {
-      issues.push({ path: `wires[${i}]`, nodeId: from.id, message: `Node "${from.id}" has no output "${w.port}"` });
+      issues.push({ path: `wires[${i}]`, nodeId: from.id, code: 'unknownPort', params: { id: from.id, port: w.port }, message: `Node "${from.id}" has no output "${w.port}"` });
     }
-    if (!hasInput(to.type)) issues.push({ path: `wires[${i}]`, nodeId: to.id, message: `Node "${to.id}" cannot receive wires` });
+    if (!hasInput(to.type)) issues.push({ path: `wires[${i}]`, nodeId: to.id, code: 'noInput', params: { id: to.id }, message: `Node "${to.id}" cannot receive wires` });
     const k = `${w.from}|${w.port}|${w.to}`;
-    if (seen.has(k)) warnings.push({ path: `wires[${i}]`, nodeId: from.id, message: 'Duplicate wire' });
+    if (seen.has(k)) warnings.push({ path: `wires[${i}]`, nodeId: from.id, code: 'duplicateWire', message: 'Duplicate wire' });
     seen.add(k);
     out.set(w.from, [...(out.get(w.from) ?? []), w]);
   });
@@ -651,7 +661,10 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     state.set(id, 1);
     for (const w of out.get(id) ?? []) {
       const s = state.get(w.to);
-      if (s === 1) issues.push({ path: 'wires', nodeId: w.to, message: `Wires form a cycle (${[...trail, id, w.to].join(' → ')}). Use a "For each" node for loops.` });
+      if (s === 1) {
+        const cycle = [...trail, id, w.to].join(' → ');
+        issues.push({ path: 'wires', nodeId: w.to, code: 'cycle', params: { cycle }, message: `Wires form a cycle (${cycle}). Use a "For each" node for loops.` });
+      }
       else if (!s) visit(w.to, [...trail, id]);
     }
     state.set(id, 2);
@@ -669,7 +682,9 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
       for (const w of out.get(id) ?? []) stack.push(w.to);
     }
     for (const n of d.nodes) {
-      if (n.type !== 'note' && !reach.has(n.id)) warnings.push({ path: 'nodes', nodeId: n.id, message: `"${n.name || n.id}" is not connected to the start node and will never run` });
+      if (n.type !== 'note' && !reach.has(n.id)) {
+        warnings.push({ path: 'nodes', nodeId: n.id, code: 'unreachable', params: { name: n.name || n.id }, message: `"${n.name || n.id}" is not connected to the start node and will never run` });
+      }
     }
   }
   return { issues, warnings };

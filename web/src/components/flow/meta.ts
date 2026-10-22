@@ -16,6 +16,8 @@ import {
   IconBoxMultiple,
 } from '@tabler/icons-react';
 import { STEP_META, type FlowNode, type NodeType } from '@sm/shared';
+import i18n from '../../i18n';
+import { optionLabel } from '../../i18n/meta';
 
 export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   start: IconPlayerPlayFilled,
@@ -37,17 +39,11 @@ export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
 
 export const nodeColor = (type: NodeType): string => STEP_META[type]?.color ?? 'gray';
 
+type PortId = 'out' | 'error' | 'true' | 'false' | 'each' | 'done' | 'approved' | 'rejected';
+const PORT_IDS = ['out', 'error', 'true', 'false', 'each', 'done', 'approved', 'rejected'];
+
 /** What each output port means – shown in the properties panel. */
-export const PORT_HELP: Record<string, string> = {
-  out: 'Continues here when the node has finished.',
-  error: 'Taken when the node fails. If unconnected, the run fails (unless "On error" is continue).',
-  true: 'Taken when the condition is true.',
-  false: 'Taken when the condition is false.',
-  each: 'Runs once per item. Leave the last node of the loop body unconnected – the loop then continues with the next item.',
-  done: 'Continues here after all items were processed.',
-  approved: 'Taken when the task is approved (also when the node is skipped).',
-  rejected: 'Taken when the task is rejected. If unconnected, a rejection fails the run.',
-};
+export const portHelp = (id: string): string => (PORT_IDS.includes(id) ? i18n.t(`editor:portHelp.${id as PortId}`) : '');
 
 const short = (s: unknown, n = 60): string => {
   const t = typeof s === 'string' ? s : s === undefined || s === null ? '' : JSON.stringify(s);
@@ -59,17 +55,17 @@ const short = (s: unknown, n = 60): string => {
 export function nodeSummary(n: FlowNode): string {
   switch (n.type) {
     case 'start':
-      return 'Run starts here';
+      return i18n.t('editor:summary.start');
     case 'http':
       return `${n.method} ${short(n.path, 48)}`;
     case 'set':
       return short(Object.keys(n.values ?? {}).join(', '));
     case 'forEach':
-      return `each ${n.as} in ${short(n.items, (n.concurrency ?? 1) > 1 ? 30 : 40)}`;
+      return i18n.t('editor:summary.forEach', { as: n.as, items: short(n.items, (n.concurrency ?? 1) > 1 ? 30 : 40) });
     case 'if':
       return short(n.condition);
     case 'userTask':
-      return `${n.mode}: ${short(n.title, 44)}`;
+      return `${optionLabel(n.mode)}: ${short(n.title, 44)}`;
     case 'check':
       return short(n.condition);
     case 'log':
@@ -77,11 +73,13 @@ export function nodeSummary(n: FlowNode): string {
     case 'report':
       return short(n.title);
     case 'browser':
-      return `${n.actions?.length ?? 0} action(s)`;
+      return i18n.t('editor:summary.actions', { count: n.actions?.length ?? 0 });
     case 'publish':
       return `→ ${n.dataset}`;
     case 'subprocess':
-      return n.process ? `run ${n.process}${n.version ? ` v${n.version}` : ''}` : 'no process chosen';
+      return n.process
+        ? i18n.t(n.version ? 'editor:summary.subprocessVersion' : 'editor:summary.subprocess', { process: n.process, version: n.version })
+        : i18n.t('editor:summary.noProcess');
     case 'wait':
       return `${n.seconds}s`;
     case 'fail':

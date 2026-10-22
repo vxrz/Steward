@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Box, Group, ScrollArea, Stack, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconSearch } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { CATEGORY_ORDER, NODE_TYPES, STEP_META, type NodeType } from '@sm/shared';
 import { NODE_ICONS, nodeColor } from './meta';
+import { categoryLabel, stepDescription, stepLabel } from '../../i18n/meta';
 
 export const DND_TYPE = 'application/x-sm-node';
 
@@ -10,12 +12,16 @@ export const DND_TYPE = 'application/x-sm-node';
 const ADDABLE = NODE_TYPES.filter((t) => t !== 'start');
 
 export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) => void; compact?: boolean }) {
+  const { t: tr } = useTranslation('editor');
   const [q, setQ] = useState('');
   const needle = q.trim().toLowerCase();
-  const match = (t: NodeType) => !needle || STEP_META[t].label.toLowerCase().includes(needle) || STEP_META[t].description.toLowerCase().includes(needle);
+  // Matches the translated and the English texts, so "API call" also finds the node in German.
+  const match = (t: NodeType) =>
+    !needle ||
+    [stepLabel(t, STEP_META[t]), stepDescription(t, STEP_META[t]), STEP_META[t].label, STEP_META[t].description].some((s) => s.toLowerCase().includes(needle));
   return (
     <Stack gap={6} h="100%">
-      <TextInput size="xs" placeholder="Search nodes" leftSection={<IconSearch size={12} />} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+      <TextInput size="xs" placeholder={tr('palette.search')} aria-label={tr('palette.search')} leftSection={<IconSearch size={12} />} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
       <ScrollArea style={{ flex: 1 }} type="auto" offsetScrollbars>
         <Stack gap={8}>
           {CATEGORY_ORDER.map((cat) => {
@@ -24,14 +30,14 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
             return (
               <Box key={cat}>
                 <Text size="10px" fw={700} tt="uppercase" c="dimmed" mb={4}>
-                  {cat}
+                  {categoryLabel(cat)}
                 </Text>
                 <Stack gap={4}>
                   {types.map((t) => {
                     const Icon = NODE_ICONS[t];
                     const color = nodeColor(t);
                     return (
-                      <Tooltip key={t} label={STEP_META[t].description} multiline w={260} position="right" withArrow openDelay={500} disabled={compact}>
+                      <Tooltip key={t} label={stepDescription(t, STEP_META[t])} multiline w={260} position="right" withArrow openDelay={500} disabled={compact}>
                         <UnstyledButton
                           draggable
                           onDragStart={(e) => {
@@ -63,7 +69,7 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
                               <Icon size={13} />
                             </Box>
                             <Text size="xs" px={8} py={5} truncate>
-                              {STEP_META[t].label}
+                              {stepLabel(t, STEP_META[t])}
                             </Text>
                           </Group>
                         </UnstyledButton>
@@ -78,7 +84,7 @@ export function Palette({ onAdd, compact = false }: { onAdd: (type: NodeType) =>
       </ScrollArea>
       {!compact && (
         <Text size="10px" c="dimmed">
-          Drag onto the canvas or click to add.
+          {tr('palette.hint')}
         </Text>
       )}
     </Stack>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Alert, Anchor, Badge, Box, Button, Center, Collapse, Group, Loader, Modal, Stack, Switch, Tabs, Text, Textarea, UnstyledButton } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconDeviceFloppy, IconDownload, IconInfoCircle, IconPlayerPlay } from '@tabler/icons-react';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
 import { ApiError, get, notifyError, notifyOk, put } from '../api';
@@ -15,6 +16,8 @@ import { useLastRun } from '../components/flow/useLastRun';
 import { ExprProvider } from '../components/editor/ExprContext';
 import { useDefHistory, useUndoKeys } from '../components/editor/useDefHistory';
 import { fmtRelative } from '../format';
+import { issueText } from '../i18n/meta';
+import { statusLabel } from '../components/common';
 
 /** Drop undefined values so dirty-checking and saving see the same thing. */
 const normalize = (d: ProcessDefinition): ProcessDefinition => JSON.parse(JSON.stringify(d));
@@ -24,11 +27,12 @@ export type EditorTab = 'flow' | 'settings' | 'source' | 'versions' | (string & 
 
 const byNode = (list: ValidationIssue[]) => {
   const m = new Map<string, string>();
-  for (const i of list) if (i.nodeId && !m.has(i.nodeId)) m.set(i.nodeId, i.message);
+  for (const i of list) if (i.nodeId && !m.has(i.nodeId)) m.set(i.nodeId, issueText(i));
   return m;
 };
 
 export function ProcessEditorPage() {
+  const { t, i18n } = useTranslation(['editor', 'common']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const proc = useQuery({ queryKey: ['process', id], queryFn: () => get<ProcessDetail>(`/processes/${id}`), enabled: !!id });
@@ -75,8 +79,10 @@ export function ProcessEditorPage() {
     () => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[], warnings: [] as ValidationIssue[] }),
     [def],
   );
-  const issuesByNode = useMemo(() => byNode(validation.issues), [validation.issues]);
-  const warningsByNode = useMemo(() => byNode(validation.warnings), [validation.warnings]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const issuesByNode = useMemo(() => byNode(validation.issues), [validation.issues, i18n.language]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const warningsByNode = useMemo(() => byNode(validation.warnings), [validation.warnings, i18n.language]);
 
   if (proc.isLoading || (!proc.error && (!def || loadedId !== proc.data?.id))) {
     return (
@@ -86,7 +92,7 @@ export function ProcessEditorPage() {
     );
   }
   if (proc.error || !proc.data || !def) {
-    return <Alert color="red">Could not load process: {(proc.error as Error)?.message}</Alert>;
+    return <Alert color="red">{t('page.loadFailed', { error: (proc.error as Error)?.message ?? '' })}</Alert>;
   }
 
   const p = proc.data;
@@ -96,15 +102,15 @@ export function ProcessEditorPage() {
 
   const runToolbar = (
     <Group gap={6} wrap="nowrap" px={6} py={2} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
-      <Switch size="xs" label="Last run" checked={showRun} onChange={(e) => setShowRun(e.currentTarget.checked)} />
+      <Switch size="xs" label={t('flow.lastRun')} checked={showRun} onChange={(e) => setShowRun(e.currentTarget.checked)} />
       {showRun && lastRun.run && (
         <Anchor component={Link} to={`/runs/${lastRun.run.id}`} size="xs">
-          {lastRun.run.status} · {fmtRelative(lastRun.run.startedAt)}
+          {statusLabel(lastRun.run.status)} · {fmtRelative(lastRun.run.startedAt)}
         </Anchor>
       )}
       {showRun && lastRun.none && (
         <Text size="xs" c="dimmed">
-          no runs yet
+          {t('page.noRuns')}
         </Text>
       )}
     </Group>
@@ -119,7 +125,7 @@ export function ProcessEditorPage() {
             <Badge variant="light">v{p.currentVersion}</Badge>
             {dirty && (
               <Badge color="orange" variant="light">
-                unsaved changes
+                {t('page.unsaved')}
               </Badge>
             )}
           </Group>
@@ -132,32 +138,32 @@ export function ProcessEditorPage() {
                 <Group gap={4}>
                   {validation.issues.length > 0 && (
                     <Badge color="red" leftSection={<IconAlertTriangle size={12} />}>
-                      {validation.issues.length} issue(s)
+                      {t('issues.count', { count: validation.issues.length })}
                     </Badge>
                   )}
                   {validation.warnings.length > 0 && (
                     <Badge color="orange" variant="light" leftSection={<IconInfoCircle size={12} />}>
-                      {validation.warnings.length} warning(s)
+                      {t('issues.warnings', { count: validation.warnings.length })}
                     </Badge>
                   )}
                 </Group>
               </UnstyledButton>
             )}
             <Button size="sm" variant="default" component="a" href={`/api/processes/${p.id}/export`} leftSection={<IconDownload size={16} />} visibleFrom="xs">
-              Export YAML
+              {t('page.exportYaml')}
             </Button>
             {p.permissions.includes('run') && (
               <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={16} />} onClick={onRun}>
-                Run
+                {t('page.run')}
               </Button>
             )}
             {canEdit ? (
               <Button size="sm" leftSection={<IconDeviceFloppy size={16} />} disabled={!dirty} onClick={() => setSaveOpen(true)}>
-                Save
+                {t('common:save')}
               </Button>
             ) : (
               <Badge variant="light" color="gray" size="lg">
-                read-only
+                {t('page.readOnly')}
               </Badge>
             )}
           </>
@@ -175,8 +181,10 @@ export function ProcessEditorPage() {
               <Group gap={4}>
                 {showIssues ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                 <Text size="sm" fw={600}>
-                  {validation.issues.length ? `${validation.issues.length} issue(s) – saving will be refused` : `${validation.warnings.length} warning(s)`}
-                  {validation.issues.length > 0 && validation.warnings.length > 0 ? `, ${validation.warnings.length} warning(s)` : ''}
+                  {validation.issues.length
+                    ? t('issues.refused', { count: validation.issues.length })
+                    : t('issues.warnings', { count: validation.warnings.length })}
+                  {validation.issues.length > 0 && validation.warnings.length > 0 ? `, ${t('issues.warnings', { count: validation.warnings.length })}` : ''}
                 </Text>
               </Group>
             </UnstyledButton>
@@ -196,7 +204,7 @@ export function ProcessEditorPage() {
                 >
                   <Text size="xs" c={i.severity === 'error' ? 'red' : 'orange'} td={i.nodeId ? 'underline' : undefined}>
                     {i.nodeId ? `${i.nodeId}: ` : i.path ? `${i.path}: ` : ''}
-                    {i.message}
+                    {issueText(i)}
                   </Text>
                 </UnstyledButton>
               ))}
@@ -208,11 +216,11 @@ export function ProcessEditorPage() {
       <ExprProvider processId={p.id} def={def}>
       <Tabs value={tab} onChange={setTab} keepMounted={false}>
         <Tabs.List mb="sm">
-          <Tabs.Tab value="flow">Flow</Tabs.Tab>
-          <Tabs.Tab value="settings">Settings</Tabs.Tab>
-          <Tabs.Tab value="source">Source</Tabs.Tab>
-          <Tabs.Tab value="versions">Versions</Tabs.Tab>
-          <Tabs.Tab value="access">Access</Tabs.Tab>
+          <Tabs.Tab value="flow">{t('page.tabs.flow')}</Tabs.Tab>
+          <Tabs.Tab value="settings">{t('page.tabs.settings')}</Tabs.Tab>
+          <Tabs.Tab value="source">{t('page.tabs.source')}</Tabs.Tab>
+          <Tabs.Tab value="versions">{t('page.tabs.versions')}</Tabs.Tab>
+          <Tabs.Tab value="access">{t('page.tabs.access')}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="flow">
@@ -250,10 +258,10 @@ export function ProcessEditorPage() {
             currentVersion={p.currentVersion}
             workingCopy={dirty ? def : undefined}
             onRestore={(d, v) => {
-              if (!canEdit) return notifyError(new Error('You may view but not change this process'));
+              if (!canEdit) return notifyError(new Error(t('page.viewOnly')));
               history.change(normalize(d));
               setTab('flow');
-              notifyOk(`Version v${v} loaded as working copy – save to make it the current version.`);
+              notifyOk(t('page.restored', { version: v }));
             }}
           />
         </Tabs.Panel>
@@ -268,9 +276,9 @@ export function ProcessEditorPage() {
                 const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
                 qc.setQueryData(['process', id], (old: ProcessDetail | undefined) => (old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved));
                 qc.invalidateQueries({ queryKey: ['processes'] });
-                notifyOk('Access saved');
+                notifyOk(t('page.accessSaved'));
               } catch (e) {
-                notifyError(e, 'Access not saved');
+                notifyError(e, t('page.accessNotSaved'));
               }
             }}
           />
@@ -294,9 +302,9 @@ export function ProcessEditorPage() {
         }}
       />
 
-      <Modal opened={runWarn} onClose={() => setRunWarn(false)} title="Unsaved changes">
+      <Modal opened={runWarn} onClose={() => setRunWarn(false)} title={t('page.unsavedTitle')}>
         <Stack>
-          <Text size="sm">Runs always use a saved version. Your current changes are not saved yet – the run would use v{p.currentVersion}.</Text>
+          <Text size="sm">{t('page.unsavedText', { version: p.currentVersion })}</Text>
           <Group justify="flex-end">
             <Button
               variant="default"
@@ -305,7 +313,7 @@ export function ProcessEditorPage() {
                 setRunOpen(true);
               }}
             >
-              Run v{p.currentVersion}
+              {t('page.runVersion', { version: p.currentVersion })}
             </Button>
             <Button
               onClick={() => {
@@ -313,7 +321,7 @@ export function ProcessEditorPage() {
                 setSaveOpen(true);
               }}
             >
-              Save first
+              {t('page.saveFirst')}
             </Button>
           </Group>
         </Stack>
@@ -337,6 +345,7 @@ function SaveModal({
   def: ProcessDefinition;
   onSaved: (p: ProcessDetail) => void;
 }) {
+  const { t } = useTranslation(['editor', 'common']);
   const [comment, setComment] = useState('');
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -350,21 +359,21 @@ function SaveModal({
     setBusy(true);
     try {
       const saved = await put<ProcessDetail>(`/processes/${processId}`, { definition: normalize(def), comment: comment.trim() || undefined });
-      notifyOk(`Saved as version v${saved.currentVersion}`);
+      notifyOk(t('save.saved', { version: saved.currentVersion }));
       onSaved(saved);
     } catch (e) {
       if (e instanceof ApiError && e.issues?.length) setIssues(e.issues);
-      else notifyError(e, 'Not saved');
+      else notifyError(e, t('save.notSaved'));
     } finally {
       setBusy(false);
     }
   };
   return (
-    <Modal opened={opened} onClose={onClose} title="Save new version">
+    <Modal opened={opened} onClose={onClose} title={t('save.title')}>
       <Stack>
         <Textarea
-          label="Change comment (optional)"
-          description="Recorded with the version and in the audit log"
+          label={t('save.comment')}
+          description={t('save.commentHint')}
           autosize
           minRows={2}
           value={comment}
@@ -372,12 +381,12 @@ function SaveModal({
           data-autofocus
         />
         {issues && (
-          <Alert color="red" title="Validation failed">
+          <Alert color="red" title={t('save.validationFailed')}>
             <Stack gap={2}>
               {issues.slice(0, 15).map((i, k) => (
                 <Text size="xs" key={k} className="mono">
                   {i.path ? `${i.path}: ` : ''}
-                  {i.message}
+                  {issueText(i)}
                 </Text>
               ))}
             </Stack>
@@ -385,10 +394,10 @@ function SaveModal({
         )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button onClick={save} loading={busy} leftSection={<IconDeviceFloppy size={16} />}>
-            Save
+            {t('common:save')}
           </Button>
         </Group>
       </Stack>

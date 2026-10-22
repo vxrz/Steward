@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import YAML from 'yaml';
 import { structuredPatch } from 'diff';
 import { Alert, Badge, Box, Center, Group, Loader, Paper, Select, SimpleGrid, Stack, Switch, Text } from '@mantine/core';
+import { useTranslation } from 'react-i18next';
 import type { FlowNode, ProcessDefinition, ProcessVersion } from '@sm/shared';
 import { useProcessVersion } from './editorApi';
 
@@ -54,33 +55,36 @@ export function summarize(a: Def, b: Def): DiffSummary {
   };
 }
 
+type Change = 'added' | 'removed' | 'changed';
+
 function SummaryView({ s }: { s: DiffSummary }) {
+  const { t } = useTranslation('editor');
   const nothing = !s.added.length && !s.removed.length && !s.changed.length && !s.moved.length && !s.wiresAdded && !s.wiresRemoved && !s.settings.length;
-  if (nothing) return <Text size="sm">No differences.</Text>;
-  const line = (sign: string, color: string, n: FlowNode, what: string) => (
+  if (nothing) return <Text size="sm">{t('diff.none')}</Text>;
+  const line = (sign: string, color: string, n: FlowNode, what: Change) => (
     <Text key={`${sign}${n.id}`} size="xs" className="mono" c={color}>
       {sign} {nodeName(n)}
       <Text span size="xs" c="dimmed">
         {' '}
-        · {n.type} {what}
+        · {n.type} {t(`diff.node.${what}`)}
       </Text>
     </Text>
   );
   return (
     <Stack gap={4}>
       <Group gap={6}>
-        {s.added.length > 0 && <Badge color="green" variant="light">{s.added.length} added</Badge>}
-        {s.removed.length > 0 && <Badge color="red" variant="light">{s.removed.length} removed</Badge>}
-        {s.changed.length > 0 && <Badge color="orange" variant="light">{s.changed.length} changed</Badge>}
-        {s.moved.length > 0 && <Badge color="gray" variant="light">{s.moved.length} moved</Badge>}
+        {s.added.length > 0 && <Badge color="green" variant="light">{t('diff.added', { count: s.added.length })}</Badge>}
+        {s.removed.length > 0 && <Badge color="red" variant="light">{t('diff.removed', { count: s.removed.length })}</Badge>}
+        {s.changed.length > 0 && <Badge color="orange" variant="light">{t('diff.changed', { count: s.changed.length })}</Badge>}
+        {s.moved.length > 0 && <Badge color="gray" variant="light">{t('diff.moved', { count: s.moved.length })}</Badge>}
         {(s.wiresAdded > 0 || s.wiresRemoved > 0) && (
           <Badge color="blue" variant="light">
-            wires +{s.wiresAdded} −{s.wiresRemoved}
+            {t('diff.wires', { added: s.wiresAdded, removed: s.wiresRemoved })}
           </Badge>
         )}
         {s.settings.length > 0 && (
           <Badge color="grape" variant="light">
-            settings: {s.settings.join(', ')}
+            {t('diff.settings', { list: s.settings.join(', ') })}
           </Badge>
         )}
       </Group>
@@ -169,6 +173,7 @@ export function VersionCompare({
   currentVersion: number;
   workingCopy?: Def;
 }) {
+  const { t } = useTranslation('editor');
   const sorted = [...versions].sort((x, y) => y.version - x.version);
   const prev = sorted.find((v) => v.version < currentVersion)?.version;
   const [from, setFrom] = useState<string | null>(workingCopy ? String(currentVersion) : prev ? String(prev) : null);
@@ -177,12 +182,15 @@ export function VersionCompare({
   const fa = useProcessVersion(from && from !== WORKING ? processId : undefined, parseSel(from));
   const fb = useProcessVersion(to && to !== WORKING ? processId : undefined, parseSel(to));
   const options = [
-    ...(workingCopy ? [{ value: WORKING, label: 'Working copy (unsaved)' }] : []),
-    ...sorted.map((v) => ({ value: String(v.version), label: `v${v.version}${v.version === currentVersion ? ' (current)' : ''}${v.comment ? ` – ${v.comment}` : ''}` })),
+    ...(workingCopy ? [{ value: WORKING, label: t('diff.workingCopyUnsaved') }] : []),
+    ...sorted.map((v) => ({
+      value: String(v.version),
+      label: `${v.version === currentVersion ? t('versions.current', { version: v.version }) : `v${v.version}`}${v.comment ? ` – ${v.comment}` : ''}`,
+    })),
   ];
   const defA = from === WORKING ? workingCopy : fa.data?.definition;
   const defB = to === WORKING ? workingCopy : fb.data?.definition;
-  const label = (v: string | null) => (v === WORKING ? 'working copy' : `v${v}`);
+  const label = (v: string | null) => (v === WORKING ? t('diff.workingCopy') : `v${v}`);
   const loading = (from !== WORKING && fa.isLoading) || (to !== WORKING && fb.isLoading);
   const error = (fa.error ?? fb.error) as Error | null;
   const texts = useMemo(() => (defA && defB ? { a: toYaml(defA), b: toYaml(defB), s: summarize(defA, defB) } : null), [defA, defB]);
@@ -190,17 +198,17 @@ export function VersionCompare({
   if (options.length < 2) {
     return (
       <Text size="sm" c="dimmed">
-        Only one version so far – nothing to compare yet.
+        {t('diff.onlyOne')}
       </Text>
     );
   }
   return (
     <Stack gap="sm">
       <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs">
-        <Select size="xs" label="From" data={options} value={from} onChange={setFrom} allowDeselect={false} />
-        <Select size="xs" label="To" data={options} value={to} onChange={setTo} allowDeselect={false} />
+        <Select size="xs" label={t('diff.from')} data={options} value={from} onChange={setFrom} allowDeselect={false} />
+        <Select size="xs" label={t('diff.to')} data={options} value={to} onChange={setTo} allowDeselect={false} />
       </SimpleGrid>
-      {error && <Alert color="red">Could not load version: {error.message}</Alert>}
+      {error && <Alert color="red">{t('diff.loadFailed', { error: error.message })}</Alert>}
       {loading && (
         <Center py="sm">
           <Loader size="sm" />
@@ -213,7 +221,7 @@ export function VersionCompare({
           </Paper>
           {texts.a !== texts.b && (
             <>
-              <Switch size="xs" label="Only changed lines with context" checked={context} onChange={(e) => setContext(e.currentTarget.checked)} />
+              <Switch size="xs" label={t('diff.contextOnly')} checked={context} onChange={(e) => setContext(e.currentTarget.checked)} />
               <UnifiedDiff oldText={texts.a} newText={texts.b} oldName={label(from)} newName={label(to)} context={context ? 3 : 100000} />
             </>
           )}

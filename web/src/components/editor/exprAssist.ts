@@ -1,4 +1,33 @@
 import type { ProcessDefinition, ScopeHints, Wire } from '@sm/shared';
+import i18n from '../../i18n';
+
+type Detail =
+  | 'loopItem'
+  | 'loopIndex'
+  | 'input'
+  | 'constant'
+  | 'field'
+  | 'loopItemOutside'
+  | 'connection'
+  | 'platformName'
+  | 'platformVariable'
+  | 'runId'
+  | 'dryRun'
+  | 'actor'
+  | 'startedAt'
+  | 'item'
+  | 'inputsInFilters'
+  | 'varsInFilters'
+  | 'constInFilters'
+  | 'rootInputs'
+  | 'rootVars'
+  | 'rootConst'
+  | 'rootConn'
+  | 'rootRun'
+  | 'rootFunctions';
+const d = (key: Detail): string => i18n.t(`editor:suggest.${key}`);
+/** Help of a function in the UI language (server-provided help is the English default). */
+const fnHelp = (name: string, fallback: string): string => i18n.t(`editor:functions.${name.replace(/^\$/, '')}` as 'editor:functions.count', { defaultValue: fallback });
 
 /** One autocomplete suggestion. `insert` replaces the token before the caret. */
 export interface Suggestion {
@@ -140,59 +169,60 @@ export function buildSuggestions(def: ProcessDefinition, scope: ScopeHints | und
 
   // loop variables first – most likely needed inside a loop body
   for (const as of loops) {
-    add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: 'current loop item' });
-    add({ label: `vars.${as}Index`, insert: `vars.${as}Index`, kind: 'loop', detail: 'loop index (0-based)' });
+    add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: d('loopItem') });
+    add({ label: `vars.${as}Index`, insert: `vars.${as}Index`, kind: 'loop', detail: d('loopIndex') });
   }
   for (const i of def.inputs ?? []) add({ label: `inputs.${i.name}`, insert: `inputs.${i.name}`, kind: 'input', detail: i.label ? `${i.type} · ${i.label}` : i.type });
-  for (const n of scope?.inputs ?? []) add({ label: `inputs.${n}`, insert: `inputs.${n}`, kind: 'input', detail: 'input' });
+  for (const n of scope?.inputs ?? []) add({ label: `inputs.${n}`, insert: `inputs.${n}`, kind: 'input', detail: d('input') });
   for (const k of Object.keys(def.constants ?? {})) {
     const v = (def.constants ?? {})[k];
     add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: short(typeof v === 'string' ? v : JSON.stringify(v) ?? '', 40) });
   }
-  for (const k of scope?.constants ?? []) add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: 'constant' });
+  for (const k of scope?.constants ?? []) add({ label: `const.${k}`, insert: `const.${k}`, kind: 'const', detail: d('constant') });
   for (const v of scope?.vars ?? []) {
     add({ label: `vars.${v.name}`, insert: `vars.${v.name}`, kind: 'var', detail: short(v.sample, 50) });
-    for (const k of sampleKeys(v.sample)) add({ label: `vars.${v.name}.${k}`, insert: `vars.${v.name}.${k}`, kind: 'var', detail: 'field' });
+    for (const k of sampleKeys(v.sample)) add({ label: `vars.${v.name}.${k}`, insert: `vars.${v.name}.${k}`, kind: 'var', detail: d('field') });
   }
   // variables the definition will create
   for (const n of def.nodes) {
-    if (n.saveAs) add({ label: `vars.${n.saveAs}`, insert: `vars.${n.saveAs}`, kind: 'var', detail: `result of ${n.name || n.id}` });
-    if (n.type === 'set') for (const k of Object.keys(n.values ?? {})) add({ label: `vars.${k}`, insert: `vars.${k}`, kind: 'var', detail: `set by ${n.name || n.id}` });
+    if (n.saveAs) add({ label: `vars.${n.saveAs}`, insert: `vars.${n.saveAs}`, kind: 'var', detail: i18n.t('editor:suggest.resultOf', { node: n.name || n.id }) });
+    if (n.type === 'set')
+      for (const k of Object.keys(n.values ?? {})) add({ label: `vars.${k}`, insert: `vars.${k}`, kind: 'var', detail: i18n.t('editor:suggest.setBy', { node: n.name || n.id }) });
   }
-  for (const as of allLoops) if (!loops.includes(as)) add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: 'loop item (inside its loop)' });
+  for (const as of allLoops) if (!loops.includes(as)) add({ label: `vars.${as}`, insert: `vars.${as}`, kind: 'loop', detail: d('loopItemOutside') });
   const connVars = new Map((scope?.connections ?? []).map((c) => [c.slot, c.vars]));
   for (const c of def.connections ?? []) {
-    add({ label: `conn.${c.slot}.baseUrl`, insert: `conn.${c.slot}.baseUrl`, kind: 'conn', detail: c.kind ?? 'connection' });
-    add({ label: `conn.${c.slot}.name`, insert: `conn.${c.slot}.name`, kind: 'conn', detail: 'platform name' });
-    for (const v of connVars.get(c.slot) ?? []) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: 'platform variable' });
+    add({ label: `conn.${c.slot}.baseUrl`, insert: `conn.${c.slot}.baseUrl`, kind: 'conn', detail: c.kind ?? d('connection') });
+    add({ label: `conn.${c.slot}.name`, insert: `conn.${c.slot}.name`, kind: 'conn', detail: d('platformName') });
+    for (const v of connVars.get(c.slot) ?? []) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
   }
-  for (const c of scope?.connections ?? []) for (const v of c.vars) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: 'platform variable' });
-  for (const [k, d] of [
-    ['run.id', 'run id'],
-    ['run.dryRun', 'true in dry runs'],
-    ['run.actor', 'who started the run'],
-    ['run.startedAt', 'start time'],
+  for (const c of scope?.connections ?? []) for (const v of c.vars) add({ label: `conn.${c.slot}.vars.${v}`, insert: `conn.${c.slot}.vars.${v}`, kind: 'conn', detail: d('platformVariable') });
+  for (const [k, key] of [
+    ['run.id', 'runId'],
+    ['run.dryRun', 'dryRun'],
+    ['run.actor', 'actor'],
+    ['run.startedAt', 'startedAt'],
   ] as const)
-    add({ label: k, insert: k, kind: 'run', detail: d });
-  add({ label: '$item', insert: '$item', kind: 'item', detail: 'current item (per-item fields)' });
-  add({ label: '$inputs', insert: '$inputs', kind: 'root', detail: 'inputs inside filters [ ]' });
-  add({ label: '$vars', insert: '$vars', kind: 'root', detail: 'vars inside filters [ ]' });
-  add({ label: '$const', insert: '$const', kind: 'root', detail: 'constants inside filters [ ]' });
+    add({ label: k, insert: k, kind: 'run', detail: d(key) });
+  add({ label: '$item', insert: '$item', kind: 'item', detail: d('item') });
+  add({ label: '$inputs', insert: '$inputs', kind: 'root', detail: d('inputsInFilters') });
+  add({ label: '$vars', insert: '$vars', kind: 'root', detail: d('varsInFilters') });
+  add({ label: '$const', insert: '$const', kind: 'root', detail: d('constInFilters') });
   const fns = new Map<string, FnHint>();
   for (const f of STATIC_FUNCTIONS) fns.set(f.name, f);
   for (const f of scope?.functions ?? []) fns.set(f.name.startsWith('$') ? f.name : `$${f.name}`, { ...f, name: f.name.startsWith('$') ? f.name : `$${f.name}` });
-  for (const f of fns.values()) add({ label: f.name, insert: `${f.name}(`, kind: 'fn', detail: f.signature, help: f.help });
+  for (const f of fns.values()) add({ label: f.name, insert: `${f.name}(`, kind: 'fn', detail: f.signature, help: fnHelp(f.name, f.help) });
   return list;
 }
 
 /** Top-level roots offered right after "{{" or on Ctrl+Space with an empty token. */
-const ROOTS: Suggestion[] = [
-  { label: 'inputs.', insert: 'inputs.', kind: 'root', detail: 'run inputs' },
-  { label: 'vars.', insert: 'vars.', kind: 'root', detail: 'node results, loop items' },
-  { label: 'const.', insert: 'const.', kind: 'root', detail: 'constants' },
-  { label: 'conn.', insert: 'conn.', kind: 'root', detail: 'connections' },
-  { label: 'run.', insert: 'run.', kind: 'root', detail: 'run info' },
-  { label: '$', insert: '$', kind: 'root', detail: 'functions' },
+const roots = (): Suggestion[] => [
+  { label: 'inputs.', insert: 'inputs.', kind: 'root', detail: d('rootInputs') },
+  { label: 'vars.', insert: 'vars.', kind: 'root', detail: d('rootVars') },
+  { label: 'const.', insert: 'const.', kind: 'root', detail: d('rootConst') },
+  { label: 'conn.', insert: 'conn.', kind: 'root', detail: d('rootConn') },
+  { label: 'run.', insert: 'run.', kind: 'root', detail: d('rootRun') },
+  { label: '$', insert: '$', kind: 'root', detail: d('rootFunctions') },
 ];
 
 const TOKEN_CHAR = /[A-Za-z0-9_.$]/;
@@ -222,7 +252,7 @@ export function tokenAt(text: string, caret: number, template: boolean): { start
 }
 
 export function filterSuggestions(all: Suggestion[], token: string, exprStart: boolean, force: boolean, limit = 12): Suggestion[] {
-  if (!token) return exprStart || force ? ROOTS : [];
+  if (!token) return exprStart || force ? roots() : [];
   // a number literal or a lone dot: nothing to suggest
   if (/^\d/.test(token)) return [];
   const t = token.toLowerCase();

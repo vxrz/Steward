@@ -19,17 +19,24 @@ import {
   Textarea,
 } from '@mantine/core';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { BROWSER_ACTIONS, HTTP_METHODS, type BrowserAction, type Column, type ConnectionSlot, type FieldMeta, type Paginate, type Subject } from '@sm/shared';
 import { KeyValueEditor, asText, fromText } from '../common';
 import { get } from '../../api';
 import { useExprContext } from './ExprContext';
 import { ExpressionInput } from './ExpressionInput';
 import { useProcesses } from './editorApi';
+import i18n from '../../i18n';
+import { browserActionLabel, type LocalizedField } from '../../i18n/meta';
+import { subjectOptionLabel } from '../AccessEditor';
 
-export const EXPR_HINT = 'JSONata expression, e.g. vars.users.body[active]';
+/** "{{ expression }}" as a value, so i18next does not read it as a placeholder of its own. */
+const EXPR = { expr: '{{ expression }}' };
+
+export const exprHint = (): string => i18n.t('editor:fields.exprHint', { example: 'vars.users.body[active]' });
 
 interface FieldProps {
-  field: FieldMeta;
+  field: LocalizedField;
   value: unknown;
   onChange: (v: unknown) => void;
   connections: ConnectionSlot[];
@@ -48,6 +55,7 @@ function Label({ field }: { field: FieldMeta }) {
 
 /** Renders one field of a step form based on its FieldMeta kind. */
 export function FieldInput({ field, value, onChange, connections }: FieldProps) {
+  const { t } = useTranslation(['editor', 'common']);
   const expr = useExprContext();
   const label = <Label field={field} />;
   const description = field.help;
@@ -69,7 +77,13 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
     case 'templateArea': {
       const isExpr = field.kind === 'expr';
       const area = field.kind === 'templateArea';
-      const desc = isExpr ? (description ? `${description} · ${EXPR_HINT}` : EXPR_HINT) : field.kind === 'template' ? (description ?? 'Text with {{ expression }} placeholders') : description;
+      const desc = isExpr
+        ? description
+          ? `${description} · ${exprHint()}`
+          : exprHint()
+        : field.kind === 'template'
+          ? (description ?? t('fields.templateHint', EXPR))
+          : description;
       if (!expr.enabled) {
         return (
           <Textarea
@@ -124,9 +138,9 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
             value={value === true ? 'yes' : value === false ? 'no' : 'default'}
             onChange={(v) => onChange(v === 'yes' ? true : v === 'no' ? false : undefined)}
             data={[
-              { value: 'default', label: 'Default' },
-              { value: 'yes', label: 'Yes' },
-              { value: 'no', label: 'No' },
+              { value: 'default', label: t('fields.default') },
+              { value: 'yes', label: t('common:yes') },
+              { value: 'no', label: t('common:no') },
             ]}
           />
         </Box>
@@ -136,7 +150,7 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
         <Select
           label={label}
           description={description}
-          data={field.options ?? []}
+          data={(field.options ?? []).map((o) => ({ value: o, label: field.optionLabels?.[o] ?? o }))}
           clearable={!field.required}
           value={(value as string) ?? null}
           onChange={(v) => onChange(v ?? undefined)}
@@ -146,7 +160,7 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
       return (
         <Select
           label={label}
-          description={description ?? (connections.length ? undefined : 'Declare connections in the "Settings" tab first')}
+          description={description ?? (connections.length ? undefined : t('fields.declareConnections'))}
           data={connections.map((c) => ({ value: c.slot, label: c.kind ? `${c.slot} (${c.kind})` : c.slot }))}
           clearable={!field.required}
           value={(value as string) ?? null}
@@ -169,7 +183,7 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
           {expr.enabled ? (
             <ExprKeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} template={field.key !== 'metrics'} />
           ) : (
-            <KeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} valuePlaceholder="value or {{ expression }}" />
+            <KeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} valuePlaceholder={t('fields.valueOrExpr', EXPR)} />
           )}
         </Box>
       );
@@ -194,6 +208,7 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
 
 /** JSON or YAML typed by the user, parsed on blur. */
 function JsonField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value: unknown; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation('editor');
   const toText = (v: unknown) => (v === undefined ? '' : typeof v === 'string' ? v : YAML.stringify(v, { lineWidth: 0 }).trimEnd());
   const [text, setText] = useState(() => toText(value));
   const [error, setError] = useState<string | null>(null);
@@ -219,13 +234,13 @@ function JsonField({ label, description, value, onChange }: { label: React.React
       committed.current = parsed;
       onChange(parsed);
     } catch (e) {
-      setError((e as Error).message.split('\n')[0] ?? 'Invalid YAML/JSON');
+      setError((e as Error).message.split('\n')[0] ?? t('fields.invalidYamlJson'));
     }
   };
   return (
     <ExpressionInput
       label={label}
-      description={description ?? 'JSON or YAML. Strings may contain {{ expressions }}.'}
+      description={description ?? t('fields.jsonHint', { exprs: '{{ expressions }}' })}
       template
       preview={false}
       minRows={3}
@@ -277,6 +292,7 @@ function move<T>(list: T[], i: number, d: number): T[] {
 }
 
 export function ColumnsEditor({ label, value, onChange }: { label: React.ReactNode; value?: Column[]; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation(['editor', 'common']);
   const cols = value ?? [];
   const set = (next: Column[]) => onChange(next.length ? next : undefined);
   return (
@@ -285,32 +301,32 @@ export function ColumnsEditor({ label, value, onChange }: { label: React.ReactNo
         {label}
       </Text>
       <Text size="xs" c="dimmed" mb={4}>
-        Value is an expression evaluated against each item (e.g. userName, $join(groups.display, ', ')).
+        {t('fields.columnsHint', { example: "userName, $join(groups.display, ', ')" })}
       </Text>
       <Stack gap={6}>
         {cols.map((c, i) => (
           <Group key={i} gap={6} wrap="nowrap">
-            <TextInput size="xs" w={130} placeholder="Label" value={c.label} onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, label: e.currentTarget.value } : x)))} />
+            <TextInput size="xs" w={130} placeholder={t('fields.columnLabel')} aria-label={t('fields.columnLabel')} value={c.label} onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, label: e.currentTarget.value } : x)))} />
             <ExpressionInput
               size="xs"
               style={{ flex: 1, minWidth: 0 }}
-              placeholder="expression"
-              aria-label="Column value (expression)"
+              placeholder={t('fields.expression')}
+              aria-label={t('fields.columnValue')}
               preview={false}
               value={c.value}
               onChange={(v) => set(cols.map((x, j) => (j === i ? { ...x, value: v } : x)))}
             />
-            <ActionIcon size="sm" variant="subtle" onClick={() => set(move(cols, i, -1))} disabled={i === 0} aria-label="Up">
+            <ActionIcon size="sm" variant="subtle" onClick={() => set(move(cols, i, -1))} disabled={i === 0} aria-label={t('fields.up')}>
               <IconArrowUp size={14} />
             </ActionIcon>
-            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => set(cols.filter((_, j) => j !== i))} aria-label="Remove">
+            <ActionIcon size="sm" variant="subtle" color="red" onClick={() => set(cols.filter((_, j) => j !== i))} aria-label={t('common:remove')}>
               <IconTrash size={14} />
             </ActionIcon>
           </Group>
         ))}
         <Group>
           <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => set([...cols, { label: '', value: '' }])}>
-            Add column
+            {t('fields.addColumn')}
           </Button>
         </Group>
       </Stack>
@@ -325,6 +341,7 @@ const PAGINATE_DEFAULTS: Record<string, { pageParam: string; sizeParam: string }
 };
 
 function PaginateEditor({ value, onChange }: { value?: Paginate; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation('editor');
   const mode = value?.mode ?? 'none';
   const set = (patch: Partial<Paginate>) => {
     const next: Record<string, unknown> = { ...(value ?? { mode: 'none' }), ...patch };
@@ -354,14 +371,14 @@ function PaginateEditor({ value, onChange }: { value?: Paginate; onChange: (v: u
     <Paper withBorder p="xs">
       <Select
         size="xs"
-        label="Pagination"
-        description="Fetch all pages and return the combined items as body"
+        label={t('paginate.label')}
+        description={t('paginate.hint')}
         data={[
-          { value: 'none', label: 'None (single request)' },
-          { value: 'scim', label: 'SCIM (startIndex / count, e.g. Identity Management)' },
-          { value: 'page', label: 'Page number (page / size, e.g. Asset Management)' },
-          { value: 'offset', label: 'Offset / limit' },
-          { value: 'nextLink', label: 'Next link in response' },
+          { value: 'none', label: t('paginate.none') },
+          { value: 'scim', label: t('paginate.scim') },
+          { value: 'page', label: t('paginate.page') },
+          { value: 'offset', label: t('paginate.offset') },
+          { value: 'nextLink', label: t('paginate.nextLink') },
         ]}
         value={mode}
         allowDeselect={false}
@@ -369,46 +386,38 @@ function PaginateEditor({ value, onChange }: { value?: Paginate; onChange: (v: u
       />
       {mode !== 'none' && (
         <SimpleGrid cols={{ base: 1, xs: 2 }} mt="xs" spacing="xs">
-          {num('pageSize', 'Page size', '100')}
-          {txt('itemsPath', 'Items path (expression)', mode === 'scim' ? 'resources' : '_embedded.assets')}
-          {mode !== 'nextLink' && txt('pageParam', 'Page parameter', PAGINATE_DEFAULTS[mode]?.pageParam)}
-          {mode !== 'nextLink' && txt('sizeParam', 'Size parameter', PAGINATE_DEFAULTS[mode]?.sizeParam)}
-          {mode === 'page' && txt('totalPagesPath', 'Total pages path', 'page.totalPages')}
-          {mode === 'page' && num('firstPage', 'First page number', '0')}
-          {mode === 'nextLink' && txt('nextPath', 'Next URL path', '_links.next.href')}
-          {num('maxPages', 'Max pages (safety)', '500')}
+          {num('pageSize', t('paginate.pageSize'), '100')}
+          {txt('itemsPath', t('paginate.itemsPath'), mode === 'scim' ? 'resources' : '_embedded.assets')}
+          {mode !== 'nextLink' && txt('pageParam', t('paginate.pageParam'), PAGINATE_DEFAULTS[mode]?.pageParam)}
+          {mode !== 'nextLink' && txt('sizeParam', t('paginate.sizeParam'), PAGINATE_DEFAULTS[mode]?.sizeParam)}
+          {mode === 'page' && txt('totalPagesPath', t('paginate.totalPagesPath'), 'page.totalPages')}
+          {mode === 'page' && num('firstPage', t('paginate.firstPage'), '0')}
+          {mode === 'nextLink' && txt('nextPath', t('paginate.nextPath'), '_links.next.href')}
+          {num('maxPages', t('paginate.maxPages'), '500')}
         </SimpleGrid>
       )}
     </Paper>
   );
 }
 
-const ACTION_FIELD_LABELS: Record<string, string> = {
-  selector: 'Selector',
-  value: 'Value',
-  as: 'Save as',
-  attribute: 'Attribute',
-  name: 'Name',
-};
+type ActionField = 'selector' | 'value' | 'as' | 'attribute' | 'name';
+const actionFieldLabel = (f: ActionField): string => i18n.t(`editor:actions.fields.${f}`);
 
 function valueLabel(action: string): string {
   switch (action) {
     case 'goto':
-      return 'URL or path';
     case 'press':
-      return 'Key (e.g. Enter)';
     case 'expectText':
-      return 'Expected text';
     case 'wait':
-      return 'Milliseconds';
     case 'evaluate':
-      return 'JavaScript';
+      return i18n.t(`editor:actions.valueLabels.${action}`);
     default:
-      return 'Value';
+      return actionFieldLabel('value');
   }
 }
 
 function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation(['editor', 'common']);
   const set = (next: BrowserAction[]) => onChange(next);
   const patch = (i: number, p: Partial<BrowserAction>) =>
     set(
@@ -422,10 +431,14 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
   return (
     <Box>
       <Text size="sm" fw={500}>
-        Actions <span style={{ color: 'var(--mantine-color-red-filled)' }}>*</span>
+        {t('actions.label')} <span style={{ color: 'var(--mantine-color-red-filled)' }}>*</span>
       </Text>
       <Text size="xs" c="dimmed" mb={6}>
-        Playwright selectors: CSS (#id, .class), text=Sign in, role=button[name="Save"]. Values may contain {'{{ expressions }}'}, e.g. {"{{ $secret('portal','password') }}"}.
+        {t('actions.hint', {
+          selectors: 'CSS (#id, .class), text=Sign in, role=button[name="Save"]',
+          exprs: '{{ expressions }}',
+          example: "{{ $secret('portal','password') }}",
+        })}
       </Text>
       <Stack gap={6}>
         {value.map((a, i) => {
@@ -439,18 +452,19 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
                 <Select
                   size="xs"
                   style={{ flex: 1, minWidth: 0 }}
-                  data={BROWSER_ACTIONS.map((b) => ({ value: b.action, label: b.label }))}
+                  data={BROWSER_ACTIONS.map((b) => ({ value: b.action, label: browserActionLabel(b.action, b.label) }))}
+                  aria-label={t('actions.action', { n: i + 1 })}
                   value={a.action}
                   allowDeselect={false}
                   onChange={(v) => v && patch(i, { action: v as BrowserAction['action'] })}
                 />
-                <ActionIcon size="sm" variant="subtle" disabled={i === 0} onClick={() => set(move(value, i, -1))} aria-label="Up">
+                <ActionIcon size="sm" variant="subtle" disabled={i === 0} onClick={() => set(move(value, i, -1))} aria-label={t('fields.up')}>
                   <IconArrowUp size={14} />
                 </ActionIcon>
-                <ActionIcon size="sm" variant="subtle" disabled={i === value.length - 1} onClick={() => set(move(value, i, 1))} aria-label="Down">
+                <ActionIcon size="sm" variant="subtle" disabled={i === value.length - 1} onClick={() => set(move(value, i, 1))} aria-label={t('fields.down')}>
                   <IconArrowDown size={14} />
                 </ActionIcon>
-                <ActionIcon size="sm" variant="subtle" color="red" onClick={() => set(value.filter((_, j) => j !== i))} aria-label="Remove">
+                <ActionIcon size="sm" variant="subtle" color="red" onClick={() => set(value.filter((_, j) => j !== i))} aria-label={t('common:remove')}>
                   <IconTrash size={14} />
                 </ActionIcon>
               </Group>
@@ -470,7 +484,7 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
                     <TextInput
                       key={f}
                       size="xs"
-                      label={f === 'value' ? valueLabel(a.action) : ACTION_FIELD_LABELS[f]}
+                      label={f === 'value' ? valueLabel(a.action) : actionFieldLabel(f)}
                       classNames={{ input: 'mono' }}
                       value={(a[f] as string) ?? ''}
                       onChange={(e) => patch(i, { [f]: e.currentTarget.value || undefined } as Partial<BrowserAction>)}
@@ -478,16 +492,16 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
                   ),
                 )}
                 {a.action === 'screenshot' && (
-                  <Switch size="xs" mt={6} label="Full page" checked={!!a.fullPage} onChange={(e) => patch(i, { fullPage: e.currentTarget.checked || undefined })} />
+                  <Switch size="xs" mt={6} label={t('actions.fullPage')} checked={!!a.fullPage} onChange={(e) => patch(i, { fullPage: e.currentTarget.checked || undefined })} />
                 )}
                 {a.action === 'extract' && (
-                  <Switch size="xs" mt={6} label="All matches (list)" checked={!!a.all} onChange={(e) => patch(i, { all: e.currentTarget.checked || undefined })} />
+                  <Switch size="xs" mt={6} label={t('actions.allMatches')} checked={!!a.all} onChange={(e) => patch(i, { all: e.currentTarget.checked || undefined })} />
                 )}
                 {['click', 'fill', 'waitFor', 'expectText', 'goto'].includes(a.action) && (
                   <NumberInput
                     size="xs"
-                    label="Timeout (ms)"
-                    placeholder="default"
+                    label={t('actions.timeout')}
+                    placeholder={t('actions.timeoutDefault')}
                     value={a.timeoutMs ?? ''}
                     onChange={(v) => patch(i, { timeoutMs: v === '' ? undefined : Number(v) })}
                   />
@@ -498,7 +512,7 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
         })}
         <Group>
           <Button size="compact-xs" variant="light" leftSection={<IconPlus size={12} />} onClick={() => set([...value, { action: 'click', selector: '' }])}>
-            Add action
+            {t('actions.add')}
           </Button>
         </Group>
       </Stack>
@@ -508,8 +522,9 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
 
 /** Users, teams and roles (suggestions from /api/subjects; free text allowed). */
 function SubjectsField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value?: string[]; onChange: (v: unknown) => void }) {
+  useTranslation('editor');
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects'), retry: false, staleTime: 60000 });
-  const labels = new Map((subjects.data ?? []).map((s) => [s.value, s.label]));
+  const labels = new Map((subjects.data ?? []).map((s) => [s.value, subjectOptionLabel(s)]));
   return (
     <TagsInput
       label={label}
@@ -540,8 +555,8 @@ export function ExprKeyValueEditor({
   value,
   onChange,
   template = true,
-  keyLabel = 'Name',
-  addLabel = 'Add',
+  keyLabel: keyLabelProp,
+  addLabel: addLabelProp,
 }: {
   value: Record<string, unknown> | undefined;
   onChange: (v: Record<string, unknown> | undefined) => void;
@@ -549,6 +564,9 @@ export function ExprKeyValueEditor({
   keyLabel?: string;
   addLabel?: string;
 }) {
+  const { t } = useTranslation(['editor', 'common']);
+  const keyLabel = keyLabelProp ?? t('common:name');
+  const addLabel = addLabelProp ?? t('common:add');
   const entries = Object.entries(value ?? {});
   const [draftKey, setDraftKey] = useState('');
   const update = (list: [string, unknown][]) => onChange(list.length ? Object.fromEntries(list) : undefined);
@@ -573,22 +591,22 @@ export function ExprKeyValueEditor({
             size="xs"
             style={{ flex: 1, minWidth: 0 }}
             template={template}
-            aria-label={`Value of ${k}`}
-            placeholder={template ? 'value or {{ expression }}' : 'expression'}
+            aria-label={t('fields.valueOf', { key: k })}
+            placeholder={template ? t('fields.valueOrExpr', EXPR) : t('fields.expression')}
             value={asText(v)}
-            onChange={(t) => {
+            onChange={(text) => {
               const copy = [...entries];
-              copy[i] = [k, template ? fromText(t) : t];
+              copy[i] = [k, template ? fromText(text) : text];
               update(copy);
             }}
           />
-          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={`Remove ${k}`}>
+          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('fields.removeKey', { key: k })}>
             <IconTrash size={14} />
           </ActionIcon>
         </Group>
       ))}
       <Group gap={6}>
-        <TextInput size="xs" w={120} placeholder={keyLabel} aria-label={`New ${keyLabel.toLowerCase()}`} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
+        <TextInput size="xs" w={120} placeholder={keyLabel} aria-label={t('fields.newKey', { label: keyLabel })} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
         <Button
           size="xs"
           variant="light"
@@ -620,21 +638,22 @@ function ProcessField({
   onChange: (v: unknown) => void;
   required?: boolean;
 }) {
+  const { t } = useTranslation(['editor', 'common']);
   const { processId } = useExprContext();
   const processes = useProcesses();
   const options = (processes.data ?? []).filter((p) => p.id !== processId).map((p) => ({ value: p.id, label: p.name }));
-  if (value && !options.some((o) => o.value === value) && value !== processId) options.push({ value, label: `${value} (not found)` });
+  if (value && !options.some((o) => o.value === value) && value !== processId) options.push({ value, label: t('fields.notFound', { value }) });
   return (
     <Select
       label={label}
-      description={description ?? 'The process to run as one step'}
-      placeholder={processes.isLoading ? 'Loading…' : 'Choose a process'}
+      description={description ?? t('fields.processHint')}
+      placeholder={processes.isLoading ? t('common:loading') : t('fields.chooseProcess')}
       data={options}
       searchable
       clearable={!required}
-      nothingFoundMessage="No other process"
+      nothingFoundMessage={t('fields.noOtherProcess')}
       value={value || null}
-      error={value && value === processId ? 'A process cannot run itself' : undefined}
+      error={value && value === processId ? t('fields.selfReference') : undefined}
       onChange={(v) => onChange(v ?? '')}
     />
   );

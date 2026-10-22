@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ActionIcon, Anchor, Badge, Box, Group, Loader, Popover, ScrollArea, Stack, Text, Textarea, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconChevronDown, IconChevronUp } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { EvaluateResult } from '@sm/shared';
 import { JsonView } from '../common';
 import { useExprContext } from './ExprContext';
@@ -18,6 +19,7 @@ const KIND_COLOR: Record<Suggestion['kind'], string> = {
   fn: 'cyan',
   root: 'gray',
 };
+// Kind badges mirror the expression roots (inputs., const., vars. …), so they stay as written in expressions.
 const KIND_LABEL: Record<Suggestion['kind'], string> = {
   input: 'input',
   const: 'const',
@@ -66,6 +68,7 @@ export function ExpressionInput({
   style,
   ...rest
 }: ExpressionInputProps) {
+  const { t } = useTranslation('editor');
   const ctx = useExprContext();
   const ref = useRef<HTMLTextAreaElement>(null);
   const listId = useId();
@@ -189,7 +192,7 @@ export function ExpressionInput({
         </Popover.Target>
         <Popover.Dropdown p={4} onMouseDown={(e) => e.preventDefault()} style={{ minWidth: 'min(300px, calc(100vw - 16px))' }}>
           <ScrollArea.Autosize mah={240} type="auto">
-            <Box role="listbox" id={listId} aria-label="Suggestions">
+            <Box role="listbox" id={listId} aria-label={t('expr.suggestions')}>
               {items.map((s, i) => (
                 <UnstyledButton
                   key={s.insert}
@@ -233,7 +236,7 @@ export function ExpressionInput({
               </Text>
             ) : (
               <Text size="10px" c="dimmed">
-                ↑↓ to choose · Enter/Tab to insert · Esc to close
+                {t('expr.keys')}
               </Text>
             )}
           </Box>
@@ -246,6 +249,7 @@ export function ExpressionInput({
 
 /** Debounced evaluation of the expression against the latest run (at the current node). */
 export function ExprPreview({ expression, template }: { expression: string; template: boolean }) {
+  const { t } = useTranslation('editor');
   const { processId, nodeId } = useExprContext();
   const [state, setState] = useState<{ loading: boolean; result?: EvaluateResult; failure?: string; unsupported?: boolean }>({ loading: false });
   const [expanded, setExpanded] = useState(false);
@@ -256,18 +260,18 @@ export function ExprPreview({ expression, template }: { expression: string; temp
     if (!processId || blank) return;
     const mine = ++seq.current;
     setState((s) => ({ ...s, loading: true }));
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       evaluateExpression(processId, { expression, template, nodeId })
         .then((result) => mine === seq.current && setState({ loading: false, result }))
         .catch((e) => mine === seq.current && setState({ loading: false, failure: (e as Error).message, unsupported: isNotFound(e) }));
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [processId, expression, template, nodeId, blank]);
 
   if (!processId) {
     return (
       <Text size="10px" c="dimmed">
-        Save the process to preview values.
+        {t('expr.saveToPreview')}
       </Text>
     );
   }
@@ -275,7 +279,7 @@ export function ExprPreview({ expression, template }: { expression: string; temp
   if (state.unsupported) {
     return (
       <Text size="10px" c="dimmed">
-        Live preview is not available on this server.
+        {t('expr.previewUnavailable')}
       </Text>
     );
   }
@@ -295,16 +299,16 @@ export function ExprPreview({ expression, template }: { expression: string; temp
           <Group gap={4}>
             <Loader size={10} />
             <Text size="10px" c="dimmed">
-              Evaluating…
+              {t('expr.evaluating')}
             </Text>
           </Group>
         ) : state.failure ? (
           <Text size="xs" c="red" style={{ wordBreak: 'break-word', flex: 1 }}>
-            Preview failed: {state.failure}
+            {t('expr.previewFailed', { error: state.failure })}
           </Text>
         ) : r && !r.ok ? (
           <Text size="xs" c="red" className="mono" style={{ wordBreak: 'break-word', flex: 1 }}>
-            {r.error ?? 'Error'}
+            {r.error ?? t('expr.error')}
           </Text>
         ) : r ? (
           <Text size="xs" className="mono" style={{ wordBreak: 'break-all', flex: 1, minWidth: 0 }}>
@@ -316,8 +320,8 @@ export function ExprPreview({ expression, template }: { expression: string; temp
         ) : null}
         {state.loading && r && <Loader size={10} />}
         {expandable && (
-          <Tooltip label={expanded ? 'Collapse' : 'Show full value'}>
-            <ActionIcon size="xs" variant="subtle" onClick={() => setExpanded((x) => !x)} aria-label={expanded ? 'Collapse value' : 'Show full value'}>
+          <Tooltip label={expanded ? t('expr.collapse') : t('expr.showFull')}>
+            <ActionIcon size="xs" variant="subtle" onClick={() => setExpanded((x) => !x)} aria-label={expanded ? t('expr.collapseValue') : t('expr.showFull')}>
               {expanded ? <IconChevronUp size={12} /> : <IconChevronDown size={12} />}
             </ActionIcon>
           </Tooltip>
@@ -331,14 +335,14 @@ export function ExprPreview({ expression, template }: { expression: string; temp
       {(r || state.failure) && (
         <Text size="10px" c="dimmed" mt={2}>
           {r?.runId ? (
-            <>
-              Using data of run{' '}
-              <Anchor href={`/runs/${r.runId}`} target="_blank" size="10px" className="mono">
-                {r.runId}
-              </Anchor>
-            </>
+            <Trans
+              t={t}
+              i18nKey="expr.usingRun"
+              values={{ id: r.runId }}
+              components={{ a: <Anchor href={`/runs/${r.runId}`} target="_blank" size="10px" className="mono" /> }}
+            />
           ) : r ? (
-            'No run yet – run the process (dry run) to preview with data'
+            t('expr.noRun')
           ) : null}
         </Text>
       )}

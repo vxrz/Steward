@@ -1,1 +1,815 @@
-{}
+{
+  "steps": {
+    "start": {
+      "label": "Start",
+      "description": "Entry point of the process. Inputs and connections are defined in the process settings."
+    },
+    "note": {
+      "label": "Comment",
+      "description": "A comment on the canvas. Not executed.",
+      "fields": {
+        "text": {
+          "label": "Text (markdown)"
+        }
+      }
+    },
+    "http": {
+      "label": "API call",
+      "description": "Call an endpoint of a connected platform. Writes (POST/PUT/PATCH/DELETE) are skipped in dry runs. Connect the \"error\" output to handle failures instead of stopping the run.",
+      "fields": {
+        "connection": {
+          "label": "Connection"
+        },
+        "method": {
+          "label": "Method"
+        },
+        "path": {
+          "label": "Path or URL"
+        },
+        "query": {
+          "label": "Query parameters"
+        },
+        "headers": {
+          "label": "Headers"
+        },
+        "body": {
+          "label": "Body (JSON / YAML, templates allowed)"
+        },
+        "bodyType": {
+          "label": "Body encoding"
+        },
+        "paginate": {
+          "label": "Pagination"
+        },
+        "expectStatus": {
+          "label": "Accepted status codes",
+          "help": "Comma separated. Empty = any 2xx."
+        },
+        "mutating": {
+          "label": "Treat as write (skip in dry run)",
+          "help": "Default: every method except GET/HEAD"
+        }
+      }
+    },
+    "set": {
+      "label": "Set variables",
+      "description": "Compute values with JSONata expressions and store them in vars.<name>.",
+      "fields": {
+        "values": {
+          "label": "Variables (name → template)"
+        }
+      }
+    },
+    "forEach": {
+      "label": "For each",
+      "description": "Runs the nodes connected to \"each item\" once per item (the item is vars.<as>), then continues with \"done\". Leave the last node of the loop body unconnected.",
+      "fields": {
+        "items": {
+          "label": "Items (expression)"
+        },
+        "as": {
+          "label": "Item variable name"
+        },
+        "delayMs": {
+          "label": "Delay between items (ms)"
+        },
+        "maxItems": {
+          "label": "Max items (safety limit)"
+        },
+        "concurrency": {
+          "label": "Parallel items (1 = one after another)",
+          "help": "Up to 20. In parallel mode variables set inside the loop are local to each item; the loop result (Save result as) holds them per item in results[]."
+        }
+      }
+    },
+    "if": {
+      "label": "If / else",
+      "description": "Continues with \"true\" or \"false\" depending on a condition.",
+      "fields": {
+        "condition": {
+          "label": "Condition (expression)"
+        }
+      }
+    },
+    "userTask": {
+      "label": "User task / approval",
+      "description": "Pause the run and ask a person to pick items from a list (select) or approve/reject (approve, with \"approved\" and \"rejected\" outputs – an unconnected \"rejected\" output fails the run). The decision is recorded in the protocol.",
+      "fields": {
+        "mode": {
+          "label": "Mode"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "instructions": {
+          "label": "Instructions (markdown, templates allowed)"
+        },
+        "items": {
+          "label": "Items (expression, select mode)"
+        },
+        "itemKey": {
+          "label": "Item key field"
+        },
+        "columns": {
+          "label": "Columns"
+        },
+        "preselect": {
+          "label": "Preselect (expression per item, $item)"
+        },
+        "assignees": {
+          "label": "Who may decide",
+          "help": "Users, teams or roles. Empty = everyone allowed to run or approve this process."
+        },
+        "fourEyes": {
+          "label": "Four-eyes: the person who started the run may not decide"
+        }
+      }
+    },
+    "check": {
+      "label": "Check / assertion",
+      "description": "Record a pass/fail check result (status tests, health checks).",
+      "fields": {
+        "condition": {
+          "label": "Passes when (expression)"
+        },
+        "severity": {
+          "label": "Severity"
+        },
+        "message": {
+          "label": "Message"
+        },
+        "failRun": {
+          "label": "Fail the run when the check fails"
+        }
+      }
+    },
+    "log": {
+      "label": "Log message",
+      "description": "Write a message (and optional data) to the run protocol.",
+      "fields": {
+        "level": {
+          "label": "Level"
+        },
+        "message": {
+          "label": "Message"
+        },
+        "data": {
+          "label": "Data (expression)"
+        }
+      }
+    },
+    "report": {
+      "label": "Report section",
+      "description": "Add a section with text and/or a table to the run protocol.",
+      "fields": {
+        "title": {
+          "label": "Title"
+        },
+        "text": {
+          "label": "Text (markdown, templates allowed)"
+        },
+        "rows": {
+          "label": "Table rows (expression)"
+        },
+        "columns": {
+          "label": "Columns"
+        }
+      }
+    },
+    "browser": {
+      "label": "Browser automation",
+      "description": "Drive a real browser (Playwright): open pages, fill forms, click, extract text and take screenshots as evidence. The browser session is shared by all browser steps of a run.",
+      "fields": {
+        "connection": {
+          "label": "Connection (for base URL & secrets)"
+        },
+        "actions": {
+          "label": "Actions"
+        },
+        "mutating": {
+          "label": "Changes data (skip in dry run)"
+        }
+      }
+    },
+    "publish": {
+      "label": "Publish to dashboard",
+      "description": "Store a snapshot of rows (with a status per row) and metric values in a dataset for dashboards. Each run replaces the rows; metrics are kept as history for trends. Dashboards read the stored data – they never call the platforms themselves.",
+      "fields": {
+        "dataset": {
+          "label": "Dataset key",
+          "help": "Dashboards refer to this key"
+        },
+        "title": {
+          "label": "Title"
+        },
+        "rows": {
+          "label": "Rows (expression → list)"
+        },
+        "columns": {
+          "label": "Columns (keep only what the dashboard needs)"
+        },
+        "key": {
+          "label": "Row key (expression per item)"
+        },
+        "status": {
+          "label": "Status (expression per item)",
+          "help": "good | warning | serious | critical | unknown"
+        },
+        "statusText": {
+          "label": "Status reason (expression per item)"
+        },
+        "metrics": {
+          "label": "Metrics (name → number expression)",
+          "help": "Appended to the history for trend charts"
+        },
+        "staleAfterMinutes": {
+          "label": "Stale after (minutes)"
+        },
+        "maxRows": {
+          "label": "Max rows (safety limit, default 5000)"
+        }
+      }
+    },
+    "subprocess": {
+      "label": "Run sub-process",
+      "description": "Runs another process as one step (reusable building blocks). The child run gets its own protocol, linked to this run; its outputs (process setting \"Outputs\") become this node's result. Connect \"error\" to handle a failed child run.",
+      "fields": {
+        "process": {
+          "label": "Process"
+        },
+        "version": {
+          "label": "Version (empty = current)"
+        },
+        "inputs": {
+          "label": "Inputs (child input → template)"
+        },
+        "connections": {
+          "label": "Connections (child slot → this process' slot)",
+          "help": "Empty = same slot names"
+        }
+      }
+    },
+    "wait": {
+      "label": "Wait",
+      "description": "Pause for a number of seconds.",
+      "fields": {
+        "seconds": {
+          "label": "Seconds"
+        }
+      }
+    },
+    "fail": {
+      "label": "Fail run",
+      "description": "Stop the run with an error message.",
+      "fields": {
+        "message": {
+          "label": "Message"
+        }
+      }
+    }
+  },
+  "commonFields": {
+    "when": {
+      "label": "Only run when (expression)",
+      "help": "Skipped if false"
+    },
+    "saveAs": {
+      "label": "Save result as vars."
+    },
+    "onError": {
+      "label": "On error"
+    }
+  },
+  "browserActions": {
+    "goto": "Open URL",
+    "click": "Click",
+    "fill": "Fill field",
+    "press": "Press key",
+    "select": "Select option",
+    "check": "Tick checkbox",
+    "waitFor": "Wait for element",
+    "expectText": "Expect text",
+    "extract": "Extract text/attribute",
+    "screenshot": "Screenshot (evidence)",
+    "wait": "Wait (ms)",
+    "evaluate": "Run JavaScript in page"
+  },
+  "categories": {
+    "Flow": "Flow",
+    "API": "API",
+    "Data": "Data",
+    "Control": "Control",
+    "People": "People",
+    "Evidence": "Evidence",
+    "Browser": "Browser"
+  },
+  "ports": {
+    "true": "true",
+    "false": "false",
+    "each": "each item",
+    "done": "done",
+    "approved": "approved",
+    "rejected": "rejected",
+    "error": "error"
+  },
+  "portHelp": {
+    "out": "Continues here when the node has finished.",
+    "error": "Taken when the node fails. If unconnected, the run fails (unless “On error” is continue).",
+    "true": "Taken when the condition is true.",
+    "false": "Taken when the condition is false.",
+    "each": "Runs once per item. Leave the last node of the loop body unconnected – the loop then continues with the next item.",
+    "done": "Continues here after all items were processed.",
+    "approved": "Taken when the task is approved (also when the node is skipped).",
+    "rejected": "Taken when the task is rejected. If unconnected, a rejection fails the run."
+  },
+  "summary": {
+    "start": "Run starts here",
+    "forEach": "each {{as}} in {{items}}",
+    "actions_one": "{{count}} action",
+    "actions_other": "{{count}} actions",
+    "subprocess": "run {{process}}",
+    "subprocessVersion": "run {{process}} v{{version}}",
+    "noProcess": "no process chosen"
+  },
+  "options": {
+    "select": "select",
+    "approve": "approve",
+    "error": "error",
+    "warning": "warning",
+    "info": "info",
+    "warn": "warn",
+    "fail": "fail",
+    "continue": "continue",
+    "json": "json",
+    "form": "form",
+    "text": "text"
+  },
+  "palette": {
+    "search": "Search nodes",
+    "hint": "Drag onto the canvas or click to add."
+  },
+  "node": {
+    "ok": "ok",
+    "parallel": "×{{count}} parallel",
+    "parallelHint": "Up to {{count}} items run at the same time"
+  },
+  "defaults": {
+    "note": {
+      "text": "Comment"
+    },
+    "userTask": {
+      "title": "Please confirm"
+    },
+    "report": {
+      "title": "Summary"
+    },
+    "fail": {
+      "message": "Stopped"
+    }
+  },
+  "flow": {
+    "copied_one": "{{count}} node copied – paste with {{key}}, also in another process",
+    "copied_other": "{{count}} nodes copied – paste with {{key}}, also in another process",
+    "properties": "Properties",
+    "duplicate": "Duplicate",
+    "delete": "Delete",
+    "deleteHint": "Delete (Del)",
+    "lastRun": "Last run",
+    "readOnlyHint": "Read-only: select a node to see its configuration.",
+    "editHint": "Select a node to edit it. Drag from an output (right) to an input (left) to connect nodes. Select a wire or node and press Delete to remove it. {{copy}} / {{paste}} copy and paste selected nodes; {{undo}} undoes.",
+    "runHint": "The run starts at the Start node and follows the wires. Where one output has several wires, they run one after another, top to bottom.",
+    "undo": "Undo",
+    "undoHint": "Undo ({{key}})",
+    "redo": "Redo",
+    "redoHint": "Redo ({{key}})",
+    "tidy": "Tidy up",
+    "tidyHint": "Arrange nodes automatically",
+    "addNode": "Add node"
+  },
+  "exprHelp": {
+    "title": "Expression & template help",
+    "p1": "Expressions use <b>JSONata</b>. Template fields accept <c>{{placeholder}}</c> placeholders; a field that is exactly one placeholder keeps the raw value (list, object, number).",
+    "p2": "Start typing (or press <c>Ctrl+Space</c>) for suggestions; the value below a field is a live preview using the latest run. Scope: <c>inputs.*</c> run inputs · <c>vars.*</c> node results (saveAs, set, loop items) · <c>const.*</c> constants · <c>run.id / run.dryRun / run.actor</c> · <slotvars/> platform variables.",
+    "p3": "Inside filters <c>[...]</c> the context is the current item – use <c>$inputs</c>, <c>$vars</c>, <c>$const</c> there, e.g. <c>{{example}}</c>. Append <c>[]</c> to always get a list.",
+    "p4": "Helpers: <c>$daysSince(ts)</c> <c>$daysAgo(n)</c> <c>$ts(value)</c> <c>$uuid()</c> <c>$pvar(slot, name, default)</c> <c>$secret(slot, key)</c> (value is redacted in logs) plus all JSONata functions ($count, $join, $filter, $lookup, $distinct, …).",
+    "p5": "Per-item fields (columns, preselect) are evaluated against the item itself: <c>userName</c>, <c>$item</c>."
+  },
+  "form": {
+    "idInvalid": "Letters, digits and _ only",
+    "idUsed": "Id already used by another node",
+    "startHint": "Inputs (asked when a run starts) and connection slots (which platforms the process uses) are defined in the <b>Settings</b> tab.",
+    "nodeId": "Node id",
+    "nodeIdHint": "Unique; used in run protocols",
+    "name": "Name",
+    "nameHint": "Shown on the canvas and in protocols",
+    "description": "Description",
+    "outputs": "Outputs",
+    "execution": "Execution",
+    "retryAttempts": "Retry attempts",
+    "retryAttemptsHint": "Total attempts incl. the first (1–10)",
+    "retryDelay": "Retry delay (ms)"
+  },
+  "fields": {
+    "exprHint": "JSONata expression, e.g. {{example}}",
+    "templateHint": "Text with {{expr}} placeholders",
+    "default": "Default",
+    "declareConnections": "Declare connections in the “Settings” tab first",
+    "valueOrExpr": "value or {{expr}}",
+    "invalidYamlJson": "Invalid YAML/JSON",
+    "jsonHint": "JSON or YAML. Strings may contain {{exprs}}.",
+    "columnsHint": "Value is an expression evaluated against each item (e.g. {{example}}).",
+    "columnLabel": "Label",
+    "expression": "expression",
+    "columnValue": "Column value (expression)",
+    "up": "Up",
+    "down": "Down",
+    "addColumn": "Add column",
+    "valueOf": "Value of {{key}}",
+    "removeKey": "Remove {{key}}",
+    "newKey": "New {{label}}",
+    "notFound": "{{value}} (not found)",
+    "processHint": "The process to run as one step",
+    "chooseProcess": "Choose a process",
+    "noOtherProcess": "No other process",
+    "selfReference": "A process cannot run itself"
+  },
+  "paginate": {
+    "label": "Pagination",
+    "hint": "Fetch all pages and return the combined items as body",
+    "none": "None (single request)",
+    "scim": "SCIM (startIndex / count, e.g. Identity Management)",
+    "page": "Page number (page / size, e.g. Asset Management)",
+    "offset": "Offset / limit",
+    "nextLink": "Next link in response",
+    "pageSize": "Page size",
+    "itemsPath": "Items path (expression)",
+    "pageParam": "Page parameter",
+    "sizeParam": "Size parameter",
+    "totalPagesPath": "Total pages path",
+    "firstPage": "First page number",
+    "nextPath": "Next URL path",
+    "maxPages": "Max pages (safety)"
+  },
+  "actions": {
+    "label": "Actions",
+    "hint": "Playwright selectors: {{selectors}}. Values may contain {{exprs}}, e.g. {{example}}.",
+    "action": "Action {{n}}",
+    "fields": {
+      "selector": "Selector",
+      "value": "Value",
+      "as": "Save as",
+      "attribute": "Attribute",
+      "name": "Name"
+    },
+    "valueLabels": {
+      "goto": "URL or path",
+      "press": "Key (e.g. Enter)",
+      "expectText": "Expected text",
+      "wait": "Milliseconds",
+      "evaluate": "JavaScript"
+    },
+    "fullPage": "Full page",
+    "allMatches": "All matches (list)",
+    "timeout": "Timeout (ms)",
+    "timeoutDefault": "default",
+    "add": "Add action"
+  },
+  "inspector": {
+    "item": "item {{n}}",
+    "input": "Input",
+    "output": "Output",
+    "noData": "No data recorded.",
+    "saveFirst": "Save the process and run it to inspect nodes.",
+    "noRun": "No run yet – run the process (dry run) to see what this node did.",
+    "runLine": "Run <a>{{id}}</a> · {{status}} · {{when}}",
+    "runLineDry": "Run <a>{{id}}</a> · {{status}} (dry run) · {{when}}",
+    "reload": "Reload",
+    "reloadLabel": "Reload last run",
+    "didNotRun": "This node did not run in the latest run.",
+    "activations_one": "{{count}} activation",
+    "activations_other": "{{count}} activations",
+    "showAll_one": "Show all {{count}}",
+    "showAll_other": "Show all {{count}}",
+    "varsBefore_one": "Variables before this node ({{count}})",
+    "varsBefore_other": "Variables before this node ({{count}})",
+    "varsUnavailable": "Variables before the node are not available on this server."
+  },
+  "sub": {
+    "choose": "Choose a process to fill in its inputs and connections.",
+    "loading": "Loading process…",
+    "open": "Open process",
+    "loadFailed": "Could not load the chosen process: {{error}}",
+    "loadFailedVersion": "Could not load the chosen process (v{{version}}): {{error}}",
+    "notFound": "not found",
+    "childSlot": "Child slot",
+    "pinned": "{{name}} · v{{version}} (pinned)",
+    "current": "{{name}} · v{{version}} (current)",
+    "inputs": "Inputs",
+    "inputsHint": "Values passed to the child run. Templates are evaluated in this process. Empty = child default.",
+    "noInputs": "The process has no inputs.",
+    "default": "default: {{value}}",
+    "required": "Required by the child process",
+    "unknownInput": "Not an input of this process – ignored",
+    "removeInput": "Remove input {{name}}",
+    "connections": "Connections",
+    "connectionsHint": "Which of this process' connections the child uses. Empty = same slot name.",
+    "noConnections": "The process uses no connections.",
+    "connectionFor": "Connection for child slot {{slot}}",
+    "sameName": "same name ({{slot}})",
+    "chooseConnection": "choose a connection",
+    "noSuchConnection": "This process has no connection “{{slot}}”",
+    "unknownConnection": "Unknown connection",
+    "result": "Result",
+    "returns": "The child returns <outputs/> – set “Save result as” to use them.",
+    "returnsSaved": "The child returns <outputs/> – available as <path/>.",
+    "noOutputs": "The child process declares no outputs (Settings → Outputs)."
+  },
+  "settings": {
+    "general": "General",
+    "connections_one": "Connections ({{count}})",
+    "connections_other": "Connections ({{count}})",
+    "inputs_one": "Inputs ({{count}})",
+    "inputs_other": "Inputs ({{count}})",
+    "constants": "Constants",
+    "outputs_one": "Outputs ({{count}})",
+    "outputs_other": "Outputs ({{count}})"
+  },
+  "general": {
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "Explain what the process does, prerequisites and caveats. Shown when starting a run.",
+    "tags": "Tags",
+    "tagsHint": "Press Enter to add"
+  },
+  "inputs": {
+    "hint": "Inputs are asked when a run is started (or stored in a schedule) and available as <path/>.",
+    "unnamed": "(unnamed)",
+    "name": "Name",
+    "label": "Label",
+    "type": "Type",
+    "options": "Options",
+    "columns": "Expected CSV columns",
+    "description": "Description",
+    "required": "Required",
+    "add": "Add input",
+    "default": "Default",
+    "defaultList": "Default (one per line)",
+    "defaultCsv": "Default CSV",
+    "defaultJson": "Default JSON"
+  },
+  "inputTypes": {
+    "string": "text",
+    "number": "number",
+    "boolean": "yes/no",
+    "select": "selection",
+    "list": "list",
+    "table": "table (CSV)",
+    "json": "JSON"
+  },
+  "connections": {
+    "hint": "Connection slots keep the process platform-agnostic: steps refer to a slot (e.g. <c>hub</c>) and the actual platform is chosen when the run starts. Optionally restrict a slot to a platform kind.",
+    "slot": "Slot",
+    "kind": "Platform kind",
+    "anyKind": "any",
+    "description": "Description",
+    "add": "Add connection"
+  },
+  "constants": {
+    "notMapping": "Constants must be a mapping (key: value)",
+    "invalid": "Invalid YAML",
+    "hint": "Static configuration available as <c>const.*</c> (or <c>$const</c> in filters), e.g. group bundles for onboarding. YAML or JSON."
+  },
+  "source": {
+    "validateFailed": "Could not validate",
+    "hint": "The complete process definition as YAML (nodes + wires). You can also paste the compact sequential format (<c>steps:</c> with nested loops and branches) – it is converted into a flow. Click “Apply to editor”, then save to create a new version.",
+    "applied": "Applied – the definition is valid.",
+    "apply": "Apply to editor",
+    "reset": "Reset to editor state"
+  },
+  "issues": {
+    "count_one": "{{count}} issue",
+    "count_other": "{{count}} issues",
+    "warnings_one": "{{count}} warning",
+    "warnings_other": "{{count}} warnings",
+    "refused_one": "{{count}} issue – saving will be refused",
+    "refused_other": "{{count}} issues – saving will be refused"
+  },
+  "versions": {
+    "hint": "Every save creates a new immutable version. Runs record the exact version and its hash.",
+    "compare": "Compare versions",
+    "version": "Version",
+    "saved": "Saved",
+    "author": "Author",
+    "comment": "Comment",
+    "hash": "Hash",
+    "current": "v{{version}} (current)",
+    "view": "View",
+    "title": "Version v{{version}}",
+    "hashLine": "hash {{hash}}",
+    "restore": "Restore as working copy"
+  },
+  "outputs": {
+    "duplicate": "Duplicate name",
+    "hint": "Values returned when this process runs as a sub-process. Each value is an expression evaluated when the run ends, e.g. <example/>. The parent gets them as the node result (<path/>).",
+    "name": "Output name",
+    "namePlaceholder": "name",
+    "expressionFor": "Expression for output {{name}}",
+    "expressionPlaceholder": "expression, e.g. {{example}}",
+    "remove": "Remove output {{name}}",
+    "add": "Add output"
+  },
+  "page": {
+    "loadFailed": "Could not load process: {{error}}",
+    "noRuns": "no runs yet",
+    "unsaved": "unsaved changes",
+    "exportYaml": "Export YAML",
+    "run": "Run",
+    "readOnly": "read-only",
+    "tabs": {
+      "flow": "Flow",
+      "settings": "Settings",
+      "source": "Source",
+      "versions": "Versions",
+      "access": "Access"
+    },
+    "viewOnly": "You may view but not change this process",
+    "restored": "Version v{{version}} loaded as working copy – save to make it the current version.",
+    "accessSaved": "Access saved",
+    "accessNotSaved": "Access not saved",
+    "unsavedTitle": "Unsaved changes",
+    "unsavedText": "Runs always use a saved version. Your current changes are not saved yet – the run would use v{{version}}.",
+    "runVersion": "Run v{{version}}",
+    "saveFirst": "Save first"
+  },
+  "save": {
+    "saved": "Saved as version v{{version}}",
+    "notSaved": "Not saved",
+    "title": "Save new version",
+    "comment": "Change comment (optional)",
+    "commentHint": "Recorded with the version and in the audit log",
+    "validationFailed": "Validation failed"
+  },
+  "validation": {
+    "duplicateNodeId": "Duplicate node id “{{id}}”",
+    "unknownConnection": "Unknown connection “{{slot}}”. Declare it under Connections.",
+    "selectNeedsItems": "Select tasks need an “items” expression",
+    "invalidSlotName": "Invalid connection slot name “{{slot}}”",
+    "unknownSubprocessConnection": "Unknown connection “{{slot}}” for sub-process slot “{{childSlot}}”. Declare it under Connections.",
+    "invalidInputName": "Invalid input name “{{name}}”",
+    "whenOnIf": "“Only run when” is not supported on if nodes – put it into the condition",
+    "invalidOutputName": "Invalid output name “{{name}}” (letters, digits and _ only)",
+    "startCount": "A process needs exactly one start node (found {{count}})",
+    "wireUnknownNode": "Wire references unknown node ({{from}} → {{to}})",
+    "unknownPort": "Node “{{id}}” has no output “{{port}}”",
+    "noInput": "Node “{{id}}” cannot receive wires",
+    "duplicateWire": "Duplicate wire",
+    "cycle": "Wires form a cycle ({{cycle}}). Use a “For each” node for loops.",
+    "unreachable": "“{{name}}” is not connected to the start node and will never run"
+  },
+  "diff": {
+    "none": "No differences.",
+    "node": {
+      "added": "added",
+      "removed": "removed",
+      "changed": "changed"
+    },
+    "added_one": "{{count}} added",
+    "added_other": "{{count}} added",
+    "removed_one": "{{count}} removed",
+    "removed_other": "{{count}} removed",
+    "changed_one": "{{count}} changed",
+    "changed_other": "{{count}} changed",
+    "moved_one": "{{count}} moved",
+    "moved_other": "{{count}} moved",
+    "wires": "wires +{{added}} −{{removed}}",
+    "settings": "settings: {{list}}",
+    "workingCopyUnsaved": "Working copy (unsaved)",
+    "workingCopy": "working copy",
+    "onlyOne": "Only one version so far – nothing to compare yet.",
+    "from": "From",
+    "to": "To",
+    "loadFailed": "Could not load version: {{error}}",
+    "contextOnly": "Only changed lines with context"
+  },
+  "api": {
+    "lookUpOn": "Look up operations on",
+    "kindHint": "Platforms of kind {{kind}} (with an imported API spec)",
+    "anyHint": "Any platform with an imported API spec",
+    "selectPlatform": "Select platform",
+    "noPlatforms": "No matching platforms",
+    "title": "API operation",
+    "change": "Change",
+    "pick": "Pick from API spec",
+    "connectionFirst": "Select a connection first.",
+    "loadingSpec": "loading spec…",
+    "notInSpec": "not found in the selected platform’s specs.",
+    "noSpecPlatform": "no platform with a spec to look it up.",
+    "pickTitle": "Pick an API operation",
+    "search": "Search path, summary, operationId…",
+    "noSpec": "This platform has no API specification yet. Upload one on the platform page (tab “API specs”).",
+    "more": "more",
+    "less": "less",
+    "methodDiffers": "The node uses {{node}} but the operation is {{op}}.",
+    "useMethod": "Use {{method}}",
+    "pathEdited": "The path was edited by hand and no longer matches <path>{{path}}</path>. Editing a path parameter below rebuilds it.",
+    "parameters": "Parameters",
+    "insertBody": "Insert example body",
+    "acceptCodes": "Accept the documented success codes ({{codes}})"
+  },
+  "functions": {
+    "daysSince": "Days since a timestamp (ISO or epoch). Empty → undefined.",
+    "daysAgo": "ISO timestamp n days in the past.",
+    "ts": "Parse a timestamp into epoch milliseconds.",
+    "uuid": "A random UUID.",
+    "pvar": "Platform variable of a connection slot.",
+    "secret": "Secret of a connection slot (redacted in logs).",
+    "count": "Number of items.",
+    "sum": "Sum of numbers.",
+    "max": "Largest number.",
+    "min": "Smallest number.",
+    "average": "Mean of numbers.",
+    "join": "Join strings.",
+    "split": "Split a string into a list.",
+    "string": "Convert to a string (objects → JSON).",
+    "number": "Convert to a number.",
+    "boolean": "Convert to true/false.",
+    "not": "Logical not.",
+    "exists": "true if the value is defined.",
+    "length": "Length of a string.",
+    "lowercase": "Lower case.",
+    "uppercase": "Upper case.",
+    "trim": "Remove surrounding whitespace.",
+    "substring": "Part of a string.",
+    "substringBefore": "Text before the first occurrence.",
+    "substringAfter": "Text after the first occurrence.",
+    "contains": "true if the string contains the pattern.",
+    "replace": "Replace text or regex matches.",
+    "match": "Regex matches.",
+    "pad": "Pad a string.",
+    "keys": "Keys of an object.",
+    "lookup": "Value of a key.",
+    "merge": "Merge objects into one.",
+    "each": "Map over key/value pairs.",
+    "map": "Transform each item.",
+    "filter": "Keep matching items.",
+    "reduce": "Fold a list into one value.",
+    "sort": "Sort a list.",
+    "reverse": "Reverse a list.",
+    "distinct": "Remove duplicates.",
+    "append": "Concatenate lists.",
+    "zip": "Combine lists item by item.",
+    "now": "Current time as ISO string.",
+    "millis": "Current time in epoch milliseconds.",
+    "fromMillis": "Epoch milliseconds → ISO string.",
+    "toMillis": "ISO string → epoch milliseconds.",
+    "round": "Round a number.",
+    "floor": "Round down.",
+    "ceil": "Round up.",
+    "abs": "Absolute value.",
+    "type": "Type name of a value.",
+    "base64encode": "Base64 encode.",
+    "base64decode": "Base64 decode.",
+    "encodeUrlComponent": "URL-encode a value."
+  },
+  "suggest": {
+    "loopItem": "current loop item",
+    "loopIndex": "loop index (0-based)",
+    "input": "input",
+    "constant": "constant",
+    "field": "field",
+    "resultOf": "result of {{node}}",
+    "setBy": "set by {{node}}",
+    "loopItemOutside": "loop item (inside its loop)",
+    "connection": "connection",
+    "platformName": "platform name",
+    "platformVariable": "platform variable",
+    "runId": "run id",
+    "dryRun": "true in dry runs",
+    "actor": "who started the run",
+    "startedAt": "start time",
+    "item": "current item (per-item fields)",
+    "inputsInFilters": "inputs inside filters [ ]",
+    "varsInFilters": "vars inside filters [ ]",
+    "constInFilters": "constants inside filters [ ]",
+    "rootInputs": "run inputs",
+    "rootVars": "node results, loop items",
+    "rootConst": "constants",
+    "rootConn": "connections",
+    "rootRun": "run info",
+    "rootFunctions": "functions"
+  },
+  "expr": {
+    "suggestions": "Suggestions",
+    "keys": "↑↓ to choose · Enter/Tab to insert · Esc to close",
+    "saveToPreview": "Save the process to preview values.",
+    "previewUnavailable": "Live preview is not available on this server.",
+    "evaluating": "Evaluating…",
+    "previewFailed": "Preview failed: {{error}}",
+    "error": "Error",
+    "collapse": "Collapse",
+    "collapseValue": "Collapse value",
+    "showFull": "Show full value",
+    "usingRun": "Using data of run <a>{{id}}</a>",
+    "noRun": "No run yet – run the process (dry run) to preview with data"
+  }
+}
