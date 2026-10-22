@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Stack, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Code, Group, NumberInput, SegmentedControl, Stack, Switch, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Settings } from '@sm/shared';
+import type { AuthStatus, Settings } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
 import { PageHeader } from '../components/common';
 import { useMe } from '../auth';
@@ -10,6 +10,8 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   const qc = useQueryClient();
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => get<Settings>('/settings') });
   const { caps } = useMe();
+  const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
+  const ssoCount = auth.data?.ssoProviders?.length ?? 0;
   const readOnly = !caps.manageSettings;
   const [s, setS] = useState<Settings | null>(null);
   useEffect(() => {
@@ -20,6 +22,33 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
     <>
       <PageHeader title="Settings" description={readOnly ? 'Only administrators can change settings.' : undefined} />
       <Stack maw={640}>
+        <Card withBorder>
+          <Title order={5} mb="sm">
+            Sign-in
+          </Title>
+          <Stack gap="xs">
+            <SegmentedControl
+              disabled={readOnly}
+              fullWidth
+              value={s.passwordLogin ?? 'all'}
+              onChange={(v) => setS({ ...s, passwordLogin: v as Settings['passwordLogin'] })}
+              data={[
+                { value: 'all', label: 'Password and SSO' },
+                { value: 'adminsOnly', label: 'SSO only' },
+              ]}
+            />
+            <Text size="xs" c="dimmed">
+              {(s.passwordLogin ?? 'all') === 'adminsOnly'
+                ? 'Everyone signs in with single sign-on. Local administrator accounts can still use their password – keep at least one as break-glass access in case the identity provider is unavailable.'
+                : 'Users can sign in with a local password or, if configured, with single sign-on.'}
+            </Text>
+            {ssoCount === 0 && (s.passwordLogin ?? 'all') === 'adminsOnly' && (
+              <Alert color="orange" variant="light" p="xs">
+                No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users &amp; teams.
+              </Alert>
+            )}
+          </Stack>
+        </Card>
         <Card withBorder>
           <Title order={5} mb="sm">
             Browser automation

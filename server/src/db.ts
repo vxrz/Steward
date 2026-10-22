@@ -230,6 +230,20 @@ const MIGRATIONS: string[] = [
     created_at TEXT NOT NULL
   );
   `,
+  // 4: single sign-on (OpenID Connect)
+  `
+  CREATE TABLE identity_providers (
+    id TEXT PRIMARY KEY,
+    config TEXT NOT NULL,
+    secret TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  ALTER TABLE users ADD COLUMN auth_source TEXT NOT NULL DEFAULT 'local';
+  ALTER TABLE users ADD COLUMN external_id TEXT;
+  CREATE UNIQUE INDEX users_external_id ON users(external_id) WHERE external_id IS NOT NULL;
+  `,
 ];
 
 export class Db {

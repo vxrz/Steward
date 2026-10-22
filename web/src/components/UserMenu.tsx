@@ -66,9 +66,11 @@ export function UserMenu() {
             </Group>
           </Stack>
           <Menu.Divider />
-          <Menu.Item leftSection={<IconKey size={14} />} onClick={() => setPwOpen(true)}>
-            Change password
-          </Menu.Item>
+          {(!me.user.authSource || me.user.authSource === 'local') && (
+            <Menu.Item leftSection={<IconKey size={14} />} onClick={() => setPwOpen(true)}>
+              Change password
+            </Menu.Item>
+          )}
           {isAdmin && (
             <Menu.Item
               leftSection={<IconLock size={14} />}

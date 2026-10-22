@@ -28,6 +28,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
+import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: 'red',
@@ -93,6 +94,8 @@ export function UsersPage() {
   const [editing, setEditing] = useState<UserInfo | 'new' | null>(null);
   const [teamEdit, setTeamEdit] = useState<Team | 'new' | null>(null);
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
+  const sso = useSsoProviders();
+  const ssoName = (source: string) => sso.data?.find((p) => p.id === source)?.displayName ?? source;
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['users'] });
@@ -148,9 +151,18 @@ export function UsersPage() {
                 {users.data?.map((u) => (
                   <Table.Tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
                     <Table.Td>
-                      <Text size="sm" fw={500}>
-                        {u.displayName}
-                      </Text>
+                      <Group gap={6} wrap="nowrap">
+                        <Text size="sm" fw={500}>
+                          {u.displayName}
+                        </Text>
+                        {u.authSource && u.authSource !== 'local' && (
+                          <Tooltip label={`Signs in with ${ssoName(u.authSource)}`}>
+                            <Badge size="xs" variant="light" color="blue">
+                              SSO · {ssoName(u.authSource)}
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Group>
                       <Text size="xs" c="dimmed">
                         {u.username}
                         {u.email ? ` · ${u.email}` : ''}
@@ -180,11 +192,13 @@ export function UsersPage() {
                             <IconEdit size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <Tooltip label="Reset password">
-                          <ActionIcon variant="subtle" onClick={() => reset(u)} aria-label="Reset password">
-                            <IconKey size={16} />
-                          </ActionIcon>
-                        </Tooltip>
+                        {(!u.authSource || u.authSource === 'local') && (
+                          <Tooltip label="Reset password">
+                            <ActionIcon variant="subtle" onClick={() => reset(u)} aria-label="Reset password">
+                              <IconKey size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
                       </Group>
                     </Table.Td>
                   </Table.Tr>
@@ -250,6 +264,8 @@ export function UsersPage() {
             </Card>
           ))}
         </SimpleGrid>
+
+        <SsoSection />
 
         <Card withBorder mt="md">
           <Title order={5} mb="xs">
@@ -340,6 +356,12 @@ function UserModal({ user, onClose, onSaved }: { user: UserInfo | null; onClose:
         <TextInput label="Display name" value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} />
         <TextInput label="E-mail" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
         <MultiSelect label="Roles" data={roleOptions} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
+        {!user && (
+          <Text size="xs" c="dimmed">
+            Single sign-on users are created automatically at their first sign-in (if the provider allows it). You can also create them here in
+            advance with exactly their SSO user name (e.g. the e-mail / UPN) to assign roles – the account is linked at the first sign-in.
+          </Text>
+        )}
         {!user && (
           <PasswordInput
             label="Initial password (optional)"

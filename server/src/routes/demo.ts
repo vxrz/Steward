@@ -2,6 +2,8 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { addSpec, createPlatform } from '../platforms/service.js';
 import { mockIdentitySpec } from '../mock/mockSpec.js';
+import { DEMO_OIDC } from '../mock/mockOidc.js';
+import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { audit } from '../audit.js';
@@ -89,6 +91,32 @@ export function setupDemo(): { platforms: number; processes: number; users: stri
     created.push(u.username);
   }
   if (created.length) saveTeam({ name: 'Service Desk', description: 'Demo team', members: ['olivia', 'adam'] });
+  if (!listProviders().some((p) => p.issuer.includes('/mock/oidc'))) {
+    saveProvider({
+      displayName: 'Microsoft Entra ID (simulated)',
+      type: 'entra',
+      issuer: `${base}/oidc`,
+      clientId: DEMO_OIDC.clientId,
+      clientSecret: DEMO_OIDC.clientSecret,
+      clientAuth: 'client_secret_post',
+      scopes: 'openid profile email',
+      usernameClaim: 'preferred_username',
+      displayNameClaim: 'name',
+      emailClaim: 'email',
+      groupsClaim: 'roles',
+      mappings: [
+        { claimValue: 'SM.Admins', roles: ['admin'], teams: [] },
+        { claimValue: 'SM.Designers', roles: ['designer'], teams: [] },
+        { claimValue: 'SM.Operators', roles: ['operator'], teams: ['Service Desk'] },
+        { claimValue: 'SM.Approvers', roles: ['approver'], teams: ['Service Desk'] },
+      ],
+      defaultRoles: [],
+      autoProvision: true,
+      syncRoles: true,
+      requireMapping: true,
+      enabled: true,
+    });
+  }
   audit({ action: 'demo.setup', entityType: 'settings', summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users)` });
   return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD };
 }

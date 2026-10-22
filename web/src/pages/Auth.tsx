@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Button, Center, Group, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
-import { IconClockHour4, IconLock, IconShieldLock, IconUserCircle } from '@tabler/icons-react';
+import { Alert, Anchor, Badge, Button, Center, Collapse, Divider, Group, Paper, PasswordInput, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock, IconUserCircle } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AuthStatus } from '@sm/shared';
 import { post } from '../api';
+import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 
 const POLICY = 'At least 10 characters, letters plus a digit or symbol.';
 
@@ -124,6 +125,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [ssoError, clearSsoError] = useSsoError();
 
   const submit = async () => {
     setError(null);
@@ -143,40 +145,73 @@ export function LoginPage({ status }: { status: AuthStatus }) {
     }
   };
 
+  const providers = status.ssoProviders ?? [];
+  const ssoFirst = status.passwordLogin === 'adminsOnly' && providers.length > 0;
+  const [showPassword, setShowPassword] = useState(!ssoFirst);
+
+  const passwordForm = (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <Stack>
+        <TextInput label="User name" required value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoFocus={!ssoFirst && !username} autoComplete="username" />
+        <PasswordInput
+          label="Password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.currentTarget.value)}
+          autoFocus={!ssoFirst && !!username}
+          autoComplete="current-password"
+        />
+        {error && <Alert color="red">{error}</Alert>}
+        <Button type="submit" loading={busy} disabled={!username.trim() || !password} variant={ssoFirst ? 'light' : 'filled'}>
+          Sign in
+        </Button>
+      </Stack>
+    </form>
+  );
+
   return (
     <Card icon={<IconUserCircle size={40} stroke={1.4} />} title="Sign in to Service Manager">
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <Stack>
-          <TextInput label="User name" required value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoFocus={!username} autoComplete="username" />
-          <PasswordInput
-            label="Password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            autoFocus={!!username}
-            autoComplete="current-password"
-          />
-          {error && <Alert color="red">{error}</Alert>}
-          <Button type="submit" loading={busy} disabled={!username.trim() || !password}>
-            Sign in
-          </Button>
-          {!status.unlocked && (
-            <Text size="xs" c="dimmed" ta="center">
-              The vault is locked. After signing in, an administrator can unlock it.
-            </Text>
+      <SsoErrorAlert error={ssoError} onClose={clearSsoError} />
+      {ssoFirst ? (
+        <>
+          <SsoButtons providers={providers} />
+          <Divider />
+          <UnstyledButton onClick={() => setShowPassword((v) => !v)}>
+            <Group gap={4}>
+              {showPassword ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+              <Text size="sm" c="dimmed">
+                Administrator sign-in (break-glass)
+              </Text>
+            </Group>
+          </UnstyledButton>
+          <Collapse in={showPassword}>{passwordForm}</Collapse>
+        </>
+      ) : (
+        <>
+          {passwordForm}
+          {providers.length > 0 && (
+            <>
+              <Divider label="or" labelPosition="center" />
+              <SsoButtons providers={providers} />
+            </>
           )}
-          {status.demo && (
-            <Text size="xs" c="dimmed" ta="center">
-              Demo mode · v{status.version}
-            </Text>
-          )}
-        </Stack>
-      </form>
+        </>
+      )}
+      {!status.unlocked && (
+        <Text size="xs" c="dimmed" ta="center">
+          The vault is locked. After signing in, an administrator can unlock it.
+        </Text>
+      )}
+      {status.demo && (
+        <Text size="xs" c="dimmed" ta="center">
+          Demo mode · v{status.version}
+        </Text>
+      )}
     </Card>
   );
 }

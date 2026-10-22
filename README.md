@@ -4,6 +4,7 @@ A local tool for running standard service and platform procedures against **Siem
 
 - **Platform-agnostic.** You add platforms (base URL, credentials, OpenAPI specs, documentation). Processes refer to *connection slots*, so the same process runs against test and production tenants. A configured platform can be saved as a reusable **connector type**, exported and imported, so adding a new tool is a one-time job.
 - **Flow editor (Node-RED style).** Drag nodes from a palette onto a canvas and wire them together. Node types: API call (with pagination and OpenAPI operation picker), set variables, for each, if, user task / approval, check, report, browser automation, wait, fail, comment. Outputs are labelled (true/false, each item/done, approved/rejected, error). You can also edit the YAML source directly.
+- **Single sign-on.** Sign in with Microsoft Entra ID or any OpenID Connect provider (Okta, Keycloak, Google, ADFS …). Roles and teams can be assigned from Entra app roles or groups.
 - **Users and access control.** Sign-in with roles (admin, designer, operator, approver, auditor, viewer) and teams. Per-process and per-platform access lists narrow who may view, run, edit, approve or manage, e.g. only the Service Desk team may use the production tenant. Decisions can be assigned to people, teams or roles, with an optional four-eyes rule.
 - **Human in the loop.** A run can pause and ask you to pick items from a list, e.g. "untick the users who still need access", or to approve a change. The decision, who made it and when are all recorded.
 - **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what *would* change.
@@ -53,6 +54,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_MASTER_PASSPHRASE` | – | Unlock automatically at start-up, so schedules run after a reboot. |
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
+| `SM_PUBLIC_URL` | – | External URL (e.g. `https://service-manager.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI. |
 | `SM_CHROMIUM_PATH` | – | Use a specific Chromium/Chrome binary for browser steps |
 | `HTTPS_PROXY` / `NO_PROXY` | – | Corporate proxy, used for platform calls unless a platform overrides it |
 | `SM_DEMO` | – | `1` mounts the mock platforms under `/mock` |
@@ -85,6 +87,31 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 - **Decisions.** A user task can name `assignees` (users, teams, roles). Otherwise everyone with `run` or `approve` on the process may decide. With `fourEyes: true`, the person who started the run may not decide.
 - **Schedules.** A schedule runs with the rights of its owner (the person who created it). If the owner loses the rights or is deactivated, the run is skipped and recorded in the audit log.
 - New accounts get a temporary password and must change it at first sign-in. Passwords are hashed with scrypt. Five failed sign-ins lock the account for five minutes.
+
+### Single sign-on (Microsoft Entra ID / OpenID Connect)
+
+Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [openid-client](https://github.com/panva/openid-client) library. Tokens are checked for issuer, audience, signature (JWKS), expiry, nonce and state. The client secret is stored encrypted with the master passphrase.
+
+**Set it up in Microsoft Entra ID:**
+
+1. **Register the app.** In the Entra admin center go to *App registrations → New registration*. Name it e.g. "Service Manager" and choose single tenant.
+2. **Add the redirect URI.** Platform *Web*. Copy the exact value from **Users & teams → Single sign-on**; it looks like `https://<your host>/api/auth/oidc/callback`. For purely local use, `http://localhost:4310/api/auth/oidc/callback` works, because Entra only allows plain http for `localhost`. In that case open the tool via `http://localhost:4310`.
+3. **Create a client secret.** Under *Certificates & secrets*, create a new client secret and copy its value.
+4. **Define app roles.** Under *App roles*, create e.g. `SM.Admins`, `SM.Designers`, `SM.Operators`, `SM.Approvers`, `SM.Auditors`, `SM.Viewers`, with member types *Users/Groups*.
+5. **Assign people.** Under *Enterprise applications → Service Manager → Users and groups*, assign users or groups to these roles. Optionally set *Assignment required = Yes* so that only assigned people can sign in at all.
+6. **Add the provider in Service Manager.** Go to **Users & teams → Single sign-on → Add provider → Microsoft Entra ID**. Enter the tenant ID, client ID and secret, then click *Test discovery*.
+7. **Map the role values.** Map each app role to Service Manager roles and teams (claim `roles`). Alternatively let Entra emit the `groups` claim and map group object IDs; tokens carry at most 200 groups, so app roles are the better choice.
+
+**How accounts are handled:**
+
+- **Auto-provision.** New users get an account on their first sign-in.
+- **Role sync.** Roles, and the teams named in the mappings, are updated from the token at every sign-in.
+- **Mapping required.** Users without a mapped role are rejected.
+- **Pre-created accounts.** An account with the same user name (e.g. the UPN) is linked on its first SSO sign-in.
+- **No passwords.** SSO accounts have no password in Service Manager.
+- **SSO only.** Under **Settings → Sign-in**, password sign-in can be limited to administrators. Local admin accounts stay as break-glass access, e.g. to unlock the vault after a restart.
+
+Any other OIDC provider works the same way with the *Generic OIDC* preset: issuer URL, client ID and secret (or a public client with PKCE), and claim names. In demo mode a simulated Entra ID is preconfigured. Its accounts (Max Admin, Erik Engineer, Oskar Operator, Sofia Approver, Nina Nobody) show the mappings in action.
 
 ### Using it as a team
 
@@ -265,7 +292,7 @@ Where things live:
 
 ### Ideas for next steps
 
-- Single sign-on (OIDC, e.g. Microsoft Entra ID) instead of local accounts.
+- SCIM provisioning (deactivate accounts automatically when people leave).
 - Sub-flows (call another process as a node).
 - Import a Postman collection as a platform spec.
 - E-mail or Teams notification for open tasks and failed checks.

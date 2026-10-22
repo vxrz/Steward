@@ -32,6 +32,7 @@ import { runReportHtml, runReportPdf } from '../reports.js';
 import { setupDemo } from './demo.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
+import * as sso from '../auth/sso.js';
 import { capabilities, decisionCheck, isAdmin, require, requireCapability } from '../auth/permissions.js';
 import { readCookie, sessionCookie, SESSION_COOKIE } from '../auth/cookies.js';
 
@@ -148,6 +149,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     setupRequired: users.countUsers() === 0,
     unlocked: vault().unlocked,
     me: meInfo(),
+    ssoProviders: sso.publicProviders(),
+    passwordLogin: getSettings().passwordLogin,
     demo: config.demo,
     version: config.version,
     browserAvailable: await browserAvailable(),
@@ -191,6 +194,58 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/auth/me', async () => meInfo());
+
+  // ---------- single sign-on (OpenID Connect) ----------
+  const ssoFail = (reply: import('fastify').FastifyReply, message: string) =>
+    reply.redirect(`/?sso_error=${encodeURIComponent(message.slice(0, 300))}`);
+
+  app.get('/auth/oidc/:id/start', async (req, reply) => {
+    try {
+      const url = await sso.startSignIn(params(req).id!, sso.redirectUriFor(req), (req.query as { returnTo?: string }).returnTo);
+      return reply.redirect(url);
+    } catch (e) {
+      return ssoFail(reply, (e as Error).message);
+    }
+  });
+
+  app.get('/auth/oidc/callback', async (req, reply) => {
+    try {
+      const current = new URL(req.url, `${req.protocol}://${req.headers.host}`);
+      const { token, returnTo } = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
+      reply.header('set-cookie', sessionCookie(token));
+      // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
+      const target = JSON.stringify(returnTo).replace(/</g, '\\u003c');
+      return reply
+        .type('text/html')
+        .send(`<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>location.replace(${target})</script>`);
+    } catch (e) {
+      return ssoFail(reply, (e as Error).message);
+    }
+  });
+
+  app.get('/sso/providers', async () => {
+    requireCapability(me(), 'manageUsers', 'manage single sign-on');
+    return sso.listProviders();
+  });
+  app.post('/sso/providers', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage single sign-on');
+    return sso.saveProvider(req.body as never);
+  });
+  app.put('/sso/providers/:id', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage single sign-on');
+    sso.getProvider(params(req).id!);
+    return sso.saveProvider(req.body as never, params(req).id);
+  });
+  app.delete('/sso/providers/:id', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage single sign-on');
+    sso.deleteProvider(params(req).id!);
+    return { ok: true };
+  });
+  app.post('/sso/discover', async (req) => {
+    requireCapability(me(), 'manageUsers', 'manage single sign-on');
+    return sso.discover(z.object({ issuer: z.string().url() }).parse(req.body).issuer);
+  });
+  app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
 
   app.post('/auth/password', async (req) => {
     const b = z.object({ current: z.string(), next: z.string() }).parse(req.body);
@@ -275,7 +330,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/settings', async () => getSettings());
   app.put('/settings', async (req) => {
     requireCapability(me(), 'manageSettings', 'change settings');
-    const b = z.object({ browserHeadless: z.boolean().optional(), browserTimeoutMs: z.number().int().min(1000).optional() }).parse(req.body);
+    const b = z
+      .object({ passwordLogin: z.enum(['all', 'adminsOnly']).optional(), browserHeadless: z.boolean().optional(), browserTimeoutMs: z.number().int().min(1000).optional() })
+      .parse(req.body);
+    if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
     const s = updateSettings(b);
     audit({ action: 'settings.updated', entityType: 'settings', summary: 'Settings updated', details: b });
     return s;

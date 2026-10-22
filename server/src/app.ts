@@ -52,7 +52,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (!url.startsWith('/api/')) return done();
     const info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
     const user = info ? toAuthUser(info) : null;
-    const isPublic = PUBLIC_PATHS.includes(url);
+    const isPublic = PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/');
     if (!isPublic) {
       if (!user) return void reply.code(401).send({ error: 'Please sign in' });
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {

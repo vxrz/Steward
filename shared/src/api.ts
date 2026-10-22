@@ -36,6 +36,68 @@ export interface UserInfo {
   mustChangePassword: boolean;
   lastLoginAt?: string | null;
   createdAt: string;
+  /** 'local' (password) or the id of the single sign-on provider the account belongs to */
+  authSource: string;
+}
+
+// ---------- Single sign-on (OpenID Connect) ----------
+
+export interface SsoRoleMapping {
+  /** Value of the groups/roles claim, e.g. an Entra app role "SM.Operators" or a group object id */
+  claimValue: string;
+  roles: Role[];
+  teams: string[];
+}
+
+export interface SsoProvider {
+  id: string;
+  displayName: string;
+  /** 'entra' only changes defaults/help texts; both use standard OIDC */
+  type: 'entra' | 'oidc';
+  /** OIDC issuer, e.g. https://login.microsoftonline.com/<tenant-id>/v2.0 */
+  issuer: string;
+  clientId: string;
+  hasClientSecret: boolean;
+  clientAuth: 'client_secret_post' | 'client_secret_basic' | 'none';
+  scopes: string;
+  usernameClaim: string;
+  displayNameClaim: string;
+  emailClaim: string;
+  /** Claim with roles/groups used for the mappings (Entra: "roles" for app roles, "groups" for group ids) */
+  groupsClaim: string;
+  mappings: SsoRoleMapping[];
+  /** Roles every user of this provider gets */
+  defaultRoles: Role[];
+  /** Create accounts on first sign-in */
+  autoProvision: boolean;
+  /** Overwrite roles (and mapped team memberships) from the claims at every sign-in */
+  syncRoles: boolean;
+  /** Deny sign-in when no mapping matches */
+  requireMapping: boolean;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'createdAt' | 'updatedAt'> & {
+  /** New secret; omit to keep the stored one, '' to remove it */
+  clientSecret?: string;
+};
+
+export interface SsoProviderPublic {
+  id: string;
+  displayName: string;
+  type: 'entra' | 'oidc';
+}
+
+export interface SsoDiscoveryResult {
+  ok: boolean;
+  message: string;
+  issuer?: string;
+  authorizationEndpoint?: string;
+  tokenEndpoint?: string;
+  scopesSupported?: string[];
+  claimsSupported?: string[];
 }
 
 export interface Team {
@@ -66,6 +128,10 @@ export interface AuthStatus {
   setupRequired: boolean;
   unlocked: boolean;
   me: Me | null;
+  /** Enabled single sign-on providers (buttons on the sign-in page) */
+  ssoProviders: SsoProviderPublic[];
+  /** 'adminsOnly': password sign-in is limited to administrators (break-glass) */
+  passwordLogin: 'all' | 'adminsOnly';
   demo: boolean;
   version: string;
   browserAvailable: boolean;
@@ -471,6 +537,8 @@ export interface AuditVerifyResult {
 export type VaultStatus = AuthStatus & { operator?: string };
 
 export interface Settings {
+  /** 'adminsOnly' limits password sign-in to administrators once SSO is in place */
+  passwordLogin: 'all' | 'adminsOnly';
   browserHeadless: boolean;
   browserTimeoutMs: number;
 }

@@ -2,6 +2,7 @@ import type { Settings } from '@sm/shared';
 import { db } from './db.js';
 
 const DEFAULTS = (): Settings => ({
+  passwordLogin: 'all',
   browserHeadless: true,
   browserTimeoutMs: 30000,
 });
@@ -20,7 +21,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['browserHeadless', 'browserTimeoutMs'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

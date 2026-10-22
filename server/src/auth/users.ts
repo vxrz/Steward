@@ -5,6 +5,7 @@ import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { checkPasswordPolicy, hashPassword, temporaryPassword, verifyPassword } from './passwords.js';
 import type { AuthUser } from './context.js';
+import { getSettings } from '../settings.js';
 
 interface UserRow {
   id: string;
@@ -18,6 +19,8 @@ interface UserRow {
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
+  auth_source: string;
+  external_id: string | null;
 }
 
 const USERNAME = /^[a-zA-Z0-9._@-]{2,64}$/;
@@ -40,6 +43,7 @@ function toInfo(r: UserRow): UserInfo {
     mustChangePassword: !!r.must_change_password,
     lastLoginAt: r.last_login_at,
     createdAt: r.created_at,
+    authSource: r.auth_source ?? 'local',
   };
 }
 
@@ -148,6 +152,7 @@ function ensureAnotherAdmin(exceptId: string): void {
 
 export function resetPassword(id: string): string {
   const u = getUser(id);
+  if (u.authSource !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
   const temp = temporaryPassword();
   db().tx(() => {
     db().run('UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?', hashPassword(temp), nowIso(), id);
@@ -160,6 +165,7 @@ export function resetPassword(id: string): string {
 export function changePassword(id: string, current: string, next: string): void {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
+  if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
   if (!verifyPassword(current, r.password_hash)) throw new HttpError(400, 'Current password is wrong');
   const err = checkPasswordPolicy(next);
   if (err) throw new HttpError(400, err);
@@ -256,24 +262,41 @@ export function login(username: string, password: string, meta: { ip?: string; u
     throw new HttpError(401, 'Wrong user name or password');
   }
   failures.delete(key);
+  const roles = parseJson<Role[]>(r.roles, []);
+  if (getSettings().passwordLogin === 'adminsOnly' && !roles.includes('admin')) {
+    throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on');
+  }
+  const token = createSession(r.id, r.username, meta, 'password');
+  return { token, user: toInfo(r) };
+}
+
+/** Create a session for an authenticated user and record the sign-in. Returns the cookie token. */
+export function createSession(userId: string, username: string, meta: { ip?: string; userAgent?: string }, method: string): string {
   const token = crypto.randomBytes(32).toString('base64url');
   const ts = nowIso();
   db().tx(() => {
     db().run(
       'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)',
       hashToken(token),
-      r.id,
+      userId,
       ts,
       new Date(Date.now() + SESSION_IDLE_MS).toISOString(),
       ts,
       meta.ip ?? null,
       meta.userAgent?.slice(0, 200) ?? null,
     );
-    db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, r.id);
+    db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
     db().run('DELETE FROM sessions WHERE expires_at < ?', ts);
-    audit({ actor: r.username, action: 'auth.login', entityType: 'user', entityId: r.id, summary: `${r.username} signed in`, details: { ip: meta.ip } });
+    audit({
+      actor: username,
+      action: 'auth.login',
+      entityType: 'user',
+      entityId: userId,
+      summary: `${username} signed in${method === 'password' ? '' : ` via ${method}`}`,
+      details: { ip: meta.ip, method },
+    });
   });
-  return { token, user: toInfo(r) };
+  return token;
 }
 
 export function sessionUser(token: string | undefined): UserInfo | null {
