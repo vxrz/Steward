@@ -1,10 +1,14 @@
 # Builds the desktop executables for Windows, macOS and Linux.
-# Push a tag like v0.2.0 to publish a GitHub release; "Run workflow" builds without releasing.
+# Push a tag like v0.2.0 to publish a GitHub release (v0.2.0-beta.1 → pre-release).
+# "Run workflow", or a commit message containing [build-exe], builds without releasing
+# (download the files from the run's artifacts).
 name: Release
 
 on:
   push:
     tags: ['v*']
+    # A branch commit with "[build-exe]" in its message builds the executables (no release)
+    branches: ['**']
   workflow_dispatch:
 
 permissions:
@@ -12,6 +16,7 @@ permissions:
 
 jobs:
   executable:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[build-exe]')
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +65,7 @@ jobs:
           path: service-manager-${{ matrix.target }}.*
 
   sbom:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[build-exe]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
