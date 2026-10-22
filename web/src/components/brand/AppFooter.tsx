@@ -1,7 +1,9 @@
 import { Anchor, Group, Text } from '@mantine/core';
 import { IconBrandGithub } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { BRAND } from '../../../../shared/src/brand';
+import { WEB_BUILD } from '../../buildInfo';
 import { FrankenRechen } from './FrankenRechen';
 
 const Dot = () => (
@@ -10,8 +12,12 @@ const Dot = () => (
   </Text>
 );
 
-/** Small centred footer: origin, author, copyright, licence and source link. */
-export function AppFooter() {
+/**
+ * Small centred footer: origin, author, copyright, licence, source link and version
+ * (plus the About page for signed-in users). Always the Steward product identity,
+ * also with a custom app name and logo.
+ */
+export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
   const { t } = useTranslation();
   return (
     <Text component="footer" size="xs" c="dimmed" ta="center" py="md" px="xs" style={{ lineHeight: 1.7 }}>
@@ -56,6 +62,16 @@ export function AppFooter() {
             GitHub
           </Group>
         </Anchor>
+        <Dot />
+        <span>{t('footer.version', { brand: BRAND.name, version: WEB_BUILD.version })}</span>
+        {signedIn && (
+          <>
+            <Dot />
+            <Anchor component={Link} to="/about" inherit c="dimmed">
+              {t('footer.about', { brand: BRAND.name })}
+            </Anchor>
+          </>
+        )}
       </Group>
     </Text>
   );

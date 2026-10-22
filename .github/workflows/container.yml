@@ -38,6 +38,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build date
+        id: build-date
+        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Build image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -47,6 +50,10 @@ jobs:
           tags: ${{ env.IMAGE }}
           provenance: false
           pull: true
+          # shown on the About page and in the system status
+          build-args: |
+            SM_BUILD_COMMIT=${{ github.sha }}
+            SM_BUILD_DATE=${{ steps.build-date.outputs.date }}
       - name: Install Syft, Grype and Trivy
         run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" syft grype trivy && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: SBOM (Syft – CycloneDX and SPDX)

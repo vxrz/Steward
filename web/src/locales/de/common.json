@@ -25,7 +25,9 @@
     "openSource": "Open Source ({{license}})",
     "onGithub": "{{brand}} auf GitHub",
     "rake": "Fränkischer Rechen",
-    "rakeTitle": "Fränkischer Rechen"
+    "rakeTitle": "Fränkischer Rechen",
+    "version": "{{brand}} {{version}}",
+    "about": "Über {{brand}}"
   },
   "roles": {
     "admin": "Administrator",

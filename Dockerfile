@@ -3,6 +3,8 @@
 #
 #   docker build -t steward .
 #   docker build --build-arg WITH_BROWSER=1 -t steward .   # include Chromium for browser steps
+#   docker build --build-arg SM_BUILD_COMMIT=$(git rev-parse HEAD) --build-arg SM_BUILD_DATE=$(date -u +%FT%TZ) -t steward .
+#                                                            # build information for the About page (default: "development")
 #
 # The base image is pinned by digest (Dependabot keeps it current). The app runs
 # as the unprivileged "node" user (uid 1000), its files belong to root (read-only
@@ -19,6 +21,9 @@ COPY scripts/install-scripts.mjs scripts/
 # No install scripts from node_modules; only the reviewed ones in package.json "allowScripts" run.
 RUN npm ci --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY . .
+# declared here (not earlier) so a new commit does not invalidate the cached "npm ci" layer
+ARG SM_BUILD_COMMIT=""
+ARG SM_BUILD_DATE=""
 RUN npm run build
 
 # The server with its production dependencies only (the web UI's libraries are bundled into web/dist)
@@ -52,6 +57,7 @@ ENV NODE_ENV=production \
     SM_HOST=0.0.0.0 \
     SM_PORT=4310 \
     SM_DATA_DIR=/data \
+    SM_DEPLOYMENT=container \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     TSX_DISABLE_CACHE=1
 COPY --from=app /app /app
@@ -62,6 +68,11 @@ RUN if [ "$WITH_BROWSER" = "1" ]; then node node_modules/playwright/cli.js insta
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
  && mkdir -p /data && chown 1000:1000 /data
+# Build information (About page, System status); after the layers above so they stay cached
+ARG SM_BUILD_COMMIT=""
+ARG SM_BUILD_DATE=""
+ENV SM_BUILD_COMMIT=$SM_BUILD_COMMIT \
+    SM_BUILD_DATE=$SM_BUILD_DATE
 USER 1000:1000
 VOLUME ["/data"]
 EXPOSE 4310

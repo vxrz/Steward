@@ -1,19 +1,17 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { EvaluateResult, ScopeHints } from '@sm/shared';
-import { db } from '../db.js';
-import { vault } from '../vault.js';
-import { HttpError, nowIso } from '../util.js';
-import { currentUser, runAs } from '../auth/context.js';
+import { HttpError } from '../util.js';
+import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import * as processes from '../processes/service.js';
 import * as platforms from '../platforms/service.js';
-import * as scheduler from '../scheduler.js';
 import * as store from '../engine/store.js';
 import { evalExpr, render } from '../engine/expr.js';
 import { FUNCTIONS, expressionContext, inspectNode, limitSize, pickRun, sample } from '../engine/inspect.js';
 import { contractCheck } from '../engine/contract.js';
 import { initMetrics, metricsText } from '../metrics.js';
+import { readinessChecks } from '../system/readiness.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -49,33 +47,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- readiness (public) ----------
   app.get('/ready', async (_req, reply) => {
-    const checks: Record<'vault' | 'database' | 'scheduler', { ok: boolean; message?: string }> = {
-      vault: { ok: false },
-      database: { ok: false },
-      scheduler: { ok: false },
-    };
-    const v = vault();
-    checks.vault = v.unlocked ? { ok: true } : { ok: false, message: v.initialized ? 'Vault is locked' : 'Not set up yet' };
-    try {
-      db().get('SELECT 1');
-      db().run('INSERT INTO engine_probe (id, ts) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET ts = excluded.ts', nowIso());
-      checks.database = { ok: true };
-    } catch (e) {
-      checks.database = { ok: false, message: (e as Error).message };
-    }
-    try {
-      // schedules are armed once the vault is unlocked
-      const all = runAs({ id: 'system', username: 'system', displayName: 'System', roles: ['admin'], teams: [] }, () => scheduler.listSchedules());
-      const enabled = all.filter((s) => s.enabled);
-      const armed = enabled.filter((s) => s.nextRunAt).length;
-      checks.scheduler =
-        enabled.length === 0 || armed > 0
-          ? { ok: true, message: `${armed} of ${enabled.length} enabled schedule(s) armed` }
-          : { ok: false, message: `None of ${enabled.length} enabled schedule(s) is armed` };
-    } catch (e) {
-      checks.scheduler = { ok: false, message: (e as Error).message };
-    }
-    const ready = Object.values(checks).every((c) => c.ok);
+    const { ready, checks } = readinessChecks();
     return reply.code(ready ? 200 : 503).send({ ready, checks });
   });
 

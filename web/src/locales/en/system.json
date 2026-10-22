@@ -1,0 +1,264 @@
+{
+  "theme": {
+    "title": "Appearance",
+    "intro": "Colors, corner radius, name and logo for everyone – also on the sign-in page. Text colors are adjusted automatically so they stay readable (WCAG AA) in the light and dark color scheme.",
+    "primary": "Primary color",
+    "primaryHint": "Buttons, links, active navigation",
+    "accent": "Accent color",
+    "accentHint": "Counters and highlights",
+    "invalidColor": "Use a hex color like #1c7ed6",
+    "eyeDropper": "Pick a color from the screen",
+    "colors": {
+      "primary": "Primary color",
+      "accent": "Accent color"
+    },
+    "colorScheme": "Default color scheme",
+    "colorSchemeHint": "For users who have not chosen one. Everyone can still switch between light and dark.",
+    "schemes": {
+      "auto": "Like the system",
+      "light": "Light",
+      "dark": "Dark",
+      "both": "light and dark"
+    },
+    "radius": "Corner radius",
+    "radii": {
+      "sm": "Small",
+      "md": "Medium",
+      "lg": "Large"
+    },
+    "appName": "Display name",
+    "appNameHint": "Shown in the header, the window title and on the sign-in page, e.g. “ACME {{brand}}”. Empty = {{brand}}. The footer and the About page keep the product name.",
+    "logoAlt": "Header logo",
+    "defaultLogo": "{{brand}} logo",
+    "customLogo": "Custom logo ({{width}} × {{height}} px)",
+    "logoHint": "PNG, JPEG or WebP, at most {{kb}} KB and 4096 × 4096 pixels. Wide logos are fine. SVG is not accepted because it can contain scripts. Prefer a transparent background so the logo works in the light and the dark color scheme.",
+    "uploadLogo": "Upload logo",
+    "removeLogo": "Remove logo",
+    "logoUploaded": "Logo uploaded",
+    "logoRemoved": "Logo removed",
+    "logoNotUploaded": "Logo not uploaded",
+    "preview": "Preview (not saved yet)",
+    "previewOf": "Preview in the {{scheme}} color scheme",
+    "save": "Save appearance",
+    "discard": "Discard changes",
+    "saved": "Appearance saved – open pages update within a minute",
+    "reset": "Reset to {{brand}} defaults",
+    "resetConfirm": "Reset colors, color scheme, corner radius, display name and logo to the {{brand}} defaults?",
+    "resetDone": "Appearance reset to the {{brand}} defaults",
+    "lastChange": "Last changed {{when}} by {{who}}",
+    "contrast": {
+      "title": "Readability",
+      "textAdjusted": "{{color}}: too light for text on a white page, so links and text use the darker {{used}} (contrast {{ratio}}:1).",
+      "darkTextOnFilled": "{{color}} ({{scheme}}): buttons and badges use dark text, which is easier to read on this color (contrast {{ratio}}:1).",
+      "filledAdjusted": "{{color}}: white text is hard to read on it, so buttons use the darker {{used}} (contrast {{ratio}}:1).",
+      "lowSurfaceContrast": "{{color}} ({{scheme}}): buttons stand out little from the page (contrast {{ratio}}:1). Their text stays readable, but consider a stronger color."
+    },
+    "errors": {
+      "THEME_INVALID": "Check the colors and the display name.",
+      "THEME_LOGO_EMPTY": "The file is empty.",
+      "THEME_LOGO_TOO_LARGE": "The logo is too large (max. {{kb}} KB).",
+      "THEME_LOGO_SVG": "SVG logos are not accepted because they can contain scripts. Use a PNG, JPEG or WebP image.",
+      "THEME_LOGO_TYPE": "The logo must be a PNG, JPEG or WebP image.",
+      "THEME_LOGO_DIMENSIONS": "The logo can be at most 4096 × 4096 pixels."
+    },
+    "sample": {
+      "navActive": "Dashboard",
+      "nav": "Platforms",
+      "primary": "Primary",
+      "light": "Secondary",
+      "outline": "Outline",
+      "accent": "Accent",
+      "badge": "New",
+      "badgeLight": "Draft",
+      "accentLight": "Highlight",
+      "text": "Running text with a",
+      "link": "link",
+      "alertTitle": "Note",
+      "alert": "Alerts and notices use the primary color."
+    }
+  },
+  "about": {
+    "title": "About {{brand}}",
+    "providedAs": "Provided here as “{{name}}”, based on {{brand}}.",
+    "license": "Open source ({{license}})",
+    "mismatchTitle": "A newer version is running",
+    "mismatch": "This page was loaded with version {{web}}, the server now runs {{server}}. Reload to use the current version.",
+    "reload": "Reload",
+    "versionTitle": "Version",
+    "webUi": "Web UI",
+    "server": "Server",
+    "versionOf": "{{what}} version",
+    "serverUnknown": "Not available",
+    "loading": "Loading…",
+    "commit": "Build (commit)",
+    "buildDate": "Build date",
+    "development": "development build",
+    "linksTitle": "Documentation and links",
+    "links": {
+      "docs": "Documentation (README)",
+      "guides": "Guides (docs folder)",
+      "changelog": "Changelog",
+      "security": "Report a vulnerability (SECURITY.md)",
+      "source": "Source code",
+      "license": "License ({{license}})",
+      "apiDocs": "REST API documentation"
+    },
+    "settingsTitle": "This browser",
+    "language": "Language",
+    "colorScheme": "Color scheme",
+    "schemeAuto": "Like the system (currently {{current}})",
+    "theme": "Theme",
+    "themeCustom": "Custom appearance",
+    "themeDefault": "{{brand}} default",
+    "browsers": "Browser support",
+    "browserSupport": "Current versions of Microsoft Edge, Google Chrome, Mozilla Firefox and Safari. Internet Explorer is not supported.",
+    "thirdParty": {
+      "title": "Third-party licenses",
+      "intro": "{{brand}} is built on open-source packages. Package, version and license of every production dependency:",
+      "show": "Show the list",
+      "unavailable": "The list is not part of this build.",
+      "filter": "Filter by package or license",
+      "count_one": "{{count}} package",
+      "count_other": "{{count}} packages",
+      "package": "Package",
+      "version": "Version",
+      "license": "License"
+    }
+  },
+  "status": {
+    "title": "System status",
+    "intro": "Health of this {{brand}} server: readiness, components, integrations and runtime.",
+    "refresh": "Refresh",
+    "ready": "Ready",
+    "notReady": "Not ready",
+    "readyBadge": "ready",
+    "notReadyBadge": "not ready",
+    "generated": "As of {{when}}",
+    "ok": "OK",
+    "problem": "Problem",
+    "checks": {
+      "vault": "Vault",
+      "database": "Database",
+      "scheduler": "Scheduler"
+    },
+    "limited": "Limited view for auditors: paths, host names and connection details are only shown to administrators.",
+    "on": "on",
+    "off": "off",
+    "never": "never",
+    "development": "development build",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyUrl": "Copy {{url}}",
+    "monitoring": {
+      "title": "Health checks for monitoring",
+      "intro": "Point Gatus, Zabbix, Uptime Kuma, a load balancer or Kubernetes at these addresses to watch {{brand}} itself.",
+      "health": "Health",
+      "ready": "Ready",
+      "metrics": "Metrics",
+      "healthHint": "/api/health – public, always 200 while the process runs (liveness). Returns the version.",
+      "readyHint": "/api/ready – public, 200 when the vault is unlocked, the database answers and schedules are armed, otherwise 503 with the failing checks (readiness).",
+      "metricsPublic": "/api/metrics – Prometheus format, public (SM_METRICS_PUBLIC=1).",
+      "metricsAuth": "/api/metrics – Prometheus format, for administrators and auditors (session or API token).",
+      "kubernetes": "Kubernetes: livenessProbe → /api/health, readinessProbe → /api/ready.",
+      "docsInstall": "Installation guide",
+      "docsMonitors": "Monitors",
+      "docsGatus": "Gatus"
+    },
+    "sections": {
+      "runtime": "Runtime",
+      "storage": "Database, vault and retention",
+      "engines": "Scheduler and monitors",
+      "integrations": "Integrations and observability"
+    },
+    "runtime": {
+      "version": "Version",
+      "deployment": "Installation",
+      "node": "Node.js",
+      "platform": "Platform",
+      "cpus_one": "{{count}} CPU",
+      "cpus_other": "{{count}} CPUs",
+      "uptime": "Uptime",
+      "since": "since {{when}}",
+      "memory": "Memory",
+      "memoryValue": "{{rss}} resident · heap {{heap}} of {{heapTotal}}",
+      "timeZone": "Time zone",
+      "hostname": "Host name",
+      "pid": "Process ID",
+      "dataDir": "Data folder"
+    },
+    "deployments": {
+      "executable": "Desktop executable",
+      "container": "Container",
+      "node": "Node.js"
+    },
+    "database": {
+      "type": "Database",
+      "size": "Size",
+      "location": "Location"
+    },
+    "vault": {
+      "title": "Vault",
+      "unlocked": "unlocked",
+      "locked": "locked",
+      "notSetUp": "not set up",
+      "unattended": "Unlock at startup (SM_MASTER_PASSPHRASE)"
+    },
+    "retention": {
+      "runs": "Keep runs",
+      "notifications": "Keep read notifications",
+      "monitors": "Keep monitor history",
+      "lastCleanup": "Last cleanup",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "forever": "forever",
+      "removed": "{{runs}} runs, {{notifications}} notifications removed"
+    },
+    "scheduler": {
+      "schedules": "Schedules",
+      "counts": "{{enabled}} of {{total}} enabled, {{armed}} armed",
+      "next": "Next runs",
+      "none": "none"
+    },
+    "monitors": {
+      "engine": "Monitor engine",
+      "running": "running",
+      "stopped": "stopped",
+      "monitors": "Monitors",
+      "counts": "{{enabled}} of {{total}} enabled, {{checks}} checks",
+      "down": "Down now",
+      "lastCheck": "Last check"
+    },
+    "notifications": {
+      "email": "E-mail notifications",
+      "teams": "Microsoft Teams",
+      "webhook": "Webhook"
+    },
+    "observability": {
+      "errorServer": "Error reporting (server)",
+      "errorBrowser": "Error reporting (browser)",
+      "tracing": "Tracing (OpenTelemetry)",
+      "metrics": "Metrics endpoint",
+      "metricsPublic": "public",
+      "metricsAuth": "administrators and auditors"
+    },
+    "api": {
+      "title": "REST API",
+      "docs": "API documentation",
+      "docsModes": {
+        "off": "off",
+        "authenticated": "signed-in users",
+        "public": "public"
+      },
+      "rateLimit": "Rate limit",
+      "perMinute_one": "{{count}} request per minute and token",
+      "perMinute_other": "{{count}} requests per minute and token",
+      "unlimited": "unlimited"
+    },
+    "security": {
+      "tls": "HTTPS (TLS)",
+      "allowedHosts": "Allowed host names",
+      "localOnly": "localhost only",
+      "proxy": "Outbound proxy (environment)"
+    }
+  }
+}

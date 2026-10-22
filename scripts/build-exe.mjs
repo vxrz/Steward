@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { build } from 'esbuild';
+import { buildInfo } from './build-info.mjs';
 
 const HELP = `Build the single-file desktop executable for this OS and architecture.
 
@@ -49,6 +50,8 @@ const work = path.join(out, 'work');
 const brandSrc = fs.readFileSync(path.join(root, 'shared/src/brand.ts'), 'utf8');
 const slug = /slug:\s*'([^']+)'/.exec(brandSrc)[1];
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+// commit and date are compiled into the server (About page, System status; see server/src/buildinfo.ts)
+const info = buildInfo(root);
 const isWin = process.platform === 'win32';
 const isMac = process.platform === 'darwin';
 const exe = path.join(out, `${slug}${isWin ? '.exe' : ''}`);
@@ -63,7 +66,7 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(work, { recursive: true });
 
 // 1. Bundle the server into one CommonJS file (SEA runs CommonJS).
-step('Bundling the server');
+step(`Bundling the server (${version}, ${info.commit ? info.commit.slice(0, 12) : 'no commit'}, ${info.date})`);
 await build({
   entryPoints: [path.join(root, 'server/src/desktop/launcher.ts')],
   outfile: path.join(work, 'app.cjs'),
@@ -76,7 +79,12 @@ await build({
   legalComments: 'none',
   // Browser automation needs a separate Playwright installation; not embedded.
   external: ['playwright', 'playwright-core', 'chromium-bidi', 'electron'],
-  define: { 'import.meta.url': '__sm_import_meta_url', 'import.meta.dirname': '__dirname' },
+  define: {
+    'import.meta.url': '__sm_import_meta_url',
+    'import.meta.dirname': '__dirname',
+    'process.env.SM_BUILD_COMMIT': JSON.stringify(info.commit ?? ''),
+    'process.env.SM_BUILD_DATE': JSON.stringify(info.date),
+  },
   banner: { js: 'const __sm_import_meta_url = require("node:url").pathToFileURL(__filename).href;' },
   logLevel: 'warning',
 });

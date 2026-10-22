@@ -28,7 +28,9 @@
     "changePassword": "Passwort ändern",
     "lockVault": "Tresor sperren",
     "lockVaultConfirm": "Tresor sperren? Zeitpläne werden angehalten, und alle müssen warten, bis ein Administrator ihn wieder entsperrt.",
-    "signOut": "Abmelden"
+    "signOut": "Abmelden",
+    "about": "Über {{brand}}",
+    "systemStatus": "Systemstatus"
   },
   "palette": {
     "newProcess": "Neuer Prozess",

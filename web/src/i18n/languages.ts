@@ -30,6 +30,7 @@ export const NAMESPACES = [
   'settings',
   'users',
   'profile',
+  'system',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

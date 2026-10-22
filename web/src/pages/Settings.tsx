@@ -16,6 +16,8 @@ import { NotificationSettingsCard } from '../components/notifications/Notificati
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
+import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
+import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const { t } = useTranslation(['settings', 'common']);
@@ -31,11 +33,11 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   useEffect(() => {
     if (settings.data) setS(settings.data);
   }, [settings.data]);
-  if (readOnly) return <PageHeader title={t("title")} description={t("readOnly")} />;
+  if (readOnly) return <PageHeader title={t('title')} description={t('readOnly')} actions={caps.viewAudit ? <SystemStatusLink /> : undefined} />;
   if (!s) return null;
   return (
     <>
-      <PageHeader title={t('title')} description={readOnly ? t('readOnly') : undefined} />
+      <PageHeader title={t('title')} description={readOnly ? t('readOnly') : undefined} actions={<SystemStatusLink />} />
       <Stack maw={760}>
         <Card withBorder>
           <Title order={5} mb="sm">
@@ -203,6 +205,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           </Button>
         </Group>
         )}
+        {!readOnly && <ThemeSettingsCard />}
         {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}

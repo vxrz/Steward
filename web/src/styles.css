@@ -6,7 +6,7 @@ body { margin: 0; }
 .md code { font-family: var(--mantine-font-family-monospace); font-size: 12px; background: var(--mantine-color-default-hover); padding: 0 4px; border-radius: 4px; }
 .step-block { border-left: 2px solid var(--mantine-color-default-border); margin-left: 10px; padding-left: 10px; }
 .step-row { border: 1px solid var(--mantine-color-default-border); border-radius: 8px; background: var(--mantine-color-body); }
-.step-row.selected { border-color: var(--mantine-color-blue-filled); box-shadow: 0 0 0 1px var(--mantine-color-blue-filled); }
+.step-row.selected { border-color: var(--mantine-primary-color-filled); box-shadow: 0 0 0 1px var(--mantine-primary-color-filled); }
 .nowrap { white-space: nowrap; }
 .table-scroll { overflow-x: auto; }
 

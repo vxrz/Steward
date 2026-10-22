@@ -24,7 +24,7 @@ import {
 import type { AuthStatus, Capabilities, TaskRecord } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../shared/src/brand';
-import { Logo } from './components/brand/Logo';
+import { AppLogo } from './components/brand/AppLogo';
 import { AppFooter } from './components/brand/AppFooter';
 import { get, setAuthChangeHandler } from './api';
 import { MeContext } from './auth';
@@ -33,6 +33,7 @@ import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { currentLanguage, setLanguage } from './i18n';
+import { useAppName } from './theme';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -59,6 +60,8 @@ const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
 const UsersPage = page(() => import('./pages/Users'), 'UsersPage');
 const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
 const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
+const AboutPage = page(() => import('./pages/About'), 'AboutPage');
+const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 
 function PageLoader() {
   return (
@@ -124,6 +127,7 @@ export function App() {
 
 function Shell({ status }: { status: AuthStatus }) {
   const { t } = useTranslation('nav');
+  const appName = useAppName();
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
@@ -146,9 +150,9 @@ function Shell({ status }: { status: AuthStatus }) {
               onClick={(e) => (e.preventDefault(), navigate('/'))}
               style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', minWidth: 0 }}
             >
-              <Logo size={26} />
+              <AppLogo size={26} />
               <Text fw={700} truncate>
-                {BRAND.name}
+                {appName}
               </Text>
             </a>
             {status.demo && (
@@ -187,13 +191,13 @@ function Shell({ status }: { status: AuthStatus }) {
               active={isActive(n.to)}
               rightSection={
                 n.to === '/tasks' && openTasks > 0 ? (
-                  <Badge size="sm" color="violet" circle>
+                  <Badge size="sm" color="accent" circle>
                     {openTasks}
                   </Badge>
                 ) : undefined
               }
               onClick={close}
-              style={{ borderRadius: 6 }}
+              style={{ borderRadius: 'var(--mantine-radius-default)' }}
             />
           ))}
         </ScrollArea>
@@ -224,12 +228,14 @@ function Shell({ status }: { status: AuthStatus }) {
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
           <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
         </Routes>
         </Suspense>
         </ErrorBoundary>
         </div>
-        <AppFooter />
+        <AppFooter signedIn />
       </AppShell.Main>
     </AppShell>
   );
