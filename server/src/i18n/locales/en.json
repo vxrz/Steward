@@ -56,5 +56,31 @@
     "blocked": "Blocked: {{where}}",
     "maintenance": "Maintenance: {{where}}",
     "rootCause": "Root cause: {{causes}}."
+  },
+  "credentialDue": {
+    "kinds": {
+      "expiry": "expiry",
+      "rotation": "rotation",
+      "review": "review"
+    },
+    "titleBefore_one": "{{name}}: {{kind}} due in {{count}} day",
+    "titleBefore_other": "{{name}}: {{kind}} due in {{count}} days",
+    "titleOverdue": "{{name}}: {{kind}} is overdue",
+    "titleExpired": "{{name}} has expired",
+    "bodyBefore": "The {{kind}} of “{{name}}” ({{type}}{{platform}}) is due on {{date}}.",
+    "bodyOverdue": "The {{kind}} of “{{name}}” ({{type}}{{platform}}) was due on {{date}}. Please rotate or review it and record it in the credentials register.",
+    "bodyExpired": "“{{name}}” ({{type}}{{platform}}) expired on {{date}}.",
+    "location": "Kept in: {{location}}",
+    "owners": "Owners: {{owners}}",
+    "types": {
+      "apiClient": "API client / OAuth client",
+      "technicalUser": "Technical user / service account",
+      "password": "Password",
+      "token": "Token / API key",
+      "certificate": "Certificate",
+      "agentCertificate": "Agent / device certificate",
+      "sshKey": "SSH key",
+      "other": "Other"
+    }
   }
 }

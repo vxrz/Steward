@@ -16,6 +16,8 @@ export interface OutgoingMessage {
   link: string;
   ts: string;
   data?: Record<string, unknown>;
+  /** E-mail only (e.g. the PDF of a scheduled report) */
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
 }
 
 const TIMEOUT_MS = 10000;
@@ -85,6 +87,7 @@ export async function sendEmail(cfg: NotificationSettings['email'], secrets: Cha
       subject: `[${BRAND.name}] ${m.title}`,
       text: `${m.title}\n\n${m.body}\n\n${m.link}\n`,
       html: `<div lang="${m.locale}"><p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">${esc(t(m.locale, 'common.openIn', { brand: BRAND.name }))}</a></p></div>`,
+      ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) } : {}),
     });
   } finally {
     transport.close();

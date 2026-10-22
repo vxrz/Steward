@@ -48,6 +48,7 @@ import { monitorRoutes } from '../monitors/routes.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
+import { credentialRoutes } from '../credentials/routes.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -920,6 +921,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await triggerRoutes(app);
   await monitorRoutes(app);
   await gatusRoutes(app);
+  await credentialRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

@@ -15,6 +15,7 @@ import { ApiTokenTable } from '../components/ApiTokenTable';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
+import { CredentialReminderSettingsCard } from '../components/credentials/CredentialReminderSettingsCard';
 import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
 import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
@@ -263,6 +264,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}
+        {!readOnly && <CredentialReminderSettingsCard />}
         {!readOnly && <AdminTokensCard />}
         <Card withBorder>
           <Title order={5} mb="xs">

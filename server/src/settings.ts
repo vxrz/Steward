@@ -17,7 +17,7 @@ const DEFAULTS = (): Settings => ({
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
-const INTERNAL = ['notifications.', 'maintenance.', 'reports.', 'monitors.', 'vault.', 'audit.', 'security.', 'theme.', 'gatus.'];
+const INTERNAL = ['notifications.', 'maintenance.', 'reports.', 'monitors.', 'vault.', 'audit.', 'security.', 'theme.', 'credentials.', 'gatus.'];
 
 export function getSettings(): Settings {
   const rows = db().all<{ key: string; value: string }>('SELECT key, value FROM settings');

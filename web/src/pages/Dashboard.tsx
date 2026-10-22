@@ -7,6 +7,7 @@ import type { DashboardData } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, severityLabel } from '../components/common';
 import { RunTable } from '../components/RunTable';
+import { CredentialsDueCard } from '../components/credentials/CredentialsDueCard';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { useState } from 'react';
@@ -127,6 +128,8 @@ export function DashboardPage({ demo }: { demo: boolean }) {
               </Stack>
             </Card>
           )}
+
+          <CredentialsDueCard />
 
           <SimpleGrid cols={{ base: 1, lg: 3 }}>
             <Card withBorder style={{ gridColumn: 'span 2' }}>

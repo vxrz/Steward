@@ -85,6 +85,16 @@ beforeAll(async () => {
   const extra = 'sk-live-SECRET-0123456789abcdef';
   SECRETS.push(extra);
   await s.api('PUT', `/platforms/${hub}/secrets`, { apiKey: extra });
+  // an entry of the credentials register (with a certificate fingerprint and owners)
+  await s.api('POST', '/credentials', {
+    name: 'API test client',
+    type: 'apiClient',
+    platformId: hub,
+    owners: [{ email: 'owner@example.com', role: 'Business owner' }],
+    location: { text: 'KeePass: IT.kdbx → API test', url: 'https://vault.example.com/e/1' },
+    expiresAt: '2030-01-01',
+    rotationIntervalDays: 90,
+  });
 
   tinyProcess = (
     await s.api('POST', '/processes', {
@@ -403,6 +413,7 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/monitors/{monitorId}/status', `/monitors/${x.key}/status`);
     await listAll('/monitors/{monitorId}/history', `/monitors/${x.id}/history`);
   }
+  for (const x of (await listAll('/credentials', '/credentials')).slice(0, 5)) await get('/credentials/{credentialId}', `/credentials/${x.id}`);
   return out;
 }
 
