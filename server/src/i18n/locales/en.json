@@ -82,5 +82,10 @@
       "sshKey": "SSH key",
       "other": "Other"
     }
+  },
+  "reportReady": {
+    "title": "Report ready: {{name}}",
+    "body": "The scheduled report “{{name}}” for {{from}} – {{to}} was generated.",
+    "attached": "The PDF is attached."
   }
 }

@@ -12,6 +12,7 @@ import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 import { db } from './db.js';
 import { stopMonitorEngine } from './monitors/engine.js';
 import { stopGatusScraper } from './gatus/metrics.js';
+import { stopReportSchedules } from './reports/schedules.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
 import { listPlatforms, getSecretsUnchecked } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
@@ -73,6 +74,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     stopMaintenanceJobs();
     await stopMonitorEngine();
     stopGatusScraper();
+    stopReportSchedules();
     stopAuditJobs();
     flushFailedLoginAudit();
     removeInstanceFile();

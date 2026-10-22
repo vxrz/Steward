@@ -15,6 +15,7 @@ import {
   IconWebhook,
   IconHeartRateMonitor,
   IconKey,
+  IconReportAnalytics,
   IconServer,
   IconShieldCheck,
   IconSettings,
@@ -64,6 +65,7 @@ const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
 const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 const CredentialsPage = page(() => import('./pages/Credentials'), 'CredentialsPage');
+const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
 
 function PageLoader() {
   return (
@@ -73,7 +75,7 @@ function PageLoader() {
   );
 }
 
-type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'credentials' | 'audit' | 'users' | 'settings';
+type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'credentials' | 'reports' | 'audit' | 'users' | 'settings';
 const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
   { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
@@ -85,6 +87,7 @@ const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: ke
   { to: '/monitors', key: 'monitors', icon: IconHeartRateMonitor },
   { to: '/platforms', key: 'platforms', icon: IconServer },
   { to: '/credentials', key: 'credentials', icon: IconKey },
+  { to: '/reports', key: 'reports', icon: IconReportAnalytics },
   { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
   { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
   { to: '/settings', key: 'settings', icon: IconSettings },
@@ -228,6 +231,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Route path="/platforms" element={<PlatformsPage />} />
           <Route path="/platforms/:id" element={<PlatformDetailPage />} />
           <Route path="/credentials" element={<CredentialsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
           {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />

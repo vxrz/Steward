@@ -19,6 +19,7 @@ import type tasks from '../locales/en/tasks.json';
 import type triggers from '../locales/en/triggers.json';
 import type users from '../locales/en/users.json';
 import type credentials from '../locales/en/credentials.json';
+import type reportSchedules from '../locales/en/reportSchedules.json';
 import type gatus from '../locales/en/gatus.json';
 import auth from '../locales/en/auth.json';
 import common from '../locales/en/common.json';
@@ -52,5 +53,6 @@ export interface Resources {
   profile: typeof profile;
   system: typeof system;
   credentials: typeof credentials;
+  reportSchedules: typeof reportSchedules;
   gatus: typeof gatus;
 }

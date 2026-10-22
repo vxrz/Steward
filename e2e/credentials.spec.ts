@@ -58,3 +58,32 @@ test('a designer documents an agent certificate by uploading it and sees it as d
   await page.goto('/');
   await expect(page.getByTestId('credentials-due').getByRole('link', { name })).toBeVisible();
 });
+
+test('a report schedule is created and generated now', async ({ page }) => {
+  const name = uniq('E2E weekly service report');
+  await page.goto('/reports');
+  await page.getByRole('button', { name: 'New report schedule' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New report schedule' });
+  await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
+  await dialog.getByText('Weekly', { exact: true }).click();
+  await expect(dialog.getByRole('checkbox', { name: 'Availability of monitors' })).toBeChecked();
+  await expect(dialog.getByRole('checkbox', { name: 'Credentials register' })).toBeChecked();
+  await dialog.getByRole('checkbox', { name: 'Runs' }).check();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Report schedule saved')).toBeVisible();
+
+  const row = page.getByRole('row').filter({ hasText: name });
+  await expect(row).toContainText('Weekly');
+  await expect(row).toContainText('0 6 * * 1');
+  await row.getByRole('button', { name: `Generate "${name}" now` }).click();
+  await expect(page.getByText(`"${name}" generated`)).toBeVisible({ timeout: 30_000 });
+
+  const generated = page.getByRole('table', { name: 'Generated reports' }).getByRole('row').filter({ hasText: name });
+  await expect(generated.first()).toBeVisible();
+  const link = generated.first().getByRole('link', { name: /PDF/ });
+  const href = await link.getAttribute('href');
+  const res = await page.request.get(href!);
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-type']).toContain('application/pdf');
+  expect((await res.body()).subarray(0, 5).toString()).toBe('%PDF-');
+});

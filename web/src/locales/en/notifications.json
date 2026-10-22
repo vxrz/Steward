@@ -53,6 +53,12 @@
         "label": "Credential due",
         "info": "A credential you own expires or needs rotating or a review soon (or is overdue)"
       }
+    },
+    "report": {
+      "ready": {
+        "label": "Report ready",
+        "info": "A scheduled report you receive was generated"
+      }
     }
   }
 }

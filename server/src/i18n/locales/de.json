@@ -82,5 +82,10 @@
       "sshKey": "SSH-Schlüssel",
       "other": "Sonstiges"
     }
+  },
+  "reportReady": {
+    "title": "Bericht erstellt: {{name}}",
+    "body": "Der geplante Bericht „{{name}}“ für {{from}} – {{to}} wurde erstellt.",
+    "attached": "Das PDF ist angehängt."
   }
 }

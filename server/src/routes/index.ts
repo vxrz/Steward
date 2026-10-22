@@ -49,6 +49,8 @@ import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
 import { credentialRoutes } from '../credentials/routes.js';
+import { reportScheduleRoutes } from './report-schedules.js';
+import { startReportSchedules } from '../reports/schedules.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -73,6 +75,7 @@ async function onUnlocked(): Promise<void> {
   scheduler.startScheduler();
   startMonitorEngine();
   startGatusScraper();
+  startReportSchedules();
 }
 
 export async function unlockFromEnv(): Promise<void> {
@@ -922,6 +925,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await monitorRoutes(app);
   await gatusRoutes(app);
   await credentialRoutes(app);
+  await reportScheduleRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {
