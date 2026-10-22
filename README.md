@@ -219,7 +219,7 @@ Templates are YAML files in [`examples/processes/`](examples/README.md); example
 
 **Gatus.** Steward works alongside the [Gatus](https://github.com/TwiN/gatus) uptime monitor instead of re-implementing monitoring: Gatus monitors Steward's `/api/health` and `/api/ready`, Steward shows the Gatus endpoint status on the _Uptime_ dashboard, pushes its own check results to Gatus external endpoints, and a Gatus alert can start a runbook through a webhook trigger. In **metrics mode** Steward scrapes Gatus' Prometheus endpoint and keeps its own history (uptime, outages, response times, certificate expiry) for monitors, scheduled reports and the credentials register. Configuration snippets and security notes: [docs/GATUS.md](docs/GATUS.md).
 
-For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roadmap) see [`docs/ROADMAP.md`](docs/ROADMAP.md).
+For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roadmap) see [`docs/ROADMAP.md`](docs/ROADMAP.md). The current UI/UX review, its fixes and the UX backlog are in [`docs/UX-REVIEW.md`](docs/UX-REVIEW.md).
 
 ### Notes on the Siemens APIs (please verify on your tenant)
 
