@@ -8,6 +8,7 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { invalidatePlatformCaches } from './http.js';
+import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
 import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
@@ -247,6 +248,8 @@ export function deletePlatform(id: string): void {
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
   db().tx(() => {
     db().run('DELETE FROM platforms WHERE id = ?', id);
+    // Gatus metrics mode: the source with its samples, aggregates, transitions and endpoints
+    deleteGatusSource(id);
     audit({ action: 'platform.deleted', entityType: 'platform', entityId: id, summary: `Platform "${p.name}" deleted` });
   });
   for (const d of docs) if (d.filename) fs.rmSync(docPath(d.id, d.filename), { force: true });

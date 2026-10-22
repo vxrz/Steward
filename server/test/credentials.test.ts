@@ -494,7 +494,7 @@ describe('expiry sync from Gatus metrics', () => {
     const audit = await s.api('GET', `/audit?action=credential.expiry_synced`);
     expect(audit.some((a: any) => a.entityId === c.id && a.actor === 'system')).toBe(true);
     // a second scrape with the same expiry changes nothing
-    await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
+    await (await import('../src/gatus/metrics.js')).scrape(gatusId);
     expect((await dana('GET', `/credentials/${c.id}`)).version).toBe(after.version);
   });
 });

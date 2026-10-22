@@ -449,3 +449,63 @@ describe('#11 linked platforms of credentials', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 12 / 13 – Gatus metrics
+
+describe('#12 Gatus metrics path', () => {
+  it('percent-encoded dots cannot leave the base path', async () => {
+    const { checkMetricsPath } = await import('../src/gatus/metrics.js');
+    for (const p of ['/%2e%2e/admin', '/%2E%2E/admin', '/.%2e/admin', '/x/%2e./y', '/a%2fb', '/a%5cb', '/a\\b', '/%252e%252e/admin', '/./metrics'])
+      expect(() => checkMetricsPath(p), p).toThrow();
+    expect(checkMetricsPath('/metrics')).toBe('/metrics');
+    expect(checkMetricsPath('/gatus/metrics')).toBe('/gatus/metrics');
+    const body = { enabled: false, intervalSeconds: 60, retentionDays: 30, rawRetentionDays: 7, metricsPath: '/%2e%2e/admin' };
+    expect(await status(s.api('PUT', `/gatus/sources/${gatusId}`, body))).toBe(400);
+  });
+
+  it('the resolved scrape URL stays below the base path', async () => {
+    const { metricsUrlBelow } = await import('../src/gatus/metrics.js');
+    expect(metricsUrlBelow('https://h.example/gatus', '/metrics')).toBe('https://h.example/gatus/metrics');
+    expect(() => metricsUrlBelow('https://h.example/gatus', '/../admin')).toThrow();
+    expect(() => metricsUrlBelow('https://h.example/gatus', '/%2e%2e/admin')).toThrow();
+  });
+});
+
+describe('#13 Gatus scrape throttling and clean-up', () => {
+  const source = { enabled: false, intervalSeconds: 60, retentionDays: 30, rawRetentionDays: 7, metricsPath: '/metrics' };
+
+  it('manual scrapes are throttled per source', async () => {
+    await s.api('PUT', `/gatus/sources/${gatusId}`, source);
+    expect((await olivia('POST', `/gatus/sources/${gatusId}/scrape`)).ok).toBe(true);
+    const msg = await errorOf(olivia('POST', `/gatus/sources/${gatusId}/scrape`));
+    expect(msg).toMatch(/429/);
+  });
+
+  it('endpoints not seen within the retention period are pruned', async () => {
+    const d = await db();
+    const old = new Date(Date.now() - 40 * DAY).toISOString();
+    d.run(
+      `INSERT INTO gatus_endpoints (platform_id, key, group_name, name, type, success, total_ok, total_fail, first_seen_at, last_seen_at)
+       VALUES (?, 'gone_endpoint', '', 'gone', 'HTTP', 1, 1, 0, ?, ?)`,
+      gatusId,
+      old,
+      old,
+    );
+    const { pruneGatusData } = await import('../src/gatus/metrics.js');
+    pruneGatusData();
+    expect(d.get('SELECT 1 AS x FROM gatus_endpoints WHERE platform_id = ? AND key = ?', gatusId, 'gone_endpoint')).toBeUndefined();
+    expect(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM gatus_endpoints WHERE platform_id = ?', gatusId)!.n).toBeGreaterThan(0);
+  });
+
+  it('deleting the platform removes its Gatus data', async () => {
+    const d = await db();
+    expect(d.get<{ n: number }>('SELECT COUNT(*) AS n FROM gatus_samples WHERE platform_id = ?', gatusId)!.n).toBeGreaterThan(0);
+    // credentials and monitors that use the platform are not part of this test
+    d.run('UPDATE credentials SET gatus_platform_id = NULL, gatus_endpoint_key = NULL WHERE gatus_platform_id = ?', gatusId);
+    await s.api('DELETE', `/platforms/${gatusId}`);
+    for (const t of ['gatus_sources', 'gatus_samples', 'gatus_hourly', 'gatus_transitions', 'gatus_endpoints']) {
+      expect(d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${t} WHERE platform_id = ?`, gatusId)!.n, t).toBe(0);
+    }
+  });
+});

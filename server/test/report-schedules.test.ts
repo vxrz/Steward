@@ -88,7 +88,7 @@ beforeAll(async () => {
   // Gatus metrics with two scrapes
   await s.api('PUT', `/gatus/sources/${gatusId}`, { enabled: true, metricsPath: '/metrics' });
   await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
-  await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
+  await (await import('../src/gatus/metrics.js')).scrape(gatusId);
   // credentials
   await dana('POST', '/credentials', {
     name: 'Expired agent certificate',

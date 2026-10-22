@@ -12,7 +12,7 @@ import * as gatus from './metrics.js';
  *   GET    /gatus/sources/:platformId             configuration and state (null when not configured)
  *   PUT    /gatus/sources/:platformId             configure (platform managers)
  *   DELETE /gatus/sources/:platformId             remove with all samples (platform managers)
- *   POST   /gatus/sources/:platformId/scrape      scrape now (platform users)
+ *   POST   /gatus/sources/:platformId/scrape      scrape now (platform users; at most every 15 s per source)
  *   GET    /gatus/sources/:platformId/endpoints   endpoint states with uptime
  */
 
@@ -95,7 +95,7 @@ export async function gatusRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/gatus/sources/:platformId/scrape', async (req) => {
     const p = gatusPlatform(params(req).platformId!, 'use');
-    return gatus.scrape(p.id);
+    return gatus.manualScrape(p.id);
   });
 
   app.get('/gatus/sources/:platformId/endpoints', async (req) => {
