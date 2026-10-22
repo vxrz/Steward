@@ -12,12 +12,33 @@ import { mockPlatform } from './mock/mockPlatform.js';
 import { requestContext } from './auth/context.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
 import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
+import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status'];
+const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready'];
 /** Reachable while the vault is locked (for signed-in users). */
 const LOCKED_OK = ['/api/auth/', '/api/vault/'];
+
+/** Content Security Policy for the SPA (Mantine injects inline styles, hence 'unsafe-inline' for styles only). */
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
+].join('; ');
+/** The single sign-on callback page finishes with a small inline script. */
+const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
+
+const isRead = (method: string) => method === 'GET' || method === 'HEAD';
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -40,9 +61,15 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('x-frame-options', 'DENY');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
+    reply.header('content-security-policy', url.startsWith('/api/auth/oidc/callback') ? CSP_SSO_CALLBACK : CSP);
+    reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+    reply.header('cross-origin-opener-policy', 'same-origin');
+    if (config.tls) reply.header('strict-transport-security', 'max-age=31536000');
     if (!url.startsWith('/api/')) return;
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-sm-client'] !== '1') {
+    // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
+    const bearerOnly = !!bearerToken(req.headers.authorization) && !req.headers.cookie;
+    if (!isRead(req.method) && !bearerOnly && req.headers['x-sm-client'] !== '1') {
       return reply.code(403).send({ error: 'Missing x-sm-client header' });
     }
   });
@@ -52,9 +79,20 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   app.addHook('preHandler', (req, reply, done) => {
     const url = req.url.split('?')[0]!;
     if (!url.startsWith('/api/')) return done();
-    const info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
-    const user = info ? toAuthUser(info) : null;
+    let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
     const isPublic = PUBLIC_PATHS.includes(url) || url.startsWith('/api/auth/oidc/');
+    // API tokens act as their owner when there is no signed-in session.
+    const bearer = info ? undefined : bearerToken(req.headers.authorization);
+    if (bearer) {
+      const t = tokenUser(bearer);
+      if (!t && !isPublic) return void reply.code(401).send({ error: 'Invalid, expired or revoked API token' });
+      if (t && t.scope === 'read' && !isRead(req.method)) return void reply.code(403).send({ error: 'This API token is read-only' });
+      if (t) {
+        info = t.user;
+        (req as unknown as { smToken?: string }).smToken = t.tokenId;
+      }
+    }
+    const user = info ? toAuthUser(info) : null;
     if (!isPublic) {
       if (!user) return void reply.code(401).send({ error: 'Please sign in' });
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {

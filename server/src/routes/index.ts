@@ -334,7 +334,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.put('/settings', async (req) => {
     requireCapability(me(), 'manageSettings', 'change settings');
     const b = z
-      .object({ passwordLogin: z.enum(['all', 'adminsOnly']).optional(), browserHeadless: z.boolean().optional(), browserTimeoutMs: z.number().int().min(1000).optional() })
+      .object({
+        passwordLogin: z.enum(['all', 'adminsOnly']).optional(),
+        browserHeadless: z.boolean().optional(),
+        browserTimeoutMs: z.number().int().min(1000).optional(),
+        retentionRunDays: z.number().int().min(0).max(3650).optional(),
+        retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+      })
       .parse(req.body);
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
     const s = updateSettings(b);

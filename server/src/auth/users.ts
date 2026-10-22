@@ -21,6 +21,7 @@ interface UserRow {
   last_login_at: string | null;
   auth_source: string;
   external_id: string | null;
+  email_notifications?: number;
 }
 
 const USERNAME = /^[a-zA-Z0-9._@-]{2,64}$/;
@@ -37,7 +38,7 @@ function toInfo(r: UserRow): UserInfo {
     username: r.username,
     displayName: r.display_name,
     email: r.email ?? undefined,
-    emailNotifications: false, // TODO(ops): stored per user
+    emailNotifications: !!(r.email_notifications ?? 1),
     roles: parseJson<Role[]>(r.roles, []),
     teams: teamsOf(r.id),
     active: !!r.active,
@@ -142,6 +143,40 @@ export function updateUser(id: string, patch: { displayName?: string; email?: st
       summary: `User "${before.username}" updated${changes.length ? `: ${changes.join('; ')}` : ''}`,
       details: { roles, active: patch.active },
     });
+  });
+  return getUser(id);
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider. */
+export function updateProfile(id: string, patch: { displayName?: string; email?: string; emailNotifications?: boolean }): UserInfo {
+  const before = getUser(id);
+  const sso = before.authSource !== 'local';
+  const displayName = patch.displayName?.trim();
+  const email = patch.email === undefined ? undefined : patch.email.trim();
+  if (sso && ((displayName !== undefined && displayName !== before.displayName) || (email !== undefined && email !== (before.email ?? '')))) {
+    throw new HttpError(400, 'Name and e-mail of this account are managed by single sign-on');
+  }
+  if (displayName !== undefined && (!displayName || displayName.length > 100)) throw new HttpError(400, 'Display name: 1–100 characters');
+  if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address');
+  const changes: string[] = [];
+  if (displayName !== undefined && displayName !== before.displayName) changes.push('name');
+  if (email !== undefined && email !== (before.email ?? '')) changes.push('e-mail');
+  if (patch.emailNotifications !== undefined && patch.emailNotifications !== before.emailNotifications) {
+    changes.push(`e-mail notifications ${patch.emailNotifications ? 'on' : 'off'}`);
+  }
+  if (!changes.length) return before;
+  db().tx(() => {
+    db().run(
+      'UPDATE users SET display_name = ?, email = ?, email_notifications = ?, updated_at = ? WHERE id = ?',
+      displayName ?? before.displayName,
+      email === undefined ? (before.email ?? null) : email || null,
+      (patch.emailNotifications ?? before.emailNotifications) ? 1 : 0,
+      nowIso(),
+      id,
+    );
+    audit({ action: 'user.profile_updated', entityType: 'user', entityId: id, summary: `${before.username} updated their profile: ${changes.join(', ')}` });
   });
   return getUser(id);
 }

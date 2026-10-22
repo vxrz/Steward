@@ -7,6 +7,8 @@ import { unlockFromEnv } from './routes/index.js';
 import { vault } from './vault.js';
 import { activeRunIds } from './engine/runner.js';
 import { BRAND } from '@sm/shared';
+import { startNotificationJobs, stopNotificationJobs, flushNotifications } from './notifications/service.js';
+import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 
 export interface Started {
   url: string;
@@ -20,6 +22,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const app = await buildApp({ logger: true });
   await app.listen({ host: config.host, port: config.port });
   await unlockFromEnv().catch((e) => logger.error({ err: e }, 'automatic unlock failed'));
+  startNotificationJobs();
+  startMaintenanceJobs();
   const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
   logger.info({ url, dataDir: config.dataDir, demo: config.demo, tracing }, 'service manager started');
 
@@ -33,7 +37,10 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const stop = async () => {
     const active = activeRunIds();
     if (active.length) logger.info({ activeRuns: active.length }, 'stopping with active runs; they are resumed or marked interrupted on next start');
+    stopNotificationJobs();
+    stopMaintenanceJobs();
     await app.close();
+    await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 5000))]);
     await shutdownTelemetry();
   };
   const onSignal = () => void stop().finally(() => process.exit(0));
