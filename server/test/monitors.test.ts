@@ -423,6 +423,40 @@ describe('heartbeats', () => {
     expect((await hook('/api/hooks/monitors', [{ key: 'test.pm', value: 9 }], bearer(g.secret))).status).toBe(404);
   });
 
+  it('gateways only report for allowed keys of monitors their owner may edit', async () => {
+    // a monitor dana (designer) may not even see
+    const safety = await s.api('POST', '/monitors', {
+      definition: { name: 'Safety PLC', checks: [{ id: 'plc', name: 'PLC', type: 'heartbeat', key: 'safety.plc', mode: 'maxAge', maxAgeSeconds: 60 }] },
+    });
+    const id = safety.monitor?.id ?? safety.id;
+    await s.api('PUT', `/monitors/${id}/access`, { acl: [{ subject: 'role:admin', permissions: ['manage'] }] });
+    const open = await dana('POST', '/monitor-gateways', { name: 'Wildcard gateway', allowedKeys: ['*'] });
+    const r = await hook('/api/hooks/monitors', [{ key: 'safety.plc', value: 1, status: 'ok' }], bearer(open.secret));
+    expect(r.body.accepted).toBe(0);
+    // no allowed keys: nothing is accepted
+    const none = await dana('POST', '/monitor-gateways', { name: 'No keys gateway', allowedKeys: [] });
+    const r2 = await hook('/api/hooks/monitors', [{ key: 'test.pm', value: 1 }], bearer(none.secret));
+    expect(r2.body.accepted).toBe(0);
+    expect(r2.body.rejected[0].reason).toBe('key not allowed for this gateway');
+  });
+
+  it('changing outputs needs the manage right, other edits only edit', async () => {
+    const created = await s.api('POST', '/monitors', {
+      definition: { name: 'Admin owned', checks: [{ id: 'hb', name: 'HB', type: 'heartbeat', key: 'admin.owned', mode: 'maxAge', maxAgeSeconds: 60 }] },
+    });
+    const id = created.monitor?.id ?? created.id;
+    const m = await dana('GET', `/monitors/${id}`);
+    const def = m.definition;
+    await dana('PUT', `/monitors/${id}`, { definition: { ...def, description: 'edited by dana' }, version: m.version });
+    const m2 = await dana('GET', `/monitors/${id}`);
+    await expect(
+      dana('PUT', `/monitors/${id}`, {
+        definition: { ...m2.definition, outputs: [{ id: 'wh', type: 'webhook', url: 'https://example.com/hook' }] },
+        version: m2.version,
+      }),
+    ).rejects.toThrow(/manage right/);
+  });
+
   it('heartbeat keys are unique across monitors', async () => {
     await expect(
       dana('POST', '/monitors', { definition: { name: 'Dup', checks: [{ id: 'x', name: 'X', type: 'heartbeat', key: 'test.pm', mode: 'maxAge', maxAgeSeconds: 60 }] } }),

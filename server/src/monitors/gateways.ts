@@ -201,8 +201,8 @@ export function flushGatewayCounts(): void {
   pendingCounts.clear();
 }
 
-/** Glob match of a check key against the gateway's allowed keys ("*" = any characters). */
+/** Glob match of a check key against the gateway's allowed keys ("*" = any characters). No patterns = nothing allowed. */
 export function keyAllowed(patterns: string[], key: string): boolean {
-  if (!patterns.length) return true;
+  if (!patterns.length) return false;
   return patterns.some((p) => new RegExp(`^${p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i').test(key));
 }
