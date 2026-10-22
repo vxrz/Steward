@@ -1,5 +1,5 @@
 import { request as pwRequest } from '@playwright/test';
-import { test, expect } from './support/fixtures';
+import { test, expect, pageSessionHeaders, sessionHeaders } from './support/fixtures';
 import { authFile, baseURL } from './support/env';
 
 /** Cheap HTTP-level checks of the browser-facing security settings. */
@@ -43,8 +43,21 @@ test.describe('security headers and guards', () => {
     }
   });
 
+  test('audit anchoring: signed checkpoints and verification against a kept checkpoint', async ({ page }) => {
+    await page.goto('/audit');
+    await expect(page.getByRole('heading', { name: 'Anchoring outside the database' })).toBeVisible();
+    await expect(page.getByText(/Signing key fingerprint:/)).toBeVisible();
+    await page.getByRole('button', { name: 'Verify chain', exact: true }).click();
+    await expect(page.getByText(/Signed checkpoint written at entry #\d+/)).toBeVisible();
+    const kept = await (await page.request.get('/api/audit/anchor.json', { headers: await pageSessionHeaders(page) })).text();
+    await page.getByRole('button', { name: 'Verify against checkpoint' }).click();
+    await page.getByRole('dialog').getByLabel('Checkpoint (JSON, or seq:hash)').fill(kept);
+    await page.getByRole('dialog').getByRole('button', { name: 'Verify chain' }).click();
+    await expect(page.getByText(/matches the checkpoint you entered/)).toBeVisible();
+  });
+
   test('audit chain verifies', async ({ request }) => {
-    const r = await (await request.get('/api/audit/verify')).json();
+    const r = await (await request.get('/api/audit/verify', { headers: sessionHeaders('admin') })).json();
     expect(r.ok, r.message).toBe(true);
   });
 });

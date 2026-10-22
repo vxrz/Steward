@@ -32,14 +32,17 @@ function startServer(): Promise<ChildProcess> {
 }
 
 let cookie = '';
+let sessionKey = '';
 async function api(method: string, url: string, body?: unknown): Promise<any> {
   const res = await fetch(base + '/api' + url, {
     method,
-    headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+    headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const set = res.headers.get('set-cookie');
   if (set) cookie = set.split(';')[0]!;
+  const key = res.headers.get('x-sm-session-key');
+  if (key !== null) sessionKey = key;
   const t = await res.text();
   if (!res.ok) throw new Error(`${method} ${url}: ${res.status} ${t}`);
   return t ? JSON.parse(t) : null;

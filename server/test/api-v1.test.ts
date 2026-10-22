@@ -3,7 +3,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
 const PW = 'Demo-password-1';
@@ -40,13 +40,7 @@ async function v1(token: string | null, url: string, init: RequestInit & { heade
 
 /** Sign in through the internal API and return the raw session cookie. */
 async function sessionCookie(username: string, password: string): Promise<string> {
-  const res = await fetch(s.base + '/api/auth/login', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
-    body: JSON.stringify({ username, password }),
-  });
-  expect(res.status).toBe(200);
-  return res.headers.get('set-cookie')!.split(';')[0]!;
+  return loginCookie(s.base, username, password);
 }
 
 async function newToken(c: Client, name: string, scope: 'read' | 'full' = 'read'): Promise<string> {
@@ -163,9 +157,9 @@ describe('authentication', () => {
   it('does not accept session cookies', async () => {
     const cookie = await sessionCookie(ADMIN.username, ADMIN.password);
     // the same cookie works for the internal API …
-    expect((await fetch(s.base + '/api/runs', { headers: { cookie } })).status).toBe(200);
+    expect((await fetch(s.base + '/api/runs', { headers: authHeaders(cookie) })).status).toBe(200);
     // … but not for /api/v1
-    const r = await v1(null, '/runs', { headers: { cookie } });
+    const r = await v1(null, '/runs', { headers: authHeaders(cookie) });
     expect(r.status).toBe(401);
     expect(r.body.detail).toMatch(/session cookies/);
   });

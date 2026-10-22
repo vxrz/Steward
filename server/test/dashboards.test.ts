@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let hub: string;
@@ -65,9 +65,9 @@ describe('datasets & dashboards', () => {
   });
 
   it('answers unchanged data with 304', async () => {
-    const res1 = await s.app.inject({ method: 'GET', url: '/api/datasets/test.users', headers: { cookie: await cookieOf() } });
+    const res1 = await s.app.inject({ method: 'GET', url: '/api/datasets/test.users', headers: authHeaders(await cookieOf()) });
     const etag = res1.headers.etag as string;
-    const res2 = await s.app.inject({ method: 'GET', url: '/api/datasets/test.users', headers: { cookie: await cookieOf(), 'if-none-match': etag } });
+    const res2 = await s.app.inject({ method: 'GET', url: '/api/datasets/test.users', headers: { ...authHeaders(await cookieOf()), 'if-none-match': etag } });
     expect(res2.statusCode).toBe(304);
   });
 
@@ -106,10 +106,5 @@ describe('datasets & dashboards', () => {
 });
 
 async function cookieOf(): Promise<string> {
-  const res = await fetch(`${s.base}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
-    body: JSON.stringify({ username: 'admin', password: 'Admin-password-1' }),
-  });
-  return res.headers.get('set-cookie')!.split(';')[0]!;
+  return loginCookie(s.base, 'admin', 'Admin-password-1');
 }
