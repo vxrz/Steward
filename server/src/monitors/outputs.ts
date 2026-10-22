@@ -16,6 +16,7 @@ import { platformFor } from './platforms.js';
 import { zabbixSend } from './zabbix.js';
 import { monitorPermissions, type LoadedMonitor } from './model.js';
 import { t, type MessageKey } from '../i18n/index.js';
+import { checkMessage, monitorVisibility, redactCauses, type MonitorVisibility } from './redact.js';
 
 /**
  * Outputs send monitor and check statuses to people and other systems.
@@ -214,7 +215,24 @@ function payload(e: OutEvent) {
   };
 }
 
+/** An event as someone who may view only some monitors may see it (sub-monitors: see redact.ts). */
+function eventFor(m: LoadedMonitor, e: OutEvent, canView: MonitorVisibility): OutEvent {
+  const def = e.check?.type === 'monitor' ? m.def.checks.find((c) => c.id === e.check!.id) : undefined;
+  const sub = def?.type === 'monitor' ? def.monitor : undefined;
+  return { ...e, causedBy: redactCauses(e.causedBy, canView), message: sub ? checkMessage(e.message, e.status, sub, canView) : e.message };
+}
+
+/** Outputs to other systems act for the monitor owner: they carry what the owner may view. */
+function ownerView(m: LoadedMonitor): MonitorVisibility {
+  const owner = findUserByName(m.owner);
+  return monitorVisibility(owner?.active ? toAuthUser(owner) : null);
+}
+
 async function deliver(o: OutputDef, m: LoadedMonitor, events: OutEvent[]): Promise<(string | undefined)[] | void> {
+  if (o.type === 'webhook' || o.type === 'process') {
+    const canView = ownerView(m);
+    events = events.map((e) => eventFor(m, e, canView));
+  }
   switch (o.type) {
     case 'notification':
       return void sendNotifications(o, m, events);
@@ -249,22 +267,32 @@ function recipients(o: Extract<OutputDef, { type: 'notification' }>, m: LoadedMo
   });
 }
 
+/**
+ * Each recipient reads only the sub-monitors they may view; channel posts (Teams, webhook) only what
+ * every recipient may view.
+ */
 function sendNotifications(o: Extract<OutputDef, { type: 'notification' }>, m: LoadedMonitor, events: OutEvent[]): void {
   const to = recipients(o, m);
+  const views = new Map(to.map((u) => [u.id, monitorVisibility(toAuthUser(u))]));
+  const everyone: MonitorVisibility = (id) => to.length > 0 && to.every((u) => views.get(u.id)!(id));
   for (const e of events) {
     const where = e.level === 'monitor' ? m.name : `${m.name} › ${e.check?.name}`;
-    const causes = e.causedBy.map((c) => (c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
     notify({
       event: 'monitor.status',
-      text: (locale) => ({
-        title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
-        body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${e.message}`.slice(0, 800),
-      }),
+      personal: true,
+      text: (locale, u) => {
+        const v = eventFor(m, e, (u && views.get(u.id)) || everyone);
+        const causes = v.causedBy.map((c) => (c.hidden ? t(locale, 'monitor.hiddenMonitor') : c.monitorId === m.id ? c.checkName : causeText(c))).join(', ');
+        return {
+          title: t(locale, `monitor.${e.status}` as MessageKey, { where }),
+          body: `${causes ? t(locale, 'monitor.rootCause', { causes }) + ' ' : ''}${v.message}`.slice(0, 800),
+        };
+      },
       link: `/monitors/${m.id}${e.check ? `?check=${encodeURIComponent(e.check.id)}` : ''}`,
       recipients: to,
       inAppKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
       externalKey: `monitor:${m.id}:${e.subject}:${e.status}:${e.since ?? e.ts}`,
-      data: payload(e),
+      data: payload(eventFor(m, e, everyone)),
     });
   }
 }

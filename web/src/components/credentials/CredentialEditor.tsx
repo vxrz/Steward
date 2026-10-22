@@ -39,6 +39,7 @@ import type {
   Subject,
 } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
+import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 
@@ -68,6 +69,9 @@ interface Draft {
   tags: string[];
   version?: number;
 }
+
+/** Plain e-mail addresses per entry (server: MAX_CREDENTIAL_OWNER_EMAILS). */
+const MAX_OWNER_EMAILS = 10;
 
 const fromEntry = (c: Credential | null): Draft =>
   c
@@ -154,6 +158,9 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
   const [removeCert, setRemoveCert] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { hasRole } = useMe();
+  // owners who are not editors by role may not change who gets the reminders by e-mail (the server refuses it)
+  const ownersLocked = !!initial && !hasRole('admin') && !hasRole('designer') && !hasRole('operator');
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
@@ -287,6 +294,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 type="email"
                 label={i === 0 ? t('fields.ownerEmail') : undefined}
                 aria-label={t('fields.ownerEmail')}
+                disabled={ownersLocked}
                 value={o.email}
                 onChange={(e) => set({ owners: d.owners.map((x, j) => (j === i ? { ...x, email: e.currentTarget.value } : x)) })}
               />
@@ -302,6 +310,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 variant="subtle"
                 color="red"
                 mb={4}
+                disabled={ownersLocked}
                 onClick={() => set({ owners: d.owners.filter((_, j) => j !== i) })}
                 aria-label={t('editor.removeOwner')}
               >
@@ -310,10 +319,19 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
             </Group>
           ))}
           <Group>
-            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => set({ owners: [...d.owners, { email: '', role: '' }] })}>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              disabled={ownersLocked || d.owners.length >= MAX_OWNER_EMAILS}
+              onClick={() => set({ owners: [...d.owners, { email: '', role: '' }] })}
+            >
               {t('editor.addOwner')}
             </Button>
           </Group>
+          <Text size="xs" c="dimmed">
+            {ownersLocked ? t('editor.ownerEmailsLocked') : t('editor.ownerEmailsHint')}
+          </Text>
           <MultiSelect
             label={t('fields.ownerSubjects')}
             description={t('editor.ownerSubjectsHint')}

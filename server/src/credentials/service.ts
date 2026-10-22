@@ -17,13 +17,14 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { isAdmin, matches } from '../auth/permissions.js';
+import { isAdmin, matches, platformPermissions } from '../auth/permissions.js';
 import { monitorPermissions } from '../monitors/model.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { canReadRecords } from '../records/access.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { setCertificateExpiryHook } from '../gatus/metrics.js';
+import { assertEmailsAllowed } from '../notifications/domains.js';
 import { assertNoSecrets, SecretFoundError } from './secrets.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import * as platforms from '../platforms/service.js';
@@ -213,9 +214,11 @@ const resolveLink = (l: CredentialLink): CredentialLink => {
 
 // ---------- mapping ----------
 
-function platformName(id: string | null): string | null {
+/** The name of the linked platform – only for users with a right on it (null otherwise, like a missing platform). */
+function platformName(id: string | null, u: AuthUser | null): string | null {
   if (!id) return null;
-  return db().get<{ name: string }>('SELECT name FROM platforms WHERE id = ?', id)?.name ?? null;
+  const p = db().get<{ name: string; acl: string }>('SELECT name, acl FROM platforms WHERE id = ?', id);
+  return p && platformPermissions(u, { acl: parseJson(p.acl, []) }).length ? p.name : null;
 }
 
 export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
@@ -227,7 +230,7 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     name: r.name,
     type: r.type,
     platformId: r.platform_id,
-    platformName: platformName(r.platform_id),
+    platformName: platformName(r.platform_id, u),
     platformText: r.platform_text,
     environment: r.environment,
     description: r.description,
@@ -272,6 +275,8 @@ const dateish = z
 
 const linkSchema = z.object({ kind: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'lower-case kind, e.g. process'), id: z.string().trim().min(1).max(200) });
 const ownerSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.string().trim().max(80).default('') });
+/** Plain e-mail addresses per entry (each one gets the reminders of the entry). */
+export const MAX_CREDENTIAL_OWNER_EMAILS = 10;
 const subjectSchema = z
   .string()
   .trim()
@@ -286,7 +291,7 @@ export const credentialInputSchema = z.object({
   environment: z.string().trim().max(100).default(''),
   description: z.string().max(4000).default(''),
   usedBy: z.object({ text: z.string().max(2000).default(''), links: z.array(linkSchema).max(50).default([]) }).default({}),
-  owners: z.array(ownerSchema).max(20).default([]),
+  owners: z.array(ownerSchema).max(MAX_CREDENTIAL_OWNER_EMAILS).default([]),
   ownerSubjects: z.array(subjectSchema).max(20).default([]),
   location: z.object({ text: z.string().max(1000).default(''), url: z.string().trim().max(2000).nullable().optional() }).default({}),
   issuedAt: dateish.nullable().optional(),
@@ -361,9 +366,11 @@ function secretCheck(b: CredentialInput): void {
   }
 }
 
-function checkPlatform(id: string | null | undefined): void {
-  if (!id) return;
-  if (!db().get('SELECT 1 FROM platforms WHERE id = ?', id)) throw new HttpError(400, `Platform ${id} not found`);
+/** A platform the user has a right on (the same answer as for a missing one otherwise); an unchanged link is kept. */
+function checkPlatform(id: string | null | undefined, unchanged: string | null): void {
+  if (!id || id === unchanged) return;
+  const p = db().get<{ acl: string }>('SELECT acl FROM platforms WHERE id = ?', id);
+  if (!p || !platformPermissions(currentUser(), { acl: parseJson(p.acl, []) }).length) throw new HttpError(400, `Platform ${id} not found`);
 }
 
 function checkGatus(g: CredentialInput['gatus']): void {
@@ -531,10 +538,15 @@ const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   tags: (b) => JSON.stringify([...new Set(b.tags)]),
 };
 
-/** A non-admin editor may not hand an entry away from themselves by accident: owners keep editing what they own. */
-function prepare(b: CredentialInput): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
+const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.map((o) => o.email.trim().toLowerCase()))].sort();
+
+/** Validates an input (`before`: the stored entry on update) and maps it to columns. */
+function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
   secretCheck(b);
-  checkPlatform(b.platformId);
+  checkPlatform(b.platformId, before?.platform_id ?? null);
+  // new owner addresses must have an allowed domain (stored ones stay; notify() checks them again on every send)
+  const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);
+  assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
   checkGatus(b.gatus);
   const values = Object.fromEntries(Object.entries(COLUMNS).map(([col, fn]) => [col, fn(b)]));
   let certificate: CertificateInfo | null | undefined;
@@ -598,10 +610,18 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
   const before = requireCredential(id, 'edit');
   if (b.version !== undefined && b.version !== before.version)
     throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
-  // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
-  const { values, certificate } = prepare(b);
-  if (!u.roles.some((x) => EDIT_ROLES.includes(x)) && !isOwner(u, { owner_subjects: String(values.owner_subjects) })) {
-    throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED');
+  const { values, certificate } = prepare(b, before);
+  if (!u.roles.some((x) => EDIT_ROLES.includes(x))) {
+    // owners (not editor roles) may not remove themselves from the owner list – they would lock themselves out
+    if (!isOwner(u, { owner_subjects: String(values.owner_subjects) }))
+      throw new HttpError(400, 'You edit this entry as one of its owners: keep yourself (or your team) in the owner list', 'OWNER_REQUIRED');
+    // … nor change who gets its reminders by e-mail
+    if (emailsOf(parseJson(before.owners, [])).join('\n') !== emailsOf(b.owners).join('\n'))
+      throw new HttpError(
+        403,
+        'You edit this entry as one of its owners: only designers, operators and administrators can change the owner e-mail addresses',
+        'FORBIDDEN',
+      );
   }
   if (certificate !== undefined) values.certificate = certificate ? JSON.stringify(certificate) : null;
   const changed = Object.keys(values).filter((k) => String((before as unknown as Record<string, unknown>)[k] ?? '') !== String(values[k] ?? ''));

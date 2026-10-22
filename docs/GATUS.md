@@ -238,7 +238,7 @@ Extra labels Gatus adds (`extra-labels`) are summed up per endpoint key.
 
    | Setting                         | Default    | Notes                                                                                                                                                                                                                                   |
    | ------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | Metrics path                    | `/metrics` | A path below the base URL; absolute URLs are refused, so the scrape stays on the platform's origin                                                                                                                                      |
+   | Metrics path                    | `/metrics` | A path below the base URL; absolute URLs, `.`/`..` segments and encoded dots or slashes (`%2e`, `%2f`, `%5c`) are refused, so the scrape stays below the base URL on the platform's origin                                              |
    | Interval                        | 60 s       | 15 s – 1 h                                                                                                                                                                                                                              |
    | Keep history                    | 90 days    | Hourly figures and status changes                                                                                                                                                                                                       |
    | Keep single samples             | 14 days    | One row per scrape and endpoint; needed for p95 response times and short outages                                                                                                                                                        |
@@ -246,14 +246,14 @@ Extra labels Gatus adds (`extra-labels`) are summed up per endpoint key.
 
    Managing metrics mode needs _manage_ rights on the platform; _Scrape now_ needs _use_ rights. The scrapes run with the rights of the person who saved the settings (they must keep _use_ rights on the platform). Changes are audited (`gatus.metrics_enabled`, `gatus.metrics_updated`, `gatus.metrics_removed`).
 
-4. _Scrape now_ checks the setup. The table lists every endpoint with its state, uptime over 24 hours, 7 and 30 days, response time, certificate expiry and the time of the newest result.
+4. _Scrape now_ checks the setup (at most every 15 seconds per platform). The table lists every endpoint with its state, uptime over 24 hours, 7 and 30 days, response time, certificate expiry and the time of the newest result.
 
 ### How it works
 
 - **Fetching**: through the platform (base URL, proxy, TLS settings), the outbound policy (_Settings → Outbound access_) and the address checks every outbound request gets. Answers above 8 MB are rejected, redirects are followed manually, the timeout is the interval (5–30 s). Errors are shown on the platform (_The last scrape failed_) and in the server log.
 - **Parsing**: a small parser for the Prometheus text format with limits (bytes, lines, samples, labels, label length). Malformed lines are skipped and counted; only `gatus_*` metrics and the process start time are kept.
 - **Uptime from counters**: each scrape stores the difference of `gatus_results_total{success="true"}` and `{success="false"}` since the previous scrape – the results Gatus produced in between. When a counter goes down or Gatus' process start time changes (a restart), the new value counts as the number of results since the restart. The very first scrape only sets the baseline.
-- **Storage**: the newest state per endpoint, one sample per scrape (kept _Keep single samples_ days), hourly sums (kept _Keep history_ days) and the changes of the success gauge (outages; the newest change per endpoint is always kept). The daily maintenance job removes old data; removing metrics mode deletes all samples of the platform.
+- **Storage**: the newest state per endpoint, one sample per scrape (kept _Keep single samples_ days), hourly sums (kept _Keep history_ days) and the changes of the success gauge (outages; the newest change per endpoint is always kept). The daily maintenance job removes old data, and endpoints Gatus no longer reports once they were not seen for _Keep history_ days; removing metrics mode or deleting the platform deletes all data of the platform.
 - **Monitor check**: _Gatus endpoint_ with data source _metrics_ (or _Automatic_ while metrics mode is on) reads the stored state: down when the newest result failed, degraded when one of the last _N_ results failed, unknown when the last successful scrape is older than three intervals, and down when Gatus produced no new result within _maximum age_.
 
 ### Limitations of metrics mode

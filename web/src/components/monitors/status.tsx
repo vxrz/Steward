@@ -64,5 +64,10 @@ export function uptimeText(u: UptimeSet): string {
   return tx('monitors:uptime.all', '24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}', { h24: fmtUptime(u.h24), d7: fmtUptime(u.d7), d30: fmtUptime(u.d30) });
 }
 
+/** A cause in another monitor the user may not view has no names (hidden). */
 export const causeText = (c: CauseRef, currentMonitorId?: string): string =>
-  c.monitorId === currentMonitorId ? c.checkName : `${c.monitorName} › ${c.checkName}`;
+  c.hidden
+    ? tx('monitors:detail.hiddenMonitor', 'a monitor you cannot view')
+    : c.monitorId === currentMonitorId
+      ? c.checkName
+      : `${c.monitorName} › ${c.checkName}`;

@@ -139,6 +139,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
     const setup = await must('POST', '/api/auth/setup', { passphrase: MASTER_PASSPHRASE, username: USERS.admin.username, password: USERS.admin.password });
     const adminCookie = setup.session!;
     await must('POST', '/api/demo/setup', {}, adminCookie);
+    // the company's domain: plain addresses there (credential owners, report recipients) get e-mails
+    await must('PATCH', '/api/me', { email: 'admin@example.com' }, adminCookie);
     // (The demo allow-lists loopback itself, so its simulated plant-device monitor
     // checks run; the UI tests' ad-hoc loopback targets are covered by the same entry.)
 

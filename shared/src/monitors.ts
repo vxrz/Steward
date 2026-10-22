@@ -406,7 +406,12 @@ export interface CauseRef {
   monitorName: string;
   checkId: string;
   checkName: string;
+  /** A monitor the viewer may not view: id, key and names are empty ("a monitor you cannot view") */
+  hidden?: boolean;
 }
+
+/** Stands in for the id of a sub-monitor the viewer may not view (in definitions and exports); saving it keeps the stored reference. */
+export const HIDDEN_MONITOR_REF = '(hidden)';
 
 export interface UptimeSet {
   h24: number | null;
@@ -445,8 +450,8 @@ export interface CheckState {
   uptime: UptimeSet;
   /** Heartbeat checks */
   heartbeat?: { path: string; secretPrefix: string | null; authMode: string; lastPushAt: string | null; lastPush: unknown };
-  /** Sub-monitor checks */
-  monitorRef?: { id: string; key: string; name: string } | null;
+  /** Sub-monitor checks (hidden: a monitor the viewer may not view – id, key and name are empty) */
+  monitorRef?: { id: string; key: string; name: string; hidden?: boolean } | null;
 }
 
 export interface MaintenanceWindow {

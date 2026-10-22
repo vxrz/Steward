@@ -222,7 +222,9 @@
     "openMonitor": "„{{name}}“ öffnen",
     "statusChanges": "Statuswechsel",
     "latestResults": "Letzte Ergebnisse",
-    "configuration": "Konfiguration"
+    "configuration": "Konfiguration",
+    "hiddenMonitor": "ein Monitor, den Sie nicht sehen können",
+    "openHiddenMonitor": "Enthält einen Monitor, den Sie nicht sehen können."
   },
   "maintenance": {
     "plan": "Wartung planen",

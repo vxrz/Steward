@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
 import {
+  HIDDEN_MONITOR_REF,
   MONITOR_KEY_RE,
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
@@ -49,6 +50,7 @@ import { checkUptimes, monitorUptime } from './stats.js';
 import { coerceParams, renderTemplate } from './templates.js';
 import { checkExpressions, parseDefinitionInput, validateTemplate } from './validation.js';
 import * as engine from './engine.js';
+import { checkMessage, monitorVisibility, redactCauses, redactDefinition, rootCauseMessage, type MonitorVisibility } from './redact.js';
 
 /**
  * Monitor management: create, edit, delete, access, heartbeat secrets,
@@ -101,7 +103,7 @@ function maintenanceOf(mid: string, now = engine.monitorNow()): MaintenanceWindo
   return listMaintenanceRows(mid).find((x) => x.id === w.id) ?? null;
 }
 
-function summary(r: Joined, counts?: Partial<Record<MonitorStatus, number>>): MonitorSummary {
+function summary(r: Joined, counts: Partial<Record<MonitorStatus, number>> | undefined, canView: MonitorVisibility): MonitorSummary {
   const def = parseJson<Partial<MonitorDefinition>>(r.definition, {});
   const tVersion = r.template_id ? db().get<{ version: number }>('SELECT version FROM monitors WHERE id = ?', r.template_id)?.version : undefined;
   const status: MonitorStatus = r.is_template ? 'unknown' : !r.enabled ? 'unknown' : (r.status ?? 'unknown');
@@ -120,7 +122,7 @@ function summary(r: Joined, counts?: Partial<Record<MonitorStatus, number>>): Mo
     version: r.version,
     status,
     since: r.since,
-    rootCauses: r.enabled ? parseCauses(r.root_causes) : [],
+    rootCauses: r.enabled ? redactCauses(parseCauses(r.root_causes), canView) : [],
     counts: counts ?? {},
     checkCount: def.checks?.length ?? 0,
     uptime: r.is_template ? { h24: null, d7: null, d30: null } : monitorUptime(r.id, engine.monitorNow()),
@@ -145,10 +147,11 @@ export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary
     x[c.status] = Number(c.n);
     counts.set(c.monitor_id, x);
   }
-  return rows.map((r) => summary(r, counts.get(r.id)));
+  const canView = monitorVisibility();
+  return rows.map((r) => summary(r, counts.get(r.id), canView));
 }
 
-function checkStates(r: Joined, def: MonitorDefinition): CheckState[] {
+function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibility): CheckState[] {
   const rows = new Map(
     db()
       .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', r.id)
@@ -159,6 +162,7 @@ function checkStates(r: Joined, def: MonitorDefinition): CheckState[] {
   return def.checks.map((c) => {
     const x = rows.get(c.id);
     const last = parseJson<CheckResultInfo | null>(x?.last_result, null);
+    if (last) last.message = checkMessage(last.message ?? '', last.status, c.type === 'monitor' ? c.monitor : undefined, canView);
     const st: CheckState = {
       checkId: c.id,
       name: c.name,
@@ -173,7 +177,7 @@ function checkStates(r: Joined, def: MonitorDefinition): CheckState[] {
       nextCheckAt: engine.nextCheckAt(r.id, c.id),
       consecutiveFailures: x?.consecutive_failures ?? 0,
       consecutiveSuccesses: x?.consecutive_successes ?? 0,
-      causedBy: parseCauses(x?.caused_by),
+      causedBy: redactCauses(parseCauses(x?.caused_by), canView),
       note: x?.note ?? null,
       uptime: uptimes.get(`${r.id}/${c.id}`) ?? { h24: null, d7: null, d30: null },
     };
@@ -188,7 +192,7 @@ function checkStates(r: Joined, def: MonitorDefinition): CheckState[] {
     }
     if (c.type === 'monitor') {
       const sub = db().get<{ id: string; key: string; name: string }>('SELECT id, key, name FROM monitors WHERE id = ?', c.monitor);
-      st.monitorRef = sub ?? null;
+      st.monitorRef = !sub ? null : canView(sub.id) ? sub : { id: '', key: '', name: '', hidden: true };
     }
     return st;
   });
@@ -208,12 +212,13 @@ export function getMonitor(idOrKey: string): MonitorDetail {
   const raw = parseJson<MonitorDefinition>(r.definition, {} as MonitorDefinition);
   // templates may hold placeholders where numbers are expected: shown as stored
   const def = r.is_template ? raw : loadMonitor(r).def;
+  const canView = monitorVisibility();
   const counts: Partial<Record<MonitorStatus, number>> = {};
-  const checks = r.is_template ? [] : checkStates(r, def);
+  const checks = r.is_template ? [] : checkStates(r, def, canView);
   for (const c of checks) counts[c.status] = (counts[c.status] ?? 0) + 1;
   return {
-    ...summary(r, counts),
-    definition: def,
+    ...summary(r, counts, canView),
+    definition: r.is_template ? def : redactDefinition(def, canView),
     acl: parseJson<AclEntry<MonitorPermission>[]>(r.acl, []),
     templateParams: parseJson(r.template_params, null),
     checks,
@@ -222,8 +227,16 @@ export function getMonitor(idOrKey: string): MonitorDetail {
   };
 }
 
+/** Sub-monitor checks of a monitor now: check id → referenced monitor id. */
+function subMonitorRefs(r: MonitorRow): Map<string, string> {
+  if (r.is_template) return new Map();
+  return new Map(loadMonitor(r).def.checks.flatMap((c) => (c.type === 'monitor' ? [[c.id, c.monitor] as const] : [])));
+}
+
 export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: number; beforeId?: number } = {}): MonitorHistoryEntry[] {
   const r = requireMonitor(idOrKey);
+  const canView = monitorVisibility();
+  const subs = subMonitorRefs(r);
   const limit = Math.min(Math.max(1, opts.limit ?? 100), 1000);
   const where = ['monitor_id = ?'];
   const params: unknown[] = [r.id];
@@ -241,19 +254,25 @@ export function listHistory(idOrKey: string, opts: { checkId?: string; limit?: n
       ...params,
       limit,
     )
-    .map((h) => ({
-      id: Number(h.id),
-      ts: h.ts,
-      checkId: h.check_id || null,
-      status: h.status,
-      previous: h.previous,
-      message: h.message,
-      causedBy: parseCauses(h.caused_by),
-    }));
+    .map((h) => {
+      const causedBy = redactCauses(parseCauses(h.caused_by), canView);
+      return {
+        id: Number(h.id),
+        ts: h.ts,
+        checkId: h.check_id || null,
+        status: h.status,
+        previous: h.previous,
+        // monitor level: built from the causes; checks: their own message
+        message: h.check_id ? checkMessage(h.message, h.status, subs.get(h.check_id), canView) : causedBy.length ? rootCauseMessage(causedBy, r.id) : h.message,
+        causedBy,
+      };
+    });
 }
 
 export function listResults(idOrKey: string, checkId: string, limit = 50): CheckResultInfo[] {
   const r = requireMonitor(idOrKey);
+  const canView = monitorVisibility();
+  const sub = subMonitorRefs(r).get(checkId);
   return db()
     .all<{ ts: string; status: MonitorStatus; message: string; duration_ms: number | null; value: string | null }>(
       'SELECT ts, status, message, duration_ms, value FROM monitor_results WHERE monitor_id = ? AND check_id = ? ORDER BY id DESC LIMIT ?',
@@ -261,7 +280,13 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
       checkId,
       Math.min(Math.max(1, limit), 200),
     )
-    .map((x) => ({ ts: x.ts, status: x.status, message: x.message, durationMs: x.duration_ms, value: parseJson(x.value, x.value) }));
+    .map((x) => ({
+      ts: x.ts,
+      status: x.status,
+      message: checkMessage(x.message, x.status, sub, canView),
+      durationMs: x.duration_ms,
+      value: parseJson(x.value, x.value),
+    }));
 }
 
 // ---------- validation ----------
@@ -274,9 +299,16 @@ function requirePlatformUse(id: string): void {
 }
 
 /** Resolves platform names and monitor keys to ids and checks the rights and rules that need the database. */
-function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKey: string): MonitorDefinition {
+function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKey: string, before: MonitorDefinition | null = null): MonitorDefinition {
   const out = structuredClone(def);
   for (const c of out.checks) {
+    // a sub-monitor the editor may not view comes back as HIDDEN_MONITOR_REF: the stored reference stays
+    if (c.type === 'monitor' && c.monitor === HIDDEN_MONITOR_REF) {
+      const old = before?.checks.find((x) => x.id === c.id);
+      if (old?.type !== 'monitor') throw new HttpError(400, `Check "${c.name}": choose the monitor to include`);
+      c.monitor = old.monitor;
+      continue;
+    }
     if ('platform' in c && c.platform) {
       const p = resolvePlatformRef(c.platform, c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type]);
       c.platform = p.id;
@@ -539,7 +571,7 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
     const issues = definitionIssues(def);
     if (issues.length) throw new HttpError(400, issues.map((i) => `${i.path}: ${i.message}`).join('; '));
     checkExpressions(def);
-    def = resolveReferences(def, r.id, key);
+    def = resolveReferences(def, r.id, key, before);
     // Outputs act on behalf of the owner (runbooks start as the owner, notifications/webhooks/Zabbix send in
     // the monitor's name) – changing them needs 'manage', not just 'edit'.
     if (before && JSON.stringify(before.outputs ?? []) !== JSON.stringify(def.outputs ?? []) && !permissionsOfRow(r).includes('manage')) {
@@ -874,10 +906,12 @@ export function exportMonitor(idOrKey: string): string {
       .all<{ id: string; name: string }>('SELECT id, name FROM platforms')
       .map((p) => [p.id, p.name]),
   );
+  const canView = monitorVisibility();
+  // sub-monitors the user may not view are exported as HIDDEN_MONITOR_REF
   const monitorKeys = new Map(
     db()
       .all<{ id: string; key: string }>('SELECT id, key FROM monitors')
-      .map((m) => [m.id, m.key]),
+      .map((m) => [m.id, canView(m.id) ? m.key : HIDDEN_MONITOR_REF]),
   );
   // portable references: platform names and monitor keys instead of ids
   const portable = JSON.parse(JSON.stringify(def), (k, v) => {

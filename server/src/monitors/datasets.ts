@@ -6,10 +6,13 @@ import { currentUser } from '../auth/context.js';
 import { publishDataset } from '../dashboards/datasets.js';
 import { monitorPermissions, parseCauses, type CheckRow, type MonitorRow, type StateRow } from './model.js';
 import { checkUptimes, monitorUptime } from './stats.js';
+import { subMonitorMessage } from './redact.js';
 
 /**
  * Dashboard datasets fed by the monitor engine (at most once a minute):
- * - `monitor.<key>`: one row per check of a monitor, visible to whoever may view the monitor;
+ * - `monitor.<key>`: one row per check of a monitor, visible to whoever may view the monitor – so it
+ *   names no other monitor (its viewers may not be allowed to view a sub-monitor): causes in other
+ *   monitors are "another monitor", sub-monitor checks get a message without names;
  * - `monitors.status`: one row per monitor, visible to users who may view every monitor.
  * Their "process id" is `monitor:<id>` / `monitor:*`, which the dataset visibility checks understand.
  */
@@ -38,6 +41,7 @@ export function publishDirtyDatasets(): number {
     const m = db().get<MonitorRow>('SELECT * FROM monitors WHERE id = ?', id);
     if (!m || m.is_template) continue;
     const def = parseJson<{ checks?: { id: string; name: string; type: string }[] }>(m.definition, {});
+    const causeName = (c: { monitorId: string; checkName: string }) => (c.monitorId === id ? c.checkName : 'another monitor');
     const rows = new Map(
       db()
         .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', id)
@@ -49,16 +53,19 @@ export function publishDirtyDatasets(): number {
       const last = parseJson<{ message?: string } | null>(r?.last_result, null);
       const causes = parseCauses(r?.caused_by);
       const status = (r?.status ?? 'unknown') as MonitorStatus;
+      // messages stored before they became generic may name the sub-monitor
+      const message = c.type === 'monitor' && last ? subMonitorMessage(status) : (last?.message ?? '');
+      const causedBy = [...new Set(causes.map(causeName))].join(', ');
       return {
         Check: c.name,
         Type: c.type,
         Status: status,
         'Uptime 24 h (%)': uptimes.get(`${id}/${c.id}`)?.h24 ?? null,
         'Last check (UTC)': r?.last_checked_at ?? null,
-        Message: last?.message ?? '',
-        'Likely caused by': causes.map((x) => x.checkName).join(', '),
+        Message: message,
+        'Likely caused by': causedBy,
         _status: TO_DATASET[status],
-        _reason: causes.length ? `Likely caused by ${causes.map((x) => x.checkName).join(', ')}` : (last?.message ?? ''),
+        _reason: causes.length ? `Likely caused by ${causedBy}` : message,
       };
     });
     const count = (s: MonitorStatus) => out.filter((r) => r.Status === s).length;

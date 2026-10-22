@@ -278,7 +278,7 @@ steward_monitor_evaluations_total{type="heartbeat",result="up"} 1234
 
 ### Dashboards
 
-Steward publishes the dataset **`monitors.status`** (one row per monitor; visible to users who may view every monitor) and **`monitor.<key>`** (one row per check) at most once a minute, with the metrics `up`, `down`, `degraded`, `unknown`, `monitors` / `checks`, `uptime24h`. Use them in table, status and KPI widgets like any other dataset.
+Steward publishes the dataset **`monitors.status`** (one row per monitor; visible to users who may view every monitor) and **`monitor.<key>`** (one row per check; causes in other monitors appear as "another monitor") at most once a minute, with the metrics `up`, `down`, `degraded`, `unknown`, `monitors` / `checks`, `uptime24h`. Use them in table, status and KPI widgets like any other dataset.
 
 ## Templates for many machines
 
@@ -298,6 +298,8 @@ A process can create instances too: `POST /api/monitors/<template id>/instances`
 | `acknowledge` | operator, designer | Acknowledge problems, plan maintenance, _Check now_                    |
 | `edit`        | designer           | Change the definition, rotate heartbeat secrets, re-sync               |
 | `manage`      | admin, owner       | Access list, owner, delete                                             |
+
+**Sub-monitors you may not view.** A monitor can include a sub-monitor that some of its viewers may not view. They see the sub-monitor node with its status, but not which monitor it is: root causes, _likely caused by_, the node's link, messages, history, the YAML export, the definition, the `monitor.<key>` dataset, the public API, the MCP tools and notifications show "a monitor you cannot view" instead of its id, key, name and check names. The sub-monitor check's own message never names the monitor ("The sub-monitor is down"). An editor who may not view the sub-monitor can still save the monitor; the reference stays as it is (`(hidden)` in the definition).
 
 Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended`, `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*` and `monitor.report_rejected`.
 

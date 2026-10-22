@@ -7,7 +7,14 @@ const ts = () => z.string().datetime({ offset: true }).describe('ISO 8601 timest
 const status = () => z.enum(MONITOR_STATUSES);
 const statusCode = () => z.number().int().describe('0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance');
 
-const CauseRef = z.object({ monitorId: z.string(), monitorKey: z.string(), monitorName: z.string(), checkId: z.string(), checkName: z.string() });
+const CauseRef = z.object({
+  monitorId: z.string(),
+  monitorKey: z.string(),
+  monitorName: z.string(),
+  checkId: z.string(),
+  checkName: z.string(),
+  hidden: z.boolean().optional().describe('A monitor you may not view (id, key and names are empty)'),
+});
 const Uptime = z
   .object({ h24: z.number().nullable(), d7: z.number().nullable(), d30: z.number().nullable() })
   .describe('Uptime in percent over 24 hours, 7 and 30 days (null without data); down vs. up/degraded, other time does not count');

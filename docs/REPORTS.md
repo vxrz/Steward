@@ -29,6 +29,8 @@ A report schedule creates a summary report every day, week or month, archives it
 
    Periods are calendar periods in the schedule's **time zone** (summer time is handled). The report's times are shown in that zone too.
 
+   A custom cron expression has five fields (minute hour day month weekday; no seconds) and may run at most once an hour, so the minute field is a single number: `0 6 * * 1` or `15 * * * *`, not `*/5 * * * *`. Schedules saved before this limit that run more often are not started; their last error says why.
+
 4. **Language** (English or German) and **classification**.
 5. **Sections** – choose one or more:
 
@@ -40,7 +42,7 @@ A report schedule creates a summary report every day, week or month, archives it
    | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                       |
    | Records and change requests     | Records created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                     |
 
-6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and e-mail addresses (e-mail only, when e-mail is set up). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account.
+6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and up to 20 e-mail addresses (e-mail only, when e-mail is set up). An address needs an allowed domain (_Settings → Notifications → Allowed e-mail domains for addresses outside Steward_; while it is empty, the company's own domains – see [CREDENTIALS.md](CREDENTIALS.md#e-mail-addresses-outside-steward)). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account. The subject is `Report ready: "<name>"`, with the name shortened to 80 characters.
 7. Save. _Generate now_ (▶) creates a report immediately for the period ending now.
 
 ### Whose data is in the report?
@@ -63,6 +65,8 @@ Recipients get the report the owner was allowed to produce – choose them like 
 | Recipient (user or team)              |        |                              | ✓ while the schedule exists      |
 
 The person whose rights a report was generated with keeps access to it after the schedule is deleted; auditors and administrators always do.
+
+Everyone who may read data may create schedules: a report only contains what its owner may see, runs at most once an hour and only mails allowed domains. One person owns at most 20 schedules.
 
 ### How the figures are computed
 

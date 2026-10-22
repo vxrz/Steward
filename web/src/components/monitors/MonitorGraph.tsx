@@ -90,7 +90,7 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
       )}
       {caused && (
         <Text size="xs" c="orange" truncate>
-          {t('detail.likelyCausedBy', { causes: state!.causedBy.map((c) => c.checkName).join(', ') })}
+          {t('detail.likelyCausedBy', { causes: state!.causedBy.map((c) => (c.hidden ? t('detail.hiddenMonitor') : c.checkName)).join(', ') })}
         </Text>
       )}
       <Handle type="source" position={Position.Bottom} isConnectable={data.editable} />

@@ -123,7 +123,10 @@
       "webhook": "Webhook"
     },
     "routesHint": "Jedes Ereignis geht an die betroffenen Personen. E-Mails erhalten nur Benutzer, die E-Mail-Benachrichtigungen in ihrem Profil eingeschaltet haben.",
-    "save": "Benachrichtigungen speichern"
+    "save": "Benachrichtigungen speichern",
+    "allowedDomains": "Erlaubte E-Mail-Domains für Adressen außerhalb von Steward",
+    "allowedDomainsHint": "Eigentümer von Zugangsdaten und Berichtsempfänger, die keine Steward-Benutzer sind, erhalten E-Mails nur an diese Domains, z. B. corp.example oder *.corp.example (alle Subdomains). Leer: die Domains der eigenen Adressen der Steward-Benutzer (von einem Administrator, einem Single-Sign-on-Konto oder mindestens zwei Benutzern verwendet).",
+    "allowedDomainsPlaceholder": "corp.example, *.corp.example"
   },
   "publicApi": {
     "title": "REST-API",

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 import { selfSignedCertificate } from '../../e2e/support/selfsigned.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
@@ -81,6 +81,7 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  await allowEmailDomains(s, ['example.com']);
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
 });
 afterAll(async () => {
@@ -378,9 +379,9 @@ describe('reminders', () => {
     expect(checkCredentialReminders(now + DAY)).toBe(0);
     await flushNotifications();
     expect(mails.map((m) => m.to)).toEqual(['cert-owner@example.com']); // olivia has no e-mail address
-    expect(mails[0]!.subject).toMatch(/Reminder test cert: expiry due in 20 days/);
+    expect(mails[0]!.subject).toMatch(/Credential reminder: "Reminder test cert" – expiry due in 20 days/);
     const inbox = await olivia('GET', '/notifications');
-    expect(inbox.items.filter((n: any) => n.title.startsWith('Reminder test cert'))).toHaveLength(1);
+    expect(inbox.items.filter((n: any) => n.title.startsWith('Credential reminder: "Reminder test cert"'))).toHaveLength(1);
     // 14 days before: the next reminder; 6 days before: the 7-day one
     expect(checkCredentialReminders(now + 6 * DAY + 3600000)).toBe(1);
     expect(checkCredentialReminders(now + 14 * DAY)).toBe(1);
@@ -493,7 +494,7 @@ describe('expiry sync from Gatus metrics', () => {
     const audit = await s.api('GET', `/audit?action=credential.expiry_synced`);
     expect(audit.some((a: any) => a.entityId === c.id && a.actor === 'system')).toBe(true);
     // a second scrape with the same expiry changes nothing
-    await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
+    await (await import('../src/gatus/metrics.js')).scrape(gatusId);
     expect((await dana('GET', `/credentials/${c.id}`)).version).toBe(after.version);
   });
 });

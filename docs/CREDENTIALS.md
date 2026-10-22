@@ -11,12 +11,12 @@ Open it with **Credentials** in the navigation (German: _Zugangsdaten_).
 1. _Credentials → New entry_.
 2. Enter a **name** and choose the **type**:
    API client / OAuth client, technical user / service account, password, token / API key, certificate, agent / device certificate, SSH key, other.
-3. Choose the **platform** (a platform in Steward) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test).
+3. Choose the **platform** (a platform in Steward you have a right on) or type a name, for example "Insights Hub eu1". Add the **environment** if it helps (production, test). People without a right on the linked platform do not see its name.
 4. **Where it is kept**: the KeePass database and the path of the entry, for example `KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-17`. **Link or path** is optional:
    - an `http(s)` link opens in a new tab (for example a vault web UI);
    - `keepass://…`, `*.kdbx`, `C:\…` or `\\server\share\…` paths are shown as text with a copy button, never as a link;
    - other link types (`javascript:`, `data:` …) are refused.
-5. **Ownership**: e-mail addresses with a role, for example _Business owner_ (the business owns the credential) and _IT operations_ (IT manages it). Add Steward users or teams as owners if they should get reminders in Steward and may edit the entry.
+5. **Ownership**: e-mail addresses with a role, for example _Business owner_ (the business owns the credential) and _IT operations_ (IT manages it), at most 10. Their domain must be allowed, see [E-mail addresses outside Steward](#e-mail-addresses-outside-steward). Add Steward users or teams as owners if they should get reminders in Steward and may edit the entry.
 6. **Used by**: a short description, and links to processes, monitors, platforms or catalogue services in Steward. The service's page then lists the entry under _Linked from_.
 7. **Dates**:
    - _Expires_: the expiry date, if there is one;
@@ -63,7 +63,7 @@ Both are recorded in the entry's history and in the audit log. Comments are chec
 Steward checks the register every few minutes and sends reminders through the notification service:
 
 - to the Steward users and team members listed as owners: in the app and by e-mail, following each person's notification settings;
-- to the owner e-mail addresses: by e-mail only, when e-mail is set up (_Settings → Notifications_) and the event _Credential due_ is routed to e-mail (the default);
+- to the owner e-mail addresses: by e-mail only, when e-mail is set up (_Settings → Notifications_), the event _Credential due_ is routed to e-mail (the default) and the address's domain is allowed (see below);
 - to the administrators, if an entry has no owner at all.
 
 When:
@@ -75,7 +75,16 @@ Each reminder is recorded in the database before it is sent, so it goes out once
 
 Administrators change the defaults under _Settings → Credential reminders_: the days, the repeat interval for overdue entries and the "due soon" window. Each entry can have its own days or no reminders (_Reminders_ in the editor).
 
-Reminders and messages are in the recipient's language (English or German).
+Reminders and messages are in the recipient's language (English or German). The subject starts with "Credential reminder:" and shows the entry name in quotes, shortened to 80 characters.
+
+### E-mail addresses outside Steward
+
+Owner addresses are written by whoever edits an entry, so Steward does not mail just any address. An address only gets e-mails when its domain is allowed under _Settings → Notifications → Allowed e-mail domains for addresses outside Steward_:
+
+- enter domains such as `corp.example`, or `*.corp.example` for all its subdomains (`*.corp.example` does not include `corp.example` itself – list both if you need both);
+- while the list is empty, the company's own domains are allowed: the domains of active Steward users' addresses that an administrator or a single sign-on account uses, or at least two users. One user cannot open a domain by changing their own profile address.
+
+Saving an entry with an address outside these domains fails with a message that names the setting. Addresses stored earlier are checked again on every send and skipped (the server log counts them).
 
 ## Who may do what
 
@@ -87,7 +96,7 @@ Reminders and messages are in the recipient's language (English or German).
 | Viewer                                   | only entries they own | entries they own          |                          |
 | Owner (user or team listed on the entry) | ✓                     | ✓ (for that entry)        |                          |
 
-Viewers do not see the register: it shows where credentials are kept and who holds them, which is more than a read-only dashboard user needs. A viewer listed as an owner sees and maintains that entry. Owners who edit an entry as owner must keep themselves (or their team) in the owner list. Archived entries are read-only until an administrator restores them.
+Viewers do not see the register: it shows where credentials are kept and who holds them, which is more than a read-only dashboard user needs. A viewer listed as an owner sees and maintains that entry. Owners who edit an entry as owner (not as designer, operator or administrator) must keep themselves (or their team) in the owner list and cannot change the owner e-mail addresses – they decide who gets the reminders by e-mail. Archived entries are read-only until an administrator restores them.
 
 All checks happen on the server; the API answers 404 for entries you may not see.
 

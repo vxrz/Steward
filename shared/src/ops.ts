@@ -46,9 +46,16 @@ export interface NotificationSettings {
   routes: Record<NotificationEvent, NotificationChannel[]>;
   /** Base URL used for links in e-mails/Teams (default SM_PUBLIC_URL or the address the admin uses) */
   baseUrl?: string;
+  /**
+   * Domains that plain e-mail addresses outside Steward (credential owners, report recipients) may have,
+   * e.g. corp.example or *.corp.example (subdomains). Empty: the domains of the Steward users' own addresses.
+   */
+  allowedEmailDomains: string[];
 }
 
-export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'teams' | 'webhook'> & {
+export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'teams' | 'webhook' | 'allowedEmailDomains'> & {
+  /** Omitted: keep the stored list */
+  allowedEmailDomains?: string[];
   email: Omit<NotificationSettings['email'], 'hasPassword'> & { password?: string };
   teams: { enabled: boolean; webhookUrl?: string };
   webhook: { enabled: boolean; url?: string };

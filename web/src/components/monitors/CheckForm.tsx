@@ -1,6 +1,6 @@
 import { Divider, Group, NumberInput, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { type CheckDef, type CheckOf, type MonitorSummary, type Platform } from '@sm/shared';
+import { HIDDEN_MONITOR_REF, type CheckDef, type CheckOf, type MonitorSummary, type Platform } from '@sm/shared';
 import { ExpressionInput } from '../editor/ExpressionInput';
 import { Hint, KeyValueEditor } from '../common';
 import { checkTypeHelp, checkTypeLabel } from './status';
@@ -459,8 +459,12 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           required
           searchable
           disabled={disabled}
-          data={monitors.filter((m) => !m.isTemplate && m.key !== monitorKey).map((m) => ({ value: m.id, label: m.name }))}
-          value={monitors.some((m) => m.id === c.monitor) ? c.monitor : null}
+          data={[
+            ...monitors.filter((m) => !m.isTemplate && m.key !== monitorKey).map((m) => ({ value: m.id, label: m.name })),
+            // a sub-monitor the user may not view: kept as it is when saved
+            ...(c.monitor === HIDDEN_MONITOR_REF ? [{ value: HIDDEN_MONITOR_REF, label: t('detail.hiddenMonitor') }] : []),
+          ]}
+          value={c.monitor === HIDDEN_MONITOR_REF || monitors.some((m) => m.id === c.monitor) ? c.monitor : null}
           onChange={(v) => set({ monitor: v ?? '' })}
         />
       )}

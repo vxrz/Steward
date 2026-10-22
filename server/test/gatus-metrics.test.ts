@@ -200,6 +200,9 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
     expect(audit.some((a: any) => a.entityId === gatusId)).toBe(true);
     const r1 = await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
     expect(r1).toMatchObject({ ok: true, endpoints: 4 });
+    // manual scrapes: at most every 15 s per source
+    expect(await status(olivia('POST', `/gatus/sources/${gatusId}/scrape`))).toBe(429);
+    gm.resetManualScrapes();
     const r2 = await olivia('POST', `/gatus/sources/${gatusId}/scrape`); // users of the platform may scrape now
     expect(r2.ok).toBe(true);
     const eps = await s.api('GET', `/gatus/sources/${gatusId}/endpoints`);
@@ -242,6 +245,7 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
 
   it('counts a Gatus restart as a counter reset', async () => {
     await mock('/metrics/restart');
+    gm.resetManualScrapes();
     const r = await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
     expect(r.resets).toBe(4);
     const { db } = await import('../src/db.js');
@@ -266,6 +270,7 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
 
   it('reports errors of the scrape on the source (wrong path), and the outbound policy applies', async () => {
     await s.api('PUT', `/gatus/sources/${gatusId}`, { enabled: true, metricsPath: '/not-metrics' });
+    gm.resetManualScrapes();
     const r = await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/HTTP 404/);
@@ -274,10 +279,12 @@ describe('scraping the (mock) Gatus metrics endpoint', () => {
     const before = await s.api('GET', '/settings');
     await s.api('PUT', '/settings', { outboundPolicy: 'allowList', outboundAllowList: [] });
     await s.api('PUT', `/gatus/sources/${gatusId}`, { enabled: true, metricsPath: '/metrics' });
+    gm.resetManualScrapes();
     const blocked = await s.api('POST', `/gatus/sources/${gatusId}/scrape`);
     expect(blocked.ok).toBe(false);
     expect(blocked.error).toMatch(/outbound policy/);
     await s.api('PUT', '/settings', { outboundPolicy: before.outboundPolicy, outboundAllowList: before.outboundAllowList });
+    gm.resetManualScrapes();
     expect((await s.api('POST', `/gatus/sources/${gatusId}/scrape`)).ok).toBe(true);
   });
 

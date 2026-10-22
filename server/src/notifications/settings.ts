@@ -39,6 +39,7 @@ const DEFAULTS = (): StoredConfig => ({
   webhook: { enabled: false },
   routes: defaultRoutes(),
   baseUrl: undefined,
+  allowedEmailDomains: [],
 });
 
 function storedConfig(): StoredConfig {
@@ -50,6 +51,7 @@ function storedConfig(): StoredConfig {
     webhook: { ...d.webhook, ...s.webhook },
     routes: { ...d.routes, ...s.routes },
     baseUrl: s.baseUrl || undefined,
+    allowedEmailDomains: Array.isArray(s.allowedEmailDomains) ? s.allowedEmailDomains : [],
   };
 }
 
@@ -78,7 +80,23 @@ export function getNotificationSettings(): NotificationSettings {
     webhook: { enabled: c.webhook.enabled, hasUrl: keys.includes('webhookUrl') },
     routes: c.routes,
     baseUrl: c.baseUrl,
+    allowedEmailDomains: c.allowedEmailDomains,
   };
+}
+
+/** A domain (corp.example) or all subdomains of one (*.corp.example). */
+const DOMAIN_RULE = /^(\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+export const MAX_EMAIL_DOMAINS = 100;
+
+/** Lower case, without a leading "@", unique; 400 for anything that is not a domain. */
+export function normalizeEmailDomains(list: string[]): string[] {
+  const out = [...new Set(list.map((d) => d.trim().toLowerCase().replace(/^@/, '').replace(/\.$/, '')).filter(Boolean))];
+  for (const d of out) {
+    if (d.length > 253 || !DOMAIN_RULE.test(d))
+      throw new HttpError(400, `"${d.slice(0, 80)}" is not a domain – enter e.g. corp.example or *.corp.example`, 'INVALID_DOMAIN');
+  }
+  if (out.length > MAX_EMAIL_DOMAINS) throw new HttpError(400, `At most ${MAX_EMAIL_DOMAINS} allowed e-mail domains`);
+  return out;
 }
 
 const CHANNELS: NotificationChannel[] = ['inApp', 'email', 'teams', 'webhook'];
@@ -116,6 +134,7 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
     webhook: { enabled: input.webhook.enabled },
     routes,
     baseUrl: input.baseUrl?.trim().replace(/\/+$/, '') || undefined,
+    allowedEmailDomains: input.allowedEmailDomains === undefined ? storedConfig().allowedEmailDomains : normalizeEmailDomains(input.allowedEmailDomains),
   };
   const secrets = secretKeys().length ? channelSecrets() : {};
   const changedSecrets: string[] = [];

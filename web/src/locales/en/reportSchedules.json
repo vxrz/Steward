@@ -24,7 +24,7 @@
     "daily": "Every day at 06:00 about the previous day.",
     "weekly": "Every Monday at 06:00 about the previous week (Monday to Sunday).",
     "monthly": "On the 1st at 06:00 about the previous month.",
-    "custom": "Your cron expression; the report covers the given number of days before each run."
+    "custom": "Your cron expression (five fields: minute hour day month weekday; at most once an hour); the report covers the given number of days before each run."
   },
   "sections": {
     "availability": {
@@ -98,7 +98,7 @@
     "users": "Users",
     "teams": "Teams",
     "emails": "E-mail addresses",
-    "emailsHint": "Get the report by e-mail only (when e-mail is set up). Press Enter after each address.",
+    "emailsHint": "Get the report by e-mail only (when e-mail is set up). Up to 20 addresses; their domain must be allowed in Settings → Notifications. Press Enter after each address.",
     "attachPdf": "Attach the PDF to e-mails",
     "attachPdfHint": "Otherwise the e-mail contains a link (recipients need an account to open it).",
     "enabled": "Enabled"

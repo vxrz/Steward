@@ -3,7 +3,7 @@ import { db } from '../db.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
-import { platformRequest, buildUrl } from '../platforms/http.js';
+import { platformRequest, resolveBaseUrl } from '../platforms/http.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { platformFor } from '../monitors/platforms.js';
@@ -111,13 +111,34 @@ export interface SourceInput {
   fetchUptimes: boolean;
 }
 
-/** A path below the platform's base URL – never an absolute URL, so the scrape stays on the platform's origin. */
+/**
+ * A path below the platform's base URL – never an absolute URL, so the scrape stays on the platform's
+ * origin. No "." or ".." segments, also not percent-encoded (%2e), no encoded slashes or backslashes
+ * (%2f, %5c) and no encoded percent signs (%25) that a server or proxy might decode into one.
+ */
 export function checkMetricsPath(p: string): string {
   const path = p.trim() || '/metrics';
-  if (!/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/.test(path) || path.startsWith('//') || /(^|\/)\.\.(\/|$)/.test(path)) {
+  if (
+    !/^\/[A-Za-z0-9._~!$&'()*+,;=:@%/-]*$/.test(path) ||
+    path.startsWith('//') ||
+    /%(2e|2f|5c|25)/i.test(path) ||
+    /%(?![0-9a-f]{2})/i.test(path) ||
+    /(^|\/)\.{1,2}(\/|$)/.test(path)
+  ) {
     throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics');
   }
   return path;
+}
+
+/** The scrape URL: the path resolved below the base URL; refused when the resolved path leaves the base path. */
+export function metricsUrlBelow(baseUrl: string, path: string): string {
+  const base = new URL(baseUrl);
+  const url = new URL(baseUrl.replace(/\/+$/, '') + checkMetricsPath(path));
+  const basePath = base.pathname.replace(/\/+$/, '') + '/';
+  if (url.origin !== base.origin || !(url.pathname + '/').startsWith(basePath)) {
+    throw new HttpError(400, 'The metrics path must be a path below the base URL, e.g. /metrics');
+  }
+  return url.toString();
 }
 
 export function saveSource(platformId: string, input: SourceInput, actor: string): SourceRow {
@@ -144,8 +165,9 @@ export function saveSource(platformId: string, input: SourceInput, actor: string
   return sourceRow(platformId)!;
 }
 
-/** Removes the source and every sample of it. */
+/** Removes the source and every sample of it (also when the platform is deleted). */
 export function deleteSource(platformId: string): void {
+  manualScrapes.delete(platformId);
   db().tx(() => {
     for (const t of ['gatus_samples', 'gatus_hourly', 'gatus_transitions', 'gatus_endpoints', 'gatus_sources'])
       db().run(`DELETE FROM ${t} WHERE platform_id = ?`, platformId);
@@ -360,7 +382,7 @@ export async function scrape(platformId: string, now = Date.now()): Promise<Scra
   const t0 = Date.now();
   try {
     const { platform, secrets } = platformFor(src.owner, platformId);
-    const url = await buildUrl(platform, secrets, src.metrics_path);
+    const url = metricsUrlBelow(await resolveBaseUrl(platform, secrets), src.metrics_path);
     await assertOutboundAllowed(url, outboundContext());
     const timeout = Math.min(30, Math.max(5, src.interval_seconds - 1)) * 1000;
     const r = await platformRequest(
@@ -409,6 +431,30 @@ export async function scrape(platformId: string, now = Date.now()): Promise<Scra
   } finally {
     running.delete(platformId);
   }
+}
+
+/** Shortest time between two manual scrapes of a source (each one writes a sample per endpoint). */
+export const MANUAL_SCRAPE_MIN_MS = 15000;
+const manualScrapes = new Map<string, number>();
+
+/** "Scrape now" from the UI/API: at most every MANUAL_SCRAPE_MIN_MS per source (429 otherwise). */
+export async function manualScrape(platformId: string, now = Date.now()): Promise<ScrapeResult> {
+  if (!sourceRow(platformId)) throw new HttpError(404, 'Metrics mode is not configured for this platform');
+  const last = manualScrapes.get(platformId);
+  if (last !== undefined && now - last < MANUAL_SCRAPE_MIN_MS) {
+    throw new HttpError(
+      429,
+      `This source was scraped a moment ago – try again in ${Math.ceil((MANUAL_SCRAPE_MIN_MS - (now - last)) / 1000)} s`,
+      'RATE_LIMITED',
+    );
+  }
+  manualScrapes.set(platformId, now);
+  return scrape(platformId, now);
+}
+
+/** For tests: forget the manual scrape times. */
+export function resetManualScrapes(): void {
+  manualScrapes.clear();
 }
 
 /** A fraction (0.958333, text/plain in Gatus ≤ v5) or JSON ({"uptime":0.95} or a bare number) → percent. */
@@ -486,7 +532,10 @@ export function stopGatusScraper(): void {
 
 // ---------- retention ----------
 
-/** Raw samples after rawRetentionDays, hourly data and status changes after retentionDays (the newest change per endpoint stays). */
+/**
+ * Raw samples after rawRetentionDays, hourly data and status changes after retentionDays (the newest change
+ * per endpoint stays), endpoints not seen for retentionDays with their data.
+ */
 export function pruneGatusData(now = Date.now()): { samples: number; hourly: number; transitions: number } {
   const out = { samples: 0, hourly: 0, transitions: 0 };
   for (const s of db().all<SourceRow>('SELECT * FROM gatus_sources')) {
@@ -502,6 +551,16 @@ export function pruneGatusData(now = Date.now()): { samples: number; hourly: num
         agg,
         s.platform_id,
       ).changes;
+      // endpoints removed from the Gatus configuration: nothing left to report once their data is gone
+      for (const t of ['gatus_transitions', 'gatus_hourly', 'gatus_samples']) {
+        db().run(
+          `DELETE FROM ${t} WHERE platform_id = ? AND key IN (SELECT key FROM gatus_endpoints WHERE platform_id = ? AND last_seen_at < ?)`,
+          s.platform_id,
+          s.platform_id,
+          agg,
+        );
+      }
+      db().run('DELETE FROM gatus_endpoints WHERE platform_id = ? AND last_seen_at < ?', s.platform_id, agg);
     });
   }
   // data of sources that were removed

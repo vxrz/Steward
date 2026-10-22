@@ -12,6 +12,7 @@ import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './chann
 import { BRAND } from '@sm/shared';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
+import { allowedDomainRules, domainAllowed } from './domains.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
@@ -24,8 +25,13 @@ export interface NoticeText {
 
 export interface Notice {
   event: NotificationEvent;
-  /** Title and body in one language – called per recipient (in-app, e-mail) and once for channel posts (Teams, webhook). */
-  text: (locale: Locale) => NoticeText;
+  /**
+   * Title and body in one language – called per recipient (in-app, e-mail) and once for channel posts
+   * (Teams, webhook) and plain addresses. With `personal`, the in-app and e-mail texts of a Steward user
+   * get that user (e.g. to leave out what they may not see); the other calls get no recipient.
+   */
+  text: (locale: Locale, recipient?: UserInfo) => NoticeText;
+  personal?: boolean;
   /** In-app path, e.g. /runs/run_123 */
   link?: string;
   recipients: UserInfo[];
@@ -34,10 +40,23 @@ export interface Notice {
   /** De-duplicates external sends (coarser, e.g. per process or schedule) */
   externalKey: string;
   data?: Record<string, unknown>;
-  /** Plain e-mail addresses outside Steward (e-mail only, when the event is routed to e-mail and SMTP is enabled) */
+  /**
+   * Plain e-mail addresses outside Steward (e-mail only, when the event is routed to e-mail and SMTP is
+   * enabled). Addresses whose domain is not allowed (see domains.ts) are left out.
+   */
   emails?: string[];
   /** E-mail attachments */
   attachments?: OutgoingMessage['attachments'];
+}
+
+/**
+ * A user-chosen name for a message title (e-mail subject): one line, at most `max` characters. Titles
+ * put it in quotes after a fixed prefix, so a name cannot pose as the whole subject.
+ */
+export function titleName(name: string, max = 80): string {
+  // eslint-disable-next-line no-control-regex -- control characters (line breaks) are the point
+  const one = name.replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim();
+  return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
 }
 
 // ---------- recipients ----------
@@ -99,14 +118,15 @@ export function notify(n: Notice): void {
   const channels = settings.routes[n.event] ?? [];
   const fallback = defaultLocale();
   const texts = new Map<Locale, NoticeText>();
-  const textIn = (locale: Locale): NoticeText => {
+  const textIn = (locale: Locale, u?: UserInfo): NoticeText => {
+    if (n.personal && u) return n.text(locale, u);
     if (!texts.has(locale)) texts.set(locale, n.text(locale));
     return texts.get(locale)!;
   };
   if (channels.includes('inApp')) {
     for (const u of n.recipients) {
       try {
-        const m = textIn(userLocale(u, fallback));
+        const m = textIn(userLocale(u, fallback), u);
         addInApp(u.id, { event: n.event, title: m.title, body: m.body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
       } catch (err) {
         logger.warn({ err, event: n.event }, 'could not store notification');
@@ -119,9 +139,9 @@ export function notify(n: Notice): void {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
   }
-  const message = (locale: Locale): OutgoingMessage => ({
+  const message = (locale: Locale, u?: UserInfo): OutgoingMessage => ({
     event: n.event,
-    ...textIn(locale),
+    ...textIn(locale, u),
     locale,
     link: absoluteLink(n.link),
     ts: nowIso(),
@@ -141,18 +161,25 @@ export function notify(n: Notice): void {
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
       if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) {
-        const msg = message(userLocale(u, fallback));
+        const msg = message(userLocale(u, fallback), u);
         jobs.push({ channel: 'email', to: u.username, send: () => sendEmail(settings.email, secrets, u.email!, msg) });
       }
     }
     const userAddresses = new Set(n.recipients.map((u) => u.email?.toLowerCase()).filter(Boolean));
+    const rules = n.emails?.length ? allowedDomainRules() : [];
+    let refused = 0;
     for (const addr of new Set((n.emails ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+$/.test(e)))) {
       if (userAddresses.has(addr)) continue; // already reached as a Steward user (with their own settings)
+      if (!domainAllowed(addr, rules)) {
+        refused++;
+        continue;
+      }
       if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS)) {
         const msg = message(fallback);
         jobs.push({ channel: 'email', to: 'external address', send: () => sendEmail(settings.email, secrets, addr, msg) });
       }
     }
+    if (refused) logger.warn({ event: n.event, refused }, 'e-mail not sent to addresses outside the allowed domains');
   }
   if (external.includes('teams') && secrets.teamsWebhookUrl && claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
     const msg = message(fallback);

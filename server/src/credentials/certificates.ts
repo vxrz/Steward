@@ -13,7 +13,9 @@ import { HttpError } from '../util.js';
  * database, the audit log or a backup by accident.
  */
 
-const PEM_CERT = /-----BEGIN (?:X509 |TRUSTED )?CERTIFICATE-----[\s\S]*?-----END (?:X509 |TRUSTED )?CERTIFICATE-----/g;
+const CERT_LABELS = ['CERTIFICATE', 'X509 CERTIFICATE', 'TRUSTED CERTIFICATE'];
+/** Certificates per file (a chain); the PEM scan gives up after one more BEGIN line. */
+const MAX_CERTS = 20;
 const PRIVATE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----|-----BEGIN PKCS12-----/;
 
 export class CertificateError extends HttpError {
@@ -23,6 +25,33 @@ export class CertificateError extends HttpError {
 }
 
 const iso = (s: string) => new Date(s).toISOString();
+
+/**
+ * The certificate PEM blocks of a text, in one linear pass with indexOf (a lazy regex rescans the rest of
+ * the text for every BEGIN line without an END – quadratic). At most MAX_CERTS + 1 BEGIN lines are
+ * looked at; more means "too many certificates".
+ */
+function pemCertificates(text: string): string[] {
+  const blocks: string[] = [];
+  let begins = 0;
+  for (let i = text.indexOf('-----BEGIN '); i !== -1;) {
+    if (++begins > MAX_CERTS + 1) throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`);
+    const labelEnd = text.indexOf('-----', i + 11);
+    if (labelEnd === -1) break;
+    const label = text.slice(i + 11, labelEnd);
+    const next = text.indexOf('-----BEGIN ', labelEnd + 5);
+    if (CERT_LABELS.includes(label)) {
+      // the END line of this block, before the next BEGIN line
+      const end = text.indexOf('-----END ', labelEnd + 5);
+      if (end !== -1 && (next === -1 || end < next)) {
+        const endLabelEnd = text.indexOf('-----', end + 9);
+        if (endLabelEnd !== -1 && CERT_LABELS.includes(text.slice(end + 9, endLabelEnd))) blocks.push(text.slice(i, endLabelEnd + 5));
+      }
+    }
+    i = next;
+  }
+  return blocks;
+}
 
 function summary(c: X509Certificate): CertificateSummary {
   return {
@@ -70,9 +99,9 @@ export function parseCertificate(data: Buffer): CertificateInfo {
   }
   let certs: X509Certificate[];
   if (text.includes('-----BEGIN')) {
-    const blocks = text.match(PEM_CERT) ?? [];
+    const blocks = pemCertificates(text);
     if (!blocks.length) throw new CertificateError('No certificate found – expected a PEM block "-----BEGIN CERTIFICATE-----"');
-    if (blocks.length > 20) throw new CertificateError('Too many certificates in the file (max. 20)');
+    if (blocks.length > MAX_CERTS) throw new CertificateError(`Too many certificates in the file (max. ${MAX_CERTS})`);
     try {
       certs = blocks.map((b) => new X509Certificate(b));
     } catch {
