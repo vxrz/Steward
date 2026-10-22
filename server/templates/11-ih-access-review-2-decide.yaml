@@ -102,6 +102,7 @@ steps:
   - id: approveRevoke
     type: userTask
     name: Confirm revocation
+    description: Tip – set "fourEyes" and "assignees" (e.g. role:approver) so a second person has to confirm revocations.
     when: "$count(vars.decision.unselected) > 0"
     mode: approve
     title: "Revoke access for {{ $count(vars.decision.unselected) }} user(s)?"

@@ -180,6 +180,56 @@ const MIGRATIONS: string[] = [
   CREATE INDEX audit_run ON audit_log(run_id);
   CREATE INDEX audit_entity ON audit_log(entity_type, entity_id);
   `,
+  // 2: users, teams, sessions, access control
+  `
+  CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    email TEXT,
+    password_hash TEXT NOT NULL,
+    roles TEXT NOT NULL DEFAULT '[]',
+    active INTEGER NOT NULL DEFAULT 1,
+    must_change_password INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_login_at TEXT
+  );
+  CREATE TABLE teams (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    description TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+  );
+  CREATE TABLE team_members (
+    team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    PRIMARY KEY (team_id, user_id)
+  );
+  CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    ip TEXT,
+    user_agent TEXT
+  );
+  ALTER TABLE processes ADD COLUMN acl TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE processes ADD COLUMN owner TEXT;
+  ALTER TABLE platforms ADD COLUMN acl TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE schedules ADD COLUMN owner TEXT;
+  ALTER TABLE run_tasks ADD COLUMN assignees TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE run_tasks ADD COLUMN four_eyes INTEGER NOT NULL DEFAULT 0;
+  `,
+  // 3: reusable connector types
+  `
+  CREATE TABLE platform_types (
+    kind TEXT PRIMARY KEY,
+    package TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
+  `,
 ];
 
 export class Db {

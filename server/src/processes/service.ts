@@ -13,7 +13,9 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
-import { operator } from '../settings.js';
+import { currentActor, currentUser } from '../auth/context.js';
+import { cleanAcl, processPermissions } from '../auth/permissions.js';
+import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
 import { HttpError, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
 
 interface ProcessRow {
@@ -25,6 +27,8 @@ interface ProcessRow {
   archived: number;
   created_at: string;
   updated_at: string;
+  acl: string;
+  owner: string | null;
 }
 
 export const definitionHash = (d: ProcessDefinition): string => sha256(canonicalJson(d));
@@ -37,18 +41,52 @@ function lastRun(processId: string): ProcessSummary['lastRun'] {
   return r ? { id: r.id, status: r.status, startedAt: r.started_at } : null;
 }
 
-const toSummary = (r: ProcessRow): ProcessSummary => ({
-  id: r.id,
-  name: r.name,
-  description: r.description,
-  tags: parseJson<string[]>(r.tags, []),
-  currentVersion: r.current_version,
-  updatedAt: r.updated_at,
-  lastRun: lastRun(r.id),
-});
+function toSummary(r: ProcessRow): ProcessSummary {
+  const acl = parseJson<AclEntry<ProcessPermission>[]>(r.acl, []);
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    tags: parseJson<string[]>(r.tags, []),
+    currentVersion: r.current_version,
+    updatedAt: r.updated_at,
+    lastRun: lastRun(r.id),
+    owner: r.owner,
+    acl,
+    permissions: processPermissions(currentUser(), { owner: r.owner, acl }),
+  };
+}
 
+/** Processes the current user may see. */
 export function listProcesses(): ProcessSummary[] {
-  return db().all<ProcessRow>('SELECT * FROM processes WHERE archived = 0 ORDER BY name').map(toSummary);
+  return db()
+    .all<ProcessRow>('SELECT * FROM processes WHERE archived = 0 ORDER BY name')
+    .map(toSummary)
+    .filter((p) => p.permissions.includes('view'));
+}
+
+/** Permissions of the current user on a process (also for archived ones). */
+export function permissionsFor(processId: string): ProcessPermission[] {
+  const r = db().get<ProcessRow>('SELECT * FROM processes WHERE id = ?', processId);
+  if (!r) return [];
+  return processPermissions(currentUser(), { owner: r.owner, acl: parseJson(r.acl, []) });
+}
+
+export function setProcessAccess(id: string, input: { acl: unknown; owner?: string | null }): ProcessDetail {
+  const before = getProcess(id);
+  const acl = cleanAcl(input.acl, PROCESS_PERMISSIONS);
+  const owner = input.owner === undefined ? before.owner : input.owner;
+  db().tx(() => {
+    db().run('UPDATE processes SET acl = ?, owner = ?, updated_at = ? WHERE id = ?', JSON.stringify(acl), owner ?? null, nowIso(), id);
+    audit({
+      action: 'process.access_changed',
+      entityType: 'process',
+      entityId: id,
+      summary: `Access of "${before.name}" changed: ${acl.length ? acl.map((e) => `${e.subject} (${e.permissions.join('/')})`).join(', ') : 'default role rights'}${owner !== before.owner ? `; owner ${before.owner ?? '–'} → ${owner ?? '–'}` : ''}`,
+      details: { acl, owner, previous: { acl: before.acl, owner: before.owner } },
+    });
+  });
+  return getProcess(id);
 }
 
 export function getProcess(id: string, version?: number): ProcessDetail {
@@ -60,7 +98,9 @@ export function getProcess(id: string, version?: number): ProcessDetail {
     version ?? r.current_version,
   );
   if (!v) throw new HttpError(404, `Version ${version} not found`);
-  return { ...toSummary(r), definition: JSON.parse(v.definition), definitionHash: v.hash };
+  let definition = JSON.parse(v.definition) as ProcessDefinition;
+  if (!Array.isArray(definition.nodes)) definition = validateProcess(definition).definition ?? definition; // legacy step format
+  return { ...toSummary(r), definition, definitionHash: v.hash };
 }
 
 function checked(def: unknown): ProcessDefinition {
@@ -83,20 +123,21 @@ export function createProcess(def: unknown, opts: { id?: string; comment?: strin
   const hash = definitionHash(d);
   db().tx(() => {
     db().run(
-      'INSERT INTO processes (id, name, description, tags, current_version, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)',
+      'INSERT INTO processes (id, name, description, tags, current_version, created_at, updated_at, owner) VALUES (?, ?, ?, ?, 1, ?, ?, ?)',
       id,
       d.name,
       d.description ?? '',
       JSON.stringify(d.tags ?? []),
       ts,
       ts,
+      currentUser()?.username ?? null,
     );
     db().run(
       'INSERT INTO process_versions (process_id, version, definition, hash, author, comment, created_at) VALUES (?, 1, ?, ?, ?, ?, ?)',
       id,
       JSON.stringify(d),
       hash,
-      operator(),
+      currentActor(),
       opts.comment ?? 'Created',
       ts,
     );
@@ -125,7 +166,7 @@ export function saveProcess(id: string, def: unknown, comment = ''): ProcessDeta
       version,
       JSON.stringify(d),
       hash,
-      operator(),
+      currentActor(),
       comment,
       ts,
     );

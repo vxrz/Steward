@@ -8,6 +8,10 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { invalidatePlatformCaches } from './http.js';
+import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
+import { currentUser } from '../auth/context.js';
+import { cleanAcl, platformPermissions } from '../auth/permissions.js';
+import { PLATFORM_PERMISSIONS, type AclEntry, type PlatformPermission } from '@sm/shared';
 
 interface PlatformRow {
   id: string;
@@ -20,6 +24,7 @@ interface PlatformRow {
   secrets: string | null;
   created_at: string;
   updated_at: string;
+  acl: string;
 }
 
 function defaultConfig(): PlatformConfig {
@@ -28,7 +33,10 @@ function defaultConfig(): PlatformConfig {
 
 function toPlatform(r: PlatformRow): Platform {
   const cfg = { ...defaultConfig(), ...parseJson<Partial<PlatformConfig>>(r.config, {}) };
+  const acl = parseJson<AclEntry<PlatformPermission>[]>(r.acl, []);
   return {
+    acl,
+    permissions: platformPermissions(currentUser(), { acl }),
     id: r.id,
     name: r.name,
     kind: r.kind,
@@ -172,6 +180,22 @@ export function setSecrets(id: string, patch: Record<string, string | null>): Pl
   return getPlatform(id);
 }
 
+export function setPlatformAccess(id: string, aclInput: unknown): Platform {
+  const before = getPlatform(id);
+  const acl = cleanAcl(aclInput, PLATFORM_PERMISSIONS);
+  db().tx(() => {
+    db().run('UPDATE platforms SET acl = ?, updated_at = ? WHERE id = ?', JSON.stringify(acl), nowIso(), id);
+    audit({
+      action: 'platform.access_changed',
+      entityType: 'platform',
+      entityId: id,
+      summary: `Access of "${before.name}" changed: ${acl.length ? acl.map((e) => `${e.subject} (${e.permissions.join('/')})`).join(', ') : 'default role rights'}`,
+      details: { acl, previous: before.acl },
+    });
+  });
+  return getPlatform(id);
+}
+
 export function deletePlatform(id: string): void {
   const p = getPlatform(id);
   const docs = db().all<{ filename: string | null; id: string }>('SELECT id, filename FROM platform_docs WHERE platform_id = ?', id);
@@ -221,37 +245,33 @@ export function parseSpec(content: string): {
       const params = [...shared, ...((op.parameters as Record<string, unknown>[]) ?? [])]
         .map((x) => resolveRef(doc, x))
         .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && 'name' in x);
+      const body = requestBodyInfo(doc, op, params);
       operations.push({
         operationId: op.operationId as string | undefined,
         method: m.toUpperCase(),
         path: p,
         summary: (op.summary as string) ?? (op.description as string | undefined)?.slice(0, 160),
+        description: op.description ? String(op.description).slice(0, 2000) : undefined,
         tag: ((op.tags as string[]) ?? [])[0],
         parameters: params
-          .filter((x) => x.in !== 'body')
+          .filter((x) => x.in !== 'body' && x.in !== 'formData')
           .map((x) => ({
             name: String(x.name),
             in: String(x.in),
             required: Boolean(x.required),
-            description: x.description ? String(x.description).slice(0, 200) : undefined,
+            description: x.description ? String(x.description).slice(0, 300) : undefined,
+            schema: paramSchema(doc, x),
           })),
         hasBody: Boolean(op.requestBody) || params.some((x) => x.in === 'body'),
+        requestContentType: body.contentType,
+        requestBodyExample: body.example,
+        successStatus: successStatuses(op),
       });
     }
   }
   return { format: isOas3 ? `openapi ${doc.openapi}` : 'swagger 2.0', title: info.title, version: info.version, serverUrl, operations };
 }
 
-function resolveRef(doc: Record<string, unknown>, x: unknown): unknown {
-  if (x && typeof x === 'object' && '$ref' in x) {
-    const ref = String((x as { $ref: string }).$ref);
-    if (!ref.startsWith('#/')) return undefined;
-    let cur: unknown = doc;
-    for (const part of ref.slice(2).split('/')) cur = (cur as Record<string, unknown> | undefined)?.[part.replace(/~1/g, '/').replace(/~0/g, '~')];
-    return cur;
-  }
-  return x;
-}
 
 interface SpecRow {
   id: string;

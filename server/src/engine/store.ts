@@ -79,6 +79,10 @@ interface TaskRow {
   created_at: string;
   process_name?: string;
   dry_run?: number;
+  assignees: string;
+  four_eyes: number;
+  process_id?: string;
+  run_actor?: string;
 }
 
 export function runRow(id: string): RunRow {
@@ -283,7 +287,17 @@ function toTask(r: TaskRow): TaskRecord {
     decidedAt: r.decided_at,
     createdAt: r.created_at,
     dryRun: !!r.dry_run,
+    assignees: parseJson<string[]>(r.assignees, []),
+    fourEyes: !!r.four_eyes,
+    startedBy: r.run_actor,
   };
+}
+
+/** Process of a task's run (for permission checks). */
+export function taskProcessId(taskId: string): string {
+  const r = db().get<{ process_id: string }>('SELECT r.process_id FROM run_tasks t JOIN runs r ON r.id = t.run_id WHERE t.id = ?', taskId);
+  if (!r) throw new HttpError(404, 'Task not found');
+  return r.process_id;
 }
 
 export function listTasks(f: { runId?: string; status?: string }): TaskRecord[] {
@@ -293,7 +307,7 @@ export function listTasks(f: { runId?: string; status?: string }): TaskRecord[] 
   if (f.status) (where.push('t.status = ?'), params.push(f.status));
   return db()
     .all<TaskRow>(
-      `SELECT t.*, r.process_name, r.dry_run FROM run_tasks t JOIN runs r ON r.id = t.run_id
+      `SELECT t.*, r.process_name, r.dry_run, r.process_id, r.actor AS run_actor FROM run_tasks t JOIN runs r ON r.id = t.run_id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY t.created_at DESC LIMIT 500`,
       ...params,
     )
@@ -302,7 +316,7 @@ export function listTasks(f: { runId?: string; status?: string }): TaskRecord[] 
 
 export function getTask(id: string): TaskRecord {
   const r = db().get<TaskRow>(
-    'SELECT t.*, r.process_name, r.dry_run FROM run_tasks t JOIN runs r ON r.id = t.run_id WHERE t.id = ?',
+    'SELECT t.*, r.process_name, r.dry_run, r.process_id, r.actor AS run_actor FROM run_tasks t JOIN runs r ON r.id = t.run_id WHERE t.id = ?',
     id,
   );
   if (!r) throw new HttpError(404, 'Task not found');
@@ -314,10 +328,10 @@ export function findTask(runId: string, stepKey: string): TaskRecord | undefined
   return r ? getTask(r.id) : undefined;
 }
 
-export function insertTask(t: Omit<TaskRecord, 'status' | 'createdAt' | 'decision' | 'decidedBy' | 'decidedAt'>): void {
+export function insertTask(t: Omit<TaskRecord, 'status' | 'createdAt' | 'decision' | 'decidedBy' | 'decidedAt' | 'startedBy' | 'canDecide'>): void {
   db().run(
-    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`,
+    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at, assignees, four_eyes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
     t.id,
     t.runId,
     t.stepKey,
@@ -327,6 +341,8 @@ export function insertTask(t: Omit<TaskRecord, 'status' | 'createdAt' | 'decisio
     JSON.stringify(t.columns),
     JSON.stringify(t.items),
     nowIso(),
+    JSON.stringify(t.assignees ?? []),
+    t.fourEyes ? 1 : 0,
   );
 }
 
@@ -371,8 +387,8 @@ export function listArtifacts(runId: string): RunArtifact[] {
     .map((a) => ({ id: a.id, runId: a.run_id, stepKey: a.step_key, kind: a.kind, name: a.name, mime: a.mime, sha256: a.sha256, size: a.size, createdAt: a.created_at }));
 }
 
-export function artifactFile(id: string): { path: string; mime: string; name: string } {
-  const r = db().get<{ path: string; mime: string; name: string }>('SELECT path, mime, name FROM run_artifacts WHERE id = ?', id);
+export function artifactFile(id: string): { path: string; mime: string; name: string; runId: string } {
+  const r = db().get<{ path: string; mime: string; name: string; runId: string }>('SELECT path, mime, name, run_id AS runId FROM run_artifacts WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'Artifact not found');
   return r;
 }

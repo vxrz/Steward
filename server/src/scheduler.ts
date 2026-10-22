@@ -4,7 +4,11 @@ import { db } from './db.js';
 import { audit } from './audit.js';
 import { startRun } from './engine/runner.js';
 import { HttpError, newId, nowIso, parseJson } from './util.js';
-import { getProcess } from './processes/service.js';
+import { getProcess, permissionsFor } from './processes/service.js';
+import { getPlatform } from './platforms/service.js';
+import { currentUser, runAs } from './auth/context.js';
+import { findUserByName, toAuthUser } from './auth/users.js';
+import { isAdmin } from './auth/permissions.js';
 
 interface ScheduleRow {
   id: string;
@@ -22,6 +26,7 @@ interface ScheduleRow {
   created_at: string;
   process_name?: string;
   last_status?: RunStatus | null;
+  owner: string | null;
 }
 
 const jobs = new Map<string, Cron>();
@@ -45,14 +50,33 @@ function toSchedule(r: ScheduleRow): Schedule {
     lastRunStatus: r.last_status ?? null,
     nextRunAt: job?.nextRun()?.toISOString() ?? null,
     createdAt: r.created_at,
+    owner: r.owner,
+    canEdit: canEditSchedule(r),
   };
 }
 
 const SELECT = `SELECT s.*, p.name AS process_name, (SELECT status FROM runs WHERE id = s.last_run_id) AS last_status
   FROM schedules s JOIN processes p ON p.id = s.process_id`;
 
+function canEditSchedule(r: { owner: string | null; process_id: string }): boolean {
+  const u = currentUser();
+  if (!u) return false;
+  if (isAdmin(u) || (r.owner && r.owner.toLowerCase() === u.username.toLowerCase())) return true;
+  return permissionsFor(r.process_id).includes('manage');
+}
+
+/** Schedules of processes the current user can see. */
 export function listSchedules(): Schedule[] {
-  return db().all<ScheduleRow>(`${SELECT} ORDER BY s.name`).map(toSchedule);
+  return db()
+    .all<ScheduleRow>(`${SELECT} ORDER BY s.name`)
+    .filter((r) => permissionsFor(r.process_id).includes('view'))
+    .map(toSchedule);
+}
+
+export function requireScheduleEdit(id: string): void {
+  const r = db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id);
+  if (!r) throw new HttpError(404, 'Schedule not found');
+  if (!canEditSchedule(r)) throw new HttpError(403, 'Only the owner, an administrator or a process manager can change this schedule');
 }
 
 export function getSchedule(id: string): Schedule {
@@ -96,8 +120,8 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       if (!r.changes) throw new HttpError(404, 'Schedule not found');
     } else {
       db().run(
-        `INSERT INTO schedules (id, name, process_id, cron, timezone, inputs, bindings, dry_run, enabled, allow_overlap, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO schedules (id, name, process_id, cron, timezone, inputs, bindings, dry_run, enabled, allow_overlap, created_at, owner)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         sid,
         input.name,
         input.processId,
@@ -109,6 +133,7 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
         input.enabled ? 1 : 0,
         input.allowOverlap ? 1 : 0,
         nowIso(),
+        currentUser()?.username ?? null,
       );
     }
     audit({
@@ -163,10 +188,28 @@ export async function fire(id: string, manual = false): Promise<string | null> {
       return null;
     }
   }
+  // Scheduled runs execute with the rights of the schedule owner.
+  const owner = r.owner ? findUserByName(r.owner) : undefined;
+  const runner = manual ? currentUser() : owner && owner.active ? toAuthUser(owner) : null;
+  const problem = !runner
+    ? `owner ${r.owner ?? '(none)'} is missing or disabled`
+    : runAs(runner, () => {
+        if (!permissionsFor(r.process_id).includes('run')) return `${runner.username} may not run this process`;
+        for (const pid of Object.values(parseJson<Record<string, string>>(r.bindings, {}))) {
+          if (!getPlatform(pid).permissions.includes('use')) return `${runner.username} may not use platform ${pid}`;
+        }
+        return null;
+      });
+  if (problem) {
+    audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem}` });
+    return null;
+  }
   try {
-    const runId = await startRun(
-      { processId: r.process_id, inputs: parseJson(r.inputs, {}), bindings: parseJson(r.bindings, {}), dryRun: !!r.dry_run },
-      { trigger: 'schedule', scheduleId: id, actor: manual ? undefined : 'scheduler' },
+    const runId = await runAs(runner, () =>
+      startRun(
+        { processId: r.process_id, inputs: parseJson(r.inputs, {}), bindings: parseJson(r.bindings, {}), dryRun: !!r.dry_run },
+        { trigger: 'schedule', scheduleId: id, actor: runner!.username },
+      ),
     );
     db().run('UPDATE schedules SET last_run_at = ?, last_run_id = ? WHERE id = ?', nowIso(), runId, id);
     return runId;

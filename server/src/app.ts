@@ -9,14 +9,21 @@ import { vault } from './vault.js';
 import { HttpError } from './util.js';
 import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
+import { requestContext } from './auth/context.js';
+import { sessionUser, toAuthUser } from './auth/users.js';
+import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
 
-const OPEN_API_PATHS = ['/api/health', '/api/vault/'];
+/** Reachable without signing in. */
+const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status'];
+/** Reachable while the vault is locked (for signed-in users). */
+const LOCKED_OK = ['/api/auth/', '/api/vault/'];
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger ? { level: 'warn' } : false,
     bodyLimit: 25 * 1024 * 1024,
-  });
+    ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) } } : {}),
+  }) as unknown as FastifyInstance;
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
 
   // --- local-only safety net ---
@@ -36,9 +43,26 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-sm-client'] !== '1') {
       return reply.code(403).send({ error: 'Missing x-sm-client header' });
     }
-    if (!vault().unlocked && !OPEN_API_PATHS.some((p) => url.startsWith(p))) {
-      return reply.code(423).send({ error: 'Vault is locked' });
+  });
+
+  // Authentication: resolve the session and run the rest of the request "as" that user.
+  // (Synchronous hook + AsyncLocalStorage.run keeps the user available to all services.)
+  app.addHook('preHandler', (req, reply, done) => {
+    const url = req.url.split('?')[0]!;
+    if (!url.startsWith('/api/')) return done();
+    const info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
+    const user = info ? toAuthUser(info) : null;
+    const isPublic = PUBLIC_PATHS.includes(url);
+    if (!isPublic) {
+      if (!user) return void reply.code(401).send({ error: 'Please sign in' });
+      if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {
+        return void reply.code(403).send({ error: 'Please change your password first', code: 'PASSWORD_CHANGE_REQUIRED' });
+      }
+      if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
+        return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it' });
+      }
     }
+    requestContext.run({ user, ip: req.ip }, done);
   });
 
   app.setErrorHandler((err, _req, reply) => {

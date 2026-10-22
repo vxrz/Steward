@@ -29,12 +29,15 @@ function startServer(): Promise<ChildProcess> {
   });
 }
 
+let cookie = '';
 async function api(method: string, url: string, body?: unknown): Promise<any> {
   const res = await fetch(base + '/api' + url, {
     method,
-    headers: { 'x-sm-client': '1', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+    headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+  const set = res.headers.get('set-cookie');
+  if (set) cookie = set.split(';')[0]!;
   const t = await res.text();
   if (!res.ok) throw new Error(`${method} ${url}: ${res.status} ${t}`);
   return t ? JSON.parse(t) : null;
@@ -56,7 +59,7 @@ afterAll(() => {
 describe('durable runs', () => {
   it('resumes a waiting run after a crash without repeating finished steps', async () => {
     proc = await startServer();
-    await api('POST', '/vault/setup', { passphrase: 'restart-test-pass', operator: 'tester' });
+    await api('POST', '/auth/setup', { passphrase: 'restart-test-pass', username: 'admin', password: 'Admin-password-1' });
     await api('POST', '/demo/setup', {});
     const hub = (await api('GET', '/platforms')).find((p: any) => p.kind === 'insights-hub').id;
     const { id } = await api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub } });

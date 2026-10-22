@@ -15,7 +15,8 @@ export const config = {
   templatesDir: path.join(ROOT_DIR, 'server', 'templates'),
   /** Optional passphrase for unattended start (scheduled runs after reboot). */
   masterPassphrase: process.env.SM_MASTER_PASSPHRASE,
-  operator: process.env.SM_OPERATOR,
+  /** Serve HTTPS (recommended when other people access the tool over the network). */
+  tls: process.env.SM_TLS_CERT && process.env.SM_TLS_KEY ? { cert: process.env.SM_TLS_CERT, key: process.env.SM_TLS_KEY } : undefined,
 };
 
 export function ensureDataDirs(): void {

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let hub: string;
@@ -7,7 +7,7 @@ let iem: string;
 
 beforeAll(async () => {
   s = await startTestServer();
-  await s.api('POST', '/vault/setup', { passphrase: 'correct horse battery', operator: 'tester' });
+  await setup(s);
   await s.api('POST', '/demo/setup', {});
   const platforms = await s.api('GET', '/platforms');
   hub = platforms.find((p: any) => p.kind === 'insights-hub').id;
@@ -49,8 +49,8 @@ describe('platforms', () => {
       info: { title: 'Demo', version: '1' },
       paths: { '/Users': { get: { operationId: 'listUsers', summary: 'List users' }, post: { operationId: 'createUser', requestBody: {} } } },
     };
-    await s.api('POST', `/platforms/${hub}/specs`, { content: JSON.stringify(spec) });
-    const ops = await s.api('GET', `/platforms/${hub}/operations`);
+    const added = await s.api('POST', `/platforms/${hub}/specs`, { content: JSON.stringify(spec) });
+    const ops = (await s.api('GET', `/platforms/${hub}/operations`)).filter((o: any) => o.specId === added.id);
     expect(ops.map((o: any) => o.operationId)).toEqual(['listUsers', 'createUser']);
   });
 });
@@ -218,5 +218,60 @@ describe('protocol and audit', () => {
     expect(saved.currentVersion).toBe(2);
     const versions = await s.api('GET', '/processes/ih-health-check/versions');
     expect(versions.map((v: any) => v.version)).toEqual([2, 1]);
+  });
+});
+
+describe('openapi & connectors', () => {
+  const spec = {
+    openapi: '3.0.0',
+    info: { title: 'Tickets', version: '2' },
+    paths: {
+      '/tickets/{id}': {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+        put: {
+          operationId: 'updateTicket',
+          parameters: [{ name: 'notify', in: 'query', schema: { type: 'string', enum: ['yes', 'no'], default: 'no' } }],
+          requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/Ticket' } } } },
+          responses: { '200': { description: 'ok' }, '404': { description: 'missing' } },
+        },
+      },
+    },
+    components: {
+      schemas: {
+        Ticket: {
+          type: 'object',
+          properties: { title: { type: 'string' }, priority: { type: 'integer' }, tags: { type: 'array', items: { type: 'string' } }, parent: { $ref: '#/components/schemas/Ticket' } },
+        },
+      },
+    },
+  };
+  it('extracts parameter schemas, example bodies and success codes', async () => {
+    const pf = await s.api('POST', '/platforms', { name: 'Ticketing', kind: 'ticketing', baseUrl: `${s.base}/mock/ih` });
+    await s.api('POST', `/platforms/${pf.id}/specs`, { content: JSON.stringify(spec) });
+    const [op] = await s.api('GET', `/platforms/${pf.id}/operations`);
+    expect(op.parameters.find((p: any) => p.name === 'notify').schema).toEqual({ type: 'string', enum: ['yes', 'no'], default: 'no' });
+    expect(op.requestBodyExample).toEqual({ title: 'string', priority: 0, tags: ['string'] });
+    expect(op.successStatus).toEqual([200]);
+  });
+  it('imports specs from a URL (same host → with platform authentication)', async () => {
+    const before = (await s.api('GET', `/platforms/${hub}/specs`)).length;
+    const spec = await s.api('POST', `/platforms/${hub}/specs`, { url: '/api/identitymanagement/v3/openapi.json', name: 'IDM from URL' });
+    expect(spec.operationCount).toBe(8);
+    expect((await s.api('GET', `/platforms/${hub}/specs`)).length).toBe(before + 1);
+  });
+  it('saves, exports, imports and instantiates connector types', async () => {
+    const pf = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Ticketing');
+    await s.api('PUT', `/platforms/${pf.id}/secrets`, { token: 'super-secret-token' });
+    const t = await s.api('POST', '/platform-types', { fromPlatformId: pf.id, kind: 'ticketing', label: 'Ticket system' });
+    expect(t.custom).toBe(true);
+    expect(t.specCount).toBe(1);
+    const pkg = await s.api('GET', '/platform-types/ticketing/export');
+    expect(JSON.stringify(pkg)).not.toContain('super-secret-token');
+    expect(pkg.secretFields.map((f: any) => f.key)).toEqual(['token']);
+    await s.api('DELETE', '/platform-types/ticketing');
+    await s.api('POST', '/platform-types/import', { package: { ...pkg, kind: 'ticketing-v2' } });
+    const created = await s.api('POST', '/platforms', { name: 'Ticketing prod', typeKind: 'ticketing-v2', baseUrl: 'https://tickets.example.com' });
+    expect(created.kind).toBe('ticketing-v2');
+    expect((await s.api('GET', `/platforms/${created.id}/operations`)).map((o: any) => o.operationId)).toEqual(['updateTicket']);
   });
 });

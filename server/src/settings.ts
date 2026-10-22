@@ -1,21 +1,10 @@
-import os from 'node:os';
 import type { Settings } from '@sm/shared';
 import { db } from './db.js';
-import { config } from './config.js';
 
 const DEFAULTS = (): Settings => ({
-  operator: config.operator ?? safeUser(),
   browserHeadless: true,
   browserTimeoutMs: 30000,
 });
-
-function safeUser(): string {
-  try {
-    return os.userInfo().username;
-  } catch {
-    return 'operator';
-  }
-}
 
 export function getSettings(): Settings {
   const rows = db().all<{ key: string; value: string }>('SELECT key, value FROM settings');
@@ -31,7 +20,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['operator', 'browserHeadless', 'browserTimeoutMs'];
+  const allowed: (keyof Settings)[] = ['browserHeadless', 'browserTimeoutMs'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {
@@ -46,4 +35,3 @@ export function updateSettings(patch: Partial<Settings>): Settings {
   return getSettings();
 }
 
-export const operator = (): string => getSettings().operator;

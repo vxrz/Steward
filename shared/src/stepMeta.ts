@@ -1,4 +1,4 @@
-import type { Step, StepType } from './process.js';
+import type { FlowNode, NodeType } from './process.js';
 
 /** UI metadata used by the process editor to render step forms. */
 export type FieldKind =
@@ -17,7 +17,8 @@ export type FieldKind =
   | 'actions'
   | 'paginate'
   | 'statusList'
-  | 'identifier';
+  | 'identifier'
+  | 'subjects';
 
 export interface FieldMeta {
   key: string;
@@ -29,23 +30,47 @@ export interface FieldMeta {
   placeholder?: string;
 }
 
+export type NodeCategory = 'Flow' | 'API' | 'Data' | 'Control' | 'People' | 'Evidence' | 'Browser';
+
 export interface StepMeta {
-  type: StepType;
+  type: NodeType;
   label: string;
-  category: 'API' | 'Data' | 'Control' | 'People' | 'Evidence' | 'Browser';
+  category: NodeCategory;
   description: string;
   fields: FieldMeta[];
-  /** Nested step blocks */
-  blocks?: { key: 'steps' | 'then' | 'else'; label: string }[];
-  defaults: () => Partial<Step>;
+  /** Color used on the canvas */
+  color: string;
+  defaults: () => Partial<FlowNode>;
 }
 
-export const STEP_META: Record<StepType, StepMeta> = {
+export const CATEGORY_ORDER: NodeCategory[] = ['Flow', 'API', 'Data', 'Control', 'People', 'Evidence', 'Browser'];
+
+export const STEP_META: Record<NodeType, StepMeta> = {
+  start: {
+    type: 'start',
+    label: 'Start',
+    category: 'Flow',
+    description: 'Entry point of the process. Inputs and connections are defined in the process settings.',
+    fields: [],
+    color: 'gray',
+    defaults: () => ({ name: 'Start' }),
+  },
+  note: {
+    type: 'note',
+    label: 'Comment',
+    category: 'Flow',
+    description: 'A comment on the canvas. Not executed.',
+    fields: [{ key: 'text', label: 'Text (markdown)', kind: 'templateArea', required: true }],
+    color: 'yellow',
+    defaults: () => ({ text: 'Comment' }),
+  },
   http: {
     type: 'http',
     label: 'API call',
     category: 'API',
-    description: 'Call an endpoint of a connected platform. Writes (POST/PUT/PATCH/DELETE) are skipped in dry runs.',
+    color: 'blue',
+    description:
+      'Call an endpoint of a connected platform. Writes (POST/PUT/PATCH/DELETE) are skipped in dry runs. Connect the "error" output to handle failures instead of stopping the run.',
     fields: [
       { key: 'connection', label: 'Connection', kind: 'connection', required: true },
       { key: 'method', label: 'Method', kind: 'method', required: true },
@@ -75,6 +100,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'set',
     label: 'Set variables',
     category: 'Data',
+    color: 'teal',
     description: 'Compute values with JSONata expressions and store them in vars.<name>.',
     fields: [{ key: 'values', label: 'Variables (name → template)', kind: 'keyValue', required: true }],
     defaults: () => ({ values: { result: '{{ 1 + 1 }}' } }),
@@ -83,43 +109,33 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'forEach',
     label: 'For each',
     category: 'Control',
-    description: 'Repeat the nested steps for every item of a list. The item is available as vars.<as>.',
+    color: 'indigo',
+    description:
+      'Runs the nodes connected to "each item" once per item (the item is vars.<as>), then continues with "done". Leave the last node of the loop body unconnected.',
     fields: [
       { key: 'items', label: 'Items (expression)', kind: 'expr', required: true, placeholder: 'vars.users.body' },
       { key: 'as', label: 'Item variable name', kind: 'identifier', required: true },
       { key: 'delayMs', label: 'Delay between items (ms)', kind: 'number' },
       { key: 'maxItems', label: 'Max items (safety limit)', kind: 'number' },
     ],
-    blocks: [{ key: 'steps', label: 'Do' }],
-    defaults: () => ({ items: 'vars.items', as: 'item', steps: [] }),
+    defaults: () => ({ items: 'vars.items', as: 'item' }),
   },
   if: {
     type: 'if',
     label: 'If / else',
     category: 'Control',
-    description: 'Run one of two branches depending on a condition.',
+    color: 'indigo',
+    description: 'Continues with "true" or "false" depending on a condition.',
     fields: [{ key: 'condition', label: 'Condition (expression)', kind: 'expr', required: true }],
-    blocks: [
-      { key: 'then', label: 'Then' },
-      { key: 'else', label: 'Else' },
-    ],
-    defaults: () => ({ condition: 'true', then: [], else: [] }),
-  },
-  group: {
-    type: 'group',
-    label: 'Group',
-    category: 'Control',
-    description: 'Group steps into a named section (shared condition / error handling).',
-    fields: [],
-    blocks: [{ key: 'steps', label: 'Steps' }],
-    defaults: () => ({ steps: [] }),
+    defaults: () => ({ condition: 'true' }),
   },
   userTask: {
     type: 'userTask',
     label: 'User task / approval',
     category: 'People',
+    color: 'grape',
     description:
-      'Pause the run and ask a person to pick items from a list (select) or approve/reject (approve). The decision is recorded in the protocol.',
+      'Pause the run and ask a person to pick items from a list (select) or approve/reject (approve, with "approved" and "rejected" outputs – an unconnected "rejected" output fails the run). The decision is recorded in the protocol.',
     fields: [
       { key: 'mode', label: 'Mode', kind: 'select', options: ['select', 'approve'], required: true },
       { key: 'title', label: 'Title', kind: 'template', required: true },
@@ -128,7 +144,13 @@ export const STEP_META: Record<StepType, StepMeta> = {
       { key: 'itemKey', label: 'Item key field', kind: 'text', placeholder: 'id' },
       { key: 'columns', label: 'Columns', kind: 'columns' },
       { key: 'preselect', label: 'Preselect (expression per item, $item)', kind: 'expr', placeholder: 'true' },
-      { key: 'onReject', label: 'On reject (approve mode)', kind: 'select', options: ['fail', 'continue'] },
+      {
+        key: 'assignees',
+        label: 'Who may decide',
+        kind: 'subjects',
+        help: 'Users, teams or roles. Empty = everyone allowed to run or approve this process.',
+      },
+      { key: 'fourEyes', label: 'Four-eyes: the person who started the run may not decide', kind: 'boolean' },
     ],
     defaults: () => ({ mode: 'approve', title: 'Please confirm' }),
   },
@@ -136,6 +158,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'check',
     label: 'Check / assertion',
     category: 'Evidence',
+    color: 'green',
     description: 'Record a pass/fail check result (status tests, health checks).',
     fields: [
       { key: 'condition', label: 'Passes when (expression)', kind: 'expr', required: true },
@@ -149,6 +172,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'log',
     label: 'Log message',
     category: 'Evidence',
+    color: 'green',
     description: 'Write a message (and optional data) to the run protocol.',
     fields: [
       { key: 'level', label: 'Level', kind: 'select', options: ['info', 'warn', 'error'] },
@@ -161,6 +185,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'report',
     label: 'Report section',
     category: 'Evidence',
+    color: 'green',
     description: 'Add a section with text and/or a table to the run protocol.',
     fields: [
       { key: 'title', label: 'Title', kind: 'template', required: true },
@@ -174,6 +199,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'browser',
     label: 'Browser automation',
     category: 'Browser',
+    color: 'orange',
     description:
       'Drive a real browser (Playwright): open pages, fill forms, click, extract text and take screenshots as evidence. The browser session is shared by all browser steps of a run.',
     fields: [
@@ -187,6 +213,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'wait',
     label: 'Wait',
     category: 'Control',
+    color: 'indigo',
     description: 'Pause for a number of seconds.',
     fields: [{ key: 'seconds', label: 'Seconds', kind: 'number', required: true }],
     defaults: () => ({ seconds: 5 }),
@@ -195,6 +222,7 @@ export const STEP_META: Record<StepType, StepMeta> = {
     type: 'fail',
     label: 'Fail run',
     category: 'Control',
+    color: 'indigo',
     description: 'Stop the run with an error message.',
     fields: [{ key: 'message', label: 'Message', kind: 'template', required: true }],
     defaults: () => ({ message: 'Stopped' }),
@@ -222,7 +250,7 @@ export const BROWSER_ACTIONS: { action: string; label: string; fields: ('selecto
   { action: 'evaluate', label: 'Run JavaScript in page', fields: ['value', 'as'] },
 ];
 
-export function newStepId(type: StepType, existing: Set<string>): string {
+export function newStepId(type: NodeType, existing: Set<string>): string {
   let i = 1;
   while (existing.has(`${type}${i}`)) i++;
   return `${type}${i}`;

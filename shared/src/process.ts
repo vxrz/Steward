@@ -1,24 +1,29 @@
 import { z } from 'zod';
+import { stepsToGraph } from './graph.js';
 
 /**
  * Process definition model.
  *
- * A process is a tree of steps. Fields marked "expression" take a JSONata
- * expression (optionally wrapped in {{ }}). Fields marked "template" are
- * strings/objects where {{ expression }} parts are replaced at run time.
+ * A process is a graph of nodes connected by wires (like Node-RED). Every
+ * node has named output ports (e.g. an "if" node has "true" and "false").
+ * For hand-written YAML the compact sequential `steps` format (with nested
+ * loops/branches) is accepted too and converted into a graph.
  *
- * Expression scope: inputs, vars, const, run  (plus $item for per-item fields)
+ * Fields marked "expression" take a JSONata expression (optionally wrapped in
+ * {{ }}). "Template" fields are strings/objects where {{ expression }} parts
+ * are replaced at run time. Expression scope: inputs, vars, const, run, conn.
  */
 
 export const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'] as const;
 export type HttpMethod = (typeof HTTP_METHODS)[number];
 
-export const STEP_TYPES = [
+/** Node types available on the canvas. */
+export const NODE_TYPES = [
+  'start',
   'http',
   'set',
   'forEach',
   'if',
-  'group',
   'userTask',
   'check',
   'log',
@@ -26,7 +31,12 @@ export const STEP_TYPES = [
   'browser',
   'wait',
   'fail',
+  'note',
 ] as const;
+export type NodeType = (typeof NODE_TYPES)[number];
+
+/** Step types of the sequential (YAML) format. */
+export const STEP_TYPES = ['http', 'set', 'forEach', 'if', 'group', 'userTask', 'check', 'log', 'report', 'browser', 'wait', 'fail'] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
 const identifier = z
@@ -39,26 +49,11 @@ const columnSchema = z.object({
 });
 export type Column = z.infer<typeof columnSchema>;
 
-const baseStep = {
-  id: identifier,
-  name: z.string().optional(),
-  description: z.string().optional(),
-  /** Expression; step is skipped when it evaluates to false. */
-  when: z.string().optional(),
-  onError: z.enum(['fail', 'continue']).optional(),
-  retry: z
-    .object({ attempts: z.number().int().min(1).max(10), delayMs: z.number().int().min(0).optional() })
-    .optional(),
-  /** Store the step result in vars.<saveAs>. */
-  saveAs: identifier.optional(),
-};
-
 export const paginateSchema = z.object({
   mode: z.enum(['none', 'scim', 'page', 'offset', 'nextLink']),
   /** Expression for the item array inside one page response body. */
   itemsPath: z.string().optional(),
   pageSize: z.number().int().min(1).max(10000).optional(),
-  /** Query parameter names (defaults depend on mode). */
   pageParam: z.string().optional(),
   sizeParam: z.string().optional(),
   /** 'page' mode: expression for total pages (default page.totalPages). */
@@ -72,25 +67,9 @@ export const paginateSchema = z.object({
 export type Paginate = z.infer<typeof paginateSchema>;
 
 export const browserActionSchema = z.object({
-  action: z.enum([
-    'goto',
-    'click',
-    'fill',
-    'press',
-    'select',
-    'check',
-    'waitFor',
-    'expectText',
-    'extract',
-    'screenshot',
-    'wait',
-    'evaluate',
-  ]),
-  /** Playwright selector (css, text=..., role=..., etc.) */
+  action: z.enum(['goto', 'click', 'fill', 'press', 'select', 'check', 'waitFor', 'expectText', 'extract', 'screenshot', 'wait', 'evaluate']),
   selector: z.string().optional(),
-  /** Template: URL for goto, value for fill/select, key for press, text for expectText, JS for evaluate */
   value: z.string().optional(),
-  /** Variable name to store extracted value / evaluate result. */
   as: identifier.optional(),
   attribute: z.string().optional(),
   all: z.boolean().optional(),
@@ -101,6 +80,194 @@ export const browserActionSchema = z.object({
 });
 export type BrowserAction = z.infer<typeof browserActionSchema>;
 
+// ---------------------------------------------------------------------------
+// Shared configuration per type
+// ---------------------------------------------------------------------------
+
+interface Base {
+  id: string;
+  name?: string;
+  description?: string;
+  /** Expression; the node is skipped (and passes through) when false. */
+  when?: string;
+  onError?: 'fail' | 'continue';
+  retry?: { attempts: number; delayMs?: number };
+  /** Store the result in vars.<saveAs>. */
+  saveAs?: string;
+}
+
+export interface HttpConfig {
+  type: 'http';
+  connection: string;
+  method: HttpMethod;
+  path: string;
+  query?: Record<string, unknown>;
+  headers?: Record<string, string>;
+  body?: unknown;
+  bodyType?: 'json' | 'form' | 'text';
+  expectStatus?: number[];
+  paginate?: Paginate;
+  /** OpenAPI operationId this call was created from (informational). */
+  operationId?: string;
+  /** Override write detection (non-GET/HEAD = write) used for dry runs. */
+  mutating?: boolean;
+}
+export interface SetConfig {
+  type: 'set';
+  values: Record<string, unknown>;
+}
+export interface ForEachConfig {
+  type: 'forEach';
+  items: string;
+  as: string;
+  delayMs?: number;
+  maxItems?: number;
+}
+export interface IfConfig {
+  type: 'if';
+  condition: string;
+}
+export interface UserTaskConfig {
+  type: 'userTask';
+  mode: 'select' | 'approve';
+  title: string;
+  instructions?: string;
+  items?: string;
+  itemKey?: string;
+  columns?: Column[];
+  /** Per-item expression: true = checkbox preselected. */
+  preselect?: string;
+  /** Who may decide: user:<name>, team:<name>, role:<role>. Empty = everyone allowed to run or approve the process. */
+  assignees?: string[];
+  /** Four-eyes principle: the person who started the run may not decide. */
+  fourEyes?: boolean;
+}
+export interface CheckConfig {
+  type: 'check';
+  condition: string;
+  severity?: 'error' | 'warning' | 'info';
+  message?: string;
+  failRun?: boolean;
+}
+export interface LogConfig {
+  type: 'log';
+  level?: 'info' | 'warn' | 'error';
+  message: string;
+  data?: string;
+}
+export interface ReportConfig {
+  type: 'report';
+  title: string;
+  text?: string;
+  rows?: string;
+  columns?: Column[];
+}
+export interface BrowserConfig {
+  type: 'browser';
+  connection?: string;
+  actions: BrowserAction[];
+  mutating?: boolean;
+}
+export interface WaitConfig {
+  type: 'wait';
+  seconds: number;
+}
+export interface FailConfig {
+  type: 'fail';
+  message: string;
+}
+export interface StartConfig {
+  type: 'start';
+}
+export interface NoteConfig {
+  type: 'note';
+  text: string;
+}
+
+const baseFields = {
+  id: identifier,
+  name: z.string().optional(),
+  description: z.string().optional(),
+  when: z.string().optional(),
+  onError: z.enum(['fail', 'continue']).optional(),
+  retry: z.object({ attempts: z.number().int().min(1).max(10), delayMs: z.number().int().min(0).optional() }).optional(),
+  saveAs: identifier.optional(),
+};
+
+const shapes = {
+  http: {
+    type: z.literal('http'),
+    connection: z.string().min(1),
+    method: z.enum(HTTP_METHODS),
+    path: z.string().min(1),
+    query: z.record(z.unknown()).optional(),
+    headers: z.record(z.string()).optional(),
+    body: z.unknown().optional(),
+    bodyType: z.enum(['json', 'form', 'text']).optional(),
+    expectStatus: z.array(z.number().int()).optional(),
+    paginate: paginateSchema.optional(),
+    operationId: z.string().optional(),
+    mutating: z.boolean().optional(),
+  },
+  set: { type: z.literal('set'), values: z.record(z.unknown()) },
+  forEach: {
+    type: z.literal('forEach'),
+    items: z.string().min(1),
+    as: identifier,
+    delayMs: z.number().int().min(0).optional(),
+    maxItems: z.number().int().min(1).optional(),
+  },
+  if: { type: z.literal('if'), condition: z.string().min(1) },
+  userTask: {
+    type: z.literal('userTask'),
+    mode: z.enum(['select', 'approve']),
+    title: z.string().min(1),
+    instructions: z.string().optional(),
+    items: z.string().optional(),
+    itemKey: z.string().optional(),
+    columns: z.array(columnSchema).optional(),
+    preselect: z.string().optional(),
+    assignees: z.array(z.string()).optional(),
+    fourEyes: z.boolean().optional(),
+  },
+  check: {
+    type: z.literal('check'),
+    condition: z.string().min(1),
+    severity: z.enum(['error', 'warning', 'info']).optional(),
+    message: z.string().optional(),
+    failRun: z.boolean().optional(),
+  },
+  log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },
+  report: {
+    type: z.literal('report'),
+    title: z.string().min(1),
+    text: z.string().optional(),
+    rows: z.string().optional(),
+    columns: z.array(columnSchema).optional(),
+  },
+  browser: { type: z.literal('browser'), connection: z.string().optional(), actions: z.array(browserActionSchema), mutating: z.boolean().optional() },
+  wait: { type: z.literal('wait'), seconds: z.number().min(0).max(3600) },
+  fail: { type: z.literal('fail'), message: z.string() },
+  start: { type: z.literal('start') },
+  note: { type: z.literal('note'), text: z.string() },
+};
+
+// ---------------------------------------------------------------------------
+// Sequential format (YAML authoring, templates)
+// ---------------------------------------------------------------------------
+
+export type HttpStep = Base & HttpConfig;
+export type SetStep = Base & SetConfig;
+export type ForEachStep = Base & ForEachConfig & { steps: Step[] };
+export type IfStep = Base & IfConfig & { then: Step[]; else?: Step[] };
+export type GroupStep = Base & { type: 'group'; steps: Step[] };
+export type UserTaskStep = Base & UserTaskConfig & { onReject?: 'fail' | 'continue' };
+export type CheckStep = Base & CheckConfig;
+export type LogStep = Base & LogConfig;
+export type ReportStep = Base & ReportConfig;
+export type BrowserStep = Base & BrowserConfig;
+export type WaitStep = Base & WaitConfig;
+export type FailStep = Base & FailConfig;
 export type Step =
   | HttpStep
   | SetStep
@@ -115,181 +282,111 @@ export type Step =
   | WaitStep
   | FailStep;
 
-interface Base {
-  id: string;
-  name?: string;
-  description?: string;
-  when?: string;
-  onError?: 'fail' | 'continue';
-  retry?: { attempts: number; delayMs?: number };
-  saveAs?: string;
-}
-export interface HttpStep extends Base {
-  type: 'http';
-  connection: string;
-  method: HttpMethod;
-  path: string;
-  query?: Record<string, unknown>;
-  headers?: Record<string, string>;
-  body?: unknown;
-  bodyType?: 'json' | 'form' | 'text';
-  expectStatus?: number[];
-  paginate?: Paginate;
-  operationId?: string;
-  /** Override write detection (non-GET/HEAD = write) used for dry runs. */
-  mutating?: boolean;
-}
-export interface SetStep extends Base {
-  type: 'set';
-  values: Record<string, unknown>;
-}
-export interface ForEachStep extends Base {
-  type: 'forEach';
-  items: string;
-  as: string;
-  steps: Step[];
-  delayMs?: number;
-  maxItems?: number;
-}
-export interface IfStep extends Base {
-  type: 'if';
-  condition: string;
-  then: Step[];
-  else?: Step[];
-}
-export interface GroupStep extends Base {
-  type: 'group';
-  steps: Step[];
-}
-export interface UserTaskStep extends Base {
-  type: 'userTask';
-  mode: 'select' | 'approve';
-  title: string;
-  instructions?: string;
-  items?: string;
-  itemKey?: string;
-  columns?: Column[];
-  /** Per-item expression: true = checkbox preselected. */
-  preselect?: string;
-  /** For approve mode: what happens on rejection. */
-  onReject?: 'fail' | 'continue';
-}
-export interface CheckStep extends Base {
-  type: 'check';
-  condition: string;
-  severity?: 'error' | 'warning' | 'info';
-  message?: string;
-  failRun?: boolean;
-}
-export interface LogStep extends Base {
-  type: 'log';
-  level?: 'info' | 'warn' | 'error';
-  message: string;
-  data?: string;
-}
-export interface ReportStep extends Base {
-  type: 'report';
-  title: string;
-  text?: string;
-  rows?: string;
-  columns?: Column[];
-}
-export interface BrowserStep extends Base {
-  type: 'browser';
-  connection?: string;
-  actions: BrowserAction[];
-  mutating?: boolean;
-}
-export interface WaitStep extends Base {
-  type: 'wait';
-  seconds: number;
-}
-export interface FailStep extends Base {
-  type: 'fail';
-  message: string;
-}
-
-const stepSchema: z.ZodType<Step> = z.lazy(() =>
+export const stepSchema: z.ZodType<Step> = z.lazy(() =>
   z.discriminatedUnion('type', [
-    z.object({
-      ...baseStep,
-      type: z.literal('http'),
-      connection: z.string().min(1),
-      method: z.enum(HTTP_METHODS),
-      path: z.string().min(1),
-      query: z.record(z.unknown()).optional(),
-      headers: z.record(z.string()).optional(),
-      body: z.unknown().optional(),
-      bodyType: z.enum(['json', 'form', 'text']).optional(),
-      expectStatus: z.array(z.number().int()).optional(),
-      paginate: paginateSchema.optional(),
-      operationId: z.string().optional(),
-      mutating: z.boolean().optional(),
-    }),
-    z.object({ ...baseStep, type: z.literal('set'), values: z.record(z.unknown()) }),
-    z.object({
-      ...baseStep,
-      type: z.literal('forEach'),
-      items: z.string().min(1),
-      as: identifier,
-      steps: z.array(stepSchema),
-      delayMs: z.number().int().min(0).optional(),
-      maxItems: z.number().int().min(1).optional(),
-    }),
-    z.object({
-      ...baseStep,
-      type: z.literal('if'),
-      condition: z.string().min(1),
-      then: z.array(stepSchema),
-      else: z.array(stepSchema).optional(),
-    }),
-    z.object({ ...baseStep, type: z.literal('group'), steps: z.array(stepSchema) }),
-    z.object({
-      ...baseStep,
-      type: z.literal('userTask'),
-      mode: z.enum(['select', 'approve']),
-      title: z.string().min(1),
-      instructions: z.string().optional(),
-      items: z.string().optional(),
-      itemKey: z.string().optional(),
-      columns: z.array(columnSchema).optional(),
-      preselect: z.string().optional(),
-      onReject: z.enum(['fail', 'continue']).optional(),
-    }),
-    z.object({
-      ...baseStep,
-      type: z.literal('check'),
-      condition: z.string().min(1),
-      severity: z.enum(['error', 'warning', 'info']).optional(),
-      message: z.string().optional(),
-      failRun: z.boolean().optional(),
-    }),
-    z.object({
-      ...baseStep,
-      type: z.literal('log'),
-      level: z.enum(['info', 'warn', 'error']).optional(),
-      message: z.string(),
-      data: z.string().optional(),
-    }),
-    z.object({
-      ...baseStep,
-      type: z.literal('report'),
-      title: z.string().min(1),
-      text: z.string().optional(),
-      rows: z.string().optional(),
-      columns: z.array(columnSchema).optional(),
-    }),
-    z.object({
-      ...baseStep,
-      type: z.literal('browser'),
-      connection: z.string().optional(),
-      actions: z.array(browserActionSchema),
-      mutating: z.boolean().optional(),
-    }),
-    z.object({ ...baseStep, type: z.literal('wait'), seconds: z.number().min(0).max(3600) }),
-    z.object({ ...baseStep, type: z.literal('fail'), message: z.string() }),
+    z.object({ ...baseFields, ...shapes.http }),
+    z.object({ ...baseFields, ...shapes.set }),
+    z.object({ ...baseFields, ...shapes.forEach, steps: z.array(stepSchema) }),
+    z.object({ ...baseFields, ...shapes.if, then: z.array(stepSchema), else: z.array(stepSchema).optional() }),
+    z.object({ ...baseFields, type: z.literal('group'), steps: z.array(stepSchema) }),
+    z.object({ ...baseFields, ...shapes.userTask, onReject: z.enum(['fail', 'continue']).optional() }),
+    z.object({ ...baseFields, ...shapes.check }),
+    z.object({ ...baseFields, ...shapes.log }),
+    z.object({ ...baseFields, ...shapes.report }),
+    z.object({ ...baseFields, ...shapes.browser }),
+    z.object({ ...baseFields, ...shapes.wait }),
+    z.object({ ...baseFields, ...shapes.fail }),
   ]),
 ) as z.ZodType<Step>;
+
+// ---------------------------------------------------------------------------
+// Graph format (canonical)
+// ---------------------------------------------------------------------------
+
+type Pos = { x: number; y: number };
+export type NodeConfig =
+  | HttpConfig
+  | SetConfig
+  | ForEachConfig
+  | IfConfig
+  | UserTaskConfig
+  | CheckConfig
+  | LogConfig
+  | ReportConfig
+  | BrowserConfig
+  | WaitConfig
+  | FailConfig
+  | StartConfig
+  | NoteConfig;
+export type FlowNode = Base & Pos & NodeConfig;
+export type NodeOf<T extends NodeType> = Extract<FlowNode, { type: T }>;
+
+const pos = { x: z.number(), y: z.number() };
+export const nodeSchema = z.discriminatedUnion('type', [
+  z.object({ ...baseFields, ...pos, ...shapes.start }),
+  z.object({ ...baseFields, ...pos, ...shapes.http }),
+  z.object({ ...baseFields, ...pos, ...shapes.set }),
+  z.object({ ...baseFields, ...pos, ...shapes.forEach }),
+  z.object({ ...baseFields, ...pos, ...shapes.if }),
+  z.object({ ...baseFields, ...pos, ...shapes.userTask }),
+  z.object({ ...baseFields, ...pos, ...shapes.check }),
+  z.object({ ...baseFields, ...pos, ...shapes.log }),
+  z.object({ ...baseFields, ...pos, ...shapes.report }),
+  z.object({ ...baseFields, ...pos, ...shapes.browser }),
+  z.object({ ...baseFields, ...pos, ...shapes.wait }),
+  z.object({ ...baseFields, ...pos, ...shapes.fail }),
+  z.object({ ...baseFields, ...pos, ...shapes.note }),
+]) as unknown as z.ZodType<FlowNode>;
+
+export const wireSchema = z.object({
+  from: z.string(),
+  port: z.string().default('out'),
+  to: z.string(),
+});
+export type Wire = z.infer<typeof wireSchema>;
+
+export interface PortDef {
+  id: string;
+  label: string;
+}
+
+/** Output ports of a node. A port without wires ends that path. */
+export function nodePorts(n: Pick<FlowNode, 'type'> & { mode?: string }): PortDef[] {
+  switch (n.type) {
+    case 'if':
+      return [
+        { id: 'true', label: 'true' },
+        { id: 'false', label: 'false' },
+      ];
+    case 'forEach':
+      return [
+        { id: 'each', label: 'each item' },
+        { id: 'done', label: 'done' },
+      ];
+    case 'userTask':
+      return n.mode === 'approve'
+        ? [
+            { id: 'approved', label: 'approved' },
+            { id: 'rejected', label: 'rejected' },
+          ]
+        : [{ id: 'out', label: '' }];
+    case 'http':
+    case 'browser':
+      return [
+        { id: 'out', label: '' },
+        { id: 'error', label: 'error' },
+      ];
+    case 'fail':
+    case 'note':
+      return [];
+    default:
+      return [{ id: 'out', label: '' }];
+  }
+}
+
+export function hasInput(type: NodeType): boolean {
+  return type !== 'start' && type !== 'note';
+}
 
 export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json'] as const;
 export type InputType = (typeof INPUT_TYPES)[number];
@@ -301,9 +398,7 @@ export const inputDefSchema = z.object({
   description: z.string().optional(),
   required: z.boolean().optional(),
   default: z.unknown().optional(),
-  /** select: allowed values */
   options: z.array(z.string()).optional(),
-  /** table: expected CSV columns */
   columns: z.array(z.string()).optional(),
 });
 export type InputDef = z.infer<typeof inputDefSchema>;
@@ -316,28 +411,40 @@ export const connectionSlotSchema = z.object({
 });
 export type ConnectionSlot = z.infer<typeof connectionSlotSchema>;
 
-export const processDefinitionSchema = z.object({
+const definitionBase = {
   name: z.string().min(1),
   description: z.string().optional(),
   tags: z.array(z.string()).optional(),
   connections: z.array(connectionSlotSchema).default([]),
   inputs: z.array(inputDefSchema).default([]),
   constants: z.record(z.unknown()).optional(),
-  steps: z.array(stepSchema),
+};
+
+export const processDefinitionSchema = z.object({
+  ...definitionBase,
+  nodes: z.array(nodeSchema),
+  wires: z.array(wireSchema).default([]),
 });
 export type ProcessDefinition = z.infer<typeof processDefinitionSchema>;
+
+/** Accepted input: graph (nodes + wires) or sequential steps. */
+const processInputSchema = z.object({
+  ...definitionBase,
+  nodes: z.array(z.unknown()).optional(),
+  wires: z.array(z.unknown()).optional(),
+  steps: z.array(stepSchema).optional(),
+});
 
 export interface ValidationIssue {
   path: string;
   message: string;
+  /** Node the issue belongs to (graph format). */
+  nodeId?: string;
+  severity?: 'error' | 'warning';
 }
 
-/** Walk all steps (depth first) with their nesting path. */
-export function walkSteps(
-  steps: Step[],
-  fn: (step: Step, path: string) => void,
-  prefix = 'steps',
-): void {
+/** Walk sequential steps (depth first) with their nesting path. */
+export function walkSteps(steps: Step[], fn: (step: Step, path: string) => void, prefix = 'steps'): void {
   steps.forEach((s, i) => {
     const p = `${prefix}[${i}]`;
     fn(s, p);
@@ -345,7 +452,6 @@ export function walkSteps(
   });
 }
 
-/** Nested step lists of a control step. */
 export function childBlocks(step: Step): [string, Step[]][] {
   switch (step.type) {
     case 'forEach':
@@ -361,43 +467,120 @@ export function childBlocks(step: Step): [string, Step[]][] {
   }
 }
 
-export function validateProcess(def: unknown): {
+/**
+ * Parse, convert (steps → graph) and validate a definition.
+ * Errors make `ok` false; warnings are informational.
+ */
+export function validateProcess(raw: unknown): {
   ok: boolean;
   issues: ValidationIssue[];
+  warnings: ValidationIssue[];
   definition?: ProcessDefinition;
 } {
-  const parsed = processDefinitionSchema.safeParse(def);
+  const input = processInputSchema.safeParse(raw);
+  if (!input.success) {
+    return { ok: false, warnings: [], issues: input.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) };
+  }
+  let candidate: unknown = input.data;
+  if (!input.data.nodes && input.data.steps) {
+    const { steps, ...rest } = input.data;
+    candidate = { ...rest, ...stepsToGraph(steps) };
+  } else if (!input.data.nodes) {
+    const { steps: _s, ...rest } = input.data;
+    candidate = { ...rest, ...stepsToGraph([]) };
+  } else {
+    const { steps: _s, ...rest } = input.data;
+    candidate = rest;
+  }
+  const parsed = processDefinitionSchema.safeParse(candidate);
   if (!parsed.success) {
     return {
       ok: false,
-      issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+      warnings: [],
+      issues: parsed.error.issues.map((i) => {
+        const idx = i.path[0] === 'nodes' ? Number(i.path[1]) : NaN;
+        const node = Number.isFinite(idx) ? (candidate as { nodes: { id?: string }[] }).nodes?.[idx] : undefined;
+        return { path: i.path.join('.'), message: i.message, nodeId: node?.id };
+      }),
     };
   }
   const d = parsed.data;
+  const { issues, warnings } = checkGraph(d);
+  return { ok: issues.length === 0, issues, warnings, definition: d };
+}
+
+function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings: ValidationIssue[] } {
   const issues: ValidationIssue[] = [];
-  const ids = new Map<string, string>();
+  const warnings: ValidationIssue[] = [];
+  const byId = new Map<string, FlowNode>();
   const slots = new Set(d.connections.map((c) => c.slot));
-  walkSteps(d.steps, (s, path) => {
-    const prev = ids.get(s.id);
-    if (prev) issues.push({ path, message: `Duplicate step id "${s.id}" (also used at ${prev})` });
-    ids.set(s.id, path);
-    if ((s.type === 'http' || (s.type === 'browser' && s.connection)) && !slots.has(s.connection!)) {
-      issues.push({ path, message: `Unknown connection slot "${s.connection}". Declare it under connections.` });
+  d.nodes.forEach((n, i) => {
+    if (byId.has(n.id)) issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: `Duplicate node id "${n.id}"` });
+    byId.set(n.id, n);
+    if ((n.type === 'http' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: `Unknown connection "${n.connection}". Declare it under Connections.` });
     }
-    if (s.type === 'userTask' && s.mode === 'select' && !s.items) {
-      issues.push({ path, message: 'Select tasks need an "items" expression' });
+    if (n.type === 'userTask' && n.mode === 'select' && !n.items) {
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: 'Select tasks need an "items" expression' });
+    }
+    if (n.type === 'if' && n.when) {
+      issues.push({ path: `nodes[${i}]`, nodeId: n.id, message: '"Only run when" is not supported on if nodes – put it into the condition' });
     }
   });
-  const inputNames = new Set<string>();
-  for (const inp of d.inputs) {
-    if (inputNames.has(inp.name)) issues.push({ path: `inputs.${inp.name}`, message: 'Duplicate input name' });
-    inputNames.add(inp.name);
+  const starts = d.nodes.filter((n) => n.type === 'start');
+  if (starts.length !== 1) issues.push({ path: 'nodes', message: `A process needs exactly one start node (found ${starts.length})` });
+
+  const out = new Map<string, Wire[]>();
+  const seen = new Set<string>();
+  d.wires.forEach((w, i) => {
+    const from = byId.get(w.from);
+    const to = byId.get(w.to);
+    if (!from || !to) {
+      issues.push({ path: `wires[${i}]`, message: `Wire references unknown node (${w.from} → ${w.to})` });
+      return;
+    }
+    if (!nodePorts(from as never).some((p) => p.id === w.port)) {
+      issues.push({ path: `wires[${i}]`, nodeId: from.id, message: `Node "${from.id}" has no output "${w.port}"` });
+    }
+    if (!hasInput(to.type)) issues.push({ path: `wires[${i}]`, nodeId: to.id, message: `Node "${to.id}" cannot receive wires` });
+    const k = `${w.from}|${w.port}|${w.to}`;
+    if (seen.has(k)) warnings.push({ path: `wires[${i}]`, nodeId: from.id, message: 'Duplicate wire' });
+    seen.add(k);
+    out.set(w.from, [...(out.get(w.from) ?? []), w]);
+  });
+
+  // cycles (loops must use a for-each node instead of wiring back)
+  const state = new Map<string, 1 | 2>();
+  const visit = (id: string, trail: string[]): void => {
+    state.set(id, 1);
+    for (const w of out.get(id) ?? []) {
+      const s = state.get(w.to);
+      if (s === 1) issues.push({ path: 'wires', nodeId: w.to, message: `Wires form a cycle (${[...trail, id, w.to].join(' → ')}). Use a "For each" node for loops.` });
+      else if (!s) visit(w.to, [...trail, id]);
+    }
+    state.set(id, 2);
+  };
+  for (const n of d.nodes) if (!state.has(n.id)) visit(n.id, []);
+
+  // reachability
+  if (starts.length === 1 && issues.length === 0) {
+    const reach = new Set<string>();
+    const stack = [starts[0]!.id];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (reach.has(id)) continue;
+      reach.add(id);
+      for (const w of out.get(id) ?? []) stack.push(w.to);
+    }
+    for (const n of d.nodes) {
+      if (n.type !== 'note' && !reach.has(n.id)) warnings.push({ path: 'nodes', nodeId: n.id, message: `"${n.name || n.id}" is not connected to the start node and will never run` });
+    }
   }
-  return { ok: issues.length === 0, issues, definition: d };
+  return { issues, warnings };
 }
 
 /** Methods treated as write operations (skipped in dry runs). */
-export function isMutating(step: HttpStep): boolean {
+export function isMutating(step: Pick<HttpConfig, 'method' | 'mutating'>): boolean {
   if (typeof step.mutating === 'boolean') return step.mutating;
   return !['GET', 'HEAD'].includes(step.method);
 }

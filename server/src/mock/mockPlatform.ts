@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { mockIdentitySpec } from './mockSpec.js';
 
 /**
  * In-memory simulation of the parts of Insights Hub, Industrial Edge Management
@@ -171,6 +172,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   };
 
   const IDM = '/ih/api/identitymanagement/v3';
+  app.get(`${IDM}/openapi.json`, { preHandler: ihAuth }, async () => mockIdentitySpec());
   app.get(`${IDM}/Users`, { preHandler: ihAuth }, async (req) => {
     const q = req.query as Record<string, string>;
     const all = [...state.users.values()].map(userView).filter((u) => scimFilter(q.filter, u as never));

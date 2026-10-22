@@ -2,23 +2,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   isMutating,
-  type BrowserStep,
-  type HttpStep,
+  nodePorts,
+  outgoing,
+  type FlowNode,
+  type NodeOf,
   type InputDef,
   type Platform,
   type ProcessDefinition,
   type RunStats,
   type StartRunRequest,
-  type Step,
   type StepStatus,
   type TaskDecision,
   type TaskItem,
-  type UserTaskStep,
 } from '@sm/shared';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { db } from '../db.js';
-import { getSettings, operator } from '../settings.js';
+import { getSettings } from '../settings.js';
+import { currentActor } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { platformRequest, resolveBaseUrl, secretValues, type HttpResult } from '../platforms/http.js';
@@ -68,6 +69,9 @@ class RunContext {
   abort = new AbortController();
   browser?: BrowserSession;
   stats: RunStats;
+  nodes: Map<string, FlowNode>;
+  activations = new Map<string, number>();
+  totalActivations = 0;
 
   constructor(
     public runId: string,
@@ -80,6 +84,7 @@ class RunContext {
     stats: RunStats,
   ) {
     this.journal = store.loadJournal(runId);
+    this.nodes = new Map(def.nodes.map((n) => [n.id, n]));
     this.stats = stats;
     for (const b of Object.values(bindings)) this.redactor.add(...Object.values(b.secrets));
   }
@@ -286,7 +291,7 @@ export async function startRun(
   const inputs = coerceInputs(def.inputs ?? [], req.inputs ?? {});
   const bindings = await resolveBindings(def, req.bindings ?? {});
   const runId = newId('run_');
-  const actor = opts.actor ?? operator();
+  const actor = opts.actor ?? currentActor();
   const startedAt = nowIso();
   const bindingInfo = Object.fromEntries(
     Object.entries(bindings).map(([k, b]) => [k, { platformId: b.platform.id, platformName: b.platform.name, baseUrl: b.baseUrl }]),
@@ -339,7 +344,7 @@ function launch(
 }
 
 /** Resume a waiting/interrupted run by replaying its journal. */
-export async function resumeRun(runId: string, actor = operator()): Promise<void> {
+export async function resumeRun(runId: string, actor = currentActor()): Promise<void> {
   if (active.has(runId)) return;
   const r = store.runRow(runId);
   if (!['waiting', 'interrupted'].includes(r.status)) throw new HttpError(409, `Run is ${r.status}`);
@@ -363,7 +368,7 @@ export async function resumeRun(runId: string, actor = operator()): Promise<void
   );
 }
 
-export async function cancelRun(runId: string, actor = operator()): Promise<void> {
+export async function cancelRun(runId: string, actor = currentActor()): Promise<void> {
   const r = store.runRow(runId);
   if (['succeeded', 'failed', 'cancelled'].includes(r.status)) throw new HttpError(409, `Run already ${r.status}`);
   const a = active.get(runId);
@@ -381,7 +386,7 @@ export async function cancelRun(runId: string, actor = operator()): Promise<void
   }
 }
 
-export async function completeTask(taskId: string, decision: TaskDecision, actor = operator()): Promise<void> {
+export async function completeTask(taskId: string, decision: TaskDecision, actor = currentActor()): Promise<void> {
   const t = store.getTask(taskId);
   if (t.status !== 'open') throw new HttpError(409, `Task is ${t.status}`);
   const validKeys = new Set(t.items.map((i) => i.key));
@@ -442,7 +447,9 @@ async function execute(ctx: RunContext): Promise<void> {
   let status: 'succeeded' | 'failed' | 'cancelled' = 'succeeded';
   let error: string | undefined;
   try {
-    await execSteps(ctx.def.steps, ctx, null);
+    const start = ctx.def.nodes.find((n) => n.type === 'start');
+    if (!start) throw new Error('Process has no start node');
+    await runNode(start, ctx, null);
   } catch (e) {
     if (e instanceof Cancelled || ctx.signal.aborted) {
       status = 'cancelled';
@@ -468,10 +475,25 @@ async function execute(ctx: RunContext): Promise<void> {
   });
 }
 
-async function execSteps(steps: Step[], ctx: RunContext, parentKey: string | null): Promise<void> {
-  for (const step of steps) {
-    if (ctx.signal.aborted) throw new Cancelled();
-    await execStep(step, ctx, parentKey, parentKey ? `${parentKey}/${step.id}` : step.id);
+const MAX_ACTIVATIONS = 200000;
+
+/** Journal key of this activation: <loop scope>/<node id>[#n when reached again]. */
+function activationKey(ctx: RunContext, scope: string | null, nodeId: string): string {
+  const base = scope ? `${scope}/${nodeId}` : nodeId;
+  const n = (ctx.activations.get(base) ?? 0) + 1;
+  ctx.activations.set(base, n);
+  if (++ctx.totalActivations > MAX_ACTIVATIONS) throw new Error(`More than ${MAX_ACTIVATIONS} node executions – stopping`);
+  return n === 1 ? base : `${base}#${n}`;
+}
+
+/** Execute a node, then everything wired to the ports it fires (depth first, top-to-bottom). */
+async function runNode(node: FlowNode, ctx: RunContext, scope: string | null): Promise<void> {
+  if (ctx.signal.aborted) throw new Cancelled();
+  if (node.type === 'note') return;
+  const key = activationKey(ctx, scope, node.id);
+  const ports = await execNode(node, ctx, scope, key);
+  for (const port of ports) {
+    for (const next of outgoing(ctx.nodes, ctx.def.wires, node.id, port)) await runNode(next, ctx, scope);
   }
 }
 
@@ -483,45 +505,82 @@ interface LeafResult {
   summary?: string;
 }
 
-async function execStep(step: Step, ctx: RunContext, parentKey: string | null, key: string): Promise<void> {
-  const name = step.name || step.id;
+function hasWires(ctx: RunContext, nodeId: string, port: string): boolean {
+  return ctx.def.wires.some((w) => w.from === nodeId && w.port === port);
+}
+
+/** Port fired when a node is skipped ("Only run when" false): it passes through. */
+function skipPorts(node: FlowNode): string[] {
+  if (node.type === 'forEach') return ['done'];
+  if (node.type === 'userTask' && node.mode === 'approve') return ['approved'];
+  if (node.type === 'if') return ['false'];
+  const first = nodePorts(node as never)[0];
+  return first ? [first.id] : [];
+}
+
+function successPorts(node: FlowNode, output: unknown): string[] {
+  if (node.type === 'userTask' && node.mode === 'approve') return (output as { approved?: boolean })?.approved ? ['approved'] : ['rejected'];
+  const first = nodePorts(node as never)[0];
+  return first ? [first.id] : [];
+}
+
+/** Ports for a step that failed but the flow may continue; null = the failure stops the run. */
+function failurePorts(node: FlowNode, ctx: RunContext): string[] | null {
+  if (node.type === 'check' && !node.failRun) return ['out'];
+  if (hasWires(ctx, node.id, 'error')) return ['error'];
+  if (node.onError === 'continue') return successPorts(node, undefined).filter((p) => p !== 'rejected');
+  return null;
+}
+
+async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, key: string): Promise<string[]> {
+  const name = node.name || node.id;
   const journaled = ctx.journal.get(key);
 
-  // ----- replay: a finished leaf step is not executed again -----
-  const isControl = step.type === 'forEach' || step.type === 'if' || step.type === 'group';
+  if (node.type === 'start') {
+    if (!journaled) {
+      store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: 'start', name, status: 'running' });
+      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: 'Run started', startedMs: Date.now() });
+    }
+    return ['out'];
+  }
+
+  // ----- replay: a finished step is not executed again -----
+  const isControl = node.type === 'forEach' || node.type === 'if';
   if (journaled && TERMINAL.includes(journaled.status) && !isControl) {
-    const failedHard = journaled.status === 'failed' && step.type !== 'check' && step.onError !== 'continue';
-    if (!failedHard) {
-      applyOutput(step, ctx, parseJson(journaled.output, undefined), journaled.status);
-      return;
+    const output = parseJson<unknown>(journaled.output, undefined);
+    if (journaled.status === 'skipped') return skipPorts(node);
+    const ports = journaled.status === 'failed' ? failurePorts(node, ctx) : successPorts(node, output);
+    if (ports) {
+      applyOutput(node, ctx, output, journaled.status);
+      return ports;
     }
   }
-  if (journaled?.status === 'skipped') return;
+  if (journaled?.status === 'skipped') return skipPorts(node);
 
   // ----- condition -----
-  if (step.when && !(await ctx.bool(step.when))) {
-    store.upsertStep(ctx.runId, { key, parentKey, stepId: step.id, type: step.type, name, status: 'skipped' });
+  if (node.when && !(await ctx.bool(node.when))) {
+    store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name, status: 'skipped' });
     store.finishStep(ctx.runId, key, { status: 'skipped', summary: 'Condition not met', startedMs: Date.now() });
-    return;
+    return skipPorts(node);
   }
 
-  if (isControl) return execControl(step, ctx, parentKey, key, name, journaled);
+  if (isControl) return execControl(node, ctx, scope, key, name, journaled);
 
   const started = Date.now();
-  store.upsertStep(ctx.runId, { key, parentKey, stepId: step.id, type: step.type, name, status: 'running' });
-  const attempts = step.retry?.attempts ?? 1;
+  store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name, status: 'running' });
+  const attempts = node.retry?.attempts ?? 1;
   let lastErr: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      const res = await execLeaf(step, ctx, key);
+      const res = await execLeaf(node, ctx, key);
       const status = res.status ?? 'succeeded';
       const output = ctx.redactor.apply(res.output);
       store.finishStep(ctx.runId, key, { status, output, summary: res.summary ? ctx.redactor.apply(res.summary) : undefined, startedMs: started });
       ctx.stats.steps++;
       if (status === 'failed') ctx.stats.failedSteps++;
       store.saveStats(ctx.runId, ctx.stats);
-      applyOutput(step, ctx, output, status);
-      return;
+      applyOutput(node, ctx, output, status);
+      return status === 'failed' ? (failurePorts(node, ctx) ?? ['out']) : successPorts(node, output);
     } catch (e) {
       lastErr = e;
       if (e instanceof Cancelled || ctx.signal.aborted) {
@@ -530,7 +589,7 @@ async function execStep(step: Step, ctx: RunContext, parentKey: string | null, k
       }
       if (attempt < attempts) {
         ctx.log('warn', `Attempt ${attempt} failed: ${(e as Error).message}. Retrying…`, key);
-        await sleep(step.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined);
+        await sleep(node.retry?.delayMs ?? 2000, ctx.signal).catch(() => undefined);
       }
     }
   }
@@ -539,85 +598,86 @@ async function execStep(step: Step, ctx: RunContext, parentKey: string | null, k
   ctx.stats.steps++;
   ctx.stats.failedSteps++;
   store.saveStats(ctx.runId, ctx.stats);
-  if (step.onError === 'continue') {
-    ctx.log('warn', `Step "${name}" failed, continuing: ${message}`, key);
-    if (step.saveAs) ctx.vars[step.saveAs] = { error: message };
-    return;
+  const ports = failurePorts(node, ctx);
+  if (ports) {
+    ctx.log('warn', `"${name}" failed, continuing${ports.includes('error') ? ' on its error output' : ''}: ${message}`, key);
+    if (node.saveAs) ctx.vars[node.saveAs] = { error: message };
+    return ports;
   }
   throw new StepFailure(`Step "${name}" failed: ${message}`, key);
 }
 
-function applyOutput(step: Step, ctx: RunContext, output: unknown, status: StepStatus): void {
-  if (step.type === 'set' && output && typeof output === 'object') {
+function applyOutput(node: FlowNode, ctx: RunContext, output: unknown, status: StepStatus): void {
+  if (node.type === 'set' && output && typeof output === 'object') {
     Object.assign(ctx.vars, output as Record<string, unknown>);
     return;
   }
-  if (step.saveAs) ctx.vars[step.saveAs] = status === 'failed' && step.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+  if (node.saveAs) ctx.vars[node.saveAs] = status === 'failed' && node.type !== 'check' ? { error: (output as { error?: string })?.error } : output;
+}
+
+function journalHasPrefix(ctx: RunContext, prefix: string): boolean {
+  for (const k of ctx.journal.keys()) if (k.startsWith(prefix)) return true;
+  return false;
 }
 
 async function execControl(
-  step: Step,
+  node: NodeOf<'forEach'> | NodeOf<'if'>,
   ctx: RunContext,
-  parentKey: string | null,
+  scope: string | null,
   key: string,
   name: string,
   journaled: store.StepRow | undefined,
-): Promise<void> {
+): Promise<string[]> {
   const started = Date.now();
   const recorded = parseJson<{ decision?: unknown } | null>(journaled?.input ?? null, null);
-  store.upsertStep(ctx.runId, { key, parentKey, stepId: step.id, type: step.type, name, status: 'running' });
+  store.upsertStep(ctx.runId, { key, parentKey: scope, stepId: node.id, type: node.type, name, status: 'running' });
   try {
-    if (step.type === 'forEach') {
-      let items: unknown[];
-      if (recorded && Array.isArray(recorded.decision)) items = recorded.decision;
-      else {
-        items = await ctx.list(step.items);
-        if (step.maxItems && items.length > step.maxItems) {
-          throw new Error(`${items.length} items exceed the safety limit of ${step.maxItems}`);
-        }
-        store.updateStepInput(ctx.runId, key, { decision: ctx.redactor.apply(items) });
-      }
-      for (let i = 0; i < items.length; i++) {
-        if (ctx.signal.aborted) throw new Cancelled();
-        ctx.vars[step.as] = items[i];
-        ctx.vars[`${step.as}Index`] = i;
-        await execSteps(step.steps, ctx, `${key}[${i}]`);
-        if (step.delayMs && i < items.length - 1 && !ctx.journal.has(`${key}[${i + 1}]/${step.steps[0]?.id}`)) {
-          await sleep(step.delayMs, ctx.signal);
-        }
-      }
-      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: `${items.length} item(s)`, startedMs: started, output: { count: items.length } });
-    } else if (step.type === 'if') {
+    if (node.type === 'if') {
       let cond: boolean;
       if (recorded && typeof recorded.decision === 'boolean') cond = recorded.decision;
       else {
-        cond = await ctx.bool(step.condition);
+        cond = await ctx.bool(node.condition);
         store.updateStepInput(ctx.runId, key, { decision: cond });
       }
-      await execSteps(cond ? step.then : (step.else ?? []), ctx, key);
-      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: cond ? 'then' : 'else', startedMs: started, output: { branch: cond ? 'then' : 'else' } });
-    } else if (step.type === 'group') {
-      await execSteps(step.steps, ctx, key);
-      store.finishStep(ctx.runId, key, { status: 'succeeded', startedMs: started });
+      store.finishStep(ctx.runId, key, { status: 'succeeded', summary: cond ? '→ true' : '→ false', startedMs: started, output: { result: cond } });
+      return [cond ? 'true' : 'false'];
     }
+    let items: unknown[];
+    if (recorded && Array.isArray(recorded.decision)) items = recorded.decision;
+    else {
+      items = await ctx.list(node.items);
+      if (node.maxItems && items.length > node.maxItems) throw new Error(`${items.length} items exceed the safety limit of ${node.maxItems}`);
+      store.updateStepInput(ctx.runId, key, { decision: ctx.redactor.apply(items) });
+    }
+    const body = outgoing(ctx.nodes, ctx.def.wires, node.id, 'each');
+    for (let i = 0; i < items.length; i++) {
+      if (ctx.signal.aborted) throw new Cancelled();
+      ctx.vars[node.as] = items[i];
+      ctx.vars[`${node.as}Index`] = i;
+      for (const b of body) await runNode(b, ctx, `${key}[${i}]`);
+      if (node.delayMs && i < items.length - 1 && !journalHasPrefix(ctx, `${key}[${i + 1}]/`)) await sleep(node.delayMs, ctx.signal);
+    }
+    store.finishStep(ctx.runId, key, { status: 'succeeded', summary: `${items.length} item(s)`, startedMs: started, output: { count: items.length } });
+    return ['done'];
   } catch (e) {
     const cancelled = e instanceof Cancelled || ctx.signal.aborted;
     const message = cancelled ? 'Cancelled' : ctx.redactor.apply((e as Error).message);
     store.finishStep(ctx.runId, key, { status: 'failed', error: message, startedMs: started });
     if (cancelled) throw new Cancelled();
-    if (step.onError === 'continue') {
-      ctx.log('warn', `Block "${name}" failed, continuing: ${message}`, key);
-      return;
+    if (node.onError === 'continue') {
+      ctx.log('warn', `"${name}" failed, continuing: ${message}`, key);
+      return node.type === 'forEach' ? ['done'] : [];
     }
     throw e instanceof StepFailure ? e : new StepFailure(`Step "${name}" failed: ${message}`, key);
   }
 }
 
+
 // ---------------------------------------------------------------------------
 // Leaf steps
 // ---------------------------------------------------------------------------
 
-async function execLeaf(step: Step, ctx: RunContext, key: string): Promise<LeafResult> {
+async function execLeaf(step: FlowNode, ctx: RunContext, key: string): Promise<LeafResult> {
   switch (step.type) {
     case 'http':
       return execHttp(step, ctx, key);
@@ -687,7 +747,7 @@ async function execLeaf(step: Step, ctx: RunContext, key: string): Promise<LeafR
     case 'browser':
       return execBrowser(step, ctx, key);
     default:
-      throw new Error(`Unsupported step type ${(step as Step).type}`);
+      throw new Error(`Unsupported node type ${(step as FlowNode).type}`);
   }
 }
 
@@ -698,7 +758,7 @@ function describe(v: unknown): string {
   return s.length > 60 ? s.slice(0, 60) + '…' : s;
 }
 
-async function execHttp(step: HttpStep, ctx: RunContext, key: string): Promise<LeafResult> {
+async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
   const p = await ctx.str(step.path);
@@ -829,7 +889,7 @@ async function execHttp(step: HttpStep, ctx: RunContext, key: string): Promise<L
   };
 }
 
-function auditWrite(ctx: RunContext, b: Binding, step: HttpStep, p: string, res: HttpResult, key: string) {
+function auditWrite(ctx: RunContext, b: Binding, step: NodeOf<'http'>, p: string, res: HttpResult, key: string) {
   ctx.stats.writes++;
   audit({
     actor: ctx.actor,
@@ -852,7 +912,7 @@ function snippet(v: unknown): string {
   return (s ?? '').slice(0, 400);
 }
 
-async function execUserTask(step: UserTaskStep, ctx: RunContext, key: string): Promise<LeafResult> {
+async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const title = await ctx.str(step.title);
   const instructions = step.instructions ? await ctx.str(step.instructions) : undefined;
   let rawItems: unknown[] = [];
@@ -873,7 +933,7 @@ async function execUserTask(step: UserTaskStep, ctx: RunContext, key: string): P
   let task = store.findTask(ctx.runId, key);
   if (!task) {
     const id = newId('task_');
-    store.insertTask({ id, runId: ctx.runId, stepKey: key, mode: step.mode, title, instructions, columns, items: ctx.redactor.apply(items) });
+    store.insertTask({ id, runId: ctx.runId, stepKey: key, mode: step.mode, title, instructions, columns, items: ctx.redactor.apply(items), assignees: step.assignees ?? [], fourEyes: !!step.fourEyes });
     audit({
       actor: ctx.actor,
       action: 'task.created',
@@ -906,7 +966,7 @@ async function execUserTask(step: UserTaskStep, ctx: RunContext, key: string): P
   const { decision, by, at } = result;
   if (step.mode === 'approve') {
     ctx.log('info', `${decision.approved ? 'Approved' : 'Rejected'} by ${by}${decision.comment ? `: ${decision.comment}` : ''}`, key);
-    if (!decision.approved && step.onReject !== 'continue') throw new Error(`Rejected by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
+    if (!decision.approved && !hasWires(ctx, step.id, 'rejected')) throw new Error(`Rejected by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
     return {
       output: { approved: decision.approved, comment: decision.comment ?? '', decidedBy: by, decidedAt: at },
       summary: `${decision.approved ? 'Approved' : 'Rejected'} by ${by}`,
@@ -930,7 +990,7 @@ async function execUserTask(step: UserTaskStep, ctx: RunContext, key: string): P
   };
 }
 
-async function execBrowser(step: BrowserStep, ctx: RunContext, key: string): Promise<LeafResult> {
+async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = step.connection ? ctx.bindings[step.connection] : undefined;
   if (step.connection && !b) throw new Error(`Connection "${step.connection}" is not bound`);
   if (step.mutating && ctx.dryRun) {

@@ -3,7 +3,7 @@ import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { db } from './db.js';
 import { vault } from './vault.js';
 import { canonicalJson, nowIso, parseJson } from './util.js';
-import { operator } from './settings.js';
+import { currentActor } from './auth/context.js';
 
 /**
  * Append-only, hash-chained audit log. Every entry is signed with an HMAC
@@ -37,14 +37,30 @@ function computeHash(key: Buffer, prevHash: string, e: Omit<AuditEntry, 'hash'>)
   return crypto.createHmac('sha256', key).update(prevHash + '\n' + payload).digest('hex');
 }
 
+/** Entries recorded while the vault is locked (e.g. sign-ins) are signed and written on unlock. */
+const pending: (AuditInput & { ts: string; actor: string })[] = [];
+
 export function audit(input: AuditInput): AuditEntry {
+  if (!vault().unlocked) {
+    const e = { ...input, actor: input.actor ?? currentActor(), ts: nowIso() };
+    pending.push(e);
+    return { seq: 0, ts: e.ts, actor: e.actor, action: e.action, entityType: e.entityType, summary: e.summary, hash: '' };
+  }
+  return write(input);
+}
+
+export function flushPendingAudit(): void {
+  while (pending.length) write(pending.shift()!);
+}
+
+function write(input: AuditInput & { ts?: string }): AuditEntry {
   const d = db();
   return d.tx(() => {
     const last = d.get<{ seq: number; hash: string }>('SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1');
     const entry: Omit<AuditEntry, 'hash'> = {
       seq: (last?.seq ?? 0) + 1,
-      ts: nowIso(),
-      actor: input.actor ?? operator(),
+      ts: input.ts ?? nowIso(),
+      actor: input.actor ?? currentActor(),
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId ?? null,
