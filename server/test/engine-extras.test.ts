@@ -455,6 +455,7 @@ describe('sub-process after a restart', () => {
   const base = `http://127.0.0.1:${port}`;
   let proc: ChildProcess | undefined;
   let cookie = '';
+  let sessionKey = '';
   const dbEnv = freshDbEnv(); // not the in-process test server's database
   afterAll(() => {
     proc?.kill('SIGKILL');
@@ -479,11 +480,13 @@ describe('sub-process after a restart', () => {
   const api = async (method: string, url: string, body?: unknown): Promise<any> => {
     const res = await fetch(base + '/api' + url, {
       method,
-      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0]!;
+    const key = res.headers.get('x-sm-session-key');
+    if (key !== null) sessionKey = key;
     const t = await res.text();
     if (!res.ok) throw new Error(`${method} ${url}: ${res.status} ${t}`);
     return t ? JSON.parse(t) : null;

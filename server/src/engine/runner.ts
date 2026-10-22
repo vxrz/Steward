@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -24,6 +25,7 @@ import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
+import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, type HttpResult } from '../platforms/http.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings } from './expr.js';
@@ -46,27 +48,52 @@ interface Binding {
   baseUrl: string;
 }
 
+/** Stable pseudonym of a user name for traces (OpenTelemetry). */
+function userPseudonym(name: string): string {
+  return crypto.createHash('sha256').update(`steward-user:${name}`).digest('hex').slice(0, 16);
+}
+
+/** Keys whose values are never stored in the protocol (headers, credentials, OAuth token responses). */
+const REDACT_KEY = /^(authorization|proxy-authorization|x-space-auth-key|x-api-key|api[-_]?key|cookie|set-cookie|password|passphrase|client_secret|access_token|refresh_token|id_token)$/i;
+
 export class Redactor {
   private values = new Set<string>();
+  /** Registers secret values – and the encoded forms they typically appear in (JSON, URL/form encoding, Base64). */
   add(...vals: string[]): void {
-    for (const v of vals) if (v && v.length >= 4) this.values.add(v);
+    for (const v of vals) {
+      if (!v || v.length < 4) continue;
+      this.values.add(v);
+      const json = JSON.stringify(v).slice(1, -1);
+      const url = encodeURIComponent(v);
+      for (const variant of [json, url, url.replace(/%20/g, '+'), Buffer.from(v).toString('base64')]) if (variant !== v && variant.length >= 4) this.values.add(variant);
+    }
   }
   /** The registered secret values (for scrubbing error reports). */
   list(): string[] {
     return [...this.values];
   }
   apply<T>(v: T): T {
-    if (this.values.size === 0) return v;
     if (typeof v === 'string') {
+      if (this.values.size === 0) return v;
       let s: string = v;
-      for (const secret of this.values) if (s.includes(secret)) s = s.split(secret).join('***');
+      // longest first, so a secret containing another one is replaced as a whole
+      for (const secret of [...this.values].sort((a, b) => b.length - a.length)) if (s.includes(secret)) s = s.split(secret).join('***');
+      // Basic credentials: user:password in Base64 – masked when they contain a registered secret
+      s = s.replace(/\b(Basic)\s+([A-Za-z0-9+/]{6,}={0,2})/g, (m, scheme: string, b64: string) => {
+        const decoded = Buffer.from(b64, 'base64').toString('utf8');
+        return [...this.values].some((x) => decoded.includes(x)) ? `${scheme} ***` : m;
+      });
       return s as T;
     }
     if (Array.isArray(v)) return v.map((x) => this.apply(x)) as T;
     if (v && typeof v === 'object') {
       const out: Record<string, unknown> = {};
       for (const [k, val] of Object.entries(v)) {
-        out[k] = /^(authorization|x-space-auth-key|cookie|set-cookie|password|client_secret)$/i.test(k) ? '***' : this.apply(val);
+        if (REDACT_KEY.test(k)) {
+          // a token found in a response is a secret from now on (also where it shows up later, e.g. in a header)
+          if (typeof val === 'string') this.add(val);
+          out[k] = '***';
+        } else out[k] = this.apply(val);
       }
       return out as T;
     }
@@ -343,6 +370,8 @@ export async function startRun(
   const proc = getProcess(req.processId, req.version);
   const def = proc.definition;
   const inputs = coerceInputs(def.inputs ?? [], req.inputs ?? {});
+  // inputs of type "secret": only stored encrypted, "***" in the protocol and the audit log
+  const { visible: storedInputs, sealed } = sealInputs(def.inputs, inputs);
   const bindings = await resolveBindings(def, req.bindings ?? {});
   const runId = newId('run_');
   const actor = opts.actor ?? currentActor();
@@ -352,8 +381,8 @@ export async function startRun(
   );
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, sealed_inputs)
+       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
@@ -363,7 +392,7 @@ export async function startRun(
       opts.trigger ?? 'manual',
       opts.scheduleId ?? null,
       actor,
-      JSON.stringify(inputs),
+      JSON.stringify(storedInputs),
       JSON.stringify(bindingInfo),
       startedAt,
       JSON.stringify(store.emptyStats()),
@@ -371,6 +400,7 @@ export async function startRun(
       opts.parent?.stepKey ?? null,
       opts.webhook?.triggerId ?? null,
       opts.webhook?.triggerName ?? null,
+      sealed,
     );
     audit({
       actor,
@@ -380,7 +410,7 @@ export async function startRun(
       runId,
       summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})`,
       details: {
-        inputs,
+        inputs: storedInputs,
         bindings: bindingInfo,
         definitionHash: proc.definitionHash,
         dryRun: !!req.dryRun,
@@ -406,6 +436,7 @@ function launch(
   resumedBy?: string,
 ): void {
   const ctx = new RunContext(runId, def, inputs, bindings, dryRun, actor, startedAt, stats);
+  ctx.redactor.add(...secretValuesOf(def.inputs, inputs));
   ctx.resumedBy = resumedBy;
   const done = execute(ctx).finally(() => active.delete(runId));
   active.set(runId, { ctx, done });
@@ -427,7 +458,7 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
   launch(
     runId,
     proc.definition,
-    parseJson(r.inputs, {}),
+    openInputs(parseJson(r.inputs, {}), (r as { sealed_inputs?: string | null }).sealed_inputs),
     bindings,
     !!r.dry_run,
     r.actor,
@@ -542,7 +573,8 @@ async function execute(ctx: RunContext): Promise<void> {
         'sm.run.trigger': run.trigger,
         'sm.run.dry_run': ctx.dryRun,
         'sm.run.resumed': ctx.journal.size > 0,
-        'enduser.id': ctx.actor,
+        // a pseudonym, not the user name (traces go to a collector outside the audit boundary)
+        'enduser.pseudo.id': userPseudonym(ctx.actor),
       },
       () => runNode(start, ctx, null),
     );

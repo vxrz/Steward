@@ -1,4 +1,4 @@
-import { test, expect } from './support/fixtures';
+import { test, expect, sessionHeaders } from './support/fixtures';
 import { authFile } from './support/env';
 
 test.use({ storageState: authFile('admin') });
@@ -38,7 +38,7 @@ test('settings: notification routing, retention, maintenance status', async ({ p
 test('readiness and metrics endpoints', async ({ request }) => {
   const ready = await request.get('/api/ready');
   expect(ready.status()).toBe(200);
-  const metrics = await request.get('/api/metrics');
+  const metrics = await request.get('/api/metrics', { headers: sessionHeaders('admin') });
   expect(metrics.status()).toBe(200);
   expect(await metrics.text()).toContain('# HELP');
 });

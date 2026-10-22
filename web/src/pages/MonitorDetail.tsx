@@ -19,7 +19,7 @@ import {
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { type CheckResultInfo, type CheckState, type MaintenanceWindow, type MonitorDetail, type MonitorHistoryEntry, type MonitorSaveResult } from '@sm/shared';
-import { api, del, get, notifyError, notifyOk, post, put } from '../api';
+import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
@@ -114,7 +114,7 @@ export function MonitorDetailPage() {
                   {t('detail.acknowledgeProblem')}
                 </Menu.Item>
               )}
-              <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/monitors/${m.id}/export`}>
+              <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/monitors/${m.id}/export`)}>
                 {t('detail.exportYaml')}
               </Menu.Item>
               {can('manage') && (

@@ -21,6 +21,7 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   const pgEnv = { SM_DATABASE_URL: PG_TEST_URL!, SM_DATABASE_SCHEMA: schema };
   let proc: ChildProcess | undefined;
   let cookie = '';
+  let sessionKey = '';
   afterAll(() => {
     proc?.kill('SIGKILL');
   });
@@ -48,11 +49,13 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   const api = async (method: string, url: string, body?: unknown): Promise<any> => {
     const res = await fetch(base + '/api' + url, {
       method,
-      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const set = res.headers.get('set-cookie');
     if (set) cookie = set.split(';')[0]!;
+    const key = res.headers.get('x-sm-session-key');
+    if (key !== null) sessionKey = key;
     const t = await res.text();
     if (!res.ok) throw new Error(`${method} ${url}: ${res.status} ${t}`);
     return t ? JSON.parse(t) : null;

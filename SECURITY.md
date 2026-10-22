@@ -74,7 +74,9 @@ Out of scope:
   (we still welcome a hint)
 - findings that need an administrator account or access to the machine and
   data directory, unless they cross a boundary Steward promises (e.g. a
-  non-admin reading secrets, or modifying the audit log undetected)
+  non-admin reading secrets, or modifying the audit log undetected once a signed
+  checkpoint has been kept outside the system – see
+  [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence))
 - missing hardening without a concrete attack (e.g. headers on static files),
   denial of service by flooding, social engineering
 
@@ -84,6 +86,16 @@ We will not take legal action against research done in good faith that follows
 this policy: test only on installations you own or are allowed to test, do not
 access or change other people's data, give us reasonable time to fix the issue
 before you disclose it, and stop and tell us if you come across sensitive data.
+
+## Running Steward securely
+
+Before using Steward at work – in particular when its audit log and PDF reports
+serve as compliance evidence – go through the hardening checklist in
+[docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md): dedicated host, TLS and
+reverse proxy settings, SSO, the master passphrase as a file or secret, encrypted
+backups of database *and* `vault.json`, signed audit checkpoints shipped to a
+SIEM, and keeping Chromium current. Personal data and retention:
+[docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## How we keep Steward secure
 

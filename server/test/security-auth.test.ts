@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, type TestServer } from './helpers.js';
 
 // Regression tests for security review A (authentication, authorization, uploads).
 let s: TestServer;
@@ -34,10 +34,11 @@ async function upload(name: string, type: string, content: Buffer | string): Pro
     body: JSON.stringify({ username: 'admin', password: 'Admin-password-1' }),
   });
   const cookie = login.headers.get('set-cookie')!.split(';')[0]!;
+  const sessionKey = login.headers.get('x-sm-session-key')!;
   const fd = new FormData();
   fd.set('title', name);
   fd.set("file", new Blob([typeof content === "string" ? content : new Uint8Array(content)], { type }), name);
-  const res = await fetch(`${s.base}/api/platforms/${platformId}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', cookie }, body: fd });
+  const res = await fetch(`${s.base}/api/platforms/${platformId}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', cookie, 'x-sm-session': sessionKey }, body: fd });
   expect(res.ok).toBe(true);
   const doc = (await res.json()) as { id: string };
   return doc.id;
@@ -56,18 +57,13 @@ describe('request targets', () => {
 
 describe('uploaded platform documents', () => {
   const fileOf = async (id: string) => {
-    const res = await fetch(`${s.base}/api/docs/${id}/file`, { headers: { cookie: await adminCookie() } });
+    const res = await fetch(`${s.base}/api/docs/${id}/file`, { headers: authHeaders(await adminCookie()) });
     return { type: res.headers.get('content-type') ?? '', disposition: res.headers.get('content-disposition') ?? '', csp: res.headers.get('content-security-policy') ?? '' };
   };
   let cookie = '';
   const adminCookie = async () => {
     if (cookie) return cookie;
-    const r = await fetch(`${s.base}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
-      body: JSON.stringify({ username: 'admin', password: 'Admin-password-1' }),
-    });
-    return (cookie = r.headers.get('set-cookie')!.split(';')[0]!);
+    return (cookie = await loginCookie(s.base, 'admin', 'Admin-password-1'));
   };
   it('serves HTML, SVG and JavaScript uploads as downloads, never as pages or scripts', async () => {
     for (const [name, type, body] of [

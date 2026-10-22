@@ -7,6 +7,7 @@
 // Progress goes to stderr, the result line to stdout. Exit status: 0 = built,
 // 1 = build failed, 2 = usage error.
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -101,7 +102,9 @@ for (const f of fs.readdirSync(swaggerUiStatic)) {
 addDir(path.join(root, 'server', 'assets'), 'assets');
 assets['assets/pdfkit/sRGB_IEC61966_2_1.icc'] = path.join(root, 'node_modules', 'pdfkit', 'js', 'data', 'sRGB_IEC61966_2_1.icc');
 const manifestFile = path.join(work, 'manifest.json');
-fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets) }));
+// SHA-256 of every file: the launcher re-checks the unpacked copy at each start (and unpacks it again when it was changed)
+const sha256 = Object.fromEntries(Object.entries(assets).map(([k, f]) => [k, crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex')]));
+fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets), sha256 }));
 assets['manifest.json'] = manifestFile;
 
 step(`Embedding ${Object.keys(assets).length} files`);

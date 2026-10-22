@@ -5,7 +5,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
 import { PRESETS, PRESET_SPECS } from './presets.js';
-import { addSpec, createPlatform, getPlatform, getSecrets, listDocs, listSpecs, getSpecContent, type PlatformInput } from './service.js';
+import { addSpec, createPlatform, getPlatform, getSecrets, getSecretsUnchecked, listDocs, listSpecs, getSpecContent, type PlatformInput } from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
 
 /**
@@ -76,7 +76,7 @@ function store(pkg: ConnectorPackage, action: string): PlatformPreset {
 
 export function createTypeFromPlatform(platformId: string, opts: { kind?: string; label?: string; description?: string }): PlatformPreset {
   const p = getPlatform(platformId);
-  const secretKeys = Object.keys(getSecrets(platformId));
+  const secretKeys = Object.keys(getSecretsUnchecked(platformId));
   const pkg: ConnectorPackage = {
     format: 'steward-connector',
     version: 1,

@@ -570,7 +570,8 @@
     "select": "selection",
     "list": "list",
     "table": "table (CSV)",
-    "json": "JSON"
+    "json": "JSON",
+    "secret": "secret (hidden)"
   },
   "connections": {
     "hint": "Connection slots keep the process platform-agnostic: steps refer to a slot (e.g. <c>hub</c>) and the actual platform is chosen when the run starts. Optionally restrict a slot to a platform kind.",

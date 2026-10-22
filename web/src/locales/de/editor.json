@@ -570,7 +570,8 @@
     "select": "Auswahl",
     "list": "Liste",
     "table": "Tabelle (CSV)",
-    "json": "JSON"
+    "json": "JSON",
+    "secret": "Geheim (verborgen)"
   },
   "connections": {
     "hint": "Verbindungen halten den Prozess plattformunabhängig: Schritte verweisen auf eine Verbindung (z. B. <c>hub</c>), und die konkrete Plattform wird beim Start der Ausführung gewählt. Optional lässt sich eine Verbindung auf eine Plattformart beschränken.",

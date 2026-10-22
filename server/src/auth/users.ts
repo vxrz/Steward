@@ -3,7 +3,8 @@ import { ROLES, isLocale, type Locale, type Role, type Team, type UserInfo } fro
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { checkPasswordPolicy, hashPassword, temporaryPassword, verifyPassword } from './passwords.js';
+import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verifyPasswordAsync } from './passwords.js';
+import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser } from './context.js';
 import { getSettings } from '../settings.js';
 
@@ -207,11 +208,11 @@ export function resetPassword(id: string): string {
 }
 
 /** Changes the own password and signs out all other sessions of the user (keepSession: the current session cookie). */
-export function changePassword(id: string, current: string, next: string, keepSession?: string): void {
+export async function changePassword(id: string, current: string, next: string, keepSession?: string): Promise<void> {
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
   if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
-  if (!verifyPassword(current, r.password_hash)) throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
+  if (!(await verifyPasswordAsync(current, r.password_hash))) throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
   const err = checkPasswordPolicy(next);
   if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
   if (current === next) throw new HttpError(400, 'Choose a new password', 'SAME_PASSWORD');
@@ -291,33 +292,55 @@ const SESSION_MAX_MS = 7 * 86400 * 1000;
 const failures = new Map<string, { count: number; until: number }>();
 /** Failed sign-ins per account across all source addresses (sliding 15-minute window). */
 const accountFailures = new Map<string, number[]>();
-const ACCOUNT_WINDOW_MS = 15 * 60000;
+/** Failed sign-ins per source address across all accounts (password spraying). */
+const addressFailures = new Map<string, number[]>();
+const WINDOW_MS = 15 * 60000;
 const ACCOUNT_MAX_FAILURES = 20;
+const ADDRESS_MAX_FAILURES = 50;
+const MAX_TRACKED = 10000;
 
 const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
 
-export function login(username: string, password: string, meta: { ip?: string; userAgent?: string }): { token: string; user: UserInfo } {
+function recent(map: Map<string, number[]>, key: string): number[] {
+  return (map.get(key) ?? []).filter((t) => t > Date.now() - WINDOW_MS);
+}
+function remember(map: Map<string, number[]>, key: string, list: number[]): void {
+  if (map.size >= MAX_TRACKED && !map.has(key)) map.delete(map.keys().next().value!); // bounded memory
+  map.set(key, [...list, Date.now()]);
+}
+
+/** What the browser needs besides the cookie (see sessionBinding): the session key and the key for links. */
+export interface SessionKeys {
+  /** Sent as x-sm-session on every API request */
+  sessionKey: string;
+  /** Appended as ?_sk= to download links and images (GET only) */
+  linkKey: string;
+}
+
+export interface CreatedSession extends SessionKeys {
+  token: string;
+}
+
+export async function login(username: string, password: string, meta: { ip?: string; userAgent?: string }): Promise<CreatedSession & { user: UserInfo }> {
   const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
   const f = failures.get(key);
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
-  const recent = (accountFailures.get(account) ?? []).filter((t) => t > Date.now() - ACCOUNT_WINDOW_MS);
-  if (recent.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  const byAccount = recent(accountFailures, account);
+  if (byAccount.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  const address = meta.ip ?? '';
+  const byAddress = recent(addressFailures, address);
+  if (byAddress.length >= ADDRESS_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const r = db().get<UserRow>('SELECT * FROM users WHERE username = ?', username);
-  // always run the hash to keep timing similar for unknown users
-  const ok = r ? verifyPassword(password, r.password_hash) : (verifyPassword(password, hashPassword('x-dummy-password-1')), false);
+  // One hash per attempt for known and unknown user names alike (same timing; the dummy hash is computed once).
+  const ok = await verifyPasswordAsync(password, r?.password_hash && r.password_hash.startsWith('scrypt$') ? r.password_hash : dummyHash());
   if (!r || !ok || !r.active) {
     const count = (f?.count ?? 0) + 1;
+    if (failures.size >= MAX_TRACKED && !failures.has(key)) failures.delete(failures.keys().next().value!);
     failures.set(key, { count, until: count >= 5 ? Date.now() + 5 * 60000 : 0 });
-    accountFailures.set(account, [...recent, Date.now()]);
-    audit({
-      actor: username,
-      action: 'auth.login_failed',
-      entityType: 'user',
-      entityId: r?.id ?? null,
-      summary: `Failed sign-in for "${username}"${r && !r.active ? ' (account disabled)' : ''}`,
-      details: { ip: meta.ip },
-    });
+    remember(accountFailures, account, byAccount);
+    remember(addressFailures, address, byAddress);
+    recordFailedLogin({ username, account: r ? { id: r.id, username: r.username, disabled: !r.active } : null, ip: meta.ip });
     throw new HttpError(401, 'Wrong user name or password', 'WRONG_CREDENTIALS');
   }
   failures.delete(key);
@@ -326,17 +349,22 @@ export function login(username: string, password: string, meta: { ip?: string; u
   if (getSettings().passwordLogin === 'adminsOnly' && !roles.includes('admin')) {
     throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on', 'PASSWORD_LOGIN_DISABLED');
   }
-  const token = createSession(r.id, r.username, meta, 'password');
-  return { token, user: toInfo(r) };
+  const session = createSession(r.id, r.username, meta, 'password');
+  return { ...session, user: toInfo(r) };
 }
 
-/** Create a session for an authenticated user and record the sign-in. Returns the cookie token. */
-export function createSession(userId: string, username: string, meta: { ip?: string; userAgent?: string }, method: string): string {
+/** The link key belonging to a binding (derived, so it needs no storage of its own). */
+const linkKeyOf = (binding: string) => crypto.createHmac('sha256', Buffer.from(binding, 'hex')).update('steward-link-v1').digest('base64url');
+
+/** Create a session for an authenticated user and record the sign-in. Returns the cookie token and the binding keys. */
+export function createSession(userId: string, username: string, meta: { ip?: string; userAgent?: string }, method: string): CreatedSession {
   const token = crypto.randomBytes(32).toString('base64url');
+  const sessionKey = crypto.randomBytes(32).toString('base64url');
+  const binding = hashToken(sessionKey);
   const ts = nowIso();
   db().tx(() => {
     db().run(
-      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       hashToken(token),
       userId,
       ts,
@@ -344,6 +372,7 @@ export function createSession(userId: string, username: string, meta: { ip?: str
       ts,
       meta.ip ?? null,
       meta.userAgent?.slice(0, 200) ?? null,
+      binding,
     );
     db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
     db().run('DELETE FROM sessions WHERE expires_at < ?', ts);
@@ -356,19 +385,43 @@ export function createSession(userId: string, username: string, meta: { ip?: str
       details: { ip: meta.ip, method },
     });
   });
-  return token;
+  return { token, sessionKey, linkKey: linkKeyOf(binding) };
 }
 
-export function sessionUser(token: string | undefined): UserInfo | null {
+/**
+ * Proof that the request comes from the web app's origin, not just from someone holding the cookie.
+ * Browsers send cookies to every port of a host, so another local program on 127.0.0.1:<other port>
+ * can receive the session cookie – but not the session key, which lives in the app origin's
+ * localStorage (scheme + host + port). `key` is the x-sm-session header; `link` the ?_sk= parameter
+ * of download links and images (accepted for GET/HEAD only). `skip`: only for the API documentation.
+ */
+export type SessionBinding = { key?: string; link?: string; read: boolean } | 'skip';
+
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+function bindingMatches(stored: string | null, b: SessionBinding): boolean {
+  if (b === 'skip') return true;
+  if (!stored) return false; // sessions from before session binding: sign in again
+  if (b.key) return safeEqual(hashToken(b.key), stored);
+  if (b.link && b.read) return safeEqual(b.link, linkKeyOf(stored));
+  return false;
+}
+
+export function sessionUser(token: string | undefined, binding: SessionBinding): UserInfo | null {
   if (!token) return null;
   const id = hashToken(token);
-  const s = db().get<{ user_id: string; created_at: string; expires_at: string; last_seen_at: string }>('SELECT * FROM sessions WHERE id = ?', id);
+  const s = db().get<{ user_id: string; created_at: string; expires_at: string; last_seen_at: string; binding: string | null }>('SELECT * FROM sessions WHERE id = ?', id);
   if (!s) return null;
   const now = Date.now();
   if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + SESSION_MAX_MS < now) {
     db().run('DELETE FROM sessions WHERE id = ?', id);
     return null;
   }
+  if (!bindingMatches(s.binding, binding)) return null;
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ? AND active = 1', s.user_id);
   if (!r) return null;
   if (now - Date.parse(s.last_seen_at) > 60000) {

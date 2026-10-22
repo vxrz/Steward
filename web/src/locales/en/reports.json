@@ -71,7 +71,10 @@
     "recordedHash": "Recorded SHA-256",
     "archive": "Archive",
     "archiveRemoved": "The stored copy was removed by data retention; the audit log still proves the content.",
-    "chain": "Audit chain: {{result}}"
+    "chain": "Audit chain: {{result}}",
+    "forgedTitle": "Forged audit entries",
+    "forgedText_one": "The audit log contains an entry that claims to record this file but fails the integrity check (HMAC or chain position). It was inserted outside Steward and is ignored.",
+    "forgedText_other": "The audit log contains {{count}} entries that claim to record this file but fail the integrity check (HMAC or chain position). They were inserted outside Steward and are ignored."
   },
   "branding": {
     "title": "Report branding",

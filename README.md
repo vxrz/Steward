@@ -81,10 +81,16 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_DATABASE_URL` | – (SQLite in the data directory) | Use PostgreSQL: `postgres://user:password@host:5432/database`. Not available in the desktop executable. See [Database](docs/INSTALL.md#5-database-sqlite-or-postgresql). |
 | `SM_DATABASE_SCHEMA` | `public` | PostgreSQL schema (created if missing) |
 | `SM_DATABASE_CA` | – | CA certificate (PEM file) for verifying the PostgreSQL server's TLS certificate |
-| `SM_MASTER_PASSPHRASE` | – | Unlock automatically at start-up, so schedules run after a reboot. |
+| `SM_MASTER_PASSPHRASE_FILE` | – | File with the master passphrase: unlock automatically at start-up, so schedules run after a reboot. Use a Docker secret, a systemd credential or a file only the service account can read. |
+| `SM_MASTER_PASSPHRASE` | – | The same, as a variable (prefer the file). Both are removed from the environment at start, so child processes never see them. |
 | `SM_ALLOWED_HOSTS` | – | Extra allowed `Host` headers (comma-separated), e.g. the machine's DNS name when colleagues use it |
 | `SM_TLS_CERT` / `SM_TLS_KEY` | – | Paths to a certificate and key. Serves HTTPS, which is recommended when others connect over the network. |
-| `SM_PUBLIC_URL` | – | External URL (e.g. `https://steward.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI. |
+| `SM_PUBLIC_URL` | – | External URL (e.g. `https://steward.corp.example`) when running behind a reverse proxy. It is used for the single sign-on redirect URI; an `https://` URL also makes the session cookie `Secure` and turns on HSTS. |
+| `SM_TRUST_PROXY` | – (off) | Behind a reverse proxy: the proxies' addresses/CIDRs (`10.0.0.5,10.1.0.0/16`, `loopback`) or the number of proxies (`1`, only for a proxy on a loopback/private address) whose `X-Forwarded-For/-Proto/-Host` are believed. Client addresses in the audit log, sign-in lockouts and webhook CIDR checks then are the real ones. |
+| `SM_TLS_CIPHERS` | modern list | OpenSSL cipher list for TLS 1.2 with the built-in HTTPS (TLS 1.3 suites are always on; TLS 1.0/1.1 are off) |
+| `SM_AUDIT_ANCHOR` / `SM_AUDIT_ANCHOR_FILE` | – | A signed audit checkpoint kept outside Steward (or a file with one, e.g. on a write-once share). Every verification fails if the log is shorter than it or differs. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#audit-log-as-evidence). |
+| `SM_AUDIT_CHECKPOINT_MINUTES` | `60` | Interval of signed audit checkpoints |
+| `SM_CHROMIUM_SANDBOX` | auto | `1`/`0` forces Chromium's sandbox for browser steps on/off (default: on, except as root) |
 | `SM_CHROMIUM_PATH` | – | Use a specific Chromium/Chrome binary for browser steps |
 | `HTTPS_PROXY` / `NO_PROXY` | – | Corporate proxy, used for platform calls unless a platform overrides it |
 | `SM_DEMO` | – | `1` mounts the mock platforms under `/mock` |
@@ -165,7 +171,7 @@ It still runs locally. Make it reachable on your network:
 2. Provide a certificate with `SM_TLS_CERT` / `SM_TLS_KEY`, or run it behind your reverse proxy.
 3. Create accounts under **Users & teams**.
 
-One person (an admin) unlocks the vault after a restart, or you set `SM_MASTER_PASSPHRASE` for unattended start-up.
+One person (an admin) unlocks the vault after a restart, or you provide the passphrase in a file (`SM_MASTER_PASSPHRASE_FILE`) for unattended start-up. Before using it at work, go through [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
 
 ### Supported authentication
 
@@ -346,15 +352,16 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 
 ## Security model
 
-- Everyone signs in. Sessions are HttpOnly, SameSite=Strict cookies (12 h idle timeout). Every API call is checked against roles and access lists on the server.
-- Credentials are encrypted at rest (AES-256-GCM). The key is derived with scrypt from your master passphrase and only kept in memory. The API never returns secret values, and they are redacted from logs, protocols and audit entries.
-- Platform credentials only go to the platform: the auth header, API keys and default headers are attached when a request targets the origin of the platform's base URL (or an origin listed under *Trusted origins*). An API call with an absolute URL to any other host is sent without them.
-- The audit log is HMAC-chained with a key derived from the master key. *Audit log → Verify chain* detects modified, removed or re-ordered entries. Each finished run stores a fingerprint of its protocol in the chain, and the protocol shows whether it is still intact.
-- By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
+- Everyone signs in. Sessions are HttpOnly, SameSite=Strict cookies (12 h idle timeout) **bound to a per-session key**: the web app keeps it in `localStorage` of its own origin and sends it with every request, so a cookie that leaks to another program on the same host (cookies are not isolated by port) is useless on its own. Every API call is checked against roles and access lists on the server.
+- Credentials are encrypted at rest (AES-256-GCM) with a random data key. The vault file wraps it (and the audit, integrity and signing keys) with a key derived by scrypt (N=2^17) from your master passphrase; keys are only kept in memory. The passphrase can be changed, optionally rotating the data key. The API never returns secret values, and they are redacted from logs, protocols and audit entries. Process inputs of type *secret* are stored encrypted and shown as `***`.
+- Platform credentials only go to the platform: the auth header, API keys and default headers are attached when a request targets the origin of the platform's base URL (or an origin listed under *Trusted origins*). An API call with an absolute URL to any other host is sent without them. The connection settings themselves are sealed (HMAC with a vault key): changed directly in the database, the platform is refused until an administrator confirms them.
+- The audit log is HMAC-chained. *Audit log → Verify chain* detects modified, removed, inserted or re-ordered entries. Every hour, on each verification and before each export a checkpoint of the chain is **signed with the installation's Ed25519 key** and kept outside the database (log line for your SIEM, file in the data folder, optional e-mail): with it, removing entries at the end or rewriting the log is detected too, and an export can be checked offline (`npm run audit:verify-export`). Each finished run seals a fingerprint of its protocol in the chain; PDF reports are registered with their SHA-256, and only authentic entries count when a PDF or a protocol is verified.
+- By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`, TLS 1.2+, forward-secret ciphers). Behind a reverse proxy set `SM_TRUST_PROXY` and an `https://` `SM_PUBLIC_URL`. Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed; API responses are not cached.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
 - The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
 - Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
-- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md). Besides GitHub Actions, the repository has Woodpecker CI pipelines for a self-hosted Forgejo mirror with Harbor and Dependency-Track: [docs/WOODPECKER.md](docs/WOODPECKER.md).
+- Running it at work: follow the checklist in [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md). Personal data and retention: [docs/PRIVACY.md](docs/PRIVACY.md).
+- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs, enforced install-script allow-list, signed build provenance) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md). Woodpecker CI pipelines for a self-hosted Forgejo mirror with Harbor and Dependency-Track: [docs/WOODPECKER.md](docs/WOODPECKER.md).
 
 ## Development
 

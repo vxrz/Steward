@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport, IconPackage, IconPackageExport, IconPackageImport } from '@tabler/icons-react';
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post } from '../api';
+import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
 import { fmtRelative } from '../format';
@@ -54,7 +54,7 @@ export function ProcessesPage() {
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href="/api/bundle/export">
+                <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href={apiUrl('/bundle/export')}>
                   {t('bundle.exportAll')}
                 </Menu.Item>
                 {caps.createProcesses && (
@@ -122,7 +122,7 @@ export function ProcessesPage() {
                     </ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
-                    <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={`/api/processes/${p.id}/export`}>
+                    <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
                       {t('card.exportYaml')}
                     </Menu.Item>
                     {p.permissions.includes('manage') && <Menu.Item

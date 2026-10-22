@@ -29,7 +29,7 @@ steward [--port 4310] [--data-dir <folder>] [--no-open] [--demo] [--autostart on
 
 | Option | Effect |
 | --- | --- |
-| `--autostart on` | Starts the app in the background when you sign in, so schedules keep running. It uses the Startup folder on Windows, a LaunchAgent on macOS and XDG autostart on Linux; no admin rights needed. Combine it with `SM_MASTER_PASSPHRASE` (user environment variable) if schedules must run before anyone unlocks the vault. `--autostart off` removes it. |
+| `--autostart on` | Starts the app in the background when you sign in, so schedules keep running. It uses the Startup folder on Windows, a LaunchAgent on macOS and XDG autostart on Linux; no admin rights needed. If schedules must run before anyone unlocks the vault, put the passphrase in a file only you can read and set `SM_MASTER_PASSPHRASE_FILE` (on Windows preferably a DPAPI-protected file, see [SECURITY-HARDENING.md](SECURITY-HARDENING.md#master-passphrase)) – not in a user environment variable, which every program you start inherits. `--autostart off` removes it. |
 | `--no-open` | Start without opening a window. |
 | `--demo` | Demo mode with simulated platforms. |
 
@@ -81,7 +81,9 @@ docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for brows
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
   - configure single sign-on.
 - `/api/health` (liveness) and `/api/ready` (readiness: vault unlocked, database writable, scheduler running) are available for orchestrators. `/api/metrics` serves Prometheus metrics.
-- Set `SM_MASTER_PASSPHRASE` from a secret so schedules run after restarts.
+- For unattended unlock after restarts, mount the passphrase as a Docker secret and set `SM_MASTER_PASSPHRASE_FILE=/run/secrets/steward_passphrase` (commented example in `docker-compose.yml`).
+- Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=1` (or the proxy's address), `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`.
+- The complete checklist for a work deployment: [SECURITY-HARDENING.md](SECURITY-HARDENING.md).
 
 ## 5. Database: SQLite or PostgreSQL
 

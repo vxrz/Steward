@@ -1,4 +1,4 @@
-import { FileButton, Button, Group, JsonInput, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
+import { FileButton, Button, Group, JsonInput, NumberInput, PasswordInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { InputDef } from '@sm/shared';
@@ -75,6 +75,17 @@ export function InputsForm({
                   </FileButton>
                 </Group>
               </Stack>
+            );
+          case 'secret':
+            return (
+              <PasswordInput
+                key={d.name}
+                {...common}
+                description={d.description ?? t('inputs.secretHint')}
+                autoComplete="off"
+                value={(v as string) ?? ''}
+                onChange={(e) => set(d.name, e.currentTarget.value)}
+              />
             );
           case 'json':
             return <JsonInput key={d.name} {...common} autosize minRows={3} formatOnBlur value={(v as string) ?? ''} onChange={(x) => set(d.name, x)} />;

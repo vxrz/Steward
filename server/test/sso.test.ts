@@ -28,10 +28,16 @@ async function ssoSignIn(login: string, opts: { tamperState?: boolean } = {}) {
   if (opts.tamperState) callback.searchParams.set('state', 'forged');
   const res = await fetch(callback, { redirect: 'manual' });
   const cookie = res.headers.get('set-cookie')?.split(';')[0];
-  return { res, cookie, body: await res.text(), location: res.headers.get('location') ?? '' };
+  const body = await res.text();
+  // the callback page hands the session key to the web app (localStorage)
+  const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(body)?.[1];
+  if (cookie && key) ssoKeys.set(cookie, key);
+  return { res, cookie, body, location: res.headers.get('location') ?? '' };
 }
+const ssoKeys = new Map<string, string>();
+const auth = (cookie: string) => ({ cookie, 'x-sm-session': ssoKeys.get(cookie) ?? '' });
 
-const me = async (cookie: string) => (await fetch(`${s.base}/api/auth/me`, { headers: { cookie } })).json();
+const me = async (cookie: string) => (await fetch(`${s.base}/api/auth/me`, { headers: auth(cookie) })).json();
 
 describe('single sign-on (OIDC)', () => {
   it('lists the provider on the sign-in page but never returns the secret', async () => {
@@ -87,7 +93,7 @@ describe('single sign-on (OIDC)', () => {
     expect(info.user.id).toBe(user.id);
     expect(info.user.roles).toEqual(['approver']);
     expect(info.user.mustChangePassword).toBe(false);
-    expect(await (await fetch(`${s.base}/api/processes`, { headers: { cookie: r.cookie! } })).status).toBe(200);
+    expect(await (await fetch(`${s.base}/api/processes`, { headers: auth(r.cookie!) })).status).toBe(200);
   });
 
   it('can restrict password sign-in to administrators', async () => {

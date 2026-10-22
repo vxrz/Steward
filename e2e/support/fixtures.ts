@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test as base, expect, request as pwRequest, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { USERS, authFile, baseURL, type UserKey } from './env';
 
@@ -75,13 +76,29 @@ export const test = base.extend<Fixtures>({
   apiAs: async ({}, use) => {
     const clients: APIRequestContext[] = [];
     await use(async (user) => {
-      const c = await pwRequest.newContext({ baseURL: baseURL(), storageState: authFile(user), extraHTTPHeaders: { 'x-sm-client': '1' } });
+      const c = await pwRequest.newContext({ baseURL: baseURL(), storageState: authFile(user), extraHTTPHeaders: { 'x-sm-client': '1', ...sessionHeaders(user) } });
       clients.push(c);
       return c;
     });
     for (const c of clients) await c.dispose();
   },
 });
+
+/**
+ * The session key of a stored session (session binding: the cookie alone is not accepted). API calls made
+ * with Playwright's `request` / `page.request` have to send it, like the web app does.
+ */
+export function sessionHeaders(user: UserKey): Record<string, string> {
+  const state = JSON.parse(fs.readFileSync(authFile(user), 'utf8')) as { origins: { localStorage: { name: string; value: string }[] }[] };
+  const key = state.origins.flatMap((o) => o.localStorage).find((e) => e.name === 'sm.sessionKey')?.value;
+  return key ? { 'x-sm-session': key } : {};
+}
+
+/** The session key of a page that signed in through the UI. */
+export async function pageSessionHeaders(page: Page): Promise<Record<string, string>> {
+  const key = await page.evaluate(() => localStorage.getItem('sm.sessionKey'));
+  return key ? { 'x-sm-session': key } : {};
+}
 
 export async function newUserContext(browser: Browser, user: UserKey, options: object = {}): Promise<BrowserContext> {
   return browser.newContext({ ...options, storageState: authFile(user), baseURL: baseURL(), serviceWorkers: 'block' });

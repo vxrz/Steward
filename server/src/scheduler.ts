@@ -1,4 +1,5 @@
 import { Cron } from 'croner';
+import { openInputs, sealInputs } from './engine/secret-inputs.js';
 import type { RunStatus, Schedule } from '@sm/shared';
 import { db } from './db.js';
 import { audit } from './audit.js';
@@ -20,6 +21,7 @@ interface ScheduleRow {
   cron: string;
   timezone: string | null;
   inputs: string;
+  sealed_inputs?: string | null;
   bindings: string;
   dry_run: number;
   enabled: number;
@@ -102,9 +104,13 @@ export function validateCron(cron: string, timezone?: string): string[] {
 type ScheduleInput = Omit<Schedule, 'id' | 'createdAt' | 'processName' | 'lastRunAt' | 'lastRunId' | 'lastRunStatus' | 'nextRunAt'>;
 
 export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
-  getProcess(input.processId);
+  const proc = getProcess(input.processId);
   validateCron(input.cron, input.timezone);
   const sid = id ?? newId('sch_');
+  // inputs of type "secret" are stored encrypted ("***" in the schedule and the audit log)
+  const previous = id ? db().get<{ sealed_inputs: string | null }>('SELECT sealed_inputs FROM schedules WHERE id = ?', id)?.sealed_inputs : null;
+  const { visible, sealed } = sealInputs(proc.definition.inputs, input.inputs ?? {}, previous);
+  input = { ...input, inputs: visible };
   db().tx(() => {
     if (id) {
       const r = db().run(
@@ -121,6 +127,7 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
         id,
       );
       if (!r.changes) throw new HttpError(404, 'Schedule not found');
+      db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, id);
     } else {
       db().run(
         `INSERT INTO schedules (id, name, process_id, cron, timezone, inputs, bindings, dry_run, enabled, allow_overlap, created_at, owner)
@@ -138,6 +145,7 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
         nowIso(),
         currentUser()?.username ?? null,
       );
+      db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, sid);
     }
     audit({
       action: id ? 'schedule.updated' : 'schedule.created',
@@ -229,7 +237,7 @@ export async function fire(id: string, manual = false): Promise<string | null> {
   try {
     const runId = await runAs(runner, () =>
       startRun(
-        { processId: r.process_id, inputs: parseJson(r.inputs, {}), bindings: parseJson(r.bindings, {}), dryRun: !!r.dry_run },
+        { processId: r.process_id, inputs: openInputs(parseJson(r.inputs, {}), r.sealed_inputs), bindings: parseJson(r.bindings, {}), dryRun: !!r.dry_run },
         { trigger: 'schedule', scheduleId: id, actor: runner!.username },
       ),
     );

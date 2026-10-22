@@ -99,4 +99,6 @@ export interface ReportVerification {
   };
   /** Result of verifying the whole audit chain */
   auditChain?: { ok: boolean; checked: number; message: string };
+  /** Rows claiming to record this file that failed the HMAC/chain check (inserted outside the application) */
+  forgedEntries?: number;
 }

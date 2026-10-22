@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDownload, IconFileCertificate, IconFileTypePdf } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { REPORT_LANGS, type ReportLang, type ReportRecord, type RunStatus } from '@sm/shared';
-import { get, notifyError, notifyOk, post } from '../../api';
+import { get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { errorText } from '../../i18n/errors';
 import { currentLanguage } from '../../i18n';
 import { LANGUAGES } from '../../i18n/languages';
@@ -99,7 +99,7 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
             <Button variant="default" onClick={close}>
               {t('common:close')}
             </Button>
-            <Button component="a" href={`/api/reports/${done.id}/download`} leftSection={<IconDownload size={16} />}>
+            <Button component="a" href={apiUrl(`/reports/${done.id}/download`)} leftSection={<IconDownload size={16} />}>
               {t('downloadPdf')}
             </Button>
           </Group>
@@ -214,7 +214,7 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
                     </Tooltip>
                   </Table.Td>
                   <Table.Td className="nowrap">
-                    <Anchor href={`/api/reports/${r.id}/download`} size="sm" title={`${r.filename} (${fmtBytes(r.size)})`}>
+                    <Anchor href={apiUrl(`/reports/${r.id}/download`)} size="sm" title={`${r.filename} (${fmtBytes(r.size)})`}>
                       <Group gap={4} wrap="nowrap">
                         <IconDownload size={14} />
                         PDF

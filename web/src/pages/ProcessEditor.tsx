@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { IconAlertTriangle, IconChevronDown, IconChevronRight, IconDeviceFloppy, IconDownload, IconInfoCircle, IconPlayerPlay } from '@tabler/icons-react';
 import { validateProcess, type ProcessDefinition, type ProcessDetail, type ValidationIssue } from '@sm/shared';
-import { ApiError, get, notifyError, notifyOk, put } from '../api';
+import { ApiError, get, notifyError, notifyOk, put, apiUrl } from '../api';
 import { PageHeader } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
 import { AccessEditor } from '../components/AccessEditor';
@@ -149,7 +149,7 @@ export function ProcessEditorPage() {
                 </Group>
               </UnstyledButton>
             )}
-            <Button size="sm" variant="default" component="a" href={`/api/processes/${p.id}/export`} leftSection={<IconDownload size={16} />} visibleFrom="xs">
+            <Button size="sm" variant="default" component="a" href={apiUrl(`/processes/${p.id}/export`)} leftSection={<IconDownload size={16} />} visibleFrom="xs">
               {t('page.exportYaml')}
             </Button>
             {p.permissions.includes('run') && (

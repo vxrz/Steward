@@ -17,12 +17,23 @@ services:
       - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
     volumes:
       - steward-data:/data
+    # Hardening as in docker-compose.yml: read-only image, no Linux capabilities, no privilege escalation
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 2g
+    # secrets: [steward_passphrase]
     environment:
       SM_DATABASE_URL: postgres://steward:${STEWARD_DB_PASSWORD:?set STEWARD_DB_PASSWORD in .env}@postgres:5432/steward
       # SM_DATABASE_SCHEMA: steward   # default: public
       SM_ALLOWED_HOSTS: ""
-      # Unattended unlock so schedules run after a restart (use a Docker secret / env file in production)
-      # SM_MASTER_PASSPHRASE: ""
+      # Unattended unlock so schedules run after a restart: the passphrase as a Docker secret, not a variable
+      # SM_MASTER_PASSPHRASE_FILE: /run/secrets/steward_passphrase
+      # SM_TRUST_PROXY: "1"
       # SM_PUBLIC_URL: "https://steward.example.com"
       SM_LOG_LEVEL: info
 
@@ -35,6 +46,9 @@ services:
       POSTGRES_PASSWORD: ${STEWARD_DB_PASSWORD:?set STEWARD_DB_PASSWORD in .env}
     volumes:
       - steward-pg:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U steward -d steward"]
       interval: 5s
@@ -45,3 +59,6 @@ services:
 volumes:
   steward-data:
   steward-pg:
+# secrets:
+#   steward_passphrase:
+#     file: ./passphrase.txt

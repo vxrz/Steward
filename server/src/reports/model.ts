@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { ReportLang, RunStats, RunStatus, TaskRecord } from '@sm/shared';
 import { db } from '../db.js';
 import * as store from '../engine/store.js';
-import { allAuditAscending } from '../audit.js';
+import { allAuditAscending, sealedProtocolHash } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
 import { getProcess } from '../processes/service.js';
 import { canonicalJson, sha256 } from '../util.js';
@@ -114,19 +114,8 @@ function redactInput(name: string, v: unknown): string {
   return short(walk(v));
 }
 
-/** Sealed protocol hash: recorded in the audit log when the run finished. */
-export function sealedProtocolHash(runId: string): string | null {
-  const r = db().get<{ details: string | null }>(
-    "SELECT details FROM audit_log WHERE run_id = ? AND action IN ('run.succeeded', 'run.failed', 'run.cancelled') ORDER BY seq DESC LIMIT 1",
-    runId,
-  );
-  if (!r?.details) return null;
-  try {
-    return (JSON.parse(r.details) as { protocolHash?: string }).protocolHash ?? null;
-  } catch {
-    return null;
-  }
-}
+/** Sealed protocol hash: recorded in the (authentic) audit entry written when the run finished. */
+export { sealedProtocolHash };
 
 export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel {
   const run = store.getRunDetail(runId);

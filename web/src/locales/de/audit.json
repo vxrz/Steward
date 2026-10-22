@@ -1,6 +1,6 @@
 {
   "title": "Audit-Log",
-  "description": "Nur ergänzbare Aufzeichnung aller Aktionen in diesem Tool. Die Einträge sind verkettet und mit einem aus der Master-Passphrase abgeleiteten Schlüssel signiert (HMAC), sodass Änderungen oder Löschungen erkannt werden. Einträge werden bewusst auf Englisch geführt, damit der Nachweis für alle gleich lautet.",
+  "description": "Nur ergänzbare Aufzeichnung aller Aktionen in diesem Tool. Die Einträge sind verkettet und signiert (HMAC, Schlüssel im Tresor), sodass Änderungen oder Löschungen erkannt werden. Signierte Prüfpunkte außerhalb der Datenbank erkennen auch am Ende entfernte Einträge. Einträge werden bewusst auf Englisch geführt, damit der Nachweis für alle gleich lautet.",
   "verify": "Kette prüfen",
   "export": "Exportieren",
   "jsonl": "JSON Lines (mit Hashes)",
@@ -31,5 +31,28 @@
     "run": "Ausführung",
     "hash": "Hash {{hash}}"
   },
-  "loadOlder": "Ältere Einträge laden"
+  "loadOlder": "Ältere Einträge laden",
+  "verifyAnchor": "Gegen Prüfpunkt prüfen",
+  "anchorHint": "Einen außerhalb von Steward aufbewahrten Prüfpunkt einfügen – aus dem SIEM (Logzeile „audit checkpoint“), einer Prüfpunkt-E-Mail oder einer heruntergeladenen Prüfpunktdatei. Die Prüfung schlägt fehl, wenn das Log kürzer ist als der Prüfpunkt oder davon abweicht.",
+  "anchorLabel": "Prüfpunkt (JSON oder seq:hash)",
+  "jsonSigned": "JSON mit signiertem Prüfpunkt (Offline-Prüfung)",
+  "checkpointWritten": "Signierter Prüfpunkt bei Eintrag #{{seq}} geschrieben.",
+  "anchoring": {
+    "title": "Verankerung außerhalb der Datenbank",
+    "hint": "Alle {{minutes}} Minuten (wenn es neue Einträge gibt), nach jeder Prüfung und vor jedem Export signiert Steward einen Prüfpunkt mit dem Schlüssel dieser Installation. Er wird für Ihr SIEM protokolliert, im Datenordner abgelegt und kann an Auditoren gemailt werden – damit bleibt das Entfernen von Einträgen nicht mehr unbemerkt.",
+    "fingerprint": "Fingerabdruck des Signaturschlüssels:",
+    "latest": "Letzter Prüfpunkt: Eintrag #{{seq}}, {{date}}",
+    "none": "Noch kein Prüfpunkt.",
+    "configured": "Bei jeder Prüfung verglichen mit: {{list}}",
+    "downloadKey": "Öffentlicher Schlüssel (PEM)",
+    "downloadCheckpoint": "Letzter Prüfpunkt",
+    "checkpointNow": "Jetzt Prüfpunkt setzen",
+    "checkpointWritten": "Prüfpunkt bei Eintrag #{{seq}} geschrieben",
+    "offline": "Export offline prüfen:",
+    "emails": "Prüfpunkte per E-Mail an",
+    "emailsHint": "Auditoren oder ein revisionssicheres Postfach; nutzt die E-Mail-Einstellungen der Benachrichtigungen",
+    "interval": "Höchstens alle (h)",
+    "save": "Speichern",
+    "saved": "Gespeichert"
+  }
 }

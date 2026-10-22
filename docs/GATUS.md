@@ -45,7 +45,7 @@ endpoints:
 ```
 
 - Steward rejects foreign `Host` headers. Gatus sends the host name of the URL, so add it to `SM_ALLOWED_HOSTS` (e.g. `SM_ALLOWED_HOSTS=steward.corp.example`).
-- `/api/ready` going to 503 after a restart usually means nobody has unlocked the vault yet. Set `SM_MASTER_PASSPHRASE` for unattended start-up.
+- `/api/ready` going to 503 after a restart usually means nobody has unlocked the vault yet. Set `SM_MASTER_PASSPHRASE_FILE` for unattended start-up (see [SECURITY-HARDENING.md](SECURITY-HARDENING.md#master-passphrase)).
 
 ## 2. Show Gatus status in Steward
 

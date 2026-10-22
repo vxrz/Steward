@@ -15,7 +15,9 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-RUN npm ci --no-audit --no-fund
+COPY scripts/install-scripts.mjs scripts/
+# No install scripts from node_modules; only the reviewed ones in package.json "allowScripts" run.
+RUN npm ci --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY . .
 RUN npm run build
 
@@ -27,7 +29,8 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-RUN npm ci --omit=dev --workspace=server --workspace=shared --no-audit --no-fund
+COPY scripts/install-scripts.mjs scripts/
+RUN npm ci --omit=dev --workspace=server --workspace=shared --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY LICENSE NOTICE ./
 COPY shared ./shared
 COPY server/tsconfig.json ./server/
@@ -42,6 +45,9 @@ LABEL org.opencontainers.image.title="Steward" \
       org.opencontainers.image.description="Repeatable, auditable service procedures for Siemens Insights Hub, Industrial Edge and any REST platform" \
       org.opencontainers.image.licenses="Apache-2.0"
 WORKDIR /app
+# The master passphrase for unattended start: mount it as a secret and point SM_MASTER_PASSPHRASE_FILE at it
+# (see docker-compose.yml) – not as an environment variable. Browser steps run Chromium with its sandbox
+# when the runtime allows it (SM_CHROMIUM_SANDBOX, docs/SECURITY-HARDENING.md).
 ENV NODE_ENV=production \
     SM_HOST=0.0.0.0 \
     SM_PORT=4310 \

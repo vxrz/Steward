@@ -8,6 +8,7 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { invalidatePlatformCaches } from './http.js';
+import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
 import { currentUser } from '../auth/context.js';
 import { cleanAcl, platformPermissions } from '../auth/permissions.js';
@@ -25,6 +26,7 @@ interface PlatformRow {
   created_at: string;
   updated_at: string;
   acl: string;
+  config_mac: string | null;
 }
 
 function defaultConfig(): PlatformConfig {
@@ -45,6 +47,7 @@ function toPlatform(r: PlatformRow): Platform {
     environment: r.environment,
     config: cfg as PlatformConfig,
     secretKeys: r.secrets ? Object.keys(vault().decrypt<Record<string, string>>(r.secrets)) : [],
+    integrity: platformIntegrity(r),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -60,7 +63,16 @@ export function getPlatform(id: string): Platform {
   return toPlatform(r);
 }
 
+/** Credentials for using a platform – refused when its connection settings were changed outside the application. */
 export function getSecrets(id: string): Record<string, string> {
+  const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
+  if (!r) throw new HttpError(404, `Platform ${id} not found`);
+  requireIntact(r);
+  return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
+}
+
+/** Credentials without the integrity check – only for scrubbing them from error reports and listing their names. */
+export function getSecretsUnchecked(id: string): Record<string, string> {
   const r = db().get<{ secrets: string | null }>('SELECT secrets FROM platforms WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Platform ${id} not found`);
   return r.secrets ? vault().decrypt<Record<string, string>>(r.secrets) : {};
@@ -103,11 +115,19 @@ export function createPlatform(input: PlatformInput): Platform {
       summary: `Platform "${input.name}" created`,
       details: { kind: input.kind, baseUrl: input.baseUrl, auth: input.config?.auth?.type, secretKeys: Object.keys(secrets) },
     });
+    sealPlatform(id);
   });
   return getPlatform(id);
 }
 
+function requireIntactRow(id: string): void {
+  const r = db().get<PlatformRow>('SELECT * FROM platforms WHERE id = ?', id);
+  if (r) requireIntact(r);
+}
+
 export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platform {
+  // settings changed outside the application have to be confirmed first (they would be sealed unseen otherwise)
+  requireIntactRow(id);
   const before = getPlatform(id);
   const next = {
     name: patch.name?.trim() || before.name,
@@ -136,6 +156,7 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
       summary: `Platform "${next.name}" updated`,
       details: { changed: diffKeys(before, next) },
     });
+    sealPlatform(id);
   });
   invalidatePlatformCaches(id);
   return getPlatform(id);
@@ -175,6 +196,7 @@ export function setSecrets(id: string, patch: Record<string, string | null>): Pl
       summary: `Credentials of "${p.name}" changed (${[...changed, ...removed.map((r) => `-${r}`)].join(', ') || 'no change'})`,
       details: { set: changed, removed },
     });
+    sealPlatform(id);
   });
   invalidatePlatformCaches(id);
   return getPlatform(id);

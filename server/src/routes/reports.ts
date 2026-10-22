@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportRecord } from '@sm/shared';
-import { audit, verifyAudit } from '../audit.js';
+import { audit } from '../audit.js';
+import { verifyWithAnchors } from '../audit-anchor.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { getUser } from '../auth/users.js';
 import { capabilities, require, requireCapability } from '../auth/permissions.js';
@@ -228,11 +229,11 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       data = Buffer.from(b.contentBase64, 'base64');
     }
     const found = reports.findGenerated(data);
-    if (found) {
+    if (found?.match) {
       // only reveal details of reports the user may see (deleted ones: auditors/administrators)
       const rec = (() => {
         try {
-          return reports.getReport(found.entry.entity_id);
+          return reports.getReport(found.entry.entity_id ?? '');
         } catch {
           return null;
         }
@@ -240,7 +241,8 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       if (rec) requireReportAccess(rec);
       else if (!capabilities(u).viewAudit) return reports.verificationOf(data, null);
     }
-    const chain = verifyAudit();
+    // the whole chain, compared with the configured anchors (a report entry is only as good as the log it is in)
+    const chain = await verifyWithAnchors();
     const result = reports.verificationOf(data, found, { ok: chain.ok, checked: chain.checked, message: chain.message });
     audit({
       action: 'report.verified',
@@ -248,7 +250,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
       entityId: result.report?.id ?? null,
       runId: result.report?.runId ?? null,
       summary: result.report ? `PDF verified: ${result.match === 'exact' ? 'unchanged' : 'signed copy of'} report ${result.report.id}` : 'PDF verified: not a report generated here',
-      details: { sha256: result.sha256, match: result.match, auditChainOk: chain.ok },
+      details: { sha256: result.sha256, match: result.match, auditChainOk: chain.ok, ...(result.forgedEntries ? { forgedEntries: result.forgedEntries } : {}) },
     });
     return result;
   });

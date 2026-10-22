@@ -130,7 +130,7 @@ Do this on a **test tenant / test IEM** before any production use.
 ## 4. Resilience tests
 
 - **Crash during a waiting run.** Start "Access review 1", wait for the decision, kill the process (`kill -9` / Task Manager), and start it again with `SM_MASTER_PASSPHRASE` set. The run must still wait for the same task, and after the decision finished steps must not run again: the list call must not repeat (see `server/test/restart.test.ts`). The audit log shows `run.resumed`.
-- **Vault locked after restart.** Restart *without* `SM_MASTER_PASSPHRASE`. Users see "Waiting for an administrator", `/api/ready` answers HTTP 503 with "Vault is locked", schedules do not fire, and nothing runs until an admin unlocks. Then schedules resume.
+- **Vault locked after restart.** Restart *without* `SM_MASTER_PASSPHRASE_FILE`. Users see "Waiting for an administrator", `/api/ready` answers HTTP 503 with "Vault is locked", schedules do not fire, and nothing runs until an admin unlocks. Then schedules resume.
 - **Interrupted runs.** Kill the server during a running (not waiting) step. After restart the run is *interrupted*; *Resume* continues, *Cancel* ends it.
 - **Network/proxy failures.** Point a platform at an unreachable host, at a proxy that refuses the connection (`HTTPS_PROXY` / per-platform proxy), and at a self-signed certificate with and without *accept self-signed*. You should get clear errors in the step, no hanging runs, and the `error` output fires where wired.
 - **429 / 5xx retries.** In demo mode, `/mock/test/flaky?key=<k>&fail=2&status=429&retryAfter=1` fails the first *n* calls per key (`status` and `retryAfter=none` are configurable). `/mock/test/flaky/calls?key=<k>` shows how many calls arrived, and `/mock/test/delay?ms=…` simulates slow APIs. Add an HTTP node with that URL (absolute URL) and check that it retries with backoff, honours `Retry-After`, gives up after the configured attempts, and does not retry POST unless `retryNonIdempotent` is set.
@@ -163,12 +163,12 @@ Do this on a **test tenant / test IEM** before any production use.
   - `--autostart on`, then sign out and in: the app runs in the background and schedules fire;
   - a second start only opens the window.
 - **PWA.** In Edge/Chrome *Install app* works, and the app window, the shortcuts (Tasks, Dashboards, Runs) and browser notifications work. After an update the new version loads (service worker).
-- **Docker.** `docker compose up -d`: the volume persists across `docker compose down/up`, `/api/ready` works as a health check, `SM_MASTER_PASSPHRASE` comes from a secret, the image with `WITH_BROWSER=1` can run browser steps, and the image runs behind your reverse proxy with `SM_PUBLIC_URL`/`SM_ALLOWED_HOSTS`.
+- **Docker.** `docker compose up -d`: the volume persists across `docker compose down/up`, `/api/ready` works as a health check, `SM_MASTER_PASSPHRASE_FILE` points at a Docker secret, the image with `WITH_BROWSER=1` can run browser steps, and the image runs behind your reverse proxy with `SM_PUBLIC_URL`/`SM_ALLOWED_HOSTS`.
 
 ## 8. Go-live checklist
 
 - [ ] **Backups** of the data directory (or the PostgreSQL database), tested by restoring them on another machine.
-- [ ] **Master passphrase** in the company password manager. Two people know where it is. If `SM_MASTER_PASSPHRASE` is used, it comes from a secret store, not a script.
+- [ ] **Master passphrase** in the company password manager. Two people know where it is. For unattended start it comes from a file or secret (`SM_MASTER_PASSPHRASE_FILE`), not a script or environment variable.
 - [ ] **SSO** configured and tested for each role mapping; password sign-in limited to admins (*SSO only*); at least one local break-glass admin.
 - [ ] **Least-privilege credentials** per platform: read-only credential for feeders and dashboards, a separate write credential only where needed, platform access lists for production tenants.
 - [ ] **Schedules** owned by a service-desk account (not a personal one), with sensible time zones and *Allow overlap* off for processes with decisions.

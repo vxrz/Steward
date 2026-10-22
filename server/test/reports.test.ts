@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let hub: string;
@@ -21,17 +21,12 @@ const hasTool = (bin: string) => spawnSync(bin, ['-v'], { stdio: 'ignore' }).err
 
 /** Signs in with fetch and returns a cookie, for binary downloads and multipart uploads. */
 async function cookieFor(username: string, password: string): Promise<string> {
-  const res = await fetch(s.base + '/api/auth/login', {
-    method: 'POST',
-    headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
-    body: JSON.stringify({ username, password }),
-  });
-  return res.headers.get('set-cookie')!.split(';')[0]!;
+  return loginCookie(s.base, username, password);
 }
 
 let adminCookie: string;
 async function download(url: string, cookie = adminCookie): Promise<{ status: number; body: Buffer; headers: Headers }> {
-  const res = await fetch(s.base + '/api' + url, { headers: { cookie, 'x-sm-client': '1' } });
+  const res = await fetch(s.base + '/api' + url, { headers: { ...authHeaders(cookie), 'x-sm-client': '1' } });
   return { status: res.status, body: Buffer.from(await res.arrayBuffer()), headers: res.headers };
 }
 
@@ -297,7 +292,7 @@ describe('branding', () => {
     const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1024 * 1024)]);
     const form = new FormData();
     form.append('file', new Blob([big]), 'big.jpg');
-    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { cookie: adminCookie, 'x-sm-client': '1' }, body: form });
+    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' }, body: form });
     expect(res.status).toBe(400);
     expect((await s.api('GET', '/reports/branding')).customLogo).toBe(false);
   });
@@ -305,7 +300,7 @@ describe('branding', () => {
     const png = fs.readFileSync(path.resolve(import.meta.dirname, '../../web/public/icon-192.png'));
     const form = new FormData();
     form.append('file', new Blob([png], { type: 'text/plain' }), 'logo.png'); // declared type is ignored; magic bytes count
-    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { cookie: adminCookie, 'x-sm-client': '1' }, body: form });
+    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' }, body: form });
     expect(res.status).toBe(200);
     const b = await res.json();
     expect(b).toMatchObject({ customLogo: true, logoMime: 'image/png' });
@@ -317,7 +312,7 @@ describe('branding', () => {
     expect(rec.classification).toBe('Confidential');
     const preview = await fetch(s.base + '/api/reports/branding/preview', {
       method: 'POST',
-      headers: { cookie: adminCookie, 'x-sm-client': '1', 'content-type': 'application/json' },
+      headers: { ...authHeaders(adminCookie), 'x-sm-client': '1', 'content-type': 'application/json' },
       body: JSON.stringify({ lang: 'de', accentColor: '#2f9e44' }),
     });
     expect(preview.status).toBe(200);

@@ -36,7 +36,7 @@
   },
   "unattended": {
     "title": "Unbeaufsichtigter Betrieb",
-    "text": "Zeitpläne laufen nur, solange der Tresor entsperrt ist; geplante Ausführungen verwenden die Rechte des Zeitplan-Eigentümers. Um nach einem Neustart entsperrt zu starten (z. B. als Windows-Dienst), die Umgebungsvariable <c>SM_MASTER_PASSPHRASE</c> setzen. Damit Kollegen das Tool über das Netzwerk nutzen können, mit <c>SM_HOST=0.0.0.0</c>, <hosts/> und HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>) starten. Das Datenverzeichnis (<c>data/</c>) regelmäßig sichern – es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log. Details stehen in der <readme>README</readme>."
+    "text": "Zeitpläne laufen nur, solange der Tresor entsperrt ist; geplante Ausführungen verwenden die Rechte des Zeitplan-Eigentümers. Um nach einem Neustart entsperrt zu starten (z. B. als Windows-Dienst), die Passphrase in einer Datei ablegen, die nur das Dienstkonto lesen kann, und <c>SM_MASTER_PASSPHRASE_FILE</c> darauf zeigen lassen (keine Benutzer-Umgebungsvariable – jedes Programm würde sie erben). Damit Kollegen das Tool über das Netzwerk nutzen können, mit <c>SM_HOST=0.0.0.0</c>, <hosts/> und HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>) starten. Das Datenverzeichnis (<c>data/</c>) regelmäßig sichern – es enthält die Datenbank, verschlüsselte Zugangsdaten, Nachweisdateien und das Audit-Log. Details stehen in der <readme>README</readme>."
   },
   "maintenance": {
     "confirm": "Ausführungen und Benachrichtigungen, die älter als die gespeicherten Aufbewahrungsfristen sind, jetzt löschen? Das lässt sich nicht rückgängig machen.",
@@ -126,5 +126,23 @@
     "docsHint": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite).",
     "docsHintRateLimit_one": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite) und erlaubt {{count}} Anfrage pro Minute und Token.",
     "docsHintRateLimit_other": "Wer die interaktive Dokumentation (Swagger UI) und das OpenAPI-Dokument ohne Token öffnen darf. Die API selbst braucht immer ein API-Token (anzulegen auf der Profilseite) und erlaubt {{count}} Anfragen pro Minute und Token."
+  },
+  "vault": {
+    "title": "Master-Passphrase",
+    "hint": "Beim Ändern der Passphrase werden die Schlüssel des Tresors neu verpackt. Mit „Datenschlüssel erneuern“ werden zusätzlich alle gespeicherten Zugangsdaten mit einem neuen Schlüssel verschlüsselt – eine alte vault.json öffnet dann zusammen mit der alten Passphrase nichts Aktuelles mehr. Die Audit-Kette und ihr Signaturschlüssel bleiben gleich.",
+    "status": "scrypt N=2^{{n}}, zuletzt geändert am {{date}}.",
+    "signingKey": "Audit-Signaturschlüssel:",
+    "current": "Aktuelle Passphrase",
+    "next": "Neue Passphrase",
+    "nextHint": "Mindestens {{count}} Zeichen – ein Satz aus mehreren Wörtern eignet sich gut",
+    "repeat": "Neue Passphrase wiederholen",
+    "rotate": "Datenschlüssel erneuern (alle Zugangsdaten neu verschlüsseln)",
+    "rotateHint": "Empfohlen, wenn die alte Passphrase oder eine Sicherung der vault.json bekannt geworden sein könnte",
+    "submit": "Passphrase ändern",
+    "changed": "Master-Passphrase geändert",
+    "changedRotated": "Master-Passphrase geändert – {{count}} Geheimnis(se) neu verschlüsselt",
+    "tooShort": "Die Passphrase braucht mindestens {{count}} Zeichen",
+    "differ": "Die neuen Passphrasen stimmen nicht überein",
+    "backupHint": "Sichern Sie die neue vault.json zusammen mit der Datenbank. Passen Sie auch SM_MASTER_PASSPHRASE_FILE (unbeaufsichtigter Start) an."
   }
 }

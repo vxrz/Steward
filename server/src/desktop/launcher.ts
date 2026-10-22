@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { BRAND } from '@sm/shared';
+import { browserEnv } from './launcher-env.js';
 
 const HELP = `${BRAND.name} – desktop launcher
 
@@ -35,7 +36,7 @@ Examples:
   ${BRAND.slug} --autostart on                   start at every sign-in
   SM_SENTRY_DSN=https://… ${BRAND.slug} --send-test-error
 
-Environment variables (SM_HOST, SM_MASTER_PASSPHRASE, SM_SENTRY_DSN, OTEL_*, …) work as
+Environment variables (SM_HOST, SM_MASTER_PASSPHRASE_FILE, SM_SENTRY_DSN, OTEL_*, …) work as
 for the server; see the README.
 
 Exit status: 0 = ok, 1 = failure (e.g. port in use), 2 = usage error.
@@ -66,7 +67,7 @@ function candidates(): string[] {
 }
 
 function detached(cmd: string, argv: string[]): void {
-  const p = spawn(cmd, argv, { detached: true, stdio: 'ignore', windowsHide: true });
+  const p = spawn(cmd, argv, { detached: true, stdio: 'ignore', windowsHide: true, env: browserEnv() });
   p.on('error', () => undefined);
   p.unref();
 }
@@ -112,11 +113,11 @@ export function setAutostart(on: boolean): string {
   return `Created ${file}`;
 }
 
-async function alreadyRunning(url: string): Promise<boolean> {
+/** Whether anything answers on the port (Steward or not). */
+async function portAnswers(url: string): Promise<boolean> {
   try {
-    const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) });
-    const body = (await res.json()) as { ok?: boolean };
-    return res.ok && body.ok === true;
+    await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) });
+    return true;
   } catch {
     return false;
   }
@@ -170,7 +171,17 @@ async function main(): Promise<number> {
 
   const host = config.host === '0.0.0.0' ? 'localhost' : config.host;
   const url = `${config.tls ? 'https' : 'http'}://${host}:${config.port}`;
-  if (await alreadyRunning(url)) {
+  if (await portAnswers(url)) {
+    // Only open the window when it is *our* Steward: it has to prove that it knows the secret in our data folder.
+    const { verifyInstance } = await import('../instance.js');
+    const identity = await verifyInstance(url, config.dataDir);
+    if (identity !== 'ok') {
+      console.error(
+        `Port ${config.port} is in use by another program – it is not ${BRAND.name} started from your data folder (${config.dataDir}).\n` +
+          `Not opening it: it could be a look-alike asking for your passphrase. Start with --port <other port>, or find out what listens on port ${config.port}.`,
+      );
+      return EXIT_FAILURE;
+    }
     console.log(`${BRAND.name} is already running – opening ${url}`);
     if (args.open) openWindow(url);
     return EXIT_OK;

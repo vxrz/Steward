@@ -33,7 +33,7 @@ const PATTERNS: Pattern[] = [
   // query strings and fragments of absolute and absolute-path URLs
   { re: /((?:\b[a-z][a-z0-9+.-]*:\/\/[^\s?#"'<>]*|(?<![\w.])\/[\w\-./~%]*)?)\?[^\s#"'<>]*(#[^\s"'<>]*)?/gi, to: (m, base) => (base ? `${base}?${SCRUBBED}` : m) },
   // Authorization header values
-  { re: /\b(Bearer|SharedAccessSignature)\s+[A-Za-z0-9._~+/=:,-]{4,}/gi, to: `$1 ${SCRUBBED}` },
+  { re: /\b(Bearer|SharedAccessSignature)\s+[^\s"',;]{4,}/gi, to: `$1 ${SCRUBBED}` },
   { re: /\b(Basic)\s+[A-Za-z0-9+/]{8,}={0,2}/g, to: `$1 ${SCRUBBED}` },
   // Steward API tokens
   { re: /\bsmt_[A-Za-z0-9_-]{6,}/g, to: `smt_${SCRUBBED}` },
@@ -41,6 +41,11 @@ const PATTERNS: Pattern[] = [
   { re: /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, to: SCRUBBED },
   // well-known provider token formats (GitHub, Slack, AWS access keys, Google API keys)
   { re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,})\b/g, to: SCRUBBED },
+  // "key": "quoted value with spaces" (JSON bodies) – the whole string value
+  {
+    re: /("[a-z_-]*?(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|client[_-]?secret|auth[_-]?key)"\s*:\s*")((?:[^"\\]|\\.)*)"/gi,
+    to: `$1${SCRUBBED}"`,
+  },
   // key=value / "key": "value" pairs with sensitive keys
   {
     re: /\b((?:[a-z_-]*?)(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|client[_-]?secret|auth[_-]?key|sig|signature|session|cookie))(["']?\s*[:=]\s*["']?)([^\s"'&,;}]+)/gi,
@@ -70,9 +75,25 @@ export interface ScrubOptions {
   secrets?: Iterable<string>;
 }
 
+/** Encoded forms a secret typically appears in: JSON string escaping, URL and form encoding, Base64. */
+function variants(s: string): string[] {
+  const url = encodeURIComponent(s);
+  let b64 = '';
+  try {
+    b64 = typeof btoa === 'function' ? btoa(unescape(encodeURIComponent(s))) : '';
+  } catch {
+    /* not encodable */
+  }
+  return [JSON.stringify(s).slice(1, -1), url, url.replace(/%20/g, '+'), b64].filter((v) => v && v !== s && v.length >= 4);
+}
+
 function secretList(opts: ScrubOptions): string[] {
   const out = new Set<string>();
-  for (const s of opts.secrets ?? []) if (typeof s === 'string' && s.length >= 4) out.add(s);
+  for (const s of opts.secrets ?? []) {
+    if (typeof s !== 'string' || s.length < 4) continue;
+    out.add(s);
+    for (const v of variants(s)) out.add(v);
+  }
   // longest first, so a secret containing another one is replaced as a whole
   return [...out].sort((a, b) => b.length - a.length);
 }

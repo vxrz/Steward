@@ -26,7 +26,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+      - name: Install scripts – only the reviewed ones (package.json "allowScripts")
+        run: node scripts/install-scripts.mjs --check --run
       - run: npx playwright install --with-deps chromium
       - name: Build web UI
         run: npm run build

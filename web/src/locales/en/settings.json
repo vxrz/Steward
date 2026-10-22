@@ -36,7 +36,7 @@
   },
   "unattended": {
     "title": "Unattended operation",
-    "text": "Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), set the environment variable <c>SM_MASTER_PASSPHRASE</c>. To let colleagues use the tool over the network, start it with <c>SM_HOST=0.0.0.0</c>, <hosts/> and HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>). Keep the data directory (<c>data/</c>) backed up – it contains the database, encrypted credentials, evidence files and the audit log. See the <readme>README</readme> for details."
+    "text": "Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), provide the passphrase in a file only the service account can read and point <c>SM_MASTER_PASSPHRASE_FILE</c> at it (not a user environment variable – every program would inherit it). To let colleagues use the tool over the network, start it with <c>SM_HOST=0.0.0.0</c>, <hosts/> and HTTPS (<c>SM_TLS_CERT</c>/<c>SM_TLS_KEY</c>). Keep the data directory (<c>data/</c>) backed up – it contains the database, encrypted credentials, evidence files and the audit log. See the <readme>README</readme> for details."
   },
   "maintenance": {
     "confirm": "Delete runs and notifications older than the saved retention periods now? This cannot be undone.",
@@ -126,5 +126,23 @@
     "docsHint": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page).",
     "docsHintRateLimit_one": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page) and allows {{count}} request per minute and token.",
     "docsHintRateLimit_other": "Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token (created on the profile page) and allows {{count}} requests per minute and token."
+  },
+  "vault": {
+    "title": "Master passphrase",
+    "hint": "Changing the passphrase re-wraps the vault's keys. With \"rotate the data key\", every stored credential is also re-encrypted with a new key, so an old vault.json together with the old passphrase opens nothing current. The audit chain and its signing key stay the same.",
+    "status": "scrypt N=2^{{n}}, last changed {{date}}.",
+    "signingKey": "Audit signing key:",
+    "current": "Current passphrase",
+    "next": "New passphrase",
+    "nextHint": "At least {{count}} characters – a sentence of several words works well",
+    "repeat": "Repeat new passphrase",
+    "rotate": "Rotate the data key (re-encrypt all credentials)",
+    "rotateHint": "Recommended when the old passphrase or a backup of vault.json may have been exposed",
+    "submit": "Change passphrase",
+    "changed": "Master passphrase changed",
+    "changedRotated": "Master passphrase changed – {{count}} secret(s) re-encrypted",
+    "tooShort": "The passphrase needs at least {{count}} characters",
+    "differ": "The new passphrases differ",
+    "backupHint": "Back up the new vault.json together with the database. Update SM_MASTER_PASSPHRASE_FILE (unattended start) as well."
   }
 }

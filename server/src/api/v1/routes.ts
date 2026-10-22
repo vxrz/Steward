@@ -9,7 +9,8 @@ import type { DatasetRow, ProcessPermission, TaskRecord } from '@sm/shared';
 import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { db } from '../../db.js';
-import { audit, queryAudit, verifyAudit, verifyAuditAsync } from '../../audit.js';
+import { audit, queryAudit, sealedProtocolHash } from '../../audit.js';
+import { createCheckpoint, verificationResult, verifyWithAnchors } from '../../audit-anchor.js';
 import { currentUser } from '../../auth/context.js';
 import { capabilities, decisionCheck, requireCapability } from '../../auth/permissions.js';
 import * as users from '../../auth/users.js';
@@ -496,8 +497,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       viewableRun(id);
       const d = store.getRunDetail(id);
       const counts = store.stepStatusCounts(id);
-      const finished = queryAudit({ runId: id, action: 'run.', limit: 50 }).find((a) => /^run\.(succeeded|failed|cancelled)$/.test(a.action));
-      const recordedHash = (finished?.details as { protocolHash?: string } | null)?.protocolHash ?? null;
+      const recordedHash = sealedProtocolHash(id);
       const hash = store.protocolHash(id);
       return {
         ...mapRun(d),
@@ -890,8 +890,10 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async () => {
       requireCapability(currentUser(), 'viewAudit', 'verify the audit log');
-      const r = await verifyAuditAsync();
-      audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified via the API: ${r.message}`, details: r });
+      // compared with the configured anchors (local anchor file, SM_AUDIT_ANCHOR[_FILE]); a success is checkpointed
+      const r = await verifyWithAnchors();
+      audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified via the API: ${r.message}`, details: verificationResult(r, null) });
+      if (r.ok) await createCheckpoint('verify');
       return { ok: r.ok, checked: r.checked, firstBadSeq: r.firstBadSeq ?? null, message: r.message };
     },
   );

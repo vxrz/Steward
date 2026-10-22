@@ -48,6 +48,11 @@ export function VerifyReportButton() {
                 {t('verify.signedText')}
               </Alert>
             )}
+            {!!v.forgedEntries && (
+              <Alert color="red" title={t('verify.forgedTitle')}>
+                {t('verify.forgedText', { count: v.forgedEntries })}
+              </Alert>
+            )}
             {v.match === 'unknown' && (
               <Alert color="red" title={t('verify.unknownTitle')}>
                 {t('verify.unknownText')}

@@ -1,4 +1,4 @@
-import { test, expect } from './support/fixtures';
+import { test, expect, pageSessionHeaders } from './support/fixtures';
 import { PROCESS } from './support/env';
 import { json, startRunFromDialog, taskRegion, waitForRun } from './support/helpers';
 
@@ -51,7 +51,7 @@ test.describe('human in the loop', () => {
     await expect(protocol.locator('body')).toContainText(ACCESS_REVIEW_1);
     await expect(protocol.locator('body')).toContainText('adam');
     await protocol.close();
-    const pdf = await olivia.request.get(`/api/runs/${runId}/report.json`);
+    const pdf = await olivia.request.get(`/api/runs/${runId}/report.json`, { headers: await pageSessionHeaders(olivia) });
     expect(pdf.ok()).toBeTruthy();
 
     // --- audrey (auditor) finds the decision in the audit log; the chain is intact

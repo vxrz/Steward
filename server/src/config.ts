@@ -9,6 +9,60 @@ export const ROOT_DIR = path.resolve(here, '..', '..');
 
 const dataDir = path.resolve(process.env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'data'));
 
+/**
+ * The master passphrase for unattended start: SM_MASTER_PASSPHRASE_FILE (preferred: a Docker/Kubernetes
+ * secret, a systemd credential, a file only the service account can read) or SM_MASTER_PASSPHRASE.
+ * Both variables are removed from the environment right away, so child processes (the browser for
+ * browser steps, the user's browser started by the desktop launcher) never inherit the passphrase
+ * and it does not show up in /proc/<pid>/environ of later processes.
+ */
+function readMasterPassphrase(): string | undefined {
+  const file = process.env.SM_MASTER_PASSPHRASE_FILE?.trim();
+  const direct = process.env.SM_MASTER_PASSPHRASE;
+  delete process.env.SM_MASTER_PASSPHRASE;
+  delete process.env.SM_MASTER_PASSPHRASE_FILE;
+  if (file) {
+    // systemd credentials: SM_MASTER_PASSPHRASE_FILE=%d/steward-passphrase (LoadCredential=…)
+    const resolved = file.replace(/^%d(?=[\\/])/, process.env.CREDENTIALS_DIRECTORY ?? '%d');
+    try {
+      return readPassphraseFile(resolved);
+    } catch (e) {
+      throw new Error(`SM_MASTER_PASSPHRASE_FILE: cannot read ${resolved}: ${(e as Error).message}`);
+    }
+  }
+  return direct || undefined;
+}
+
+/** A passphrase file: its content without the trailing line break. Windows: a DPAPI-protected file (see docs/SECURITY-HARDENING.md) can be read by a wrapper script. */
+export function readPassphraseFile(file: string): string {
+  const text = fs.readFileSync(file, 'utf8').replace(/\r?\n$/, '');
+  if (!text) throw new Error('the file is empty');
+  if (process.platform !== 'win32') {
+    const mode = fs.statSync(file).mode & 0o077;
+    if (mode & 0o007) process.emitWarning(`${file} is readable by other users – restrict it (chmod 600)`, { code: 'SM_PASSPHRASE_FILE_MODE' });
+  }
+  return text;
+}
+
+/**
+ * SM_TRUST_PROXY: behind a reverse proxy, which X-Forwarded-For / -Proto / -Host to believe.
+ * Off by default. A comma-separated list of proxy addresses/CIDRs ("10.0.0.5, 10.1.0.0/16", also
+ * "loopback", "linklocal", "uniquelocal") – preferred – or a hop count ("1"); a hop count is only
+ * honoured when the direct peer has a loopback or private address (see app.ts), so a client that
+ * reaches Steward directly from outside cannot fake its address. "true" (trust everyone) is refused.
+ */
+export function parseTrustProxy(v: string | undefined): number | string[] | undefined {
+  const s = v?.trim();
+  if (!s || /^(0|false|off|no)$/i.test(s)) return undefined;
+  if (/^\d+$/.test(s)) return Number(s);
+  if (/^(true|on|yes|\*)$/i.test(s)) throw new Error('SM_TRUST_PROXY=true would trust any client to set its own address – use the number of proxies (e.g. 1) or their addresses');
+  const list = s.split(',').map((x) => x.trim()).filter(Boolean);
+  for (const x of list) if (!/^[0-9a-fA-F.:]+(\/\d{1,3})?$/.test(x) && !['loopback', 'linklocal', 'uniquelocal'].includes(x)) throw new Error(`SM_TRUST_PROXY: "${x}" is not an IP address or CIDR`);
+  return list;
+}
+
+const publicUrl = process.env.SM_PUBLIC_URL?.trim().replace(/\/+$/, '') || undefined;
+
 export const config = {
   version: '0.1.0',
   host: process.env.SM_HOST ?? '127.0.0.1',
@@ -28,14 +82,50 @@ export const config = {
   dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),
   /** Fonts, default logo and colour profile for PDF reports (server/assets; unpacked by the desktop executable) */
   assetsDir: process.env.SM_ASSETS_DIR ?? path.join(ROOT_DIR, 'server', 'assets'),
-  /** Optional passphrase for unattended start (scheduled runs after reboot). */
-  masterPassphrase: process.env.SM_MASTER_PASSPHRASE,
+  /** Optional passphrase for unattended start (scheduled runs after reboot); see readMasterPassphrase. */
+  masterPassphrase: readMasterPassphrase(),
   /** Serve HTTPS (recommended when other people access the tool over the network). */
   tls: process.env.SM_TLS_CERT && process.env.SM_TLS_KEY ? { cert: process.env.SM_TLS_CERT, key: process.env.SM_TLS_KEY } : undefined,
+  /** The address users open (behind a reverse proxy: its https:// URL). */
+  publicUrl,
+  /** Reverse proxy addresses / hop count whose X-Forwarded-* headers are believed (SM_TRUST_PROXY). */
+  trustProxy: parseTrustProxy(process.env.SM_TRUST_PROXY),
+  /** Session cookie with Secure and HSTS: built-in TLS, or an https public URL (TLS terminated by a proxy). */
+  get secureCookies(): boolean {
+    return !!this.tls || !!publicUrl?.startsWith('https://');
+  },
 };
 
-export function ensureDataDirs(): void {
+/**
+ * Creates the data folders. On Linux/macOS the data directory is private to the service account
+ * (0700) and the database, vault and key files are 0600 – also fixed on existing installations
+ * (best effort; problems are returned for the log).
+ */
+export function ensureDataDirs(): string[] {
+  const problems: string[] = [];
+  const posix = process.platform !== 'win32';
   for (const d of ['', 'artifacts', 'docs', 'reports']) {
-    fs.mkdirSync(path.join(config.dataDir, d), { recursive: true });
+    const dir = path.join(config.dataDir, d);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if (posix) {
+      try {
+        if ((fs.statSync(dir).mode & 0o077) !== 0) fs.chmodSync(dir, 0o700);
+      } catch (e) {
+        problems.push(`${dir}: ${(e as Error).message}`);
+      }
+    }
   }
+  if (posix) {
+    for (const f of fs.readdirSync(config.dataDir)) {
+      if (!/^(service-manager\.db(-wal|-shm|-journal)?|vault\.json.*|audit-anchor\.json|instance\.json)$/.test(f)) continue;
+      const file = path.join(config.dataDir, f);
+      try {
+        const st = fs.statSync(file);
+        if (st.isFile() && (st.mode & 0o077) !== 0) fs.chmodSync(file, 0o600);
+      } catch (e) {
+        problems.push(`${file}: ${(e as Error).message}`);
+      }
+    }
+  }
+  return problems;
 }

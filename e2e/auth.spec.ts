@@ -1,4 +1,4 @@
-import { test, expect, USERS } from './support/fixtures';
+import { test, expect, USERS, pageSessionHeaders, sessionHeaders } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectShell, json, uniq } from './support/helpers';
 
@@ -21,11 +21,14 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('button', { name: 'User menu' })).toContainText(USERS.dana.displayName);
     await expect(page.getByRole('heading', { name: 'Dashboard', level: 2 })).toBeVisible();
 
+    const headers = await pageSessionHeaders(page);
+    expect((await page.request.get('/api/auth/me', { headers })).status()).toBe(200);
     await page.getByRole('button', { name: 'User menu' }).click();
     await page.getByRole('menuitem', { name: 'Sign out' }).click();
     await expect(page.getByRole('heading', { name: /^Sign in/ })).toBeVisible();
-    // the session is gone on the server, too
-    expect((await page.request.get('/api/auth/me')).status()).toBe(401);
+    // the session is gone on the server, too, and the web app forgot its session key
+    expect((await page.request.get('/api/auth/me', { headers })).status()).toBe(401);
+    expect(await pageSessionHeaders(page)).toEqual({});
   });
 
   test('wrong password shows a message', async ({ page }) => {
@@ -42,14 +45,14 @@ test.describe('sign-in', () => {
     await signIn(page, username, 'Temp-password-1');
     await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
     // the API refuses everything else until the password is changed
-    expect((await page.request.get('/api/processes')).status()).toBe(403);
+    expect((await page.request.get('/api/processes', { headers: await pageSessionHeaders(page) })).status()).toBe(403);
 
     await page.getByLabel('Temporary password').fill('Temp-password-1');
     await page.getByLabel(/^New password/).fill('Own-password-2');
     await page.getByLabel('Repeat new password').fill('Own-password-2');
     await page.getByRole('button', { name: 'Change password' }).click();
     await expectShell(page);
-    expect((await page.request.get('/api/processes')).status()).toBe(200);
+    expect((await page.request.get('/api/processes', { headers: await pageSessionHeaders(page) })).status()).toBe(200);
   });
 });
 
@@ -85,8 +88,11 @@ test.describe('viewer (vera)', () => {
     await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);
 
     // and the server enforces it
-    expect((await request.get('/api/users')).status()).toBe(403);
-    expect((await request.get('/api/audit')).status()).toBe(403);
-    expect((await request.post('/api/processes', { headers: { 'x-sm-client': '1' }, data: { templateId: '40-ih-health-check' } })).status()).toBe(403);
+    const headers = sessionHeaders('vera');
+    expect((await request.get('/api/users', { headers })).status()).toBe(403);
+    expect((await request.get('/api/audit', { headers })).status()).toBe(403);
+    expect((await request.post('/api/processes', { headers: { 'x-sm-client': '1', ...headers }, data: { templateId: '40-ih-health-check' } })).status()).toBe(403);
+    // the cookie alone is not enough (session binding): another local program that received it gets nothing
+    expect((await request.get('/api/processes')).status()).toBe(401);
   });
 });

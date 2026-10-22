@@ -304,5 +304,13 @@
     "hideHeaders": "Antwort-Header ausblenden",
     "showHeaders": "Antwort-Header anzeigen",
     "responseBody": "Body"
+  },
+  "integrity": {
+    "title": "Verbindungseinstellungen außerhalb von Steward geändert",
+    "text": "Basis-URL, Authentifizierung oder andere Verbindungseinstellungen dieser Plattform passen nicht mehr zu ihrem Siegel: Sie wurden direkt in der Datenbank geändert. Zum Schutz der Zugangsdaten werden keine Anfragen an sie gesendet. Aktuelle Basis-URL: {{url}}",
+    "confirm": "Einstellungen geprüft – bestätigen",
+    "confirmQuestion": "Die aktuellen Verbindungseinstellungen (Basis-URL {{url}}) bestätigen? Prüfen Sie vorher die Einstellungen und das Audit-Log.",
+    "confirmed": "Einstellungen bestätigt",
+    "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen."
   }
 }

@@ -304,5 +304,13 @@
     "hideHeaders": "Hide response headers",
     "showHeaders": "Show response headers",
     "responseBody": "Body"
+  },
+  "integrity": {
+    "title": "Connection settings changed outside Steward",
+    "text": "The base URL, authentication or other connection settings of this platform no longer match their seal: they were changed directly in the database. To protect its credentials, no requests are sent to it. Current base URL: {{url}}",
+    "confirm": "I reviewed the settings – confirm",
+    "confirmQuestion": "Confirm the current connection settings (base URL {{url}})? Check the settings and the audit log first.",
+    "confirmed": "Settings confirmed",
+    "askAdmin": "Ask an administrator to review and confirm the settings."
   }
 }

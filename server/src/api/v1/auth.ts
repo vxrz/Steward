@@ -80,7 +80,8 @@ export function docsAccess(req: FastifyRequest): { allowed: true } | { allowed: 
   if (mode === 'authenticated') {
     let user: UserInfo | null = null;
     try {
-      user = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
+      // documentation only: page loads cannot carry the session key header, and the docs reveal nothing secret
+      user = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE), 'skip');
     } catch {
       user = null;
     }
@@ -96,7 +97,7 @@ function recordDailyUse(p: ApiPrincipal, ip: string): void {
   if (usedToday.get(p.tokenId) === day) return;
   usedToday.set(p.tokenId, day);
   const seen = db().get(
-    "SELECT 1 AS x FROM audit_log WHERE action = 'api.token_used' AND entity_id = ? AND ts >= ? LIMIT 1",
+    "SELECT 1 AS x FROM audit_log WHERE action = 'api.token_used' AND entity_id = ? AND ts >= ? AND seq >= 1 LIMIT 1",
     p.tokenId,
     `${day}T00:00:00.000Z`,
   );

@@ -5,7 +5,7 @@ import { IconEye, IconRestore, IconUpload } from '@tabler/icons-react';
 import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportBranding, type ReportLang } from '@sm/shared';
 import { useTranslation } from 'react-i18next';
 import { BRAND } from '../../../../shared/src/brand';
-import { api, getOptional, notifyError, notifyOk, put } from '../../api';
+import { api, getOptional, notifyError, notifyOk, put, apiUrl, authHeaders } from '../../api';
 import { browserTimeZone, reportLangName } from './RunReports';
 
 type Draft = Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>;
@@ -23,7 +23,7 @@ export function ReportBrandingCard() {
   }, [branding.data]);
   if (!branding.data || !draft) return null;
   const b = branding.data;
-  const logoUrl = `/api/reports/branding/logo?v=${encodeURIComponent(b.logoUpdatedAt ?? 'default')}`;
+  const logoUrl = apiUrl(`/reports/branding/logo?v=${encodeURIComponent(b.logoUpdatedAt ?? 'default')}`);
   const validColor = /^#[0-9a-fA-F]{6}$/.test(draft.accentColor);
 
   const save = async () => {
@@ -79,7 +79,7 @@ export function ReportBrandingCard() {
       const res = await fetch('/api/reports/branding/preview', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
+        headers: { ...authHeaders(), 'content-type': 'application/json' },
         body: JSON.stringify({ ...draft, lang, timeZone: browserTimeZone() }),
       });
       if (!res.ok) throw new Error(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${res.status}`);

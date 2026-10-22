@@ -19,17 +19,64 @@ export function setAuthChangeHandler(fn: () => void): void {
   onAuthChange = fn;
 }
 
+/**
+ * Session binding: besides the HttpOnly cookie, the server hands out a per-session key at sign-in.
+ * It is kept in localStorage – readable only by pages of this exact origin (scheme, host and port) –
+ * and sent with every request. Browsers send cookies to every port of a host, so a program on another
+ * local port could receive the cookie, but never this key. Links (downloads, images) cannot carry a
+ * header and get a separate read-only link key as ?_sk=. The SSO callback page stores the same keys.
+ */
+const SESSION_KEY = 'sm.sessionKey';
+const LINK_KEY = 'sm.linkKey';
+let memoryKeys: { session?: string; link?: string } = {}; // when localStorage is unavailable
+
+function readKey(name: string): string | undefined {
+  try {
+    return localStorage.getItem(name) ?? undefined;
+  } catch {
+    return name === SESSION_KEY ? memoryKeys.session : memoryKeys.link;
+  }
+}
+
+function storeKeys(session: string | null, link: string | null): void {
+  memoryKeys = { session: session ?? undefined, link: link ?? undefined };
+  try {
+    if (session) localStorage.setItem(SESSION_KEY, session);
+    else localStorage.removeItem(SESSION_KEY);
+    if (link) localStorage.setItem(LINK_KEY, link);
+    else localStorage.removeItem(LINK_KEY);
+  } catch {
+    /* private mode: keys live in memory until the page is reloaded */
+  }
+}
+
+/** Headers that authenticate a request of this browser tab (for the few places that call fetch directly). */
+export function authHeaders(): Record<string, string> {
+  const key = readKey(SESSION_KEY);
+  return { 'x-sm-client': '1', ...(key ? { 'x-sm-session': key } : {}) };
+}
+
+/** URL of an API resource for links, downloads and images (GET only): "/api" + path + the link key. */
+export function apiUrl(path: string): string {
+  const key = readKey(LINK_KEY);
+  if (!key) return '/api' + path;
+  return `/api${path}${path.includes('?') ? '&' : '?'}_sk=${encodeURIComponent(key)}`;
+}
+
 export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData;
   const res = await fetch('/api' + url, {
     method,
     credentials: 'same-origin',
     headers: {
-      'x-sm-client': '1',
+      ...authHeaders(),
       ...(body !== undefined && !isForm ? { 'content-type': 'application/json' } : {}),
     },
     body: body === undefined ? undefined : isForm ? (body as FormData) : JSON.stringify(body),
   });
+  const newKey = res.headers.get('x-sm-session-key');
+  if (newKey) storeKeys(newKey, res.headers.get('x-sm-link-key'));
+  if (url === '/auth/logout' && res.ok) storeKeys(null, null);
   const text = await res.text();
   let data: unknown = null;
   if (text) {

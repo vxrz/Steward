@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post, put } from '../api';
+import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
 import { PageHeader } from '../components/common';
 import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
@@ -112,7 +112,7 @@ export function DashboardViewPage() {
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
-                  <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/dashboards/${d.id}/export`}>
+                  <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/dashboards/${d.id}/export`)}>
                     {t('view.exportYaml')}
                   </Menu.Item>
                   {d.canEdit && (

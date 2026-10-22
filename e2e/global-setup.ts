@@ -21,28 +21,53 @@ const tail = (file: string, lines = 25) => {
   }
 };
 
-async function http(method: string, url: string, body?: unknown, cookie?: string): Promise<{ status: number; json: any; cookie?: string }> {
+/** A signed-in session: the cookie plus the keys the web app keeps in localStorage (session binding). */
+interface Session {
+  cookie: string;
+  sessionKey: string;
+  linkKey: string;
+}
+
+async function http(method: string, url: string, body?: unknown, session?: Session): Promise<{ status: number; json: any; session?: Session }> {
   const res = await fetch(baseURL() + url, {
     method,
-    headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+    headers: {
+      'x-sm-client': '1',
+      ...(session ? { cookie: session.cookie, 'x-sm-session': session.sessionKey } : {}),
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
   const set = res.headers.get('set-cookie');
-  return { status: res.status, json: text ? JSON.parse(text) : null, cookie: set ? set.split(';')[0] : undefined };
+  const key = res.headers.get('x-sm-session-key');
+  return {
+    status: res.status,
+    json: text ? JSON.parse(text) : null,
+    session: set && key ? { cookie: set.split(';')[0]!, sessionKey: key, linkKey: res.headers.get('x-sm-link-key') ?? '' } : undefined,
+  };
 }
 
-async function must(method: string, url: string, body?: unknown, cookie?: string) {
+async function must(method: string, url: string, body?: unknown, cookie?: Session) {
   const r = await http(method, url, body, cookie);
   if (r.status >= 400) throw new Error(`${method} ${url} → HTTP ${r.status}: ${JSON.stringify(r.json)}`);
   return r;
 }
 
-function writeStorageState(user: UserKey, cookie: string) {
-  const [name, ...v] = cookie.split('=');
+function writeStorageState(user: UserKey, session: Session) {
+  const [name, ...v] = session.cookie.split('=');
   const state = {
     cookies: [{ name, value: v.join('='), domain: '127.0.0.1', path: '/', expires: -1, httpOnly: true, secure: false, sameSite: 'Strict' as const }],
-    origins: [{ origin: baseURL(), localStorage: [{ name: 'sm.lastUser', value: USERS[user].username }] }],
+    origins: [
+      {
+        origin: baseURL(),
+        localStorage: [
+          { name: 'sm.lastUser', value: USERS[user].username },
+          { name: 'sm.sessionKey', value: session.sessionKey },
+          { name: 'sm.linkKey', value: session.linkKey },
+        ],
+      },
+    ],
   };
   fs.writeFileSync(authFile(user), JSON.stringify(state, null, 2));
 }
@@ -110,7 +135,7 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
 
     // 2. vault + first admin, demo data
     const setup = await must('POST', '/api/auth/setup', { passphrase: MASTER_PASSPHRASE, username: USERS.admin.username, password: USERS.admin.password });
-    const adminCookie = setup.cookie!;
+    const adminCookie = setup.session!;
     await must('POST', '/api/demo/setup', {}, adminCookie);
 
     // 3. wait until the initial feeder runs (dashboards) have finished
@@ -126,7 +151,7 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
     for (const key of Object.keys(USERS) as UserKey[]) {
       if (key === 'admin') continue;
       const r = await must('POST', '/api/auth/login', { username: USERS[key].username, password: USERS[key].password });
-      writeStorageState(key, r.cookie!);
+      writeStorageState(key, r.session!);
     }
   } catch (e) {
     await teardown();

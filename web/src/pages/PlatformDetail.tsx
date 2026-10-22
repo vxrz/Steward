@@ -9,6 +9,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { useMe } from '../auth';
 import { JsonView, PageHeader } from '../components/common';
+import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
 import { errorText } from '../i18n/errors';
 import { fmtNumber } from '../format';
 import { KIND_COLORS } from './Platforms';
@@ -140,6 +141,7 @@ export function PlatformDetailPage() {
           </>
         }
       />
+      <PlatformIntegrityAlert platform={p} canConfirm={isAdmin && canManage} />
       {test && (
         <Alert
           color={test.ok ? 'green' : 'red'}

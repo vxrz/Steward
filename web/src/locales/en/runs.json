@@ -57,7 +57,8 @@
     "listHint": "One value per line",
     "csvHint": "CSV with header row (comma, semicolon or tab separated)",
     "csvHintColumns": "CSV with header row: {{columns}} (comma, semicolon or tab separated)",
-    "loadCsv": "Load CSV file"
+    "loadCsv": "Load CSV file",
+    "secretHint": "Stored encrypted only; shown as *** in the protocol, reports and the audit log"
   },
   "trigger": {
     "manual": "manual",

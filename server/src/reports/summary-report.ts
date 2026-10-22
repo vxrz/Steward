@@ -1,5 +1,6 @@
 import type { RunStats, RunStatus } from '@sm/shared';
 import { db } from '../db.js';
+import { sealedProtocolHash } from '../audit.js';
 import { parseJson } from '../util.js';
 import { ReportWriter, type CellInput } from './pdf/engine.js';
 import { translator } from './i18n.js';
@@ -64,7 +65,7 @@ export function buildSummaryModel(o: { processIds: string[]; from: string; to: s
   }>(
     `SELECT r.id, r.process_id, r.process_name, r.status, r.dry_run, r.actor, r.started_at, r.finished_at, r.stats,
        (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = r.id AND t.status = 'completed') AS decisions,
-       (SELECT ${db().jsonText('a.details', 'protocolHash')} FROM audit_log a WHERE a.run_id = r.id AND a.action IN ('run.succeeded', 'run.failed', 'run.cancelled') ORDER BY a.seq DESC LIMIT 1) AS protocol_hash
+       NULL AS protocol_hash
      FROM runs r WHERE r.process_id IN (${marks}) AND r.started_at >= ? AND r.started_at < ? ORDER BY r.started_at, r.rowid`,
     ...ids,
     o.from,
@@ -102,7 +103,8 @@ export function buildSummaryModel(o: { processIds: string[]; from: string; to: s
       decisions: r.decisions,
       changes: s.writes ?? 0,
       checksFailed: s.checksFailed ?? 0,
-      protocolHash: r.protocol_hash ?? null,
+      // only from an authentic audit entry (HMAC and chain position checked)
+      protocolHash: sealedProtocolHash(r.id),
     };
   });
   return {
