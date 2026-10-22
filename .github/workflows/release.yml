@@ -20,16 +20,18 @@ jobs:
             target: windows-x64
           - os: macos-latest
             target: macos-arm64
-          - os: macos-13
+          - os: macos-15-intel
             target: macos-x64
           - os: ubuntu-latest
             target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
         env:
@@ -42,9 +44,11 @@ jobs:
           EXE=$(ls dist-exe/* | head -1)
           "$EXE" --version
           "$EXE" --no-open --port 4399 --data-dir "$RUNNER_TEMP/sm-data" &
+          PID=$!
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:4399/api/health && break; sleep 1; done
           curl -sf http://127.0.0.1:4399/api/health
           curl -sf http://127.0.0.1:4399/ | grep -q '<div id="root">'
+          kill $PID || true
       - name: Package
         shell: bash
         run: |
@@ -61,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
       - run: npm ci
         env:

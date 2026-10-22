@@ -23,7 +23,7 @@ A local tool for running standard service and platform procedures against **Siem
 
 ## Quick start (demo with simulated platforms)
 
-Requirements: **Node.js 22.13 or newer** (it uses the built-in SQLite). Windows, macOS and Linux are supported.
+Requirements: **Node.js 24 (LTS)** (it uses the built-in SQLite). Windows, macOS and Linux are supported.
 
 ```bash
 npm install

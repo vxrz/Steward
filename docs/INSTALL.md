@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | **1. Desktop executable** | One person on a Windows/Mac/Linux laptop | Nothing (Node.js is built in) | Download, double-click |
 | **2. Installed web app (PWA)** | Getting an app window, taskbar/dock icon and Start-menu entry for any running instance | Edge or Chrome | One click in the browser |
-| **3. Node.js** (`npm start`) | Developers, customising | Node.js 22.13+ | `npm install && npm run build && npm start` |
+| **3. Node.js** (`npm start`) | Developers, customising | Node.js 24 (LTS) | `npm install && npm run build && npm start` |
 | **4. Container** (Docker/Podman) | A shared team instance on a VM or server | Docker | `docker compose up -d` |
 
 All options run the same server and keep everything in one data folder. You can move between them by copying that folder.
@@ -13,7 +13,7 @@ All options run the same server and keep everything in one data folder. You can 
 
 A single file that contains Node.js, the server, the web UI and the example library.
 
-1. Download the file for your system from the GitHub release (`service-manager-windows-x64.zip`, `…-macos-arm64.tar.gz`, `…-macos-x64.tar.gz`, `…-linux-x64.tar.gz`) and unpack it.
+1. Download the file for your system from the GitHub release (`service-manager-windows-x64.zip`, `…-macos-arm64.tar.gz` for Apple silicon, `…-macos-x64.tar.gz` for Intel Macs, `…-linux-x64.tar.gz`, `…-linux-arm64.tar.gz`) and unpack it.
 2. Start `service-manager` (`service-manager.exe` on Windows).
    - A console window shows the address and stays open while the app runs. Close it to stop the app.
    - The UI opens as its own app window in Edge or Chrome (`--app` mode, no tabs or address bar). Without Edge/Chrome it opens in your default browser.
@@ -52,7 +52,7 @@ npm run build        # web UI
 npm run build:exe    # → dist-exe/service-manager[.exe]
 ```
 
-The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux. It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`.
+The executable is built for the system you build on, so build on each target OS. The `Release` GitHub workflow does this for Windows, macOS (Intel and Apple silicon) and Linux (x64 and arm64). It smoke-tests each binary, adds a CycloneDX SBOM and checksums, and attaches everything to the release when you push a tag such as `v0.2.0`.
 
 ## 2. Installed web app (PWA)
 

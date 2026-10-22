@@ -1,4 +1,4 @@
-// Silence the ExperimentalWarning printed by node:sqlite on Node 22.
+// Silence the ExperimentalWarning printed by node:sqlite (Node 22/24).
 const originalEmitWarning = process.emitWarning;
 process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
   const text = typeof warning === 'string' ? warning : warning?.message;

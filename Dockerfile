@@ -3,7 +3,7 @@
 #
 #   docker build -t service-manager .
 #   docker build --build-arg WITH_BROWSER=1 -t service-manager .   # include Chromium for browser steps
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
@@ -14,7 +14,7 @@ RUN npm ci
 COPY . .
 RUN npm run build && npm prune --omit=dev
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 ARG WITH_BROWSER=0
 WORKDIR /app
 ENV NODE_ENV=production \

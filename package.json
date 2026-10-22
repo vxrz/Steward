@@ -10,7 +10,7 @@
     "web"
   ],
   "engines": {
-    "node": ">=22.13"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
@@ -36,5 +36,9 @@
   },
   "overrides": {
     "tinypool": "$tinypool"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true
   }
 }
