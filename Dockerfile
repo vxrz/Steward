@@ -17,7 +17,7 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-COPY scripts/install-scripts.mjs scripts/
+COPY scripts/install-scripts.mjs scripts/npm-command.mjs scripts/
 # No install scripts from node_modules; only the reviewed ones in package.json "allowScripts" run.
 RUN npm ci --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY . .
@@ -34,7 +34,7 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-COPY scripts/install-scripts.mjs scripts/
+COPY scripts/install-scripts.mjs scripts/npm-command.mjs scripts/
 RUN npm ci --omit=dev --workspace=server --workspace=shared --ignore-scripts --no-audit --no-fund && node scripts/install-scripts.mjs --check --run
 COPY LICENSE NOTICE ./
 COPY shared ./shared
