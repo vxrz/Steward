@@ -346,6 +346,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 
 - Everyone signs in. Sessions are HttpOnly, SameSite=Strict cookies (12 h idle timeout). Every API call is checked against roles and access lists on the server.
 - Credentials are encrypted at rest (AES-256-GCM). The key is derived with scrypt from your master passphrase and only kept in memory. The API never returns secret values, and they are redacted from logs, protocols and audit entries.
+- Platform credentials only go to the platform: the auth header, API keys and default headers are attached when a request targets the origin of the platform's base URL (or an origin listed under *Trusted origins*). An API call with an absolute URL to any other host is sent without them.
 - The audit log is HMAC-chained with a key derived from the master key. *Audit log → Verify chain* detects modified, removed or re-ordered entries. Each finished run stores a fingerprint of its protocol in the chain, and the protocol shows whether it is still intact.
 - By default the server listens on `127.0.0.1` only. It rejects foreign `Host` headers (DNS rebinding) and can serve HTTPS (`SM_TLS_CERT` / `SM_TLS_KEY`). Every state-changing request needs a custom header that browsers cannot send cross-site (CSRF). Pages cannot be framed.
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
