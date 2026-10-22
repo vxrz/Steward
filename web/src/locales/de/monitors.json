@@ -27,12 +27,12 @@
     "empty": "Noch keine Monitore.",
     "emptyCreate": "Noch keine Monitore. Legen Sie einen an oder importieren Sie ein Beispiel aus der Bibliothek.",
     "rootCauseLine": "Ursache: {{causes}}",
-    "uptimeLine": "Verfügbarkeit 24 h {{h24}} · 7 T {{d7}} · {{since}}",
+    "uptimeLine": "Verfügbarkeit 24 h {{h24}} · 7 Tage {{d7}} · {{since}}",
     "status": "Status",
     "monitor": "Monitor",
     "rootCause": "Ursache",
     "uptime24h": "Verfügbarkeit 24 h",
-    "uptime7d": "Verfügbarkeit 7 T",
+    "uptime7d": "Verfügbarkeit 7 Tage",
     "lastChange": "Letzte Änderung",
     "checks": "Prüfungen",
     "acknowledged": "bestätigt",
@@ -451,6 +451,6 @@
     "monitor": "Untermonitor"
   },
   "uptime": {
-    "all": "24 h {{h24}} · 7 T {{d7}} · 30 T {{d30}}"
+    "all": "24 h {{h24}} · 7 Tage {{d7}} · 30 Tage {{d30}}"
   }
 }

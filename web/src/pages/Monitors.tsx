@@ -180,9 +180,9 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
                 </Tooltip>
               </Table.Td>
               <Table.Td>
-                <Group gap={4} wrap="nowrap">
+                <Group gap={4} wrap="wrap" miw={140}>
                   {MONITOR_STATUSES.filter((s) => m.counts[s]).map((s) => (
-                    <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={monitorStatusLabel(s)}>
+                    <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={monitorStatusLabel(s)} style={{ minWidth: 'max-content' }}>
                       {t('list.count', { count: m.counts[s], status: monitorStatusLower(s) })}
                     </Badge>
                   ))}

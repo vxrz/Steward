@@ -370,7 +370,7 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
       {!hideTitle && (
         <Group justify="space-between" wrap="nowrap">
           <Title order={4}>{c.name}</Title>
-          <Button size="compact-xs" variant="subtle" onClick={onClose}>
+          <Button size="compact-xs" variant="subtle" onClick={onClose} style={{ flexShrink: 0 }}>
             {t('common:close')}
           </Button>
         </Group>

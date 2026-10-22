@@ -71,9 +71,9 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
       {outputs.map((o, i) => (
         <Paper key={i} withBorder p="sm" data-testid={`output-${o.id}`}>
           <Stack gap="xs">
-            <Group justify="space-between" wrap="nowrap">
+            <Group justify="space-between" wrap="wrap" gap="xs">
               <Group gap="xs">
-                <Badge variant="light">{typeLabel(o.type)}</Badge>
+                <Badge variant="light" style={{ minWidth: 'max-content' }}>{typeLabel(o.type)}</Badge>
                 <Text size="xs" c="dimmed" className="mono">
                   {o.id}
                 </Text>

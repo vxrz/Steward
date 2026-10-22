@@ -39,7 +39,7 @@ export function MonitorStatusBadge({ status, size = 'sm', variant = 'filled' }: 
   useTranslation('monitors'); // re-render on a language switch
   return (
     <Tooltip label={monitorStatusInfo(status)} withArrow>
-      <Badge color={MONITOR_COLORS[status]} size={size} variant={variant} data-status={status}>
+      <Badge color={MONITOR_COLORS[status]} size={size} variant={variant} data-status={status} style={{ minWidth: 'max-content' }}>
         {monitorStatusLabel(status)}
       </Badge>
     </Tooltip>
