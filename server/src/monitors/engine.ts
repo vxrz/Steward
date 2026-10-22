@@ -25,6 +25,7 @@ import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
 import { countEvaluation } from './metrics.js';
+import { subMonitorMessage } from './redact.js';
 
 /**
  * The monitor engine: a light scheduler, separate from process runs.
@@ -380,18 +381,20 @@ async function evaluateHeartbeat(c: CheckOf<'heartbeat'>, row: CheckRow, now: nu
   return { status, message, value: report.value };
 }
 
+/**
+ * The message names neither the sub-monitor nor its checks: viewers of this monitor may not be allowed to
+ * view the sub-monitor. Its root causes are part of this monitor's (structured, redacted per viewer).
+ */
 function evaluateSubMonitor(c: CheckOf<'monitor'>): RawResult {
-  const sub = db().get<{ id: string; name: string; enabled: number } & Partial<StateRow>>(
-    'SELECT m.id, m.name, m.enabled, s.status, s.root_causes FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id WHERE m.id = ?',
+  const sub = db().get<{ id: string; enabled: number } & Partial<StateRow>>(
+    'SELECT m.id, m.enabled, s.status FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id WHERE m.id = ?',
     c.monitor,
   );
-  if (!sub) return { status: 'unknown', message: 'The referenced monitor no longer exists' };
-  if (!sub.enabled) return { status: 'unknown', message: `"${sub.name}" is disabled` };
+  if (!sub) return { status: 'unknown', message: subMonitorMessage('missing') };
+  if (!sub.enabled) return { status: 'unknown', message: subMonitorMessage('disabled') };
   const s = (sub.status ?? 'unknown') as MonitorStatus;
-  const roots = parseCauses(sub.root_causes);
   const status: MonitorStatus = s === 'maintenance' ? 'up' : s === 'blocked' ? 'unknown' : s;
-  const why = roots.length ? ` – root cause: ${roots.map((r) => r.checkName).join(', ')}` : '';
-  return { status, message: s === 'maintenance' ? `"${sub.name}" is in maintenance` : `"${sub.name}" is ${s}${why}` };
+  return { status, message: subMonitorMessage(s) };
 }
 
 function bucketOf(ms: number): string {
@@ -565,7 +568,7 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
       ts,
     );
     if (changed) {
-      const why = a.rootCauses.length ? `Root cause: ${a.rootCauses.map((r) => `${r.monitorName} › ${r.checkName}`).join(', ')}` : '';
+      // the message ("Root cause: …") is built from caused_by when it is read, for the viewer (redact.ts)
       db().run(
         'INSERT INTO monitor_history (monitor_id, check_id, ts, status, previous, message, caused_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
         mid,
@@ -573,7 +576,7 @@ export async function recompute(mid: string, now = clock()): Promise<void> {
         ts,
         a.status,
         prev?.status ?? null,
-        why,
+        '',
         JSON.stringify(a.rootCauses),
       );
       if (a.status === 'up') db().run('UPDATE monitor_state SET ack_by = NULL, ack_at = NULL, ack_comment = NULL WHERE monitor_id = ?', mid);

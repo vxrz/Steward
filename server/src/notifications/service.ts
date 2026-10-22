@@ -25,8 +25,13 @@ export interface NoticeText {
 
 export interface Notice {
   event: NotificationEvent;
-  /** Title and body in one language – called per recipient (in-app, e-mail) and once for channel posts (Teams, webhook). */
-  text: (locale: Locale) => NoticeText;
+  /**
+   * Title and body in one language – called per recipient (in-app, e-mail) and once for channel posts
+   * (Teams, webhook) and plain addresses. With `personal`, the in-app and e-mail texts of a Steward user
+   * get that user (e.g. to leave out what they may not see); the other calls get no recipient.
+   */
+  text: (locale: Locale, recipient?: UserInfo) => NoticeText;
+  personal?: boolean;
   /** In-app path, e.g. /runs/run_123 */
   link?: string;
   recipients: UserInfo[];
@@ -113,14 +118,15 @@ export function notify(n: Notice): void {
   const channels = settings.routes[n.event] ?? [];
   const fallback = defaultLocale();
   const texts = new Map<Locale, NoticeText>();
-  const textIn = (locale: Locale): NoticeText => {
+  const textIn = (locale: Locale, u?: UserInfo): NoticeText => {
+    if (n.personal && u) return n.text(locale, u);
     if (!texts.has(locale)) texts.set(locale, n.text(locale));
     return texts.get(locale)!;
   };
   if (channels.includes('inApp')) {
     for (const u of n.recipients) {
       try {
-        const m = textIn(userLocale(u, fallback));
+        const m = textIn(userLocale(u, fallback), u);
         addInApp(u.id, { event: n.event, title: m.title, body: m.body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
       } catch (err) {
         logger.warn({ err, event: n.event }, 'could not store notification');
@@ -133,9 +139,9 @@ export function notify(n: Notice): void {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
   }
-  const message = (locale: Locale): OutgoingMessage => ({
+  const message = (locale: Locale, u?: UserInfo): OutgoingMessage => ({
     event: n.event,
-    ...textIn(locale),
+    ...textIn(locale, u),
     locale,
     link: absoluteLink(n.link),
     ts: nowIso(),
@@ -155,7 +161,7 @@ export function notify(n: Notice): void {
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
       if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) {
-        const msg = message(userLocale(u, fallback));
+        const msg = message(userLocale(u, fallback), u);
         jobs.push({ channel: 'email', to: u.username, send: () => sendEmail(settings.email, secrets, u.email!, msg) });
       }
     }

@@ -175,7 +175,9 @@ export function MonitorDetailPage() {
           <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('list.rootCause')}>
             {m.rootCauses.map((c) => (
               <Text key={`${c.monitorId}/${c.checkId}`} size="sm">
-                {c.monitorId === m.id ? (
+                {c.hidden ? (
+                  causeText(c, m.id)
+                ) : c.monitorId === m.id ? (
                   <Anchor onClick={() => select(c.checkId)}>{c.checkName}</Anchor>
                 ) : (
                   <Anchor component={Link} to={`/monitors/${c.monitorId}?check=${encodeURIComponent(c.checkId)}`}>
@@ -471,11 +473,16 @@ function CheckPanel({
         <br />
         <Trans t={t} i18nKey="detail.key" values={{ key: c.key }} components={{ c: <span className="mono" /> }} />
       </Text>
-      {c.monitorRef && (
-        <Anchor component={Link} to={`/monitors/${c.monitorRef.id}`} size="sm">
-          {t('detail.openMonitor', { name: c.monitorRef.name })}
-        </Anchor>
-      )}
+      {c.monitorRef &&
+        (c.monitorRef.hidden ? (
+          <Text size="sm" c="dimmed">
+            {t('detail.openHiddenMonitor')}
+          </Text>
+        ) : (
+          <Anchor component={Link} to={`/monitors/${c.monitorRef.id}`} size="sm">
+            {t('detail.openMonitor', { name: c.monitorRef.name })}
+          </Anchor>
+        ))}
       {c.heartbeat && <HeartbeatCard monitor={monitor} check={c} onSecret={onSecret} />}
       <Text size="sm" fw={600} mt="xs">
         {t('detail.statusChanges')}
@@ -662,7 +669,12 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
                 </Group>
               </Table.Td>
               <Table.Td>
-                <Text size="xs">{x.message}</Text>
+                {/* monitor level: the root causes in the user's language (the message is built from them) */}
+                <Text size="xs">
+                  {!x.checkId && x.causedBy.length
+                    ? t('list.rootCauseLine', { causes: x.causedBy.map((c) => causeText(c, monitor.id)).join(', ') })
+                    : x.message}
+                </Text>
                 {x.causedBy.length > 0 && x.checkId && (
                   <Text size="xs" c="orange">
                     {t('detail.likelyCausedBy', { causes: x.causedBy.map((c) => causeText(c, monitor.id)).join(', ') })}

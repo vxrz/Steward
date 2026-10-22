@@ -55,7 +55,8 @@
     "unknown": "Status unknown: {{where}}",
     "blocked": "Blocked: {{where}}",
     "maintenance": "Maintenance: {{where}}",
-    "rootCause": "Root cause: {{causes}}."
+    "rootCause": "Root cause: {{causes}}.",
+    "hiddenMonitor": "a monitor you cannot view"
   },
   "credentialDue": {
     "kinds": {

@@ -251,3 +251,162 @@ describe('#9 certificate parsing', () => {
     expect(Date.now() - t1).toBeLessThan(300);
   });
 });
+
+// ---------------------------------------------------------------------------
+// 10 – monitors: sub-monitors the viewer may not see
+
+describe('#10 sub-monitors the viewer cannot view', () => {
+  const SECRETS = ['Secret backend Zeta', 'secret-backend-zeta', 'Zeta heartbeat probe'];
+  let subId: string;
+  let parentId: string;
+  let parentKey: string;
+  const leaks = (x: unknown): string[] => {
+    const text = typeof x === 'string' ? x : JSON.stringify(x);
+    return [...SECRETS, subId].filter((n) => text.includes(n));
+  };
+
+  beforeAll(async () => {
+    const eng = await import('../src/monitors/engine.js');
+    const sub = await dana('POST', '/monitors', {
+      key: 'secret-backend-zeta',
+      definition: {
+        name: 'Secret backend Zeta',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'hb', name: 'Zeta heartbeat probe', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 60 }],
+      },
+    });
+    subId = sub.monitor.id;
+    await dana('PUT', `/monitors/${subId}/access`, { acl: [{ subject: 'user:dana', permissions: ['manage'] }] });
+    const parent = await dana('POST', '/monitors', {
+      definition: {
+        name: 'Public production line',
+        checks: [{ id: 'backend', name: 'Backend', type: 'monitor', monitor: subId }],
+        outputs: [{ id: 'notify', type: 'notification', subscribers: ['role:viewer'] }],
+      },
+    });
+    parentId = parent.monitor.id;
+    parentKey = parent.monitor.key;
+    const t0 = Date.now();
+    try {
+      eng.setMonitorClock(() => t0 + 2 * 60000);
+      await eng.evaluateMonitorNow(subId);
+      await eng.settle();
+      await eng.evaluateMonitorNow(parentId);
+      await eng.settle();
+    } finally {
+      eng.setMonitorClock(null);
+    }
+    (await import('../src/monitors/datasets.js')).publishDirtyDatasets();
+    await (await import('../src/notifications/service.js')).flushNotifications();
+  });
+
+  it('the parent is down for everyone; its owner still sees the root cause in the sub-monitor', async () => {
+    expect(await status(vera('GET', `/monitors/${subId}`))).toBe(404);
+    const p = await dana('GET', `/monitors/${parentId}`);
+    expect(p.status).toBe('down');
+    expect(p.rootCauses).toEqual([expect.objectContaining({ monitorId: subId, checkId: 'hb', monitorName: 'Secret backend Zeta' })]);
+    expect(p.checks[0].monitorRef).toMatchObject({ id: subId, name: 'Secret backend Zeta' });
+  });
+
+  it('UI API: list, detail, history, results and export hide the sub-monitor', async () => {
+    const p = await vera('GET', `/monitors/${parentId}`);
+    expect(p.status).toBe('down');
+    expect(p.rootCauses).toEqual([expect.objectContaining({ hidden: true, monitorId: '', checkName: '' })]);
+    expect(p.checks[0].status).toBe('down');
+    expect(p.checks[0].monitorRef).toMatchObject({ hidden: true, id: '' });
+    expect(leaks(p)).toEqual([]);
+    const list = (await vera('GET', '/monitors')).find((m: any) => m.id === parentId);
+    expect(list.rootCauses).toEqual([expect.objectContaining({ hidden: true })]);
+    expect(leaks(list)).toEqual([]);
+    const history = await vera('GET', `/monitors/${parentId}/history`);
+    expect(history.length).toBeGreaterThan(0);
+    expect(leaks(history)).toEqual([]);
+    expect(leaks(await vera('GET', `/monitors/${parentId}/checks/backend/results`))).toEqual([]);
+    expect(leaks(await vera('GET', `/monitors/${parentId}/export`))).toEqual([]);
+  });
+
+  it('public API v1 hides the sub-monitor', async () => {
+    const token = (await vera('POST', '/me/tokens', { name: 'v1-monitors', scope: 'read' })).token;
+    const v1 = async (url: string) => {
+      const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+      expect(res.status, url).toBe(200);
+      return res.json();
+    };
+    for (const url of ['/monitors', `/monitors/${parentId}`, `/monitors/${parentId}/status`, `/monitors/${parentId}/history`]) {
+      expect(leaks(await v1(url)), url).toEqual([]);
+    }
+    const st = await v1(`/monitors/${parentId}/status`);
+    expect(st.rootCauses).toEqual([expect.objectContaining({ hidden: true })]);
+  });
+
+  it('MCP monitor tools hide the sub-monitor', async () => {
+    await s.api('PUT', '/mcp-server', { enabled: true });
+    const token = (await vera('POST', '/me/tokens', { name: 'mcp-monitors', scope: 'mcp' })).token;
+    const MODERN = '2026-07-28';
+    const call = async (name: string, args: Record<string, unknown>) => {
+      const res = await fetch(`${s.base}/api/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          authorization: `Bearer ${token}`,
+          'mcp-protocol-version': MODERN,
+          'mcp-method': 'tools/call',
+          'mcp-name': name,
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'tools/call',
+          params: {
+            name,
+            arguments: args,
+            _meta: {
+              'io.modelcontextprotocol/protocolVersion': MODERN,
+              'io.modelcontextprotocol/clientCapabilities': {},
+              'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' },
+            },
+          },
+        }),
+      });
+      const text = await res.text();
+      expect(res.status, text).toBe(200);
+      const r = JSON.parse(text).result;
+      expect(r?.isError, text).toBeFalsy();
+      return r.structuredContent;
+    };
+    const m = await call('get_monitor', { monitor: parentId });
+    expect(m.rootCauses).toEqual([expect.objectContaining({ hidden: true })]);
+    expect(leaks(m)).toEqual([]);
+    expect(leaks(await call('get_monitor_history', { monitor: parentId }))).toEqual([]);
+    expect(leaks(await call('list_monitors', {}))).toEqual([]);
+  });
+
+  it('the dashboard dataset of the parent hides the sub-monitor', async () => {
+    const ds = await vera('GET', `/datasets/monitor.${parentKey}`);
+    expect(ds.rows.length).toBe(1);
+    expect(leaks(ds)).toEqual([]);
+  });
+
+  it('notifications to users who cannot view the sub-monitor hide it', async () => {
+    const inbox = (await vera('GET', '/notifications')).items.filter((n: any) => n.link?.startsWith(`/monitors/${parentId}`));
+    expect(inbox.length).toBeGreaterThan(0);
+    expect(inbox[0].body).toMatch(/a monitor you cannot view/);
+    expect(leaks(inbox)).toEqual([]);
+  });
+
+  it('an editor who cannot view the sub-monitor can still save the parent unchanged', async () => {
+    await dana('PUT', `/monitors/${parentId}/access`, {
+      acl: [
+        { subject: 'user:olivia', permissions: ['edit'] },
+        { subject: 'role:viewer', permissions: ['view'] },
+      ],
+    });
+    const p = await olivia('GET', `/monitors/${parentId}`);
+    expect(leaks(p)).toEqual([]);
+    const saved = await olivia('PUT', `/monitors/${parentId}`, { definition: { ...p.definition, description: 'edited by olivia' }, version: p.version });
+    expect(saved.monitor.description).toBe('edited by olivia');
+    const own = await dana('GET', `/monitors/${parentId}`);
+    expect(own.definition.checks[0].monitor).toBe(subId);
+  });
+});

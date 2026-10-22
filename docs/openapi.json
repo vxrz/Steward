@@ -2398,6 +2398,10 @@
                 },
                 "checkName": {
                   "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "A monitor you may not view (id, key and names are empty)"
                 }
               },
               "required": [
@@ -2636,6 +2640,10 @@
                 },
                 "checkName": {
                   "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "A monitor you may not view (id, key and names are empty)"
                 }
               },
               "required": [
@@ -2923,6 +2931,10 @@
                 },
                 "checkName": {
                   "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "A monitor you may not view (id, key and names are empty)"
                 }
               },
               "required": [
@@ -3069,6 +3081,10 @@
                 },
                 "checkName": {
                   "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "A monitor you may not view (id, key and names are empty)"
                 }
               },
               "required": [
@@ -3327,6 +3343,10 @@
                       },
                       "checkName": {
                         "type": "string"
+                      },
+                      "hidden": {
+                        "type": "boolean",
+                        "description": "A monitor you may not view (id, key and names are empty)"
                       }
                     },
                     "required": [
@@ -3499,6 +3519,10 @@
                 },
                 "checkName": {
                   "type": "string"
+                },
+                "hidden": {
+                  "type": "boolean",
+                  "description": "A monitor you may not view (id, key and names are empty)"
                 }
               },
               "required": [

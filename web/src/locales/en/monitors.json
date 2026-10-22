@@ -222,7 +222,9 @@
     "openMonitor": "Open \"{{name}}\"",
     "statusChanges": "Status changes",
     "latestResults": "Latest results",
-    "configuration": "Configuration"
+    "configuration": "Configuration",
+    "hiddenMonitor": "a monitor you cannot view",
+    "openHiddenMonitor": "Includes a monitor you cannot view."
   },
   "maintenance": {
     "plan": "Plan maintenance",
