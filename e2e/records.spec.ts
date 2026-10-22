@@ -99,7 +99,7 @@ test('an ADR in Markdown is imported as a draft', async ({ page }) => {
   await expectAccessible(page, 'import dialog');
   await dialog.getByRole('button', { name: 'Import 1 file' }).click();
   await expect(dialog.getByText('1 record created.')).toBeVisible();
-  await dialog.getByRole('link', { name: new RegExp(title) }).click();
+  await dialog.getByRole('link', { name: title }).click();
   await expect(page.getByRole('heading', { level: 2 })).toContainText(title);
   await expect(page.getByRole('heading', { level: 2 })).toContainText('Draft');
   await expect(page.getByText('Several instances share one database.')).toBeVisible();
@@ -129,19 +129,16 @@ test('a service is created and linked to a record, with backlinks both ways', as
   const link = page.getByRole('dialog', { name: 'Add link' });
   await chooseOption(page, 'Kind', 'Record');
   await link.getByRole('textbox', { name: 'Target' }).fill(rec.number);
-  await page.getByRole('option', { name: new RegExp(rec.number) }).click();
+  await page.getByRole('option', { name: rec.number }).click();
   await link.getByRole('textbox', { name: 'Note' }).fill('affected');
   await link.getByRole('button', { name: 'Add link' }).click();
   await expect(link).toBeHidden();
-  await expect(page.getByRole('table', { name: 'Links' }).getByRole('link', { name: new RegExp(rec.number) })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Links' }).getByRole('link', { name: rec.number })).toBeVisible();
   await settle(page);
   await expectAccessible(page, 'service detail');
 
   // backlink on the record
-  await page
-    .getByRole('table', { name: 'Links' })
-    .getByRole('link', { name: new RegExp(rec.number) })
-    .click();
+  await page.getByRole('table', { name: 'Links' }).getByRole('link', { name: rec.number }).click();
   await page.getByRole('tab', { name: /Links/ }).click();
   await expect(page.getByRole('link', { name })).toBeVisible();
 });
@@ -164,7 +161,7 @@ test('credentials linked to a service and a record are listed on every side', as
   const drawer = page.getByRole('dialog', { name: cred.name });
   await expect(drawer.getByRole('link', { name: svc.name })).toBeVisible();
   // and the entry lists the record that links to it
-  await expect(drawer.getByRole('link', { name: new RegExp(rec.number) })).toBeVisible();
+  await expect(drawer.getByRole('link', { name: rec.number })).toBeVisible();
 });
 
 test('a frozen record keeps its field labels; the key of a used type is locked', async ({ page, apiAs, loginAs }) => {

@@ -73,6 +73,8 @@ function decodeText(b: Buffer): string {
 
 /** Value of a string entry (/Name (…) or /Name <hex>) in a dictionary's source text. */
 export function stringEntry(dict: string, key: string): string | null {
+  if (!/^[A-Za-z]+$/.test(key)) throw new Error(`stringEntry: invalid PDF name "${key}"`);
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- key is a fixed PDF name (letters only, checked above)
   const re = new RegExp(`/${key}\\s*(\\(|<(?!<))`);
   const m = re.exec(dict);
   if (!m) return null;

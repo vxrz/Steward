@@ -320,11 +320,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
       // It also hands the session key to the web app: localStorage of this origin (see auth/cookies.ts).
       const js = (v: string) => JSON.stringify(v).replace(/</g, '\\u003c');
-      return reply
-        .type('text/html')
-        .send(
-          `<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>try{localStorage.setItem(${js(SESSION_KEY_STORAGE)},${js(sessionKey)});localStorage.setItem(${js(LINK_KEY_STORAGE)},${js(linkKey)})}catch(e){}location.replace(${js(returnTo)})</script>`,
-        );
+      return reply.type('text/html').send(
+        // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- values are JSON string literals with "<" escaped (js()), safe inside <script>; returnTo is a validated same-origin path
+        `<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>try{localStorage.setItem(${js(SESSION_KEY_STORAGE)},${js(sessionKey)});localStorage.setItem(${js(LINK_KEY_STORAGE)},${js(linkKey)})}catch(e){}location.replace(${js(returnTo)})</script>`,
+      );
     } catch (e) {
       return ssoFail(reply, (e as Error).message);
     }

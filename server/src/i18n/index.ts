@@ -24,12 +24,11 @@ export type MessageKey = Leaves<typeof en>;
 export type Vars = Record<string, string | number | null | undefined>;
 
 function lookup(cat: Catalog | undefined, key: string): string | undefined {
-  let cur: string | Catalog | undefined = cat;
-  for (const part of key.split('.')) {
-    if (!cur || typeof cur === 'string') return undefined;
-    cur = cur[part];
-  }
-  return typeof cur === 'string' ? cur : undefined;
+  // own properties only: "constructor", "__proto__" and the like never resolve to Object.prototype
+  const value = key
+    .split('.')
+    .reduce<string | Catalog | undefined>((cur, part) => (cur && typeof cur !== 'string' && Object.hasOwn(cur, part) ? cur[part] : undefined), cat);
+  return typeof value === 'string' ? value : undefined;
 }
 
 /** Resolves a locale preference (user setting, setting value, anything) to a supported language. */

@@ -1192,9 +1192,11 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const b = ctx.bindings[step.connection];
   if (!b) throw new Error(`Connection "${step.connection}" is not bound`);
   const p = await ctx.str(step.path);
-  const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>;
-  const headers = Object.fromEntries(Object.entries((await ctx.render(step.headers ?? {})) as Record<string, unknown>).map(([k, v]) => [k, stringify(v)]));
-  const body = step.body === undefined ? undefined : await ctx.render(step.body);
+  // Semgrep's res-render-injection takes (step, ctx, key) for Express's (req, res, next): ctx.render() evaluates the
+  // step's expressions in the run scope, it never loads a file or template by name (false positive).
+  const query = (await ctx.render(step.query ?? {})) as Record<string, unknown>; // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+  const headers = Object.fromEntries(Object.entries((await ctx.render(step.headers ?? {})) as Record<string, unknown>).map(([k, v]) => [k, stringify(v)])); // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
+  const body = step.body === undefined ? undefined : await ctx.render(step.body); // nosemgrep: javascript.express.security.audit.res-render-injection.res-render-injection
   const writes = isMutating(step);
   const requestInfo = { platform: b.platform.name, method: step.method, url: joinUrl(b.baseUrl, p), query, headers, body, write: writes };
   store.updateStepInput(ctx.runId, key, ctx.redactor.apply(requestInfo));

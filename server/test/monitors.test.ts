@@ -68,6 +68,24 @@ afterAll(async () => {
 
 // ---------------------------------------------------------------------------
 
+describe('gateway key patterns', () => {
+  it('glob-matches keys case-insensitively without a regular expression', async () => {
+    const { globMatch, keyAllowed } = await import('../src/monitors/gateways.js');
+    expect(keyAllowed([], 'm17.disk')).toBe(false);
+    expect(keyAllowed(['*'], 'anything')).toBe(true);
+    expect(keyAllowed(['m18.*', 'M17.*'], 'm17.disk')).toBe(true);
+    expect(globMatch('m17.*', 'm17.')).toBe(true);
+    expect(globMatch('m17.*', 'm17')).toBe(false);
+    expect(globMatch('m1?.disk', 'm17.disk')).toBe(false); // "?" and "." are literal
+    expect(globMatch('*.disk.*', 'edge.disk.c')).toBe(true);
+    expect(globMatch('a*b*c', 'axxbyyc')).toBe(true);
+    expect(globMatch('a*b*c', 'axxbyy')).toBe(false);
+    const started = performance.now();
+    expect(globMatch('*a*a*a*a*a*a*a*b', 'a'.repeat(10_000))).toBe(false);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});
+
 describe('monitor logic', () => {
   it('flapping control: N failures before down, M successes before up', async () => {
     const { applyResult } = await import('../src/monitors/logic.js');

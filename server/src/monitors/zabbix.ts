@@ -63,12 +63,17 @@ export function decodePacket(buf: Buffer): { json: unknown; size: number } | nul
 }
 
 export function parseInfo(info: string): Pick<SenderResult, 'processed' | 'failed' | 'total' | 'secondsSpent'> {
-  const num = (name: string) => {
-    const m = new RegExp(`${name}:\\s*([\\d.]+)`, 'i').exec(info);
+  const num = (re: RegExp) => {
+    const m = re.exec(info);
     return m ? Number(m[1]) : NaN;
   };
-  const seconds = num('seconds spent');
-  return { processed: num('processed') || 0, failed: num('failed') || 0, total: num('total') || 0, secondsSpent: Number.isNaN(seconds) ? null : seconds };
+  const seconds = num(/seconds spent:\s*([\d.]+)/i);
+  return {
+    processed: num(/processed:\s*([\d.]+)/i) || 0,
+    failed: num(/failed:\s*([\d.]+)/i) || 0,
+    total: num(/total:\s*([\d.]+)/i) || 0,
+    secondsSpent: Number.isNaN(seconds) ? null : seconds,
+  };
 }
 
 /** Sends values to a Zabbix server/proxy trapper port and parses the processed/failed counters. */

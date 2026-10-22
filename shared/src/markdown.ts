@@ -61,6 +61,12 @@ const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/;
 const TABLE_SEP = /^ *(?:\| *)?:?-+:? *(?:\| *:?-+:? *)*(?:\| *)?$/;
 
 const isBlank = (l: string) => /^\s*$/.test(l);
+/** `line` without up to `n` leading spaces. */
+function stripSpaces(line: string, n: number): string {
+  let k = 0;
+  while (k < n && line[k] === ' ') k++;
+  return line.slice(k);
+}
 const expandTabs = (l: string) => l.replace(/\t/g, '    ');
 const isSpaceOrTab = (c: string | undefined) => c === ' ' || c === '\t';
 
@@ -428,11 +434,10 @@ function parseBlocks(lines: string[], depth: number, ctx: BlockCtx): MdBlock[] {
     if (fence) {
       const { marker } = fence;
       const indent = /^ */.exec(line)![0].length;
-      const strip = new RegExp(`^ {0,${indent}}`);
       const body: string[] = [];
       i++;
       while (i < lines.length && !fenceClose(lines[i]!, marker[0]!, marker.length)) {
-        body.push(lines[i]!.replace(strip, ''));
+        body.push(stripSpaces(lines[i]!, indent));
         i++;
       }
       i++; // closing fence (or end of input)

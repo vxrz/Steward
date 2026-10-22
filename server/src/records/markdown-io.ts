@@ -67,7 +67,7 @@ export function parseFrontmatter(src: string): Record<string, unknown> {
   return data as Record<string, unknown>;
 }
 
-const sectionRe = (name: string) => new RegExp(`^#{2,3}\\s+${name}\\s*$`, 'i');
+const STATUS_HEADING = /^#{2,3}\s+Status\s*$/i;
 
 /**
  * Title of a "# Title #" line: what `/^#\s+(.+?)\s*#*\s*$/` captured, as a
@@ -208,7 +208,7 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
   });
   lines = [...keep, ...lines.slice(head)];
   // Nygard "## Status" section
-  const statusAt = lines.findIndex((l) => sectionRe('Status').test(l));
+  const statusAt = lines.findIndex((l) => STATUS_HEADING.test(l));
   if (statusAt >= 0) {
     let end = statusAt + 1;
     while (end < lines.length && !/^#{1,6}\s/.test(lines[end]!)) end++;

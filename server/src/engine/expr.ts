@@ -157,6 +157,7 @@ function isLinearCapable(re: RegExp): boolean {
   let v = linearCapable.get(k);
   if (v === undefined) {
     try {
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- recompiles an already compiled pattern only to test the linear-time engine (no match is run)
       new RegExp(re.source, re.flags + 'l');
       v = true;
     } catch {
@@ -247,6 +248,7 @@ class GuardedRegExp {
   lastIndex = 0;
   private re!: RegExp;
   constructor(pattern: RegExp | string, flags?: string) {
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- this is the ReDoS guard: linear-time engine or a time-limited worker (expr-guard.test.ts)
     const re = pattern instanceof RegExp ? new RegExp(pattern) : new RegExp(pattern, flags);
     if (isLinearCapable(re)) return re as unknown as GuardedRegExp;
     this.re = re;

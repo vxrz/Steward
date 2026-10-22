@@ -44,24 +44,33 @@ function savePlatform(key: string, id: string | null) {
   }
 }
 
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const paramNames = (path: string) => [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
 
-/** Values of path parameters as currently written in the node's path (null if the path no longer matches the operation). */
+/**
+ * Values of path parameters as currently written in the node's path (null if the path no longer matches the operation).
+ * Plain string search, no regular expression built from the (imported) OpenAPI path: the text between two parameters
+ * is taken at its first occurrence, the text after the last one must end the path.
+ */
 export function extractPathParams(opPath: string, nodePath: string): Record<string, string> | null {
   const names = paramNames(opPath);
-  const pattern =
-    '^' +
-    opPath
-      .split(/\{[^}]+\}/)
-      .map(escapeRe)
-      .join('(.*?)') +
-    '$';
-  const m = new RegExp(pattern).exec(nodePath);
-  if (!m) return null;
+  const literals = opPath.split(/\{[^}]+\}/);
+  const first = literals[0]!;
+  const last = literals[literals.length - 1]!;
+  if (literals.length === 1) return nodePath === first ? {} : null;
+  if (!nodePath.startsWith(first) || nodePath.length < first.length + last.length || !nodePath.endsWith(last)) return null;
+  const end = nodePath.length - last.length;
+  const values: string[] = [];
+  let at = first.length;
+  for (const lit of literals.slice(1, -1)) {
+    const i = nodePath.indexOf(lit, at);
+    if (i < 0 || i + lit.length > end) return null;
+    values.push(nodePath.slice(at, i));
+    at = i + lit.length;
+  }
+  values.push(nodePath.slice(at, end));
   const out: Record<string, string> = {};
   names.forEach((n, i) => {
-    const v = m[i + 1] ?? '';
+    const v = values[i] ?? '';
     out[n] = v === `{${n}}` ? '' : v;
   });
   return out;

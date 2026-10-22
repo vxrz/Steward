@@ -423,7 +423,7 @@ function GatewaysTab() {
             </Alert>
             <CopyBlock label={t('secrets.secret')} text={secret.secret} />
             <CopyBlock label={t('secrets.url')} text={`${window.location.origin}/api/hooks/monitors`} />
-            <CopyBlock label={t('gateways.manyInOneCall')} text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace('*', 'example')))} />
+            <CopyBlock label={t('gateways.manyInOneCall')} text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace(/\*/g, 'example')))} />
             <Hint>{t('gateways.reportFormat')}</Hint>
             <Group justify="flex-end">
               <Button onClick={() => setSecret(null)}>{t('gateways.stored')}</Button>

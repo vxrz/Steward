@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write # SARIF upload
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,6 +56,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -96,6 +98,7 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -111,11 +114,11 @@ jobs:
               --config p/default --config p/typescript --config p/nodejs --config p/secrets \
               --config p/github-actions --config p/dockerfile \
               --sarif-output=semgrep.sarif --json-output=semgrep.json
-      - name: Fail on blocking findings (severity ERROR)
+      - name: Fail on blocking findings (severity ERROR, or HIGH/CRITICAL in newer rules)
         run: |
-          jq -r '.results[] | select(.extra.severity == "ERROR") | "::error file=\(.path),line=\(.start.line)::\(.check_id): \(.extra.message | gsub("\n"; " "))"' semgrep.json
-          count=$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' semgrep.json)
-          echo "Semgrep: $(jq '.results | length' semgrep.json) finding(s), $count blocking (ERROR)"
+          jq -r '.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL")) | "::error file=\(.path),line=\(.start.line)::\(.check_id): \(.extra.message | gsub("\n"; " "))"' semgrep.json
+          count=$(jq '[.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL"))] | length' semgrep.json)
+          echo "Semgrep: $(jq '.results | length' semgrep.json) finding(s), $count blocking"
           [ "$count" -eq 0 ]
       - name: Upload SARIF to code scanning
         if: ${{ !cancelled() && hashFiles('semgrep.sarif') != '' }}
@@ -140,6 +143,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,6 +181,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

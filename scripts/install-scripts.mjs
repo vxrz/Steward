@@ -15,6 +15,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { npmCommand } from './npm-command.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = new Set(process.argv.slice(2));
@@ -48,11 +49,9 @@ if (args.has('--run') && !failed) {
   const run = [...new Set(withScripts.filter((x) => allow[`${x.name}@${x.version}`] === true && fs.existsSync(path.join(root, x.path))).map((x) => x.name))];
   for (const name of run) {
     console.log(`running the install script of ${name} (npm rebuild ${name})`);
-    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['rebuild', name, '--foreground-scripts'], {
-      cwd: root,
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
+    // no shell, also on Windows: the package name comes from package-lock.json (npm-command.mjs)
+    const [cmd, argv] = npmCommand(['rebuild', name, '--foreground-scripts']);
+    execFileSync(cmd, argv, { cwd: root, stdio: 'inherit' });
   }
 }
 process.exit(failed ? 1 : 0);

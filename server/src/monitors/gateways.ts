@@ -218,6 +218,32 @@ export function flushGatewayCounts(): void {
 
 /** Glob match of a check key against the gateway's allowed keys ("*" = any characters). No patterns = nothing allowed. */
 export function keyAllowed(patterns: string[], key: string): boolean {
-  if (!patterns.length) return false;
-  return patterns.some((p) => new RegExp(`^${p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i').test(key));
+  return patterns.some((p) => globMatch(p, key));
+}
+
+/**
+ * Case-insensitive glob match ("*" = any characters, also none) without a regular expression:
+ * backtracks only to the last "*", so it takes at most pattern × key steps.
+ */
+export function globMatch(pattern: string, key: string): boolean {
+  const p = pattern.toLowerCase();
+  const s = key.toLowerCase();
+  let pi = 0;
+  let si = 0;
+  let star = -1; // position of the last "*" in the pattern
+  let from = 0; // where the key part matched by that "*" ends
+  while (si < s.length) {
+    if (p[pi] === '*') {
+      star = pi++;
+      from = si;
+    } else if (pi < p.length && p[pi] === s[si]) {
+      pi++;
+      si++;
+    } else if (star >= 0) {
+      pi = star + 1;
+      si = ++from;
+    } else return false;
+  }
+  while (p[pi] === '*') pi++;
+  return pi === p.length;
 }
