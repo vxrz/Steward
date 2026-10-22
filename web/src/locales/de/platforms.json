@@ -126,7 +126,8 @@
       "docs": "Dokumentation",
       "explorer": "Explorer",
       "access": "Zugriff",
-      "metrics": "Metriken"
+      "metrics": "Metriken",
+      "mcp": "MCP"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"

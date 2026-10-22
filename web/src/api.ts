@@ -116,8 +116,8 @@ export async function getOptional<T>(url: string, fallback: T): Promise<T> {
 }
 
 export function notifyError(e: unknown, title: string = i18n.t('errors:title')): void {
-  notifications.show({ color: 'red', title, message: errorText(e), autoClose: 8000 });
+  notifications.show({ color: 'red', title, message: errorText(e), autoClose: 8000, closeButtonProps: { 'aria-label': i18n.t('common:close') } });
 }
 export function notifyOk(message: string, title?: string): void {
-  notifications.show({ color: 'green', title, message });
+  notifications.show({ color: 'green', title, message, closeButtonProps: { 'aria-label': i18n.t('common:close') } });
 }

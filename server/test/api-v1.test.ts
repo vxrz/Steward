@@ -396,6 +396,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   for (const t of await listAll('/tasks', '/tasks')) await get('/tasks/{taskId}', `/tasks/${t.id}`);
   for (const x of await listAll('/schedules', '/schedules')) await get('/schedules/{scheduleId}', `/schedules/${x.id}`);
+  for (const x of await listAll('/triggers', '/triggers')) await get('/triggers/{triggerId}', `/triggers/${x.id}`);
+  await get('/semantic-model', '/semantic-model');
   for (const x of await listAll('/platforms', '/platforms')) await get('/platforms/{platformId}', `/platforms/${x.id}`);
   for (const x of await listAll('/datasets', '/datasets')) {
     await get('/datasets/{datasetKey}', `/datasets/${encodeURIComponent(x.key)}`);
@@ -443,6 +445,22 @@ describe('every endpoint', () => {
     });
     const run = await s.waitRun((await s.api('POST', '/runs', { processId: pub.id })).id, ['succeeded', 'failed']);
     expect(run.status).toBe('succeeded');
+    // a webhook trigger for the trigger endpoints (its secret must never show up)
+    const hook = await s.api('POST', '/triggers', {
+      name: 'API hook',
+      processId: pub.id,
+      enabled: true,
+      dryRun: true,
+      inputMapping: {},
+      bindings: {},
+      authMode: 'token',
+      allowedCidrs: [],
+      allowedHeaders: [],
+      rateLimitPerMinute: 60,
+      dedupeSeconds: 0,
+      skipIfRunning: false,
+    });
+    SECRETS.push(hook.secret);
     adminCrawl = await crawl(tokens.admin);
   });
 

@@ -18,6 +18,8 @@ import * as processes from '../../processes/service.js';
 import * as store from '../../engine/store.js';
 import * as scheduler from '../../scheduler.js';
 import * as platforms from '../../platforms/service.js';
+import * as triggers from '../../triggers/service.js';
+import { semanticModel, type OssieVersion } from '../../semantic/ossie.js';
 import * as datasets from '../../dashboards/datasets.js';
 import * as dashboards from '../../dashboards/service.js';
 import { monitorDatasetVisible } from '../../monitors/datasets.js';
@@ -191,6 +193,26 @@ export function safeBaseUrl(raw: string): string {
     return raw.replace(/\/\/[^/@]*@/, '//').replace(/[?#].*$/, '');
   }
 }
+
+const mapTrigger = (t: ReturnType<typeof triggers.getTrigger>) => ({
+  id: t.id,
+  name: t.name,
+  description: t.description ?? '',
+  processId: t.processId,
+  processName: t.processName ?? '',
+  processVersion: t.processVersion ?? null,
+  enabled: t.enabled,
+  dryRun: t.dryRun,
+  authMode: t.authMode,
+  owner: t.owner,
+  createdAt: t.createdAt,
+  updatedAt: t.updatedAt,
+  lastFiredAt: t.lastFiredAt,
+  lastRunId: t.lastRunId,
+  lastRunStatus: t.lastRunStatus,
+  fireCount: t.fireCount,
+  rejectedCount: t.rejectedCount,
+});
 
 const mapPlatform = (p: ReturnType<typeof platforms.getPlatform>) => ({
   id: p.id,
@@ -727,6 +749,75 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       }
       if (!processes.permissionsFor(s.processId).includes('view')) throw notFound(`Schedule ${s.id}`);
       return mapSchedule(s);
+    },
+  );
+
+  // ---------- webhook triggers ----------
+  get(
+    '/triggers',
+    {
+      operationId: 'listTriggers',
+      tag: 'Triggers',
+      summary: 'List webhook triggers',
+      description: 'Triggers of processes you may view, ordered by name. Secrets are never returned.',
+      query: S.TriggerListQuery,
+      paginated: true,
+      response: S.pageOf('Trigger', 'A page of webhook triggers'),
+    },
+    async (req, reply) => {
+      const q = query<{ processId?: string; enabled?: boolean; cursor?: string; limit: number }>(req);
+      const list = triggers
+        .listTriggers()
+        .filter((t) => !q.processId || t.processId === q.processId)
+        .filter((t) => q.enabled === undefined || t.enabled === q.enabled)
+        .map(mapTrigger);
+      return paged(
+        req,
+        reply,
+        pageArray(list, (t) => [t.name.toLowerCase(), t.id], q, q),
+      );
+    },
+  );
+
+  get(
+    '/triggers/:triggerId',
+    { operationId: 'getTrigger', tag: 'Triggers', summary: 'Get a webhook trigger', params: { triggerId: 'Trigger id' }, response: S.ref('Trigger') },
+    async (req) => {
+      try {
+        return mapTrigger(triggers.getTrigger(params(req).triggerId!));
+      } catch (e) {
+        if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Trigger ${params(req).triggerId}`);
+        throw e;
+      }
+    },
+  );
+
+  // ---------- semantic model ----------
+  get(
+    '/semantic-model',
+    {
+      operationId: 'getSemanticModel',
+      tag: 'Semantic model',
+      summary: 'Data model of this API as an Apache Ossie semantic model',
+      description:
+        'Datasets (the API resources), fields with types, relationships and metrics such as the run success rate or monitor availability, as an [Apache Ossie](https://github.com/apache/ossie) (formerly OSI) document. JSON or YAML (`Accept: application/yaml` or `format=yaml`). The model describes the schema, not data, and is the same for every token. See docs/SEMANTIC-MODEL.md.',
+      query: S.SemanticModelQuery,
+      response: {
+        content: {
+          'application/json': { schema: S.ossieDocumentSchema },
+          'application/yaml': { schema: { type: 'string', description: 'The same document as YAML' } },
+        },
+      },
+    },
+    async (req, reply) => {
+      const q = query<{ format?: 'json' | 'yaml'; version: OssieVersion }>(req);
+      const accept = String(req.headers.accept ?? '');
+      const yamlFirst = /yaml/i.test(accept) && (!/json/i.test(accept) || accept.search(/yaml/i) < accept.search(/json/i));
+      const doc = semanticModel(q.version);
+      if (q.format === 'yaml' || (!q.format && yamlFirst)) {
+        return reply.type('application/yaml; charset=utf-8').send(YAML.stringify(doc, { lineWidth: 0 }));
+      }
+      return reply.type('application/json; charset=utf-8').send(JSON.stringify(doc));
     },
   );
 

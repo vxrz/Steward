@@ -21,6 +21,8 @@ import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 import { themeRoutes } from './theme/routes.js';
 import { systemRoutes } from './system/routes.js';
+import { mcpRoutes } from './mcp/http.js';
+import { MCP_PATH } from './mcp/config.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
@@ -64,6 +66,8 @@ function contentSecurityPolicy(connectExtra: string[] = []): string {
 const isRead = (method: string) => method === 'GET' || method === 'HEAD';
 /** The public REST API (/api/v1) authenticates with API tokens only (see api/v1/auth.ts). */
 const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/api/v1/') || url.startsWith('/api/v1?');
+/** The MCP endpoint: bearer tokens only, own Origin check, size limit and errors (see mcp/http.ts). */
+const isMcpEndpoint = (url: string) => url === MCP_PATH;
 
 /**
  * TLS settings for the built-in HTTPS server: TLS 1.2 or newer, forward-secret AEAD cipher suites
@@ -164,7 +168,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('cross-origin-opener-policy', 'same-origin');
     if (config.secureCookies) reply.header('strict-transport-security', 'max-age=31536000');
-    if (!url.startsWith('/api/') || isPublicApiPath(url)) return;
+    if (!url.startsWith('/api/') || isPublicApiPath(url) || isMcpEndpoint(url)) return;
     // API responses are never cached (they carry personal data and secrets' metadata); routes may set their own.
     reply.header('cache-control', 'no-store');
     const anonymous = !req.headers.cookie && !req.headers.authorization;
@@ -206,7 +210,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       const t = tokenUser(bearer);
       if (!t && !isPublic) return void reply.code(401).send({ error: 'Invalid, expired or revoked API token' });
       if (t && t.scope === 'read' && !isRead(req.method)) return void reply.code(403).send({ error: 'This API token is read-only' });
-      if (t) {
+      // MCP tokens work on the MCP endpoint only (its own scope, see mcp/http.ts)
+      if (t && t.scope === 'mcp' && !isPublic) return void reply.code(403).send({ error: 'This API token is for MCP clients only (/api/mcp)' });
+      if (t && t.scope !== 'mcp') {
         info = t.user;
         (req as unknown as { smToken?: string }).smToken = t.tokenId;
       }
@@ -275,6 +281,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
 
   await app.register(publicApi, { prefix: '/api' });
+  await app.register(mcpRoutes, { prefix: '/api' });
   await app.register(instanceRoutes, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
   // theme (/api/theme, /api/settings/theme, /manifest.webmanifest), about and system status

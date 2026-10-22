@@ -11,6 +11,7 @@ import {
   IconLock,
   IconPlug,
   IconPlugConnected,
+  IconRobot,
   IconSettings,
   IconTerminal2,
   IconTrash,
@@ -31,6 +32,7 @@ import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
+import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 
 interface TestResult {
   ok: boolean;
@@ -211,6 +213,9 @@ export function PlatformDetailPage() {
           <Tabs.Tab value="access" leftSection={<IconLock size={16} />}>
             {t('detail.tabs.access')}
           </Tabs.Tab>
+          <Tabs.Tab value="mcp" leftSection={<IconRobot size={16} />}>
+            {t('detail.tabs.mcp')}
+          </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />
@@ -242,6 +247,9 @@ export function PlatformDetailPage() {
         )}
         <Tabs.Panel value="access">
           <AccessEditor kind="platform" acl={p.acl} onSave={(acl) => saveAccess(acl)} readOnly={!canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="mcp">
+          <McpGatewayTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
       </Tabs>
 

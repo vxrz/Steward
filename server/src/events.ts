@@ -47,6 +47,12 @@ export interface DomainEvents {
     reasonCode?: ScheduleSkipReason;
     reasonVars?: Record<string, string>;
   };
+  /** MCP endpoint: one per JSON-RPC message (outcome ok, error or a refusal reason) */
+  'mcp.request': { method: string; outcome: string };
+  /** MCP tool call (outcome ok, error = reported to the client, failed = internal error) */
+  'mcp.tool': { tool: string; outcome: string };
+  /** MCP platform gateway call (outcome ok, http_error, failed or a refusal reason) */
+  'mcp.gateway': { platformId: string; outcome: string };
 }
 
 type Name = keyof DomainEvents;

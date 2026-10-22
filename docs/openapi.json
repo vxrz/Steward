@@ -2,9 +2,9 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Steward API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery) and the credentials register (documentation only, never secret values).\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -1834,6 +1834,116 @@
           "createdAt": "2026-09-01T08:15:00.000Z",
           "updatedAt": "2026-10-01T10:00:00.000Z"
         }
+      },
+      "Trigger": {
+        "title": "Trigger",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "processId": {
+            "type": "string"
+          },
+          "processName": {
+            "type": "string"
+          },
+          "processVersion": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Pinned process version (null: always the current version)"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "authMode": {
+            "type": "string",
+            "description": "How callers authenticate (the secret itself is never part of the API)"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Runs use the rights of this user"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastFiredAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last accepted call"
+          },
+          "lastRunId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastRunStatus": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "fireCount": {
+            "type": "integer",
+            "description": "Accepted calls"
+          },
+          "rejectedCount": {
+            "type": "integer",
+            "description": "Rejected calls (wrong secret, address, rate limit …)"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "processId",
+          "processName",
+          "processVersion",
+          "enabled",
+          "dryRun",
+          "authMode",
+          "owner",
+          "createdAt",
+          "updatedAt",
+          "lastFiredAt",
+          "lastRunId",
+          "lastRunStatus",
+          "fireCount",
+          "rejectedCount"
+        ],
+        "additionalProperties": false,
+        "description": "Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API."
       },
       "Dataset": {
         "title": "Dataset",
@@ -5518,6 +5628,303 @@
         }
       }
     },
+    "/triggers": {
+      "get": {
+        "operationId": "listTriggers",
+        "summary": "List webhook triggers",
+        "tags": [
+          "Triggers"
+        ],
+        "description": "Triggers of processes you may view, ordered by name. Secrets are never returned.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "processId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "enabled",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of webhook triggers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of webhook triggers",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Trigger"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/triggers/{triggerId}": {
+      "get": {
+        "operationId": "getTrigger",
+        "summary": "Get a webhook trigger",
+        "tags": [
+          "Triggers"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "triggerId",
+            "required": true,
+            "description": "Trigger id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Trigger"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/semantic-model": {
+      "get": {
+        "operationId": "getSemanticModel",
+        "summary": "Data model of this API as an Apache Ossie semantic model",
+        "tags": [
+          "Semantic model"
+        ],
+        "description": "Datasets (the API resources), fields with types, relationships and metrics such as the run success rate or monitor availability, as an [Apache Ossie](https://github.com/apache/ossie) (formerly OSI) document. JSON or YAML (`Accept: application/yaml` or `format=yaml`). The model describes the schema, not data, and is the same for every token. See docs/SEMANTIC-MODEL.md.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "yaml"
+              ]
+            },
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "description": "Response format; default from the Accept header (application/yaml or application/json), else JSON"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0.1.1",
+                "0.2.0.dev0"
+              ],
+              "default": "0.1.1"
+            },
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "description": "Apache Ossie revision: 0.1.1 (released, default) or 0.2.0.dev0 (in development)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Apache Ossie semantic model document (0.1.1: `semantic_model` array; 0.2.0.dev0: one model at the root)",
+                  "required": [
+                    "version"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "string",
+                      "enum": [
+                        "0.1.1",
+                        "0.2.0.dev0"
+                      ],
+                      "description": "Ossie specification version"
+                    },
+                    "semantic_model": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "datasets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "application/yaml": {
+                "schema": {
+                  "type": "string",
+                  "description": "The same document as YAML"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/platforms": {
       "get": {
         "operationId": "listPlatforms",
@@ -7513,6 +7920,10 @@
       "description": "Cron schedules"
     },
     {
+      "name": "Triggers",
+      "description": "Webhook triggers – metadata only, never secrets"
+    },
+    {
       "name": "Platforms",
       "description": "Connected systems – metadata only, never credentials"
     },
@@ -7535,6 +7946,10 @@
     {
       "name": "Credentials",
       "description": "Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values"
+    },
+    {
+      "name": "Semantic model",
+      "description": "The data model of this API as an Apache Ossie semantic model"
     }
   ],
   "externalDocs": {

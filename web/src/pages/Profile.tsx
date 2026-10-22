@@ -27,6 +27,7 @@ import { useMe } from '../auth';
 import { Hint, PageHeader } from '../components/common';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
+import { McpClientConfig, useMcpServer } from '../components/mcp/McpClientConfig';
 import { ChangePasswordForm } from './Auth';
 import { LanguageSelect } from '../components/LanguageSelect';
 import {
@@ -261,6 +262,7 @@ function TokensCard() {
   const list = tokens.data ?? [];
   const host = typeof window !== 'undefined' ? window.location.origin : 'http://<host>';
   const publicApi = usePublicApi();
+  const mcp = useMcpServer();
   // The versioned REST API is the stable interface for scripts; fall back to the internal API when it is off.
   const exampleUrl = `${host}${publicApi.data?.enabled ? `${publicApi.data.basePath}/runs?limit=10` : '/api/runs'}`;
   return (
@@ -296,6 +298,11 @@ function TokensCard() {
         </Text>
       </Stack>
       <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer <token>" "${exampleUrl}"`}</Code>
+      {mcp.data?.enabled && (
+        <Text size="sm" mt="sm">
+          {t('tokens.mcpAvailable')}
+        </Text>
+      )}
 
       <CreateTokenModal
         opened={createOpen}
@@ -329,12 +336,26 @@ function TokensCard() {
                 )}
               </CopyButton>
             </Group>
-            <div>
-              <Text size="sm" mb={4}>
-                {t('tokens.useLike')}
-              </Text>
-              <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{`curl -H "Authorization: Bearer ${created.token}" "${exampleUrl}"`}</Code>
-            </div>
+            {created.scope === 'mcp' ? (
+              mcp.data && (
+                <div>
+                  <Text size="sm" mb={4}>
+                    {mcp.data.enabled ? t('tokens.mcpUseLike') : t('tokens.mcpServerOff')}
+                  </Text>
+                  <McpClientConfig status={mcp.data} token={created.token} />
+                </div>
+              )
+            ) : (
+              <div>
+                <Text size="sm" mb={4}>
+                  {t('tokens.useLike')}
+                </Text>
+                <Code
+                  block
+                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
+                >{`curl -H "Authorization: Bearer ${created.token}" "${exampleUrl}"`}</Code>
+              </div>
+            )}
             <Group justify="flex-end">
               <Button variant="default" onClick={() => setCreated(null)}>
                 {t('tokens.done')}
@@ -399,9 +420,10 @@ function CreateTokenModal({ opened, onClose, onCreated }: { opened: boolean; onC
               data={[
                 { value: 'read', label: t('tokens.readOnly') },
                 { value: 'full', label: t('tokens.fullAccess') },
+                { value: 'mcp', label: t('tokens.mcpClient') },
               ]}
             />
-            <Hint>{scope === 'read' ? t('tokens.readHint') : t('tokens.fullHint')}</Hint>
+            <Hint>{scope === 'read' ? t('tokens.readHint') : scope === 'mcp' ? t('tokens.mcpHint') : t('tokens.fullHint')}</Hint>
           </div>
           <NumberInput
             label={t('tokens.expiresAfter')}

@@ -3,7 +3,7 @@
  * app window (Edge/Chrome "--app" mode, falling back to the default browser).
  * Running it again while it is already running just opens the window.
  */
-import { adminArgv, args, inExecutable, usageError } from './env.js';
+import { adminArgv, args, inExecutable, mcpArgv, usageError } from './env.js';
 import { EXIT_FAILURE, EXIT_OK, usageFailure } from '../cli/args.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -28,6 +28,7 @@ Options:
   --autostart on|off   Start automatically when you sign in (for schedules), then exit
   --send-test-error    Send a test event to the error tracker ($SM_SENTRY_DSN) and exit
   admin …              Account recovery, e.g. 'admin reset-password <user>' (see 'admin --help')
+  mcp …                MCP stdio bridge for desktop AI clients (see 'mcp --help')
   -V, --version        Print the version
   -h, --help           Show this help
 
@@ -157,6 +158,10 @@ async function main(): Promise<number> {
   if (adminArgv) {
     const { runAdmin } = await import('../cli/admin.js');
     return runAdmin(adminArgv, `${BRAND.slug} admin`);
+  }
+  if (mcpArgv) {
+    const { runBridge } = await import('../mcp/bridge.js');
+    return runBridge(mcpArgv, `${BRAND.slug} mcp`);
   }
   if (usageError) return usageFailure(usageError, BRAND.slug);
   if (args.help) {

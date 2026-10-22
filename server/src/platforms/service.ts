@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import YAML from 'yaml';
-import type { ApiOperation, Platform, PlatformConfig, PlatformDoc, PlatformSpec } from '@sm/shared';
+import type { ApiOperation, McpGatewayConfig, Platform, PlatformConfig, PlatformDoc, PlatformSpec } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
@@ -88,6 +88,12 @@ export interface PlatformInput {
   secrets?: Record<string, string>;
 }
 
+/** The MCP gateway is turned on per platform (setMcpGateway), never inherited from a copied configuration. */
+function withoutGateway(cfg: PlatformConfig): PlatformConfig {
+  const { mcpGateway: _gateway, ...rest } = cfg;
+  return rest as PlatformConfig;
+}
+
 export function createPlatform(input: PlatformInput): Platform {
   if (!input.name?.trim()) throw new HttpError(400, 'Name is required');
   const id = newId('pf_');
@@ -103,7 +109,7 @@ export function createPlatform(input: PlatformInput): Platform {
       input.description ?? '',
       input.baseUrl ?? '',
       input.environment ?? '',
-      JSON.stringify(input.config ?? defaultConfig()),
+      JSON.stringify(withoutGateway(input.config ?? defaultConfig())),
       Object.keys(secrets).length ? vault().encrypt(secrets) : null,
       ts,
       ts,
@@ -135,7 +141,8 @@ export function updatePlatform(id: string, patch: Partial<PlatformInput>): Platf
     description: patch.description ?? before.description,
     baseUrl: patch.baseUrl ?? before.baseUrl,
     environment: patch.environment ?? before.environment,
-    config: patch.config ?? before.config,
+    // the MCP gateway setting only changes through setMcpGateway (own right check and audit entry)
+    config: patch.config ? { ...withoutGateway(patch.config), ...(before.config.mcpGateway ? { mcpGateway: before.config.mcpGateway } : {}) } : before.config,
   };
   db().tx(() => {
     db().run(
@@ -190,6 +197,28 @@ export function setSecrets(id: string, patch: Record<string, string | null>): Pl
       entityId: id,
       summary: `Credentials of "${p.name}" changed (${[...changed, ...removed.map((r) => `-${r}`)].join(', ') || 'no change'})`,
       details: { set: changed, removed },
+    });
+    sealPlatform(id);
+  });
+  invalidatePlatformCaches(id);
+  return getPlatform(id);
+}
+
+/** Turns the read-only MCP gateway of a platform on or off (the caller checks the "manage" right). */
+export function setMcpGateway(id: string, input: McpGatewayConfig): Platform {
+  requireIntactRow(id);
+  const before = getPlatform(id);
+  const prefixes = [...new Set((input.allowedPathPrefixes ?? []).map((x) => x.trim()).filter(Boolean))];
+  const gateway: McpGatewayConfig = { enabled: input.enabled, ...(prefixes.length ? { allowedPathPrefixes: prefixes } : {}) };
+  const previous = before.config.mcpGateway ?? { enabled: false };
+  db().tx(() => {
+    db().run('UPDATE platforms SET config = ?, updated_at = ? WHERE id = ?', JSON.stringify({ ...before.config, mcpGateway: gateway }), nowIso(), id);
+    audit({
+      action: 'platform.mcp_gateway_changed',
+      entityType: 'platform',
+      entityId: id,
+      summary: `MCP gateway of "${before.name}" ${gateway.enabled ? 'turned on (read-only)' : 'turned off'}${prefixes.length ? ` – path prefixes: ${prefixes.join(', ')}` : ''}`,
+      details: { enabled: gateway.enabled, allowedPathPrefixes: prefixes, previous },
     });
     sealPlatform(id);
   });

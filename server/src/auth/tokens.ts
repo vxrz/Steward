@@ -70,7 +70,7 @@ export function createToken(userId: string, input: { name: string; scope: ApiTok
       action: 'token.created',
       entityType: 'token',
       entityId: id,
-      summary: `API token "${name}" (${input.scope === 'read' ? 'read-only' : 'full access'}${expiresAt ? `, expires ${expiresAt.slice(0, 10)}` : ''}) created for ${owner.username}`,
+      summary: `API token "${name}" (${input.scope === 'read' ? 'read-only' : input.scope === 'mcp' ? 'MCP clients only' : 'full access'}${expiresAt ? `, expires ${expiresAt.slice(0, 10)}` : ''}) created for ${owner.username}`,
       details: { name, scope: input.scope, expiresAt, owner: owner.username },
     });
   });

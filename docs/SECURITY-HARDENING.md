@@ -50,6 +50,8 @@ The passphrase protects every credential and unlocks the audit and signing keys.
 - Roles: give people the least role that works (viewer/auditor for most), restrict production platforms with access lists, use four-eyes approval steps for changes.
 - Platform service accounts: their own technical users on each platform with only the rights the processes need, ideally read-only for monitoring processes. Prefer OAuth client credentials with short-lived tokens over static API keys.
 - Put API keys in the platform's _credentials_, not in _default headers_ (headers are stored in clear, only credentials are encrypted).
+- Put API keys in the platform's _credentials_, not in _default headers_ (headers are stored in clear, only credentials are encrypted).
+- AI assistants (MCP, [MCP.md](MCP.md)): leave the MCP server off unless people need it, and turn the platform gateway on only for platforms whose data may leave through an assistant (the assistant's vendor sees the tool results). Give MCP tokens a short expiry. Every gateway call is in the audit log (`mcp.gateway_call`).
 - PostgreSQL: a dedicated database user that owns only Steward's schema. A database administrator cannot read credentials, and changes they make to platform or sign-in settings are detected (configuration seal) – but they can still delete data: anchor the audit log outside the database (below).
 
 ## Outbound connections

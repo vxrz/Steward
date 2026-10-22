@@ -96,7 +96,7 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
     label: opts.label || p.name,
     description: opts.description ?? p.description,
     baseUrl: p.baseUrl,
-    config: { ...p.config, http: { ...p.config.http, caPem: p.config.http?.caPem } },
+    config: (({ mcpGateway: _gateway, ...cfg }) => ({ ...cfg, http: { ...cfg.http, caPem: cfg.http?.caPem } }))(p.config),
     secretFields: secretKeys.map((k) => ({ key: k, label: k })),
     docs: listDocs(platformId)
       .filter((d) => d.kind === 'link' && d.url)

@@ -17,8 +17,12 @@ export interface HttpRequest {
   bodyType?: 'json' | 'form' | 'text';
   /** Fail when the response body is larger (bytes); default: no limit */
   maxResponseBytes?: number;
+  /** Stop reading the response body after this many bytes instead (the result is marked `truncated`). */
+  truncateResponseBytes?: number;
   /** Keep the body as text (no JSON detection) */
   rawText?: boolean;
+  /** Return a redirect response as it is instead of following it. */
+  noRedirects?: boolean;
 }
 
 export interface HttpResult {
@@ -30,6 +34,8 @@ export interface HttpResult {
   durationMs: number;
   /** Number of attempts when the request was retried */
   attempts?: number;
+  /** The body was cut off at truncateResponseBytes */
+  truncated?: boolean;
 }
 
 interface CachedToken {
@@ -215,8 +221,12 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   const resHeaders: Record<string, string> = {};
   res.headers.forEach((v, k) => (resHeaders[k] = v));
   let parsed: unknown = null;
+  let truncated = false;
   if (req.method !== 'HEAD') {
-    const text = req.maxResponseBytes ? await readBounded(res, req.maxResponseBytes, req.url) : await res.text();
+    let text: string;
+    if (req.truncateResponseBytes !== undefined) ({ text, truncated } = await readCapped(res, req.truncateResponseBytes));
+    else if (req.maxResponseBytes) text = await readBounded(res, req.maxResponseBytes, req.url);
+    else text = await res.text();
     const ct = resHeaders['content-type'] ?? '';
     if (req.rawText) parsed = text;
     else if (text && (ct.includes('json') || /^[\s]*[{[]/.test(text))) {
@@ -227,7 +237,37 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
       }
     } else parsed = text;
   }
-  return { status: res.status, ok: res.ok, url: req.url, headers: resHeaders, body: parsed, durationMs: Date.now() - started };
+  return {
+    status: res.status,
+    ok: res.ok,
+    url: req.url,
+    headers: resHeaders,
+    body: parsed,
+    durationMs: Date.now() - started,
+    ...(truncated ? { truncated } : {}),
+  };
+}
+
+/** Reads at most `max` bytes of a response body and cancels the rest of the download. */
+async function readCapped(res: Awaited<ReturnType<typeof fetch>>, max: number): Promise<{ text: string; truncated: boolean }> {
+  if (!res.body) return { text: '', truncated: false };
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let truncated = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (size + value.length > max) {
+      chunks.push(value.subarray(0, max - size));
+      truncated = true;
+      await reader.cancel().catch(() => undefined);
+      break;
+    }
+    chunks.push(value);
+    size += value.length;
+  }
+  return { text: Buffer.concat(chunks).toString('utf8'), truncated };
 }
 
 /** Reads at most `max` bytes of a response body; larger bodies fail (and the connection is released). */
@@ -495,11 +535,21 @@ async function followRedirects(
     }
     const res = await rawRequest(
       p,
-      { method, url, headers, body, bodyType: req.bodyType, maxResponseBytes: req.maxResponseBytes, rawText: req.rawText },
+      {
+        method,
+        url,
+        headers,
+        body,
+        bodyType: req.bodyType,
+        maxResponseBytes: req.maxResponseBytes,
+        truncateResponseBytes: req.truncateResponseBytes,
+        rawText: req.rawText,
+      },
       signal,
       attempt,
     );
     const location = res.headers['location'];
+    if (req.noRedirects) return res;
     if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
       if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {
         throw Object.assign(new Error(`Too many redirects (more than ${MAX_REDIRECTS}) starting at ${req.url}`), { retryable: false });

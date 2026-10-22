@@ -38,12 +38,15 @@ function userArgv(): string[] {
 /** `steward admin …`: the recovery commands (cli/admin.ts) instead of the server. */
 export const adminArgv: string[] | undefined = userArgv()[0] === 'admin' ? userArgv().slice(1) : undefined;
 
+/** `steward mcp …`: the MCP stdio bridge (mcp/bridge.ts) instead of the server – it never opens the database. */
+export const mcpArgv: string[] | undefined = userArgv()[0] === 'mcp' ? userArgv().slice(1) : undefined;
+
 /** Set when the arguments are invalid; the launcher prints it and exits with status 2. */
 export let usageError: UsageError | undefined;
 
 function parse(): DesktopArgs {
   const fallback: DesktopArgs = { open: true, help: false, version: false, sendTestError: false, demo: false };
-  if (adminArgv) return fallback; // cli/admin.ts parses its own options (including --data-dir)
+  if (adminArgv || mcpArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
   try {
     const { values } = parseCli(userArgv(), {
       port: { type: 'string' },
@@ -97,7 +100,7 @@ process.env.SM_DATA_DIR ??= userDataDir();
 process.env.SM_LOG_LEVEL ??= 'warn';
 
 /** Only unpack the embedded files when the server is going to start. */
-const willStart = !adminArgv && !usageError && !args.help && !args.version && !args.autostart && !args.sendTestError;
+const willStart = !adminArgv && !mcpArgv && !usageError && !args.help && !args.version && !args.autostart && !args.sendTestError;
 
 if (inExecutable && willStart) {
   // The build embeds "manifest.json" (list of asset keys) plus one asset per file.

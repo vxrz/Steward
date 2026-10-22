@@ -40,7 +40,13 @@
     "expiresHint": "Leave empty for a token that never expires",
     "create": "Create token",
     "createdTitle": "Token created",
-    "exampleReadOnly": "Example (a read-only token is enough):"
+    "exampleReadOnly": "Example (a read-only token is enough):",
+    "mcp": "MCP client",
+    "mcpClient": "MCP client",
+    "mcpHint": "Only for AI assistants (MCP clients): read-only tools on the MCP endpoint. Refused by the REST API and everywhere else.",
+    "mcpUseLike": "Put it into your MCP client:",
+    "mcpServerOff": "The MCP server is turned off – an administrator can turn it on under Settings. Then put the token into your MCP client:",
+    "mcpAvailable": "AI assistants (MCP clients) use a separate token with scope “MCP client”."
   },
   "title": "Profile",
   "description": "Your account, language, notifications and API tokens.",

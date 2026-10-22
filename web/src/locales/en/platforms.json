@@ -126,7 +126,8 @@
       "docs": "Docs",
       "explorer": "Explorer",
       "access": "Access",
-      "metrics": "Metrics"
+      "metrics": "Metrics",
+      "mcp": "MCP"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"

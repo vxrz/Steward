@@ -26,9 +26,9 @@ import { componentSchemas } from './v1/schemas.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery) and the credentials register (documentation only, never secret values).
+const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.
 
-**Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
+**Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
 
 **Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return \`{ items, nextCursor }\` – pass \`nextCursor\` as \`cursor\` to get the next page (also offered as an RFC 8288 \`Link: <…>; rel="next"\` header). \`limit\` is 1–200 (default 50). Errors are problem details (RFC 9457, \`application/problem+json\`). Responses carry \`Cache-Control: no-store\` and \`RateLimit-*\` headers; above the limit the API answers 429 with \`Retry-After\`.
 
@@ -40,12 +40,14 @@ const TAGS = [
   { name: 'Runs', description: 'Executions with step journal, logs, decisions and checks' },
   { name: 'Tasks', description: 'User tasks (selections and approvals) of runs' },
   { name: 'Schedules', description: 'Cron schedules' },
+  { name: 'Triggers', description: 'Webhook triggers – metadata only, never secrets' },
   { name: 'Platforms', description: 'Connected systems – metadata only, never credentials' },
   { name: 'Dashboards', description: 'Datasets published by processes, and dashboard definitions' },
   { name: 'Audit', description: 'Tamper-evident audit log (auditors and administrators)' },
   { name: 'Users', description: 'Accounts and teams (administrators)' },
   { name: 'Monitors', description: 'Monitor and check status, history and Zabbix low-level discovery' },
   { name: 'Credentials', description: 'Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values' },
+  { name: 'Semantic model', description: 'The data model of this API as an Apache Ossie semantic model' },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

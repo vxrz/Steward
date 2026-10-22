@@ -40,7 +40,13 @@
     "expiresAfter": "Läuft ab nach (Tagen)",
     "expiresHint": "Leer lassen für ein Token, das nie abläuft",
     "create": "Token erstellen",
-    "exampleReadOnly": "Beispiel (ein Token mit Lesezugriff genügt):"
+    "exampleReadOnly": "Beispiel (ein Token mit Lesezugriff genügt):",
+    "mcp": "MCP-Client",
+    "mcpClient": "MCP-Client",
+    "mcpHint": "Nur für KI-Assistenten (MCP-Clients): lesende Werkzeuge am MCP-Endpunkt. Von der REST-API und überall sonst abgelehnt.",
+    "mcpUseLike": "Tragen Sie es in Ihren MCP-Client ein:",
+    "mcpServerOff": "Der MCP-Server ist ausgeschaltet – ein Administrator kann ihn unter Einstellungen einschalten. Danach tragen Sie das Token in Ihren MCP-Client ein:",
+    "mcpAvailable": "KI-Assistenten (MCP-Clients) verwenden ein eigenes Token mit dem Umfang „MCP-Client“."
   },
   "title": "Profil",
   "description": "Ihr Konto, Ihre Sprache, Benachrichtigungen und API-Token.",
