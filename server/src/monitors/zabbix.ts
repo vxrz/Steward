@@ -1,4 +1,5 @@
 import net from 'node:net';
+import { guardedLookup } from '../platforms/outbound.js';
 import zlib from 'node:zlib';
 
 /**
@@ -80,7 +81,7 @@ export function zabbixSend(host: string, port: number, items: SenderItem[], time
     ns: (now % 1000) * 1e6,
   });
   return new Promise((resolve, reject) => {
-    const sock = net.connect({ host, port });
+    const sock = net.connect({ host, port, lookup: guardedLookup });
     let buf = Buffer.alloc(0);
     let settled = false;
     const done = (err: Error | null, r?: SenderResult) => {

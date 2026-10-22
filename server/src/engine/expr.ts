@@ -102,18 +102,43 @@ const HEAP_STOP_RATIO = 0.85;
 /** Called by JSONata before every evaluation step (Symbol.for('jsonata.__evaluate_entry')). */
 function onEvaluateEntry(): Promise<void> | undefined {
   const g = guardStore.getStore();
-  if (!g || (++g.steps & 63) !== 0) return undefined;
+  // Check cheaply every few steps: the heap watchdog catches memory growth and
+  // cancellation early, before the (coarser) time-based yield below.
+  if (!g || (++g.steps & 7) !== 0) return undefined;
   if (g.signal?.aborted) throw new Error('Evaluation cancelled');
-  const now = performance.now();
-  if (now - g.lastYield < YIELD_EVERY_MS) return undefined;
   const heap = v8.getHeapStatistics();
   if (heap.used_heap_size > heap.heap_size_limit * HEAP_STOP_RATIO) {
     throw new Error('Evaluation stopped: the server is running out of memory (the expression builds too much data)');
   }
+  const now = performance.now();
+  if (now - g.lastYield < YIELD_EVERY_MS) return undefined;
   return yieldToEventLoop().then(() => {
     g.lastYield = performance.now();
     if (g.signal?.aborted) throw new Error('Evaluation cancelled');
   });
+}
+
+/**
+ * Maximum width of $pad – a single builtin call can otherwise allocate a
+ * multi-GB string in one step, which the between-steps watchdog cannot catch.
+ */
+const MAX_PAD_WIDTH = 1_000_000;
+
+/** Safe override of $pad that refuses to build an enormous string. */
+function safePad(str: unknown, width: unknown, char?: unknown): unknown {
+  if (str === undefined) return undefined;
+  const s = typeof str === 'string' ? str : String(str);
+  const w = Number(width);
+  if (!Number.isFinite(w)) return s;
+  if (Math.abs(w) > MAX_PAD_WIDTH) throw new Error(`$pad width ${Math.abs(w)} exceeds the limit of ${MAX_PAD_WIDTH}`);
+  const target = Math.trunc(Math.abs(w));
+  if (target <= s.length) return s;
+  const padChar = char === undefined || char === '' ? ' ' : String(char);
+  if (!padChar) return s;
+  let fill = '';
+  while (fill.length < target - s.length) fill += padChar;
+  fill = fill.slice(0, target - s.length);
+  return w < 0 ? fill + s : s + fill;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +293,8 @@ export function stripBraces(expr: string): string {
 }
 
 export const standardBindings: Bindings = {
+  /** Capped replacement for the $pad builtin (guards against huge single allocations). */
+  pad: safePad,
   /** Days elapsed since a timestamp (ISO string or epoch millis). undefined if empty. */
   daysSince: (t: unknown) => {
     const ms = toMillis(t);

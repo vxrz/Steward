@@ -23,8 +23,9 @@ import { getSettings } from '../settings.js';
 import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
-import { getPlatform, getSecrets, listPlatforms } from '../platforms/service.js';
+import { getPlatform, getSecrets } from '../platforms/service.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
+import { outboundContext } from '../platforms/policyContext.js';
 import { assertAddressSafe, assertNoSecretLeak, assertOutboundAllowed, egressSecretValues, secretEncodings, type OutboundContext, type SecretBinding } from '../platforms/outbound.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bindings, type EvalOptions } from './expr.js';
@@ -1124,10 +1125,7 @@ function describe(v: unknown): string {
 
 /** Outbound destination policy context for this server (all configured platforms). */
 export function engineOutboundContext(): OutboundContext {
-  return {
-    platforms: () => listPlatforms(),
-    resolveOrigin: (p) => resolveBaseUrl(p, getSecrets(p.id)),
-  };
+  return outboundContext();
 }
 
 /** Secrets of all platforms bound to this run, with their allowed-origin check (for egress scanning). */

@@ -221,6 +221,37 @@ export async function assertOutboundAllowed(url: string, ctx: OutboundContext): 
   );
 }
 
+/**
+ * Policy for a raw host:port target (monitor tcp/ping checks, Zabbix sender) that
+ * has no URL scheme. Always rejects metadata/link-local and the server's own port.
+ * A bare host:port is NOT matched against a platform's base-URL origin (that would
+ * let a platform on a host enable port-scanning of it): internal hosts (e.g. plant
+ * PowerMeters) must be allow-listed explicitly by IP/host/CIDR. `ctx` is accepted
+ * for symmetry/future use.
+ */
+export async function assertNetAllowed(host: string, port: number, _ctx: OutboundContext): Promise<void> {
+  const bare = host.replace(/^\[|\]$/g, '');
+  const synthetic = `http://${net.isIP(bare) === 6 ? `[${bare}]` : bare}${port ? `:${port}` : ''}`;
+  let u: URL;
+  try {
+    u = new URL(synthetic);
+  } catch {
+    throw new HttpError(400, `Invalid host "${String(host).slice(0, 120)}"`);
+  }
+  await assertAddressSafe(u.toString());
+
+  const settings = getSettings();
+  const policy = settings.outboundPolicy ?? 'platforms';
+  if (policy === 'open') return;
+  if ((settings.outboundAllowList ?? []).some((e) => allowListMatches(e, u))) return;
+
+  throw new HttpError(
+    403,
+    `Blocked by the outbound policy: ${host}${port ? `:${port}` : ''} is not on the allow-list. ` +
+      `An administrator can allow it (e.g. its IP or CIDR) under Settings → Outbound access (outboundAllowList).`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Secret egress scanning (F2)
 // ---------------------------------------------------------------------------
