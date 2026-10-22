@@ -121,7 +121,7 @@ Answer: `202 {"accepted": true, "status": "up"}` (the check's status after this 
 
 ### Gateway batch
 
-A gateway usually prefers **one call for many checks**. Create a gateway under *Monitors → Gateways* (designers and administrators); its secret is shown once. Optional *allowed keys* (`m17.*`) limit what it may report.
+A gateway usually prefers **one call for many checks**. Create a gateway under *Monitors → Gateways* (designers and administrators); its secret is shown once. Its *allowed keys* (`m17.*`) are required: a gateway reports nothing else, and only for monitors its owner may edit (the report is evaluated with the owner's rights).
 
 `POST /api/hooks/monitors`
 
@@ -147,7 +147,7 @@ MQTT is not supported yet; a small bridge (e.g. Node-RED) can turn MQTT messages
 
 ## Outputs
 
-Outputs are configured per monitor (*Edit → Outputs*) and can include the monitor status, every check, or both (`include`), optionally only some checks (`checks`) and statuses (`statuses`). They send **on change** (default) or **after every evaluation** (`on: every`, at most every `minIntervalSeconds`, default 60). Per output and subject the last delivered status is stored: nothing is sent twice (also not after a restart), and a failed delivery is retried with a later evaluation (at most once a minute). Targets may use `${monitor.key}`, `${monitor.name}`, `${check.id}`, `${check.key}` and `${check.name}`.
+Outputs are configured per monitor (*Edit → Outputs*). Because they act in the monitor's name (runbooks start as the owner), changing them needs the **manage** right (owner, administrators or the access list); `edit` is enough for checks and links. Outputs can include the monitor status, every check, or both (`include`), optionally only some checks (`checks`) and statuses (`statuses`). They send **on change** (default) or **after every evaluation** (`on: every`, at most every `minIntervalSeconds`, default 60). Per output and subject the last delivered status is stored: nothing is sent twice (also not after a restart), and a failed delivery is retried with a later evaluation (at most once a minute). Targets may use `${monitor.key}`, `${monitor.name}`, `${check.id}`, `${check.key}` and `${check.name}`.
 
 | Type | Default subjects | During maintenance |
 | --- | --- | --- |

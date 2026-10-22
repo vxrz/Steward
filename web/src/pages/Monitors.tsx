@@ -400,7 +400,7 @@ function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose
             { value: 'either', label: 'Either' },
           ]}
         />
-        <TagsInput label="Allowed check keys" description="Wildcard *, e.g. m17.* – empty: every heartbeat check" value={d.allowedKeys} onChange={(v) => setD({ ...d, allowedKeys: v })} />
+        <TagsInput label="Allowed check keys" description="Wildcard *, e.g. m17.* – required: a gateway may only report the keys listed here, and only for monitors its owner may edit" value={d.allowedKeys} onChange={(v) => setD({ ...d, allowedKeys: v })} />
         <TagsInput label="Allowed source addresses" description="IP or CIDR; empty: any" value={d.allowedCidrs} onChange={(v) => setD({ ...d, allowedCidrs: v })} />
         <NumberInput label="Calls per minute" min={1} max={6000} value={d.rateLimitPerMinute} onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })} />
         <Switch label="Enabled" checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />

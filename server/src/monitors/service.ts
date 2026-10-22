@@ -496,6 +496,11 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
     if (issues.length) throw new HttpError(400, issues.map((i) => `${i.path}: ${i.message}`).join('; '));
     checkExpressions(def);
     def = resolveReferences(def, r.id, key);
+    // Outputs act on behalf of the owner (runbooks start as the owner, notifications/webhooks/Zabbix send in
+    // the monitor's name) – changing them needs 'manage', not just 'edit'.
+    if (before && JSON.stringify(before.outputs ?? []) !== JSON.stringify(def.outputs ?? []) && !permissionsOfRow(r).includes('manage')) {
+      throw new HttpError(403, 'Changing the outputs of this monitor needs the manage right (owner, administrators or the access list)');
+    }
     stored = def as unknown as Record<string, unknown>;
   }
   const name = String(stored.name);

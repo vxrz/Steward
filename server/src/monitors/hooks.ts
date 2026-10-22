@@ -10,6 +10,8 @@ import { addressAllowed } from '../triggers/service.js';
 import { checkEnabled, parseDefinition, type CheckRow, type GatewayRow } from './model.js';
 import { countGateway, keyAllowed } from './gateways.js';
 import * as engine from './engine.js';
+import { findUserByName, toAuthUser } from '../auth/users.js';
+import { permissionsOfRow } from './model.js';
 
 /**
  * Heartbeat endpoints (push checks):
@@ -216,10 +218,14 @@ export async function handleGatewayBatch(req: MonitorHookRequest): Promise<Monit
     const prev = latest.get(k);
     if (!prev || Date.parse(String(r.ts ?? '')) >= Date.parse(String(prev.ts ?? '')) || !r.ts) latest.set(k, r);
   });
+  // The gateway reports with its owner's rights: only checks of monitors the owner may edit are accepted.
+  const owner = findUserByName(g.owner);
+  const ownerUser = owner && owner.active ? toAuthUser(owner) : null;
   const evaluations: Promise<void>[] = [];
   for (const [k, r] of latest) {
     const t = db().get<Target>(`${TARGET} WHERE c.heartbeat_key = ?`, k);
-    if (!heartbeatCheck(t)) {
+    const monitorRow = t ? db().get<{ owner: string; acl: string }>('SELECT owner, acl FROM monitors WHERE id = ?', t.monitor_id) : undefined;
+    if (!heartbeatCheck(t) || !monitorRow || !permissionsOfRow(monitorRow, ownerUser).includes('edit')) {
       rejected.push({ index: list.findIndex((x) => String((x as { key?: string })?.key ?? '').trim().toLowerCase() === k), key: r.key!, reason: 'unknown key' });
       continue;
     }
