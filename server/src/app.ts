@@ -11,14 +11,16 @@ import { registerRoutes } from './routes/index.js';
 import { mockPlatform } from './mock/mockPlatform.js';
 import { currentUser, requestContext } from './auth/context.js';
 import { sessionUser, toAuthUser } from './auth/users.js';
-import { readCookie, SESSION_COOKIE } from './auth/cookies.js';
+import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/cookies.js';
+import { connectVaultToDatabase } from './vault-rotation.js';
+import { instanceRoutes } from './instance.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
 import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config'];
+const PUBLIC_PATHS = ['/api/health', '/api/instance', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config'];
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
@@ -49,12 +51,35 @@ const isRead = (method: string) => method === 'GET' || method === 'HEAD';
 /** The public REST API (/api/v1) authenticates with API tokens only (see api/v1/auth.ts). */
 const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/api/v1/') || url.startsWith('/api/v1?');
 
+/**
+ * TLS settings for the built-in HTTPS server: TLS 1.2 or newer, forward-secret AEAD cipher suites
+ * only (TLS 1.3 suites are always on). SM_TLS_CIPHERS overrides the TLS 1.2 list.
+ */
+export const TLS_CIPHERS =
+  'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305';
+
+/** Requests without any credentials may only send small bodies (sign-in, setup); everything else needs a session or token first. */
+const ANONYMOUS_BODY_LIMIT = 64 * 1024;
+
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
+  connectVaultToDatabase();
   const app = Fastify({
     ...(opts.logger ? { loggerInstance: logger } : { logger: false }),
     disableRequestLogging: true,
     bodyLimit: 25 * 1024 * 1024,
-    ...(config.tls ? { https: { cert: fs.readFileSync(config.tls.cert), key: fs.readFileSync(config.tls.key) } } : {}),
+    // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
+    ...(config.trustProxy !== undefined ? { trustProxy: config.trustProxy as string[] } : {}), // a number (hop count) is supported at runtime
+    ...(config.tls
+      ? {
+          https: {
+            cert: fs.readFileSync(config.tls.cert),
+            key: fs.readFileSync(config.tls.key),
+            minVersion: 'TLSv1.2' as const,
+            ciphers: process.env.SM_TLS_CIPHERS || TLS_CIPHERS,
+            honorCipherOrder: true,
+          },
+        }
+      : {}),
   }) as unknown as FastifyInstance;
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
   const CSP = contentSecurityPolicy(cspConnectSources());
@@ -83,8 +108,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     reply.header('content-security-policy', url.startsWith('/api/auth/oidc/callback') ? CSP_SSO_CALLBACK : CSP);
     reply.header('permissions-policy', 'camera=(), microphone=(), geolocation=()');
     reply.header('cross-origin-opener-policy', 'same-origin');
-    if (config.tls) reply.header('strict-transport-security', 'max-age=31536000');
+    if (config.secureCookies) reply.header('strict-transport-security', 'max-age=31536000');
     if (!url.startsWith('/api/') || isPublicApiPath(url)) return;
+    // API responses are never cached (they carry personal data and secrets' metadata); routes may set their own.
+    reply.header('cache-control', 'no-store');
+    const anonymous = !req.headers.cookie && !req.headers.authorization;
+    if (anonymous && !url.startsWith(HOOKS_PREFIX) && Number(req.headers['content-length'] ?? 0) > ANONYMOUS_BODY_LIMIT) {
+      return reply.code(413).send({ error: 'Request body too large – sign in first' });
+    }
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
     // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
     const bearerOnly = !!bearerToken(req.headers.authorization) && !req.headers.cookie;
@@ -101,7 +132,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     if (!url.startsWith('/api/')) return done();
     // Public API and its documentation: own authentication (API tokens), see api/.
     if (req.routeOptions.config?.smPublicApi || isPublicApiPath(url)) return done();
-    let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE));
+    // The cookie alone is not enough: the session key header (or, for GET links, the link key) must match (see users.ts).
+    const sessionKey = req.headers[SESSION_HEADER];
+    const linkKey = (req.query as Record<string, unknown> | undefined)?.[LINK_PARAM];
+    let info = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE), {
+      key: typeof sessionKey === 'string' ? sessionKey : undefined,
+      link: typeof linkKey === 'string' ? linkKey : undefined,
+      read: isRead(req.method),
+    });
     const isPublic =
       PUBLIC_PATHS.includes(url) ||
       url.startsWith('/api/auth/oidc/') ||
@@ -182,6 +220,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
 
   await app.register(publicApi, { prefix: '/api' });
+  await app.register(instanceRoutes, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
 
   if (fs.existsSync(config.webDist)) {

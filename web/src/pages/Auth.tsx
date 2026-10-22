@@ -124,7 +124,7 @@ export function SetupPage({ status }: { status: AuthStatus }) {
           />
           <PasswordInput label={t('repeatPassword')} required value={password2} onChange={(e) => setPassword2(e.currentTarget.value)} autoComplete="new-password" />
           {error && <Alert color="red">{error}</Alert>}
-          <Button type="submit" loading={busy} disabled={passphrase.length < 8 || !username.trim() || !password}>
+          <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : 12) || !username.trim() || !password}>
             {existingVault ? t('setup.createAdmin') : t('setup.submit')}
           </Button>
           {status.demo && (

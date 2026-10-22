@@ -469,7 +469,8 @@ export function hasInput(type: NodeType): boolean {
   return type !== 'start' && type !== 'note';
 }
 
-export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json'] as const;
+/** `secret`: stored encrypted only, shown as *** everywhere (protocol, audit log, reports, API) and masked in step data and logs. */
+export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json', 'secret'] as const;
 export type InputType = (typeof INPUT_TYPES)[number];
 
 export const inputDefSchema = z.object({

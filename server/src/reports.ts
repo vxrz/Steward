@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import type { RunDetail } from '@sm/shared';
 import { getRunDetail, artifactFile, protocolHash } from './engine/store.js';
+import { sealedProtocolHash } from './audit.js';
 import { allAuditAscending } from './audit.js';
 import { config } from './config.js';
 import { BRAND } from '@sm/shared';
@@ -49,8 +50,7 @@ function statusBadge(s: string): string {
 export function runReportHtml(runId: string): string {
   const run: RunDetail = getRunDetail(runId);
   const auditEntries = allAuditAscending(runId);
-  const finished = auditEntries.filter((a) => /^run\.(succeeded|failed|cancelled)$/.test(a.action)).pop();
-  const recordedHash = (finished?.details as { protocolHash?: string } | undefined)?.protocolHash;
+  const recordedHash = sealedProtocolHash(runId) ?? undefined;
   const currentHash = protocolHash(runId);
   const intact = recordedHash ? recordedHash === currentHash : null;
   const checks = run.steps.filter((s) => s.type === 'check');

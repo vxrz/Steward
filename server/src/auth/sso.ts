@@ -5,8 +5,10 @@ import { ROLES, type Role, type SsoDiscoveryResult, type SsoProvider, type SsoPr
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
-import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { createSession, findUserByName, getUser, listTeams, listUsers } from './users.js';
+import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
+import { checkMac, configMac } from '../integrity.js';
+import { readSetting, writeSetting } from '../settings.js';
+import { createSession, findUserByName, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
 import { BRAND } from '@sm/shared';
 
 /**
@@ -45,6 +47,46 @@ interface ProviderRow {
   enabled: number;
   created_at: string;
   updated_at: string;
+  config_mac?: string | null;
+}
+
+// ---------- configuration integrity (issuer, client id, claims and role mappings decide who gets in) ----------
+
+const secretDigest = (blob: string | null): string | null => {
+  if (!blob) return null;
+  try {
+    return sha256(JSON.stringify(vault().decrypt(blob))); // plaintext: stays valid when the data key is rotated
+  } catch {
+    return 'undecryptable';
+  }
+};
+const macFields = (r: Pick<ProviderRow, 'config' | 'secret' | 'enabled'>) => ({ v: 1, config: parseJson<unknown>(r.config, null), enabled: !!r.enabled, secret: secretDigest(r.secret) });
+
+function sealProvider(id: string): void {
+  if (!vault().unlocked) return;
+  const r = db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', id);
+  if (r) db().run('UPDATE identity_providers SET config_mac = ? WHERE id = ?', configMac('sso', id, macFields(r)), id);
+}
+
+/** One-time sealing of providers created before configuration integrity existed (first unlock after the update). */
+export function sealProviderConfigs(): void {
+  if (!vault().unlocked || readSetting('security.ssoSealsCreated', false)) return;
+  db().tx(() => {
+    for (const r of db().all<{ id: string }>('SELECT id FROM identity_providers WHERE config_mac IS NULL')) sealProvider(r.id);
+    writeSetting('security.ssoSealsCreated', true);
+  });
+}
+
+function requireIntactProvider(p: SsoProvider): void {
+  const r = db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', p.id);
+  const state = r ? checkMac('sso', p.id, macFields(r), r.config_mac) : 'mismatch';
+  if (state === 'mismatch' || state === 'unsealed') {
+    throw new HttpError(
+      409,
+      `The settings of the sign-in provider "${p.displayName}" were changed outside ${BRAND.name} – an administrator has to review and save them again`,
+      'SSO_CONFIG_UNVERIFIED',
+    );
+  }
 }
 
 function toProvider(r: ProviderRow): SsoProvider {
@@ -88,6 +130,7 @@ export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider 
       if (clientSecret !== undefined) {
         db().run('UPDATE identity_providers SET secret = ? WHERE id = ?', clientSecret ? vault().encrypt(clientSecret) : null, id);
       }
+      sealProvider(id);
       audit({
         action: 'sso.provider_updated',
         entityType: 'sso',
@@ -105,6 +148,7 @@ export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider 
         ts,
         ts,
       );
+      sealProvider(pid);
       audit({ action: 'sso.provider_created', entityType: 'sso', entityId: pid, summary: `Sign-in provider "${config.displayName}" added (${config.issuer})`, details: { ...config, enabled } });
     }
   });
@@ -132,6 +176,7 @@ const isLocalHttp = (issuer: string) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1
 const configCache = new Map<string, { stamp: string; config: oidc.Configuration }>();
 
 async function clientConfig(p: SsoProvider): Promise<oidc.Configuration> {
+  requireIntactProvider(p);
   const hit = configCache.get(p.id);
   if (hit && hit.stamp === p.updatedAt) return hit.config;
   const secret = p.clientAuth === 'none' ? undefined : providerSecret(p.id);
@@ -221,7 +266,7 @@ function claimList(v: unknown): string[] {
 export async function finishSignIn(
   currentUrl: URL,
   meta: { ip?: string; userAgent?: string },
-): Promise<{ token: string; returnTo: string; username: string }> {
+): Promise<CreatedSession & { returnTo: string; username: string }> {
   const state = currentUrl.searchParams.get('state') ?? '';
   const flow = pending.get(state);
   if (!flow || flow.expires < Date.now()) throw new HttpError(400, 'The sign-in attempt expired or is unknown – please try again');
@@ -242,8 +287,8 @@ export async function finishSignIn(
   const claims = tokens.claims() as Record<string, unknown> | undefined;
   if (!claims?.sub) throw new HttpError(400, 'The identity provider did not return an ID token');
   const user = provisionUser(p, claims);
-  const token = createSession(user.id, user.username, meta, p.displayName);
-  return { token, returnTo: flow.returnTo, username: user.username };
+  const session = createSession(user.id, user.username, meta, p.displayName);
+  return { ...session, returnTo: flow.returnTo, username: user.username };
 }
 
 function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {

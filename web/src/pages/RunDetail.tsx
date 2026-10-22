@@ -33,7 +33,7 @@ import {
   IconFileCertificate,
 } from '@tabler/icons-react';
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
-import { get, notifyError, post } from '../api';
+import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
 import { JsonView, Markdown, PageHeader, StatusBadge, severityLabel, statusLabel } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
@@ -143,16 +143,16 @@ export function RunDetailPage() {
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item component="a" href={`/api/runs/${r.id}/report.html`} target="_blank">
+                <Menu.Item component="a" href={apiUrl(`/runs/${r.id}/report.html`)} target="_blank">
                   {t('detail.openHtml')}
                 </Menu.Item>
                 <Menu.Item leftSection={<IconFileCertificate size={14} />} disabled={!canReport(r.status)} onClick={() => setPdfOpen(true)}>
                   {t('detail.generatePdf')}
                 </Menu.Item>
-                <Menu.Item component="a" href={`/api/runs/${r.id}/report.html?download=1`}>
+                <Menu.Item component="a" href={apiUrl(`/runs/${r.id}/report.html?download=1`)}>
                   {t('detail.downloadHtml')}
                 </Menu.Item>
-                <Menu.Item component="a" href={`/api/runs/${r.id}/report.json`}>
+                <Menu.Item component="a" href={apiUrl(`/runs/${r.id}/report.json`)}>
                   {t('detail.downloadJson')}
                 </Menu.Item>
               </Menu.Dropdown>
@@ -320,8 +320,8 @@ export function RunDetailPage() {
               {r.artifacts.map((a) => (
                 <Card withBorder key={a.id} padding="xs">
                   <Card.Section>
-                    <a href={`/api/artifacts/${a.id}`} target="_blank" rel="noreferrer">
-                      <Image src={`/api/artifacts/${a.id}`} alt={a.name} />
+                    <a href={apiUrl(`/artifacts/${a.id}`)} target="_blank" rel="noreferrer">
+                      <Image src={apiUrl(`/artifacts/${a.id}`)} alt={a.name} />
                     </a>
                   </Card.Section>
                   <Text size="sm" fw={500} mt="xs">

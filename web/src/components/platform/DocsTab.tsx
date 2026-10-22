@@ -20,7 +20,7 @@ import {
 import { IconFile, IconLink, IconNote, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Platform, PlatformDoc } from '@sm/shared';
-import { api, del, get, notifyError, notifyOk, post } from '../../api';
+import { api, del, get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { Markdown } from '../common';
 import { fmtBytes, fmtDate } from '../../format';
 
@@ -161,7 +161,7 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                       </Anchor>
                     )}
                     {d.kind === 'file' && (
-                      <Anchor size="sm" fw={500} href={`/api/docs/${d.id}/file`} target="_blank">
+                      <Anchor size="sm" fw={500} href={apiUrl(`/docs/${d.id}/file`)} target="_blank">
                         {d.title}
                       </Anchor>
                     )}

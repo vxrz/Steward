@@ -1,15 +1,17 @@
 import { Fragment, useState } from 'react';
-import { Alert, Anchor, Button, Collapse, Group, Menu, Select, Table, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Collapse, Group, List, Menu, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
+import { IconAnchor, IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
-import { get, notifyError } from '../api';
+import { apiUrl, get, notifyError, post } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
 import { VerifyReportButton } from '../components/reports/VerifyReportButton';
+import { AuditAnchoringPanel } from '../components/security/AuditAnchoringPanel';
+import { useMe } from '../auth';
 
 const CATEGORIES = ['run', 'api', 'task', 'check', 'platform', 'process', 'schedule', 'vault', 'report'] as const;
 
@@ -21,6 +23,16 @@ export function AuditPage() {
   const [action, setAction] = useState<string | null>(null);
   const [verify, setVerify] = useState<AuditVerifyResult | null>(null);
   const [open, setOpen] = useState<number | null>(null);
+  const [anchorOpen, setAnchorOpen] = useState(false);
+  const [anchorText, setAnchorText] = useState('');
+  const { caps } = useMe();
+  const verifyAgainst = () =>
+    post<AuditVerifyResult>('/audit/verify', { anchor: anchorText })
+      .then((r) => {
+        setVerify(r);
+        setAnchorOpen(false);
+      })
+      .catch((e) => notifyError(e));
 
   const entries = useInfiniteQuery({
     queryKey: ['audit', debounced, action],
@@ -56,6 +68,9 @@ export function AuditPage() {
             >
               {t('verify')}
             </Button>
+            <Button size="xs" variant="light" leftSection={<IconAnchor size={14} />} onClick={() => setAnchorOpen(true)}>
+              {t('verifyAnchor')}
+            </Button>
             <Menu>
               <Menu.Target>
                 <Button size="xs" variant="default" leftSection={<IconDownload size={14} />}>
@@ -63,11 +78,14 @@ export function AuditPage() {
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item component="a" href="/api/audit/export?format=csv">
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=csv')}>
                   CSV
                 </Menu.Item>
-                <Menu.Item component="a" href="/api/audit/export?format=jsonl">
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=jsonl')}>
                   {t('jsonl')}
+                </Menu.Item>
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=json')}>
+                  {t('jsonSigned')}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
@@ -77,8 +95,40 @@ export function AuditPage() {
       {verify && (
         <Alert color={verify.ok ? 'green' : 'red'} mb="md" withCloseButton onClose={() => setVerify(null)} title={verify.ok ? t('intact') : t('broken')}>
           {verify.ok ? t('intactText', { count: verify.checked }) : verify.firstBadSeq ? t('brokenText', { seq: verify.firstBadSeq, message: verify.message }) : verify.message}
+          {!!verify.anchors?.length && (
+            <List size="sm" mt={4}>
+              {verify.anchors.map((a, i) => (
+                <List.Item key={i}>{a.message}</List.Item>
+              ))}
+            </List>
+          )}
+          {verify.checkpoint && (
+            <Text size="xs" mt={4}>
+              {t('checkpointWritten', { seq: verify.checkpoint.seq })}
+            </Text>
+          )}
         </Alert>
       )}
+      <Modal opened={anchorOpen} onClose={() => setAnchorOpen(false)} title={t('verifyAnchor')} size="lg">
+        <Stack gap="sm">
+          <Text size="sm">{t('anchorHint')}</Text>
+          <Textarea
+            label={t('anchorLabel')}
+            autosize
+            minRows={4}
+            maxRows={12}
+            classNames={{ input: 'mono' }}
+            value={anchorText}
+            onChange={(e) => setAnchorText(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button onClick={verifyAgainst} disabled={!anchorText.trim()}>
+              {t('verify')}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+      <AuditAnchoringPanel canManage={caps.manageSettings} />
       <Group mb="md" gap="xs">
         <TextInput
           size="xs"

@@ -16,7 +16,16 @@
     "LAST_ADMIN": "At least one active administrator is required.",
     "SSO_MANAGED_PROFILE": "Name and e-mail of this account are managed by single sign-on.",
     "INVALID_EMAIL": "Enter a valid e-mail address.",
-    "UNSUPPORTED_LOCALE": "This language is not supported."
+    "UNSUPPORTED_LOCALE": "This language is not supported.",
+    "PASSPHRASE_TOO_SHORT": "The master passphrase needs at least 12 characters.",
+    "SAME_PASSPHRASE": "Choose a passphrase different from the current one.",
+    "VAULT_MISMATCH": "The vault file does not belong to this database – restore the matching vault.json.",
+    "VAULT_CHANGE_INTERRUPTED": "A change of the master passphrase was interrupted – unlock with the new passphrase.",
+    "PLATFORM_CONFIG_UNVERIFIED": "The connection settings of this platform were changed outside Steward. No requests are sent until an administrator reviews and confirms them on the platform page.",
+    "SSO_CONFIG_UNVERIFIED": "The settings of this sign-in provider were changed outside Steward. An administrator has to review and save them again.",
+    "ANCHOR_INVALID": "This is not a checkpoint (expected the JSON of a checkpoint, or seq:hash).",
+    "ANCHOR_SIGNATURE_INVALID": "The checkpoint's signature is invalid – it was changed or comes from another installation.",
+    "BUSY": "Too many sign-ins at the same time – try again in a moment."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -18,7 +18,13 @@ import {
 } from '@sm/shared';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
-import { audit, queryAudit, verifyAudit, verifyAuditAsync, allAuditAscending, flushPendingAudit } from '../audit.js';
+import { audit, queryAudit, allAuditAscending, flushPendingAudit } from '../audit.js';
+import { anchoringStatus, createCheckpoint, parseAnchor, saveEmailSettings, verificationResult, verifyWithAnchors, anchorFile } from '../audit-anchor.js';
+import { auditCsv, auditExportBundle } from '../audit-export.js';
+import { changeMasterPassphrase } from '../vault-rotation.js';
+import { publicKeyPem } from '../vault.js';
+import { unlockThrottle } from '../auth/unlock-throttle.js';
+import { confirmPlatformConfig, sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, updateSettings } from '../settings.js';
 import { HttpError, parseJson } from '../util.js';
 import { db } from '../db.js';
@@ -41,13 +47,20 @@ import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
-import { readCookie, sessionCookie, SESSION_COOKIE } from '../auth/cookies.js';
+import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { BRAND } from '@sm/shared';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
 async function onUnlocked(): Promise<void> {
   flushPendingAudit();
+  if (vault().migratedFromV1) {
+    vault().migratedFromV1 = false;
+    audit({ actor: 'system', action: 'vault.upgraded', entityType: 'vault', summary: 'Vault converted to format 2 (wrapped keys, scrypt N=2^17); the audit key is unchanged' });
+  }
+  // configuration integrity: seal platforms that have no seal yet (installations from before it existed)
+  sealPlatformConfigs();
+  sso.sealProviderConfigs();
   if (started) return;
   started = true;
   await recoverRuns();
@@ -56,8 +69,15 @@ async function onUnlocked(): Promise<void> {
 
 export async function unlockFromEnv(): Promise<void> {
   if (config.masterPassphrase && vault().initialized && !vault().unlocked) {
-    vault().unlock(config.masterPassphrase);
-    audit({ actor: 'system', action: 'vault.unlocked', entityType: 'vault', summary: 'Vault unlocked from SM_MASTER_PASSPHRASE at startup' });
+    try {
+      await vault().unlock(config.masterPassphrase);
+    } catch (e) {
+      if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
+        audit({ actor: 'system', action: 'vault.unlock_failed', entityType: 'vault', summary: 'Automatic unlock at startup failed: wrong master passphrase (SM_MASTER_PASSPHRASE[_FILE])' });
+      }
+      throw e;
+    }
+    audit({ actor: 'system', action: 'vault.unlocked', entityType: 'vault', summary: 'Vault unlocked with the configured master passphrase at startup' });
     await onUnlocked();
   }
 }
@@ -198,25 +218,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/setup', async (req, reply) => {
     const b = z
-      .object({ passphrase: z.string().min(8), username: z.string().min(2), displayName: z.string().optional(), password: z.string() })
+      .object({ passphrase: z.string().min(1).max(1024), username: z.string().min(2).max(64), displayName: z.string().max(100).optional(), password: z.string().max(1024) })
       .parse(req.body);
     if (users.countUsers() > 0) throw new HttpError(409, 'Setup has already been completed');
-    if (vault().initialized) vault().unlock(b.passphrase);
-    else vault().setup(b.passphrase);
+    if (vault().initialized) await vault().unlock(b.passphrase);
+    else await vault().setup(b.passphrase);
     const { user } = users.createUser({ username: b.username, displayName: b.displayName, roles: ['admin'], password: b.password });
     runAs(users.toAuthUser(user), () =>
       audit({ action: 'vault.initialized', entityType: 'vault', summary: `${BRAND.name} set up by ${user.username} (first administrator)` }),
     );
-    const { token } = users.login(b.username, b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
-    reply.header('set-cookie', sessionCookie(token));
+    const session = await users.login(b.username, b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
+    reply.header('set-cookie', sessionCookie(session.token));
+    sendSessionKeys(reply, session);
     await onUnlocked();
     return { ok: true };
   });
 
-  app.post('/auth/login', async (req, reply) => {
-    const b = z.object({ username: z.string(), password: z.string() }).parse(req.body);
-    const { token, user } = users.login(b.username.trim(), b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
-    reply.header('set-cookie', sessionCookie(token));
+  // Small body limit: reachable without signing in (and every failure is audited, see login-audit.ts).
+  app.post('/auth/login', { bodyLimit: 16 * 1024 }, async (req, reply) => {
+    const b = z.object({ username: z.string().max(256), password: z.string().max(1024) }).parse(req.body);
+    const { user, ...session } = await users.login(b.username.trim(), b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
+    reply.header('set-cookie', sessionCookie(session.token));
+    sendSessionKeys(reply, session);
     return { user, capabilities: capabilities(users.toAuthUser(user)) } satisfies Me;
   });
 
@@ -246,13 +269,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/auth/oidc/callback', async (req, reply) => {
     try {
       const current = new URL(req.url, `${req.protocol}://${req.headers.host}`);
-      const { token, returnTo } = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
+      const { token, returnTo, sessionKey, linkKey } = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
       reply.header('set-cookie', sessionCookie(token));
+      reply.header('cache-control', 'no-store');
       // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
-      const target = JSON.stringify(returnTo).replace(/</g, '\\u003c');
+      // It also hands the session key to the web app: localStorage of this origin (see auth/cookies.ts).
+      const js = (v: string) => JSON.stringify(v).replace(/</g, '\\u003c');
       return reply
         .type('text/html')
-        .send(`<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>location.replace(${target})</script>`);
+        .send(
+          `<!doctype html><meta charset="utf-8"><title>Signing in…</title><p>Signing in…</p><script>try{localStorage.setItem(${js(SESSION_KEY_STORAGE)},${js(sessionKey)});localStorage.setItem(${js(LINK_KEY_STORAGE)},${js(linkKey)})}catch(e){}location.replace(${js(returnTo)})</script>`,
+        );
     } catch (e) {
       return ssoFail(reply, (e as Error).message);
     }
@@ -284,17 +311,58 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/password', async (req) => {
     const b = z.object({ current: z.string(), next: z.string() }).parse(req.body);
-    users.changePassword(me().id, b.current, b.next, readCookie(req.headers.cookie, SESSION_COOKIE));
+    await users.changePassword(me().id, b.current, b.next, readCookie(req.headers.cookie, SESSION_COOKIE));
     return { ok: true };
   });
 
-  app.post('/vault/unlock', async (req) => {
+  app.post('/vault/unlock', async (req, reply) => {
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can unlock the vault');
-    const b = z.object({ passphrase: z.string() }).parse(req.body);
-    vault().unlock(b.passphrase);
+    const b = z.object({ passphrase: z.string().max(1024) }).parse(req.body);
+    // Failed attempts are audited (written once the vault is open) and slow down further attempts.
+    const wait = unlockThrottle.waitSeconds();
+    if (wait > 0) {
+      reply.header('retry-after', String(wait));
+      throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
+    }
+    try {
+      await vault().unlock(b.passphrase);
+    } catch (e) {
+      if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
+        const n = unlockThrottle.failed();
+        audit({ action: 'vault.unlock_failed', entityType: 'vault', summary: `Wrong master passphrase entered by ${me().username} (attempt ${n})`, details: { ip: req.ip, attempt: n } });
+      }
+      throw e;
+    }
+    unlockThrottle.succeeded();
     audit({ action: 'vault.unlocked', entityType: 'vault', summary: `Vault unlocked by ${me().username}` });
     await onUnlocked();
     return { ok: true };
+  });
+
+  // Master passphrase change (administrators; needs the current passphrase). rotateDataKey re-encrypts every secret.
+  app.post('/vault/passphrase', async (req) => {
+    if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can change the master passphrase');
+    const b = z.object({ current: z.string().max(1024), next: z.string().max(1024), rotateDataKey: z.boolean().default(true) }).parse(req.body);
+    const wait = unlockThrottle.waitSeconds();
+    if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
+    try {
+      const r = await changeMasterPassphrase(b.current, b.next, b.rotateDataKey);
+      unlockThrottle.succeeded();
+      return { ok: true, ...r };
+    } catch (e) {
+      if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
+        const n = unlockThrottle.failed();
+        audit({ action: 'vault.passphrase_change_failed', entityType: 'vault', summary: `Master passphrase change by ${me().username} refused: wrong current passphrase (attempt ${n})`, details: { ip: req.ip } });
+      }
+      throw e;
+    }
+  });
+
+  // Public information about the vault (format, scrypt cost, checkpoint signing key) – administrators and auditors.
+  app.get('/vault/info', async () => {
+    requireCapability(me(), 'viewAudit', 'view vault information');
+    const i = vault().info();
+    return { ...i, passphraseMinLength: 12, signingPublicKeyPem: i.signingPublicKey ? publicKeyPem(i.signingPublicKey) : null };
   });
 
   app.post('/vault/lock', async () => {
@@ -434,6 +502,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(params(req).id!, 'manage', 'delete this platform');
     platforms.deletePlatform(params(req).id!);
     return { ok: true };
+  });
+  // Connection settings changed outside the application (configuration integrity): an administrator reviews and confirms them.
+  app.post('/platforms/:id/confirm-config', async (req) => {
+    requireCapability(me(), 'createPlatforms', 'confirm platform settings');
+    requirePlatform(params(req).id!, 'manage', 'confirm the settings of this platform');
+    confirmPlatformConfig(params(req).id!);
+    return platforms.getPlatform(params(req).id!);
   });
   app.put('/platforms/:id/secrets', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change credentials of this platform');
@@ -728,24 +803,64 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     else requireCapability(me(), 'viewAudit', 'view the audit log');
     return queryAudit({ ...q, beforeSeq: q.beforeSeq ? Number(q.beforeSeq) : undefined, limit: q.limit ? Number(q.limit) : undefined });
   });
-  app.get('/audit/verify', async () => {
+  // Verification against all anchors (local anchor file, SM_AUDIT_ANCHOR[_FILE], and an anchor pasted by the user).
+  const verifyRoute = async (anchorText: string | undefined, via: string) => {
     requireCapability(me(), 'viewAudit', 'verify the audit log');
-    const r = await verifyAuditAsync();
-    audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified: ${r.message}`, details: r });
-    return r;
+    const extra = anchorText?.trim() ? [parseAnchor(anchorText, 'checkpoint you entered')] : [];
+    const r = await verifyWithAnchors(extra);
+    const pub = verificationResult(r, null);
+    audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified${via}: ${r.message}`, details: pub });
+    const checkpoint = r.ok ? await createCheckpoint('verify') : null;
+    return verificationResult(r, checkpoint);
+  };
+  app.get('/audit/verify', async () => verifyRoute(undefined, ''));
+  app.post('/audit/verify', { bodyLimit: 256 * 1024 }, async (req) => verifyRoute(z.object({ anchor: z.string().max(200_000).optional() }).parse(req.body ?? {}).anchor, ' against an external checkpoint'));
+
+  app.get('/audit/anchoring', async () => {
+    requireCapability(me(), 'viewAudit', 'view the audit anchoring');
+    return anchoringStatus();
   });
+  app.put('/audit/anchoring', async (req) => {
+    requireCapability(me(), 'manageSettings', 'change the audit anchoring');
+    const b = z.object({ emailRecipients: z.array(z.string().max(200)).max(20), emailIntervalHours: z.number().int().min(1).max(168).optional() }).parse(req.body);
+    saveEmailSettings({ to: b.emailRecipients, intervalHours: b.emailIntervalHours });
+    return anchoringStatus();
+  });
+  app.post('/audit/checkpoint', async () => {
+    requireCapability(me(), 'viewAudit', 'create an audit checkpoint');
+    const cp = await createCheckpoint('manual');
+    if (!cp) throw new HttpError(409, 'No checkpoint written – the audit chain did not verify (see the server log) or the log is empty');
+    return cp;
+  });
+  app.get('/audit/public-key.pem', async (_req, reply) => {
+    requireCapability(me(), 'viewAudit', 'export the audit signing key');
+    const pub = vault().signingPublicKey();
+    if (!pub) throw new HttpError(404, 'No signing key yet – unlock the vault once');
+    reply.header('content-disposition', 'attachment; filename="steward-audit-public-key.pem"');
+    return reply.type('application/x-pem-file').send(publicKeyPem(pub));
+  });
+  app.get('/audit/anchor.json', async (_req, reply) => {
+    requireCapability(me(), 'viewAudit', 'export the audit anchor');
+    if (!fs.existsSync(anchorFile())) throw new HttpError(404, 'No checkpoint yet');
+    reply.header('content-disposition', 'attachment; filename="steward-audit-checkpoint.json"');
+    return reply.type('application/json').send(fs.readFileSync(anchorFile(), 'utf8'));
+  });
+
   app.get('/audit/export', async (req, reply) => {
     requireCapability(me(), 'viewAudit', 'export the audit log');
     const format = (req.query as { format?: string }).format ?? 'jsonl';
+    if (!['jsonl', 'csv', 'json'].includes(format)) throw new HttpError(400, 'format: jsonl, csv or json');
+    // a fresh signed checkpoint, so the file can be checked offline (npm run audit:verify-export)
+    const checkpoint = await createCheckpoint('export');
     const all = allAuditAscending();
     audit({ action: 'audit.exported', entityType: 'audit', summary: `Audit log exported (${all.length} entries, ${format})` });
     if (format === 'csv') {
-      const cell = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const lines = ['seq,ts,actor,action,entityType,entityId,runId,summary,hash'].concat(
-        all.map((a) => [a.seq, a.ts, a.actor, a.action, a.entityType, a.entityId, a.runId, a.summary, a.hash].map(cell).join(',')),
-      );
       reply.header('content-disposition', 'attachment; filename="audit-log.csv"');
-      return reply.type('text/csv').send(lines.join('\n'));
+      return reply.type('text/csv; charset=utf-8').send(auditCsv(all));
+    }
+    if (format === 'json') {
+      reply.header('content-disposition', 'attachment; filename="audit-log.json"');
+      return reply.type('application/json').send(JSON.stringify(auditExportBundle(all, checkpoint), null, 1));
     }
     reply.header('content-disposition', 'attachment; filename="audit-log.jsonl"');
     return reply.type('application/x-ndjson').send(all.map((a) => JSON.stringify(a)).join('\n'));

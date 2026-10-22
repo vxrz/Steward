@@ -3,7 +3,7 @@ import path from 'node:path';
 import { BRAND, type ReportBranding, type ReportLang, type ReportRecord, type ReportVerification, type RunStatus } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
-import { audit } from '../audit.js';
+import { audit, authenticRows } from '../audit.js';
 import { runRow } from '../engine/store.js';
 import { HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
 import { getBranding, logo } from './branding.js';
@@ -115,7 +115,7 @@ function writeOnce(rel: string, data: Buffer): void {
   const file = path.join(reportsDir(), ...rel.split('/'));
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, data, { flag: 'wx' }); // never overwrite
-  if (process.platform !== 'win32') fs.chmodSync(file, 0o444);
+  if (process.platform !== 'win32') fs.chmodSync(file, 0o400); // read-only, for the service account only
 }
 
 function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<string, unknown>, summary: string): ReportRecord {
@@ -309,9 +309,9 @@ interface GeneratedEntry {
   seq: number;
   ts: string;
   actor: string;
-  entity_id: string;
+  entity_id: string | null;
   run_id: string | null;
-  details: string;
+  details: string | null;
 }
 
 /**
@@ -319,36 +319,44 @@ interface GeneratedEntry {
  * copy that was signed later (signatures are appended as incremental
  * updates) – by the SHA-256 of its first <recorded size> bytes.
  */
-export function findGenerated(data: Buffer): { match: 'exact' | 'signed-copy'; entry: GeneratedEntry } | null {
-  const q = `SELECT seq, ts, actor, entity_id, run_id, details FROM audit_log WHERE action = 'report.generated' AND ${db().jsonText('details', 'sha256')} = ? ORDER BY seq LIMIT 1`;
-  const exact = db().get<GeneratedEntry>(q, sha256(data));
-  if (exact) return { match: 'exact', entry: exact };
-  if (!data.subarray(0, 5).equals(Buffer.from('%PDF-'))) return null;
+export function findGenerated(data: Buffer): { match: 'exact' | 'signed-copy'; entry: GeneratedEntry; forged: number } | { match: null; forged: number } | null {
+  // Only authentic entries count (HMAC and chain position checked): a row inserted into the database
+  // with the SHA-256 of a forged PDF must not make that PDF verify.
+  let forged = 0;
+  const lookup = (hash: string): GeneratedEntry | undefined => {
+    const r = authenticRows(`action = 'report.generated' AND ${db().jsonText('details', 'sha256')} = ? AND seq >= 1`, [hash], { ascending: true, limit: 20 });
+    forged += r.rejected;
+    return r.rows[0];
+  };
+  const exact = lookup(sha256(data));
+  if (exact) return { match: 'exact', entry: exact, forged };
+  if (!data.subarray(0, 5).equals(Buffer.from('%PDF-'))) return forged ? { match: null, forged } : null;
   const sizes = db()
     .all<{ size: number }>(
-      `SELECT DISTINCT CAST(${db().jsonText('details', 'size')} AS INTEGER) AS size FROM audit_log WHERE action = 'report.generated' AND CAST(${db().jsonText('details', 'size')} AS INTEGER) < ?`,
+      `SELECT DISTINCT CAST(${db().jsonText('details', 'size')} AS INTEGER) AS size FROM audit_log WHERE action = 'report.generated' AND seq >= 1 AND CAST(${db().jsonText('details', 'size')} AS INTEGER) < ?`,
       data.length,
     )
-    .map((r) => r.size)
+    .map((r) => Number(r.size))
     .filter((n) => n > 0);
   for (const size of sizes) {
     // the original ends with %%EOF; an incremental update follows it
     if (!data.subarray(Math.max(0, size - 7), size).toString('latin1').includes('%%EOF')) continue;
-    const entry = db().get<GeneratedEntry>(q, sha256(data.subarray(0, size)));
-    if (entry) return { match: 'signed-copy', entry };
+    const entry = lookup(sha256(data.subarray(0, size)));
+    if (entry) return { match: 'signed-copy', entry, forged };
   }
-  return null;
+  return forged ? { match: null, forged } : null;
 }
 
 export function verificationOf(data: Buffer, found: ReturnType<typeof findGenerated>, chain?: ReportVerification['auditChain']): ReportVerification {
-  if (!found) return { match: 'unknown', sha256: sha256(data), auditChain: chain };
+  if (!found || !found.match) return { match: 'unknown', sha256: sha256(data), auditChain: chain, ...(found?.forged ? { forgedEntries: found.forged } : {}) };
   const d = parseJson<{ kind?: string; filename?: string; sha256: string; size: number }>(found.entry.details, { sha256: '', size: 0 });
   const stored = !!db().get('SELECT 1 FROM reports WHERE id = ?', found.entry.entity_id);
   return {
+    ...(found.forged ? { forgedEntries: found.forged } : {}),
     match: found.match,
     sha256: sha256(data),
     report: {
-      id: found.entry.entity_id,
+      id: found.entry.entity_id ?? '',
       kind: d.kind ?? 'run',
       runId: found.entry.run_id,
       filename: d.filename,
@@ -356,7 +364,7 @@ export function verificationOf(data: Buffer, found: ReturnType<typeof findGenera
       size: d.size,
       generatedAt: found.entry.ts,
       generatedBy: found.entry.actor,
-      auditSeq: found.entry.seq,
+      auditSeq: Number(found.entry.seq),
       stored,
     },
     auditChain: chain,

@@ -16,7 +16,16 @@
     "LAST_ADMIN": "Mindestens ein aktiver Administrator ist erforderlich.",
     "SSO_MANAGED_PROFILE": "Name und E-Mail-Adresse dieses Kontos werden über Single Sign-on verwaltet.",
     "INVALID_EMAIL": "Bitte eine gültige E-Mail-Adresse eingeben.",
-    "UNSUPPORTED_LOCALE": "Diese Sprache wird nicht unterstützt."
+    "UNSUPPORTED_LOCALE": "Diese Sprache wird nicht unterstützt.",
+    "PASSPHRASE_TOO_SHORT": "Die Master-Passphrase braucht mindestens 12 Zeichen.",
+    "SAME_PASSPHRASE": "Bitte eine andere als die aktuelle Passphrase wählen.",
+    "VAULT_MISMATCH": "Die Tresordatei gehört nicht zu dieser Datenbank – bitte die passende vault.json wiederherstellen.",
+    "VAULT_CHANGE_INTERRUPTED": "Eine Änderung der Master-Passphrase wurde unterbrochen – bitte mit der neuen Passphrase entsperren.",
+    "PLATFORM_CONFIG_UNVERIFIED": "Die Verbindungseinstellungen dieser Plattform wurden außerhalb von Steward geändert. Bis ein Administrator sie auf der Plattformseite geprüft und bestätigt hat, werden keine Anfragen gesendet.",
+    "SSO_CONFIG_UNVERIFIED": "Die Einstellungen dieses Anmeldeanbieters wurden außerhalb von Steward geändert. Ein Administrator muss sie prüfen und erneut speichern.",
+    "ANCHOR_INVALID": "Das ist kein Prüfpunkt (erwartet wird das JSON eines Prüfpunkts oder seq:hash).",
+    "ANCHOR_SIGNATURE_INVALID": "Die Signatur des Prüfpunkts ist ungültig – er wurde verändert oder stammt von einer anderen Installation.",
+    "BUSY": "Zu viele gleichzeitige Anmeldungen – bitte gleich noch einmal versuchen."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

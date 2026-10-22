@@ -3,7 +3,7 @@ import { NodeTracerProvider, BatchSpanProcessor, type SpanExporter, SimpleSpanPr
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { config } from './config.js';
-import { BRAND } from '@sm/shared';
+import { BRAND, scrubString } from '@sm/shared';
 
 /**
  * Optional OpenTelemetry tracing. Enabled when an OTLP endpoint is configured
@@ -54,8 +54,11 @@ export async function withSpan<T>(
       const out = await fn(span);
       return out;
     } catch (e) {
-      span.recordException(e as Error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (e as Error).message?.slice(0, 300) });
+      // exception messages can contain secrets, host names or personal data: only a scrubbed copy leaves the process
+      const err = e as Error;
+      const message = scrubString(String(err?.message ?? err)).slice(0, 300);
+      span.recordException({ name: err?.name ?? 'Error', message });
+      span.setStatus({ code: SpanStatusCode.ERROR, message });
       throw e;
     } finally {
       span.end();

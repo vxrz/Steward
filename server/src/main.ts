@@ -11,15 +11,18 @@ import { startNotificationJobs, stopNotificationJobs, flushNotifications } from 
 import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 import { db } from './db.js';
 import { closeErrorReporting, initErrorReporting, isUnexpected, reportError } from './errorReporting.js';
-import { listPlatforms, getSecrets } from './platforms/service.js';
+import { listPlatforms, getSecretsUnchecked } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
+import { startAuditJobs, stopAuditJobs } from './audit-anchor.js';
+import { removeInstanceFile, writeInstanceFile } from './instance.js';
+import { flushFailedLoginAudit } from './auth/login-audit.js';
 
 /** All platform secret values (and cached access tokens) – never part of an error report. */
 function platformSecretValues(): string[] {
   if (!vault().unlocked) return [];
   return listPlatforms().flatMap((p) => {
     try {
-      return secretValues(getSecrets(p.id));
+      return secretValues(getSecretsUnchecked(p.id));
     } catch {
       return [];
     }
@@ -33,7 +36,10 @@ export interface Started {
 
 /** Starts the server (used by `npm start` and by the desktop executable). */
 export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
-  ensureDataDirs();
+  // Files the server creates (database, WAL, vault, artifacts, reports) are private to the service account.
+  if (process.platform !== 'win32') process.umask(0o077);
+  const permissionProblems = ensureDataDirs();
+  for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
   const tracing = initTelemetry();
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });
@@ -44,7 +50,9 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   });
   startNotificationJobs();
   startMaintenanceJobs();
+  startAuditJobs();
   const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
+  writeInstanceFile(url);
   logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing, errorReporting }, 'service manager started');
 
   if (opts.banner ?? process.stdout.isTTY) {
@@ -61,6 +69,9 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
     if (active.length) logger.info({ activeRuns: active.length }, 'stopping with active runs; they are resumed or marked interrupted on next start');
     stopNotificationJobs();
     stopMaintenanceJobs();
+    stopAuditJobs();
+    flushFailedLoginAudit();
+    removeInstanceFile();
     await app.close();
     await Promise.race([flushNotifications(), new Promise((r) => setTimeout(r, 5000))]);
     await shutdownTelemetry();

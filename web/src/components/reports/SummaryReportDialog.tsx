@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDownload, IconReportAnalytics } from '@tabler/icons-react';
 import type { ProcessSummary, ReportLang, ReportRecord } from '@sm/shared';
 import { useTranslation } from 'react-i18next';
-import { get, notifyError, notifyOk, post } from '../../api';
+import { get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { fmtDate, fmtDay } from '../../format';
 import { LangControl, browserTimeZone, defaultReportLang } from './RunReports';
 
@@ -90,7 +90,7 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
             <Button variant="default" onClick={() => setDone(null)}>
               {t('summary.new')}
             </Button>
-            <Button component="a" href={`/api/reports/${done.id}/download`} leftSection={<IconDownload size={16} />}>
+            <Button component="a" href={apiUrl(`/reports/${done.id}/download`)} leftSection={<IconDownload size={16} />}>
               {t('downloadPdf')}
             </Button>
           </Group>
@@ -157,7 +157,7 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
                         </Table.Td>
                         <Table.Td>{r.createdBy}</Table.Td>
                         <Table.Td className="nowrap">
-                          <Anchor href={`/api/reports/${r.id}/download`} size="sm">
+                          <Anchor href={apiUrl(`/reports/${r.id}/download`)} size="sm">
                             <Group gap={4} wrap="nowrap">
                               <IconDownload size={14} />
                               PDF

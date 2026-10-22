@@ -97,10 +97,29 @@ const willStart = !usageError && !args.help && !args.version && !args.autostart 
 
 if (inExecutable && willStart) {
   // The build embeds "manifest.json" (list of asset keys) plus one asset per file.
-  const manifest = JSON.parse(sea.getAsset('manifest.json', 'utf8')) as { version: string; files: string[] };
+  const manifest = JSON.parse(sea.getAsset('manifest.json', 'utf8')) as { version: string; files: string[]; sha256?: Record<string, string> };
   const hash = createHash('sha256').update(manifest.files.join('\n')).update(manifest.version).digest('hex').slice(0, 10);
   const appDir = path.join(process.env.SM_DATA_DIR, 'app', `${manifest.version}-${hash}`);
   const marker = path.join(appDir, '.complete');
+  // The unpacked copy is what the server serves and runs: check it against the hashes embedded in the
+  // executable at every start, and unpack it again if a file was changed or removed.
+  const intact = (): boolean => {
+    if (!manifest.sha256) return true;
+    for (const key of manifest.files) {
+      const want = manifest.sha256[key];
+      if (!want) continue;
+      try {
+        if (createHash('sha256').update(fs.readFileSync(path.join(appDir, ...key.split('/')))).digest('hex') !== want) return false;
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  };
+  if (fs.existsSync(marker) && !intact()) {
+    console.error(`${BRAND.name}: the unpacked application files in ${appDir} were changed – unpacking them again.`);
+    fs.rmSync(marker, { force: true });
+  }
   if (!fs.existsSync(marker)) {
     fs.rmSync(appDir, { recursive: true, force: true });
     for (const key of manifest.files) {

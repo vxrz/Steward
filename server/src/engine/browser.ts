@@ -54,9 +54,53 @@ export async function openBrowser(opts: { headless: boolean; timeoutMs: number; 
     );
   }
   const executablePath = EXECUTABLE_CANDIDATES.find((p) => fs.existsSync(p));
-  const browser = await pw.chromium.launch({ headless: opts.headless, ...(executablePath ? { executablePath } : {}) });
+  const browser = await launchChromium(pw, { headless: opts.headless, ...(executablePath ? { executablePath } : {}) });
   const context = await browser.newContext({ ignoreHTTPSErrors: !!opts.ignoreHttpsErrors, viewport: { width: 1366, height: 860 } });
   const page = await context.newPage();
   page.setDefaultTimeout(opts.timeoutMs);
   return { page, close: () => browser.close() };
+}
+
+// ---------- launch hardening (review C, H5) ----------
+
+/** Variables the browser may see. Everything else – in particular SM_* settings and secrets – stays in the server process. */
+const BROWSER_ENV = /^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LANGUAGE|LC_[A-Z_]+|TZ|TMPDIR|TMP|TEMP|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_[A-Z_]+|DBUS_SESSION_BUS_ADDRESS|FONTCONFIG_[A-Z_]+|SYSTEMROOT|WINDIR|USERPROFILE|LOCALAPPDATA|APPDATA|PROGRAMDATA|PROGRAMFILES|PROGRAMFILES\(X86\)|COMMONPROGRAMFILES|COMPUTERNAME|HOMEDRIVE|HOMEPATH|NUMBER_OF_PROCESSORS|PROCESSOR_ARCHITECTURE|HTTPS?_PROXY|NO_PROXY|ALL_PROXY|PLAYWRIGHT_BROWSERS_PATH)$/i;
+
+export function browserEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  return Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === 'string' && BROWSER_ENV.test(e[0]) && !/^SM_/i.test(e[0])));
+}
+
+/**
+ * Chromium's sandbox is on unless it cannot work: as root (typical in containers) Chromium refuses to
+ * start with it. SM_CHROMIUM_SANDBOX=1 forces it on, =0 off. When the sandbox is wanted but the
+ * launch fails (e.g. no user namespaces in a container), the browser starts without it once and a
+ * warning is logged – set SM_CHROMIUM_SANDBOX=0 to silence it, or give the container what Chromium needs.
+ */
+export function sandboxWanted(env: NodeJS.ProcessEnv = process.env): { sandbox: boolean; forced: boolean } {
+  const v = env.SM_CHROMIUM_SANDBOX?.trim();
+  if (v === '1' || v === 'true') return { sandbox: true, forced: true };
+  if (v === '0' || v === 'false') return { sandbox: false, forced: true };
+  const root = typeof process.getuid === 'function' && process.getuid() === 0;
+  return { sandbox: !root, forced: false };
+}
+
+let sandboxFallbackLogged = false;
+
+async function launchChromium(
+  pw: { chromium: { launch(o: unknown): Promise<{ newContext(o: unknown): Promise<{ newPage(): Promise<PwPage> }>; close(): Promise<void> }> } },
+  o: Record<string, unknown>,
+) {
+  const { sandbox, forced } = sandboxWanted();
+  const base = { ...o, env: browserEnv() };
+  try {
+    return await pw.chromium.launch({ ...base, chromiumSandbox: sandbox });
+  } catch (e) {
+    if (!sandbox || forced) throw e;
+    if (!sandboxFallbackLogged) {
+      sandboxFallbackLogged = true;
+      const { logger } = await import('../log.js');
+      logger.warn({ err: (e as Error).message.slice(0, 300) }, 'Chromium could not start with its sandbox – browser steps run without it (set SM_CHROMIUM_SANDBOX=0 to accept, see docs/SECURITY-HARDENING.md)');
+    }
+    return pw.chromium.launch({ ...base, chromiumSandbox: false });
+  }
 }

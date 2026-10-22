@@ -15,6 +15,7 @@ import { ApiTokenTable } from '../components/ApiTokenTable';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
+import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const { t } = useTranslation(['settings', 'common']);
@@ -194,6 +195,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           </Button>
         </Group>
         )}
+        {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}
         {!readOnly && <AdminTokensCard />}

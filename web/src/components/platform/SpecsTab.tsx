@@ -21,7 +21,7 @@ import {
 import { IconExternalLink, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, Platform, PlatformSpec } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post } from '../../api';
+import { del, get, notifyError, notifyOk, post, apiUrl } from '../../api';
 import { Hint } from '../common';
 import { fmtDate } from '../../format';
 
@@ -204,7 +204,7 @@ export function SpecsTab({
                     <Table.Td>
                       <Group gap={4} wrap="nowrap" justify="flex-end">
                         <Tooltip label={t('specs.viewRaw')}>
-                          <ActionIcon component="a" href={`/api/specs/${s.id}/content`} target="_blank" variant="subtle" aria-label={t('specs.viewRaw')}>
+                          <ActionIcon component="a" href={apiUrl(`/specs/${s.id}/content`)} target="_blank" variant="subtle" aria-label={t('specs.viewRaw')}>
                             <IconExternalLink size={16} />
                           </ActionIcon>
                         </Tooltip>

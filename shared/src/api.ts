@@ -240,6 +240,11 @@ export interface Platform {
   config: PlatformConfig;
   /** Names of stored secrets (values are never returned). */
   secretKeys: string[];
+  /**
+   * Integrity of the connection settings (HMAC with the vault's integrity key): "mismatch"/"unsealed" =
+   * changed outside the application (e.g. directly in the database) – no requests until an administrator confirms.
+   */
+  integrity?: 'ok' | 'unsealed' | 'mismatch' | 'locked';
   acl: AclEntry<PlatformPermission>[];
   /** What the current user may do with this platform. */
   permissions: PlatformPermission[];
@@ -572,7 +577,27 @@ export interface AuditEntry {
   runId?: string | null;
   summary: string;
   details?: unknown;
+  /** Hash of the previous entry ("GENESIS" for #1) */
+  prevHash?: string;
   hash: string;
+}
+
+/**
+ * A signed statement "the audit log had `count` entries and entry #seq had this hash" (Ed25519,
+ * per-install key kept in the vault). Kept outside the database – SIEM, e-mail, a file – it is an
+ * anchor that detects removed entries. `digest` is an unkeyed SHA-256 chain over entries 1..seq,
+ * so an export can be checked offline with the public key only.
+ */
+export interface AuditCheckpoint {
+  v: 1;
+  seq: number;
+  hash: string;
+  digest: string;
+  count: number;
+  ts: string;
+  keyFingerprint: string;
+  /** Ed25519 signature (base64) over the canonical JSON of the other fields */
+  signature: string;
 }
 
 export interface AuditVerifyResult {
@@ -580,6 +605,25 @@ export interface AuditVerifyResult {
   checked: number;
   firstBadSeq?: number;
   message: string;
+  /** Anchors the chain was compared with (pasted checkpoint, local anchor file, SM_AUDIT_ANCHOR) */
+  anchors?: { source: string; seq: number; ok: boolean; message: string }[];
+  /** The checkpoint written after a successful verification */
+  checkpoint?: AuditCheckpoint;
+}
+
+/** GET /api/audit/anchoring – how the audit log is anchored outside the database. */
+export interface AuditAnchoring {
+  /** Ed25519 public key of this installation (PEM); checkpoints are signed with it */
+  publicKeyPem: string | null;
+  fingerprint: string | null;
+  latest: AuditCheckpoint | null;
+  /** Interval of automatic checkpoints */
+  intervalMinutes: number;
+  /** Anchors the server compares with on every verification */
+  configuredAnchors: string[];
+  /** Addresses that receive signed checkpoints by e-mail (administrators can change them) */
+  emailRecipients: string[];
+  emailIntervalHours: number;
 }
 
 // ---------- Misc ----------

@@ -25,7 +25,7 @@ import {
 import { IconPlus, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post } from '../api';
+import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { useMe } from '../auth';
 import { Hint, KeyValueEditor, PageHeader } from '../components/common';
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
@@ -207,7 +207,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
                     <Table.Td>
                       <Group gap={2} wrap="nowrap" justify="flex-end">
                         <Tooltip label={t('types.exportFile')}>
-                          <ActionIcon component="a" href={`/api/platform-types/${encodeURIComponent(ct.kind)}/export`} variant="subtle" aria-label={t('types.export')}>
+                          <ActionIcon component="a" href={apiUrl(`/platform-types/${encodeURIComponent(ct.kind)}/export`)} variant="subtle" aria-label={t('types.export')}>
                             <IconDownload size={16} />
                           </ActionIcon>
                         </Tooltip>
