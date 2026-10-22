@@ -1,0 +1,176 @@
+# Woodpecker CI: container image (counterpart of .github/workflows/container.yml, plus
+# publishing to Harbor and Dependency-Track, which the GitHub workflow does not do).
+#
+# Pull requests, other branches, the weekly cron and manual runs:
+#   build (not pushed) → Syft SBOM, Grype and Trivy scan of the image archive
+# Push to main and v* tags:
+#   build and push <harbor>/steward/steward:<commit sha> → SBOM + Grype + Trivy of the pushed
+#   image → only if the scans pass: add the branch/version tags (main; 1.2.3, 1.2, 1, latest)
+#   → optional cosign signature → SBOMs (image + npm) to Dependency-Track
+#
+# Setup (docs/WOODPECKER.md): set the two values below, create the secrets harbor_username,
+# harbor_password and dependency_track_api_key, and allow the buildx plugin to run privileged
+# (server setting WOODPECKER_PLUGINS_PRIVILEGED – it runs its own Docker daemon).
+
+variables:
+  # ── Set these two values ───────────────────────────────────────────────────────────────
+  # 1. Harbor host (registry and image; the Harbor project is "steward")
+  - &harbor_registry harbor.example.com
+  - &harbor_image harbor.example.com/steward/steward
+  # 2. Dependency-Track API server base URL
+  - &dependency_track_url https://dtrack.example.com
+  # ── Optional: sign pushed images with cosign ('true' after creating the secrets
+  #    cosign_key and cosign_password – a missing secret would fail the pipeline) ──────────
+  - &cosign_enabled 'false'
+
+  # images (pinned by digest; update: docs/WOODPECKER.md "Updating pinned images")
+  # woodpeckerci/plugin-docker-buildx:6.1.2
+  - &buildx_plugin woodpeckerci/plugin-docker-buildx:6.1.2@sha256:d26b69cbe748b8a219c707e7889d5ffb3f9214bc3c480c30fe857ff85954267c
+  # buildpack-deps:bookworm-scm (bash, curl, git) – runs the scanners from install-tools.sh
+  - &tools_image buildpack-deps:bookworm-scm@sha256:1314fd2a9c83b257b37132883b3c8e326d3909211bdcb419c9757399ebc34bf3
+  - &node_image node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+
+  - &paths
+    exclude: ['**/*.md', 'LICENSE', 'NOTICE', '.github/**', 'docs/*.svg']
+  - &registry_env
+    HARBOR_IMAGE: *harbor_image
+    REGISTRY_USERNAME:
+      from_secret: harbor_username
+    REGISTRY_PASSWORD:
+      from_secret: harbor_password
+  # which steps run when
+  - &when_publish
+    - event: push
+      branch: main
+    - event: tag
+      ref: refs/tags/v*
+  - &when_publish_always # also after a failed scan: the SBOMs go to Dependency-Track either way
+    - event: push
+      branch: main
+      status: [success, failure]
+    - event: tag
+      ref: refs/tags/v*
+      status: [success, failure]
+  - &when_scan_only
+    - event: push
+      branch:
+        exclude: [main]
+    - event: [pull_request, cron, manual]
+
+when:
+  - event: push
+    branch: [main, 'claude/**']
+    path: *paths
+  - event: pull_request
+    path: *paths
+  - event: tag
+    ref: refs/tags/v*
+  - event: cron
+    cron: weekly
+  - event: manual
+
+# install-tools.sh and cosign-sign.sh download Linux x86_64 binaries; the image is linux/amd64
+labels:
+  platform: linux/amd64
+
+steps:
+  # ── not published: build into an archive and scan it (no secrets) ──────────────────────
+  - name: build
+    image: *buildx_plugin
+    settings:
+      repo: steward
+      tags: ci
+      dry_run: true
+      platforms: linux/amd64
+      provenance: false
+      output: type=docker,dest=steward-image.tar
+    when: *when_scan_only
+
+  - name: scan
+    image: *tools_image
+    commands:
+      - scripts/ci/image-scan.sh archive steward-image.tar
+    when: *when_scan_only
+
+  # ── published: push the commit-SHA tag, scan the pushed image, then tag it ─────────────
+  - name: publish
+    image: *buildx_plugin
+    settings:
+      registry: *harbor_registry
+      repo: *harbor_image
+      tags: ${CI_COMMIT_SHA}
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+      platforms: linux/amd64
+      provenance: false
+    when: *when_publish
+
+  - name: scan-pushed
+    image: *tools_image
+    environment: *registry_env
+    commands:
+      - digest="$$(scripts/ci/registry-tag.sh "$${HARBOR_IMAGE}" "$${CI_COMMIT_SHA}")"
+      - echo "$${HARBOR_IMAGE}@$${digest}" > image.ref
+      - echo "scanning $$(cat image.ref)"
+      - scripts/ci/image-scan.sh registry "$$(cat image.ref)"
+    when: *when_publish
+
+  - name: promote
+    image: *tools_image
+    environment: *registry_env
+    commands:
+      - scripts/ci/image-tags.sh > image.tags
+      - scripts/ci/registry-tag.sh "$${HARBOR_IMAGE}" "$${CI_COMMIT_SHA}" $$(cat image.tags)
+    when: *when_publish
+
+  - name: sign
+    image: *tools_image
+    environment:
+      <<: *registry_env
+      COSIGN_KEY:
+        from_secret: cosign_key
+      COSIGN_PASSWORD:
+        from_secret: cosign_password
+    commands:
+      - scripts/ci/cosign-sign.sh "$$(cat image.ref)"
+    when:
+      - event: push
+        branch: main
+        evaluate: *cosign_enabled
+      - event: tag
+        ref: refs/tags/v*
+        evaluate: *cosign_enabled
+
+  # ── SBOMs to Dependency-Track: "Steward" = the image (Debian packages, Node.js, npm
+  #    production dependencies), "Steward npm" = the npm production dependencies (what the
+  #    desktop executable contains); version = tag without "v", or the branch ─────────────
+  - name: npm-sbom
+    image: *node_image
+    environment:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      npm_config_fund: 'false'
+      npm_config_update_notifier: 'false'
+    commands:
+      - npm ci --ignore-scripts --no-audit
+      - mkdir -p reports
+      - npx --yes @cyclonedx/cyclonedx-npm@4.2.1 --omit dev --output-file reports/npm-sbom.cdx.json
+    when: *when_publish_always
+
+  - name: dependency-track
+    image: *tools_image
+    environment:
+      DEPENDENCY_TRACK_URL: *dependency_track_url
+      DEPENDENCY_TRACK_API_KEY:
+        from_secret: dependency_track_api_key
+    commands:
+      - version="$${CI_COMMIT_TAG:-$${CI_COMMIT_BRANCH}}"
+      - version="$${version#v}"
+      - latest=""
+      - if [ -n "$${CI_COMMIT_TAG}" ] && [ "$${version#*-}" = "$${version}" ]; then latest=--latest; fi
+      - status=0
+      - scripts/ci/dependency-track-upload.sh reports/sbom.cdx.json Steward "$${version}" $${latest} || status=1
+      - scripts/ci/dependency-track-upload.sh reports/npm-sbom.cdx.json "Steward npm" "$${version}" $${latest} || status=1
+      - exit "$${status}"
+    when: *when_publish_always

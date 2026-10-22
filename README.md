@@ -354,7 +354,7 @@ Tip: `npx playwright codegen https://your-portal` records clicks and gives you s
 - Dry runs, approval steps and the explorer's "I understand this changes data" confirmation guard against accidental changes.
 - The public REST API (`/api/v1`) is read-only and accepts only API tokens (no session cookies, no tokens in URLs). Tokens are stored as hashes, act with their owner's rights and are rate-limited. Responses are serialised from strict schemas, so credentials, secret variables, password hashes and tokens never leave the server. See [docs/API.md](docs/API.md#security-notes).
 - Webhook triggers (`/api/hooks/…`) are the only state-changing routes without a session: they authenticate with a per-trigger secret (constant-time comparison or HMAC-SHA256 signature), accept at most 64 KB of JSON, can be limited to source CIDRs, are rate-limited and de-duplicated, and answer unknown, disabled and address-blocked triggers with the same 404. Secrets are shown once and stored encrypted.
-- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md).
+- Reporting vulnerabilities: see [SECURITY.md](SECURITY.md). The CI security and supply-chain checks (secret scanning, dependency and container scans, SAST, SBOMs) are described in [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md). Besides GitHub Actions, the repository has Woodpecker CI pipelines for a self-hosted Forgejo mirror with Harbor and Dependency-Track: [docs/WOODPECKER.md](docs/WOODPECKER.md).
 
 ## Development
 

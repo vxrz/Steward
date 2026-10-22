@@ -1,0 +1,108 @@
+# Woodpecker CI: Linux desktop executable (counterpart of .github/workflows/release.yml).
+# On a v* tag: build the single-file executable, smoke-test it, package it with a SHA-256
+# checksum file and the CycloneDX SBOM of the npm production dependencies, and – optional –
+# attach everything to a Forgejo release. "Run pipeline" (manual) builds and tests without
+# releasing. Runs after ci.yaml passed.
+#
+# Windows and macOS executables are built by GitHub Actions only (Woodpecker agents are
+# usually Linux); docs/WOODPECKER.md "Releases" shows how to add them to the Forgejo release.
+
+variables:
+  # ── Optional: publish a Forgejo release ('true' after creating the secret forgejo_token –
+  #    a missing secret would fail the pipeline) ──────────────────────────────────────────
+  - &forgejo_release_enabled 'false'
+
+  - &node_image node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+  # woodpeckerci/plugin-release:0.3.2 (Forgejo/Gitea/GitHub releases)
+  - &release_plugin woodpeckerci/plugin-release:0.3.2@sha256:a045e18674319a2e3e534b5b674c100a0f01a9fc718dd03ab6732155b228e61b
+  - &release_settings
+    api_key:
+      from_secret: forgejo_token
+    # base_url defaults to the forge Woodpecker is connected to (CI_FORGE_URL)
+    files: out/*
+    file_exists: overwrite
+    title: ${CI_COMMIT_TAG}
+    note: 'Steward ${CI_COMMIT_TAG} – Linux executable built by Woodpecker CI. Windows and macOS: see the GitHub release.'
+
+when:
+  - event: tag
+    ref: refs/tags/v*
+  - event: manual
+
+depends_on:
+  - ci
+
+# One workflow per target, each on an agent of that platform. Add linux-arm64 only when an
+# arm64 agent is connected – otherwise that workflow waits for an agent forever.
+matrix:
+  include:
+    - TARGET: linux-x64
+      PLATFORM: linux/amd64
+    # - TARGET: linux-arm64
+    #   PLATFORM: linux/arm64
+
+labels:
+  platform: ${PLATFORM}
+
+steps:
+  - name: build
+    image: *node_image
+    environment:
+      # no dependency cache and no browser download in release builds
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      npm_config_fund: 'false'
+      npm_config_update_notifier: 'false'
+    commands:
+      - npm ci --no-audit
+      - npm run build
+      - npm run build:exe
+
+  - name: smoke-test
+    image: *node_image
+    commands:
+      - scripts/ci/smoke-exe.sh
+
+  - name: package
+    image: *node_image
+    commands:
+      - mkdir -p out
+      - tar -C dist-exe -czf out/steward-${TARGET}.tar.gz .
+      - tar -tzvf out/steward-${TARGET}.tar.gz
+
+  - name: sbom
+    image: *node_image
+    environment:
+      npm_config_update_notifier: 'false'
+    commands:
+      - npx --yes @cyclonedx/cyclonedx-npm@4.2.1 --omit dev --output-file out/sbom.cdx.json
+    when:
+      - event: [tag, manual]
+        matrix:
+          TARGET: linux-x64
+
+  - name: checksums
+    image: *node_image
+    commands:
+      - cd out && sha256sum -- * | tee SHA256SUMS-${TARGET}.txt
+
+  - name: forgejo-release
+    image: *release_plugin
+    settings:
+      <<: *release_settings
+      prerelease: false
+    when:
+      - event: tag
+        ref:
+          include: ['refs/tags/v*']
+          exclude: ['refs/tags/v*-*']
+        evaluate: *forgejo_release_enabled
+
+  - name: forgejo-prerelease # v1.2.3-beta.1 and similar
+    image: *release_plugin
+    settings:
+      <<: *release_settings
+      prerelease: true
+    when:
+      - event: tag
+        ref: refs/tags/v*-*
+        evaluate: *forgejo_release_enabled
