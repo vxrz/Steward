@@ -195,7 +195,11 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
     logger.error({ err, reqId: req.id }, 'public API: unhandled error');
     return sendProblem(req, reply, 500, { detail: `Internal error (request id ${req.id})` });
   });
-  app.setNotFoundHandler((req, reply) => sendProblem(req, reply, 404, { type: 'not-found', title: 'Not found', detail: `No endpoint ${req.method} ${req.url.split('?')[0]}` }));
+  const noEndpoint = (req: FastifyRequest, reply: FastifyReply) =>
+    sendProblem(req, reply, 404, { type: 'not-found', title: 'Not found', detail: `No endpoint ${req.method} ${req.url.split('?')[0]}` });
+  app.setNotFoundHandler(noEndpoint);
+  // Explicit catch-all, so the web UI's static file handler (a root wildcard) never answers under /api/v1.
+  app.get('/*', { schema: { hide: true } }, noEndpoint);
   app.route({
     method: ['POST', 'PUT', 'PATCH', 'DELETE'],
     url: '/*',
