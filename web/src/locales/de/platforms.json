@@ -230,7 +230,9 @@
     "defaultHeaders": "Standard-Header",
     "retries": "Wiederholungen und Last",
     "retriesHint": "Anfragen, die mit 429, 502, 503, 504 oder einem Netzwerkfehler scheitern, werden mit wachsenden Wartezeiten wiederholt (unter Beachtung von Retry-After). Leere Felder verwenden die Standardwerte.",
-    "save": "Einstellungen speichern"
+    "save": "Einstellungen speichern",
+    "trustedOrigins": "Vertrauenswürdige Origins",
+    "trustedOriginsHint": "Zugangsdaten werden nur an den Origin der Basis-URL gesendet. Ergänzen Sie weitere Origins (https://host[:port]), die zu dieser Plattform gehören und sie erhalten dürfen, z. B. einen separaten Gateway-Host. Anfragen an andere Hosts werden ohne Zugangsdaten gesendet."
   },
   "specs": {
     "imported_one": "{{count}} Operation importiert",

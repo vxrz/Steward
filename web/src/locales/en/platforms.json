@@ -230,7 +230,9 @@
     "defaultHeaders": "Default headers",
     "retries": "Retries and load",
     "retriesHint": "Requests that fail with 429, 502, 503, 504 or a network error are repeated with growing delays (honouring Retry-After). Empty fields use the defaults.",
-    "save": "Save settings"
+    "save": "Save settings",
+    "trustedOrigins": "Trusted origins",
+    "trustedOriginsHint": "Credentials are only sent to the base URL's origin. Add further origins (https://host[:port]) that belong to this platform and may receive them, e.g. a separate gateway host. Requests to other hosts are sent without credentials."
   },
   "specs": {
     "imported_one": "{{count}} operation imported",
