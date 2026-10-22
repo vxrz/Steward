@@ -60,6 +60,8 @@ const AuditPage = page(() => import('./pages/Audit'), 'AuditPage');
 const UsersPage = page(() => import('./pages/Users'), 'UsersPage');
 const SettingsPage = page(() => import('./pages/Settings'), 'SettingsPage');
 const ProfilePage = page(() => import('./pages/Profile'), 'ProfilePage');
+const AboutPage = page(() => import('./pages/About'), 'AboutPage');
+const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 
 function PageLoader() {
   return (
@@ -226,12 +228,14 @@ function Shell({ status }: { status: AuthStatus }) {
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/about" element={<AboutPage />} />
+          {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
           <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
         </Routes>
         </Suspense>
         </ErrorBoundary>
         </div>
-        <AppFooter />
+        <AppFooter signedIn />
       </AppShell.Main>
     </AppShell>
   );

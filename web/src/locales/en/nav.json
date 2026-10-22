@@ -28,7 +28,9 @@
     "changePassword": "Change password",
     "lockVault": "Lock vault",
     "lockVaultConfirm": "Lock the vault? Schedules stop and everybody waits until an administrator unlocks it again.",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "about": "About {{brand}}",
+    "systemStatus": "System status"
   },
   "palette": {
     "newProcess": "New process",

@@ -17,6 +17,7 @@ import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
 import { themeRoutes } from './theme/routes.js';
+import { systemRoutes } from './system/routes.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = ['/api/health', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config', '/api/theme', '/api/theme/logo'];
@@ -184,8 +185,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   await app.register(publicApi, { prefix: '/api' });
   await app.register(registerRoutes, { prefix: '/api' });
-  // theme (/api/theme, /api/settings/theme, /manifest.webmanifest)
+  // theme (/api/theme, /api/settings/theme, /manifest.webmanifest), about and system status
   await app.register(themeRoutes);
+  await app.register(systemRoutes);
 
   if (fs.existsSync(config.webDist)) {
     await app.register(fastifyStatic, {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Avatar, Badge, Group, Menu, Modal, Stack, Text, UnstyledButton, useMantineColorScheme } from '@mantine/core';
-import { IconCheck, IconChevronDown, IconDownload, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
+import { IconActivityHeartbeat, IconCheck, IconChevronDown, IconDownload, IconInfoCircle, IconKey, IconLock, IconLogout, IconMoon, IconSun, IconUser } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import { useInstallPrompt } from '../pwa';
 import { currentLanguage } from '../i18n';
 import { LANGUAGES } from '../i18n/languages';
 import { useChangeLanguage } from './LanguageSwitcher';
+import { BRAND } from '../../../shared/src/brand';
 
 export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<void> {
   try {
@@ -34,7 +35,7 @@ async function resetToAuth(qc: ReturnType<typeof useQueryClient>): Promise<void>
 
 export function UserMenu() {
   const { t } = useTranslation(['nav', 'common']);
-  const { me, isAdmin } = useMe();
+  const { me, isAdmin, caps } = useMe();
   const changeLanguage = useChangeLanguage();
   const qc = useQueryClient();
   const [pwOpen, setPwOpen] = useState(false);
@@ -89,6 +90,14 @@ export function UserMenu() {
           <Menu.Divider />
           <Menu.Item leftSection={<IconUser size={14} />} onClick={() => navigate('/profile')}>
             {t('items.profile')}
+          </Menu.Item>
+          {caps.viewAudit && (
+            <Menu.Item leftSection={<IconActivityHeartbeat size={14} />} onClick={() => navigate('/settings/status')}>
+              {t('userMenu.systemStatus')}
+            </Menu.Item>
+          )}
+          <Menu.Item leftSection={<IconInfoCircle size={14} />} onClick={() => navigate('/about')}>
+            {t('userMenu.about', { brand: BRAND.name })}
           </Menu.Item>
           <Menu.Item
             hiddenFrom="xs"

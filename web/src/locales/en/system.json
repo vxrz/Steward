@@ -76,5 +76,189 @@
       "alertTitle": "Note",
       "alert": "Alerts and notices use the primary color."
     }
+  },
+  "about": {
+    "title": "About {{brand}}",
+    "providedAs": "Provided here as “{{name}}”, based on {{brand}}.",
+    "license": "Open source ({{license}})",
+    "mismatchTitle": "A newer version is running",
+    "mismatch": "This page was loaded with version {{web}}, the server now runs {{server}}. Reload to use the current version.",
+    "reload": "Reload",
+    "versionTitle": "Version",
+    "webUi": "Web UI",
+    "server": "Server",
+    "versionOf": "{{what}} version",
+    "serverUnknown": "Not available",
+    "loading": "Loading…",
+    "commit": "Build (commit)",
+    "buildDate": "Build date",
+    "development": "development build",
+    "linksTitle": "Documentation and links",
+    "links": {
+      "docs": "Documentation (README)",
+      "guides": "Guides (docs folder)",
+      "changelog": "Changelog",
+      "security": "Report a vulnerability (SECURITY.md)",
+      "source": "Source code",
+      "license": "License ({{license}})",
+      "apiDocs": "REST API documentation"
+    },
+    "settingsTitle": "This browser",
+    "language": "Language",
+    "colorScheme": "Color scheme",
+    "schemeAuto": "Like the system (currently {{current}})",
+    "theme": "Theme",
+    "themeCustom": "Custom appearance",
+    "themeDefault": "{{brand}} default",
+    "browsers": "Browser support",
+    "browserSupport": "Current versions of Microsoft Edge, Google Chrome, Mozilla Firefox and Safari. Internet Explorer is not supported.",
+    "thirdParty": {
+      "title": "Third-party licenses",
+      "intro": "{{brand}} is built on open-source packages. Package, version and license of every production dependency:",
+      "show": "Show the list",
+      "unavailable": "The list is not part of this build.",
+      "filter": "Filter by package or license",
+      "count_one": "{{count}} package",
+      "count_other": "{{count}} packages",
+      "package": "Package",
+      "version": "Version",
+      "license": "License"
+    }
+  },
+  "status": {
+    "title": "System status",
+    "intro": "Health of this {{brand}} server: readiness, components, integrations and runtime.",
+    "refresh": "Refresh",
+    "ready": "Ready",
+    "notReady": "Not ready",
+    "readyBadge": "ready",
+    "notReadyBadge": "not ready",
+    "generated": "As of {{when}}",
+    "ok": "OK",
+    "problem": "Problem",
+    "checks": {
+      "vault": "Vault",
+      "database": "Database",
+      "scheduler": "Scheduler"
+    },
+    "limited": "Limited view for auditors: paths, host names and connection details are only shown to administrators.",
+    "on": "on",
+    "off": "off",
+    "never": "never",
+    "development": "development build",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copyUrl": "Copy {{url}}",
+    "monitoring": {
+      "title": "Health checks for monitoring",
+      "intro": "Point Gatus, Zabbix, Uptime Kuma, a load balancer or Kubernetes at these addresses to watch {{brand}} itself.",
+      "health": "Health",
+      "ready": "Ready",
+      "metrics": "Metrics",
+      "healthHint": "/api/health – public, always 200 while the process runs (liveness). Returns the version.",
+      "readyHint": "/api/ready – public, 200 when the vault is unlocked, the database answers and schedules are armed, otherwise 503 with the failing checks (readiness).",
+      "metricsPublic": "/api/metrics – Prometheus format, public (SM_METRICS_PUBLIC=1).",
+      "metricsAuth": "/api/metrics – Prometheus format, for administrators and auditors (session or API token).",
+      "kubernetes": "Kubernetes: livenessProbe → /api/health, readinessProbe → /api/ready.",
+      "docsInstall": "Installation guide",
+      "docsMonitors": "Monitors",
+      "docsGatus": "Gatus"
+    },
+    "sections": {
+      "runtime": "Runtime",
+      "storage": "Database, vault and retention",
+      "engines": "Scheduler and monitors",
+      "integrations": "Integrations and observability"
+    },
+    "runtime": {
+      "version": "Version",
+      "deployment": "Installation",
+      "node": "Node.js",
+      "platform": "Platform",
+      "cpus_one": "{{count}} CPU",
+      "cpus_other": "{{count}} CPUs",
+      "uptime": "Uptime",
+      "since": "since {{when}}",
+      "memory": "Memory",
+      "memoryValue": "{{rss}} resident · heap {{heap}} of {{heapTotal}}",
+      "timeZone": "Time zone",
+      "hostname": "Host name",
+      "pid": "Process ID",
+      "dataDir": "Data folder"
+    },
+    "deployments": {
+      "executable": "Desktop executable",
+      "container": "Container",
+      "node": "Node.js"
+    },
+    "database": {
+      "type": "Database",
+      "size": "Size",
+      "location": "Location"
+    },
+    "vault": {
+      "title": "Vault",
+      "unlocked": "unlocked",
+      "locked": "locked",
+      "notSetUp": "not set up",
+      "unattended": "Unlock at startup (SM_MASTER_PASSPHRASE)"
+    },
+    "retention": {
+      "runs": "Keep runs",
+      "notifications": "Keep read notifications",
+      "monitors": "Keep monitor history",
+      "lastCleanup": "Last cleanup",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "forever": "forever",
+      "removed": "{{runs}} runs, {{notifications}} notifications removed"
+    },
+    "scheduler": {
+      "schedules": "Schedules",
+      "counts": "{{enabled}} of {{total}} enabled, {{armed}} armed",
+      "next": "Next runs",
+      "none": "none"
+    },
+    "monitors": {
+      "engine": "Monitor engine",
+      "running": "running",
+      "stopped": "stopped",
+      "monitors": "Monitors",
+      "counts": "{{enabled}} of {{total}} enabled, {{checks}} checks",
+      "down": "Down now",
+      "lastCheck": "Last check"
+    },
+    "notifications": {
+      "email": "E-mail notifications",
+      "teams": "Microsoft Teams",
+      "webhook": "Webhook"
+    },
+    "observability": {
+      "errorServer": "Error reporting (server)",
+      "errorBrowser": "Error reporting (browser)",
+      "tracing": "Tracing (OpenTelemetry)",
+      "metrics": "Metrics endpoint",
+      "metricsPublic": "public",
+      "metricsAuth": "administrators and auditors"
+    },
+    "api": {
+      "title": "REST API",
+      "docs": "API documentation",
+      "docsModes": {
+        "off": "off",
+        "authenticated": "signed-in users",
+        "public": "public"
+      },
+      "rateLimit": "Rate limit",
+      "perMinute_one": "{{count}} request per minute and token",
+      "perMinute_other": "{{count}} requests per minute and token",
+      "unlimited": "unlimited"
+    },
+    "security": {
+      "tls": "HTTPS (TLS)",
+      "allowedHosts": "Allowed host names",
+      "localOnly": "localhost only",
+      "proxy": "Outbound proxy (environment)"
+    }
   }
 }

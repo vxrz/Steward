@@ -51,7 +51,11 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       - run: npm run build
+        env:
+          SM_BUILD_COMMIT: ${{ github.sha }}
       - run: npm run build:exe
+        env:
+          SM_BUILD_COMMIT: ${{ github.sha }}
       - name: Smoke test
         shell: bash
         run: |

@@ -76,5 +76,189 @@
       "alertTitle": "Hinweis",
       "alert": "Hinweise und Meldungen verwenden die Hauptfarbe."
     }
+  },
+  "about": {
+    "title": "Über {{brand}}",
+    "providedAs": "Hier bereitgestellt als „{{name}}“, basierend auf {{brand}}.",
+    "license": "Open Source ({{license}})",
+    "mismatchTitle": "Eine neuere Version läuft",
+    "mismatch": "Diese Seite wurde mit Version {{web}} geladen, der Server läuft inzwischen mit {{server}}. Neu laden, um die aktuelle Version zu verwenden.",
+    "reload": "Neu laden",
+    "versionTitle": "Version",
+    "webUi": "Weboberfläche",
+    "server": "Server",
+    "versionOf": "Version {{what}}",
+    "serverUnknown": "Nicht verfügbar",
+    "loading": "Wird geladen …",
+    "commit": "Build (Commit)",
+    "buildDate": "Build-Datum",
+    "development": "Entwicklungs-Build",
+    "linksTitle": "Dokumentation und Links",
+    "links": {
+      "docs": "Dokumentation (README)",
+      "guides": "Anleitungen (Ordner docs)",
+      "changelog": "Änderungsprotokoll",
+      "security": "Sicherheitslücke melden (SECURITY.md)",
+      "source": "Quellcode",
+      "license": "Lizenz ({{license}})",
+      "apiDocs": "REST-API-Dokumentation"
+    },
+    "settingsTitle": "Dieser Browser",
+    "language": "Sprache",
+    "colorScheme": "Farbschema",
+    "schemeAuto": "Wie das System (derzeit {{current}})",
+    "theme": "Erscheinungsbild",
+    "themeCustom": "Angepasst",
+    "themeDefault": "{{brand}}-Standard",
+    "browsers": "Unterstützte Browser",
+    "browserSupport": "Aktuelle Versionen von Microsoft Edge, Google Chrome, Mozilla Firefox und Safari. Der Internet Explorer wird nicht unterstützt.",
+    "thirdParty": {
+      "title": "Lizenzen von Drittanbietern",
+      "intro": "{{brand}} baut auf Open-Source-Paketen auf. Paket, Version und Lizenz jeder Laufzeitabhängigkeit:",
+      "show": "Liste anzeigen",
+      "unavailable": "Die Liste ist in diesem Build nicht enthalten.",
+      "filter": "Nach Paket oder Lizenz filtern",
+      "count_one": "{{count}} Paket",
+      "count_other": "{{count}} Pakete",
+      "package": "Paket",
+      "version": "Version",
+      "license": "Lizenz"
+    }
+  },
+  "status": {
+    "title": "Systemstatus",
+    "intro": "Zustand dieses {{brand}}-Servers: Bereitschaft, Komponenten, Integrationen und Laufzeit.",
+    "refresh": "Aktualisieren",
+    "ready": "Bereit",
+    "notReady": "Nicht bereit",
+    "readyBadge": "bereit",
+    "notReadyBadge": "nicht bereit",
+    "generated": "Stand {{when}}",
+    "ok": "OK",
+    "problem": "Problem",
+    "checks": {
+      "vault": "Tresor",
+      "database": "Datenbank",
+      "scheduler": "Zeitpläne"
+    },
+    "limited": "Eingeschränkte Ansicht für Prüfer: Pfade, Hostnamen und Verbindungsdetails sehen nur Administratoren.",
+    "on": "an",
+    "off": "aus",
+    "never": "nie",
+    "development": "Entwicklungs-Build",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "copyUrl": "{{url}} kopieren",
+    "monitoring": {
+      "title": "Health-Checks für die Überwachung",
+      "intro": "Diese Adressen in Gatus, Zabbix, Uptime Kuma, einem Load Balancer oder Kubernetes eintragen, um {{brand}} selbst zu überwachen.",
+      "health": "Health",
+      "ready": "Ready",
+      "metrics": "Metriken",
+      "healthHint": "/api/health – öffentlich, immer 200, solange der Prozess läuft (Liveness). Liefert die Version.",
+      "readyHint": "/api/ready – öffentlich, 200 wenn der Tresor entsperrt ist, die Datenbank antwortet und die Zeitpläne aktiv sind, sonst 503 mit den fehlgeschlagenen Prüfungen (Readiness).",
+      "metricsPublic": "/api/metrics – Prometheus-Format, öffentlich (SM_METRICS_PUBLIC=1).",
+      "metricsAuth": "/api/metrics – Prometheus-Format, für Administratoren und Prüfer (Sitzung oder API-Token).",
+      "kubernetes": "Kubernetes: livenessProbe → /api/health, readinessProbe → /api/ready.",
+      "docsInstall": "Installationsanleitung",
+      "docsMonitors": "Monitore",
+      "docsGatus": "Gatus"
+    },
+    "sections": {
+      "runtime": "Laufzeit",
+      "storage": "Datenbank, Tresor und Aufbewahrung",
+      "engines": "Zeitpläne und Monitore",
+      "integrations": "Integrationen und Beobachtbarkeit"
+    },
+    "runtime": {
+      "version": "Version",
+      "deployment": "Installation",
+      "node": "Node.js",
+      "platform": "Plattform",
+      "cpus_one": "{{count}} CPU",
+      "cpus_other": "{{count}} CPUs",
+      "uptime": "Laufzeit",
+      "since": "seit {{when}}",
+      "memory": "Speicher",
+      "memoryValue": "{{rss}} belegt · Heap {{heap}} von {{heapTotal}}",
+      "timeZone": "Zeitzone",
+      "hostname": "Hostname",
+      "pid": "Prozess-ID",
+      "dataDir": "Datenordner"
+    },
+    "deployments": {
+      "executable": "Desktop-Programm",
+      "container": "Container",
+      "node": "Node.js"
+    },
+    "database": {
+      "type": "Datenbank",
+      "size": "Größe",
+      "location": "Speicherort"
+    },
+    "vault": {
+      "title": "Tresor",
+      "unlocked": "entsperrt",
+      "locked": "gesperrt",
+      "notSetUp": "nicht eingerichtet",
+      "unattended": "Beim Start entsperren (SM_MASTER_PASSPHRASE)"
+    },
+    "retention": {
+      "runs": "Ausführungen aufbewahren",
+      "notifications": "Gelesene Benachrichtigungen aufbewahren",
+      "monitors": "Monitor-Verlauf aufbewahren",
+      "lastCleanup": "Letzte Bereinigung",
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
+      "forever": "unbegrenzt",
+      "removed": "{{runs}} Ausführungen, {{notifications}} Benachrichtigungen entfernt"
+    },
+    "scheduler": {
+      "schedules": "Zeitpläne",
+      "counts": "{{enabled}} von {{total}} aktiviert, {{armed}} aktiv",
+      "next": "Nächste Ausführungen",
+      "none": "keine"
+    },
+    "monitors": {
+      "engine": "Monitor-Engine",
+      "running": "läuft",
+      "stopped": "gestoppt",
+      "monitors": "Monitore",
+      "counts": "{{enabled}} von {{total}} aktiviert, {{checks}} Prüfungen",
+      "down": "Derzeit ausgefallen",
+      "lastCheck": "Letzte Prüfung"
+    },
+    "notifications": {
+      "email": "E-Mail-Benachrichtigungen",
+      "teams": "Microsoft Teams",
+      "webhook": "Webhook"
+    },
+    "observability": {
+      "errorServer": "Fehlerberichte (Server)",
+      "errorBrowser": "Fehlerberichte (Browser)",
+      "tracing": "Tracing (OpenTelemetry)",
+      "metrics": "Metrik-Endpunkt",
+      "metricsPublic": "öffentlich",
+      "metricsAuth": "Administratoren und Prüfer"
+    },
+    "api": {
+      "title": "REST-API",
+      "docs": "API-Dokumentation",
+      "docsModes": {
+        "off": "aus",
+        "authenticated": "angemeldete Benutzer",
+        "public": "öffentlich"
+      },
+      "rateLimit": "Ratenbegrenzung",
+      "perMinute_one": "{{count}} Anfrage pro Minute und Token",
+      "perMinute_other": "{{count}} Anfragen pro Minute und Token",
+      "unlimited": "unbegrenzt"
+    },
+    "security": {
+      "tls": "HTTPS (TLS)",
+      "allowedHosts": "Erlaubte Hostnamen",
+      "localOnly": "nur localhost",
+      "proxy": "Ausgehender Proxy (Umgebung)"
+    }
   }
 }

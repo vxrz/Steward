@@ -1,11 +1,33 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { BRAND } from '../shared/src/brand';
+import { buildInfo, thirdPartyLicenses } from '../scripts/build-info.mjs';
 
 const target = `http://127.0.0.1:${process.env.SM_PORT ?? 4310}`;
+const root = fileURLToPath(new URL('..', import.meta.url));
+const version: string = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+const build = buildInfo(root);
+
+/** Production dependencies with their licences (About → Third-party licences), as /third-party-licenses.json. */
+function licenses(): Plugin {
+  const json = () => JSON.stringify(thirdPartyLicenses(root));
+  return {
+    name: 'sm-licenses',
+    configureServer(server) {
+      server.middlewares.use('/third-party-licenses.json', (_req, res) => {
+        res.setHeader('content-type', 'application/json');
+        res.end(json());
+      });
+    },
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'third-party-licenses.json', source: json() });
+    },
+  };
+}
 
 /** Web app manifest and page title from the central brand settings. */
 function brand(): Plugin {
@@ -52,7 +74,7 @@ function precompress(): Plugin {
     name: 'sm-precompress',
     apply: 'build',
     writeBundle(opts, bundle) {
-      for (const f of Object.keys(bundle).filter((n) => /\.(js|css|svg|webmanifest)$/.test(n))) {
+      for (const f of Object.keys(bundle).filter((n) => /\.(js|css|svg|webmanifest|json)$/.test(n))) {
         const file = path.join(opts.dir!, f);
         const buf = fs.readFileSync(file);
         if (buf.length < 1024) continue;
@@ -64,7 +86,13 @@ function precompress(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), brand(), precompress()],
+  plugins: [react(), brand(), licenses(), precompress()],
+  // Version and build of the web UI (About page, footer; compared with the server's version)
+  define: {
+    __SM_VERSION__: JSON.stringify(version),
+    __SM_BUILD_COMMIT__: JSON.stringify(build.commit),
+    __SM_BUILD_DATE__: JSON.stringify(build.date),
+  },
   server: {
     port: 5173,
     host: '127.0.0.1',
