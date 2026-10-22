@@ -19,6 +19,14 @@ const theme = createTheme({
   defaultRadius: 'md',
   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  // Icon-only close buttons need an accessible name (screen readers, axe "button-name").
+  components: {
+    Modal: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
+    Drawer: { defaultProps: { closeButtonProps: { 'aria-label': 'Close' } } },
+    // the command palette's result list scrolls; make it reachable by keyboard (axe "scrollable-region-focusable")
+    SpotlightActionsList: { defaultProps: { viewportProps: { tabIndex: 0 } } },
+    TableScrollContainer: { defaultProps: { scrollAreaProps: { viewportProps: { tabIndex: 0 } } } },
+  },
 });
 
 const queryClient = new QueryClient({
