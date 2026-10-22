@@ -4,6 +4,9 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { BRAND } from '@sm/shared';
 import { config } from './config.js';
+import { proofOf, verifyInstanceAt } from './instance-proof.js';
+
+export { proofOf };
 
 /**
  * Instance identity, so the desktop launcher does not hand the user's window (and the passphrase
@@ -24,11 +27,6 @@ export interface InstanceFile {
 
 export const instanceFile = (dataDir = config.dataDir): string => path.join(dataDir, 'instance.json');
 let current: InstanceFile | undefined;
-
-/** Bound to the port the server listens on: a program on another port cannot relay the challenge to the real server. */
-export function proofOf(secret: string, challenge: string, port: number | string): string {
-  return crypto.createHmac('sha256', Buffer.from(secret, 'base64')).update(`steward-instance-v1\n${port}\n${challenge}`).digest('hex');
-}
 
 /** Called once the server listens. */
 export function writeInstanceFile(url: string): InstanceFile {
@@ -63,25 +61,8 @@ export function removeInstanceFile(): void {
  * The launcher's check: does the server at `url` know the secret in our data folder?
  * 'ok' | 'no-file' (no Steward of ours has started) | 'mismatch' (something else answers).
  */
-export async function verifyInstance(url: string, dataDir = config.dataDir, timeoutMs = 2000): Promise<'ok' | 'no-file' | 'mismatch'> {
-  let inst: InstanceFile;
-  try {
-    inst = JSON.parse(fs.readFileSync(instanceFile(dataDir), 'utf8')) as InstanceFile;
-  } catch {
-    return 'no-file';
-  }
-  const challenge = crypto.randomBytes(32).toString('hex');
-  try {
-    const res = await fetch(`${url}/api/instance?challenge=${challenge}`, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) return 'mismatch';
-    const body = (await res.json()) as { instanceId?: string; proof?: string };
-    const port = new URL(url).port || (url.startsWith('https:') ? '443' : '80');
-    const expected = Buffer.from(proofOf(inst.secret, challenge, port));
-    const got = Buffer.from(String(body.proof ?? ''));
-    return body.instanceId === inst.instanceId && got.length === expected.length && crypto.timingSafeEqual(got, expected) ? 'ok' : 'mismatch';
-  } catch {
-    return 'mismatch';
-  }
+export function verifyInstance(url: string, dataDir = config.dataDir, timeoutMs = 2000): Promise<'ok' | 'no-file' | 'mismatch'> {
+  return verifyInstanceAt(url, instanceFile(dataDir), timeoutMs);
 }
 
 export async function instanceRoutes(app: FastifyInstance): Promise<void> {

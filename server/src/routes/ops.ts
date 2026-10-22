@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { LOCALE_CODES, NOTIFICATION_EVENTS, type NotificationSettingsInput } from '@sm/shared';
+import { API_TOKEN_SCOPES, LOCALE_CODES, NOTIFICATION_EVENTS, type NotificationSettingsInput } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
@@ -79,7 +79,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   app.post('/me/tokens', async (req) => {
     if (viaToken(req)) throw new HttpError(403, 'API tokens cannot create other tokens – sign in to the web UI');
     const b = z
-      .object({ name: z.string().min(1).max(100), scope: z.enum(['read', 'full']), expiresInDays: z.number().int().min(1).max(3650).optional() })
+      .object({ name: z.string().min(1).max(100), scope: z.enum(API_TOKEN_SCOPES), expiresInDays: z.number().int().min(1).max(3650).optional() })
       .parse(req.body);
     const u = getUser(me().id);
     return createToken(u.id, b);

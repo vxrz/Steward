@@ -207,6 +207,16 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     return { ok: true, ms, value: q.value ?? null };
   });
 
+  // /mock/test/echo-headers: the request headers as JSON (tests that credentials are masked in what tools return)
+  app.get('/test/echo-headers', async (req) => ({ headers: req.headers, query: req.query }));
+  // /mock/test/big?kb=600: a JSON body of about that size (response size limits)
+  app.get('/test/big', async (req) => {
+    const kb = Math.min(Number((req.query as { kb?: string }).kb ?? 600), 4096);
+    return { items: Array.from({ length: kb }, (_, i) => ({ i, pad: 'x'.repeat(1000) })) };
+  });
+  // /mock/test/redirect: 302 to /mock/test/delay (redirect handling)
+  app.get('/test/redirect', async (_req, reply) => reply.code(302).header('location', '/mock/test/delay?ms=1').send());
+
   // ---------------- Insights Hub ----------------
   app.post('/ih/oauth/token', async (req, reply) => {
     const auth = String(req.headers.authorization ?? '');

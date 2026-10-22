@@ -1,7 +1,7 @@
 /**
  * Access control of the public API:
  * - every data endpoint needs `Authorization: Bearer smt_…` (read or full
- *   scope); session cookies are ignored, so CSRF does not apply;
+ *   scope; MCP-only tokens are refused); session cookies are ignored, so CSRF does not apply;
  * - tokens in the URL are refused (they leak into logs and browser history);
  * - per-token rate limit (token bucket), per-IP for unauthenticated calls;
  * - the token's owner must be active, must not have a pending password change,
@@ -160,6 +160,13 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
     return unauthorized(req, reply, 'Invalid, expired or revoked API token', 'invalid_token');
   }
   if (!rateLimit(req, reply, `tok:${r.tokenId}`)) return;
+  if (r.scope === 'mcp') {
+    return void sendProblem(req, reply, 403, {
+      type: 'token-scope',
+      title: 'Forbidden',
+      detail: 'This token is for MCP clients only (/api/mcp). Create a token with scope "read" for the REST API.',
+    });
+  }
   if (r.user.mustChangePassword) {
     return void sendProblem(req, reply, 403, {
       type: 'password-change-required',
@@ -175,7 +182,7 @@ export async function apiAuthHook(req: FastifyRequest, reply: FastifyReply): Pro
     user: r.user,
     tokenId: r.tokenId,
     tokenName: r.name,
-    scope: r.scope,
+    scope: r.scope as 'read' | 'full',
     createdAt: r.createdAt,
     expiresAt: r.expiresAt,
     lastUsedAt: r.lastUsedAt,

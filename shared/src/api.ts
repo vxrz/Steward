@@ -230,6 +230,21 @@ export interface PlatformConfig {
   testPath?: string;
   /** Browser automation start URL if different from base URL. */
   portalUrl?: string;
+  /**
+   * Read-only access for MCP clients through Steward's platform gateway (docs/MCP.md). Off unless a user
+   * with the "manage" right turns it on (PUT /api/platforms/:id/mcp-gateway); never copied to new
+   * platforms or connector types.
+   */
+  mcpGateway?: McpGatewayConfig;
+}
+
+export interface McpGatewayConfig {
+  enabled: boolean;
+  /**
+   * GET path prefixes MCP clients may read without an OpenAPI operation (for platforms without an API
+   * specification), e.g. "/api/v1/devices". Empty: only the operations of the platform's API specifications.
+   */
+  allowedPathPrefixes?: string[];
 }
 
 export interface Platform {
@@ -682,6 +697,19 @@ export interface PublicApiStatus {
   /** Requests per minute and token; 0 = unlimited */
   rateLimitPerMinute: number;
   apiVersion: string;
+}
+
+/** MCP server (docs/MCP.md), for the settings and profile pages (GET /api/mcp-server). */
+export interface McpServerStatus {
+  enabled: boolean;
+  /** SM_MCP=off: turned off by the environment, the setting is ignored */
+  forcedOff: boolean;
+  /** Path of the Streamable HTTP endpoint, e.g. "/api/mcp" */
+  path: string;
+  /** Supported protocol revisions, newest first */
+  protocolVersions: string[];
+  rateLimitPerMinute: number;
+  gatewayRateLimitPerMinute: number;
 }
 
 export interface DashboardData {

@@ -45,8 +45,12 @@ export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'te
 
 // ---------- API tokens ----------
 
-/** read = GET requests only; full = everything the owner may do */
-export type ApiTokenScope = 'read' | 'full';
+/**
+ * read = GET requests only; full = everything the owner may do;
+ * mcp = only the MCP endpoint (/api/mcp, read-only tools) – refused everywhere else.
+ */
+export const API_TOKEN_SCOPES = ['read', 'full', 'mcp'] as const;
+export type ApiTokenScope = (typeof API_TOKEN_SCOPES)[number];
 
 export interface ApiToken {
   id: string;

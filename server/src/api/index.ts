@@ -28,7 +28,7 @@ type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 
 const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), and the data model itself as an Apache Ossie semantic model.
 
-**Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
+**Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
 
 **Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return \`{ items, nextCursor }\` – pass \`nextCursor\` as \`cursor\` to get the next page (also offered as an RFC 8288 \`Link: <…>; rel="next"\` header). \`limit\` is 1–200 (default 50). Errors are problem details (RFC 9457, \`application/problem+json\`). Responses carry \`Cache-Control: no-store\` and \`RateLimit-*\` headers; above the limit the API answers 429 with \`Retry-After\`.
 

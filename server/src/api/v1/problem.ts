@@ -22,7 +22,8 @@ export type ProblemType =
   | 'rate-limited'
   | 'vault-locked'
   | 'token-in-url'
-  | 'method-not-allowed';
+  | 'method-not-allowed'
+  | 'token-scope';
 
 export interface ProblemInit {
   type?: ProblemType;

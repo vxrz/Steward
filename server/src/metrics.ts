@@ -53,6 +53,25 @@ export function initMetrics(): Registry {
     registers: [registry],
   });
 
+  const mcpRequests = new Counter({
+    name: 'steward_mcp_requests_total',
+    help: 'Messages to the MCP endpoint by JSON-RPC method and outcome',
+    labelNames: ['method', 'outcome'] as const,
+    registers: [registry],
+  });
+  const mcpTools = new Counter({ name: 'steward_mcp_tool_calls_total', help: 'MCP tool calls by tool and outcome', labelNames: ['tool', 'outcome'] as const, registers: [registry] });
+  const mcpGateway = new Counter({
+    name: 'steward_mcp_gateway_calls_total',
+    help: 'Platform calls through the MCP gateway by platform id and outcome',
+    labelNames: ['platform', 'outcome'] as const,
+    registers: [registry],
+  });
+  // method labels are bounded: anything that is not a known MCP method counts as "other"
+  const KNOWN = new Set(['initialize', 'ping', 'server/discover', 'tools/list', 'tools/call', 'resources/list', 'resources/read', 'resources/templates/list', 'notifications/initialized', 'notifications/cancelled']);
+  on('mcp.request', (e) => mcpRequests.inc({ method: KNOWN.has(e.method) ? e.method : 'other', outcome: e.outcome }));
+  on('mcp.tool', (e) => mcpTools.inc({ tool: e.tool, outcome: e.outcome }));
+  on('mcp.gateway', (e) => mcpGateway.inc({ platform: e.platformId, outcome: e.outcome }));
+
   on('run.finished', (e) => {
     runs.inc({ process: e.processId, status: e.status, trigger: e.trigger });
     runDuration.observe({ process: e.processId }, e.durationMs / 1000);
