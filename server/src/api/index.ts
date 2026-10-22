@@ -26,7 +26,7 @@ import { componentSchemas } from './v1/schemas.js';
 
 type Doc = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.
+const DESCRIPTION = `Read-only access to the data ${BRAND.name} holds: processes and their versions, runs with their step journal and logs, decisions, schedules, webhook triggers, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery), change requests and decision records, the service catalogue, the credentials register (documentation only, never secret values), and the data model itself as an Apache Ossie semantic model.
 
 **Authentication.** Every endpoint except \`/health\` needs a personal API token: \`Authorization: Bearer smt_…\`. Create one on your profile page in the web UI (scope *read* is enough; tokens with scope *mcp* only work on the MCP endpoint). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.
 
@@ -48,6 +48,7 @@ const TAGS = [
   { name: 'Monitors', description: 'Monitor and check status, history and Zabbix low-level discovery' },
   { name: 'Credentials', description: 'Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values' },
   { name: 'Semantic model', description: 'The data model of this API as an Apache Ossie semantic model' },
+  { name: 'Records', description: 'Change requests and decision records: content, versions, approvals and attachments' },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

@@ -35,6 +35,8 @@ export const NAMESPACES = [
   'reportSchedules',
   'gatus',
   'mcp',
+  'records',
+  'services',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

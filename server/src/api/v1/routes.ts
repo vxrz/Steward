@@ -25,6 +25,7 @@ import * as dashboards from '../../dashboards/service.js';
 import { monitorDatasetVisible } from '../../monitors/datasets.js';
 import { monitorApiRoutes } from '../../monitors/api-v1.js';
 import { credentialApiRoutes } from '../../credentials/api-v1.js';
+import { recordApiRoutes } from '../../records/api-v1.js';
 import { HttpError } from '../../util.js';
 import { API_VERSION } from './config.js';
 import { ProblemError } from './problem.js';
@@ -1143,4 +1144,6 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
 
   // ---------- credentials register ----------
   credentialApiRoutes(get);
+  // ---------- records ----------
+  await recordApiRoutes(app, get);
 }

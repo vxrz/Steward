@@ -14,7 +14,9 @@
     "triggers": "Auslöser",
     "monitors": "Monitore",
     "credentials": "Zugangsdaten",
-    "reports": "Berichte"
+    "reports": "Berichte",
+    "records": "Dokumente",
+    "services": "Services"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

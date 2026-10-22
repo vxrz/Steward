@@ -23,6 +23,7 @@ import {
 } from '@sm/shared';
 import { MONITOR_COMPONENTS } from '../../monitors/api-schemas.js';
 import { CREDENTIAL_COMPONENTS } from '../../credentials/api-schemas.js';
+import { RECORD_COMPONENTS } from '../../records/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_TRIGGERS = ['manual', 'schedule', 'resume', 'subprocess', 'webhook', 'monitor'] as const satisfies readonly RunSummary['trigger'][];
@@ -427,6 +428,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   Team,
   ...MONITOR_COMPONENTS,
   ...CREDENTIAL_COMPONENTS,
+  ...RECORD_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */

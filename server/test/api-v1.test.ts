@@ -416,6 +416,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await listAll('/monitors/{monitorId}/history', `/monitors/${x.id}/history`);
   }
   for (const x of (await listAll('/credentials', '/credentials')).slice(0, 5)) await get('/credentials/{credentialId}', `/credentials/${x.id}`);
+  for (const x of (await listAll('/records', '/records')).slice(0, 5)) {
+    await get('/records/{recordId}', `/records/${x.id}`);
+    await listAll('/records/{recordId}/versions', `/records/${x.number}/versions`);
+  }
   return out;
 }
 
@@ -461,6 +465,11 @@ describe('every endpoint', () => {
       skipIfRunning: false,
     });
     SECRETS.push(hook.secret);
+    // A submitted change request with a link, so the record endpoints have something to show.
+    const rec = await s.api('POST', '/records', { type: 'CR', title: 'API change', fields: { reason: 'r', risk: 'low', rollbackPlan: 'p' } });
+    await s.api('PUT', `/records/${rec.id}`, { body: 'Changed\n', tags: ['api'] });
+    await s.api('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
+    await s.api('POST', `/records/${rec.id}/transition`, { action: 'submit', comment: 'ready' });
     adminCrawl = await crawl(tokens.admin);
   });
 

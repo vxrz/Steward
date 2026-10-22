@@ -11,6 +11,7 @@ import { SECURITY_MIGRATIONS } from './migrations/security.js';
 import { CREDENTIAL_MIGRATIONS } from './migrations/credentials.js';
 import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
+import { RECORD_MIGRATIONS } from './migrations/records.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -32,6 +33,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...CREDENTIAL_MIGRATIONS,
   ...GATUS_MIGRATIONS,
   ...REPORT_SCHEDULE_MIGRATIONS,
+  ...RECORD_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

@@ -15,3 +15,5 @@ export * from './system.js';
 export * from './credentials.js';
 export * from './gatus.js';
 export * from './reportSchedules.js';
+export * from './markdown.js';
+export * from './records.js';

@@ -25,7 +25,11 @@
     "SSO_CONFIG_UNVERIFIED": "The settings of this sign-in provider were changed outside Steward. An administrator has to review and save them again.",
     "ANCHOR_INVALID": "This is not a checkpoint (expected the JSON of a checkpoint, or seq:hash).",
     "ANCHOR_SIGNATURE_INVALID": "The checkpoint's signature is invalid – it was changed or comes from another installation.",
-    "BUSY": "Too many sign-ins at the same time – try again in a moment."
+    "BUSY": "Too many sign-ins at the same time – try again in a moment.",
+    "PDF_NOT_DERIVED": "This PDF is not derived from a PDF Steward generated for this record. Sign a PDF generated here and upload the signed file unchanged.",
+    "PDF_NOT_SIGNED": "This is the unsigned PDF exactly as Steward generated it – sign it first.",
+    "PDF_NO_SIGNATURE": "The file starts with a PDF generated for this record, but no signature was added.",
+    "RECORD_CHANGED": "Someone changed this record in the meantime. Reload the page and apply your changes again."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -14,7 +14,9 @@
     "triggers": "Triggers",
     "monitors": "Monitors",
     "credentials": "Credentials",
-    "reports": "Reports"
+    "reports": "Reports",
+    "records": "Records",
+    "services": "Services"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",

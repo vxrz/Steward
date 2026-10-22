@@ -16,6 +16,8 @@ import {
   IconHeartRateMonitor,
   IconKey,
   IconReportAnalytics,
+  IconFileCertificate,
+  IconStack2,
   IconServer,
   IconShieldCheck,
   IconSettings,
@@ -66,6 +68,12 @@ const AboutPage = page(() => import('./pages/About'), 'AboutPage');
 const SystemStatusPage = page(() => import('./pages/SystemStatus'), 'SystemStatusPage');
 const CredentialsPage = page(() => import('./pages/Credentials'), 'CredentialsPage');
 const ReportsPage = page(() => import('./pages/Reports'), 'ReportsPage');
+const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
+const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
+const RecordEditorPage = page(() => import('./pages/RecordEditor'), 'RecordEditorPage');
+const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPage');
+const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
+const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 
 function PageLoader() {
   return (
@@ -85,6 +93,8 @@ type NavKey =
   | 'triggers'
   | 'monitors'
   | 'platforms'
+  | 'records'
+  | 'services'
   | 'credentials'
   | 'reports'
   | 'audit'
@@ -100,6 +110,8 @@ const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: ke
   { to: '/triggers', key: 'triggers', icon: IconWebhook },
   { to: '/monitors', key: 'monitors', icon: IconHeartRateMonitor },
   { to: '/platforms', key: 'platforms', icon: IconServer },
+  { to: '/records', key: 'records', icon: IconFileCertificate },
+  { to: '/services', key: 'services', icon: IconStack2 },
   { to: '/credentials', key: 'credentials', icon: IconKey },
   { to: '/reports', key: 'reports', icon: IconReportAnalytics },
   { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
@@ -244,6 +256,12 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
                 <Route path="/platforms" element={<PlatformsPage />} />
                 <Route path="/platforms/:id" element={<PlatformDetailPage />} />
+                <Route path="/records" element={<RecordsPage />} />
+                <Route path="/records/types" element={<RecordTypesPage />} />
+                <Route path="/records/:id" element={<RecordDetailPage />} />
+                <Route path="/records/:id/edit" element={<RecordEditorPage />} />
+                <Route path="/services" element={<ServicesPage />} />
+                <Route path="/services/:id" element={<ServiceDetailPage />} />
                 <Route path="/credentials" element={<CredentialsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
