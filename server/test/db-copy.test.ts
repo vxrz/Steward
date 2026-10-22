@@ -3,14 +3,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { startedUrl } from './helpers.js';
 import { PG_TEST_URL } from './pg-env.js';
 
 // SQLite → PostgreSQL with the db:copy CLI, then the app runs on the copy (and back to SQLite).
 describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   const SERVER = path.resolve(__dirname, '..');
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-copy-'));
-  const port = 40000 + Math.floor(Math.random() * 10000);
-  const base = `http://127.0.0.1:${port}`;
+  // a free port from the system at the first start (SM_PORT=0), kept for the next starts on the copies
+  let port = 0;
+  let base = '';
   const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_copy${process.pid}`;
   const env = (db: Record<string, string>) => {
     const e: Record<string, string | undefined> = {
@@ -39,7 +41,12 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
       let out = '';
       child.stdout!.on('data', (d: Buffer) => {
         out += d.toString();
-        if (out.includes('service manager started')) resolve(child);
+        const url = startedUrl(out);
+        if (url) {
+          base = url;
+          port = Number(new URL(url).port);
+          resolve(child);
+        }
       });
       child.stderr!.on('data', (d) => (out += d.toString()));
       child.on('exit', (code) => reject(new Error(`server exited ${code}: ${out}`)));

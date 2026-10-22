@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { allowEmailDomains, authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, authHeaders, loginCookie, quiesce, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 process.env.SM_GATUS_AUTOSTART = '0';
 process.env.SM_MONITOR_AUTOSTART = '0';
@@ -45,6 +45,7 @@ beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
+  await quiesce(); // no late demo run may send check e-mails into the tests that compare the sent mails
   await allowEmailDomains(s, ['example.com']);
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;

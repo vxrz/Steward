@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { AddressInfo } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 
 export type Client = <T = any>(method: string, url: string, body?: unknown) => Promise<T>;
@@ -24,16 +25,21 @@ export interface TestServer {
 
 export async function startTestServer(): Promise<TestServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
-  const port = 20000 + Math.floor(Math.random() * 20000);
   process.env.SM_DATA_DIR = dataDir;
-  process.env.SM_PORT = String(port);
+  // Port 0: the system assigns a free port, so parallel test runs (and outgoing connections, whose
+  // local ports come from the same range) can never take it between choosing and binding.
+  process.env.SM_PORT = '0';
   process.env.SM_DEMO = '1';
   await import('../src/bootstrap.js');
-  const { ensureDataDirs } = await import('../src/config.js');
+  const { config, ensureDataDirs } = await import('../src/config.js');
   ensureDataDirs();
   const { buildApp } = await import('../src/app.js');
   const app = await buildApp();
-  await app.listen({ host: '127.0.0.1', port });
+  await app.listen({ host: '127.0.0.1', port: 0 });
+  const port = (app.server.address() as AddressInfo).port;
+  // what main.ts does for SM_PORT=0: the instance proof, the own-API guard and demo URLs use the real port
+  config.port = port;
+  process.env.SM_PORT = String(port);
   const base = `http://127.0.0.1:${port}`;
   const client = (): Client => {
     let cookie = '';
@@ -101,4 +107,39 @@ export function authHeaders(cookie: string): Record<string, string> {
 export async function allowEmailDomains(s: TestServer, domains: string[]): Promise<void> {
   const current = await s.api('GET', '/settings/notifications');
   await s.api('PUT', '/settings/notifications', { ...current, allowedEmailDomains: domains });
+}
+
+/**
+ * The address a server child process announces in its "service manager started" log line
+ * (SM_LOG_LEVEL=info) – start it with SM_PORT=0 and read the port the system assigned from here.
+ */
+export function startedUrl(stdout: string): string | undefined {
+  for (const line of stdout.split('\n')) {
+    if (!line.includes('"service manager started"')) continue;
+    return (JSON.parse(line) as { url: string }).url;
+  }
+  return undefined;
+}
+
+/**
+ * Stops the background work that writes audit entries and sends notifications on its own: waits
+ * until no process run is active (e.g. the feeder runs that /demo/setup starts), disarms the cron
+ * schedules (the demo schedules fire every few minutes) and stops the demo gateway simulator (it
+ * posts heartbeats through the real API). For tests that rewrite the audit chain or count entries,
+ * e-mails or pending items – under load those runs finish seconds later and would interleave with
+ * the test. Call it before the test starts runs that wait for a user task (they stay active).
+ */
+export async function quiesce(timeoutMs = 60000): Promise<void> {
+  const { stopScheduler } = await import('../src/scheduler.js');
+  const { activeRunIds } = await import('../src/engine/runner.js');
+  const { stopGatewaySimulator } = await import('../src/monitors/demo.js');
+  stopScheduler();
+  stopGatewaySimulator();
+  const until = Date.now() + timeoutMs;
+  while (activeRunIds().length) {
+    if (Date.now() > until) throw new Error(`runs still active after ${timeoutMs} ms: ${activeRunIds().join(', ')}`);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  const { flushNotifications } = await import('../src/notifications/service.js');
+  await flushNotifications();
 }
