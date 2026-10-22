@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
 import { HttpError } from '../util.js';
+import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
 import { require } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
@@ -23,7 +24,7 @@ function requireBindingsUsable(bindings: Record<string, string>) {
 }
 
 const previewBody = z.object({
-  inputMapping: z.record(z.string().max(2000)).default({}),
+  inputMapping: triggers.mappingSchema.default({}),
   allowedHeaders: z.array(z.string()).max(20).default([]),
   payload: z.unknown().optional(),
   headers: z.record(z.string()).default({}),
@@ -66,7 +67,9 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
   // ---------- management ----------
   app.get('/triggers', async () => triggers.listTriggers());
   app.get('/triggers/:id', async (req) => triggers.getTrigger(params(req).id!));
-  app.get('/triggers/:id/fires', async (req) => triggers.listFires(params(req).id!, Number((req.query as { limit?: string }).limit ?? 50)));
+  app.get('/triggers/:id/fires', async (req) =>
+    triggers.listFires(params(req).id!, z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {}).limit),
+  );
 
   app.post('/triggers', async (req) => {
     const b = triggers.settingsSchema.parse(req.body);
@@ -94,6 +97,14 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
   /** Evaluate a mapping against a sample payload (editor preview; nothing is started). */
   app.post('/triggers/preview-mapping', async (req): Promise<WebhookMappingPreview> => {
     if (!currentUser()) throw new HttpError(401, 'Please sign in');
+    // An editor tool (it runs expressions): for people who may set up a trigger, i.e. run some process.
+    if (
+      !db()
+        .all<{ id: string }>('SELECT id FROM processes WHERE archived = 0')
+        .some((p) => permissionsFor(p.id).includes('run'))
+    ) {
+      throw new HttpError(403, 'You are not allowed to set up webhook triggers', 'FORBIDDEN');
+    }
     const b = previewBody.parse(req.body);
     const allowed = b.allowedHeaders.map((h) => h.toLowerCase());
     const headers = Object.fromEntries(Object.entries(b.headers).map(([k, v]) => [k.toLowerCase(), v]));

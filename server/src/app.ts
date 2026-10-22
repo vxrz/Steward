@@ -37,6 +37,26 @@ const PUBLIC_PATHS = [
   '/api/theme',
   '/api/theme/logo',
 ];
+/**
+ * Identities, sign-in settings and the master passphrase are managed by signed-in people only: an API token
+ * (whatever its scope) is refused here. Otherwise a leaked automation token could mint lasting access that
+ * outlives revoking it – a new administrator, a reset password, another API token, a changed sign-in setup.
+ */
+export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
+  'POST /api/me/tokens',
+  'POST /api/users',
+  'PUT /api/users/:id',
+  'POST /api/users/:id/reset-password',
+  'POST /api/teams',
+  'PUT /api/teams/:id',
+  'DELETE /api/teams/:id',
+  'POST /api/sso/providers',
+  'PUT /api/sso/providers/:id',
+  'DELETE /api/sso/providers/:id',
+  'PUT /api/settings',
+  'POST /api/vault/passphrase',
+  'POST /api/vault/lock',
+]);
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
@@ -61,6 +81,12 @@ function contentSecurityPolicy(connectExtra: string[] = []): string {
     "worker-src 'self'",
     "manifest-src 'self'",
   ].join('; ');
+}
+
+/** An error raised by SQLite (node:sqlite) or PostgreSQL (see database/pg-bridge.ts), not by Steward itself. */
+export function isDatabaseError(err: unknown): boolean {
+  const e = err as { name?: string; code?: unknown } | null;
+  return !!e && (e.name === 'PgError' || (typeof e.code === 'string' && e.code.startsWith('ERR_SQLITE')));
 }
 
 const isRead = (method: string) => method === 'GET' || method === 'HEAD';
@@ -117,6 +143,10 @@ export function trustProxyFn(tp: number | string[]): string[] | ((addr: string, 
 /** Requests without any credentials may only send small bodies (sign-in, setup); everything else needs a session or token first. */
 const ANONYMOUS_BODY_LIMIT = 64 * 1024;
 
+/** Every route an app instance registered (method + full URL, HEAD left out): the route permission matrix test checks them all. */
+const ROUTE_TABLES = new WeakMap<FastifyInstance, { method: string; url: string }[]>();
+export const registeredRoutes = (app: FastifyInstance): { method: string; url: string }[] => [...(ROUTE_TABLES.get(app) ?? [])];
+
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   connectVaultToDatabase();
   const app = Fastify({
@@ -137,6 +167,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         }
       : {}),
   }) as unknown as FastifyInstance;
+  const routeTable: { method: string; url: string }[] = [];
+  ROUTE_TABLES.set(app, routeTable);
+  app.addHook('onRoute', (r) => {
+    for (const method of [r.method].flat()) if (method !== 'HEAD') routeTable.push({ method, url: r.url });
+  });
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
   const CSP = contentSecurityPolicy(cspConnectSources());
   /** The single sign-on callback page finishes with a small inline script. */
@@ -212,6 +247,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (t && t.scope === 'read' && !isRead(req.method)) return void reply.code(403).send({ error: 'This API token is read-only' });
       // MCP tokens work on the MCP endpoint only (its own scope, see mcp/http.ts)
       if (t && t.scope === 'mcp' && !isPublic) return void reply.code(403).send({ error: 'This API token is for MCP clients only (/api/mcp)' });
+      if (t && SESSION_ONLY_ROUTES.has(`${req.method} ${url}`)) {
+        return void reply.code(403).send({ error: 'API tokens cannot do this – sign in to the web UI', code: 'SESSION_REQUIRED' });
+      }
       if (t && t.scope !== 'mcp') {
         info = t.user;
         (req as unknown as { smToken?: string }).smToken = t.tokenId;
@@ -269,7 +307,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       userId: currentUser()?.id,
       request: { method: req.method, url: req.url },
     });
-    return reply.code(500).send({ error: e.message || 'Internal error' });
+    // Database errors can quote SQL, constraint and column names: the details go to the log only.
+    return reply.code(500).send({ error: isDatabaseError(err) ? `Internal error (request id ${req.id})` : e.message || 'Internal error' });
   });
 
   // Runtime settings for the web UI (one build works with and without error reporting).

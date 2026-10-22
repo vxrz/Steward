@@ -175,6 +175,14 @@ export function addressAllowed(cidrs: string[], ip: string): boolean {
   return false;
 }
 
+/** At most this many mapped inputs (a process has far fewer inputs). */
+export const MAX_MAPPING_ENTRIES = 100;
+/** Wall-clock budget of one mapping evaluation, all entries together. */
+const MAPPING_BUDGET_MS = 5000;
+export const mappingSchema = z
+  .record(z.string().max(2000))
+  .refine((m) => Object.keys(m).length <= MAX_MAPPING_ENTRIES, `At most ${MAX_MAPPING_ENTRIES} mapped inputs`);
+
 export const settingsSchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(2000).default(''),
@@ -182,7 +190,7 @@ export const settingsSchema = z.object({
   processVersion: z.number().int().positive().nullable().optional(),
   enabled: z.boolean().default(true),
   dryRun: z.boolean().default(false),
-  inputMapping: z.record(z.string().max(2000)).default({}),
+  inputMapping: mappingSchema.default({}),
   bindings: z.record(z.string()).default({}),
   authMode: z.enum(WEBHOOK_AUTH_MODES).default('token'),
   allowedCidrs: z.array(z.string().max(64)).max(50).default([]),
@@ -420,9 +428,15 @@ export function pickHeaders(headers: Record<string, string | string[] | undefine
 export async function evaluateMapping(mapping: Record<string, string>, scope: MappingScope): Promise<WebhookMappingPreview> {
   const inputs: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
+  const deadline = Date.now() + MAPPING_BUDGET_MS;
   for (const [name, expr] of Object.entries(mapping)) {
+    const left = deadline - Date.now();
+    if (left <= 0) {
+      errors[name] = `Not evaluated: the mapping took longer than ${MAPPING_BUDGET_MS / 1000} s in total`;
+      continue;
+    }
     try {
-      const v = await evalExpr(expr, scope, {}, EVAL_GUARD);
+      const v = await evalExpr(expr, scope, {}, { ...EVAL_GUARD, timeoutMs: Math.min(EVAL_GUARD.timeoutMs, left) });
       if (v !== undefined) inputs[name] = v;
     } catch (e) {
       errors[name] = (e as Error).message;

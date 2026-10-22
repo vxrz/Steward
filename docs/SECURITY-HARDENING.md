@@ -28,6 +28,9 @@ Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#n
 - **Single sign-on** (Entra ID / OIDC) with your company's MFA. Then set _Settings → Sign-in → Only administrators_ so that ordinary users cannot fall back to passwords. Keep one or two local break-glass administrator accounts with long passwords in the company password manager. If their passwords are lost too, `steward admin reset-password` on the server sets a one-time password (needs the data folder and the master passphrase, audited; see [INSTALL.md](INSTALL.md#forgotten-administrator-password)).
 - Map roles from IdP groups (`requireMapping` for production) – leavers lose access when the IdP account is disabled.
 - Sessions are bound to a per-session key in the browser (origin-isolated `localStorage`), not only to the cookie. Scripts use API tokens (`Authorization: Bearer smt_…`), never copied cookies.
+- Sessions end after 30 minutes without a request and 12 hours after sign-in (OWASP ASVS level 2). An open Steward tab keeps a session alive. Change it with `SM_SESSION_IDLE_MINUTES` and `SM_SESSION_MAX_HOURS`; longer values are logged as a warning at startup. Over HTTPS the cookie is called `__Host-sm_session`, so a neighbouring subdomain cannot plant or overwrite it.
+- API tokens act as their owner, but they cannot manage users, teams, single sign-on providers, the sign-in and outbound settings, the master passphrase or other tokens. Do that signed in. Give tokens an expiry date and the `read` scope where possible.
+- Steward logs a warning at startup for risky settings: reachable under another host name without HTTPS, demo mode on a network address, the passphrase in `SM_MASTER_PASSPHRASE` instead of a file, public metrics, long sessions.
 - Failed sign-ins are rate-limited per account, per account and address, and per address, and audited in bounded form (see [PRIVACY.md](PRIVACY.md)).
 
 ## Master passphrase

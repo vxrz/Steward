@@ -110,15 +110,21 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('application/yaml; charset=utf-8').send(svc.exportMonitor(r.id));
   });
   app.get('/monitors/:id/history', async (req) => {
-    const q = req.query as { check?: string; limit?: string; before?: string };
-    return svc.listHistory(params(req).id!, {
-      checkId: q.check,
-      limit: q.limit ? Number(q.limit) : undefined,
-      beforeId: q.before ? Number(q.before) : undefined,
-    });
+    const q = z
+      .object({
+        check: z.string().max(200).optional(),
+        limit: z.coerce.number().int().min(1).max(1000).optional(),
+        before: z.coerce.number().int().min(1).optional(),
+      })
+      .parse(req.query ?? {});
+    return svc.listHistory(params(req).id!, { checkId: q.check, limit: q.limit, beforeId: q.before });
   });
   app.get('/monitors/:id/checks/:checkId/results', async (req) =>
-    svc.listResults(params(req).id!, params(req).checkId!, Number((req.query as { limit?: string }).limit ?? 50)),
+    svc.listResults(
+      params(req).id!,
+      params(req).checkId!,
+      z.object({ limit: z.coerce.number().int().min(1).max(1000).default(50) }).parse(req.query ?? {}).limit,
+    ),
   );
   app.post('/monitors/:id/run', async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'acknowledge', 'run the checks of this monitor');

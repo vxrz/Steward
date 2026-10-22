@@ -93,3 +93,6 @@ export class HttpError extends Error {
     super(message);
   }
 }
+
+/** Largest process or dashboard definition accepted as YAML/JSON text (the examples are below 10 KB). */
+export const MAX_DEFINITION_TEXT = 2 * 1024 * 1024;

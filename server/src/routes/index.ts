@@ -28,7 +28,7 @@ import { publicKeyPem } from '../vault.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
 import { confirmPlatformConfig, sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, updateSettings } from '../settings.js';
-import { HttpError, parseJson } from '../util.js';
+import { HttpError, parseJson, MAX_DEFINITION_TEXT } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -106,13 +106,36 @@ export async function unlockFromEnv(): Promise<void> {
 }
 
 const platformBody = z.object({
-  name: z.string().min(1),
-  kind: z.string().optional(),
-  description: z.string().optional(),
-  baseUrl: z.string().optional(),
-  environment: z.string().optional(),
+  name: z.string().min(1).max(200),
+  kind: z.string().max(64).optional(),
+  description: z.string().max(10000).optional(),
+  baseUrl: z.string().max(2000).optional(),
+  environment: z.string().max(100).optional(),
   config: z.any().optional(),
-  secrets: z.record(z.string()).optional(),
+  secrets: z.record(z.string().max(20000)).optional(),
+});
+
+/** Query strings are validated like bodies: one value per parameter, bounded, numbers as numbers. */
+const queryText = z.string().max(500).optional();
+const versionQuery = z.object({ version: z.coerce.number().int().min(1).optional() });
+const runsQuery = z.object({
+  processId: z.string().max(200).optional(),
+  status: z.string().max(200).optional(),
+  scheduleId: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(1000).optional(),
+  before: z.string().max(64).optional(),
+});
+const auditQuery = z.object({
+  runId: z.string().max(200).optional(),
+  entityType: queryText,
+  entityId: queryText,
+  action: queryText,
+  q: queryText,
+  actor: queryText,
+  from: z.string().max(64).optional(),
+  to: z.string().max(64).optional(),
+  beforeSeq: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(5000).optional(),
 });
 
 // ---------- helpers ----------
@@ -354,7 +377,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
 
   app.post('/auth/password', async (req) => {
-    const b = z.object({ current: z.string(), next: z.string() }).parse(req.body);
+    const b = z.object({ current: z.string().max(1024), next: z.string().max(1024) }).parse(req.body);
     await users.changePassword(me().id, b.current, b.next, readCookie(req.headers.cookie, SESSION_COOKIE));
     return { ok: true };
   });
@@ -440,11 +463,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
       .object({
-        username: z.string(),
-        displayName: z.string().optional(),
-        email: z.string().optional(),
-        roles: z.array(z.enum(ROLES)).default([]),
-        password: z.string().optional(),
+        username: z.string().max(64),
+        displayName: z.string().max(100).optional(),
+        email: z.string().max(254).optional(),
+        roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
+        password: z.string().max(1024).optional(),
       })
       .parse(req.body);
     return users.createUser({ ...b, mustChangePassword: true });
@@ -452,7 +475,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.put('/users/:id', async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
-      .object({ displayName: z.string().optional(), email: z.string().optional(), roles: z.array(z.enum(ROLES)).optional(), active: z.boolean().optional() })
+      .object({
+        displayName: z.string().max(100).optional(),
+        email: z.string().max(254).optional(),
+        roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
+        active: z.boolean().optional(),
+      })
       .parse(req.body);
     return users.updateUser(params(req).id!, b);
   });
@@ -464,7 +492,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'view teams');
     return users.listTeams();
   });
-  const teamBody = z.object({ name: z.string(), description: z.string().optional(), members: z.array(z.string()).optional() });
+  const teamBody = z.object({
+    name: z.string().max(64),
+    description: z.string().max(2000).optional(),
+    members: z.array(z.string().max(64)).max(5000).optional(),
+  });
   app.post('/teams', async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body));
@@ -525,7 +557,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post('/platform-types', async (req) => {
     requireCapability(me(), 'createPlatforms', 'create connector types');
     const b = z
-      .object({ fromPlatformId: z.string(), kind: z.string().optional(), label: z.string().optional(), description: z.string().optional() })
+      .object({
+        fromPlatformId: z.string().max(200),
+        kind: z.string().max(64).optional(),
+        label: z.string().max(200).optional(),
+        description: z.string().max(10000).optional(),
+      })
       .parse(req.body);
     requirePlatform(b.fromPlatformId, 'manage', 'use this platform as a template');
     return connectors.createTypeFromPlatform(b.fromPlatformId, b);
@@ -557,7 +594,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.put('/platforms/:id/access', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change access to this platform');
-    return platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()) }).parse(req.body).acl);
+    return platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
   });
   app.delete('/platforms/:id', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'delete this platform');
@@ -603,9 +640,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const b = z
       .object({
         method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
-        path: z.string().min(1),
-        query: z.record(z.string()).optional(),
-        headers: z.record(z.string()).optional(),
+        path: z.string().min(1).max(8000),
+        query: z.record(z.string().max(8000)).optional(),
+        headers: z.record(z.string().max(8000)).optional(),
         body: z.any().optional(),
       })
       .parse(req.body);
@@ -623,11 +660,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return redact(res, secrets);
   });
 
-  app.get('/platforms/:id/specs', async (req) => platforms.listSpecs(params(req).id!));
+  // API specifications and operations reveal a platform's endpoints: only for users with some permission on it.
+  app.get('/platforms/:id/specs', async (req) => (visiblePlatform(params(req).id!), platforms.listSpecs(params(req).id!)));
   app.post('/platforms/:id/specs', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'add API specifications');
     const b = z
-      .object({ name: z.string().optional(), content: z.string().min(2).optional(), url: z.string().min(1).optional() })
+      .object({ name: z.string().max(200).optional(), content: z.string().min(2).optional(), url: z.string().min(1).max(2000).optional() })
       .refine((x) => x.content || x.url, 'Provide content or url')
       .parse(req.body);
     const content = b.content ?? (await connectors.fetchSpec(params(req).id!, b.url!));
@@ -639,10 +677,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   app.get('/specs/:specId/content', async (req, reply) => {
+    const pid = platforms.specPlatformId(params(req).specId!);
+    if (!pid || !platforms.getPlatform(pid).permissions.length) throw new HttpError(404, 'Spec not found');
     const c = platforms.getSpecContent(params(req).specId!);
     return reply.type(c.trim().startsWith('{') ? 'application/json' : 'text/yaml').send(c);
   });
-  app.get('/platforms/:id/operations', async (req) => platforms.listOperations(params(req).id!));
+  app.get('/platforms/:id/operations', async (req) => (visiblePlatform(params(req).id!), platforms.listOperations(params(req).id!)));
 
   app.get('/platforms/:id/docs', async (req) => (visiblePlatform(params(req).id!), platforms.listDocs(params(req).id!)));
   app.post('/platforms/:id/docs', async (req) => {
@@ -657,9 +697,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
     const httpUrl = z
       .string()
+      .max(2000)
       .url()
       .refine((u) => /^https?:$/.test(new URL(u).protocol), 'Only http and https links are allowed');
-    const b = z.object({ title: z.string(), kind: z.enum(['note', 'link']), content: z.string().optional(), url: httpUrl.optional() }).parse(req.body);
+    const b = z
+      .object({ title: z.string().max(200), kind: z.enum(['note', 'link']), content: z.string().max(200_000).optional(), url: httpUrl.optional() })
+      .parse(req.body);
     return platforms.addDoc(id, b);
   });
   app.delete('/platforms/:id/docs/:docId', async (req) => {
@@ -687,14 +730,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post('/processes', async (req) => {
     requireCapability(me(), 'createProcesses', 'create processes');
     const b = z
-      .object({ definition: z.any().optional(), templateId: z.string().optional(), text: z.string().optional(), comment: z.string().optional() })
+      .object({
+        definition: z.any().optional(),
+        templateId: z.string().max(200).optional(),
+        text: z.string().max(MAX_DEFINITION_TEXT).optional(),
+        comment: z.string().max(2000).optional(),
+      })
       .parse(req.body);
     if (b.templateId) return processes.createFromTemplate(b.templateId);
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
     return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created') });
   });
   app.post('/processes/validate', async (req) => {
-    const b = z.object({ definition: z.any().optional(), text: z.string().optional() }).parse(req.body);
+    const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
     try {
       const def = b.text !== undefined ? processes.parseDefinitionText(b.text) : b.definition;
       const r = validateProcess(def);
@@ -709,17 +757,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/processes/:id', async (req) => {
     requireProcess(params(req).id!, 'view', 'view this process');
-    const q = req.query as { version?: string };
-    return processes.getProcess(params(req).id!, q.version ? Number(q.version) : undefined);
+    const q = versionQuery.parse(req.query ?? {});
+    return processes.getProcess(params(req).id!, q.version);
   });
   app.put('/processes/:id', async (req) => {
     requireProcess(params(req).id!, 'edit', 'edit this process');
-    const b = z.object({ definition: z.any(), comment: z.string().optional() }).parse(req.body);
+    const b = z.object({ definition: z.any(), comment: z.string().max(2000).optional() }).parse(req.body);
     return processes.saveProcess(params(req).id!, b.definition, b.comment ?? '');
   });
   app.put('/processes/:id/access', async (req) => {
     requireProcess(params(req).id!, 'manage', 'change access to this process');
-    const b = z.object({ acl: z.array(z.any()), owner: z.string().nullable().optional() }).parse(req.body);
+    const b = z.object({ acl: z.array(z.any()).max(500), owner: z.string().max(64).nullable().optional() }).parse(req.body);
     if (b.owner && !users.findUserByName(b.owner)) throw new HttpError(400, `Unknown user "${b.owner}"`);
     return processes.setProcessAccess(params(req).id!, b);
   });
@@ -734,8 +782,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/processes/:id/export', async (req, reply) => {
     requireProcess(params(req).id!, 'view', 'view this process');
-    const q = req.query as { version?: string };
-    const p = processes.getProcess(params(req).id!, q.version ? Number(q.version) : undefined);
+    const q = versionQuery.parse(req.query ?? {});
+    const p = processes.getProcess(params(req).id!, q.version);
     reply.header('content-disposition', `attachment; filename="${p.id}.yaml"`);
     return reply.type('text/yaml').send(processes.toYaml(p.definition));
   });
@@ -744,7 +792,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post('/runs', async (req) => {
     const b = z
       .object({
-        processId: z.string(),
+        processId: z.string().max(200),
         version: z.number().int().optional(),
         inputs: z.record(z.unknown()).optional(),
         bindings: z.record(z.string()).optional(),
@@ -755,10 +803,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireBindingsUsable(b.bindings);
     return { id: await startRun(b) };
   });
-  app.get('/runs', async (req) => {
-    const q = req.query as { processId?: string; status?: string; scheduleId?: string; limit?: string; before?: string };
-    return visibleRuns({ ...q, limit: q.limit ? Number(q.limit) : undefined });
-  });
+  app.get('/runs', async (req) => visibleRuns(runsQuery.parse(req.query ?? {})));
   app.get('/runs/:id', async (req) => {
     requireRun(params(req).id!, 'view', 'view this run');
     const d = store.getRunDetail(params(req).id!);
@@ -801,7 +846,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- tasks ----------
   app.get('/tasks', async (req) => {
-    const q = req.query as { status?: string; mine?: string };
+    const q = z.object({ status: z.string().max(100).optional(), mine: z.string().max(10).optional() }).parse(req.query ?? {});
     const list = visibleTasks(q.status);
     return q.mine ? list.filter((t) => t.canDecide) : list;
   });
@@ -816,7 +861,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (!t) throw new HttpError(404, 'Task not found');
     if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task');
     const b = z
-      .object({ approved: z.boolean(), selectedKeys: z.array(z.string()).default([]), comment: z.string().optional() })
+      .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;
     await completeTask(id, b);
     return { ok: true };
@@ -824,10 +869,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- schedules ----------
   const scheduleBody = z.object({
-    name: z.string().min(1),
-    processId: z.string(),
-    cron: z.string().min(1),
-    timezone: z.string().optional(),
+    name: z.string().min(1).max(200),
+    processId: z.string().max(200),
+    cron: z.string().min(1).max(100),
+    timezone: z.string().max(64).optional(),
     inputs: z.record(z.unknown()).default({}),
     bindings: z.record(z.string()).default({}),
     dryRun: z.boolean().default(false),
@@ -862,16 +907,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { id };
   });
   app.post('/cron/preview', async (req) => {
-    const b = z.object({ cron: z.string(), timezone: z.string().optional() }).parse(req.body);
+    const b = z.object({ cron: z.string().max(100), timezone: z.string().max(64).optional() }).parse(req.body);
     return { next: scheduler.validateCron(b.cron, b.timezone) };
   });
 
   // ---------- audit ----------
   app.get('/audit', async (req) => {
-    const q = req.query as Record<string, string>;
+    const q = auditQuery.parse(req.query ?? {});
     if (q.runId) requireRun(q.runId, 'view', 'view this run');
     else requireCapability(me(), 'viewAudit', 'view the audit log');
-    return queryAudit({ ...q, beforeSeq: q.beforeSeq ? Number(q.beforeSeq) : undefined, limit: q.limit ? Number(q.limit) : undefined });
+    return queryAudit(q);
   });
   // Verification against all anchors (local anchor file, SM_AUDIT_ANCHOR[_FILE], and an anchor pasted by the user).
   const verifyRoute = async (anchorText: string | undefined, via: string) => {
