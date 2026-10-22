@@ -10,6 +10,9 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Added
 
+- **Credentials register** (*Credentials*, German *Zugangsdaten*): documents API clients, technical users, tokens, certificates, agent certificates, SSH keys and passwords – platform, environment, who uses them (with links to processes, monitors and platforms), owner e-mail addresses with roles and owning users/teams, where the secret is kept (e.g. a KeePass entry; http(s) links clickable, `keepass://` and file paths copyable), issue and expiry dates, rotation and review intervals with computed due dates and a status (OK, due soon, overdue, expired). Upload a public certificate (PEM/CRT/DER, chains) to fill in subject, issuer, serial, fingerprint, SANs and expiry; optional expiry sync from Gatus metrics. *Mark rotated* / *Mark reviewed* with history. Reminders before and after due dates (*Settings → Credential reminders*, per-entry overrides) to the owners in the app and by e-mail, sent once and kept across restarts. Filters, CSV export, a *Credentials due* card on the home page, `GET /api/v1/credentials`. See [docs/CREDENTIALS.md](docs/CREDENTIALS.md).
+- **Scheduled reports** (*Reports*): daily, weekly, monthly or cron report schedules with sections for availability and SLA per monitor and per Gatus endpoint (uptime, outages, downtime, avg/p95 response time, bar chart), the credentials register (expired, overdue, due soon) and runs per process; a section registry for further sections. Generated with the owner's rights, archived and audited like all reports, delivered in the app and by e-mail (optionally with the PDF attached). See [docs/REPORTS.md](docs/REPORTS.md).
+- **Gatus metrics mode** (*Platform → Metrics*): Steward scrapes Gatus' Prometheus `/metrics` (default every 60 s), keeps per-endpoint samples, hourly figures and outages (default 90 days, single samples 14 days), computes uptime from the result counters (Gatus restarts handled) and optionally reads Gatus' uptime API. The monitor check *Gatus endpoint* can read this data (data source *metrics*). See [docs/GATUS.md](docs/GATUS.md#5-metrics-mode).
 - **Account recovery:** `steward admin list-admins` and `steward admin reset-password <user> [--activate]` (also `npm run admin`) set a one-time password on the server. They need the data folder and the master passphrase, refuse while Steward is running, sign out the account's sessions and are audited. Docs on resetting a demo instance.
 
 **Processes and engine**
@@ -107,6 +110,8 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Security
 
+- Credentials register: no field holds a secret; free text, links and comments are checked for private keys, JWTs, well-known token formats, passwords in URLs and random-looking tokens and refused (the value is never echoed); only `http(s)` links are clickable (`javascript:`/`data:` refused); uploaded certificates are parsed and only their metadata is stored, files with a private key (PEM, DER, PKCS#12) are rejected; CSV exports are protected against formula injection.
+- Gatus metrics mode: `/metrics` is unauthenticated in Gatus – the docs require it to be network-restricted. Steward fetches it through the platform and the outbound policy, only below the platform's base URL, with an 8 MB limit, a timeout and a bounded parser.
 - Platform credentials are no longer sent to hosts outside the platform when a step calls an absolute URL.
 - The vault rejects shortened AES-GCM authentication tags.
 - Audit log integrity (review C):

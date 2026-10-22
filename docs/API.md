@@ -61,36 +61,38 @@ Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly
 
 ## Endpoints
 
-| Endpoint                                        | Who                                                      | Notes                                                                                                                                                                                  |
-| ----------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /health`                                   | everyone                                                 | `status: ok` / `unavailable` (503 while the vault is locked)                                                                                                                           |
-| `GET /me`                                       | token                                                    | Owner, token name/scope/expiry, capabilities                                                                                                                                           |
-| `GET /openapi.json`, `/openapi.yaml`            | token (or see [documentation page](#documentation-page)) | This API's OpenAPI document                                                                                                                                                            |
-| `GET /processes`                                | token                                                    | Filters `tag`, `q`. Processes you may view                                                                                                                                             |
-| `GET /processes/{processId}`                    | token                                                    | With the current definition and its hash                                                                                                                                               |
-| `GET /processes/{processId}/versions`           | token                                                    | Newest first                                                                                                                                                                           |
-| `GET /processes/{processId}/versions/{version}` | token                                                    | Definition of that version                                                                                                                                                             |
-| `GET /runs`                                     | token                                                    | Filters `processId`, `status`, `trigger`, `scheduleId`, `dryRun`, `from`, `to`. Newest first                                                                                           |
-| `GET /runs/{runId}`                             | token                                                    | Inputs, platforms used, step counts, decisions, checks, stats, protocol fingerprint (`protocol.hash`, `recordedHash`, `intact`), parent and sub-process runs                           |
-| `GET /runs/{runId}/steps`                       | token                                                    | Step journal in execution order (previews). Filters `status`, `type`                                                                                                                   |
-| `GET /runs/{runId}/steps/{stepId}`              | token                                                    | One journal entry with its complete output                                                                                                                                             |
-| `GET /runs/{runId}/logs`                        | token                                                    | Oldest first. Filter `level`                                                                                                                                                           |
-| `GET /tasks`                                    | token                                                    | User tasks (selections, approvals). Filters `status` (`open`, `completed`, `cancelled`), `processId`, `runId`                                                                          |
-| `GET /tasks/{taskId}`                           | token                                                    | With items and the decision                                                                                                                                                            |
-| `GET /schedules`, `/schedules/{scheduleId}`     | token                                                    | Filters `processId`, `enabled`                                                                                                                                                         |
-| `GET /platforms`, `/platforms/{platformId}`     | token                                                    | **Metadata only** (id, name, kind, description, environment, base URL, auth type, your permissions). Never credentials, variables or authentication settings                           |
-| `GET /datasets`, `/datasets/{datasetKey}`       | token                                                    | Dataset metadata (rows, status counts, latest metrics, staleness)                                                                                                                      |
-| `GET /datasets/{datasetKey}/rows`               | token                                                    | Snapshot rows, `limit` up to 1000. Filter `status`                                                                                                                                     |
-| `GET /datasets/{datasetKey}/metrics`            | token                                                    | Metric history: `names`, `days` (1–400), `points`                                                                                                                                      |
-| `GET /dashboards`, `/dashboards/{dashboardId}`  | token                                                    | Dashboard definitions                                                                                                                                                                  |
-| `GET /audit`                                    | auditor, admin                                           | Filters `action` (prefix), `actor`, `entityType`, `entityId`, `runId`, `q`, `from`, `to`. Newest first. Others may read the entries of a run they can view with `runId`                |
-| `GET /audit/verify`                             | auditor, admin                                           | Verifies the HMAC hash chain; the verification is itself audited                                                                                                                       |
-| `GET /users`, `/users/{userId}`, `/teams`       | admin                                                    | No password hashes, no tokens                                                                                                                                                          |
-| `GET /monitors`                                 | token                                                    | Monitors you may view, with status, status code, root causes and uptime. Filters `status`, `tag`, `q`                                                                                  |
-| `GET /monitors/{monitorId}`                     | token                                                    | Id or key; with the definition (never heartbeat secrets)                                                                                                                               |
-| `GET /monitors/{monitorId}/status`              | token                                                    | Monitor and check statuses with status codes (0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance) – for Zabbix HTTP agent items, see [MONITORS.md](MONITORS.md#zabbix-pull) |
-| `GET /monitors/{monitorId}/history`             | token                                                    | Status changes, newest first. Filter `check`                                                                                                                                           |
-| `GET /monitors/discovery`                       | token                                                    | Zabbix low-level discovery: `{"data":[{"{#MONITOR}":…,"{#CHECK}":…}]}`; `level=monitors` for one entry per monitor                                                                     |
+| Endpoint | Who | Notes |
+| --- | --- | --- |
+| `GET /health` | everyone | `status: ok` / `unavailable` (503 while the vault is locked) |
+| `GET /me` | token | Owner, token name/scope/expiry, capabilities |
+| `GET /openapi.json`, `/openapi.yaml` | token (or see [documentation page](#documentation-page)) | This API's OpenAPI document |
+| `GET /processes` | token | Filters `tag`, `q`. Processes you may view |
+| `GET /processes/{processId}` | token | With the current definition and its hash |
+| `GET /processes/{processId}/versions` | token | Newest first |
+| `GET /processes/{processId}/versions/{version}` | token | Definition of that version |
+| `GET /runs` | token | Filters `processId`, `status`, `trigger`, `scheduleId`, `dryRun`, `from`, `to`. Newest first |
+| `GET /runs/{runId}` | token | Inputs, platforms used, step counts, decisions, checks, stats, protocol fingerprint (`protocol.hash`, `recordedHash`, `intact`), parent and sub-process runs |
+| `GET /runs/{runId}/steps` | token | Step journal in execution order (previews). Filters `status`, `type` |
+| `GET /runs/{runId}/steps/{stepId}` | token | One journal entry with its complete output |
+| `GET /runs/{runId}/logs` | token | Oldest first. Filter `level` |
+| `GET /tasks` | token | User tasks (selections, approvals). Filters `status` (`open`, `completed`, `cancelled`), `processId`, `runId` |
+| `GET /tasks/{taskId}` | token | With items and the decision |
+| `GET /schedules`, `/schedules/{scheduleId}` | token | Filters `processId`, `enabled` |
+| `GET /platforms`, `/platforms/{platformId}` | token | **Metadata only** (id, name, kind, description, environment, base URL, auth type, your permissions). Never credentials, variables or authentication settings |
+| `GET /datasets`, `/datasets/{datasetKey}` | token | Dataset metadata (rows, status counts, latest metrics, staleness) |
+| `GET /datasets/{datasetKey}/rows` | token | Snapshot rows, `limit` up to 1000. Filter `status` |
+| `GET /datasets/{datasetKey}/metrics` | token | Metric history: `names`, `days` (1–400), `points` |
+| `GET /dashboards`, `/dashboards/{dashboardId}` | token | Dashboard definitions |
+| `GET /audit` | auditor, admin | Filters `action` (prefix), `actor`, `entityType`, `entityId`, `runId`, `q`, `from`, `to`. Newest first. Others may read the entries of a run they can view with `runId` |
+| `GET /audit/verify` | auditor, admin | Verifies the HMAC hash chain; the verification is itself audited |
+| `GET /users`, `/users/{userId}`, `/teams` | admin | No password hashes, no tokens |
+| `GET /monitors` | token | Monitors you may view, with status, status code, root causes and uptime. Filters `status`, `tag`, `q` |
+| `GET /monitors/{monitorId}` | token | Id or key; with the definition (never heartbeat secrets) |
+| `GET /monitors/{monitorId}/status` | token | Monitor and check statuses with status codes (0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance) – for Zabbix HTTP agent items, see [MONITORS.md](MONITORS.md#zabbix-pull) |
+| `GET /monitors/{monitorId}/history` | token | Status changes, newest first. Filter `check` |
+| `GET /monitors/discovery` | token | Zabbix low-level discovery: `{"data":[{"{#MONITOR}":…,"{#CHECK}":…}]}`; `level=monitors` for one entry per monitor |
+| `GET /credentials` | token | Credentials register (documentation only, never secret values): owners, where kept, expiry, rotation and review dates, status. Filters `status`, `type`, `platform`, `dueWithinDays`, `archived`, `q`. Not for viewers (unless they own an entry), see [CREDENTIALS.md](CREDENTIALS.md) |
+| `GET /credentials/{credentialId}` | token | One entry |
 
 Visibility follows the web UI: runs, tasks, schedules and datasets of a process you may not view do not exist for you (`404`, or left out of lists). Sub-process runs of hidden processes are left out of `children`.
 

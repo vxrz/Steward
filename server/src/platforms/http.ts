@@ -15,6 +15,10 @@ export interface HttpRequest {
   headers?: Record<string, string>;
   body?: unknown;
   bodyType?: 'json' | 'form' | 'text';
+  /** Fail when the response body is larger (bytes); default: no limit */
+  maxResponseBytes?: number;
+  /** Keep the body as text (no JSON detection) */
+  rawText?: boolean;
 }
 
 export interface HttpResult {
@@ -212,9 +216,10 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   res.headers.forEach((v, k) => (resHeaders[k] = v));
   let parsed: unknown = null;
   if (req.method !== 'HEAD') {
-    const text = await res.text();
+    const text = req.maxResponseBytes ? await readBounded(res, req.maxResponseBytes, req.url) : await res.text();
     const ct = resHeaders['content-type'] ?? '';
-    if (text && (ct.includes('json') || /^[\s]*[{[]/.test(text))) {
+    if (req.rawText) parsed = text;
+    else if (text && (ct.includes('json') || /^[\s]*[{[]/.test(text))) {
       try {
         parsed = JSON.parse(text);
       } catch {
@@ -225,7 +230,33 @@ async function sendRaw(p: Platform, req: HttpRequest, signal?: AbortSignal): Pro
   return { status: res.status, ok: res.ok, url: req.url, headers: resHeaders, body: parsed, durationMs: Date.now() - started };
 }
 
-async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<[string, string] | null> {
+/** Reads at most `max` bytes of a response body; larger bodies fail (and the connection is released). */
+async function readBounded(res: Awaited<ReturnType<typeof fetch>>, max: number, url: string): Promise<string> {
+  const tooLarge = () => Object.assign(new Error(`The response of ${url} is larger than ${max} bytes`), { retryable: false, code: 'ETOOLARGE' });
+  const declared = Number(res.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > max) {
+    await res.body?.cancel().catch(() => undefined);
+    throw tooLarge();
+  }
+  if (!res.body) return '';
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of res.body) {
+    size += (chunk as Uint8Array).length;
+    if (size > max) {
+      await res.body.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(Buffer.from(chunk as Uint8Array));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function obtainAuthHeader(
+  p: Platform,
+  secrets: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<[string, string] | null> {
   const auth: AuthConfig = p.config.auth ?? { type: 'none' };
   const scope = authScope(p, secrets);
   switch (auth.type) {
@@ -466,7 +497,7 @@ async function followRedirects(
         /* the initial url already carries the query api key (buildUrl) */
       }
     }
-    const res = await rawRequest(p, { method, url, headers, body, bodyType: req.bodyType }, signal, attempt);
+    const res = await rawRequest(p, { method, url, headers, body, bodyType: req.bodyType, maxResponseBytes: req.maxResponseBytes, rawText: req.rawText }, signal, attempt);
     const location = res.headers['location'];
     if (!REDIRECT_CODES.has(res.status) || !location || hop >= MAX_REDIRECTS) {
       if (REDIRECT_CODES.has(res.status) && location && hop >= MAX_REDIRECTS) {

@@ -3,7 +3,7 @@
 export const REPORT_LANGS = ['en', 'de'] as const;
 export type ReportLang = (typeof REPORT_LANGS)[number];
 
-export type ReportKind = 'run' | 'summary';
+export type ReportKind = 'run' | 'summary' | 'scheduled';
 
 /** A generated, stored and audited PDF. Records are immutable; every generation creates a new one. */
 export interface ReportRecord {
@@ -37,6 +37,8 @@ export interface ReportRecord {
   /** Summary reports: covered period */
   from?: string | null;
   to?: string | null;
+  /** Scheduled reports: the report schedule */
+  scheduleId?: string | null;
 }
 
 export interface GenerateRunReportRequest {

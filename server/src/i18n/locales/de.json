@@ -56,5 +56,36 @@
     "blocked": "Blockiert: {{where}}",
     "maintenance": "Wartung: {{where}}",
     "rootCause": "Ursache: {{causes}}."
+  },
+  "credentialDue": {
+    "kinds": {
+      "expiry": "Ablaufdatum",
+      "rotation": "Rotation",
+      "review": "Überprüfung"
+    },
+    "titleBefore_one": "{{name}}: {{kind}} fällig in {{count}} Tag",
+    "titleBefore_other": "{{name}}: {{kind}} fällig in {{count}} Tagen",
+    "titleOverdue": "{{name}}: {{kind}} ist überfällig",
+    "titleExpired": "{{name}} ist abgelaufen",
+    "bodyBefore": "Fällig am {{date}}: {{kind}} von „{{name}}“ ({{type}}{{platform}}).",
+    "bodyOverdue": "Seit {{date}} überfällig: {{kind}} von „{{name}}“ ({{type}}{{platform}}). Bitte rotieren oder überprüfen Sie die Zugangsdaten und tragen Sie das im Zugangsdaten-Register ein.",
+    "bodyExpired": "„{{name}}“ ({{type}}{{platform}}) ist am {{date}} abgelaufen.",
+    "location": "Aufbewahrt in: {{location}}",
+    "owners": "Eigentümer: {{owners}}",
+    "types": {
+      "apiClient": "API-Client / OAuth-Client",
+      "technicalUser": "Technischer Benutzer / Dienstkonto",
+      "password": "Passwort",
+      "token": "Token / API-Schlüssel",
+      "certificate": "Zertifikat",
+      "agentCertificate": "Agenten- / Gerätezertifikat",
+      "sshKey": "SSH-Schlüssel",
+      "other": "Sonstiges"
+    }
+  },
+  "reportReady": {
+    "title": "Bericht erstellt: {{name}}",
+    "body": "Der geplante Bericht „{{name}}“ für {{from}} – {{to}} wurde erstellt.",
+    "attached": "Das PDF ist angehängt."
   }
 }

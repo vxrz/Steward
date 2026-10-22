@@ -171,7 +171,14 @@
     "subMonitorHint": "Evaluated on its own schedule; this node shows its aggregated status",
     "schedule": "Schedule and thresholds",
     "monitorDefault": "Empty: monitor default",
-    "critical": "Critical (a failure takes the monitor down)"
+    "critical": "Critical (a failure takes the monitor down)",
+    "gatusSource": "Data source",
+    "gatusSourceHint": "Metrics: the state Steward scrapes from Gatus' /metrics (Platform → Metrics). API: Gatus' status API (needs basic auth when Gatus is protected).",
+    "gatusSources": {
+      "auto": "Automatic (metrics when enabled for the platform)",
+      "api": "Gatus status API",
+      "metrics": "Scraped metrics"
+    }
   },
   "detail": {
     "template": "template",

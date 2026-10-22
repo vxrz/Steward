@@ -193,6 +193,8 @@ export const checkSchema = z.discriminatedUnion('type', [
     maxAgeSeconds: seconds(1, 365 * 86400).optional(),
     /** degraded when one of the last N results failed although the newest one succeeded (0 = off) */
     degradedOnRecentFailures: z.number().int().min(0).max(100).optional(),
+    /** api: Gatus status API; metrics: the samples Steward scraped from /metrics; auto: metrics when metrics mode is on for the platform */
+    source: z.enum(['auto', 'api', 'metrics']).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

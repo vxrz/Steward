@@ -47,6 +47,18 @@
         "label": "Monitor-Status",
         "info": "Ein Monitor, den Sie besitzen oder abonniert haben, hat seinen Status geändert (nur Ursachen)"
       }
+    },
+    "credential": {
+      "due": {
+        "label": "Zugangsdaten fällig",
+        "info": "Zugangsdaten, deren Eigentümer Sie sind, laufen bald ab oder müssen rotiert oder überprüft werden (oder sind überfällig)"
+      }
+    },
+    "report": {
+      "ready": {
+        "label": "Bericht erstellt",
+        "info": "Ein geplanter Bericht, den Sie erhalten, wurde erstellt"
+      }
     }
   }
 }

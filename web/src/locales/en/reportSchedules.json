@@ -1,0 +1,98 @@
+{
+  "title": "Reports",
+  "description": "Scheduled summary reports (availability and SLA, credentials, runs) and the archive of generated PDF reports.",
+  "new": "New report schedule",
+  "edit": "Edit report schedule",
+  "schedulesTitle": "Report schedules",
+  "empty": "No report schedules yet.",
+  "disabled": "disabled",
+  "table": {
+    "name": "Name",
+    "when": "When",
+    "sections": "Sections",
+    "last": "Last report",
+    "next": "Next run",
+    "owner": "Runs with the rights of {{owner}}"
+  },
+  "presets": {
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "custom": "Custom"
+  },
+  "presetHints": {
+    "daily": "Every day at 06:00 about the previous day.",
+    "weekly": "Every Monday at 06:00 about the previous week (Monday to Sunday).",
+    "monthly": "On the 1st at 06:00 about the previous month.",
+    "custom": "Your cron expression; the report covers the given number of days before each run."
+  },
+  "sections": {
+    "availability": {
+      "title": "Availability of monitors",
+      "hint": "Uptime, outages and response times per monitor, with an optional SLA target"
+    },
+    "gatus": {
+      "title": "Availability of Gatus endpoints",
+      "hint": "From the metrics Steward scrapes from Gatus (metrics mode)"
+    },
+    "credentials": {
+      "title": "Credentials register",
+      "hint": "Expired and overdue entries, and those due soon"
+    },
+    "runs": {
+      "title": "Runs",
+      "hint": "Succeeded and failed runs per process"
+    }
+  },
+  "runNow": "Generate now",
+  "runNowOf": "Generate \"{{name}}\" now",
+  "editOf": "Edit \"{{name}}\"",
+  "deleteOf": "Delete \"{{name}}\"",
+  "deleteConfirm": "Delete the report schedule \"{{name}}\"? Reports generated so far stay in the archive.",
+  "ranOk": "\"{{name}}\" generated: {{file}}",
+  "runFailed": "Report not generated",
+  "generatedTitle": "Generated reports",
+  "noReports": "No summary or scheduled reports yet.",
+  "reports": {
+    "title": "Report",
+    "period": "Period",
+    "created": "Generated",
+    "file": "File",
+    "download": "PDF ({{size}})",
+    "kind": {
+      "run": "Run report",
+      "summary": "Summary",
+      "scheduled": "Scheduled"
+    }
+  },
+  "saved": "Report schedule saved",
+  "notSaved": "Report schedule not saved",
+  "form": {
+    "name": "Name",
+    "title": "Report title",
+    "titleHint": "Printed on the cover; default: the name",
+    "when": "When",
+    "cron": "Cron expression",
+    "periodDays": "Period (days before the run)",
+    "timezone": "Time zone",
+    "lang": "Report language",
+    "classification": "Classification",
+    "sections": "Sections",
+    "ownerRights": "The report runs with your rights: it only contains what you may see. Recipients see the report, not the data behind it.",
+    "monitors": "Monitors",
+    "allVisible": "All you may see",
+    "slaTarget": "SLA target (%)",
+    "gatusPlatforms": "Gatus platforms (metrics mode)",
+    "noGatus": "Turn on metrics mode for a Gatus platform first (Platform → Metrics).",
+    "dueWithinDays": "Also list entries due within (days)",
+    "processes": "Processes",
+    "recipients": "Recipients",
+    "users": "Users",
+    "teams": "Teams",
+    "emails": "E-mail addresses",
+    "emailsHint": "Get the report by e-mail only (when e-mail is set up). Press Enter after each address.",
+    "attachPdf": "Attach the PDF to e-mails",
+    "attachPdfHint": "Otherwise the e-mail contains a link (recipients need an account to open it).",
+    "enabled": "Enabled"
+  }
+}

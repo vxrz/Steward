@@ -13,6 +13,7 @@ import { HttpError, sha256 } from '../util.js';
 import * as branding from '../reports/branding.js';
 import * as reports from '../reports/service.js';
 import { initAutoReports } from '../reports/auto.js';
+import { canViewScheduledReport } from '../reports/schedules.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -48,6 +49,10 @@ function canViewAll(processIds: string[]): boolean {
 }
 
 function requireReportAccess(rec: ReportRecord): void {
+  if (rec.kind === 'scheduled') {
+    if (!canViewScheduledReport(rec)) throw new HttpError(404, `Report ${rec.id} not found`);
+    return;
+  }
   if (rec.kind === 'run' && rec.runId) {
     requireRunView(rec.runId);
     return;

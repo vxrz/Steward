@@ -48,6 +48,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['monitors', '/monitors'],
     ['monitor status wall', '/monitors/wall'],
     ['platforms', '/platforms'],
+    ['credentials', '/credentials'],
+    ['reports', '/reports'],
     ['settings', '/settings'],
     ['users & teams', '/users'],
     ['audit log', '/audit'],
@@ -114,6 +116,7 @@ test.describe('accessibility – dark color scheme', () => {
     ['dashboard', '/'],
     ['dashboard view', '/dashboards/platform-operations'],
     ['process editor', `/processes/${PROCESS.healthCheck}`],
+    ['credentials', '/credentials'],
     ['settings', '/settings'],
   ] as const) {
     test(`${name} (dark)`, async ({ page }) => {

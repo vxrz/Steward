@@ -11,6 +11,8 @@ import { resolveTimeZone, translator } from './i18n.js';
 import { buildRunModel, contentHash, evidenceImages, person, type ReportContext, type RunReportModel } from './model.js';
 import { renderRunReport, type RenderResult } from './run-report.js';
 import { buildSummaryModel, renderSummaryReport } from './summary-report.js';
+import { buildScheduledModel, renderScheduledReport } from './scheduled-report.js';
+import { runAs, type AuthUser } from '../auth/context.js';
 
 /**
  * Generation, storage and listing of archived PDF reports.
@@ -30,7 +32,7 @@ const INTERIM_OK: RunStatus[] = ['waiting', 'interrupted'];
 
 interface Row {
   id: string;
-  kind: 'run' | 'summary';
+  kind: 'run' | 'summary' | 'scheduled';
   run_id: string | null;
   process_ids: string;
   version: number;
@@ -50,6 +52,7 @@ interface Row {
   size: number;
   protocol_hash: string | null;
   content_hash: string;
+  schedule_id?: string | null;
 }
 
 const toRecord = (r: Row): ReportRecord => ({
@@ -73,6 +76,7 @@ const toRecord = (r: Row): ReportRecord => ({
   contentHash: r.content_hash,
   from: r.period_from,
   to: r.period_to,
+  scheduleId: r.schedule_id ?? null,
 });
 
 export function listRunReports(runId: string): ReportRecord[] {
@@ -120,14 +124,14 @@ function writeOnce(rel: string, data: Buffer): void {
   if (process.platform !== 'win32') fs.chmodSync(file, 0o400); // read-only, for the service account only
 }
 
-function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<string, unknown>, summary: string): ReportRecord {
+function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<string, unknown>, summary: string, actor = rec.createdBy): ReportRecord {
   writeOnce(rel, pdf);
   try {
     db().tx(() => {
       db().run(
         `INSERT INTO reports (id, kind, run_id, process_ids, version, title, lang, comment, classification, interim, auto, period_from, period_to,
-           created_by, created_at, path, filename, sha256, size, protocol_hash, content_hash)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           created_by, created_at, path, filename, sha256, size, protocol_hash, content_hash, schedule_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         rec.id,
         rec.kind,
         rec.runId ?? null,
@@ -149,9 +153,10 @@ function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<stri
         rec.size,
         rec.protocolHash ?? null,
         rec.contentHash,
+        rec.scheduleId ?? null,
       );
       audit({
-        actor: rec.createdBy,
+        actor,
         action: 'report.generated',
         entityType: 'report',
         entityId: rec.id,
@@ -303,6 +308,72 @@ export async function generateSummaryReport(o: SummaryOptions): Promise<ReportRe
     `PDF summary report (${rec.lang}) generated for ${model.processes.length} process(es), ${model.totals.runs} run(s) – sha256 ${rec.sha256.slice(0, 16)}…`,
   );
   return { ...rec, texts: res.texts };
+}
+
+export function listScheduledReports(scheduleId?: string, limit = 200): ReportRecord[] {
+  return (
+    scheduleId
+      ? db().all<Row>("SELECT * FROM reports WHERE kind = 'scheduled' AND schedule_id = ? ORDER BY created_at DESC LIMIT ?", scheduleId, limit)
+      : db().all<Row>("SELECT * FROM reports WHERE kind = 'scheduled' ORDER BY created_at DESC LIMIT ?", limit)
+  ).map(toRecord);
+}
+
+export interface ScheduledOptions extends GenerateOptions {
+  scheduleId: string;
+  scheduleName: string;
+  title: string;
+  /** The schedule owner: the data is collected with their rights */
+  owner: AuthUser;
+  from: number;
+  to: number;
+  sections: Record<string, unknown>;
+}
+
+/** Scheduled summary report: collected as the owner, archived (immutable, hashed, audited) like every report. */
+export async function generateScheduledReport(o: ScheduledOptions): Promise<ReportRecord & { texts: string[]; pdf: Buffer }> {
+  if (o.to <= o.from) throw new HttpError(400, 'The end of the period must be after its start');
+  const id = newId('rpt_');
+  const ctx = context({ ...o, actor: o.owner.username }, id, 1);
+  const model = runAs(o.owner, () =>
+    buildScheduledModel(
+      { scheduleId: o.scheduleId, scheduleName: o.scheduleName, title: o.title, owner: person(o.owner.username), from: o.from, to: o.to, now: Date.now(), sections: o.sections },
+      ctx,
+    ),
+  );
+  const hash = contentHash(model);
+  const res = await renderScheduledReport(model, hash, brandingInput(), { compress: o.compress });
+  const rec: ReportRecord = {
+    id,
+    kind: 'scheduled',
+    runId: null,
+    processIds: [],
+    version: 1,
+    title: o.title.slice(0, 300),
+    lang: model.lang,
+    comment: model.comment,
+    classification: model.classification,
+    interim: false,
+    auto: o.actor === 'system',
+    createdBy: o.owner.username,
+    createdAt: model.generatedAt,
+    filename: `${BRAND.name}-${slugify(o.scheduleName) || 'report'}-${model.from.slice(0, 10)}_${model.to.slice(0, 10)}-${id.slice(-6)}.pdf`,
+    sha256: sha256(res.pdf),
+    size: res.pdf.length,
+    protocolHash: null,
+    contentHash: hash,
+    from: model.from,
+    to: model.to,
+    scheduleId: o.scheduleId,
+  };
+  store(
+    rec,
+    `scheduled/${id}.pdf`,
+    res.pdf,
+    { scheduleId: o.scheduleId, owner: o.owner.username, from: rec.from, to: rec.to, sections: model.sections.map((s) => s.id) },
+    `PDF scheduled report "${o.scheduleName}" (${rec.lang}) generated for ${rec.from!.slice(0, 10)} – ${rec.to!.slice(0, 10)} with the rights of ${o.owner.username} – sha256 ${rec.sha256.slice(0, 16)}…`,
+    o.actor,
+  );
+  return { ...rec, texts: res.texts, pdf: res.pdf };
 }
 
 // ---------- verification ----------

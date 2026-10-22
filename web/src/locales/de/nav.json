@@ -12,7 +12,9 @@
     "settings": "Einstellungen",
     "profile": "Profil & API-Token",
     "triggers": "Auslöser",
-    "monitors": "Monitore"
+    "monitors": "Monitore",
+    "credentials": "Zugangsdaten",
+    "reports": "Berichte"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

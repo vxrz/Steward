@@ -11,6 +11,7 @@ import { BRAND } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
+import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
 
 /**
  * Check executors. Each returns a raw result; `unknown` means the check could
@@ -393,12 +394,51 @@ export function toMillis(t: unknown): number | undefined {
 
 // ---------- Gatus ----------
 
+/** Metrics mode: explicitly, or automatically when the platform has an enabled metrics source. */
+const useMetrics = (c: CheckOf<'gatus'>): boolean => c.source === 'metrics' || ((c.source ?? 'auto') === 'auto' && metricsEnabled(c.platform));
+
 export function planGatus(c: CheckOf<'gatus'>, owner: string): void {
+  if (useMetrics(c)) return;
   gatusFetch.plan(c.platform, { owner, pageSize: Math.max(1, c.degradedOnRecentFailures ?? 1) });
+}
+
+/** Reads the state Steward scraped from Gatus' /metrics (no call to Gatus). */
+function checkGatusMetrics(c: CheckOf<'gatus'>, ctx: ExecContext): RawResult {
+  const src = sourceRow(c.platform);
+  if (!src) return { status: 'unknown', message: 'Gatus metrics mode is not configured for this platform' };
+  if (!src.last_success_at) return { status: 'unknown', message: `Gatus metrics have not been scraped yet${src.last_error ? `: ${src.last_error}` : ''}`.slice(0, 500) };
+  const scrapeAge = (ctx.now() - Date.parse(src.last_success_at)) / 1000;
+  if (scrapeAge > Math.max(3 * src.interval_seconds, 180)) {
+    return { status: 'unknown', message: `The last successful Gatus metrics scrape is ${fmtAge(scrapeAge)} old${src.last_error ? ` (${src.last_error})` : ''}`.slice(0, 500) };
+  }
+  const e = endpointState(c.platform, c.endpointKey);
+  if (!e) return { status: 'unknown', message: `Gatus has no endpoint with the key "${c.endpointKey}" in its metrics` };
+  const ms = e.duration_s !== null ? Math.round(e.duration_s * 1000) : undefined;
+  const label = `${e.group_name ? `${e.group_name}/` : ''}${e.name || e.key}`;
+  if (c.maxAgeSeconds && e.last_result_at) {
+    const age = (ctx.now() - Date.parse(e.last_result_at)) / 1000;
+    if (age > c.maxAgeSeconds) return { status: 'down', message: `Gatus produced no new result for ${fmtAge(age)} (maximum ${fmtAge(c.maxAgeSeconds)})`, durationMs: ms };
+  }
+  if (e.success === null) return { status: 'unknown', message: `Gatus metrics have no success value for "${label}" yet`, durationMs: ms };
+  if (!e.success) return { status: 'down', message: `Gatus: ${label} is failing (metrics)`, durationMs: ms };
+  const n = c.degradedOnRecentFailures ?? 0;
+  if (n > 0) {
+    // results counted in the newest scrapes (each scrape's delta may hold several results)
+    let seen = 0;
+    let failed = 0;
+    for (const s of e.recent) {
+      if (seen >= n) break;
+      seen += Number(s.ok) + Number(s.fail);
+      failed += Number(s.fail);
+    }
+    if (failed > 0) return { status: 'degraded', message: `Gatus: ${label} is up, but ${failed} of the last ${seen} results failed`, durationMs: ms };
+  }
+  return { status: 'up', message: `Gatus: ${label} is up (metrics)`, durationMs: ms };
 }
 
 async function checkGatus(c: CheckOf<'gatus'>, ctx: ExecContext): Promise<RawResult> {
   platformFor(ctx.owner, c.platform);
+  if (useMetrics(c)) return checkGatusMetrics(c, ctx);
   const t0 = Date.now();
   let all;
   try {

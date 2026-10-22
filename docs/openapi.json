@@ -4,7 +4,7 @@
     "title": "Steward API",
     "version": "1.0.0",
     "summary": "Read-only REST API of Steward",
-    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams, and monitors (status, history, Zabbix low-level discovery).\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
+    "description": "Read-only access to the data Steward holds: processes and their versions, runs with their step journal and logs, decisions, schedules, platform metadata, dashboard datasets, the audit log, users and teams, monitors (status, history, Zabbix low-level discovery) and the credentials register (documentation only, never secret values).\n\n**Authentication.** Every endpoint except `/health` needs a personal API token: `Authorization: Bearer smt_…`. Create one on your profile page in the web UI (scope *read* is enough). A token acts with the rights of its owner – use a dedicated service account with the *viewer* or *auditor* role for integrations. Session cookies are not accepted.\n\n**Conventions.** JSON with camelCase fields; timestamps are ISO 8601 in UTC; ids are strings. Lists return `{ items, nextCursor }` – pass `nextCursor` as `cursor` to get the next page (also offered as an RFC 8288 `Link: <…>; rel=\"next\"` header). `limit` is 1–200 (default 50). Errors are problem details (RFC 9457, `application/problem+json`). Responses carry `Cache-Control: no-store` and `RateLimit-*` headers; above the limit the API answers 429 with `Retry-After`.\n\n**Versioning.** The path carries the major version. Within v1 changes are additive (new endpoints, optional parameters and fields) – ignore fields you do not know. Breaking changes get a new major version; endpoints that are going away are announced with `Deprecation` and `Sunset` headers first.",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -3433,6 +3433,463 @@
         ],
         "additionalProperties": false,
         "description": "Zabbix low-level discovery (LLD) format"
+      },
+      "CredentialEntry": {
+        "title": "CredentialEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "apiClient",
+              "technicalUser",
+              "password",
+              "token",
+              "certificate",
+              "agentCertificate",
+              "sshKey",
+              "other"
+            ]
+          },
+          "platformId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A Steward platform (null: see platformText)"
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platformText": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "usedBy": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "process, monitor, platform, …"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "label"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "text",
+              "links"
+            ],
+            "additionalProperties": false
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "role"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Owner e-mail addresses with their role, e.g. Business owner"
+          },
+          "ownerSubjects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams that own the entry (user:<name>, team:<name>)"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "null",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "text",
+              "url"
+            ],
+            "additionalProperties": false,
+            "description": "Where the secret is kept (e.g. KeePass database and entry) – never the secret"
+          },
+          "issuedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "rotationIntervalDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastRotatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "reviewIntervalDays": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastReviewedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "nextRotationAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "nextDueAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Earliest of expiry, next rotation and next review"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "dueSoon",
+              "overdue",
+              "expired"
+            ]
+          },
+          "dues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "expiry",
+                    "rotation",
+                    "review"
+                  ]
+                },
+                "dueAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "daysLeft": {
+                  "type": "integer"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "dueSoon",
+                    "overdue",
+                    "expired"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "dueAt",
+                "daysLeft",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "subject": {
+                    "type": "string"
+                  },
+                  "issuer": {
+                    "type": "string"
+                  },
+                  "serialNumber": {
+                    "type": "string"
+                  },
+                  "fingerprint256": {
+                    "type": "string"
+                  },
+                  "notBefore": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "notAfter": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "subjectAltNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "isCA": {
+                    "type": "boolean"
+                  },
+                  "selfSigned": {
+                    "type": "boolean"
+                  },
+                  "chain": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "subject": {
+                          "type": "string"
+                        },
+                        "issuer": {
+                          "type": "string"
+                        },
+                        "serialNumber": {
+                          "type": "string"
+                        },
+                        "fingerprint256": {
+                          "type": "string"
+                        },
+                        "notBefore": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "notAfter": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        }
+                      },
+                      "required": [
+                        "subject",
+                        "issuer",
+                        "serialNumber",
+                        "fingerprint256",
+                        "notBefore",
+                        "notAfter"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "chainNotAfter": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "subject",
+                  "issuer",
+                  "serialNumber",
+                  "fingerprint256",
+                  "notBefore",
+                  "notAfter",
+                  "subjectAltNames",
+                  "isCA",
+                  "selfSigned",
+                  "chain",
+                  "chainNotAfter"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Metadata of the documented public certificate"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "platformId",
+          "platformName",
+          "platformText",
+          "environment",
+          "description",
+          "usedBy",
+          "owners",
+          "ownerSubjects",
+          "location",
+          "issuedAt",
+          "expiresAt",
+          "rotationIntervalDays",
+          "lastRotatedAt",
+          "reviewIntervalDays",
+          "lastReviewedAt",
+          "nextRotationAt",
+          "nextReviewAt",
+          "nextDueAt",
+          "status",
+          "dues",
+          "certificate",
+          "tags",
+          "archived",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -6781,6 +7238,251 @@
           }
         }
       }
+    },
+    "/credentials": {
+      "get": {
+        "operationId": "listCredentials",
+        "summary": "List entries of the credentials register",
+        "tags": [
+          "Credentials"
+        ],
+        "description": "Documentation of credentials: type, platform, owners, where they are kept, expiry, rotation and review dates. The register never holds secret values. Ordered by name. Visible to all roles except viewers (who see only entries they own).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "dueSoon",
+                  "overdue",
+                  "expired"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only entries with these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "apiClient",
+                  "technicalUser",
+                  "password",
+                  "token",
+                  "certificate",
+                  "agentCertificate",
+                  "sshKey",
+                  "other"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "type",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "description": "Platform id or name"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3650
+            },
+            "in": "query",
+            "name": "dueWithinDays",
+            "required": false,
+            "description": "Only entries with a due date within this many days (overdue ones included)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "default": "exclude"
+            },
+            "in": "query",
+            "name": "archived",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Case-insensitive search"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CredentialEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/credentials/{credentialId}": {
+      "get": {
+        "operationId": "getCredential",
+        "summary": "Get an entry of the credentials register",
+        "tags": [
+          "Credentials"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "credentialId",
+            "required": true,
+            "description": "Entry id (cred_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -6829,6 +7531,10 @@
     {
       "name": "Monitors",
       "description": "Monitor and check status, history and Zabbix low-level discovery"
+    },
+    {
+      "name": "Credentials",
+      "description": "Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values"
     }
   ],
   "externalDocs": {

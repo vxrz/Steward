@@ -34,6 +34,10 @@ export interface Notice {
   /** De-duplicates external sends (coarser, e.g. per process or schedule) */
   externalKey: string;
   data?: Record<string, unknown>;
+  /** Plain e-mail addresses outside Steward (e-mail only, when the event is routed to e-mail and SMTP is enabled) */
+  emails?: string[];
+  /** E-mail attachments */
+  attachments?: OutgoingMessage['attachments'];
 }
 
 // ---------- recipients ----------
@@ -90,7 +94,7 @@ const pending = new Set<Promise<void>>();
 
 /** Stores in-app notifications and sends the external messages (in the background; failures are only logged). */
 export function notify(n: Notice): void {
-  if (!n.recipients.length) return;
+  if (!n.recipients.length && !n.emails?.length) return;
   const settings = getNotificationSettings();
   const channels = settings.routes[n.event] ?? [];
   const fallback = defaultLocale();
@@ -115,7 +119,7 @@ export function notify(n: Notice): void {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
   }
-  const message = (locale: Locale): OutgoingMessage => ({ event: n.event, ...textIn(locale), locale, link: absoluteLink(n.link), ts: nowIso(), data: n.data });
+  const message = (locale: Locale): OutgoingMessage => ({ event: n.event, ...textIn(locale), locale, link: absoluteLink(n.link), ts: nowIso(), data: n.data, attachments: n.attachments });
   const key = `${n.event}:${n.externalKey}`;
   const jobs: { channel: string; to?: string; send: () => Promise<void> }[] = [];
   let secrets: ReturnType<typeof channelSecrets>;
@@ -131,6 +135,14 @@ export function notify(n: Notice): void {
       if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) {
         const msg = message(userLocale(u, fallback));
         jobs.push({ channel: 'email', to: u.username, send: () => sendEmail(settings.email, secrets, u.email!, msg) });
+      }
+    }
+    const userAddresses = new Set(n.recipients.map((u) => u.email?.toLowerCase()).filter(Boolean));
+    for (const addr of new Set((n.emails ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+$/.test(e)))) {
+      if (userAddresses.has(addr)) continue; // already reached as a Steward user (with their own settings)
+      if (claimSend(`email:${key}:${addr}`, DEDUPE_WINDOW_MS)) {
+        const msg = message(fallback);
+        jobs.push({ channel: 'email', to: 'external address', send: () => sendEmail(settings.email, secrets, addr, msg) });
       }
     }
   }
@@ -321,6 +333,10 @@ export function startNotificationJobs(): void {
     } catch (err) {
       logger.warn({ err }, 'stale dataset check failed');
     }
+    // credentials register: expiry / rotation / review reminders (idempotent, see credentials/reminders.ts)
+    import('../credentials/reminders.js')
+      .then((m) => m.checkCredentialReminders())
+      .catch((err) => logger.warn({ err }, 'credential reminder check failed'));
   }, STALE_CHECK_MS);
   staleTimer.unref();
 }
