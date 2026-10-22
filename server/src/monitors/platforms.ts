@@ -59,6 +59,9 @@ export function resolvePlatformRef(ref: string, kind?: string): { id: string; na
   const named = rows.filter((r) => r.name.toLowerCase() === ref.toLowerCase());
   if (named.length === 1) return named[0]!;
   if (named.length > 1) throw new HttpError(400, `Several platforms are called "${ref}" – use the platform id`);
+  // "Insights Hub" also finds "Insights Hub (production)" when it is the only such platform
+  const prefixed = rows.filter((r) => r.name.toLowerCase().startsWith(ref.toLowerCase()) && (!kind || r.kind === kind));
+  if (prefixed.length === 1) return prefixed[0]!;
   if (kind) {
     const ofKind = rows.filter((r) => r.kind === kind);
     if (ofKind.length === 1) return ofKind[0]!;

@@ -541,3 +541,336 @@ describe('dependencies', () => {
     expect(await status(s.api('DELETE', `/monitors/${machine.monitor.id}`))).toBe(409);
   });
 });
+
+// ---------------------------------------------------------------------------
+
+describe('outputs', () => {
+  const received: { path: string; body: any }[] = [];
+  let web: http.Server;
+  let webUrl: string;
+  let trapper: net.Server;
+  let trapperPort: number;
+  const trapped: any[] = [];
+  let zbxRespond: (data: any[]) => any = (data) => ({ response: 'success', info: `processed: ${data.length}; failed: 0; total: ${data.length}; seconds spent: 0.000042` });
+
+  beforeAll(async () => {
+    web = http.createServer((req, res) => {
+      let b = '';
+      req.on('data', (d) => (b += d));
+      req.on('end', () => {
+        received.push({ path: req.url ?? '', body: JSON.parse(b || 'null') });
+        res.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((r) => web.listen(0, '127.0.0.1', r));
+    webUrl = `http://127.0.0.1:${(web.address() as net.AddressInfo).port}/hook`;
+    // a tiny Zabbix trapper: ZBXD\x01 + uint32le length + uint32le reserved + JSON, answered the same way
+    const { decodePacket, encodePacket } = await import('../src/monitors/zabbix.js');
+    trapper = net.createServer((sock) => {
+      let buf = Buffer.alloc(0);
+      sock.on('data', (d) => {
+        buf = Buffer.concat([buf, d]);
+        const p = decodePacket(buf);
+        if (!p) return;
+        const req = p.json as { request: string; data: any[] };
+        expect(req.request).toBe('sender data');
+        trapped.push(...req.data);
+        sock.end(encodePacket(zbxRespond(req.data)));
+      });
+    });
+    await new Promise<void>((r) => trapper.listen(0, '127.0.0.1', r));
+    trapperPort = (trapper.address() as net.AddressInfo).port;
+  });
+  afterAll(() => {
+    web.close();
+    trapper.close();
+  });
+
+  it('Zabbix sender protocol: header, little-endian length, processed/failed parsing', async () => {
+    const { decodePacket, encodePacket, parseInfo, zabbixSend } = await import('../src/monitors/zabbix.js');
+    const pkt = encodePacket({ request: 'sender data', data: [] });
+    expect(pkt.subarray(0, 5)).toEqual(Buffer.from([0x5a, 0x42, 0x58, 0x44, 0x01])); // "ZBXD" 0x01
+    expect(pkt.readUInt32LE(5)).toBe(pkt.length - 13);
+    expect(decodePacket(pkt)!.json).toEqual({ request: 'sender data', data: [] });
+    expect(decodePacket(pkt.subarray(0, 10))).toBeNull();
+    expect(parseInfo('processed: 2; failed: 1; total: 3; seconds spent: 0.000055')).toEqual({ processed: 2, failed: 1, total: 3, secondsSpent: 0.000055 });
+    const r = await zabbixSend('127.0.0.1', trapperPort, [{ host: 'h', key: 'k', value: '0', clock: 1700000000, ns: 5 }]);
+    expect(r).toMatchObject({ response: 'success', processed: 1, failed: 0 });
+    expect(trapped.at(-1)).toEqual({ host: 'h', key: 'k', value: '0', clock: 1700000000, ns: 5 });
+  });
+
+  it('sends status changes to a webhook, Gatus external endpoints and Zabbix (trapper and history.push)', async () => {
+    const zbx = await s.api('POST', '/platforms', {
+      name: 'Zabbix trapper (test)',
+      kind: 'zabbix',
+      baseUrl: 'http://127.0.0.1:1',
+      config: { auth: { type: 'none' }, variables: { host: 'steward-test', trapperHost: '127.0.0.1', trapperPort: String(trapperPort) }, http: {} },
+    });
+    const r = await dana('POST', '/monitors', {
+      key: 'outputs-test',
+      definition: {
+        name: 'Outputs test',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }],
+        outputs: [
+          { id: 'web', type: 'webhook', url: webUrl },
+          { id: 'gatus', type: 'gatus', platform: 'Gatus (demo)', endpointKey: 'steward_machine-monitors', include: 'monitor' },
+          { id: 'trap', type: 'zabbix', platform: zbx.id, via: 'sender' },
+          { id: 'api', type: 'zabbix', platform: 'Zabbix (demo)', via: 'api', value: 'text', include: 'checks' },
+        ],
+      },
+    });
+    const hb = r.secrets[0];
+    expect((await hook(hb.path, { value: 1, status: 'down' }, bearer(hb.secret))).body.status).toBe('down');
+    await eng.settle();
+    // webhook: one POST per evaluation with the changed subjects
+    const evs = received.flatMap((x) => x.body.events);
+    expect(evs.find((e: any) => e.level === 'monitor' && e.status === 'down')).toMatchObject({ status: 'down', statusCode: 2, monitor: { key: 'outputs-test' } });
+    expect(evs.find((e: any) => e.level === 'check' && e.status === 'down')).toMatchObject({ status: 'down', check: { id: 'hb', key: 'outputs-test.hb' } });
+    // Zabbix trapper got monitor and check items with the default keys and numeric codes
+    expect(trapped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ host: 'steward-test', key: 'steward.monitor.status[outputs-test]', value: '2' }),
+        expect.objectContaining({ host: 'steward-test', key: 'steward.check.status[outputs-test,hb]', value: '2' }),
+      ]),
+    );
+    // Zabbix API history.push (mock): only checks, as text
+    const pushed = (await (await fetch(`${s.base}/mock/zabbix/received`)).json()).received;
+    expect(pushed).toEqual(expect.arrayContaining([expect.objectContaining({ host: 'steward-demo', key: 'steward.check.status[outputs-test,hb]', value: 'down' })]));
+    expect(pushed.some((p: any) => p.key === 'steward.monitor.status[outputs-test]')).toBe(false);
+    // Gatus external endpoint got success=false
+    const g = await s.api('POST', `/platforms/${P['Gatus (demo)']}/request`, { method: 'GET', path: '/api/v1/endpoints/steward_machine-monitors/statuses' });
+    expect(g.body.results.at(-1)).toMatchObject({ success: false });
+    // no change → nothing new is sent
+    const n = received.length;
+    const t = trapped.length;
+    await eng.evaluateMonitorNow(r.monitor.id);
+    expect(received.length).toBe(n);
+    expect(trapped.length).toBe(t);
+    // recovery is sent
+    await hook(hb.path, { value: 1, status: 'up' }, bearer(hb.secret));
+    await eng.settle();
+    expect(received.at(-1)!.body.events.map((e: any) => e.status)).toContain('up');
+    expect(trapped.at(-1).value).toBe('0');
+  });
+
+  it('a failing output is retried on a later evaluation; Zabbix "failed" counts are errors', async () => {
+    zbxRespond = (data) => ({ response: 'success', info: `processed: 0; failed: ${data.length}; total: ${data.length}; seconds spent: 0.00001` });
+    const m = await s.api('GET', '/monitors/outputs-test');
+    const hb = m.checks[0];
+    const secret = (await dana('POST', `/monitors/${m.id}/checks/hb/rotate`)).secret;
+    await hook(hb.heartbeat.path, { status: 'down' }, bearer(secret));
+    await eng.settle();
+    const { db } = await import('../src/db.js');
+    const st = db().get<{ last_error: string; last_status: string }>("SELECT last_error, last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''", m.id)!;
+    expect(st.last_error).toMatch(/processed 0 of 2 values \(failed: 2\)/);
+    expect(st.last_status).toBe('up'); // still the last delivered status → retried
+    zbxRespond = (data) => ({ response: 'success', info: `processed: ${data.length}; failed: 0; total: ${data.length}; seconds spent: 0.00001` });
+    const { resetOutputState } = await import('../src/monitors/outputs.js');
+    resetOutputState();
+    await eng.evaluateMonitorNow(m.id);
+    expect(db().get<{ last_status: string }>("SELECT last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''", m.id)!.last_status).toBe('down');
+    await hook(hb.heartbeat.path, { status: 'up' }, bearer(secret));
+    await eng.settle();
+  });
+
+  it('starts a runbook with the monitor context as inputs (as the owner)', async () => {
+    await s.api('POST', '/processes', {
+      definition: { name: 'Monitor runbook', inputs: [{ name: 'monitor', type: 'string' }, { name: 'cause', type: 'string' }], steps: [{ id: 'log', type: 'log', message: 'down: {{ inputs.monitor }}' }] },
+    });
+    const r = await dana('POST', '/monitors', {
+      definition: {
+        name: 'Runbook test',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'hb', name: 'Report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }],
+        outputs: [{ id: 'run', type: 'process', processId: 'monitor-runbook', inputs: { monitor: 'monitor.name', cause: 'event.rootCauses[0].checkName' } }],
+      },
+    });
+    const hb = r.secrets[0];
+    await hook(hb.path, { status: 'down' }, bearer(hb.secret));
+    await eng.settle();
+    const runs = await s.api('GET', '/runs?processId=monitor-runbook');
+    expect(runs).toHaveLength(1);
+    const run = await s.waitRun(runs[0].id);
+    expect(run.inputs).toEqual({ monitor: 'Runbook test', cause: 'Report' });
+    expect(run.actor).toBe('dana');
+    expect(run.triggerName).toBe('Monitor "Runbook test"');
+    // recovering does not start another run (default statuses: down)
+    await hook(hb.path, { status: 'up' }, bearer(hb.secret));
+    await eng.settle();
+    expect(await s.api('GET', '/runs?processId=monitor-runbook')).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('pull integrations', () => {
+  let token: string;
+  const v1 = async (path: string, t = token) => {
+    const res = await fetch(`${s.base}/api/v1${path}`, { headers: { authorization: `Bearer ${t}` } });
+    return { status: res.status, body: await res.json() };
+  };
+  beforeAll(async () => {
+    token = (await vera('POST', '/me/tokens', { name: 'zabbix', scope: 'read' })).token;
+  });
+
+  it('lists monitors and reports the status of a monitor with its checks', async () => {
+    const list = await v1('/monitors?limit=200');
+    expect(list.status).toBe(200);
+    const m = list.body.items.find((x: any) => x.key === 'outputs-test');
+    expect(m).toMatchObject({ status: 'up', statusCode: 0, enabled: true });
+    const st = await v1('/monitors/outputs-test/status');
+    expect(st.body.checks[0]).toMatchObject({ checkId: 'hb', key: 'outputs-test.hb', type: 'heartbeat', statusCode: 0 });
+    expect(JSON.stringify(st.body)).not.toMatch(/mhs_|secret/);
+    expect((await v1('/monitors/nope/status')).status).toBe(404);
+    expect((await v1('/monitors', 'smt_invalid')).status).toBe(401);
+    const hist = await v1(`/monitors/${m.id}/history?limit=2`);
+    expect(hist.body.items).toHaveLength(2);
+    expect(hist.body.nextCursor).toBeTruthy();
+    const next = await v1(`/monitors/${m.id}/history?limit=2&cursor=${hist.body.nextCursor}`);
+    expect(Number(next.body.items[0].id)).toBeLessThan(Number(hist.body.items[1].id));
+  });
+
+  it('Zabbix low-level discovery format', async () => {
+    const d = await v1('/monitors/discovery');
+    expect(Array.isArray(d.body.data)).toBe(true);
+    expect(d.body.data).toEqual(expect.arrayContaining([{ '{#MONITOR}': 'outputs-test', '{#MONITORNAME}': 'Outputs test', '{#MONITORID}': expect.any(String), '{#CHECK}': 'hb', '{#CHECKNAME}': 'Report', '{#CHECKTYPE}': 'heartbeat', '{#CHECKKEY}': 'outputs-test.hb' }]));
+    const ml = await v1('/monitors/discovery?level=monitors');
+    expect(ml.body.data.find((x: any) => x['{#MONITOR}'] === 'outputs-test')).toEqual({ '{#MONITOR}': 'outputs-test', '{#MONITORNAME}': 'Outputs test', '{#MONITORID}': expect.any(String) });
+  });
+
+  it('the OpenAPI document describes the monitor endpoints', async () => {
+    const doc = (await v1('/openapi.json')).body;
+    expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(['/monitors', '/monitors/discovery', '/monitors/{monitorId}', '/monitors/{monitorId}/status', '/monitors/{monitorId}/history']));
+    expect(doc.components.schemas.MonitorStatusReport).toBeTruthy();
+  });
+
+  it('Prometheus gauges', async () => {
+    const text = await s.api('GET', '/metrics');
+    expect(text).toMatch(/steward_monitor_status\{monitor="outputs-test",check=""\} 0/);
+    expect(text).toMatch(/steward_monitor_status\{monitor="outputs-test",check="hb"\} 0/);
+    expect(text).toMatch(/steward_monitor_last_ok_timestamp\{monitor="outputs-test",check="hb"\} \d{10}/);
+    expect(text).toMatch(/steward_monitor_evaluations_total\{type="heartbeat",result="up"\} \d+/);
+  });
+
+  it('publishes datasets for dashboards', async () => {
+    const { publishDirtyDatasets } = await import('../src/monitors/datasets.js');
+    publishDirtyDatasets();
+    const all = await s.api('GET', '/datasets');
+    expect(all.map((d: any) => d.key)).toEqual(expect.arrayContaining(['monitors.status', 'monitor.outputs-test']));
+    const ds = await s.api('GET', '/datasets/monitor.outputs-test');
+    expect(ds.rows[0]).toMatchObject({ Check: 'Report', Status: 'up', _status: 'good' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('permissions, templates and lifecycle', () => {
+  it('designers create and edit, operators view and acknowledge, viewers only view; access lists narrow it', async () => {
+    expect(await status(olivia('POST', '/monitors', { definition: { name: 'Nope', checks: [] } }))).toBe(403);
+    expect(await status(vera('POST', '/monitors', { definition: { name: 'Nope', checks: [] } }))).toBe(403);
+    const { monitor } = await dana('POST', '/monitors', { definition: { name: 'Restricted', checks: [{ id: 't', name: 'T', type: 'tcp', host: '127.0.0.1', port: 1 }] } });
+    expect(monitor.owner).toBe('dana');
+    expect((await vera('GET', `/monitors/${monitor.id}`)).permissions).toEqual(['view']);
+    expect((await olivia('GET', `/monitors/${monitor.id}`)).permissions).toEqual(['view', 'acknowledge']);
+    expect(await status(vera('PUT', `/monitors/${monitor.id}`, { definition: monitor.definition }))).toBe(403);
+    expect(await status(olivia('PUT', `/monitors/${monitor.id}`, { definition: monitor.definition }))).toBe(403);
+    // optimistic locking
+    expect(await status(dana('PUT', `/monitors/${monitor.id}`, { definition: monitor.definition, version: 99 }))).toBe(409);
+    await dana('PUT', `/monitors/${monitor.id}/access`, { acl: [{ subject: 'team:service desk', permissions: ['view'] }] });
+    expect(await status(vera('GET', `/monitors/${monitor.id}`))).toBe(404);
+    expect((await olivia('GET', `/monitors/${monitor.id}`)).permissions).toEqual(['view']);
+    expect((await vera('GET', '/monitors')).some((m: any) => m.id === monitor.id)).toBe(false);
+    // the overview dataset is only visible to users who may see every monitor
+    const { publishDirtyDatasets } = await import('../src/monitors/datasets.js');
+    const { markDatasetsDirty } = await import('../src/monitors/datasets.js');
+    markDatasetsDirty(monitor.id);
+    publishDirtyDatasets();
+    expect((await vera('GET', '/datasets')).some((d: any) => d.key === 'monitors.status')).toBe(false);
+    expect((await s.api('GET', '/datasets')).some((d: any) => d.key === 'monitors.status')).toBe(true);
+    await dana('DELETE', `/monitors/${monitor.id}`);
+    expect(await status(dana('GET', `/monitors/${monitor.id}`))).toBe(404);
+    const audit = await s.api('GET', `/audit?entityType=monitor&entityId=${monitor.id}`);
+    expect(audit.map((a: any) => a.action)).toEqual(expect.arrayContaining(['monitor.created', 'monitor.access_changed', 'monitor.deleted']));
+  });
+
+  it('templates: instances from a form row and from CSV, outdated after a template change, re-sync', async () => {
+    const tpl = (await s.api('GET', '/monitors?templates=1')).find((m: any) => m.key === 'powermeter-machine');
+    expect(tpl).toBeTruthy();
+    const csv = [
+      'name,machine,pmHost,pmPort,pmAssetId,machineAssetId,title',
+      'Machine 21 – PowerMeter,m21,10.20.21.5,502,asset21pm,asset21m,M21',
+      '"Machine 22 – PowerMeter",m22,10.20.22.5,,asset22pm,asset22m,M22',
+    ].join('\n');
+    const made = await dana('POST', `/monitors/${tpl.id}/instances`, { csv });
+    expect(made.map((r: any) => r.monitor.name)).toEqual(['Machine 21 – PowerMeter', 'Machine 22 – PowerMeter']);
+    const m22 = made[1].monitor;
+    expect(m22.templateId).toBe(tpl.id);
+    expect(m22.templateParams).toMatchObject({ machine: 'm22', pmPort: 502, pmCadence: 60 });
+    const ping = m22.definition.checks.find((c: any) => c.id === 'pm-reachable');
+    expect(ping).toMatchObject({ host: '10.20.22.5', fallbackPort: 502 });
+    expect(m22.definition.checks.find((c: any) => c.id === 'machine-ih').maxAgeSeconds).toBe(900);
+    expect(check(await s.api('GET', `/monitors/${m22.id}`), 'pm-reports').key).toBe('m22.powermeter');
+    expect(made[1].secrets).toHaveLength(2); // two heartbeat endpoints
+    // a bad row creates nothing
+    await expect(dana('POST', `/monitors/${tpl.id}/instances`, { rows: [{ params: { title: 'X', machine: 'm23', pmHost: '10.0.0.1', pmAssetId: 'a', machineAssetId: 'b' } }, { params: { title: 'Y' } }] })).rejects.toThrow(/Row 2: Parameter \W+Machine code\W+ is required/);
+    expect((await s.api('GET', '/monitors')).some((m: any) => m.name === 'X')).toBe(false);
+    // change the template → instances are outdated → re-sync applies it
+    const t = await s.api('GET', `/monitors/${tpl.id}`);
+    await s.api('PUT', `/monitors/${tpl.id}`, { definition: { ...t.definition, intervalSeconds: 120 } });
+    expect((await s.api('GET', `/monitors/${m22.id}`)).templateOutdated).toBe(true);
+    const re = await dana('POST', `/monitors/${m22.id}/resync`);
+    expect(re.monitor.definition.intervalSeconds).toBe(120);
+    expect(re.monitor.templateOutdated).toBe(false);
+    expect(re.secrets).toHaveLength(0); // heartbeat endpoints and secrets are kept
+  });
+
+  it('exports YAML with portable references and imports it again', async () => {
+    const yaml = await s.api('GET', '/monitors/machine-17-powermeter/export');
+    expect(yaml).toMatch(/kind: monitor/);
+    expect(yaml).toMatch(/platform: Insights Hub \(demo\)/);
+    expect(yaml).toMatch(/monitor: machine-17-machine-data/);
+    const r = await dana('POST', '/monitors/import', { yaml: yaml.replace(/key: m17\./g, 'key: copy17.'), key: 'machine-17-copy' });
+    expect(r.monitor.key).toBe('machine-17-copy');
+    expect(r.monitor.definition.checks.find((c: any) => c.type === 'monitor').monitor).toMatch(/^mon_/);
+  });
+
+  it('demo: machine 18 shows the gateway as root cause of the stale Insights Hub data', async () => {
+    const list = await s.api('GET', '/monitors');
+    expect(list.map((m: any) => m.key)).toEqual(expect.arrayContaining(['machine-17-machine-data', 'machine-17-powermeter', 'plant-services', 'machine-18-powermeter']));
+    const m18 = list.find((m: any) => m.key === 'machine-18-powermeter');
+    const { setMonitorClock } = eng;
+    // the simulator's last PowerMeter report of machine 18 is 25 minutes old (it ran once at demo setup)
+    await eng.evaluateMonitorNow(m18.id);
+    try {
+      setMonitorClock(() => Date.now() + 1000);
+      await eng.evaluateMonitorNow(m18.id);
+    } finally {
+      setMonitorClock(null);
+    }
+    const m = await s.api('GET', `/monitors/${m18.id}`);
+    expect(check(m, 'pm-reports').status).toBe('down');
+    expect(check(m, 'pm-ih').status).toBe('down');
+    expect(check(m, 'pm-ih').causedBy.map((c: any) => c.checkId)).toEqual(['pm-reports']);
+    expect(check(m, 'machine-reports').status).toBe('up');
+    expect(m.rootCauses.map((c: any) => c.checkId)).toEqual(['pm-reports']);
+  });
+
+  it('keeps state across an engine restart and applies retention', async () => {
+    const before = await s.api('GET', '/monitors/outputs-test');
+    await eng.stopMonitorEngine();
+    eng.startMonitorEngine();
+    const after = await s.api('GET', '/monitors/outputs-test');
+    expect(after.status).toBe(before.status);
+    expect(check(after, 'hb').since).toBe(check(before, 'hb').since);
+    expect(check(after, 'hb').lastOkAt).toBe(check(before, 'hb').lastOkAt);
+    // retention: old history goes, the newest change per check stays
+    const { deleteMonitorDataBefore } = await import('../src/monitors/retention.js');
+    const removed = deleteMonitorDataBefore(new Date(Date.now() + 86400000).toISOString());
+    expect(removed.results).toBeGreaterThan(0);
+    const hist = await s.api('GET', `/monitors/${after.id}/history?check=hb`);
+    expect(hist).toHaveLength(1);
+    const st = await s.api('GET', '/settings');
+    expect(st.retentionMonitorDays).toBe(30);
+  });
+});

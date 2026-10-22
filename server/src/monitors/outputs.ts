@@ -328,7 +328,7 @@ async function sendZabbix(o: Extract<OutputDef, { type: 'zabbix' }>, m: LoadedMo
     const r = await platformRequest(
       platform,
       secrets,
-      { method: 'POST', url: path, body: { jsonrpc: '2.0', method: 'history.push', params: items, id: 1 }, bodyType: 'json', headers: { 'content-type': 'application/json-rpc' } },
+      { method: 'POST', url: path, body: { jsonrpc: '2.0', method: 'history.push', params: items, id: 1 }, bodyType: 'json' },
       AbortSignal.timeout(15000),
     );
     const b = r.body as { result?: { response?: string; data?: { itemid?: string; error?: string }[] }; error?: { message?: string; data?: string } } | null;
