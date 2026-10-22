@@ -36,7 +36,7 @@ export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
         </span>
         <Dot />
         <Group gap={5} wrap="nowrap" component="span">
-          Metropolregion Mittelfranken <FrankenRechen />
+          Metropolregion Nürnberg <FrankenRechen />
         </Group>
         <Dot />
         <span>
