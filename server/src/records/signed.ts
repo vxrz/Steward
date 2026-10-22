@@ -2,10 +2,11 @@ import type { RecordAttachment, SignatureInfo, SignedPdfDetails } from '@sm/shar
 import { db } from '../db.js';
 import { audit, authenticRows } from '../audit.js';
 import { isAdmin } from '../auth/permissions.js';
-import { HttpError, newId, sha256 } from '../util.js';
+import { HttpError, newId, parseJson, sha256 } from '../util.js';
 import { canApproveRecords, canEditRecord, forbid, me } from './access.js';
-import { attachmentRows, requireRecordRow, toAttachment, type AttachmentRow } from './model.js';
-import { touch } from './service.js';
+import { attachmentRows, requireRecordRow, toAttachment, type AttachmentRow, type RecordRow } from './model.js';
+import { touch, workflowOf } from './service.js';
+import { requireType } from './types.js';
 import { insertAttachment, MAX_ATTACHMENT_BYTES, safeFilename, writeAttachmentFile } from './attachments.js';
 
 /**
@@ -14,17 +15,23 @@ import { insertAttachment, MAX_ATTACHMENT_BYTES, safeFilename, writeAttachmentFi
  * Signing a PDF appends an incremental update: the bytes of the original file
  * stay unchanged at the start of the signed one. A signed upload is accepted
  * when its first <size of a generated PDF> bytes have that PDF's SHA-256 – a
- * PDF Steward generated for this record, with an authentic
- * record.pdf_generated entry in the audit log – and the appended part
- * contains at least one signature dictionary.
+ * PDF Steward generated for this record's current, frozen revision, with an
+ * authentic record.pdf_generated entry in the audit log – and the appended
+ * part contains at least one signature dictionary, each with a signature
+ * value (/Contents) and a byte range that covers its revision of the file.
  *
- * Only the structure is checked: signer name, signing time and byte ranges
- * are read from the signature dictionaries, but the signatures are NOT
- * validated cryptographically (no certificate chain, no PAdES validation).
- * Use a PDF reader or a validation service for that.
+ * Only the structure is checked: the signer name (as the signing tool
+ * claims it), signing time and byte ranges are read from the signature
+ * dictionaries, but the signatures are NOT validated cryptographically (no
+ * certificate chain, no PAdES validation). Use a PDF reader or a validation
+ * service for that.
  */
 
 const MAX_SIGNATURES = 50;
+/** How far around a /ByteRange the signature dictionary is looked for (the /Contents placeholder is a few KB to some 100 KB). */
+const DICT_WINDOW = 512 * 1024;
+/** Stored PDFs per record: generated ones, signed copies, and the bytes of both together. */
+export const PDF_LIMITS = { generated: 100, signed: 30, bytes: 300 * 1024 * 1024 };
 
 /** PDF literal string body (between the outer parentheses) → bytes. */
 function literalBytes(s: string): Buffer {
@@ -73,13 +80,15 @@ export function stringEntry(dict: string, key: string): string | null {
   if (m[1] === '<') {
     const end = dict.indexOf('>', i);
     if (end < 0) return null;
-    const hex = dict.slice(i, end).replace(/\s+/g, '');
+    const hex = dict.slice(i, Math.min(end, i + 4096)).replace(/\s+/g, '');
     if (!/^[0-9a-fA-F]*$/.test(hex)) return null;
     return decodeText(Buffer.from(hex.length % 2 ? hex + '0' : hex, 'hex')).slice(0, 500);
   }
   let depth = 1;
   let body = '';
-  for (; i < dict.length && depth > 0; i++) {
+  // values are cut to 500 characters: no need to read more than a few KB of a (possibly huge) string
+  const stop = Math.min(dict.length, i + 4096);
+  for (; i < stop && depth > 0; i++) {
     const c = dict[i]!;
     if (c === '\\') {
       body += c + (dict[i + 1] ?? '');
@@ -116,14 +125,31 @@ export function pdfDate(s: string | null): string | null {
 export function findSignatures(data: Buffer, from = 0): SignatureInfo[] {
   const text = data.toString('latin1');
   const out: SignatureInfo[] = [];
+  // the fields that refer to a signature value (/V <n> 0 R), indexed in one pass
+  let fieldRefs: Map<string, number> | null = null;
+  const fieldRef = (objNo: string): number | undefined => {
+    if (!fieldRefs) {
+      fieldRefs = new Map();
+      const re = /\/V\s+(\d+)\s+0\s+R/g;
+      re.lastIndex = from;
+      for (let m = re.exec(text); m; m = re.exec(text)) if (!fieldRefs.has(m[1]!)) fieldRefs.set(m[1]!, m.index);
+    }
+    return fieldRefs.get(objNo);
+  };
   let at = text.indexOf('/ByteRange', from);
   while (at >= 0 && out.length < MAX_SIGNATURES) {
-    const start = text.lastIndexOf(' obj', at);
-    const objStart = start >= 0 ? text.lastIndexOf('\n', start) + 1 : Math.max(0, at - 2000);
-    const endObj = text.indexOf('endobj', at);
-    const end = endObj > 0 ? endObj : Math.min(text.length, at + 4000);
+    // the object around it, looked for in a bounded window (no scan to the start or end of the file per signature)
+    const winStart = Math.max(0, at - DICT_WINDOW);
+    const before = text.slice(winStart, at);
+    const start = before.lastIndexOf(' obj');
+    const objStart = start >= 0 ? winStart + before.lastIndexOf('\n', start) + 1 : Math.max(0, at - 2000);
+    const endInWin = text.slice(at, at + DICT_WINDOW).indexOf('endobj');
+    const end = endInWin > 0 ? at + endInWin : Math.min(text.length, at + 4000);
     // the dictionary text without the (long) hex signature value
-    const dict = text.slice(objStart, end).replace(/\/Contents\s*<[0-9a-fA-F\s]*>/, '/Contents <…>');
+    const raw = text.slice(objStart, end);
+    const contents = /\/Contents\s*<([0-9a-fA-F\s]*)>/.exec(raw);
+    const dict = contents ? raw.slice(0, contents.index) + '/Contents <…>' + raw.slice(contents.index + contents[0].length) : raw;
+    const hasContents = !!contents && /[0-9a-fA-F]/.test(contents[1]!);
     const br = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/.exec(dict);
     let byteRangeOk = false;
     if (br) {
@@ -134,18 +160,18 @@ export function findSignatures(data: Buffer, from = 0): SignatureInfo[] {
           .subarray(Math.max(0, c + d - 8), c + d)
           .toString('latin1')
           .includes('%%EOF');
-      byteRangeOk = a === 0 && b > 0 && c > b && c + d <= data.length && data[b] === 0x3c && data[c - 1] === 0x3e && coversRevision;
+      byteRangeOk = hasContents && a === 0 && b > 0 && c > b && c + d <= data.length && data[b] === 0x3c && data[c - 1] === 0x3e && coversRevision;
     }
     const objNo = /^(\d+)\s+\d+\s+obj/.exec(text.slice(objStart, objStart + 40))?.[1];
     let field: string | null = null;
     if (objNo) {
       // the signature field (or merged widget) refers to the value with /V <n> 0 R
-      const ref = new RegExp(`/V\\s+${objNo}\\s+0\\s+R`).exec(text.slice(from));
-      if (ref) {
-        const pos = from + ref.index;
-        const fs = text.lastIndexOf(' obj', pos);
-        const fe = text.indexOf('endobj', pos);
-        if (fs >= 0 && fe > 0) field = stringEntry(text.slice(fs, fe), 'T');
+      const pos = fieldRef(objNo);
+      if (pos !== undefined) {
+        const fwStart = Math.max(0, pos - DICT_WINDOW);
+        const fs = text.slice(fwStart, pos).lastIndexOf(' obj');
+        const fe = text.slice(pos, pos + DICT_WINDOW).indexOf('endobj');
+        if (fs >= 0 && fe > 0) field = stringEntry(text.slice(fwStart + fs, pos + fe), 'T');
       }
     }
     out.push({
@@ -181,14 +207,31 @@ function derivedFrom(recordId: string, data: Buffer): AttachmentRow | null {
       [recordId, g.sha256],
       { limit: 5 },
     );
-    if (rows.length) return g;
+    if (rows.length) return { ...g, details: rows[0]!.details };
   }
+  return null;
+}
+
+/**
+ * Why a generated PDF may not be signed (yet): only a PDF of the current
+ * revision, generated while its content was frozen, with the frozen content
+ * hash (from its authentic audit entry). Null when it may.
+ */
+function notSignable(r: RecordRow, g: AttachmentRow): string | null {
+  const wf = workflowOf(requireType(r.type_id));
+  const d = parseJson<{ revision?: number; status?: string; contentHash?: string } | null>(g.details, null);
+  if (!d || d.status === undefined || d.status === wf.initial)
+    return `${g.filename} was generated from a draft: generate the PDF again once the content is frozen and sign that one`;
+  if (Number(d.revision) !== Number(r.revision) || r.status === wf.initial || !r.frozen_hash || d.contentHash !== r.frozen_hash)
+    return `${g.filename} shows an older revision of ${r.number}: generate the PDF of the current revision and sign that one`;
   return null;
 }
 
 export interface SignedCheck {
   ok: boolean;
   message: string;
+  /** Error code when not ok and more specific than the defaults */
+  code?: string;
   generated: AttachmentRow | null;
   signatures: SignatureInfo[];
   exactCopy: boolean;
@@ -197,6 +240,7 @@ export interface SignedCheck {
 /** Checks a signed upload without storing it. */
 export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
   const none = { generated: null, signatures: [], exactCopy: false };
+  const r = requireRecordRow(recordId);
   if (!data.subarray(0, 1024).includes('%PDF-')) return { ok: false, message: 'This is not a PDF file', ...none };
   const exact = attachmentRows(recordId, 'generated').find((g) => g.sha256 === sha256(data));
   if (exact)
@@ -209,6 +253,8 @@ export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
         'This PDF is not derived from a PDF Steward generated for this record: its first bytes do not match any of them. Sign a PDF generated here and upload the signed file unchanged.',
       ...none,
     };
+  const stale = notSignable(r, g);
+  if (stale) return { ok: false, message: stale, generated: g, signatures: [], exactCopy: false, code: 'PDF_NOT_CURRENT' };
   const signatures = findSignatures(data, Number(g.size));
   if (!signatures.length)
     return {
@@ -217,6 +263,16 @@ export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
       generated: g,
       signatures,
       exactCopy: false,
+    };
+  if (signatures.some((x) => !x.byteRangeOk))
+    return {
+      ok: false,
+      message:
+        'A signature in this file has no signature value or a byte range that does not cover its revision of the file – upload the file exactly as the signing tool saved it',
+      generated: g,
+      signatures,
+      exactCopy: false,
+      code: 'PDF_BAD_SIGNATURE',
     };
   return { ok: true, message: `Derived from ${g.filename}; ${signatures.length} signature(s) found`, generated: g, signatures, exactCopy: false };
 }
@@ -236,9 +292,10 @@ export function uploadSignedPdf(
   if (!canEditRecord(u, r) && !canApproveRecords(u)) forbid('upload signed PDFs');
   if (o.plain && !isAdmin(u)) forbid('attach unverified PDFs');
   if (data.length > MAX_ATTACHMENT_BYTES) throw new HttpError(413, `The file is too large (at most ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB)`);
+  checkPdfLimits(r.id, 'signed', data.length);
   const check = checkSignedPdf(r.id, data);
   if (!check.ok && !o.plain)
-    throw new HttpError(422, check.message, check.exactCopy ? 'PDF_NOT_SIGNED' : check.generated ? 'PDF_NO_SIGNATURE' : 'PDF_NOT_DERIVED');
+    throw new HttpError(422, check.message, check.code ?? (check.exactCopy ? 'PDF_NOT_SIGNED' : check.generated ? 'PDF_NO_SIGNATURE' : 'PDF_NOT_DERIVED'));
   if (o.plain && !data.subarray(0, 1024).includes('%PDF-')) throw new HttpError(415, 'This is not a PDF file');
   const hash = sha256(data);
   if (attachmentRows(r.id).some((a) => a.sha256 === hash)) throw new HttpError(409, 'This file is attached to the record already');
@@ -275,11 +332,23 @@ export function uploadSignedPdf(
       entityType: 'record',
       entityId: r.id,
       summary: check.ok
-        ? `Signed PDF ${name} uploaded to ${r.number}: derived from ${check.generated!.filename}, ${check.signatures.length} signature(s) (${check.signatures.map((s) => s.name ?? '?').join(', ')}) – structure checked, not cryptographically validated`
+        ? `Signed PDF ${name} uploaded to ${r.number}: derived from ${check.generated!.filename}, ${check.signatures.length} signature(s) (claimed signers: ${check.signatures.map((s) => s.name ?? '?').join(', ')}) – structure checked, not cryptographically validated`
         : `PDF ${name} attached to ${r.number} without verification by an administrator: ${check.message}`,
       details: { number: r.number, attachmentId: id, filename: name, sha256: hash, size: data.length, ...details },
     });
   });
   const { generated: _g, ...rest } = check;
   return { ...toAttachment(row), check: rest };
+}
+
+/** Refuses another stored PDF when the record has as many as PDF_LIMITS allows (disk space). */
+export function checkPdfLimits(recordId: string, kind: 'generated' | 'signed', size: number): void {
+  const rows = db().all<{ kind: string; n: number; bytes: number | null }>(
+    "SELECT kind, COUNT(*) AS n, SUM(size) AS bytes FROM record_attachments WHERE record_id = ? AND kind IN ('generated', 'signed') GROUP BY kind",
+    recordId,
+  );
+  const n = Number(rows.find((x) => x.kind === kind)?.n ?? 0);
+  const bytes = rows.reduce((sum, x) => sum + Number(x.bytes ?? 0), 0);
+  if (n >= PDF_LIMITS[kind]) throw new HttpError(409, `At most ${PDF_LIMITS[kind]} ${kind} PDFs per record`, 'PDF_LIMIT');
+  if (bytes + size > PDF_LIMITS.bytes) throw new HttpError(409, `The PDFs of this record take ${PDF_LIMITS.bytes / 1024 / 1024} MB at most`, 'PDF_LIMIT');
 }

@@ -100,7 +100,7 @@ export function LinksPanel({
                       </Anchor>
                     ) : (
                       <Text size="sm" c="dimmed">
-                        {t('links.notVisible', { id: l.targetId })}
+                        {t('links.notVisible')}
                       </Text>
                     )}
                   </Table.Td>
@@ -111,7 +111,7 @@ export function LinksPanel({
                         <ActionIcon
                           variant="subtle"
                           color="red"
-                          aria-label={t('links.removeNamed', { name: l.label || l.url || l.targetId })}
+                          aria-label={t('links.removeNamed', { name: l.label || l.url || t('links.notVisible') })}
                           onClick={async () => {
                             if (confirm(t('links.removeConfirm'))) await onRemove(l.id).catch(notifyError);
                           }}

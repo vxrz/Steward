@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { allowEmailDomains, setup, startTestServer, type Client, type TestServer } from './helpers.js';
 
 /**
  * Wiring between the service catalogue, the credentials register and records:
@@ -36,6 +36,7 @@ const iso = (t: number) => new Date(t).toISOString().slice(0, 16) + 'Z';
 beforeAll(async () => {
   s = await startTestServer();
   await setup(s);
+  await allowEmailDomains(s, ['example.com']);
   await s.api('POST', '/demo/setup', {});
   [dana, olivia, adam, audrey, vera] = await Promise.all(['dana', 'olivia', 'adam', 'audrey', 'vera'].map((u) => s.as(u, PW)));
 });
@@ -91,8 +92,9 @@ describe('services, credentials and records', () => {
 
     // a viewer reads the record, but not the credential's name
     const asVera = await vera('GET', `/records/${rec.id}`);
-    expect(asVera.links).toEqual([expect.objectContaining({ kind: 'credential', targetId: shared.id, label: '', visible: false, path: null })]);
+    expect(asVera.links).toEqual([expect.objectContaining({ kind: 'credential', targetId: null, label: '', visible: false, path: null })]);
     expect(JSON.stringify(asVera)).not.toContain('Historian technical user');
+    expect(JSON.stringify(asVera)).not.toContain(shared.id); // no id of an entry the reader may not see
 
     // link-targets: only entries the user may see
     const forDana = (await dana('GET', '/link-targets?kind=credential&q=historian')).map((x: any) => x.id);
@@ -108,7 +110,7 @@ describe('services, credentials and records', () => {
         expect.objectContaining({ kind: 'service', id: svc.id, label: 'Historian service', note: 'service account' }),
       ]),
     );
-    expect(await dana('GET', `/backlinks?kind=credential&id=cred_missing`)).toEqual([]);
+    await expect(dana('GET', `/backlinks?kind=credential&id=cred_missing`)).rejects.toMatchObject({ status: 404 });
   });
 
   it('only visible credentials can be linked (no probing for ids)', async () => {

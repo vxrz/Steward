@@ -39,13 +39,15 @@ export const canCommentRecord = (u: AuthUser | null, r: Pick<RecordRoleInfo, 'ow
 
 /**
  * Four-eyes principle: the owner, the creator, the submitter and everyone who
- * wrote a version of the current revision cannot approve or reject it.
+ * wrote content of the record (a version of any revision, an attached or
+ * removed file) cannot approve or reject it.
  */
 export function fourEyesReason(u: AuthUser, r: RecordRoleInfo, authors: string[]): string | null {
   if (same(r.owner, u.username)) return 'Four-eyes principle: the owner of a record cannot approve or reject it';
   if (same(r.created_by, u.username)) return 'Four-eyes principle: the author of a record cannot approve or reject it';
   if (same(r.submitted_by, u.username)) return 'Four-eyes principle: the person who submitted a record cannot approve or reject it';
-  if (authors.some((a) => same(a, u.username))) return 'Four-eyes principle: an author of this revision cannot approve or reject it';
+  if (authors.some((a) => same(a, u.username)))
+    return 'Four-eyes principle: an author of the content (text, fields or attached files) cannot approve or reject it';
   return null;
 }
 

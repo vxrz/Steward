@@ -31,13 +31,13 @@ Steward creates four types on first start. Administrators change them under _Rec
 
 \* required before the record can be submitted.
 
-_SDR_ is read as "security decision record". If your team uses the abbreviation for something else, rename the type – its key, name, description and template are all editable. The German UI shows the built-in names translated until an administrator renames them.
+_SDR_ is read as "security decision record". If your team uses the abbreviation for something else, change the type's name, description and template (all editable), or archive it and create your own type. The key can change only while no records of the type exist. The German UI shows the built-in names translated until an administrator renames them.
 
 Notes:
 
 - Field kinds: text (one line), text (several lines), date, date and time, choice. Field keys are camelCase (`rollbackPlan`).
-- The workflow of a type cannot change once it has records. Create a new type instead.
-- A new key only affects new numbers. Existing records keep theirs.
+- The key and the workflow of a type cannot change once it has records: the key is part of their numbers and of the content hash they were approved with. Change the name instead, or create a new type.
+- Fields can change at any time. Frozen records keep the field labels, kinds and choices they had when they were frozen (the PDF and the record page show those); values without a definition are shown by their key.
 - Archived types keep their records but accept no new ones.
 - The context, decision, consequences and alternatives of a decision record are sections of the Markdown text (the template has the headings), not fields.
 
@@ -75,25 +75,25 @@ The **content** of a record is its title, Markdown text, fields and attached fil
 
 - Every save that changes title, text or fields creates a **version** (v1, v2, …) with author, change note and a hash. _Versions_ shows the history and a line diff between any two versions.
 - **Leaving the draft status freezes the content.** Steward computes the **content hash** – SHA-256 over the canonical JSON of record id, number, type key, revision, title, text, fields and the name, size and SHA-256 of every attached file – and stores it as the record's _frozen hash_. The transition, and every later one, is audited with this hash.
-- An approval always approves exactly the frozen content. Before every transition Steward recomputes the hash. If the content no longer matches (changed in the database, outside Steward), the record is marked and cannot move on.
+- An approval always approves exactly the frozen content. Before every transition Steward recomputes the hash and compares it with the frozen hash **and** with the hash in the authentic (HMAC-chained) audit entry that froze the revision. If the content no longer matches (changed in the database, outside Steward – even with the frozen hash recomputed), the record is marked as tampered and cannot move on.
 - Tags, the owner and links are not content. They can change after approval; every change is in the audit log.
 
 ## Who may do what
 
 Everyone who can sign in reads records and services (auditors included). The server checks every action.
 
-| Action                                                                                                         | Who                                                                                                                                                      |
-| -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Create records, import Markdown                                                                                | designer, operator, admin                                                                                                                                |
-| Edit a draft, attachments, links, submit/propose, implement, close, cancel, supersede, deprecate, new revision | designer, operator, admin, and the record's owner                                                                                                        |
-| Approve, accept, reject                                                                                        | approver, admin – **four-eyes**: not the owner, not the creator, not the person who submitted it, not anyone who wrote a version of the current revision |
-| Comment                                                                                                        | everyone who may edit or approve                                                                                                                         |
-| Generate PDFs, upload signed PDFs                                                                              | everyone who may edit or approve                                                                                                                         |
-| Attach a PDF without the signature check                                                                       | admin                                                                                                                                                    |
-| Hand a record over to another owner                                                                            | the owner, admin                                                                                                                                         |
-| Manage record types                                                                                            | admin                                                                                                                                                    |
-| Create services                                                                                                | designer, admin                                                                                                                                          |
-| Edit and archive a service, change its links                                                                   | designer, admin, and the users and teams named as responsible on the service                                                                             |
+| Action                                                                                                         | Who                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Create records, import Markdown                                                                                | designer, operator, admin                                                                                                                                                                                                                   |
+| Edit a draft, attachments, links, submit/propose, implement, close, cancel, supersede, deprecate, new revision | designer, operator, admin, and the record's owner                                                                                                                                                                                           |
+| Approve, accept, reject                                                                                        | approver, admin – **four-eyes**: not the owner, not the creator, not the person who submitted it, not anyone who wrote content (a version of any revision – a new revision starts with the earlier content – or attached or removed a file) |
+| Comment                                                                                                        | everyone who may edit or approve                                                                                                                                                                                                            |
+| Generate PDFs, upload signed PDFs                                                                              | everyone who may edit or approve                                                                                                                                                                                                            |
+| Attach a PDF without the signature check                                                                       | admin                                                                                                                                                                                                                                       |
+| Hand a record over to another owner                                                                            | the owner, admin                                                                                                                                                                                                                            |
+| Manage record types                                                                                            | admin                                                                                                                                                                                                                                       |
+| Create services                                                                                                | designer, admin                                                                                                                                                                                                                             |
+| Edit and archive a service, change its links                                                                   | designer, admin, and the users and teams named as responsible on the service                                                                                                                                                                |
 
 ## Writing a record
 
@@ -102,7 +102,7 @@ Everyone who can sign in reads records and services (auditors included). The ser
 3. _Save_. Add a change note if it helps reviewers.
 4. Add links and attachments, then _Submit_ (or _Propose_).
 
-Markdown is rendered without HTML: `<script>` or `<b>` in the text is shown as text. Links work for `http`, `https` and `mailto` only and open in a new tab without a referrer. The same parser feeds the PDF.
+Markdown is rendered without HTML: `<script>` or `<b>` in the text is shown as text. Links work for `http`, `https` and `mailto` only and open in a new tab without a referrer. The same parser feeds the PDF. It works in linear time, so no text can make the page or the PDF hang; tables have at most 50 columns and 20 000 cells per text (longer tables continue as plain text).
 
 ## Links
 
@@ -113,7 +113,7 @@ A record or service links to:
 
 Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
-You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name. Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own.
+You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
 
 Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
 
@@ -221,6 +221,8 @@ The PDF contains:
 
 A draft can be printed too, but the PDF says _DRAFT_ in large letters: sign the PDF of a submitted or approved record.
 
+Very long words (more than 40 characters without a space, 100 in code) get invisible break opportunities, so that they wrap and the PDF stays quick to make – this holds for run and scheduled reports too. A PDF draws at most 1 000 000 characters; a record with more content gets no PDF (shorten it).
+
 ### PDF/A and the signature fields
 
 The PDF is **PDF/A-2b**: embedded fonts (Inter, JetBrains Mono), sRGB output intent, XMP metadata with the PDF/A identification and Steward's own properties (`stw:recordNumber`, `stw:contentHash`, …, described by a PDF/A extension schema).
@@ -247,15 +249,19 @@ Other tools that sign existing fields with an incremental update (Foxit, Okular,
 _PDF & signatures → Upload signed PDF_. Steward accepts the file when:
 
 1. it starts, byte for byte, with a PDF Steward generated **for this record**: the SHA-256 of the first _n_ bytes (n = size of a generated PDF, ending with `%%EOF`) equals the stored hash of that PDF, **and** the matching `record.pdf_generated` entry in the audit log is authentic (HMAC and chain position checked) – a row added to the database by hand does not count;
-2. the appended part contains at least one signature dictionary.
+2. that PDF shows the **current revision with frozen content**: it was generated after the record left the draft status, for the current revision and with the current frozen hash (as its audit entry says). PDFs of drafts and of earlier revisions are refused;
+3. the appended part contains at least one signature dictionary, and **every** signature has a signature value (`/Contents`) and a `/ByteRange` that covers its revision of the file except the `/Contents` placeholder.
 
-From each signature dictionary Steward reads the signer name (`/Name`), the signing time (`/M`), reason, location, the sub-filter and the field name, and checks that `/ByteRange` covers the file except the `/Contents` placeholder. The signed file is stored with its SHA-256, listed with these details, and audited as `record.signed_pdf_uploaded`.
+From each signature dictionary Steward reads the signer name (`/Name` – what the signing tool claims, shown as "claimed signer (not verified)"), the signing time (`/M`), reason, location, the sub-filter and the field name. The signed file is stored with its SHA-256, listed with these details, and audited as `record.signed_pdf_uploaded`.
 
 Rejected with a clear message:
 
 - the unsigned PDF itself ("sign it first");
 - a PDF generated for another record, a modified copy, or any other PDF ("not derived from a PDF Steward generated for this record");
-- a copy with an update but without a signature.
+- a copy with an update but without a signature, or with a signature without value or with an odd byte range;
+- a PDF of a draft or of an earlier revision ("generate the PDF of the current revision").
+
+A record keeps at most 100 generated and 30 signed PDFs, 300 MB together.
 
 Administrators can attach such a file anyway – for example a scan of a paper signature – with _Attach without check_. It is marked _Not checked_ and audited as `record.unverified_pdf_attached`.
 

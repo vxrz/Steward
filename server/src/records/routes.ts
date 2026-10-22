@@ -5,7 +5,7 @@ import { HttpError } from '../util.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
 import * as types from './types.js';
-import { addLink, linkInput, listBacklinks, removeLink, searchTargets } from './links.js';
+import { addLink, linkInput, listBacklinks, removeLink, searchTargets, targetVisible } from './links.js';
 import { addAttachment, ATTACHMENT_EXTENSIONS, attachmentForDownload, contentDisposition, MAX_ATTACHMENT_BYTES, removeAttachment } from './attachments.js';
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
@@ -160,13 +160,13 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
 
   // links
   app.post('/records/:id/links', async (req) => {
-    const { r } = svc.requireEditable(params(req).id!, 'change the links of this record');
+    const { r } = svc.requireEditable(params(req).id!, 'change the links of this record', { notTerminal: true });
     const link = addLink('record', r.id, linkInput.parse(req.body), r.number);
     svc.touch(r.id);
     return link;
   });
   app.delete('/records/:id/links/:linkId', async (req) => {
-    const { r } = svc.requireEditable(params(req).id!, 'change the links of this record');
+    const { r } = svc.requireEditable(params(req).id!, 'change the links of this record', { notTerminal: true });
     removeLink('record', r.id, params(req).linkId!, r.number);
     svc.touch(r.id);
     return { ok: true };
@@ -212,6 +212,8 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.get('/backlinks', async (req) => {
     me();
     const q = z.object({ kind: z.enum(LINK_KINDS), id: z.string().min(1).max(200) }).parse(req.query);
+    // not for items the user cannot see (no probing which hidden items exist or are linked)
+    if (!targetVisible(q.kind, q.id)) throw new HttpError(404, `${q.kind} ${q.id} not found`);
     return listBacklinks(q.kind, q.id);
   });
 

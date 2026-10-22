@@ -184,9 +184,10 @@ export function createType(input: TypeInput): RecordType {
 }
 
 /**
- * Updates a type. The workflow of a type with records cannot change (their
- * statuses belong to it). A new key only affects new numbers: existing records
- * keep theirs.
+ * Updates a type. The key and the workflow of a type with records cannot
+ * change: the key is part of their numbers and of the content hash frozen
+ * records were approved with, and their statuses belong to the workflow.
+ * Name, description, template and fields stay editable.
  */
 export function updateType(id: string, input: TypeInput): RecordType {
   if (!canManageRecordTypes()) forbid('manage record types');
@@ -195,6 +196,12 @@ export function updateType(id: string, input: TypeInput): RecordType {
     throw new HttpError(409, `A record type with the key ${input.key} exists already`);
   }
   const used = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM records WHERE type_id = ?', cur.id)!.n);
+  if (input.key !== cur.key && used > 0)
+    throw new HttpError(
+      409,
+      'The key of a type that has records cannot be changed (it is part of their numbers and content hashes) – change the name instead',
+      'TYPE_KEY_LOCKED',
+    );
   if (input.workflow !== cur.workflow && used > 0)
     throw new HttpError(409, 'The workflow of a type that has records cannot be changed – create a new type instead');
   const changes = (['key', 'name', 'description', 'workflow', 'template'] as const).filter((k) => input[k] !== cur[k]);

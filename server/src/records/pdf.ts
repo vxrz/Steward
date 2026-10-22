@@ -17,12 +17,13 @@ import { COLORS, ReportWriter } from '../reports/pdf/engine.js';
 import { getBranding, logo } from '../reports/branding.js';
 import { translator, type Translator } from '../reports/i18n.js';
 import { PRODUCT, chrome, langTag } from '../reports/common.js';
-import { newId, nowIso, sha256 } from '../util.js';
+import { HttpError, newId, nowIso, sha256 } from '../util.js';
 import { canApproveRecords, canEditRecord, forbid, me } from './access.js';
 import { requireRecordRow, toAttachment, type AttachmentRow } from './model.js';
 import { getRecord, touch } from './service.js';
 import { insertAttachment, writeAttachmentFile } from './attachments.js';
 import { recordTexts } from './pdf-i18n.js';
+import { checkPdfLimits } from './signed.js';
 
 /**
  * The record as an archival PDF/A-2b document for signing: header with logo,
@@ -166,7 +167,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   const branding = getBranding();
   const brand = { branding, logo: logo().data };
   const hash = rec.frozenHash ?? rec.contentHash;
-  const tampered = !!rec.frozenHash && rec.frozenHash !== rec.contentHash;
+  const tampered = rec.tampered;
   const draft = !rec.frozen;
   const tags = draft
     ? [{ text: R.t('draftTag'), tone: 'warning' as const }]
@@ -255,10 +256,11 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   ]);
   w.paragraph(draft ? t('draftHashNote') : t('frozenHashNote'), { tone: 'muted', size: 7.8 });
 
-  if (rec.type.fields.length) {
+  // the definitions frozen with the content: labels and options as they were approved
+  if (rec.fieldDefs.length) {
     section(t('fields'));
     w.keyValues(
-      rec.type.fields.map((f) => {
+      rec.fieldDefs.map((f) => {
         const raw = rec.fields[f.key] ?? '';
         const value = !raw ? '–' : f.kind === 'datetime' ? tr.dateTime(raw) : f.kind === 'date' ? tr.date(raw + 'T12:00:00Z') : raw;
         return { label: f.label, value, span: f.kind === 'textarea' ? (2 as const) : (1 as const) };
@@ -293,7 +295,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     ],
     rec.links.map((l) => [
       l.kind ?? t('external'),
-      l.kind ? (l.visible ? l.label : `${l.kind} ${l.targetId} ${t('notVisible')}`) : `${l.label && l.label !== l.url ? l.label + ' – ' : ''}${l.url}`,
+      l.kind ? (l.visible ? l.label : t('notVisible')) : `${l.label && l.label !== l.url ? l.label + ' – ' : ''}${l.url}`,
       l.note,
     ]),
     { empty: t('none') },
@@ -375,6 +377,8 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     }
   }
 
+  // never a cut copy for signing
+  if (w.truncated) throw new HttpError(413, `${rec.number} is too large for a PDF – shorten its text or fields`, 'RECORD_TOO_LARGE');
   const pdf = await w.finish();
   return { pdf, texts: w.texts };
 }
@@ -384,6 +388,7 @@ export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { 
   const u = me();
   const row = requireRecordRow(idOrNumber);
   if (!canEditRecord(u, row) && !canApproveRecords(u)) forbid('generate PDFs of records');
+  checkPdfLimits(row.id, 'generated', 0);
   const rec = getRecord(row.id);
   const lang: ReportLang = input.lang ?? 'en';
   const pdfId = newId('rpdf_');

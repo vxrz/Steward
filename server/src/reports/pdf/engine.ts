@@ -103,6 +103,48 @@ const GLYPH_FALLBACK: Record<string, string> = {
   '•': '·',
 };
 const MAX_CELL_CHARS = 3000;
+/**
+ * PDFKit's line wrapper takes time quadratic in the length of a word that is
+ * wider than the line (it measures the rest of the word again for every
+ * line, and fontkit shapes every measured piece): a 20 000-character word
+ * took minutes. Runs without white space longer than this get a zero-width
+ * space (an invisible break opportunity, the embedded fonts have the glyph)
+ * before PDFKit sees them, short enough that a piece fits on a line. In the
+ * monospace font the glyph has the width of a character, so the limit there
+ * is longer than any hash Steward prints (SHA-256: 64 hex digits).
+ */
+export const MAX_UNBROKEN_CHARS = { sans: 40, bold: 40, mono: 100 } as const;
+/**
+ * Characters drawn per document at most (more than the largest run report
+ * or record has); the rest of a text is cut with " …" and `truncated` is
+ * set. Input sizes are limited before; this bounds the work of a whole PDF.
+ */
+export const MAX_DOCUMENT_CHARS = 1_000_000;
+const ZWSP = '\u200b';
+
+/** Inserts a zero-width space into every run of more than `max` characters without white space. */
+export function breakLongWords(s: string, max: number = MAX_UNBROKEN_CHARS.sans): string {
+  if (s.length <= max) return s;
+  let out = '';
+  let from = 0;
+  let run = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    // white space (and an existing zero-width space) ends a run
+    if (c === 0x20 || c === 0x0a || c === 0x09 || c === 0x200b || (c > 0x7f && /\s/.test(s[i]!))) {
+      run = 0;
+      continue;
+    }
+    // never split a surrogate pair
+    if (run >= max && !(c >= 0xdc00 && c <= 0xdfff)) {
+      out += s.slice(from, i) + ZWSP;
+      from = i;
+      run = 0;
+    }
+    run++;
+  }
+  return from ? out + s.slice(from) : s;
+}
 
 /** Characters PDFKit cannot place sensibly (tabs, other control characters). */
 export function clean(s: unknown): string {
@@ -133,6 +175,13 @@ export class ReportWriter {
   private sigFields: PdfRef[] = [];
   private chunks: Buffer[] = [];
   private chrome: Chrome;
+  /** Characters still drawable (MAX_DOCUMENT_CHARS); headers and footers are always drawn. */
+  private budget = MAX_DOCUMENT_CHARS;
+  private inChrome = false;
+  /** Font currently set (see font()) */
+  private kind: 'sans' | 'bold' | 'mono' = 'sans';
+  /** True when text was left out because the document reached MAX_DOCUMENT_CHARS */
+  truncated = false;
 
   constructor(meta: PdfMeta, chrome: Chrome, opts: WriterOptions) {
     ensureColorProfile();
@@ -240,6 +289,7 @@ export class ReportWriter {
   // ---------- primitives ----------
 
   font(kind: 'sans' | 'bold' | 'mono', size: number): PDFKit.PDFDocument {
+    this.kind = kind;
     return this.doc.font(kind).fontSize(size);
   }
 
@@ -284,11 +334,23 @@ export class ReportWriter {
     return out;
   }
 
+  /** Text as PDFKit gets it (in the current font): drawable glyphs, long words breakable. */
+  private prepared(s: string): string {
+    return breakLongWords(this.glyphSafe(s), MAX_UNBROKEN_CHARS[this.kind]);
+  }
+
   /** Draws text at a position (recorded for tests). */
   text(s: string, x: number, y: number, opts: PDFKit.Mixins.TextOptions = {}): void {
-    const t = clean(s);
+    let t = clean(s);
+    if (!this.inChrome) {
+      if (t.length > this.budget) {
+        t = this.budget > 0 ? t.slice(0, this.budget) + ' …' : '…';
+        this.truncated = true;
+      }
+      this.budget = Math.max(0, this.budget - t.length);
+    }
     this.texts.push(t);
-    this.doc.text(this.glyphSafe(t), x, y, opts);
+    this.doc.text(this.prepared(t), x, y, opts);
   }
 
   /** Font size at which the longest word of `s` fits into `width` (labels in narrow columns, e.g. German compounds). */
@@ -298,14 +360,14 @@ export class ReportWriter {
       0,
       ...clean(s)
         .split(/\s+/)
-        .map((w) => this.doc.widthOfString(this.glyphSafe(w))),
+        .map((w) => this.doc.widthOfString(this.glyphSafe(w.slice(0, 500)))),
     );
     return longest > width ? Math.max(min, Math.floor((size * width * 10) / longest) / 10) : size;
   }
 
   measure(s: string, width: number, kind: 'sans' | 'bold' | 'mono', size: number, lineGap = 1): number {
     this.font(kind, size);
-    return this.doc.heightOfString(this.glyphSafe(clean(s)) || ' ', { width, lineGap });
+    return this.doc.heightOfString(this.prepared(clean(s).slice(0, Math.max(this.budget, 1000))) || ' ', { width, lineGap });
   }
 
   // ---------- blocks ----------
@@ -385,7 +447,8 @@ export class ReportWriter {
     const size = o.size ?? 9;
     const indent = o.indent ?? 0;
     this.font(o.mono ? 'mono' : o.bold ? 'bold' : 'sans', size).fillColor(this.color(o.tone));
-    this.ensure(Math.min(this.measure(t, this.width - indent, o.mono ? 'mono' : o.bold ? 'bold' : 'sans', size, 1.5), 3 * size));
+    // only the first lines matter here (2000 characters are more than three lines)
+    this.ensure(Math.min(this.measure(t.slice(0, 2000), this.width - indent, o.mono ? 'mono' : o.bold ? 'bold' : 'sans', size, 1.5), 3 * size));
     this.font(o.mono ? 'mono' : o.bold ? 'bold' : 'sans', size).fillColor(this.color(o.tone));
     this.text(t, this.left + indent, this.y, { width: this.width - indent, lineGap: 1.5 });
     this.y += 4;
@@ -700,6 +763,7 @@ export class ReportWriter {
   // ---------- finishing ----------
 
   private drawChrome(): void {
+    this.inChrome = true;
     const range = this.doc.bufferedPageRange();
     const total = range.count;
     for (let i = range.start; i < range.start + total; i++) {
@@ -756,6 +820,7 @@ export class ReportWriter {
       page.margins.bottom = savedBottom;
       page.margins.top = savedTop;
     }
+    this.inChrome = false;
   }
 
   /** Draws headers/footers, adds the signature form and returns the PDF bytes. */

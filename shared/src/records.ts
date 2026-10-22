@@ -167,7 +167,8 @@ export const DEFAULT_RECORD_TYPES: Omit<RecordType, 'id' | 'builtin' | 'archived
   {
     key: 'SDR',
     name: 'Security decision record',
-    description: 'A security decision, e.g. an accepted risk, an exception or a hardening measure. Rename it if your team uses SDR for something else.',
+    description:
+      'A security decision, e.g. an accepted risk, an exception or a hardening measure. If your team uses SDR for something else, change the name and description (the key cannot change once records exist) or archive the type.',
     workflow: 'decision',
     template: decisionTemplate('\n## Risk assessment\n\n\n## Review date\n\n'),
     fields: DECISION_FIELDS,
@@ -297,6 +298,8 @@ export interface RecordVersion {
   author: string;
   comment: string;
   createdAt: string;
+  /** Field definitions as they were when this version was frozen (null: not frozen, or frozen before snapshots existed) */
+  fieldDefs: RecordFieldDef[] | null;
 }
 
 export interface RecordSummary {
@@ -343,11 +346,15 @@ export interface RecordPermissions {
 export interface RecordDetail extends RecordSummary {
   body: string;
   fields: Record<string, string>;
+  /** Definitions to show `fields` with: frozen content uses those of the moment it was frozen */
+  fieldDefs: RecordFieldDef[];
   /** SHA-256 of the current content (title, body, fields, attachment hashes) */
   contentHash: string;
   /** Hash recorded when the content was frozen (left the draft status); null while editable */
   frozenHash: string | null;
   frozen: boolean;
+  /** Frozen content that does not match the hash of the authentic audit entry that froze it (changed outside Steward) */
+  tampered: boolean;
   submittedBy: string | null;
   submittedAt: string | null;
   supersededBy: { id: string; number: string; title: string } | null;

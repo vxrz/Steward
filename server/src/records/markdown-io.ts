@@ -69,6 +69,44 @@ export function parseFrontmatter(src: string): Record<string, unknown> {
 
 const sectionRe = (name: string) => new RegExp(`^#{2,3}\\s+${name}\\s*$`, 'i');
 
+/**
+ * Title of a "# Title #" line: what `/^#\s+(.+?)\s*#*\s*$/` captured, as a
+ * loop (the lazy group next to optional spaces backtracks on long lines).
+ */
+export function h1Title(line: string): string | null {
+  const ws = (c: string | undefined) => c !== undefined && /\s/.test(c);
+  if (line[0] !== '#' || !ws(line[1])) return null;
+  let k = 1;
+  while (ws(line[k])) k++;
+  // only spaces after "#": the group takes one of them (the caller trims it)
+  if (k === line.length) return line.length > 2 && /[^\n\r\u2028\u2029]/.test(line.slice(2)) ? '' : null;
+  let end = line.length;
+  while (ws(line[end - 1])) end--;
+  let h = end;
+  while (h > k && line[h - 1] === '#') h--;
+  if (h === k)
+    end = k + 1; // only #s: the lazy group takes one
+  else {
+    end = h;
+    while (ws(line[end - 1])) end--;
+  }
+  const title = line.slice(k, end);
+  return /[\n\r\u2028\u2029]/.test(title) ? null : title; // `.` does not match line terminators
+}
+
+/** Text without HTML comments (`<!-- … -->`), as a loop. */
+function stripComments(s: string): string {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const a = s.indexOf('<!--', i);
+    const b = a < 0 ? -1 : s.indexOf('-->', a + 4);
+    if (b < 0) return out + s.slice(i);
+    out += s.slice(i, a);
+    i = b + 3;
+  }
+}
+
 /** Reads a Markdown file into title, status, values and body (no database access). */
 export function parseRecordMarkdown(text: string): ParsedMarkdown {
   const warnings: string[] = [];
@@ -130,9 +168,9 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
   };
   dropLeadingBlank();
   // title heading
-  const h1 = /^#\s+(.+?)\s*#*\s*$/.exec(lines[0] ?? '');
-  if (h1) {
-    let heading = h1[1]!.trim();
+  const h1 = h1Title(lines[0] ?? '');
+  if (h1 !== null) {
+    let heading = h1.trim();
     const numbered = /^(\d+)\.\s+(.+)$/.exec(heading);
     const prefixed = /^((?:[A-Z]{2,10})[- ]?\d+)\s*[:.–-]\s+(.+)$/.exec(heading);
     if (numbered) {
@@ -145,7 +183,7 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
     if (!title) {
       title = heading;
       lines.shift();
-    } else if (title === heading || title === h1[1]!.trim()) lines.shift();
+    } else if (title === heading || title === h1.trim()) lines.shift();
     dropLeadingBlank();
   }
   // Nygard "Date: 2024-01-15" and MADR 2 "* Status: accepted" lines before the first section
@@ -163,7 +201,7 @@ export function parseRecordMarkdown(text: string): ParsedMarkdown {
     } else if (bullet) {
       sawMadrBullets = true;
       const key = bullet[1]!.toLowerCase().replace(/\s+(\w)/g, (_, c: string) => c.toUpperCase());
-      const v = bullet[2]!.replace(/<!--.*?-->/g, '').trim();
+      const v = stripComments(bullet[2]!).trim();
       if (key === 'status') status ??= v;
       else if (v) values[key] ??= v;
     } else keep.push(l);
@@ -219,7 +257,12 @@ export function mapFields(
       if (!Number.isNaN(d)) v = new Date(d).toISOString().slice(0, 10);
     }
     if (def.kind === 'select') v = (def.options ?? []).find((o) => o.toLowerCase() === v.toLowerCase()) ?? v;
-    if ((def.kind === 'text' || def.kind === 'select') && v.includes('\n')) v = v.replace(/\s*\n\s*/g, ' ');
+    if ((def.kind === 'text' || def.kind === 'select') && v.includes('\n'))
+      v = v
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .join(' '); // = v.replace(/\s*\n\s*/g, ' ') for a trimmed v, without the backtracking
     try {
       Object.assign(fields, cleanFields([def], { [def.key]: v }));
     } catch (e) {

@@ -46,7 +46,7 @@ export const RecordLink = z.object({
     .string()
     .nullable()
     .describe('Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL'),
-  targetId: z.string().nullable(),
+  targetId: z.string().nullable().describe('Id of the internal item – null for an external URL and when the token owner may not see the item'),
   url: z.string().nullable().describe('External http(s) URL'),
   label: z.string().describe('Name of the target – empty when the token owner may not see it'),
   note: z.string(),
