@@ -103,7 +103,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - **UI:**
   - Use Mantine components, and make it work in light and dark mode, at 390 px width and with the keyboard.
   - Give icon buttons an `aria-label`.
-  - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first. See `docs/I18N.md` once it lands.
+  - Put user-facing text in the translation files (`web/src/locales/<lang>/`), English first, and run `npm run i18n:check`. See [docs/I18N.md](docs/I18N.md).
 - **CLIs** follow [clig.dev](https://clig.dev/): `--help`, exit codes 0/1/2, errors to stderr, `--json` for machine-readable output, respect `NO_COLOR`.
 - **Dependencies:**
   - Add them only with a good reason. Prefer Node.js built-ins.

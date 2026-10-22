@@ -68,6 +68,7 @@ The first public version, 0.1.0, is being prepared. It contains everything below
   - per-user data folder, optional autostart at sign-in.
 - Installable web app (PWA) with browser notifications.
 - Hardened container image (read-only root file system, non-root user) and Compose files for SQLite and PostgreSQL.
+- English and German user interface; each person picks a language (stored in the profile), notifications and e-mails use it, and channel posts use the default language from the settings. More languages can be added without code changes ([docs/I18N.md](docs/I18N.md), `npm run i18n:check`).
 
 **Quality and supply chain**
 
