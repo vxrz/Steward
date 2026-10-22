@@ -1,0 +1,3 @@
+# hadolint (Dockerfile linter), see docs/SECURITY-PIPELINE.md.
+# Fail on warnings and errors; "info" and "style" findings are reported only.
+failure-threshold: warning
