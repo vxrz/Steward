@@ -53,6 +53,8 @@ import { startGatusScraper } from '../gatus/metrics.js';
 import { credentialRoutes } from '../credentials/routes.js';
 import { reportScheduleRoutes } from './report-schedules.js';
 import { startReportSchedules } from '../reports/schedules.js';
+import { syncRoutes } from '../sync/routes.js';
+import { startGitSync } from '../sync/engine.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -83,6 +85,7 @@ async function onUnlocked(): Promise<void> {
   startMonitorEngine();
   startGatusScraper();
   startReportSchedules();
+  startGitSync();
 }
 
 export async function unlockFromEnv(): Promise<void> {
@@ -1032,6 +1035,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await credentialRoutes(app);
   await reportScheduleRoutes(app);
   await recordRoutes(app);
+  await syncRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

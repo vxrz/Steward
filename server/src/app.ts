@@ -56,6 +56,11 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
+  // Git sync sources carry an access token and decide what may enter the installation
+  'POST /api/sync-sources',
+  'PUT /api/sync-sources/:id',
+  'DELETE /api/sync-sources/:id',
+  'POST /api/sync-sources/:id/rotate-webhook-secret',
 ]);
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';

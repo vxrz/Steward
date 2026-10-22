@@ -400,6 +400,21 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records/:recordId/versions': ALL,
   'GET /api/v1/credentials': ALL,
   'GET /api/v1/credentials/:credentialId': NOT_VIEWER,
+
+  // ---- Git sync (sources: administrators; updates inbox: designers; origins: everyone) ----
+  'GET /api/sync-sources': ADMIN,
+  'POST /api/sync-sources': ADMIN,
+  'GET /api/sync-sources/:id': ADMIN,
+  'PUT /api/sync-sources/:id': ADMIN,
+  'DELETE /api/sync-sources/:id': ADMIN,
+  'POST /api/sync-sources/:id/rotate-webhook-secret': ADMIN,
+  'POST /api/sync-sources/:id/fetch': ADMIN,
+  'GET /api/sync-updates': DESIGN,
+  'GET /api/sync-updates/:id': DESIGN,
+  'POST /api/sync-updates/:id/accept': DESIGN,
+  'POST /api/sync-updates/:id/reject': DESIGN,
+  'GET /api/sync-origins': ALL,
+  'POST /api/hooks/sync/:id': HOOK,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -417,6 +432,10 @@ const SESSION_ONLY = [
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
+  'POST /api/sync-sources',
+  'PUT /api/sync-sources/:id',
+  'DELETE /api/sync-sources/:id',
+  'POST /api/sync-sources/:id/rotate-webhook-secret',
 ];
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
@@ -499,6 +518,8 @@ function fill(url: string): string {
         sso: 'sso',
         auth: 'sso',
         notifications: 'notification',
+        'sync-sources': 'syncSource',
+        'sync-updates': 'syncUpdate',
       };
       return seg(map[prefix] ?? '', `none_${prefix}`);
     });
@@ -565,7 +586,10 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'POST /api/tasks/:id/complete': { approved: true },
+  'POST /api/sync-sources': SYNC_SOURCE,
+  'PUT /api/sync-sources/:id': SYNC_SOURCE,
 });
+const SYNC_SOURCE = { name: 'Matrix library', provider: 'forgejo', repoUrl: 'https://git.example.com/team/library', kinds: ['process'] };
 const TRIGGER = {
   name: 'matrix',
   enabled: true,
@@ -651,6 +675,11 @@ beforeAll(async () => {
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
   const users = await a('GET', '/users');
+  const syncSource = (
+    await a('POST', '/sync-sources', { ...SYNC_SOURCE, repoUrl: `${s.base}/mock/git/steward/library`, folder: 'steward', kinds: ['dashboard'] })
+  ).source.id;
+  await a('POST', `/sync-sources/${syncSource}/fetch`);
+  const syncUpdate = (await a('GET', `/sync-updates?sourceId=${syncSource}`))[0].id;
   fx = {
     process: proc.id,
     run: run.id,
@@ -685,6 +714,8 @@ beforeAll(async () => {
     notification: 'ntf_none',
     artifact: 'art_none',
     task: 'tsk_none',
+    syncSource,
+    syncUpdate,
   };
   QUERY['GET /api/backlinks'] = `?kind=record&id=${rec.id}`;
   for (const role of ROLES) cookies[role] = await loginCookie(s.base, USERS[role], role === 'admin' ? 'Admin-password-1' : PW);

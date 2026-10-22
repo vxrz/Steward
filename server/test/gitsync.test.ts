@@ -1,0 +1,380 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+
+let s: TestServer;
+let dana: Client, olivia: Client;
+const PW = 'Demo-password-1';
+const TOKEN = 'mock-git-token-0123456789';
+
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
+const errorOf = (p: Promise<unknown>) =>
+  p.then(
+    () => '',
+    (e: Error) => e.message,
+  );
+
+/** Creates (or adds a commit to) a repository of the mock Git host. */
+async function commit(repo: string, files: Record<string, string | null>, opts: { signed?: boolean; branch?: string; private?: boolean } = {}) {
+  const res = await fetch(`${s.base}/mock/git/_commit`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ repo, files, signed: opts.signed ?? true, branch: opts.branch, private: opts.private }),
+  });
+  return ((await res.json()) as { sha: string }).sha;
+}
+
+const proc = (name: string, extra = '') => `name: "${name}"
+description: from git
+steps:
+  - id: hello
+    type: log
+    message: "hello ${extra}"
+`;
+
+let n = 0;
+const uniqueRepo = () => `team/lib-${Date.now().toString(36)}-${n++}`;
+
+async function source(repo: string, body: Record<string, unknown> = {}) {
+  const r = await s.api('POST', '/sync-sources', {
+    name: `Library ${repo}`,
+    provider: 'forgejo',
+    repoUrl: `${s.base}/mock/git/${repo}`,
+    branch: 'main',
+    folder: 'steward',
+    kinds: ['process', 'dashboard', 'monitor', 'recordType'],
+    ...body,
+  });
+  return r as { source: any; webhookSecret: string };
+}
+const pending = async (sourceId: string) => (await s.api('GET', `/sync-updates?sourceId=${sourceId}&status=pending`)) as any[];
+
+beforeAll(async () => {
+  s = await startTestServer();
+  await setup(s);
+  await s.api('POST', '/demo/setup', {});
+  dana = await s.as('dana', PW);
+  olivia = await s.as('olivia', PW);
+}, 120_000);
+afterAll(async () => {
+  await s?.app.close();
+  if (s) fs.rmSync(s.dataDir, { recursive: true, force: true });
+});
+
+describe('Git sync sources', () => {
+  it('are managed by administrators only; the token is write-only and the webhook secret shown once', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/a.yaml': proc('Sources test') });
+    const { source: src, webhookSecret } = await source(repo, { token: TOKEN, webhookEnabled: true });
+    expect(webhookSecret).toMatch(/^gsw_/);
+    expect(src).toMatchObject({
+      hasToken: true,
+      webhookEnabled: true,
+      webhookPath: `/api/hooks/sync/${src.id}`,
+      kinds: ['process', 'dashboard', 'monitor', 'recordType'],
+    });
+    const listed = JSON.stringify(await s.api('GET', '/sync-sources'));
+    expect(listed).not.toContain(TOKEN);
+    expect(listed).not.toContain(webhookSecret);
+    expect(await status(dana('GET', '/sync-sources'))).toBe(403);
+    expect(await status(dana('POST', '/sync-sources', { name: 'x', provider: 'forgejo', repoUrl: `${s.base}/mock/git/${repo}`, kinds: ['process'] }))).toBe(
+      403,
+    );
+    // keep the token when it is not sent, remove it with ''
+    const kept = await s.api('PUT', `/sync-sources/${src.id}`, { ...src, token: undefined });
+    expect(kept.hasToken).toBe(true);
+    const removed = await s.api('PUT', `/sync-sources/${src.id}`, { ...src, token: '' });
+    expect(removed.hasToken).toBe(false);
+    const audit = JSON.stringify(await s.api('GET', '/audit?entityType=sync_source&limit=50'));
+    expect(audit).toContain('sync.source_created');
+    expect(audit).not.toContain(TOKEN);
+    expect(audit).not.toContain(webhookSecret);
+    await s.api('DELETE', `/sync-sources/${src.id}`);
+    expect(await status(s.api('GET', `/sync-sources/${src.id}`))).toBe(404);
+  });
+
+  it('refuses unsafe repository settings', async () => {
+    const base = { name: 'x', provider: 'forgejo', kinds: ['process'] };
+    expect(await errorOf(s.api('POST', '/sync-sources', { ...base, repoUrl: 'http://git.example.com/a/b' }))).toContain('only https://');
+    expect(await errorOf(s.api('POST', '/sync-sources', { ...base, repoUrl: 'https://me:secret@git.example.com/a/b' }))).toContain('token field');
+    expect(await errorOf(s.api('POST', '/sync-sources', { ...base, repoUrl: 'https://git.example.com/a' }))).toContain('owner');
+    expect(await status(s.api('POST', '/sync-sources', { ...base, repoUrl: 'https://git.example.com/a/b', folder: '../etc' }))).toBe(400);
+    expect(await status(s.api('POST', '/sync-sources', { ...base, repoUrl: 'https://git.example.com/a/b', branch: '../main' }))).toBe(400);
+    expect(await status(s.api('POST', '/sync-sources', { ...base, repoUrl: 'https://git.example.com/a/b', intervalMinutes: 1 }))).toBe(400);
+  });
+
+  it('blocks repository hosts the outbound policy does not allow', async () => {
+    const { source: src } = await source('x/y', { repoUrl: 'https://git.blocked.invalid/team/library' });
+    expect(await errorOf(s.api('POST', `/sync-sources/${src.id}/fetch`))).toContain('outbound policy');
+    expect((await s.api('GET', `/sync-sources/${src.id}`)).lastStatus).toBe('error');
+    await s.api('DELETE', `/sync-sources/${src.id}`);
+  });
+});
+
+describe('fetching and staging', () => {
+  it('stages every valid file of the folder as a pending update and applies nothing', async () => {
+    const { source: src } = await source('steward/library');
+    const r = await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(r).toMatchObject({ files: 4, staged: 4, invalid: 0, verified: true });
+    const list = await pending(src.id);
+    expect(list.map((u) => u.kind).sort()).toEqual(['dashboard', 'monitor', 'process', 'recordType']);
+    expect(list.every((u) => u.action === 'create' && u.webUrl.includes('/src/commit/'))).toBe(true);
+    // nothing applied yet
+    expect(await status(s.api('GET', '/processes/git-user-count'))).toBe(404);
+    // a second fetch stages nothing new
+    const again = await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(again).toMatchObject({ staged: 0, unchanged: 4 });
+    expect((await pending(src.id)).length).toBe(4);
+    // the detail carries the incoming definition for the diff
+    const d = await s.api('GET', `/sync-updates/${list.find((u) => u.kind === 'process').id}`);
+    expect(d.incomingText).toContain('Git demo – Insights Hub user count');
+    expect(d.currentText).toBeNull();
+
+    // accept everything as an administrator: real items with their origin
+    for (const u of list) await s.api('POST', `/sync-updates/${u.id}/accept`, {});
+    const p = await s.api('GET', '/processes/git-user-count');
+    expect(p.currentVersion).toBe(1);
+    expect((await s.api('GET', '/processes/git-user-count/versions'))[0].comment).toMatch(
+      /^From Git: Library steward\/library steward\/processes\/git-user-count\.yaml @ [0-9a-f]{10}/,
+    );
+    expect((await s.api('GET', '/record-types')).some((t: any) => t.key === 'PIR')).toBe(true);
+    const mon = (await s.api('GET', '/monitors')).find((m: any) => m.key === 'git-ih-api');
+    expect(mon).toBeTruthy();
+    expect((await s.api('GET', '/dashboards/git-overview')).name).toBe('Git demo overview');
+    const origins = await olivia('GET', '/sync-origins');
+    expect(origins.map((o: any) => o.kind).sort()).toEqual(['dashboard', 'monitor', 'process', 'recordType']);
+    expect(origins.find((o: any) => o.kind === 'process')).toMatchObject({
+      entityId: 'git-user-count',
+      sourceName: 'Library steward/library',
+      path: 'steward/processes/git-user-count.yaml',
+    });
+    const audit = JSON.stringify(await s.api('GET', '/audit?limit=200'));
+    for (const a of ['sync.fetched', 'sync.update_staged', 'sync.update_accepted']) expect(audit).toContain(a);
+  });
+
+  it('turns a change in Git into a new process version after review, and shows conflicts with local edits', async () => {
+    const repo = uniqueRepo();
+    const file = 'steward/flows/versioned.yaml';
+    await commit(repo, { [file]: proc('Versioned from Git', 'v1') });
+    const { source: src } = await source(repo);
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [first] = await pending(src.id);
+    // designers review and decide processes
+    await dana('POST', `/sync-updates/${first.id}/accept`, {});
+    expect((await s.api('GET', '/processes/versioned')).currentVersion).toBe(1);
+
+    await commit(repo, { [file]: proc('Versioned from Git', 'v2') });
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [upd] = await pending(src.id);
+    expect(upd).toMatchObject({ action: 'update', entityId: 'versioned', conflict: false, canDecide: true });
+    const d = await dana('GET', `/sync-updates/${upd.id}`);
+    expect(d.currentText).toContain('hello v1');
+    expect(d.incomingText).toContain('hello v2');
+    expect(d.currentDefinition.nodes).toBeTruthy();
+    const accepted = await dana('POST', `/sync-updates/${upd.id}/accept`, { comment: 'reviewed' });
+    expect(accepted).toMatchObject({ status: 'accepted', resultVersion: 2, decidedBy: 'dana' });
+    expect((await s.api('GET', '/processes/versioned')).definition.nodes.some((x: any) => x.message === 'hello v2')).toBe(true);
+
+    // a local edit, then another change in Git → conflict instead of overwriting
+    const cur = await s.api('GET', '/processes/versioned');
+    await s.api('PUT', '/processes/versioned', { definition: { ...cur.definition, description: 'edited in Steward' }, comment: 'local' });
+    await commit(repo, { [file]: proc('Versioned from Git', 'v3') });
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [c] = await pending(src.id);
+    expect(c).toMatchObject({ conflict: true, conflictReason: expect.stringContaining('changed in Steward') });
+    const refused = await errorOf(dana('POST', `/sync-updates/${c.id}/accept`, {}));
+    expect(refused).toContain('409');
+    expect(refused).toContain('SYNC_CONFLICT');
+    expect((await s.api('GET', '/processes/versioned')).currentVersion).toBe(3);
+    const forced = await dana('POST', `/sync-updates/${c.id}/accept`, { force: true });
+    expect(forced.resultVersion).toBe(4);
+    expect(await status(dana('POST', `/sync-updates/${c.id}/accept`, {}))).toBe(409);
+  });
+
+  it('keeps rejected changes rejected until Git changes again', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/rejected.yaml': proc('Rejected from Git') });
+    const { source: src } = await source(repo);
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [u] = await pending(src.id);
+    expect(await status(olivia('POST', `/sync-updates/${u.id}/reject`, {}))).toBe(403);
+    expect(await status(olivia('GET', '/sync-updates'))).toBe(403);
+    const r = await dana('POST', `/sync-updates/${u.id}/reject`, { comment: 'not wanted' });
+    expect(r).toMatchObject({ status: 'rejected', decidedBy: 'dana', comment: 'not wanted' });
+    expect((await s.api('POST', `/sync-sources/${src.id}/fetch`)).staged).toBe(0);
+    await commit(repo, { 'steward/rejected.yaml': proc('Rejected from Git', 'again') });
+    expect((await s.api('POST', `/sync-sources/${src.id}/fetch`)).staged).toBe(1);
+    expect(await status(s.api('GET', '/processes/rejected'))).toBe(404);
+    expect(JSON.stringify(await s.api('GET', '/audit?limit=100'))).toContain('sync.update_rejected');
+  });
+
+  it('marks invalid files, files with secrets, unknown platforms and oversized files – and ignores files outside the folder', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, {
+      'steward/broken.yaml': 'name: Broken\nsteps:\n  - id: x\n    type: nosuchnode\n',
+      'steward/leaky.yaml': proc('Leaky').replace('description: from git', 'description: "token: ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"'),
+      'steward/mon.yaml':
+        'kind: monitor\nkey: git-unknown-platform\nname: Unknown platform\nchecks:\n  - { id: a, name: A, type: platform, platform: No such platform, path: / }\n',
+      'steward/big.yaml': `name: Big\ndescription: "${'x'.repeat(300 * 1024)}"\nsteps: []\n`,
+      'steward/bundle.json': JSON.stringify({ format: 'steward-bundle', version: 1, processes: [], dashboards: [] }),
+      'steward/tags.yaml': 'name: !!js/function "function () {}"\nsteps: []\n',
+      'other/outside.yaml': proc('Outside'),
+      'steward/notes.md': '# not a definition',
+    });
+    const { source: src } = await source(repo);
+    const r = await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(r).toMatchObject({ files: 6, staged: 0, invalid: 6 });
+    const list = await s.api('GET', `/sync-updates?sourceId=${src.id}&status=invalid`);
+    const err = (file: string) => list.find((u: any) => u.path === `steward/${file}`).errors.join(' ');
+    expect(err('broken.yaml')).toMatch(/nosuchnode|type/i);
+    expect(err('leaky.yaml')).toContain('GitHub token');
+    expect(err('leaky.yaml')).not.toContain('ghp_');
+    expect(err('mon.yaml')).toContain('not found');
+    expect(err('big.yaml')).toContain('limit');
+    expect(err('bundle.json')).toContain('Bundles');
+    expect(err('tags.yaml')).toMatch(/tag/i);
+    expect(list.some((u: any) => u.path.startsWith('other/'))).toBe(false);
+    expect(await status(s.api('POST', `/sync-updates/${list[0].id}/accept`, {}))).toBe(409);
+    // the same invalid content is not reported twice
+    expect((await s.api('POST', `/sync-sources/${src.id}/fetch`)).invalid).toBe(0);
+  });
+
+  it('refuses unsigned head commits when signed commits are required', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/s.yaml': proc('Signed only') }, { signed: false });
+    const { source: src } = await source(repo, { requireSignedCommits: true });
+    expect(await errorOf(s.api('POST', `/sync-sources/${src.id}/fetch`))).toContain('not signed');
+    expect((await pending(src.id)).length).toBe(0);
+    await commit(repo, { 'steward/s.yaml': proc('Signed only', 'signed') }, { signed: true });
+    expect((await s.api('POST', `/sync-sources/${src.id}/fetch`)).staged).toBe(1);
+  });
+
+  it('reads private repositories with the token and sends it to the API only', async () => {
+    const { source: src } = await source('steward/private', { kinds: ['process'] });
+    expect(await errorOf(s.api('POST', `/sync-sources/${src.id}/fetch`))).toContain('not found');
+    await s.api('PUT', `/sync-sources/${src.id}`, { ...src, token: TOKEN });
+    expect((await s.api('POST', `/sync-sources/${src.id}/fetch`)).staged).toBe(1);
+    const calls = (await (await fetch(`${s.base}/mock/git/_calls?repo=steward/private`)).json()) as any[];
+    expect(calls.filter((c) => c.token).every((c) => c.tokenOk && c.path.startsWith('/mock/git/api/v1/repos/steward/private/'))).toBe(true);
+    const everything = JSON.stringify([
+      await s.api('GET', '/sync-sources'),
+      await s.api('GET', '/sync-updates?status=pending,invalid,accepted'),
+      await s.api('GET', '/audit?limit=200'),
+    ]);
+    expect(everything).not.toContain(TOKEN);
+  });
+
+  it.each([
+    ['github', (repo: string) => ({ repoUrl: `${s.base}/mock/github/${repo}` }), '/blob/'],
+    ['gitlab', (repo: string) => ({ repoUrl: `${s.base}/mock/gitlab/${repo}`, apiUrl: `${s.base}/mock/gitlab/api/v4` }), '/-/blob/'],
+  ] as const)('works with the %s API', async (provider, urls, web) => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/p.yaml': proc(`From ${provider}`), 'steward/sub/d.yaml': 'name: D\nwidgets: []\n' });
+    const { source: src } = await source(repo, { provider, ...urls(repo), token: TOKEN });
+    const r = await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(r).toMatchObject({ files: 2, staged: 2, verified: true });
+    expect((await pending(src.id))[0].webUrl).toContain(web);
+  });
+
+  it('auto-accepts new items when the source allows it (monitors disabled), changes still wait for review', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, {
+      'steward/auto.yaml': proc('Auto from Git'),
+      'steward/auto-mon.yaml':
+        'kind: monitor\nkey: git-auto-mon\nname: Auto monitor\nenabled: true\nchecks:\n  - { id: a, name: A, type: platform, platform: Insights Hub (demo), path: / }\n',
+    });
+    const { source: src } = await source(repo, { autoAcceptNew: true });
+    const r = await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(r.autoAccepted).toBe(2);
+    expect((await s.api('GET', '/processes/auto')).currentVersion).toBe(1);
+    expect((await s.api('GET', '/monitors')).find((m: any) => m.key === 'git-auto-mon').enabled).toBe(false);
+    await commit(repo, { 'steward/auto.yaml': proc('Auto from Git', 'changed') });
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect((await pending(src.id)).map((u) => u.action)).toEqual(['update']);
+  });
+
+  it('links identical local items instead of staging them', async () => {
+    const repo = uniqueRepo();
+    const text = proc('Identical twin');
+    await s.api('POST', '/processes', { text });
+    await commit(repo, { 'steward/identical-twin.yaml': text });
+    const { source: src } = await source(repo);
+    expect(await s.api('POST', `/sync-sources/${src.id}/fetch`)).toMatchObject({ staged: 0, unchanged: 1 });
+    expect((await s.api('GET', '/sync-origins?kind=process')).some((o: any) => o.entityId === 'identical-twin')).toBe(true);
+  });
+
+  it('stages an existing local item that never came from Git as a conflict', async () => {
+    const repo = uniqueRepo();
+    await s.api('POST', '/processes', { text: proc('Local first') });
+    await commit(repo, { 'steward/local-first.yaml': proc('Local first', 'from git') });
+    const { source: src } = await source(repo);
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [u] = await pending(src.id);
+    expect(u).toMatchObject({ action: 'update', entityId: 'local-first', conflict: true });
+  });
+});
+
+describe('Git sync webhook', () => {
+  const hook = async (id: string, body: string, headers: Record<string, string>) => {
+    const res = await fetch(`${s.base}/api/hooks/sync/${id}`, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body });
+    return { status: res.status, body: await res.json() };
+  };
+  const sign = (secret: string, raw: string) => crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  const waitFetched = async (id: string, since: string | null) => {
+    for (let i = 0; i < 100; i++) {
+      const src = await s.api('GET', `/sync-sources/${id}`);
+      if (src.lastFetchAt && src.lastFetchAt !== since) return src;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error('no fetch');
+  };
+
+  it('fetches on a signed push event and refuses everything else', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/hooked.yaml': proc('Hooked') });
+    const { source: src, webhookSecret } = await source(repo, { webhookEnabled: true });
+    const push = JSON.stringify({ ref: 'refs/heads/main' });
+    expect((await hook(src.id, push, { 'x-hub-signature-256': 'sha256=' + '0'.repeat(64) })).status).toBe(401);
+    expect((await hook(src.id, push, {})).status).toBe(401);
+    expect(
+      (await hook(src.id, JSON.stringify({ ref: 'refs/heads/dev' }), { 'x-forgejo-signature': sign(webhookSecret, JSON.stringify({ ref: 'refs/heads/dev' })) }))
+        .body,
+    ).toEqual({
+      skipped: 'other branch',
+    });
+    const ok = await hook(src.id, push, { 'x-hub-signature-256': `sha256=${sign(webhookSecret, push)}` });
+    expect(ok).toEqual({ status: 202, body: { fetching: true } });
+    await waitFetched(src.id, null);
+    expect((await pending(src.id)).length).toBe(1);
+    // GitLab sends the secret itself
+    expect((await hook(src.id, push, { 'x-gitlab-token': webhookSecret })).status).toBe(202);
+    expect((await hook(src.id, push, { 'x-gitlab-token': 'wrong' })).status).toBe(401);
+    // unknown sources and sources without webhook look the same
+    expect((await hook('gsr_doesnotexist1', push, {})).status).toBe(404);
+    await s.api('PUT', `/sync-sources/${src.id}`, { ...src, webhookEnabled: false });
+    expect((await hook(src.id, push, { 'x-hub-signature-256': `sha256=${sign(webhookSecret, push)}` })).status).toBe(404);
+    // rotation: the old secret stops working
+    await s.api('PUT', `/sync-sources/${src.id}`, { ...src, webhookEnabled: true });
+    const rotated = await s.api('POST', `/sync-sources/${src.id}/rotate-webhook-secret`);
+    expect(rotated.webhookSecret).not.toBe(webhookSecret);
+    expect((await hook(src.id, push, { 'x-gitlab-token': webhookSecret })).status).toBe(401);
+    expect(JSON.stringify(await s.api('GET', '/audit?limit=100'))).toContain('sync.webhook_rejected');
+  });
+
+  it('rate-limits webhook calls per source', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/rl.yaml': proc('Rate limited') });
+    const { source: src, webhookSecret } = await source(repo, { webhookEnabled: true });
+    const body = '{}';
+    const h = { 'x-gitea-signature': sign(webhookSecret, body) };
+    const statuses: number[] = [];
+    for (let i = 0; i < 14; i++) statuses.push((await hook(src.id, body, h)).status);
+    expect(statuses.filter((x) => x === 202).length).toBe(12);
+    expect(statuses.at(-1)).toBe(429);
+  });
+});
