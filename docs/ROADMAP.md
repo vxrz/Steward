@@ -108,7 +108,7 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 **Engineering**
 
-1. CI is included in `.github/workflows/ci.yml` (typecheck, validate, tests, build, audit). Add ESLint/Prettier, and Playwright UI tests for the critical paths (sign-in, run with decision, dashboard).
+1. CI is included in `.github/workflows/ci.yml` (typecheck, validate, tests, build, audit). Playwright UI tests cover the critical paths (`.github/workflows/ui-tests.yml`, see [TESTING.md](TESTING.md)). ESLint/Prettier are next.
 2. Contract tests against a real sandbox tenant (recorded fixtures), so API changes at Siemens are noticed before production runs fail.
 3. Our own OpenAPI description of the Steward API (generated from the zod schemas). That allows automation and integration with ITSM tools such as ServiceNow or Jira Service Management.
 4. Semantic versioning, a changelog, migration tests.
@@ -178,5 +178,5 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 | When | Item |
 | --- | --- |
 | **Done** | Notifications for decisions and failed checks (e-mail/Teams/webhook). CSP and HSTS headers. Retry-After/backoff and per-platform concurrency. API tokens. Retention policy. Expression assistant, node inspector, undo/redo, version diff. Subflows. Prometheus `/metrics`, `/ready`. Contract checks. Parallel for-each. PWA with browser notifications. Command palette, lazy-loaded UI. Desktop executable, container, release workflow. |
-| **Next** | Step-through debugging and "run this node with sample data". Quiet hours for notifications. Run comparison. First-run checklist. ESLint/Prettier and Playwright UI tests in CI. German UI. |
+| **Next** | Step-through debugging and "run this node with sample data". Quiet hours for notifications. Run comparison. First-run checklist. ESLint/Prettier. |
 | **Later** (bigger projects) | Hosted mode (Postgres, separate workers, KMS-backed vault). Optional Temporal backend. SCIM provisioning. ITSM integration (ServiceNow/Jira tickets per run). Process marketplace via Git repositories. Audit anchoring (RFC 3161). Signed releases and auto-update. |

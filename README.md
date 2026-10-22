@@ -327,6 +327,8 @@ npm run dev:demo   # API with auto-reload + Vite UI on http://127.0.0.1:5173 (wi
 npm test           # end-to-end tests against the mock platforms (incl. browser + crash/resume)
 npm run test:pg    # the same suite on PostgreSQL (SM_TEST_DATABASE_URL, default postgres://postgres@127.0.0.1:5432/postgres)
 npm run typecheck
+npm run test:ui    # Playwright browser tests (after npm run build), see docs/TESTING.md
+npm run test:pg    # the test suite on PostgreSQL
 ```
 
 Code layout:
