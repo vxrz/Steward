@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Badge, Button, Card, Group, Modal, SimpleGrid, Stack, Text, TextInput, Textarea, ActionIcon, Tooltip, Menu } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, List, Modal, SegmentedControl, SimpleGrid, Stack, Text, TextInput, Textarea, ActionIcon, Tooltip, Menu } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport } from '@tabler/icons-react';
-import type { ProcessDetail, ProcessSummary, ProcessTemplate } from '@sm/shared';
+import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport, IconPackage, IconPackageExport, IconPackageImport } from '@tabler/icons-react';
+import type { ExportBundle, ProcessDetail, ProcessSummary, ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
 import { RunDialog } from '../components/RunDialog';
@@ -19,6 +19,7 @@ export function ProcessesPage() {
   const [runId, setRunId] = useState<string | null>(null);
   const [templatesOpen, templates] = useDisclosure();
   const [importOpen, importModal] = useDisclosure();
+  const [bundleOpen, bundleModal] = useDisclosure();
   const { caps } = useMe();
 
   const createBlank = async () => {
@@ -41,7 +42,25 @@ export function ProcessesPage() {
         title="Processes"
         description="Reusable procedures: API calls, loops, decisions, approvals, checks and browser steps. Every save creates a new version."
         actions={
-          caps.createProcesses && (
+          <>
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <Button size="xs" variant="default" leftSection={<IconPackage size={14} />}>
+                  Bundle
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<IconPackageExport size={14} />} component="a" href="/api/bundle/export">
+                  Export all processes &amp; dashboards
+                </Menu.Item>
+                {caps.createProcesses && (
+                  <Menu.Item leftSection={<IconPackageImport size={14} />} onClick={bundleModal.open}>
+                    Import bundle…
+                  </Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+            {caps.createProcesses && (
           <>
             <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
               Import YAML
@@ -53,7 +72,8 @@ export function ProcessesPage() {
               New process
             </Button>
           </>
-          )
+            )}
+          </>
         }
       />
       <TextInput mb="md" placeholder="Search by name or tag" leftSection={<IconSearch size={14} />} value={filter} onChange={(e) => setFilter(e.currentTarget.value)} maw={360} />
@@ -153,6 +173,7 @@ export function ProcessesPage() {
       <RunDialog processId={runId} opened={!!runId} onClose={() => setRunId(null)} />
       <TemplatesModal opened={templatesOpen} onClose={templates.close} />
       <ImportModal opened={importOpen} onClose={importModal.close} />
+      <BundleImportModal opened={bundleOpen} onClose={bundleModal.close} />
     </>
   );
 }
@@ -214,12 +235,50 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
 
 function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<{ file: string; ok: boolean; message: string }[] | null>(null);
+
+  const importFiles = async (files: File[]) => {
+    if (files.length === 1) {
+      setText(await files[0]!.text());
+      return;
+    }
+    setBusy(true);
+    const out: { file: string; ok: boolean; message: string }[] = [];
+    for (const f of files) {
+      try {
+        const p = await post<ProcessDetail>('/processes', { text: await f.text() });
+        out.push({ file: f.name, ok: true, message: `created "${p.name}"` });
+      } catch (e) {
+        out.push({ file: f.name, ok: false, message: (e as Error).message });
+      }
+    }
+    setResults(out);
+    setBusy(false);
+    qc.invalidateQueries({ queryKey: ['processes'] });
+    const okCount = out.filter((r) => r.ok).length;
+    if (okCount) notifyOk(`Imported ${okCount} of ${out.length} file(s)`);
+  };
   return (
     <Modal opened={opened} onClose={onClose} title="Import process (YAML or JSON)" size="lg">
       <Stack>
+        <Text size="xs" c="dimmed">
+          Paste a definition or load one file to review it first. Selecting several files imports each of them directly (e.g. the files in the repository's examples/processes folder).
+        </Text>
         <Textarea classNames={{ input: 'mono' }} autosize minRows={10} maxRows={24} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder="name: My process&#10;steps: []" />
+        {results && (
+          <Alert color={results.every((r) => r.ok) ? 'green' : 'orange'} title="Import result" withCloseButton onClose={() => setResults(null)}>
+            <List size="sm" spacing={2}>
+              {results.map((r) => (
+                <List.Item key={r.file}>
+                  <b>{r.file}</b>: {r.ok ? r.message : `failed – ${r.message}`}
+                </List.Item>
+              ))}
+            </List>
+          </Alert>
+        )}
         <Group justify="space-between">
           <Button
             variant="default"
@@ -227,8 +286,18 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
             component="label"
             leftSection={<IconUpload size={14} />}
           >
-            Load file
-            <input type="file" accept=".yaml,.yml,.json" hidden onChange={(e) => e.currentTarget.files?.[0]?.text().then(setText)} />
+            Load file(s)
+            <input
+              type="file"
+              accept=".yaml,.yml,.json"
+              multiple
+              hidden
+              onChange={(e) => {
+                const files = Array.from(e.currentTarget.files ?? []);
+                e.currentTarget.value = '';
+                if (files.length) importFiles(files);
+              }}
+            />
           </Button>
           <Button
             loading={busy}
@@ -239,6 +308,121 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
                 const p = await post<ProcessDetail>('/processes', { text });
                 onClose();
                 navigate(`/processes/${p.id}`);
+              } catch (e) {
+                notifyError(e, 'Import failed');
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Import
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
+function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [bundle, setBundle] = useState<ExportBundle | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [onConflict, setOnConflict] = useState<'newVersion' | 'skip' | 'copy'>('newVersion');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ created: string[]; updated: string[]; skipped: { id: string; reason: string }[] } | null>(null);
+  const reset = () => {
+    setBundle(null);
+    setFileName('');
+    setResult(null);
+  };
+  return (
+    <Modal
+      opened={opened}
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      title="Import bundle"
+      size="lg"
+    >
+      <Stack>
+        <Text size="sm" c="dimmed">
+          A bundle (JSON, created with "Export all processes &amp; dashboards") contains several processes and dashboards. Credentials and platforms are never part of a bundle.
+        </Text>
+        <Group>
+          <Button variant="default" size="xs" component="label" leftSection={<IconUpload size={14} />}>
+            Choose bundle file
+            <input
+              type="file"
+              accept=".json,application/json"
+              hidden
+              onChange={async (e) => {
+                const f = e.currentTarget.files?.[0];
+                e.currentTarget.value = '';
+                if (!f) return;
+                try {
+                  const parsed = JSON.parse(await f.text()) as ExportBundle;
+                  if (parsed.format !== 'service-manager-bundle') throw new Error('Not a Service Manager bundle');
+                  setBundle(parsed);
+                  setFileName(f.name);
+                  setResult(null);
+                } catch (err) {
+                  notifyError(err, 'Cannot read bundle');
+                }
+              }}
+            />
+          </Button>
+          {fileName && <Text size="sm">{fileName}</Text>}
+        </Group>
+        {bundle && (
+          <>
+            <Text size="sm">
+              {bundle.processes.length} process(es), {bundle.dashboards.length} dashboard(s), exported {fmtRelative(bundle.exportedAt)}.
+            </Text>
+            <div>
+              <Text size="sm" fw={500} mb={4}>
+                When an item with the same id already exists
+              </Text>
+              <SegmentedControl
+                size="xs"
+                value={onConflict}
+                onChange={(v) => setOnConflict(v as typeof onConflict)}
+                data={[
+                  { value: 'newVersion', label: 'Save as new version' },
+                  { value: 'skip', label: 'Skip' },
+                  { value: 'copy', label: 'Import as copy' },
+                ]}
+              />
+            </div>
+          </>
+        )}
+        {result && (
+          <Alert color={result.skipped.length ? 'orange' : 'green'} title="Import result">
+            <Text size="sm">
+              {result.created.length} created, {result.updated.length} updated, {result.skipped.length} skipped
+            </Text>
+            {result.skipped.length > 0 && (
+              <List size="sm" mt={4}>
+                {result.skipped.map((x) => (
+                  <List.Item key={x.id}>
+                    {x.id}: {x.reason}
+                  </List.Item>
+                ))}
+              </List>
+            )}
+          </Alert>
+        )}
+        <Group justify="flex-end">
+          <Button
+            disabled={!bundle}
+            loading={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await post<{ created: string[]; updated: string[]; skipped: { id: string; reason: string }[] }>('/bundle/import', { bundle, onConflict });
+                setResult(r);
+                qc.invalidateQueries({ queryKey: ['processes'] });
+                qc.invalidateQueries({ queryKey: ['dashboards'] });
               } catch (e) {
                 notifyError(e, 'Import failed');
               } finally {

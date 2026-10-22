@@ -1,0 +1,64 @@
+/* Chart tokens (reference palette from the dataviz guidance). Dark values are
+   their own validated steps, selected via Mantine's color scheme attribute. */
+.viz-root {
+  --viz-surface: var(--mantine-color-body);
+  --viz-text-primary: #0b0b0b;
+  --viz-text-secondary: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-deemph: #c3c2b7;
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-series-3: #1baf7a;
+  --viz-good: #0ca30c;
+  --viz-warning: #fab219;
+  --viz-serious: #ec835a;
+  --viz-critical: #d03b3b;
+  --viz-unknown: #898781;
+  --viz-delta-good: #006300;
+  --viz-delta-bad: #b42f2f;
+  --viz-crosshair: #898781;
+}
+[data-mantine-color-scheme='dark'] .viz-root {
+  --viz-text-primary: #f0efec;
+  --viz-text-secondary: #c3c2b7;
+  --viz-muted: #898781;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-deemph: #52514e;
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-series-3: #199e70;
+  --viz-delta-good: #0ca30c;
+  --viz-delta-bad: #e66767;
+}
+
+.viz-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 6px;
+  box-shadow: var(--mantine-shadow-sm);
+  padding: 6px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--viz-text-primary);
+}
+.viz-tooltip .viz-tt-value { font-weight: 600; }
+.viz-tooltip .viz-tt-label { color: var(--viz-text-secondary); }
+.viz-num { font-variant-numeric: tabular-nums; }
+.viz-kpi-value { font-size: 30px; font-weight: 600; line-height: 1.1; color: var(--viz-text-primary); }
+.viz-fade { transition: opacity 0.2s; }
+.viz-fade[data-fetching='true'] { opacity: 0.6; }
+.viz-status-seg { height: 16px; min-width: 3px; cursor: pointer; transition: filter 0.15s; }
+.viz-status-seg:hover, .viz-status-seg:focus-visible { filter: brightness(1.12); outline: none; }
+.viz-status-seg[data-dim='true'] { opacity: 0.35; }
+
+/* 12-column dashboard grid; full width on phones */
+.dash-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.dash-cell { grid-column: span var(--span, 12); min-width: 0; position: relative; }
+@media (max-width: 62em) { .dash-cell { grid-column: span max(var(--span, 12), 6); } }
+@media (max-width: 36em) { .dash-cell { grid-column: span 12; } }

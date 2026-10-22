@@ -1,0 +1,121 @@
+name: "Insights Hub – Offboard leavers"
+description: |
+  Leaver procedure: for each user name in the list, looks up the account and
+  its group/role memberships, asks for confirmation (four-eyes) and then
+  removes all direct memberships – and optionally deletes the account.
+  Unknown user names are reported as a warning, not an error, so a list from
+  HR can be pasted as is.
+
+  Recommended use: on demand (or daily from an HR leaver export).
+  Required rights: read users/groups, change group membership (im.g.u) and –
+  for mode "delete" – delete users (im.usr.d).
+tags: [offboarding, users, housekeeping, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: users
+    label: User names (e-mail), one per line
+    type: list
+    required: true
+    default: |
+      karla.lang@example.com
+      someone.unknown@example.com
+  - name: mode
+    label: What to do
+    type: select
+    options: [removeGroupsOnly, delete]
+    default: removeGroupsOnly
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      leavers: "{{ [] }}"
+  - id: lookup
+    type: forEach
+    name: Look up each user
+    items: inputs.users
+    as: name
+    steps:
+      - id: find
+        type: http
+        name: Find user
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users"
+        query:
+          filter: 'userName eq "{{ $lowercase($trim(vars.name)) }}"'
+        saveAs: found
+      - id: collect
+        type: set
+        name: Collect
+        values:
+          leavers: "{{ $append(vars.leavers, [{ 'requested': $lowercase($trim(vars.name)), 'user': vars.found.body.resources[0] }]) }}"
+  - id: split
+    type: set
+    name: Known and unknown users
+    values:
+      known: "{{ [vars.leavers[$exists(user)].user] }}"
+      unknown: "{{ [vars.leavers[$not($exists(user))].requested] }}"
+  - id: unknownCheck
+    type: check
+    name: All user names found
+    severity: warning
+    condition: "$count(vars.unknown) = 0"
+    message: "{{ $count(vars.unknown) = 0 ? 'All users found' : 'Not found (already removed?): ' & $join(vars.unknown, ', ') }}"
+  - id: approve
+    type: userTask
+    name: Confirm offboarding
+    when: "$count(vars.known) > 0"
+    mode: approve
+    title: "Offboard {{ $count(vars.known) }} user(s) ({{ inputs.mode }})?"
+    instructions: |
+      Requested by {{ run.actor }}. A different person has to confirm.
+
+      {{ $join(vars.known.('- **' & userName & '** – ' & ($count(groups) > 0 ? $join(groups.display, ', ') : 'no groups')), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    saveAs: approval
+  - id: offboard
+    type: forEach
+    name: Offboard each user
+    when: "vars.approval.approved = true"
+    items: vars.known
+    as: u
+    steps:
+      - id: memberships
+        type: forEach
+        name: Remove memberships
+        items: "vars.u.groups[$not(type = 'INDIRECT')]"
+        as: grp
+        steps:
+          - id: removeMembership
+            type: http
+            name: Remove membership
+            connection: hub
+            method: DELETE
+            path: "{{ vars.idm }}/Groups/{{ vars.grp.value }}/members/{{ vars.u.id }}"
+            expectStatus: [200, 204, 404]
+      - id: deleteUser
+        type: http
+        name: Delete user
+        when: "$inputs.mode = 'delete'"
+        connection: hub
+        method: DELETE
+        path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
+        expectStatus: [200, 204, 404]
+  - id: report
+    type: report
+    name: Offboarding report
+    title: Offboarding result
+    text: |
+      - Requested: **{{ $count(inputs.users) }}**, found: **{{ $count(vars.known) }}**, not found: **{{ $count(vars.unknown) }}**
+      - Action: **{{ inputs.mode }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}
+    rows: vars.leavers
+    columns:
+      - { label: User, value: requested }
+      - { label: Found, value: "$exists(user) ? 'yes' : 'no'" }
+      - { label: Memberships, value: "$exists(user) ? $count(user.groups[$not(type = 'INDIRECT')]) : 0" }
+      - { label: Result, value: "$not($exists(user)) ? 'not found' : ($vars.approval.approved = true ? ($inputs.mode = 'delete' ? 'deleted' : 'memberships removed') : 'not confirmed')" }

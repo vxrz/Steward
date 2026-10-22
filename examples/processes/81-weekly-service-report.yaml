@@ -1,0 +1,91 @@
+name: "Cross-platform – Weekly service report"
+description: |
+  One report for the weekly service meeting: reachability and key figures of
+  Insights Hub and Industrial Edge Management in a single run. Publishes
+  `platform.service-report` (one row per check) for the dashboard and keeps
+  the figures as history.
+
+  Recommended schedule: weekly (Monday 07:00). Read-only.
+tags: [report, status, insights-hub, industrial-edge]
+connections:
+  - slot: hub
+    kind: insights-hub
+  - slot: iem
+    kind: industrial-edge-management
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
+  - id: users
+    type: http
+    name: Insights Hub users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    query: { count: 1 }
+    onError: continue
+    saveAs: users
+  - id: assets
+    type: http
+    name: Insights Hub assets
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assets"
+    query: { size: 1 }
+    onError: continue
+    saveAs: assets
+  - id: devices
+    type: http
+    name: Industrial Edge devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    onError: continue
+    saveAs: devices
+  - id: summarise
+    type: set
+    name: Summarise
+    values:
+      fleet: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      offline: "{{ $count(vars.fleet[connectionState != 'ONLINE']) }}"
+      rows: >-
+        {{ [
+          { "platform": "Insights Hub", "check": "Identity Management reachable", "value": $exists(vars.users.error) ? vars.users.error : 'HTTP ' & vars.users.status, "state": $exists(vars.users.error) ? 'critical' : 'good' },
+          { "platform": "Insights Hub", "check": "Users", "value": $string(vars.users.body.totalResults), "state": 'good' },
+          { "platform": "Insights Hub", "check": "Assets", "value": $string(vars.assets.body.page.totalElements), "state": $exists(vars.assets.error) ? 'critical' : 'good' },
+          { "platform": "Industrial Edge", "check": "Management reachable", "value": $exists(vars.devices.error) ? vars.devices.error : 'HTTP ' & vars.devices.status, "state": $exists(vars.devices.error) ? 'critical' : 'good' },
+          { "platform": "Industrial Edge", "check": "Devices online", "value": ($count(vars.fleet) - vars.offline) & ' / ' & $count(vars.fleet), "state": vars.offline > 0 ? 'warning' : 'good' }
+        ] }}
+  - id: publish
+    type: publish
+    name: Publish service report
+    dataset: platform.service-report
+    title: Weekly service report
+    rows: vars.rows
+    key: "platform & '/' & check"
+    columns:
+      - { label: Platform, value: platform }
+      - { label: Check, value: check }
+      - { label: Value, value: value }
+    status: state
+    metrics:
+      ihUsers: "vars.users.body.totalResults"
+      ihAssets: "vars.assets.body.page.totalElements"
+      iemDevices: "$count(vars.fleet)"
+      iemOffline: "vars.offline"
+    staleAfterMinutes: 11520
+  - id: report
+    type: report
+    name: Service report
+    title: Weekly service report
+    text: |
+      Generated {{ $substring($now(), 0, 16) }} UTC by {{ run.actor }}.
+    rows: vars.rows
+    columns:
+      - { label: Platform, value: platform }
+      - { label: Check, value: check }
+      - { label: Value, value: value }
+      - { label: Status, value: state }

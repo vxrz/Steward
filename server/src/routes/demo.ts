@@ -9,6 +9,10 @@ import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
 import type { Role } from '@sm/shared';
+import { createDashboard, listDashboardTemplates } from '../dashboards/service.js';
+import { listSchedules, saveSchedule } from '../scheduler.js';
+import { startRun } from '../engine/runner.js';
+import { getProcess } from '../processes/service.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -20,7 +24,31 @@ const DEMO_USERS: { username: string; displayName: string; roles: Role[] }[] = [
   { username: 'vera', displayName: 'Vera Viewer', roles: ['viewer'] },
 ];
 
-export function setupDemo(): { platforms: number; processes: number; users: string[]; password: string } {
+/**
+ * Read-only "feeder" processes that publish dashboard datasets: scheduled in
+ * demo mode and run once right away so the example dashboards show data.
+ */
+const FEEDERS: { process: string; cron: string }[] = [
+  { process: 'ih-inventory-snapshot', cron: '5 * * * *' },
+  { process: 'ih-data-freshness-monitor', cron: '20 * * * *' },
+  { process: 'iem-inventory-snapshot', cron: '35 * * * *' },
+  { process: 'ih-health-check', cron: '*/15 * * * *' },
+  { process: 'ih-asset-attribute-optimization', cron: '10 6 * * *' },
+  { process: 'iem-firmware-compliance', cron: '15 6 * * *' },
+  { process: 'iem-app-version-compliance', cron: '20 6 * * *' },
+  { process: 'ih-group-hygiene', cron: '30 6 * * 1' },
+  { process: 'weekly-service-report', cron: '45 6 * * 1' },
+];
+
+export async function setupDemo(): Promise<{
+  platforms: number;
+  processes: number;
+  users: string[];
+  password: string;
+  dashboards: number;
+  schedules: number;
+  runs: number;
+}> {
   const base = `http://127.0.0.1:${config.port}/mock`;
   const existing = new Set(db().all<{ name: string }>('SELECT name FROM platforms').map((r) => r.name));
   let platforms = 0;
@@ -117,6 +145,55 @@ export function setupDemo(): { platforms: number; processes: number; users: stri
       enabled: true,
     });
   }
-  audit({ action: 'demo.setup', entityType: 'settings', summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users)` });
-  return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD };
+  // ---- dashboards from examples/dashboards ----
+  const haveDash = new Set(db().all<{ id: string }>('SELECT id FROM dashboards').map((r) => r.id));
+  let dashboards = 0;
+  for (const t of listDashboardTemplates()) {
+    const id = t.id.replace(/^\d+-/, '');
+    if (haveDash.has(id)) continue;
+    createDashboard(t.definition, { id });
+    dashboards++;
+  }
+
+  // ---- schedules + first run of the feeder processes ----
+  const platformByKind = new Map(
+    db()
+      .all<{ id: string; kind: string; name: string }>('SELECT id, kind, name FROM platforms')
+      .filter((p) => p.name.endsWith('(demo)'))
+      .map((p) => [p.kind, p.id]),
+  );
+  const scheduleNames = new Set(listSchedules().map((x) => x.name));
+  let schedules = 0;
+  let runs = 0;
+  for (const f of FEEDERS) {
+    let def;
+    try {
+      def = getProcess(f.process).definition;
+    } catch {
+      continue; // template not imported
+    }
+    const bindings: Record<string, string> = {};
+    for (const c of def.connections) {
+      const pid = c.kind ? platformByKind.get(c.kind) : undefined;
+      if (pid) bindings[c.slot] = pid;
+    }
+    if (Object.keys(bindings).length !== def.connections.length) continue;
+    const name = `Demo: ${def.name}`;
+    if (!scheduleNames.has(name)) {
+      saveSchedule({ name, processId: f.process, cron: f.cron, inputs: {}, bindings, dryRun: false, enabled: true, allowOverlap: false });
+      schedules++;
+    }
+    const ran = db().get('SELECT 1 FROM runs WHERE process_id = ? LIMIT 1', f.process);
+    if (!ran) {
+      await startRun({ processId: f.process, bindings, inputs: {}, dryRun: false });
+      runs++;
+    }
+  }
+
+  audit({
+    action: 'demo.setup',
+    entityType: 'settings',
+    summary: `Demo data loaded (${platforms} platforms, ${processes} processes, ${created.length} users, ${dashboards} dashboards, ${schedules} schedules, ${runs} feeder runs started)`,
+  });
+  return { platforms, processes, users: DEMO_USERS.map((u) => u.username), password: DEMO_USER_PASSWORD, dashboards, schedules, runs };
 }

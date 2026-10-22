@@ -12,6 +12,9 @@ description: |
   - aspects whose data is stale.
 
   Read-only. Large tenants: limit the number of sampled assets.
+
+  Recommended schedule: daily or weekly. Publishes `ih.attribute-optimization`
+  (one row per asset type with the attribute saving potential).
 tags: [optimization, assets, insights-hub]
 connections:
   - slot: hub
@@ -213,3 +216,39 @@ steps:
       - { label: Aspect, value: aspect }
       - { label: Last value, value: lastTime }
       - { label: Age (days), value: ageDays }
+  - id: optimizationRows
+    type: set
+    name: Build dataset rows
+    values:
+      optRows: >-
+        {{ [vars.typeStats[instances > 0].(
+          $t := $;
+          $u := $vars.unusedVariables[type = $t.name];
+          {
+            "type": $t.name,
+            "assets": $t.instances,
+            "attributes": $t.totalAttributes,
+            "unused": $exists($u.unused) ? $join($u.unused, ', ') : '',
+            "saving": $exists($u.saving) ? $u.saving : 0
+          }
+        )] }}
+  - id: publish
+    type: publish
+    name: Publish optimization potential
+    dataset: ih.attribute-optimization
+    title: Asset attribute saving potential
+    rows: vars.optRows
+    key: type
+    columns:
+      - { label: Asset type, value: type }
+      - { label: Assets, value: assets }
+      - { label: Attributes, value: attributes }
+      - { label: Variables without data, value: unused }
+      - { label: Saving, value: saving }
+    status: "saving > 0 ? 'warning' : 'good'"
+    statusText: "saving > 0 ? saving & ' attributes could be saved' : 'no unused variables found'"
+    metrics:
+      potentialSavings: "vars.potentialVariables + vars.potentialAssets"
+      attributes: "vars.totalAttributes"
+      silentAssets: "$count(vars.silentAssets)"
+    staleAfterMinutes: 2880

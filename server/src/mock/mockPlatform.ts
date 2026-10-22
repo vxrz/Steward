@@ -74,11 +74,15 @@ function seed() {
     groups.set(g.id, g);
   };
   mk('mdsp:core:StandardUser', 'Standard user role', [...Array(people.length).keys()]);
-  mk('mdsp:core:TenantAdmin', 'Tenant administrator', [0, 9]);
+  // admins: two active, one stale (Hans, 200 days) and one who never signed in (Felix)
+  mk('mdsp:core:TenantAdmin', 'Tenant administrator', [0, 9, 7, 5]);
   mk('mdsp_usergroup:Operators', 'Plant operators', [1, 2, 3, 4, 6, 12]);
   mk('mdsp_usergroup:Engineers', 'Engineering', [0, 5, 7, 8, 10, 11]);
-  mk('mdsp_usergroup:Viewers', 'Read only dashboards', [3, 13, 14]);
+  // Noah (13) only has the default role
+  mk('mdsp_usergroup:Viewers', 'Read only dashboards', [3, 14]);
   mk('mdsp_usergroup:AccessReview', 'Users whose access is under review', []);
+  mk('mdsp_usergroup:LegacyProjects', 'Old project group nobody uses any more', []);
+  mk('mdsp_usergroup:QualityAudit', 'Quality audit team', [14]);
 
   // assets
   const v = (name: string, unit = '') => ({ name, dataType: 'DOUBLE', unit, searchable: true, qualityCode: true });
@@ -119,8 +123,44 @@ function seed() {
     { id: 'dev-003', name: 'edge-paint-shop', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(3), firmware: '2.1.3' },
     { id: 'dev-004', name: 'edge-warehouse', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.01), firmware: '1.9.0' },
     { id: 'dev-005', name: 'edge-lab', deviceStatus: 'INACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(40), firmware: '2.4.0' },
+    { id: 'dev-006', name: 'edge-press-hall', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.003), firmware: '2.2.1' },
+    { id: 'dev-007', name: 'edge-old-line-7', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(45), firmware: '1.9.4' },
+    { id: 'dev-008', name: 'edge-test-bench', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(0.4), firmware: '2.4.0' },
+    { id: 'dev-009', name: 'edge-qa', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.3.0' },
   ];
-  return { users, groups, assetTypes, assets, ts, devices };
+  // application catalog (latest versions) and what is installed per device
+  const catalog = [
+    { applicationId: 'app-1', title: 'Data Service', version: '1.8.0' },
+    { applicationId: 'app-2', title: 'IE Databus', version: '2.1.0' },
+    { applicationId: 'app-3', title: 'OPC UA Connector', version: '1.12.2' },
+    { applicationId: 'app-4', title: 'Flow Creator', version: '1.17.0' },
+  ];
+  const installed: Record<string, { applicationId: string; version: string }[]> = {
+    'dev-001': [
+      { applicationId: 'app-1', version: '1.8.0' },
+      { applicationId: 'app-2', version: '2.1.0' },
+      { applicationId: 'app-3', version: '1.12.2' },
+    ],
+    'dev-002': [
+      { applicationId: 'app-1', version: '1.7.1' },
+      { applicationId: 'app-2', version: '2.1.0' },
+    ],
+    'dev-003': [{ applicationId: 'app-2', version: '1.9.0' }],
+    'dev-004': [
+      { applicationId: 'app-1', version: '1.6.0' },
+      { applicationId: 'app-4', version: '1.17.0' },
+    ],
+    'dev-006': [
+      { applicationId: 'app-3', version: '1.10.0' },
+      { applicationId: 'app-4', version: '1.17.0' },
+    ],
+    'dev-008': [{ applicationId: 'app-2', version: '2.1.0' }],
+    'dev-009': [
+      { applicationId: 'app-1', version: '1.8.0' },
+      { applicationId: 'app-3', version: '1.12.2' },
+    ],
+  };
+  return { users, groups, assetTypes, assets, ts, devices, catalog, installed };
 }
 
 export async function mockPlatform(app: FastifyInstance): Promise<void> {
@@ -263,12 +303,23 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     if (!iemTokens.has(t)) return reply.code(401).send({ errors: [{ message: 'unauthorized' }] });
   };
   app.get('/iem/portal/api/v1/devices', { preHandler: iemAuth }, async () => ({ data: state.devices, page: { totalElements: state.devices.length } }));
-  app.get('/iem/portal/api/v1/applications', { preHandler: iemAuth }, async () => ({
-    data: [
-      { applicationId: 'app-1', title: 'Data Service', version: '1.8.0' },
-      { applicationId: 'app-2', title: 'IE Databus', version: '2.1.0' },
-    ],
-  }));
+  app.get('/iem/portal/api/v1/applications', { preHandler: iemAuth }, async () => ({ data: state.catalog }));
+  // installed apps of a device (path/shape to verify against your IEM version)
+  app.get('/iem/portal/api/v1/devices/:id/apps', { preHandler: iemAuth }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const d = state.devices.find((x) => x.id === id);
+    if (!d) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
+    if (d.deviceStatus === 'INACTIVE') return reply.code(409).send({ errors: [{ message: 'device is not onboarded' }] });
+    const list = (state.installed[id] ?? []).map((a) => ({ ...a, title: state.catalog.find((c) => c.applicationId === a.applicationId)?.title ?? a.applicationId }));
+    return { data: list };
+  });
+  app.delete('/iem/portal/api/v1/devices/:id', { preHandler: iemAuth }, async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const idx = state.devices.findIndex((x) => x.id === id);
+    if (idx < 0) return reply.code(404).send({ errors: [{ message: 'device not found' }] });
+    state.devices.splice(idx, 1);
+    return reply.code(204).send();
+  });
 
   // ---------------- Web portal (browser automation demo) ----------------
   const html = (body: string) =>

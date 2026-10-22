@@ -1,0 +1,163 @@
+name: "Insights Hub – Inventory snapshot (users, groups, assets)"
+description: |
+  Read-only snapshot of the tenant for dashboards: every user with last login,
+  group count and admin flag; member counts per group/role; assets and
+  billable attributes per asset type.
+
+  Recommended schedule: hourly (it only reads, uses large pages and keeps the
+  published rows compact). Publishes `ih.users`, `ih.groups-summary` and
+  `ih.assets` with metrics for trend charts.
+
+  Required rights: read users/groups (Identity Management) and assets
+  (Asset Management). The last-login attribute `lastLogonTime` is not part of
+  the official spec – verify it on your tenant.
+tags: [inventory, dashboard, users, assets, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: activeDays
+    label: Active = login within (days)
+    type: number
+    default: 30
+  - name: inactiveDays
+    label: Inactive = no login for (days)
+    type: number
+    default: 90
+  - name: privilegedRoles
+    label: Privileged roles / groups
+    type: list
+    default: [mdsp:core:TenantAdmin]
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
+  - id: listUsers
+    type: http
+    name: List users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: users
+  - id: listGroups
+    type: http
+    name: List groups and roles
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: groups
+  - id: listTypes
+    type: http
+    name: List asset types (exploded)
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assettypes"
+    query: { exploded: "true" }
+    paginate: { mode: page, pageSize: 200, itemsPath: "_embedded.assetTypes" }
+    saveAs: types
+  - id: listAssets
+    type: http
+    name: List assets
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assets"
+    paginate: { mode: page, pageSize: 500, itemsPath: "_embedded.assets" }
+    saveAs: assets
+  - id: compute
+    type: set
+    name: Aggregate
+    values:
+      groupStats: >-
+        {{ [vars.groups.body.(
+          $g := $;
+          {
+            "id": $g.id,
+            "name": $g.displayName,
+            "members": $count($vars.users.body[$g.id in groups.value])
+          }
+        )] }}
+      typeStats: >-
+        {{ [vars.types.body.(
+          $t := $;
+          $inst := $count($vars.assets.body[typeId = $t.id]);
+          $attrs := $count($t.variables) + $sum([$t.aspects.$count(aspectType.variables), 0]);
+          {
+            "type": $t.name,
+            "assets": $inst,
+            "attributesPerAsset": $attrs,
+            "totalAttributes": $inst * ($attrs > 0 ? $attrs : 1)
+          }
+        )] }}
+  - id: publishUsers
+    type: publish
+    name: Publish users
+    dataset: ih.users
+    title: Insights Hub users
+    rows: vars.users.body
+    key: id
+    columns:
+      - { label: User, value: userName }
+      - { label: Name, value: "name.givenName & ' ' & name.familyName" }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Days, value: "$daysSince(lastLogonTime)" }
+      - { label: Groups, value: "$count(groups)" }
+      - { label: Admin, value: "$count(groups[display in $inputs.privilegedRoles]) > 0 ? 'yes' : 'no'" }
+    status: >-
+      $not($exists(lastLogonTime)) ? 'critical'
+        : ($daysSince(lastLogonTime) >= $inputs.inactiveDays ? 'critical'
+        : ($daysSince(lastLogonTime) >= $inputs.activeDays ? 'warning' : 'good'))
+    statusText: "$exists(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
+    metrics:
+      total: "$count(vars.users.body)"
+      active30: "$count(vars.users.body[$exists(lastLogonTime) and $daysSince(lastLogonTime) < $inputs.activeDays])"
+      inactive90: "$count(vars.users.body[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= $inputs.inactiveDays])"
+      neverLoggedIn: "$count(vars.users.body[$not($exists(lastLogonTime))])"
+      admins: "$count(vars.users.body[$count(groups[display in $inputs.privilegedRoles]) > 0])"
+    staleAfterMinutes: 180
+  - id: publishGroups
+    type: publish
+    name: Publish group summary
+    dataset: ih.groups-summary
+    title: Groups and roles
+    rows: vars.groupStats
+    key: id
+    columns:
+      - { label: Group, value: name }
+      - { label: Members, value: members }
+    status: "members = 0 ? 'warning' : 'good'"
+    statusText: "members = 0 ? 'no members' : members & ' member(s)'"
+    metrics:
+      groups: "$count(vars.groupStats)"
+      emptyGroups: "$count(vars.groupStats[members = 0])"
+    staleAfterMinutes: 180
+  - id: publishAssets
+    type: publish
+    name: Publish assets per type
+    dataset: ih.assets
+    title: Assets and attributes per type
+    rows: "vars.typeStats^(>totalAttributes)"
+    key: type
+    columns:
+      - { label: Asset type, value: type }
+      - { label: Assets, value: assets }
+      - { label: Attributes / asset, value: attributesPerAsset }
+      - { label: Total attributes, value: totalAttributes }
+    status: "assets = 0 ? 'unknown' : 'good'"
+    statusText: "assets = 0 ? 'type not used' : ''"
+    metrics:
+      assets: "$count(vars.assets.body)"
+      assetTypes: "$count(vars.types.body)"
+      attributes: "$sum([vars.typeStats.totalAttributes, 0])"
+    staleAfterMinutes: 180
+  - id: summary
+    type: report
+    name: Summary
+    title: Inventory snapshot
+    text: |
+      - Users: **{{ $count(vars.users.body) }}**, groups/roles: **{{ $count(vars.groupStats) }}**
+      - Assets: **{{ $count(vars.assets.body) }}** in **{{ $count(vars.types.body) }}** types, about **{{ $sum([vars.typeStats.totalAttributes, 0]) }}** attributes

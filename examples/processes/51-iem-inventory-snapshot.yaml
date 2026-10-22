@@ -1,0 +1,116 @@
+name: "Industrial Edge – Inventory snapshot (devices, apps)"
+description: |
+  Read-only snapshot of the edge fleet for dashboards: every device with
+  connection state, firmware compliance against a minimum version and how long
+  it has been offline; plus the application catalog.
+
+  Recommended schedule: hourly. Publishes `iem.devices` and `iem.apps`.
+  Status per device: good = online and compliant, warning = firmware below the
+  minimum, serious = offline (short), critical = offline longer than the
+  threshold or not onboarded (INACTIVE).
+
+  Verify against your IEM version: field names for connection state
+  (`connectionState`), `lastSeen`, `firmware` and `deviceStatus` differ between
+  IEM releases – adapt the inputs / expressions after checking a real response
+  in the platform's API explorer.
+tags: [inventory, dashboard, devices, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+inputs:
+  - name: minFirmware
+    label: Minimum firmware version
+    type: string
+    default: 2.3.0
+  - name: offlineCriticalHours
+    label: Offline counts as critical after (hours)
+    type: number
+    default: 24
+  - name: statusField
+    label: Field holding the connection state
+    type: string
+    default: connectionState
+  - name: onlineValue
+    label: Value meaning "online"
+    type: string
+    default: ONLINE
+steps:
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    saveAs: devices
+  - id: apps
+    type: http
+    name: List application catalog
+    connection: iem
+    method: GET
+    path: /portal/api/v1/applications
+    onError: continue
+    saveAs: apps
+  - id: fleet
+    type: set
+    name: Evaluate devices
+    values:
+      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      fleet: >-
+        {{ (
+          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
+          [vars.all.$merge([$, {
+            "online": $lookup($, $inputs.statusField) = $inputs.onlineValue,
+            "fwCompliant": $norm(firmware) >= $norm($inputs.minFirmware),
+            "offlineHours": $exists(lastSeen) ? $round(($toMillis($now()) - $toMillis(lastSeen)) / 3600000, 1)
+          }])]
+        ) }}
+  - id: publishDevices
+    type: publish
+    name: Publish devices
+    dataset: iem.devices
+    title: Edge devices
+    rows: vars.fleet
+    key: id
+    columns:
+      - { label: Device, value: name }
+      - { label: State, value: "$lookup($, $inputs.statusField)" }
+      - { label: Onboarding, value: deviceStatus }
+      - { label: Firmware, value: firmware }
+      - { label: Compliant, value: "fwCompliant ? 'yes' : 'no'" }
+      - { label: Last seen, value: "$exists(lastSeen) ? $substring(lastSeen, 0, 16) : '–'" }
+    status: >-
+      deviceStatus = 'INACTIVE' ? 'critical'
+        : ($not(online) ? ($exists(offlineHours) and offlineHours >= $inputs.offlineCriticalHours ? 'critical' : 'serious')
+        : (fwCompliant ? 'good' : 'warning'))
+    statusText: >-
+      deviceStatus = 'INACTIVE' ? 'not onboarded / inactive'
+        : ($not(online) ? 'offline for ' & ($exists(offlineHours) ? offlineHours & ' h' : 'unknown time')
+        : (fwCompliant ? 'online' : 'firmware ' & firmware & ' below ' & $inputs.minFirmware))
+    metrics:
+      total: "$count(vars.fleet)"
+      online: "$count(vars.fleet[online])"
+      offline: "$count(vars.fleet[$not(online)])"
+      outdated: "$count(vars.fleet[$not(fwCompliant)])"
+      inactive: "$count(vars.fleet[deviceStatus = 'INACTIVE'])"
+    staleAfterMinutes: 180
+  - id: publishApps
+    type: publish
+    name: Publish application catalog
+    when: "$exists(vars.apps.body)"
+    dataset: iem.apps
+    title: Edge application catalog
+    rows: "[vars.apps.body.data ? vars.apps.body.data : vars.apps.body]"
+    key: applicationId
+    columns:
+      - { label: Application, value: title }
+      - { label: Latest version, value: version }
+    status: "'good'"
+    metrics:
+      apps: "$count(vars.apps.body.data ? vars.apps.body.data : vars.apps.body)"
+    staleAfterMinutes: 1500
+  - id: offlineCheck
+    type: check
+    name: All devices online
+    severity: warning
+    condition: "$count(vars.fleet[$not(online)]) = 0"
+    message: "{{ $count(vars.fleet[$not(online)]) }} of {{ $count(vars.fleet) }} device(s) offline: {{ $join(vars.fleet[$not(online)].name, ', ') }}"

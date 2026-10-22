@@ -5,6 +5,7 @@ import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   IconLayoutDashboard,
+  IconChartBar,
   IconInbox,
   IconPlayerPlay,
   IconSitemap,
@@ -33,9 +34,12 @@ import { TasksPage } from './pages/Tasks';
 import { SchedulesPage } from './pages/Schedules';
 import { AuditPage } from './pages/Audit';
 import { SettingsPage } from './pages/Settings';
+import { DashboardsPage } from './pages/Dashboards';
+import { DashboardViewPage } from './pages/DashboardView';
 
 const NAV: { to: string; label: string; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', label: 'Dashboard', icon: IconLayoutDashboard },
+  { to: '/dashboards', label: 'Dashboards', icon: IconChartBar },
   { to: '/tasks', label: 'My tasks', icon: IconInbox },
   { to: '/runs', label: 'Runs', icon: IconPlayerPlay },
   { to: '/processes', label: 'Processes', icon: IconSitemap },
@@ -139,6 +143,8 @@ function Shell({ status }: { status: AuthStatus }) {
       <AppShell.Main>
         <Routes>
           <Route path="/" element={<DashboardPage demo={status.demo} />} />
+          <Route path="/dashboards" element={<DashboardsPage />} />
+          <Route path="/dashboards/:id" element={<DashboardViewPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/runs" element={<RunsPage />} />
           <Route path="/runs/:id" element={<RunDetailPage />} />

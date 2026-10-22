@@ -1,0 +1,128 @@
+name: "Insights Hub – Data freshness monitor"
+description: |
+  Checks that assets keep sending data: reads the latest time series record per
+  asset and aspect and flags aspects whose newest value is older than the
+  warning/critical thresholds or that have no data at all.
+
+  Recommended schedule: hourly. Publishes `ih.data-freshness`.
+  Read-only. Large tenants: limit the sampled assets (one call per asset and
+  aspect). Required rights: read assets and time series.
+tags: [monitoring, data, assets, dashboard, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: warnHours
+    label: Warning when the newest value is older than (hours)
+    type: number
+    default: 2
+  - name: criticalHours
+    label: Critical when older than (hours)
+    type: number
+    default: 24
+  - name: maxAssets
+    label: Max. assets to check
+    type: number
+    default: 200
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
+      ts: "{{ $pvar('hub', 'tsPath', '/api/iottimeseries/v3') }}"
+      findings: "{{ [] }}"
+  - id: listTypes
+    type: http
+    name: List asset types (exploded)
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assettypes"
+    query: { exploded: "true" }
+    paginate: { mode: page, pageSize: 200, itemsPath: "_embedded.assetTypes" }
+    saveAs: types
+  - id: listAssets
+    type: http
+    name: List assets
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assets"
+    paginate: { mode: page, pageSize: 500, itemsPath: "_embedded.assets" }
+    saveAs: assets
+  - id: sample
+    type: forEach
+    name: Each asset
+    items: "vars.assets.body[typeId in $vars.types.body.id][[0..($inputs.maxAssets - 1)]]"
+    as: asset
+    steps:
+      - id: assetType
+        type: set
+        name: Resolve type
+        values:
+          assetType: "{{ vars.types.body[id = $vars.asset.typeId] }}"
+      - id: aspects
+        type: forEach
+        name: Each aspect
+        items: vars.assetType.aspects
+        as: aspect
+        steps:
+          - id: latest
+            type: http
+            name: Latest record
+            connection: hub
+            method: GET
+            path: "{{ vars.ts }}/timeseries/{{ vars.asset.assetId }}/{{ vars.aspect.name }}"
+            onError: continue
+            saveAs: latest
+          - id: record
+            type: set
+            name: Record
+            values:
+              findings: >-
+                {{ $append($vars.findings, [(
+                  $t := vars.latest.body[0]._time;
+                  {
+                    "key": vars.asset.assetId & '/' & vars.aspect.name,
+                    "asset": vars.asset.name,
+                    "aspect": vars.aspect.name,
+                    "lastTime": $t,
+                    "ageHours": $exists($t) ? $round(($toMillis($now()) - $toMillis($t)) / 3600000, 1),
+                    "sortAge": $exists($t) ? ($toMillis($now()) - $toMillis($t)) / 3600000 : 1000000,
+                    "error": vars.latest.error
+                  })]) }}
+  - id: counts
+    type: set
+    name: Count
+    values:
+      fresh: "{{ $count(vars.findings[$exists(lastTime) and ageHours < $inputs.warnHours]) }}"
+      stale: "{{ $count(vars.findings[$exists(lastTime) and ageHours >= $inputs.warnHours]) }}"
+      noData: "{{ $count(vars.findings[$not($exists(lastTime))]) }}"
+  - id: publish
+    type: publish
+    name: Publish freshness
+    dataset: ih.data-freshness
+    title: Time series freshness
+    rows: "vars.findings^(>sortAge)"
+    key: key
+    columns:
+      - { label: Asset, value: asset }
+      - { label: Aspect, value: aspect }
+      - { label: Newest value, value: "$exists(lastTime) ? $substring(lastTime, 0, 16) : 'none'" }
+      - { label: Age (h), value: ageHours }
+    status: >-
+      $exists(error) ? 'unknown'
+        : ($not($exists(lastTime)) ? 'critical'
+        : (ageHours >= $inputs.criticalHours ? 'critical'
+        : (ageHours >= $inputs.warnHours ? 'warning' : 'good')))
+    statusText: "$exists(error) ? 'could not read: ' & error : ($exists(lastTime) ? ageHours & ' h old' : 'no data received')"
+    metrics:
+      fresh: vars.fresh
+      stale: vars.stale
+      noData: vars.noData
+    staleAfterMinutes: 120
+  - id: freshCheck
+    type: check
+    name: All sampled aspects deliver data
+    severity: warning
+    condition: "vars.stale + vars.noData = 0"
+    message: "{{ vars.fresh }} fresh, {{ vars.stale }} stale, {{ vars.noData }} without data"

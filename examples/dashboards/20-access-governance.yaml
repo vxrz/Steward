@@ -1,0 +1,24 @@
+name: Access governance
+description: Who has access to Insights Hub and is it still justified? Users, privileged roles and group hygiene – fed by the inventory snapshot, privileged access review and group hygiene processes.
+refreshSeconds: 120
+widgets:
+  - { id: total, type: kpi, title: Users, dataset: ih.users, metric: total, width: 3 }
+  - { id: active, type: kpi, title: Active (30 days), dataset: ih.users, metric: active30, goodWhen: up, width: 3 }
+  - { id: inactive, type: kpi, title: Inactive (90+ days), dataset: ih.users, metric: inactive90, goodWhen: down, width: 3 }
+  - { id: never, type: kpi, title: Never signed in, dataset: ih.users, metric: neverLoggedIn, goodWhen: down, width: 3 }
+  - { id: admins, type: kpi, title: Privileged assignments, dataset: ih.privileged, metric: privileged, goodWhen: down, width: 3 }
+  - { id: staleAdmins, type: kpi, title: Privileged without recent login, dataset: ih.privileged, metric: stale90, goodWhen: down, width: 3 }
+  - { id: emptyGroups, type: kpi, title: Empty groups, dataset: ih.groups, metric: empty, goodWhen: down, width: 3 }
+  - { id: onlyDefault, type: kpi, title: Users with default role only, dataset: ih.groups, metric: onlyDefaultRole, goodWhen: down, width: 3 }
+  - { id: activity, type: status, title: User activity, dataset: ih.users, width: 6 }
+  - { id: trend, type: trend, title: Active vs. inactive users, dataset: ih.users, metrics: [active30, inactive90], days: 90, width: 6 }
+  - { id: inactiveUsers, type: table, title: Users to review, dataset: ih.users, problemsOnly: true, width: 12 }
+  - { id: privileged, type: table, title: Privileged access, dataset: ih.privileged, width: 6 }
+  - { id: groups, type: table, title: Group hygiene, dataset: ih.groups, problemsOnly: true, width: 6 }
+  - id: howto
+    type: markdown
+    width: 12
+    text: |
+      **Cadence:** inventory hourly · access review 1 + 2 quarterly · privileged review monthly · group hygiene weekly.
+      Destructive steps (removing roles, offboarding) always require a second person (four-eyes).
+  - { id: fresh, type: freshness, width: 12 }

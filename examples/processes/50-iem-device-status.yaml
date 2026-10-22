@@ -3,6 +3,10 @@ description: |
   Lists all devices onboarded in Industrial Edge Management and flags devices
   that are not connected. The status field name differs between IEM versions
   (verify with the API explorer); configure it via the inputs.
+
+  Recommended schedule: every 30–60 minutes. Publishes `iem.device-status`
+  (lightweight online/offline view). For firmware compliance and offline
+  durations use "Industrial Edge – Inventory snapshot", which feeds `iem.devices`.
 tags: [status, health, industrial-edge]
 connections:
   - slot: iem
@@ -46,3 +50,20 @@ steps:
       - { label: State, value: "$lookup($, $inputs.statusField)" }
       - { label: Status, value: deviceStatus }
       - { label: Last seen, value: lastSeen }
+  - id: publish
+    type: publish
+    name: Publish device status
+    dataset: iem.device-status
+    title: Edge device connection status
+    rows: vars.all
+    key: id
+    columns:
+      - { label: Device, value: name }
+      - { label: State, value: "$lookup($, $inputs.statusField)" }
+      - { label: Last seen, value: "$substring(lastSeen, 0, 16)" }
+    status: "$lookup($, $inputs.statusField) = $inputs.onlineValue ? 'good' : 'critical'"
+    statusText: "$lookup($, $inputs.statusField)"
+    metrics:
+      total: "$count(vars.all)"
+      offline: "$count(vars.offline)"
+    staleAfterMinutes: 120
