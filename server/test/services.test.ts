@@ -100,7 +100,9 @@ describe('service catalogue', () => {
     const r = await vera('GET', `/records/${rec.id}`);
     expect(r.links[0]).toMatchObject({ kind: 'service', targetId: svc.id, label: SERVICE.name, path: `/services/${svc.id}` });
     expect(r.backlinks).toEqual([expect.objectContaining({ kind: 'service', id: svc.id, label: SERVICE.name })]);
-    expect((await vera('GET', `/backlinks?kind=platform&id=${platform.id}`)).map((b: any) => b.id)).toContain(svc.id);
+    expect((await dana('GET', `/backlinks?kind=platform&id=${platform.id}`)).map((b: any) => b.id)).toContain(svc.id);
+    // not for a platform the reader may not see
+    expect(await status(vera('GET', `/backlinks?kind=platform&id=${platform.id}`))).toBe(404);
     expect((await vera('GET', '/services')).find((x: any) => x.id === svc.id).linkCount).toBe(4);
     // the link picker finds services
     expect((await dana('GET', '/link-targets?kind=service&q=plant')).map((t: any) => t.id)).toContain(svc.id);

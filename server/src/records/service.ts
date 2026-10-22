@@ -11,7 +11,7 @@ import {
   type RecordWorkflow,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { audit } from '../audit.js';
+import { audit, authenticRows } from '../audit.js';
 import { currentActor, type AuthUser } from '../auth/context.js';
 import { findUserByName } from '../auth/users.js';
 import { isAdmin } from '../auth/permissions.js';
@@ -145,11 +145,76 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
   return rows.map(toSummary).filter((r) => !tag || r.tags.includes(tag));
 }
 
-/** Authors of the versions of the current revision (four-eyes). */
-const revisionAuthors = (r: RecordRow): string[] =>
-  db()
-    .all<{ author: string }>('SELECT DISTINCT author FROM record_versions WHERE record_id = ? AND revision = ?', r.id, r.revision)
-    .map((a) => a.author);
+/**
+ * Everyone who wrote content of the record (four-eyes): the authors of all
+ * its versions – a new revision starts as a copy of the earlier content, so
+ * their authors stay authors – and everyone who attached or removed files
+ * (attached files are content, too).
+ */
+function contentAuthors(r: RecordRow): string[] {
+  const names = new Set<string>();
+  for (const a of db().all<{ author: string }>('SELECT DISTINCT author FROM record_versions WHERE record_id = ?', r.id)) names.add(a.author);
+  for (const a of db().all<{ created_by: string }>("SELECT DISTINCT created_by FROM record_attachments WHERE record_id = ? AND kind = 'file'", r.id))
+    names.add(a.created_by);
+  for (const a of db().all<{ actor: string }>(
+    "SELECT DISTINCT actor FROM audit_log WHERE entity_type = 'record' AND entity_id = ? AND action IN ('record.attachment_added', 'record.attachment_removed')",
+    r.id,
+  ))
+    names.add(a.actor);
+  return [...names];
+}
+
+/** Audit actions of the transitions that leave the initial status (they freeze the content). */
+const FREEZE_ACTIONS = [
+  ...new Set(Object.values(RECORD_WORKFLOWS).flatMap((w) => w.transitions.filter((t) => t.from.includes(w.initial)).map((t) => `record.${t.action}`))),
+];
+
+/**
+ * Whether frozen content is still what was frozen. The frozen_hash column
+ * alone does not prove it (someone who can write to the database could
+ * change the content and the hash together), so the hash must also match
+ * the authentic (HMAC-chained) audit entry that froze this revision: the
+ * newest freezing or "new revision" entry of the record.
+ */
+export function frozenIntact(r: RecordRow, hash: string): boolean {
+  if (!r.frozen_hash || hash !== r.frozen_hash) return false;
+  const actions = [...FREEZE_ACTIONS, 'record.revised'];
+  const { rows } = authenticRows(`entity_type = 'record' AND entity_id = ? AND action IN (${actions.map(() => '?').join(', ')})`, [r.id, ...actions], {
+    limit: 20,
+  });
+  for (const row of rows) {
+    if (row.action === 'record.revised') return false;
+    const d = parseJson<{ contentHash?: string; revision?: number; frozen?: boolean }>(row.details, {});
+    if (d.frozen !== true) continue; // e.g. cancelling a submitted record
+    return d.contentHash === hash && Number(d.revision) === Number(r.revision);
+  }
+  return false;
+}
+
+/**
+ * Field definitions to show a record with: for frozen content the snapshot
+ * taken when it was frozen (labels and options may change later), else the
+ * type's current ones; stored values without a definition are shown by key.
+ */
+export function fieldDefsOf(r: RecordRow, t: TypeRow, frozen: boolean): RecordFieldDef[] {
+  const snapshot = frozen
+    ? parseJson<RecordFieldDef[] | null>(
+        db().get<{ field_defs: string | null }>('SELECT field_defs FROM record_versions WHERE record_id = ? AND version = ?', r.id, r.version)?.field_defs ??
+          null,
+        null,
+      )
+    : null;
+  return withStoredFields(snapshot ?? toType(t, 0).fields, parseJson<Record<string, string>>(r.fields, {}));
+}
+
+/** Definitions plus a plain text definition for every stored value they do not cover. */
+export function withStoredFields(defs: RecordFieldDef[], fields: Record<string, string>): RecordFieldDef[] {
+  const known = new Set(defs.map((d) => d.key));
+  const extra = Object.keys(fields)
+    .filter((k) => !known.has(k))
+    .map((k): RecordFieldDef => ({ key: k, label: k, kind: 'textarea' }));
+  return extra.length ? [...defs, ...extra] : defs;
+}
 
 export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): RecordPermissions {
   const draft = r.status === wf.initial;
@@ -159,7 +224,7 @@ export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkfl
     comment: canCommentRecord(u, r),
     revise: edit && wf.revisable.includes(r.status),
     attach: edit && draft,
-    link: edit,
+    link: edit && !wf.terminal.includes(r.status),
     generatePdf: edit || canApproveRecords(u),
     uploadSigned: edit || canApproveRecords(u),
     attachPlainPdf: isAdmin(u),
@@ -174,7 +239,7 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
     if (!u) reason = 'Not signed in';
     else if (t.approval) {
       if (!canApproveRecords(u)) reason = 'Only approvers and administrators can approve or reject records';
-      else reason = fourEyesReason(u, r, revisionAuthors(r)) ?? undefined;
+      else reason = fourEyesReason(u, r, contentAuthors(r)) ?? undefined;
     } else if (!canEditRecord(u, r)) reason = 'Only designers, operators, administrators and the owner can do this';
     out.push({
       action: t.action,
@@ -230,13 +295,17 @@ export function getRecord(idOrNumber: string): RecordDetail {
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
   const sup = r.superseded_by ? recordRow(r.superseded_by) : undefined;
+  const frozen = r.status !== wf.initial;
+  const hash = currentContentHash(r, t);
   return {
     ...toSummary({ ...r, type_key: t.key, type_name: t.name, workflow: t.workflow }),
     body: r.body,
     fields: parseJson<Record<string, string>>(r.fields, {}),
-    contentHash: currentContentHash(r, t),
+    fieldDefs: fieldDefsOf(r, t, frozen),
+    contentHash: hash,
     frozenHash: r.frozen_hash,
-    frozen: r.status !== wf.initial,
+    frozen,
+    tampered: frozen && !frozenIntact(r, hash),
     submittedBy: r.submitted_by,
     submittedAt: r.submitted_at,
     supersededBy: sup ? { id: sup.id, number: sup.number, title: sup.title } : null,
@@ -261,6 +330,7 @@ interface VersionRow {
   author: string;
   comment: string;
   created_at: string;
+  field_defs: string | null;
 }
 const toVersion = (v: VersionRow): RecordVersion => ({
   version: Number(v.version),
@@ -272,6 +342,7 @@ const toVersion = (v: VersionRow): RecordVersion => ({
   author: v.author,
   comment: v.comment,
   createdAt: v.created_at,
+  fieldDefs: parseJson<RecordFieldDef[] | null>(v.field_defs, null),
 });
 
 export function listVersions(idOrNumber: string): RecordVersion[] {
@@ -517,8 +588,8 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
     if (superseding.id === r.id) throw new HttpError(400, 'A record cannot supersede itself');
   }
   const hash = currentContentHash(r, t);
-  if (!leavingDraft && r.frozen_hash && hash !== r.frozen_hash) {
-    // The frozen content no longer matches its recorded hash: changed outside Steward. Stop rather than approve it.
+  if (!leavingDraft && !frozenIntact(r, hash)) {
+    // The frozen content no longer matches the hash recorded (and audited) when it was frozen: changed outside Steward. Stop rather than approve it.
     throw new HttpError(409, `The content of ${r.number} does not match the hash recorded when it was frozen – check the audit log`, 'RECORD_TAMPERED');
   }
   const now = nowIso();
@@ -534,6 +605,9 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
       u.username,
       r.id,
     );
+    // the field definitions as they are now belong to the frozen content (labels and options may change later)
+    if (leavingDraft)
+      db().run('UPDATE record_versions SET field_defs = ? WHERE record_id = ? AND version = ?', JSON.stringify(toType(t, 0).fields), r.id, r.version);
     insertEvent(r, {
       kind: 'transition',
       action: def.action,
@@ -633,7 +707,11 @@ export function addComment(idOrNumber: string, text: string): RecordDetail {
 }
 
 /** The record if the user may change it (for attachments and links). */
-export function requireEditable(idOrNumber: string, what: string, o: { draftOnly?: boolean } = {}): { r: RecordRow; t: TypeRow; wf: RecordWorkflow } {
+export function requireEditable(
+  idOrNumber: string,
+  what: string,
+  o: { draftOnly?: boolean; notTerminal?: boolean } = {},
+): { r: RecordRow; t: TypeRow; wf: RecordWorkflow } {
   const u = me();
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
@@ -641,6 +719,7 @@ export function requireEditable(idOrNumber: string, what: string, o: { draftOnly
   if (!canEditRecord(u, r)) forbid(what);
   if (o.draftOnly && r.status !== wf.initial)
     throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN');
+  if (o.notTerminal && wf.terminal.includes(r.status)) throw new HttpError(409, `${r.number} is ${r.status}: it cannot change any more.`, 'RECORD_CLOSED');
   return { r, t, wf };
 }
 

@@ -144,9 +144,10 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
           <Group grow align="flex-start" wrap="wrap">
             <TextInput
               label={t('types.key')}
-              description={t('types.keyHelp')}
+              description={locked ? t('types.keyLocked') : t('types.keyHelp')}
               value={key}
               onChange={(e) => setKey(e.currentTarget.value.toUpperCase())}
+              disabled={locked}
               required
               maxLength={10}
               miw={160}

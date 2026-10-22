@@ -146,6 +146,34 @@ test('a service is created and linked to a record, with backlinks both ways', as
   await expect(page.getByRole('link', { name })).toBeVisible();
 });
 
+test('a frozen record keeps its field labels; the key of a used type is locked', async ({ page, apiAs, loginAs }) => {
+  const admin = await apiAs('admin');
+  const dana = await apiAs('dana');
+  const key = 'E' + Date.now().toString().slice(-8);
+  const name = uniq('E2E field type');
+  const field = { key: 'impact', label: 'Impact on users', kind: 'text' };
+  const type = await json(await admin.post('/api/record-types', { data: { key, name, workflow: 'decision', template: '', fields: [field] } }));
+  const rec = await json(await dana.post('/api/records', { data: { type: key, title: uniq('E2E frozen fields'), fields: { impact: 'None expected' } } }));
+  await json(await dana.post(`/api/records/${rec.id}/transition`, { data: { action: 'propose' } }));
+  await json(
+    await admin.put(`/api/record-types/${type.id}`, {
+      data: { key, name, workflow: 'decision', template: '', fields: [{ ...field, label: 'Renamed label' }] },
+    }),
+  );
+
+  await page.goto(`/records/${rec.id}`);
+  await expect(page.getByText('Impact on users')).toBeVisible();
+  await expect(page.getByText('None expected')).toBeVisible();
+  await expect(page.getByText('Renamed label')).toHaveCount(0);
+
+  const adminPage = await loginAs('admin');
+  await adminPage.goto('/records/types');
+  await adminPage.getByRole('button', { name: `Edit ${name}` }).click();
+  const dialog = adminPage.getByRole('dialog', { name: `Edit record type ${key}` });
+  await expect(dialog.getByRole('textbox', { name: 'Key' }).first()).toBeDisabled(); // the type's key (then the field keys)
+  await expect(dialog.getByText(/The key cannot change while records of this type exist/)).toBeVisible();
+});
+
 test('records list is accessible and filters by status', async ({ page, apiAs }) => {
   const api = await apiAs('dana');
   const title = uniq('E2E filter');

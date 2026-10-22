@@ -207,7 +207,8 @@ function toLink(r: LinkRow): ItemLink {
   return {
     id: r.id,
     kind: r.to_kind as LinkKind,
-    targetId: r.to_id,
+    // ids can carry names (process ids are slugs of the name): only for targets the reader may see
+    targetId: target ? r.to_id : null,
     url: null,
     label: target?.label ?? '',
     note: r.note,
@@ -220,6 +221,11 @@ function toLink(r: LinkRow): ItemLink {
 
 export function listLinks(from: LinkSource, id: string): ItemLink[] {
   return db().all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id).map(toLink);
+}
+
+/** Whether the current user may see an item (records and services: everyone). */
+export function targetVisible(kind: string, id: string): boolean {
+  return !!RESOLVERS.get(kind)?.resolve(id);
 }
 
 /** Records and services that link to an item. */

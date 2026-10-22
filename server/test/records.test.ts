@@ -305,7 +305,7 @@ describe('workflow: change requests', () => {
     const rec = await newCr(dana, 'Edited by admin');
     await s.api('PUT', `/records/${rec.id}`, { body: 'admin edit' });
     await dana('POST', `/records/${rec.id}/transition`, { action: 'submit' });
-    expect((await s.api('GET', `/records/${rec.id}`)).actions.find((a: any) => a.action === 'approve').reason).toMatch(/author of this revision/);
+    expect((await s.api('GET', `/records/${rec.id}`)).actions.find((a: any) => a.action === 'approve').reason).toMatch(/author of the content/);
     expect(await status(s.api('POST', `/records/${rec.id}/transition`, { action: 'approve' }))).toBe(403);
     // an administrator who did not write it may
     const other = await newCr(dana, 'Approved by admin');
@@ -381,7 +381,7 @@ describe('links', () => {
     expect(await status(dana('POST', `/records/${rec.id}/links`, { kind: 'process', id: p.id }))).toBe(404);
     await s.api('POST', `/records/${rec.id}/links`, { kind: 'process', id: p.id });
     const seen = (await vera('GET', `/records/${rec.id}`)).links[0];
-    expect(seen).toMatchObject({ kind: 'process', targetId: p.id, visible: false, label: '', path: null });
+    expect(seen).toMatchObject({ kind: 'process', targetId: null, visible: false, label: '', path: null });
     expect(JSON.stringify(seen)).not.toContain('Secret process');
     expect((await s.api('GET', `/records/${rec.id}`)).links[0].label).toBe('Secret process');
   });

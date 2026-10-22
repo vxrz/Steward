@@ -89,7 +89,7 @@ export function RecordDetailPage() {
   if (q.error) return <Alert color="red">{errorText(q.error)}</Alert>;
   const rec = q.data;
   if (!rec) return null;
-  const tampered = !!rec.frozenHash && rec.frozenHash !== rec.contentHash;
+  const tampered = rec.tampered;
   const visibleActions = rec.actions.filter((a) => a.allowed || (a.approval && meta.data?.canApprove));
 
   return (
@@ -251,11 +251,11 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
   const { t } = useTranslation('records');
   return (
     <Grid gutter="lg">
-      {rec.type.fields.length > 0 && (
+      {rec.fieldDefs.length > 0 && (
         <Grid.Col span={{ base: 12, md: 4 }} order={{ base: 1, md: 2 }}>
           <Paper withBorder p="sm">
             <Stack gap="sm">
-              {rec.type.fields.map((f) => (
+              {rec.fieldDefs.map((f) => (
                 <Field key={f.key} label={f.label}>
                   <Text size="sm" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                     {fieldValue(f.kind, rec.fields[f.key])}
@@ -284,7 +284,7 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
           </Paper>
         </Grid.Col>
       )}
-      <Grid.Col span={{ base: 12, md: rec.type.fields.length ? 8 : 12 }} order={{ base: 2, md: 1 }}>
+      <Grid.Col span={{ base: 12, md: rec.fieldDefs.length ? 8 : 12 }} order={{ base: 2, md: 1 }}>
         {rec.body.trim() ? <MarkdownView text={rec.body} /> : <Text c="dimmed">{t('detail.noBody')}</Text>}
         <Text size="xs" c="dimmed" mt="md" className="mono" style={{ overflowWrap: 'anywhere' }}>
           {t('detail.contentHash', { hash: rec.contentHash })}
@@ -304,7 +304,7 @@ function VersionsTab({ rec }: { rec: RecordDetail }) {
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
   const [context, setContext] = useState(true);
-  const labels = useMemo(() => new Map(rec.type.fields.map((f) => [f.key, f.label])), [rec.type.fields]);
+  const labels = useMemo(() => new Map(rec.fieldDefs.map((f) => [f.key, f.label])), [rec.fieldDefs]);
   const a = list.find((v) => String(v.version) === (from ?? String(list[1]?.version ?? '')));
   const b = list.find((v) => String(v.version) === (to ?? String(list[0]?.version ?? '')));
   const options = list.map((v) => ({ value: String(v.version), label: t('versions.option', { version: v.version, revision: v.revision, author: v.author }) }));

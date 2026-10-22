@@ -136,4 +136,9 @@ export const RECORD_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // the field definitions (labels, kinds, options) of frozen content, taken when it is frozen
+    name: 'records-002-version-field-defs',
+    sql: `ALTER TABLE record_versions ADD COLUMN field_defs TEXT;`,
+  },
 ];

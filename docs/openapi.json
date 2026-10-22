@@ -4305,7 +4305,8 @@
                   "type": [
                     "null",
                     "string"
-                  ]
+                  ],
+                  "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
                 },
                 "url": {
                   "type": [
@@ -4519,7 +4520,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
           },
           "url": {
             "type": [
