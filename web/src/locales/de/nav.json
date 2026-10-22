@@ -1,0 +1,61 @@
+{
+  "items": {
+    "dashboard": "Übersicht",
+    "dashboards": "Dashboards",
+    "tasks": "Meine Aufgaben",
+    "runs": "Ausführungen",
+    "processes": "Prozesse",
+    "schedules": "Zeitpläne",
+    "platforms": "Plattformen",
+    "audit": "Audit-Log",
+    "users": "Benutzer & Teams",
+    "settings": "Einstellungen",
+    "profile": "Profil & API-Token",
+    "triggers": "Auslöser"
+  },
+  "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
+  "pageNotFound": "Seite nicht gefunden",
+  "toggleNavigation": "Navigation ein-/ausblenden",
+  "toggleColorScheme": "Farbschema wechseln",
+  "demo": "Demo",
+  "lightMode": "Heller Modus",
+  "darkMode": "Dunkler Modus",
+  "language": "Sprache",
+  "userMenu": {
+    "label": "Benutzermenü",
+    "installApp": "App installieren",
+    "changePassword": "Passwort ändern",
+    "lockVault": "Tresor sperren",
+    "lockVaultConfirm": "Tresor sperren? Zeitpläne werden angehalten, und alle müssen warten, bis ein Administrator ihn wieder entsperrt.",
+    "signOut": "Abmelden"
+  },
+  "palette": {
+    "newProcess": "Neuer Prozess",
+    "newProcessHint": "Leeren Prozess anlegen und im Editor öffnen",
+    "lightMode": "Zum hellen Modus wechseln",
+    "darkMode": "Zum dunklen Modus wechseln",
+    "colorSchemeHint": "Farbschema ändern",
+    "groups": {
+      "actions": "Aktionen",
+      "pages": "Seiten",
+      "recentRuns": "Letzte Ausführungen",
+      "processes": "Prozesse",
+      "startRun": "Ausführung starten",
+      "dashboards": "Dashboards",
+      "platforms": "Plattformen"
+    },
+    "runBy": "Ausführung von {{actor}} · {{when}}",
+    "dryRunBy": "Probelauf von {{actor}} · {{when}}",
+    "startRunOf": "{{name}} ausführen",
+    "nothingFound": "Nichts gefunden",
+    "placeholder": "Seiten, Prozesse, Dashboards, Plattformen suchen…",
+    "search": "Suchen",
+    "searchWithShortcut": "Suchen ({{shortcut}})",
+    "searchButton": "Suchen…",
+    "keywords": {
+      "page": "Seite",
+      "create": "anlegen neu",
+      "theme": "Farbschema hell dunkel"
+    }
+  }
+}

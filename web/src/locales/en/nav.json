@@ -1,0 +1,61 @@
+{
+  "items": {
+    "dashboard": "Dashboard",
+    "dashboards": "Dashboards",
+    "tasks": "My tasks",
+    "runs": "Runs",
+    "processes": "Processes",
+    "schedules": "Schedules",
+    "platforms": "Platforms",
+    "audit": "Audit log",
+    "users": "Users & teams",
+    "settings": "Settings",
+    "profile": "Profile & API tokens",
+    "triggers": "Triggers"
+  },
+  "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
+  "pageNotFound": "Page not found",
+  "toggleNavigation": "Toggle navigation",
+  "toggleColorScheme": "Toggle color scheme",
+  "demo": "demo",
+  "lightMode": "Light mode",
+  "darkMode": "Dark mode",
+  "language": "Language",
+  "userMenu": {
+    "label": "User menu",
+    "installApp": "Install app",
+    "changePassword": "Change password",
+    "lockVault": "Lock vault",
+    "lockVaultConfirm": "Lock the vault? Schedules stop and everybody waits until an administrator unlocks it again.",
+    "signOut": "Sign out"
+  },
+  "palette": {
+    "newProcess": "New process",
+    "newProcessHint": "Create an empty process and open the editor",
+    "lightMode": "Switch to light mode",
+    "darkMode": "Switch to dark mode",
+    "colorSchemeHint": "Change the color scheme",
+    "groups": {
+      "actions": "Actions",
+      "pages": "Pages",
+      "recentRuns": "Recent runs",
+      "processes": "Processes",
+      "startRun": "Start a run",
+      "dashboards": "Dashboards",
+      "platforms": "Platforms"
+    },
+    "runBy": "Run by {{actor}} · {{when}}",
+    "dryRunBy": "Dry run by {{actor}} · {{when}}",
+    "startRunOf": "Start run of {{name}}",
+    "nothingFound": "Nothing found",
+    "placeholder": "Search pages, processes, dashboards, platforms…",
+    "search": "Search",
+    "searchWithShortcut": "Search ({{shortcut}})",
+    "searchButton": "Search…",
+    "keywords": {
+      "page": "page",
+      "create": "create",
+      "theme": "theme"
+    }
+  }
+}

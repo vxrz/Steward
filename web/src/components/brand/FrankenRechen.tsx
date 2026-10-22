@@ -1,19 +1,22 @@
+import { useTranslation } from 'react-i18next';
+
 /**
  * The Franconian rake ("Fränkischer Rechen"): in red, three silver points.
  * The regional symbol of Franconia – not the official coat of arms of the
  * Bezirk Mittelfranken, whose use by third parties needs permission.
  */
 export function FrankenRechen({ height = 14 }: { height?: number }) {
+  const { t } = useTranslation();
   return (
     <svg
       viewBox="0 0 100 120"
       height={height}
       width={(height * 100) / 120}
       role="img"
-      aria-label="Franconian rake"
+      aria-label={t('footer.rake')}
       style={{ display: 'inline-block', verticalAlign: '-0.15em', flexShrink: 0 }}
     >
-      <title>Franconian rake (Fränkischer Rechen)</title>
+      <title>{t('footer.rakeTitle')}</title>
       <defs>
         <clipPath id="sm-franken-shield">
           <path d="M4 4H96V58C96 90 74 108 50 116C26 108 4 90 4 58Z" />

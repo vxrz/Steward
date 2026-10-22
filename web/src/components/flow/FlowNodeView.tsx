@@ -3,7 +3,9 @@ import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Badge, Box, Group, Text, Tooltip } from '@mantine/core';
 import { IconEyeCheck, IconFilter, IconUsers } from '@tabler/icons-react';
 import { NODE_HEIGHT, NODE_WIDTH, STEP_META, hasInput, nodePorts, type FlowNode } from '@sm/shared';
-import { Markdown } from '../common';
+import { Markdown, statusLabel } from '../common';
+import i18n from '../../i18n';
+import { portLabel, stepLabel } from '../../i18n/meta';
 import { NODE_ICONS, nodeColor, nodeSummary } from './meta';
 
 export interface NodeRunStatus {
@@ -17,6 +19,8 @@ export type FlowNodeData = {
   issue?: string;
   warning?: string;
   run?: NodeRunStatus;
+  /** UI language – part of the data so memoised nodes re-render when it changes */
+  lang?: string;
 };
 
 export type FlowRfNode = Node<FlowNodeData, 'flow'>;
@@ -29,20 +33,13 @@ const STATUS_COLOR: Record<string, string> = {
   running: 'blue',
   skipped: 'gray',
 };
-const STATUS_LABEL: Record<string, string> = {
-  succeeded: 'ok',
-  failed: 'failed',
-  dryrun: 'dry run',
-  waiting: 'waiting',
-  running: 'running',
-  skipped: 'skipped',
-};
+const runStatusText = (s: string) => (s === 'succeeded' ? i18n.t('editor:node.ok') : statusLabel(s));
 
 function runText(r: NodeRunStatus): string {
   const entries = Object.entries(r.counts).filter(([, n]) => n > 0);
   const total = entries.reduce((s, [, n]) => s + n, 0);
-  if (total === 1) return STATUS_LABEL[entries[0]![0]] ?? entries[0]![0];
-  return entries.map(([s, n]) => `${n}× ${STATUS_LABEL[s] ?? s}`).join(', ');
+  if (total === 1) return runStatusText(entries[0]![0]);
+  return entries.map(([s, n]) => `${n}× ${runStatusText(s)}`).join(', ');
 }
 
 function NoteView({ node, selected }: { node: Extract<FlowNode, { type: 'note' }>; selected: boolean }) {
@@ -104,15 +101,15 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
       <Box style={{ flex: 1, minWidth: 0, padding: '6px 8px', paddingRight: ports.length > 1 ? 44 : 10 }}>
         <Group gap={4} wrap="nowrap">
           <Text size="10px" tt="uppercase" fw={700} c={`var(--mantine-color-${color}-text)`} style={{ letterSpacing: 0.3 }} truncate>
-            {meta.label}
+            {stepLabel(node.type, meta)}
           </Text>
           {node.when && <IconFilter size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && (node.assignees?.length ?? 0) > 0 && <IconUsers size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && node.fourEyes && <IconEyeCheck size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'forEach' && (node.concurrency ?? 1) > 1 && (
-            <Tooltip label={`Up to ${node.concurrency} items run at the same time`} withArrow>
+            <Tooltip label={i18n.t('editor:node.parallelHint', { count: node.concurrency })} withArrow>
               <Badge size="xs" variant="light" color={color} px={4} style={{ flexShrink: 0, textTransform: 'none' }} data-testid="parallel-badge">
-                ×{node.concurrency} parallel
+                {i18n.t('editor:node.parallel', { count: node.concurrency })}
               </Badge>
             </Tooltip>
           )}
@@ -144,14 +141,14 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
         const isError = p.id === 'error';
         return (
           <Box key={p.id}>
-            {p.label && (
+            {portLabel(p.id, p.label) && (
               <Text
                 size="9px"
                 c={isError ? 'red' : 'dimmed'}
                 fw={600}
                 style={{ position: 'absolute', right: 8, top: top - 7, pointerEvents: 'none', whiteSpace: 'nowrap' }}
               >
-                {p.label}
+                {portLabel(p.id, p.label)}
               </Text>
             )}
             <Handle

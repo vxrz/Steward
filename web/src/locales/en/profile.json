@@ -1,0 +1,82 @@
+{
+  "tokens": {
+    "owner": "Owner",
+    "token": "Token",
+    "scope": "Scope",
+    "created": "Created",
+    "lastUsed": "Last used",
+    "expires": "Expires",
+    "status": "Status",
+    "full": "full access",
+    "read": "read only",
+    "never": "never",
+    "states": {
+      "revoked": "revoked",
+      "expired": "expired",
+      "active": "active"
+    },
+    "revoke": "Revoke token",
+    "revokeNamed": "Revoke token {{name}}",
+    "revokeConfirm": "Revoke the token “{{name}}”? Scripts using it stop working immediately.",
+    "revoked": "Token revoked",
+    "title": "API tokens",
+    "hint": "For scripts and other tools. A token acts with your rights.",
+    "new": "New token",
+    "unavailable": "API tokens are not available on this server.",
+    "none": "No tokens yet.",
+    "example": "Example:",
+    "copyNow": "Copy the token now. It is shown only once and cannot be recovered.",
+    "useLike": "Use it like this:",
+    "done": "Done",
+    "notCreated": "Token not created",
+    "newTitle": "New API token",
+    "nameHint": "What the token is for, e.g. “Nightly report script”",
+    "access": "Access",
+    "readOnly": "Read only",
+    "fullAccess": "Full access",
+    "readHint": "Can only read data (GET requests).",
+    "fullHint": "Can do everything you can do, including starting runs and changing data.",
+    "expiresAfter": "Expires after (days)",
+    "expiresHint": "Leave empty for a token that never expires",
+    "create": "Create token",
+    "createdTitle": "Token created",
+    "exampleReadOnly": "Example (a read-only token is enough):"
+  },
+  "title": "Profile",
+  "description": "Your account, language, notifications and API tokens.",
+  "notSaved": "Not saved",
+  "language": {
+    "title": "Language",
+    "label": "Language",
+    "hint": "Used for the interface, in-app notifications and e-mails to you.",
+    "notChosen": "Not chosen yet – the interface follows your browser and messages use the server's default language."
+  },
+  "account": {
+    "saved": "Profile saved",
+    "title": "Account",
+    "username": "Username",
+    "displayName": "Display name",
+    "email": "E-mail",
+    "ssoHint": "Name and e-mail come from your single sign-on provider and are updated when you sign in."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "intro": "The bell in the header always shows your notifications. Administrators choose which events are sent by which channel.",
+    "email": "E-mail notifications",
+    "emailHint": "Sent to {{email}} when e-mail is set up on this server.",
+    "emailMissing": "Add an e-mail address to your account first.",
+    "browser": "Browser notifications",
+    "browserUnsupported": "This browser does not support notifications.",
+    "browserDenied": "Blocked by your browser. Allow notifications for this site in the browser settings, then try again.",
+    "browserHint": "Show a system notification on this device while the app is open in a tab.",
+    "testTitle": "Test notification",
+    "testBody": "Browser notifications work.",
+    "test": "Show a test notification"
+  },
+  "password": {
+    "title": "Password",
+    "hint": "Change the password you use to sign in.",
+    "change": "Change password",
+    "changed": "Password changed"
+  }
+}

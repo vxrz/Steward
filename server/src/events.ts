@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events';
 import { logger } from './log.js';
 
+/** Why a schedule did not start a run (translated in notifications). */
+export type ScheduleSkipReason = 'overlap' | 'ownerMissing' | 'mayNotRun' | 'mayNotUsePlatform';
+
 /**
  * In-process domain events. Producers (engine, scheduler, datasets, HTTP client)
  * emit; consumers (notifications, metrics) subscribe. Listeners must never throw
@@ -26,7 +29,8 @@ export interface DomainEvents {
   'check.failed': { runId: string; processId: string; processName: string; check: string; severity: string; message: string; dryRun: boolean };
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };
   'dataset.published': { key: string; title: string; processId: string; staleAfterMinutes?: number };
-  'schedule.skipped': { scheduleId: string; name: string; owner: string | null; reason: string };
+  /** reason: English text (logs, audit); reasonCode + reasonVars: for translated notifications */
+  'schedule.skipped': { scheduleId: string; name: string; owner: string | null; reason: string; reasonCode?: ScheduleSkipReason; reasonVars?: Record<string, string> };
 }
 
 type Name = keyof DomainEvents;

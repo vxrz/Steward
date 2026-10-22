@@ -1,4 +1,6 @@
 import { notifications } from '@mantine/notifications';
+import i18n from './i18n';
+import { errorText } from './i18n/errors';
 
 export class ApiError extends Error {
   constructor(
@@ -40,7 +42,7 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
   if (!res.ok) {
     const d = data as { error?: string; code?: string; issues?: { path: string; message: string }[] } | null;
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
-    throw new ApiError(res.status, d?.error ?? `HTTP ${res.status}`, d?.issues, d?.code);
+    throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code);
   }
   return data as T;
 }
@@ -66,8 +68,8 @@ export async function getOptional<T>(url: string, fallback: T): Promise<T> {
   }
 }
 
-export function notifyError(e: unknown, title = 'Something went wrong'): void {
-  notifications.show({ color: 'red', title, message: (e as Error)?.message ?? String(e), autoClose: 8000 });
+export function notifyError(e: unknown, title: string = i18n.t('errors:title')): void {
+  notifications.show({ color: 'red', title, message: errorText(e), autoClose: 8000 });
 }
 export function notifyOk(message: string, title?: string): void {
   notifications.show({ color: 'green', title, message });

@@ -22,11 +22,13 @@ import {
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { INPUT_TYPES, type ConnectionSlot, type InputDef, type ProcessDefinition, type ProcessDetail, type ProcessVersion, type ValidationIssue } from '@sm/shared';
 import { get, notifyError, post } from '../../api';
 import { fmtDate } from '../../format';
 import { ExpressionInput } from './ExpressionInput';
 import { VersionCompare } from './VersionDiff';
+import { issueText } from '../../i18n/meta';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -48,12 +50,13 @@ function strip<T extends object>(o: T): T {
 }
 
 export function GeneralPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation('editor');
   return (
     <Stack>
-      <TextInput label="Name" required value={def.name} onChange={(e) => onChange({ ...def, name: e.currentTarget.value })} />
+      <TextInput label={t('general.name')} required value={def.name} onChange={(e) => onChange({ ...def, name: e.currentTarget.value })} />
       <Textarea
-        label="Description"
-        description="Explain what the process does, prerequisites and caveats. Shown when starting a run."
+        label={t('general.description')}
+        description={t('general.descriptionHint')}
         autosize
         minRows={4}
         maxRows={16}
@@ -61,8 +64,8 @@ export function GeneralPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
         onChange={(e) => onChange(strip({ ...def, description: e.currentTarget.value || undefined }))}
       />
       <TagsInput
-        label="Tags"
-        description="Press Enter to add"
+        label={t('general.tags')}
+        description={t('general.tagsHint')}
         value={def.tags ?? []}
         onChange={(tags) => onChange(strip({ ...def, tags: tags.length ? tags : undefined }))}
       />
@@ -71,55 +74,56 @@ export function GeneralPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
 }
 
 export function InputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation(['editor', 'common']);
   const inputs = def.inputs ?? [];
   const set = (next: InputDef[]) => onChange({ ...def, inputs: next });
   const patch = (i: number, p: Partial<InputDef>) => set(inputs.map((x, j) => (j === i ? strip({ ...x, ...p }) : x)));
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Inputs are asked when a run is started (or stored in a schedule) and available as <Code>inputs.&lt;name&gt;</Code>.
+        <Trans t={t} i18nKey="inputs.hint" components={{ path: <Code>{'inputs.<name>'}</Code> }} />
       </Text>
       {inputs.map((inp, i) => (
         <Paper withBorder p="sm" key={i}>
           <Group justify="space-between" mb="xs" wrap="nowrap">
             <Text fw={600} size="sm" className="mono" truncate>
-              {inp.name || '(unnamed)'}
+              {inp.name || t('inputs.unnamed')}
             </Text>
             <Group gap={0} wrap="nowrap">
-              <ActionIcon variant="subtle" size="sm" disabled={i === 0} onClick={() => set(move(inputs, i, -1))} aria-label="Up">
+              <ActionIcon variant="subtle" size="sm" disabled={i === 0} onClick={() => set(move(inputs, i, -1))} aria-label={t('fields.up')}>
                 <IconArrowUp size={14} />
               </ActionIcon>
-              <ActionIcon variant="subtle" size="sm" disabled={i === inputs.length - 1} onClick={() => set(move(inputs, i, 1))} aria-label="Down">
+              <ActionIcon variant="subtle" size="sm" disabled={i === inputs.length - 1} onClick={() => set(move(inputs, i, 1))} aria-label={t('fields.down')}>
                 <IconArrowDown size={14} />
               </ActionIcon>
-              <ActionIcon variant="subtle" size="sm" color="red" onClick={() => set(inputs.filter((_, j) => j !== i))} aria-label="Remove">
+              <ActionIcon variant="subtle" size="sm" color="red" onClick={() => set(inputs.filter((_, j) => j !== i))} aria-label={t('common:remove')}>
                 <IconTrash size={14} />
               </ActionIcon>
             </Group>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
-            <TextInput size="xs" label="Name" classNames={{ input: 'mono' }} value={inp.name} onChange={(e) => patch(i, { name: e.currentTarget.value })} />
-            <TextInput size="xs" label="Label" value={inp.label ?? ''} onChange={(e) => patch(i, { label: e.currentTarget.value || undefined })} />
+            <TextInput size="xs" label={t('inputs.name')} classNames={{ input: 'mono' }} value={inp.name} onChange={(e) => patch(i, { name: e.currentTarget.value })} />
+            <TextInput size="xs" label={t('inputs.label')} value={inp.label ?? ''} onChange={(e) => patch(i, { label: e.currentTarget.value || undefined })} />
             <Select
               size="xs"
-              label="Type"
-              data={[...INPUT_TYPES]}
+              label={t('inputs.type')}
+              data={INPUT_TYPES.map((type) => ({ value: type, label: t(`inputTypes.${type}`) }))}
               value={inp.type}
               allowDeselect={false}
-              onChange={(t) => t && patch(i, { type: t as InputDef['type'], default: undefined })}
+              onChange={(type) => type && patch(i, { type: type as InputDef['type'], default: undefined })}
             />
           </SimpleGrid>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs" mt="xs">
             <DefaultField inp={inp} onChange={(v) => patch(i, { default: v })} />
             <Stack gap="xs">
               {inp.type === 'select' && (
-                <TagsInput size="xs" label="Options" value={inp.options ?? []} onChange={(o) => patch(i, { options: o.length ? o : undefined })} />
+                <TagsInput size="xs" label={t('inputs.options')} value={inp.options ?? []} onChange={(o) => patch(i, { options: o.length ? o : undefined })} />
               )}
               {inp.type === 'table' && (
-                <TagsInput size="xs" label="Expected CSV columns" value={inp.columns ?? []} onChange={(c) => patch(i, { columns: c.length ? c : undefined })} />
+                <TagsInput size="xs" label={t('inputs.columns')} value={inp.columns ?? []} onChange={(c) => patch(i, { columns: c.length ? c : undefined })} />
               )}
-              <TextInput size="xs" label="Description" value={inp.description ?? ''} onChange={(e) => patch(i, { description: e.currentTarget.value || undefined })} />
-              <Switch size="xs" label="Required" checked={!!inp.required} onChange={(e) => patch(i, { required: e.currentTarget.checked || undefined })} />
+              <TextInput size="xs" label={t('inputs.description')} value={inp.description ?? ''} onChange={(e) => patch(i, { description: e.currentTarget.value || undefined })} />
+              <Switch size="xs" label={t('inputs.required')} checked={!!inp.required} onChange={(e) => patch(i, { required: e.currentTarget.checked || undefined })} />
             </Stack>
           </SimpleGrid>
         </Paper>
@@ -135,7 +139,7 @@ export function InputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
             set([...inputs, { name: `input${n}`, type: 'string' }]);
           }}
         >
-          Add input
+          {t('inputs.add')}
         </Button>
       </Group>
     </Stack>
@@ -143,13 +147,14 @@ export function InputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
 }
 
 function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown) => void }) {
+  const { t } = useTranslation('editor');
   const v = inp.default;
   switch (inp.type) {
     case 'boolean':
       return (
         <Select
           size="xs"
-          label="Default"
+          label={t('inputs.default')}
           data={['true', 'false']}
           clearable
           value={v === undefined ? null : String(!!v)}
@@ -160,23 +165,23 @@ function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown)
       return (
         <TextInput
           size="xs"
-          label="Default"
+          label={t('inputs.default')}
           value={v === undefined ? '' : String(v)}
           onChange={(e) => {
-            const t = e.currentTarget.value;
-            onChange(t === '' ? undefined : Number.isNaN(Number(t)) ? t : Number(t));
+            const text = e.currentTarget.value;
+            onChange(text === '' ? undefined : Number.isNaN(Number(text)) ? text : Number(text));
           }}
         />
       );
     case 'select':
-      return <Select size="xs" label="Default" data={inp.options ?? []} clearable value={(v as string) ?? null} onChange={(x) => onChange(x ?? undefined)} />;
+      return <Select size="xs" label={t('inputs.default')} data={inp.options ?? []} clearable value={(v as string) ?? null} onChange={(x) => onChange(x ?? undefined)} />;
     case 'list':
     case 'table':
     case 'json':
       return (
         <Textarea
           size="xs"
-          label={inp.type === 'list' ? 'Default (one per line)' : inp.type === 'table' ? 'Default CSV' : 'Default JSON'}
+          label={inp.type === 'list' ? t('inputs.defaultList') : inp.type === 'table' ? t('inputs.defaultCsv') : t('inputs.defaultJson')}
           autosize
           minRows={3}
           maxRows={10}
@@ -186,33 +191,41 @@ function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown)
         />
       );
     default:
-      return <TextInput size="xs" label="Default" value={(v as string) ?? ''} onChange={(e) => onChange(e.currentTarget.value || undefined)} />;
+      return <TextInput size="xs" label={t('inputs.default')} value={(v as string) ?? ''} onChange={(e) => onChange(e.currentTarget.value || undefined)} />;
   }
 }
 
 export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation(['editor', 'common']);
   const conns = def.connections ?? [];
   const set = (next: ConnectionSlot[]) => onChange({ ...def, connections: next });
   const patch = (i: number, p: Partial<ConnectionSlot>) => set(conns.map((c, j) => (j === i ? strip({ ...c, ...p }) : c)));
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Connection slots keep the process platform-agnostic: steps refer to a slot (e.g. <Code>hub</Code>) and the actual platform is chosen when the run
-        starts. Optionally restrict a slot to a platform kind.
+        <Trans t={t} i18nKey="connections.hint" components={{ c: <Code /> }} />
       </Text>
       {conns.map((c, i) => (
         <Paper withBorder p="sm" key={i}>
           <Group align="flex-end" wrap="wrap" gap="xs">
-            <TextInput size="xs" label="Slot" w={140} classNames={{ input: 'mono' }} value={c.slot} onChange={(e) => patch(i, { slot: e.currentTarget.value })} />
-            <Autocomplete size="xs" label="Platform kind" w={220} data={KNOWN_KINDS} value={c.kind ?? ''} onChange={(k) => patch(i, { kind: k || undefined })} placeholder="any" />
+            <TextInput size="xs" label={t('connections.slot')} w={140} classNames={{ input: 'mono' }} value={c.slot} onChange={(e) => patch(i, { slot: e.currentTarget.value })} />
+            <Autocomplete
+              size="xs"
+              label={t('connections.kind')}
+              w={220}
+              data={KNOWN_KINDS}
+              value={c.kind ?? ''}
+              onChange={(k) => patch(i, { kind: k || undefined })}
+              placeholder={t('connections.anyKind')}
+            />
             <TextInput
               size="xs"
-              label="Description"
+              label={t('connections.description')}
               style={{ flex: 1, minWidth: 180 }}
               value={c.description ?? ''}
               onChange={(e) => patch(i, { description: e.currentTarget.value || undefined })}
             />
-            <ActionIcon variant="subtle" color="red" onClick={() => set(conns.filter((_, j) => j !== i))} aria-label="Remove" mb={4}>
+            <ActionIcon variant="subtle" color="red" onClick={() => set(conns.filter((_, j) => j !== i))} aria-label={t('common:remove')} mb={4}>
               <IconTrash size={14} />
             </ActionIcon>
           </Group>
@@ -229,7 +242,7 @@ export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef
             set([...conns, { slot: conns.length ? `conn${n}` : 'hub' }]);
           }}
         >
-          Add connection
+          {t('connections.add')}
         </Button>
       </Group>
     </Stack>
@@ -237,28 +250,29 @@ export function ConnectionsPanel({ def, onChange }: { def: Def; onChange: SetDef
 }
 
 export function ConstantsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation('editor');
   const [text, setText] = useState(() => (def.constants && Object.keys(def.constants).length ? YAML.stringify(def.constants, { lineWidth: 0 }) : ''));
   const [error, setError] = useState<string | null>(null);
-  const update = (t: string) => {
-    setText(t);
-    if (!t.trim()) {
+  const update = (value: string) => {
+    setText(value);
+    if (!value.trim()) {
       setError(null);
       const { constants: _c, ...rest } = def;
       return onChange(rest as Def);
     }
     try {
-      const parsed = YAML.parse(t);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Constants must be a mapping (key: value)');
+      const parsed = YAML.parse(value);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(t('constants.notMapping'));
       setError(null);
       onChange({ ...def, constants: parsed });
     } catch (e) {
-      setError((e as Error).message.split('\n')[0] ?? 'Invalid YAML');
+      setError((e as Error).message.split('\n')[0] ?? t('constants.invalid'));
     }
   };
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Static configuration available as <Code>const.*</Code> (or <Code>$const</Code> in filters), e.g. group bundles for onboarding. YAML or JSON.
+        <Trans t={t} i18nKey="constants.hint" components={{ c: <Code /> }} />
       </Text>
       <Textarea
         autosize
@@ -275,6 +289,7 @@ export function ConstantsPanel({ def, onChange }: { def: Def; onChange: SetDef }
 }
 
 export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation('editor');
   const toYaml = (d: Def) => YAML.stringify(JSON.parse(JSON.stringify(d)), { lineWidth: 0 });
   const [text, setText] = useState(() => toYaml(def));
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
@@ -289,7 +304,7 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
         setText(toYaml(r.definition));
       }
     } catch (e) {
-      notifyError(e, 'Could not validate');
+      notifyError(e, t('source.validateFailed'));
     } finally {
       setBusy(false);
     }
@@ -297,26 +312,25 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        The complete process definition as YAML (nodes + wires). You can also paste the compact sequential format (<Code>steps:</Code> with nested
-        loops and branches) – it is converted into a flow. Click "Apply to editor", then save to create a new version.
+        <Trans t={t} i18nKey="source.hint" components={{ c: <Code /> }} />
       </Text>
       <Textarea autosize minRows={16} maxRows={60} classNames={{ input: 'mono' }} value={text} onChange={(e) => setText(e.currentTarget.value)} spellCheck={false} />
       {issues && issues.length > 0 && (
-        <Alert color="red" title={`${issues.length} issue(s)`}>
+        <Alert color="red" title={t('issues.count', { count: issues.length })}>
           <Stack gap={2}>
             {issues.slice(0, 15).map((i, k) => (
               <Text size="xs" key={k} className="mono">
                 {i.path ? `${i.path}: ` : ''}
-                {i.message}
+                {issueText(i)}
               </Text>
             ))}
           </Stack>
         </Alert>
       )}
-      {issues && issues.length === 0 && <Alert color="green">Applied – the definition is valid.</Alert>}
+      {issues && issues.length === 0 && <Alert color="green">{t('source.applied')}</Alert>}
       <Group>
         <Button onClick={apply} loading={busy}>
-          Apply to editor
+          {t('source.apply')}
         </Button>
         <Button
           variant="default"
@@ -325,7 +339,7 @@ export function SourcePanel({ def, onChange }: { def: Def; onChange: SetDef }) {
             setIssues(null);
           }}
         >
-          Reset to editor state
+          {t('source.reset')}
         </Button>
       </Group>
     </Stack>
@@ -344,6 +358,7 @@ export function VersionsPanel({
   workingCopy?: Def;
   onRestore: (d: Def, version: number) => void;
 }) {
+  const { t } = useTranslation('editor');
   const versions = useQuery({ queryKey: ['process-versions', processId, currentVersion], queryFn: () => get<ProcessVersion[]>(`/processes/${processId}/versions`) });
   const [viewing, setViewing] = useState<ProcessDetail | null>(null);
   const [viewVersion, setViewVersion] = useState<number | null>(null);
@@ -358,12 +373,12 @@ export function VersionsPanel({
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Every save creates a new immutable version. Runs record the exact version and its hash.
+        {t('versions.hint')}
       </Text>
       {versions.data && (
         <Paper withBorder p="sm">
           <Text fw={600} size="sm" mb="xs">
-            Compare versions
+            {t('versions.compare')}
           </Text>
           <VersionCompare key={`${currentVersion}-${!!workingCopy}`} processId={processId} versions={versions.data} currentVersion={currentVersion} workingCopy={workingCopy} />
         </Paper>
@@ -372,11 +387,11 @@ export function VersionsPanel({
         <Table striped highlightOnHover miw={560}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Version</Table.Th>
-              <Table.Th>Saved</Table.Th>
-              <Table.Th>Author</Table.Th>
-              <Table.Th>Comment</Table.Th>
-              <Table.Th>Hash</Table.Th>
+              <Table.Th>{t('versions.version')}</Table.Th>
+              <Table.Th>{t('versions.saved')}</Table.Th>
+              <Table.Th>{t('versions.author')}</Table.Th>
+              <Table.Th>{t('versions.comment')}</Table.Th>
+              <Table.Th>{t('versions.hash')}</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
@@ -384,8 +399,7 @@ export function VersionsPanel({
             {(versions.data ?? []).map((v) => (
               <Table.Tr key={v.version}>
                 <Table.Td>
-                  v{v.version}
-                  {v.version === currentVersion ? ' (current)' : ''}
+                  {v.version === currentVersion ? t('versions.current', { version: v.version }) : `v${v.version}`}
                 </Table.Td>
                 <Table.Td className="nowrap">{fmtDate(v.createdAt)}</Table.Td>
                 <Table.Td>{v.author}</Table.Td>
@@ -393,7 +407,7 @@ export function VersionsPanel({
                 <Table.Td className="mono">{v.hash.slice(0, 12)}</Table.Td>
                 <Table.Td>
                   <Button size="compact-xs" variant="light" onClick={() => open(v.version)}>
-                    View
+                    {t('versions.view')}
                   </Button>
                 </Table.Td>
               </Table.Tr>
@@ -401,11 +415,11 @@ export function VersionsPanel({
           </Table.Tbody>
         </Table>
       </div>
-      <Modal opened={!!viewing} onClose={() => setViewing(null)} title={`Version v${viewVersion}`} size="xl">
+      <Modal opened={!!viewing} onClose={() => setViewing(null)} title={t('versions.title', { version: viewVersion })} size="xl">
         {viewing && (
           <Stack>
             <Text size="xs" c="dimmed" className="mono">
-              hash {viewing.definitionHash}
+              {t('versions.hashLine', { hash: viewing.definitionHash })}
             </Text>
             <ScrollArea.Autosize mah={480}>
               <Code block>{YAML.stringify(viewing.definition, { lineWidth: 0 })}</Code>
@@ -417,7 +431,7 @@ export function VersionsPanel({
                   setViewing(null);
                 }}
               >
-                Restore as working copy
+                {t('versions.restore')}
               </Button>
             </Group>
           </Stack>
@@ -429,6 +443,7 @@ export function VersionsPanel({
 
 /** Values returned when this process runs as a sub-process (definition.outputs: name → expression). */
 export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) {
+  const { t } = useTranslation('editor');
   const entries = Object.entries(def.outputs ?? {});
   const update = (list: [string, string][]) => {
     const next = { ...def } as Def;
@@ -437,12 +452,11 @@ export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
     onChange(next);
   };
   const nameError = (k: string, i: number) =>
-    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? 'Letters, digits and _ only' : entries.some(([x], j) => j !== i && x === k) ? 'Duplicate name' : null;
+    !/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) ? t('form.idInvalid') : entries.some(([x], j) => j !== i && x === k) ? t('outputs.duplicate') : null;
   return (
     <Stack>
       <Text size="sm" c="dimmed">
-        Values returned when this process runs as a sub-process. Each value is an expression evaluated when the run ends, e.g.{' '}
-        <Code>vars.users.body</Code>. The parent gets them as the node result (<Code>vars.&lt;saveAs&gt;.&lt;name&gt;</Code>).
+        <Trans t={t} i18nKey="outputs.hint" components={{ example: <Code>vars.users.body</Code>, path: <Code>{'vars.<saveAs>.<name>'}</Code> }} />
       </Text>
       {entries.map(([k, v], i) => (
         <Group key={i} gap="xs" wrap="nowrap" align="flex-start">
@@ -451,8 +465,8 @@ export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
             w={150}
             style={{ flexShrink: 0 }}
             classNames={{ input: 'mono' }}
-            aria-label="Output name"
-            placeholder="name"
+            aria-label={t('outputs.name')}
+            placeholder={t('outputs.namePlaceholder')}
             value={k}
             error={nameError(k, i)}
             onChange={(e) => update(entries.map((x, j) => (j === i ? [e.currentTarget.value, x[1]] : x)))}
@@ -460,12 +474,12 @@ export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
           <ExpressionInput
             size="xs"
             style={{ flex: 1, minWidth: 0 }}
-            aria-label={`Expression for output ${k}`}
-            placeholder="expression, e.g. vars.result"
+            aria-label={t('outputs.expressionFor', { name: k })}
+            placeholder={t('outputs.expressionPlaceholder', { example: 'vars.result' })}
             value={v}
-            onChange={(t) => update(entries.map((x, j) => (j === i ? [x[0], t] : x)))}
+            onChange={(text) => update(entries.map((x, j) => (j === i ? [x[0], text] : x)))}
           />
-          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={`Remove output ${k}`}>
+          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('outputs.remove', { name: k })}>
             <IconTrash size={14} />
           </ActionIcon>
         </Group>
@@ -481,7 +495,7 @@ export function OutputsPanel({ def, onChange }: { def: Def; onChange: SetDef }) 
             update([...entries, [`output${n}`, '']]);
           }}
         >
-          Add output
+          {t('outputs.add')}
         </Button>
       </Group>
     </Stack>

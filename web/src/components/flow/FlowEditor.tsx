@@ -21,6 +21,7 @@ import '@xyflow/react/dist/style.css';
 import { ActionIcon, Box, Button, Drawer, Group, Paper, ScrollArea, Stack, Tabs, Text, Tooltip, useComputedColorScheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { IconArrowBackUp, IconArrowForwardUp, IconCopy, IconLayoutDistributeHorizontal, IconPlus, IconTrash } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { NODE_HEIGHT, NODE_WIDTH, type FlowNode, type NodeType, type ProcessDefinition, type Wire } from '@sm/shared';
 import { notifyOk } from '../../api';
 import { NodeForm, ExpressionHelp } from '../editor/NodeForm';
@@ -112,6 +113,8 @@ function FlowEditorInner({
   height,
   readOnly = false,
 }: FlowEditorProps) {
+  const { t, i18n } = useTranslation('editor');
+  const lang = i18n.language;
   const rf = useReactFlow();
   const isMobile = useMediaQuery('(max-width: 62em)') ?? false;
   const scheme = useComputedColorScheme('light');
@@ -130,8 +133,8 @@ function FlowEditorInner({
   const renaming = useRef<string | null>(null);
 
   const dataFor = useCallback(
-    (id: string) => ({ issue: issuesByNode.get(id), warning: warningsByNode.get(id), run: runStatus?.get(id) }),
-    [issuesByNode, warningsByNode, runStatus],
+    (id: string) => ({ issue: issuesByNode.get(id), warning: warningsByNode.get(id), run: runStatus?.get(id), lang }),
+    [issuesByNode, warningsByNode, runStatus, lang],
   );
 
   const [rfNodes, setRfNodes] = useState<FlowRfNode[]>(() => def.nodes.map((n) => toRfNode(n, dataFor(n.id))));
@@ -313,7 +316,7 @@ function FlowEditorInner({
         if (!clip) return;
         e.preventDefault();
         writeClipboard(clip);
-        notifyOk(`${clip.nodes.length} node(s) copied – paste with ${modKey}V, also in another process`);
+        notifyOk(t('flow.copied', { count: clip.nodes.length, key: `${modKey}V` }));
       } else {
         if (readOnly) return;
         const clip = readClipboard();
@@ -329,7 +332,7 @@ function FlowEditorInner({
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChange, readOnly]);
+  }, [onChange, readOnly, t]);
 
   const selectedNode = selectedId ? def.nodes.find((n) => n.id === selectedId) : undefined;
   const otherIds = useMemo(() => {
@@ -381,16 +384,16 @@ function FlowEditorInner({
     <Stack gap="sm">
       <Group justify="space-between" wrap="nowrap">
         <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-          Properties
+          {t('flow.properties')}
         </Text>
         <Group gap={4}>
-          <Tooltip label="Duplicate">
-            <ActionIcon variant="subtle" size="sm" onClick={duplicateSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label="Duplicate">
+          <Tooltip label={t('flow.duplicate')}>
+            <ActionIcon variant="subtle" size="sm" onClick={duplicateSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label={t('flow.duplicate')}>
               <IconCopy size={15} />
             </ActionIcon>
           </Tooltip>
-          <Tooltip label="Delete (Del)">
-            <ActionIcon variant="subtle" color="red" size="sm" onClick={deleteSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label="Delete">
+          <Tooltip label={t('flow.deleteHint')}>
+            <ActionIcon variant="subtle" color="red" size="sm" onClick={deleteSelected} disabled={readOnly || selectedNode.type === 'start'} aria-label={t('flow.delete')}>
               <IconTrash size={15} />
             </ActionIcon>
           </Tooltip>
@@ -401,9 +404,9 @@ function FlowEditorInner({
       ) : (
         <Tabs value={panelTab} onChange={(v) => setPanelTab(v ?? 'props')} keepMounted={false}>
           <Tabs.List grow>
-            <Tabs.Tab value="props">Properties</Tabs.Tab>
+            <Tabs.Tab value="props">{t('flow.properties')}</Tabs.Tab>
             <Tabs.Tab value="run" rightSection={runStatus?.get(selectedNode.id) ? <RunDot status={runStatus.get(selectedNode.id)!.status} /> : undefined}>
-              Last run
+              {t('flow.lastRun')}
             </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="props" pt="sm">
@@ -418,15 +421,13 @@ function FlowEditorInner({
   ) : (
     <Stack gap="sm">
       <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-        Properties
+        {t('flow.properties')}
       </Text>
       <Text size="sm" c="dimmed">
-        {readOnly
-          ? 'Read-only: select a node to see its configuration.'
-          : `Select a node to edit it. Drag from an output (right) to an input (left) to connect nodes. Select a wire or node and press Delete to remove it. ${modKey}C / ${modKey}V copy and paste selected nodes; ${modKey}Z undoes.`}
+        {readOnly ? t('flow.readOnlyHint') : t('flow.editHint', { copy: `${modKey}C`, paste: `${modKey}V`, undo: `${modKey}Z` })}
       </Text>
       <Text size="xs" c="dimmed">
-        The run starts at the Start node and follows the wires. Where one output has several wires, they run one after another, top to bottom.
+        {t('flow.runHint')}
       </Text>
       <ExpressionHelp />
     </Stack>
@@ -471,20 +472,20 @@ function FlowEditorInner({
             {toolbar}
             {!readOnly && (onUndo || onRedo) && (
               <Group gap={2} wrap="nowrap" px={2} py={1} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
-                <Tooltip label={`Undo (${modKey}Z)`}>
-                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onUndo} disabled={!canUndo} aria-label="Undo">
+                <Tooltip label={t('flow.undoHint', { key: `${modKey}Z` })}>
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onUndo} disabled={!canUndo} aria-label={t('flow.undo')}>
                     <IconArrowBackUp size={16} />
                   </ActionIcon>
                 </Tooltip>
-                <Tooltip label={`Redo (${modKey}${isMac ? '⇧' : 'Shift+'}Z)`}>
-                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onRedo} disabled={!canRedo} aria-label="Redo">
+                <Tooltip label={t('flow.redoHint', { key: `${modKey}${isMac ? '⇧' : 'Shift+'}Z` })}>
+                  <ActionIcon size="sm" variant="subtle" color="gray" onClick={onRedo} disabled={!canRedo} aria-label={t('flow.redo')}>
                     <IconArrowForwardUp size={16} />
                   </ActionIcon>
                 </Tooltip>
               </Group>
             )}
             {!readOnly && (
-            <Tooltip label="Arrange nodes automatically">
+            <Tooltip label={t('flow.tidyHint')}>
               <Button
                 size="compact-xs"
                 variant="default"
@@ -494,7 +495,7 @@ function FlowEditorInner({
                   setTimeout(() => rf.fitView({ padding: 0.2, maxZoom: 1.1, duration: 300 }), 60);
                 }}
               >
-                Tidy up
+                {t('flow.tidy')}
               </Button>
             </Tooltip>
             )}
@@ -503,7 +504,7 @@ function FlowEditorInner({
         {isMobile && !readOnly && (
           <Panel position="top-left">
             <Button size="compact-xs" leftSection={<IconPlus size={14} />} onClick={() => setPaletteOpen(true)}>
-              Add node
+              {t('flow.addNode')}
             </Button>
           </Panel>
         )}
@@ -515,7 +516,7 @@ function FlowEditorInner({
     return (
       <Paper withBorder style={{ height, minHeight: 420, overflow: 'hidden', display: 'flex' }}>
         {canvas}
-        <Drawer opened={paletteOpen} onClose={() => setPaletteOpen(false)} position="bottom" size="70%" title="Add node">
+        <Drawer opened={paletteOpen} onClose={() => setPaletteOpen(false)} position="bottom" size="70%" title={t('flow.addNode')}>
           <Box h="55vh">
             <Palette onAdd={addAtCenter} compact />
           </Box>

@@ -1,0 +1,28 @@
+{
+  "everyoneWithRole": "Everyone with role {{role}}",
+  "restrictedProcess": "<b>Restricted:</b> only the subjects below get the listed rights, plus administrators and the owner. Auditors can always read.",
+  "restrictedPlatform": "<b>Restricted:</b> only the subjects below get the listed rights, plus administrators. Auditors can always read.",
+  "defaultsProcess": "<b>Default role rights apply</b> (e.g. designers edit & run, operators run, approvers decide, viewers read). Add entries to restrict access to specific users, teams or roles.",
+  "defaultsPlatform": "<b>Default role rights apply</b> (e.g. designers and operators may use it, only administrators manage it). Add entries to restrict access to specific users, teams or roles.",
+  "owner": "Owner",
+  "ownerHint": "The owner always has all rights on this process.",
+  "who": "Who",
+  "noEntries": "No entries – default role rights apply.",
+  "kinds": {
+    "user": "user",
+    "team": "team",
+    "role": "role"
+  },
+  "addLabel": "Add user, team or role",
+  "addPlaceholder": "user:alice · team:service desk · role:operator",
+  "reset": "Reset",
+  "save": "Save access",
+  "help": {
+    "view": "See the process and its runs",
+    "run": "Start and schedule runs, make selection decisions",
+    "edit": "Change the flow (creates new versions)",
+    "approve": "Decide approvals and user tasks",
+    "manage": "Change access, archive (processes) · change configuration, credentials and access, write calls in the explorer (platforms)",
+    "use": "Use the platform in runs and schedules, read-only explorer calls"
+  }
+}

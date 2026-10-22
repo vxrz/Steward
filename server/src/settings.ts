@@ -1,4 +1,4 @@
-import type { Settings } from '@sm/shared';
+import { DEFAULT_LOCALE, type Settings } from '@sm/shared';
 import { db } from './db.js';
 
 const DEFAULTS = (): Settings => ({
@@ -7,6 +7,7 @@ const DEFAULTS = (): Settings => ({
   browserTimeoutMs: 30000,
   retentionRunDays: 0,
   retentionNotificationDays: 30,
+  defaultLocale: DEFAULT_LOCALE,
   apiDocs: 'authenticated',
 });
 
@@ -28,7 +29,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'apiDocs'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'defaultLocale', 'apiDocs'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

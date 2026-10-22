@@ -71,7 +71,7 @@ export function getProvider(id: string): SsoProvider {
 function providerSecret(id: string): string | undefined {
   const r = db().get<{ secret: string | null }>('SELECT secret FROM identity_providers WHERE id = ?', id);
   if (!r?.secret) return undefined;
-  if (!vault().unlocked) throw new HttpError(423, 'Single sign-on is not available until an administrator unlocks the vault');
+  if (!vault().unlocked) throw new HttpError(423, 'Single sign-on is not available until an administrator unlocks the vault', 'SSO_VAULT_LOCKED');
   return vault().decrypt<string>(r.secret);
 }
 

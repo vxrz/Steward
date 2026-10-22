@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   IconChevronDown,
   IconChevronRight,
@@ -33,8 +34,8 @@ import {
 } from '@tabler/icons-react';
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post } from '../api';
-import { fmtDate, fmtDuration, runDuration } from '../format';
-import { JsonView, Markdown, PageHeader, StatusBadge } from '../components/common';
+import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
+import { JsonView, Markdown, PageHeader, StatusBadge, severityLabel, statusLabel } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
@@ -45,6 +46,7 @@ const STEP_PAGE = 500;
 const LOG_PAGE = 1000;
 
 export function RunDetailPage() {
+  const { t } = useTranslation(['runs', 'common']);
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [rerun, setRerun] = useState(false);
@@ -80,7 +82,7 @@ export function RunDetailPage() {
       notifyError(e);
     }
   };
-  const openTasks = r.tasks.filter((t) => t.status === 'open');
+  const openTasks = r.tasks.filter((task) => task.status === 'open');
   const checks = r.steps.filter((s) => s.type === 'check');
 
   return (
@@ -92,53 +94,66 @@ export function RunDetailPage() {
             <StatusBadge status={r.status} size="md" />
             {r.dryRun && (
               <Badge color="yellow" variant="light" size="md">
-                dry run
+                {t('common:status.dryrun')}
               </Badge>
             )}
           </Group>
         }
         description={
-          <>
-            Run <span className="mono">{r.id}</span> · <Anchor component={Link} to={`/processes/${r.processId}`} size="sm">version {r.processVersion}</Anchor> · started by {r.actor} ({r.trigger === 'subprocess' ? 'sub-process' : r.trigger === 'webhook' ? `webhook trigger "${r.triggerName ?? r.triggerId}"` : r.trigger}) {fmtDate(r.startedAt)} · {runDuration(r.startedAt, r.finishedAt)}
-          </>
+          <Trans
+            t={t}
+            i18nKey="detail.description"
+            values={{
+              id: r.id,
+              version: r.processVersion,
+              actor: r.actor,
+              trigger:
+                r.trigger === 'webhook'
+                  ? t('trigger.webhookNamed', { name: r.triggerName ?? r.triggerId ?? '' })
+                  : t(`trigger.${r.trigger}`, { defaultValue: r.trigger }),
+              date: fmtDate(r.startedAt),
+              duration: runDuration(r.startedAt, r.finishedAt),
+            }}
+            components={{ id: <span className="mono" />, version: <Anchor component={Link} to={`/processes/${r.processId}`} size="sm" /> }}
+          />
         }
         actions={
           <>
             {canRun && ['running', 'waiting', 'interrupted'].includes(r.status) && (
               <Button size="xs" color="red" variant="light" leftSection={<IconPlayerStop size={14} />} onClick={() => action('cancel')}>
-                Cancel
+                {t('detail.cancel')}
               </Button>
             )}
             {canRun && r.status === 'interrupted' && (
-              <Tooltip label="Replays completed steps from the journal and continues with the interrupted step (it may be executed again)." multiline w={260}>
+              <Tooltip label={t('detail.resumeHint')} multiline w={260}>
                 <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} onClick={() => action('resume')}>
-                  Resume
+                  {t('detail.resume')}
                 </Button>
               </Tooltip>
             )}
             {canRun && (
               <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} onClick={() => setRerun(true)}>
-                Run again
+                {t('detail.runAgain')}
               </Button>
             )}
             <Menu position="bottom-end">
               <Menu.Target>
                 <Button size="xs" leftSection={<IconFileDownload size={14} />}>
-                  Protocol
+                  {t('detail.protocol')}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html`} target="_blank">
-                  Open HTML protocol
+                  {t('detail.openHtml')}
                 </Menu.Item>
                 <Menu.Item leftSection={<IconFileCertificate size={14} />} disabled={!canReport(r.status)} onClick={() => setPdfOpen(true)}>
-                  Generate PDF report…
+                  {t('detail.generatePdf')}
                 </Menu.Item>
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html?download=1`}>
-                  Download HTML
+                  {t('detail.downloadHtml')}
                 </Menu.Item>
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.json`}>
-                  Download JSON (full data)
+                  {t('detail.downloadJson')}
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
@@ -152,54 +167,61 @@ export function RunDetailPage() {
         {r.parentRunId && (
           <Alert color="violet" variant="light" p="xs" icon={<IconBoxMultiple size={16} />}>
             <Text size="sm">
-              Started by sub-process step{r.parentStepKey ? <> <span className="mono">{r.parentStepKey}</span></> : ''} of run{' '}
-              <Anchor component={Link} to={`/runs/${r.parentRunId}`} className="mono" size="sm">
-                {r.parentRunId}
-              </Anchor>
+              <Trans
+                t={t}
+                i18nKey={r.parentStepKey ? 'detail.startedByStep' : 'detail.startedBySubprocess'}
+                values={{ step: r.parentStepKey ?? '', run: r.parentRunId }}
+                components={{ step: <span className="mono" />, run: <Anchor component={Link} to={`/runs/${r.parentRunId}`} className="mono" size="sm" /> }}
+              />
             </Text>
           </Alert>
         )}
         {r.status === 'failed' && r.error && (
-          <Alert color="red" title="Run failed">
+          <Alert color="red" title={t('detail.failed')}>
             {r.error}
           </Alert>
         )}
         {r.status === 'interrupted' && (
-          <Alert color="orange" title="Run interrupted">
-            The application stopped while this run was active. Resume to continue from where it stopped, or cancel it.
+          <Alert color="orange" title={t('detail.interrupted')}>
+            {t('detail.interruptedText')}
           </Alert>
         )}
-        {openTasks.map((t) => (
-          <TaskPanel key={t.id} task={t} showRunLink={false} />
+        {openTasks.map((task) => (
+          <TaskPanel key={task.id} task={task} showRunLink={false} />
         ))}
 
         <SimpleGrid cols={{ base: 2, sm: 4, lg: 6 }} spacing="xs">
-          <Stat label="Steps" value={`${r.stats.steps}`} sub={r.stats.failedSteps ? `${r.stats.failedSteps} failed` : undefined} bad={r.stats.failedSteps > 0} />
-          <Stat label="Changes made" value={`${r.stats.writes}`} />
-          <Stat label="Simulated" value={`${r.stats.skippedWrites}`} />
-          <Stat label="Checks passed" value={`${r.stats.checksPassed}`} />
-          <Stat label="Checks failed" value={`${r.stats.checksFailed}`} bad={r.stats.checksFailed > 0} />
-          <Stat label="Decisions" value={`${r.tasks.filter((t) => t.status === 'completed').length}/${r.tasks.length}`} />
+          <Stat
+            label={t('detail.stats.steps')}
+            value={fmtNumber(r.stats.steps)}
+            sub={r.stats.failedSteps ? t('detail.stats.failed', { count: r.stats.failedSteps }) : undefined}
+            bad={r.stats.failedSteps > 0}
+          />
+          <Stat label={t('detail.stats.changes')} value={fmtNumber(r.stats.writes)} />
+          <Stat label={t('detail.stats.simulated')} value={fmtNumber(r.stats.skippedWrites)} />
+          <Stat label={t('detail.stats.checksPassed')} value={fmtNumber(r.stats.checksPassed)} />
+          <Stat label={t('detail.stats.checksFailed')} value={fmtNumber(r.stats.checksFailed)} bad={r.stats.checksFailed > 0} />
+          <Stat label={t('detail.stats.decisions')} value={`${r.tasks.filter((task) => task.status === 'completed').length}/${r.tasks.length}`} />
         </SimpleGrid>
 
         {(r.children?.length ?? 0) > 0 && <ChildRuns runs={r.children!} />}
 
         <Tabs defaultValue={r.reports.length ? 'reports' : 'timeline'} keepMounted={false}>
           <Tabs.List>
-            <Tabs.Tab value="timeline">Steps</Tabs.Tab>
-            {r.reports.length > 0 && <Tabs.Tab value="reports">Reports ({r.reports.length})</Tabs.Tab>}
-            {checks.length > 0 && <Tabs.Tab value="checks">Checks ({checks.length})</Tabs.Tab>}
-            {r.tasks.length > 0 && <Tabs.Tab value="decisions">Decisions ({r.tasks.length})</Tabs.Tab>}
-            {r.artifacts.length > 0 && <Tabs.Tab value="evidence">Evidence ({r.artifacts.length})</Tabs.Tab>}
-            <Tabs.Tab value="log">Log ({r.logs.length})</Tabs.Tab>
-            <Tabs.Tab value="inputs">Inputs</Tabs.Tab>
-            <Tabs.Tab value="pdf">PDF reports</Tabs.Tab>
-            <Tabs.Tab value="audit">Audit</Tabs.Tab>
+            <Tabs.Tab value="timeline">{t('detail.tabs.steps')}</Tabs.Tab>
+            {r.reports.length > 0 && <Tabs.Tab value="reports">{t('detail.tabs.reports', { count: r.reports.length })}</Tabs.Tab>}
+            {checks.length > 0 && <Tabs.Tab value="checks">{t('detail.tabs.checks', { count: checks.length })}</Tabs.Tab>}
+            {r.tasks.length > 0 && <Tabs.Tab value="decisions">{t('detail.tabs.decisions', { count: r.tasks.length })}</Tabs.Tab>}
+            {r.artifacts.length > 0 && <Tabs.Tab value="evidence">{t('detail.tabs.evidence', { count: r.artifacts.length })}</Tabs.Tab>}
+            <Tabs.Tab value="log">{t('detail.tabs.log', { count: r.logs.length })}</Tabs.Tab>
+            <Tabs.Tab value="inputs">{t('detail.tabs.inputs')}</Tabs.Tab>
+            <Tabs.Tab value="pdf">{t('detail.tabs.pdf')}</Tabs.Tab>
+            <Tabs.Tab value="audit">{t('detail.tabs.audit')}</Tabs.Tab>
           </Tabs.List>
 
           <Tabs.Panel value="timeline" pt="sm">
             <Stack gap={4}>
-              {r.steps.length === 0 && <Text c="dimmed">No steps yet.</Text>}
+              {r.steps.length === 0 && <Text c="dimmed">{t('detail.noSteps')}</Text>}
               {r.steps.slice(0, stepLimit).map((s) => (
                 <StepRow key={s.id} runId={r.id} step={s} childRuns={childrenByStep.get(s.key)} />
               ))}
@@ -230,7 +252,7 @@ export function RunDetailPage() {
                             <Table.Tr>
                               <Table.Td colSpan={rep.columns?.length ?? 1}>
                                 <Text c="dimmed" size="sm">
-                                  No rows
+                                  {t('detail.noRows')}
                                 </Text>
                               </Table.Td>
                             </Table.Tr>
@@ -256,10 +278,10 @@ export function RunDetailPage() {
               <Table withTableBorder fz="sm">
                 <Table.Thead>
                   <Table.Tr>
-                    <Table.Th>Result</Table.Th>
-                    <Table.Th>Check</Table.Th>
-                    <Table.Th>Severity</Table.Th>
-                    <Table.Th>Message</Table.Th>
+                    <Table.Th>{t('detail.checks.result')}</Table.Th>
+                    <Table.Th>{t('detail.checks.check')}</Table.Th>
+                    <Table.Th>{t('detail.checks.severity')}</Table.Th>
+                    <Table.Th>{t('detail.checks.message')}</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -268,10 +290,14 @@ export function RunDetailPage() {
                     return (
                       <Table.Tr key={c.id}>
                         <Table.Td>
-                          {o.passed ? <IconCircleCheck color="var(--mantine-color-green-6)" size={18} /> : <IconCircleX color="var(--mantine-color-red-6)" size={18} />}
+                          {o.passed ? (
+                            <IconCircleCheck color="var(--mantine-color-green-6)" size={18} aria-label={t('detail.checks.passed')} />
+                          ) : (
+                            <IconCircleX color="var(--mantine-color-red-6)" size={18} aria-label={t('detail.checks.failedLabel')} />
+                          )}
                         </Table.Td>
                         <Table.Td>{c.name}</Table.Td>
-                        <Table.Td>{o.severity}</Table.Td>
+                        <Table.Td>{o.severity ? severityLabel(o.severity) : ''}</Table.Td>
                         <Table.Td>{o.message ?? c.error}</Table.Td>
                       </Table.Tr>
                     );
@@ -283,8 +309,8 @@ export function RunDetailPage() {
 
           <Tabs.Panel value="decisions" pt="sm">
             <Stack>
-              {r.tasks.map((t) => (
-                <TaskPanel key={`${t.id}-${t.status}`} task={t} showRunLink={false} />
+              {r.tasks.map((task) => (
+                <TaskPanel key={`${task.id}-${task.status}`} task={task} showRunLink={false} />
               ))}
             </Stack>
           </Tabs.Panel>
@@ -302,7 +328,7 @@ export function RunDetailPage() {
                     {a.name}
                   </Text>
                   <Text size="xs" c="dimmed" className="mono">
-                    {a.stepKey} · sha256 {a.sha256.slice(0, 20)}… · {fmtDate(a.createdAt)}
+                    {t('detail.artifactLine', { step: a.stepKey, hash: `${a.sha256.slice(0, 20)}…`, date: fmtDate(a.createdAt) })}
                   </Text>
                 </Card>
               ))}
@@ -315,7 +341,7 @@ export function RunDetailPage() {
                 <Table.Tbody>
                   {r.logs.slice(0, logLimit).map((l) => (
                     <Table.Tr key={l.id}>
-                      <Table.Td className="nowrap mono">{new Date(l.ts).toLocaleTimeString()}</Table.Td>
+                      <Table.Td className="nowrap mono">{fmtTime(l.ts)}</Table.Td>
                       <Table.Td>
                         <Badge size="xs" variant="light" color={l.level === 'error' ? 'red' : l.level === 'warn' ? 'orange' : 'gray'}>
                           {l.level}
@@ -335,13 +361,13 @@ export function RunDetailPage() {
                 </Table.Tbody>
               </Table>
             </div>
-            <ShowMore shown={Math.min(logLimit, r.logs.length)} total={r.logs.length} page={LOG_PAGE} what="log lines" onShow={setLogLimit} />
+            <ShowMore shown={Math.min(logLimit, r.logs.length)} total={r.logs.length} page={LOG_PAGE} what="logLines" onShow={setLogLimit} />
           </Tabs.Panel>
 
           <Tabs.Panel value="inputs" pt="sm">
             <Stack>
               <Text fw={600} size="sm">
-                Connections
+                {t('detail.connections')}
               </Text>
               {Object.entries(r.bindings).map(([slot, b]) => (
                 <Text size="sm" key={slot}>
@@ -353,19 +379,19 @@ export function RunDetailPage() {
                 </Text>
               ))}
               <Text fw={600} size="sm">
-                Inputs
+                {t('detail.tabs.inputs')}
               </Text>
               <JsonView value={r.inputs} />
               {r.outputs && Object.keys(r.outputs).length > 0 && (
                 <>
                   <Text fw={600} size="sm">
-                    Outputs
+                    {t('detail.outputs')}
                   </Text>
                   <JsonView value={r.outputs} />
                 </>
               )}
               <Text size="xs" c="dimmed" className="mono">
-                Definition hash {r.definitionHash}
+                {t('detail.definitionHash', { hash: r.definitionHash })}
               </Text>
             </Stack>
           </Tabs.Panel>
@@ -383,18 +409,19 @@ export function RunDetailPage() {
   );
 }
 
-function ShowMore({ shown, total, page, what, onShow }: { shown: number; total: number; page: number; what: string; onShow: (limit: number) => void }) {
+function ShowMore({ shown, total, page, what, onShow }: { shown: number; total: number; page: number; what: 'steps' | 'logLines'; onShow: (limit: number) => void }) {
+  const { t } = useTranslation('runs');
   if (shown >= total) return null;
   return (
     <Group gap="xs" mt={4}>
       <Text size="xs" c="dimmed">
-        Showing {shown} of {total} {what}
+        {t(`detail.showMore.${what}`, { shown: fmtNumber(shown), count: total, total: fmtNumber(total) })}
       </Text>
       <Button size="compact-xs" variant="light" onClick={() => onShow(shown + page)}>
-        Show {Math.min(page, total - shown)} more
+        {t('detail.showMore.more', { count: Math.min(page, total - shown) })}
       </Button>
       <Button size="compact-xs" variant="subtle" onClick={() => onShow(Infinity)}>
-        Show all
+        {t('detail.showMore.all')}
       </Button>
     </Group>
   );
@@ -419,12 +446,13 @@ function Stat({ label, value, sub, bad }: { label: string; value: string; sub?: 
 }
 
 function ChildRuns({ runs }: { runs: RunChild[] }) {
+  const { t } = useTranslation('runs');
   return (
     <Paper withBorder p="sm">
       <Group gap={6} mb={6}>
         <IconBoxMultiple size={16} />
         <Text fw={600} size="sm">
-          Sub-process runs ({runs.length})
+          {t('detail.childRuns', { count: runs.length })}
         </Text>
       </Group>
       <Stack gap={4}>
@@ -453,6 +481,7 @@ function ChildRuns({ runs }: { runs: RunChild[] }) {
  * children mounted, which for thousands of steps meant thousands of hidden JSON views.
  */
 const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: string; step: RunStepRecord; childRuns?: RunChild[] }) {
+  const { t } = useTranslation('runs');
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<RunStepRecord | null>(null);
   const depth = step.key.split('/').length - 1;
@@ -485,17 +514,17 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
         {open && (
           <Stack gap="xs" mt="xs">
             <Text size="xs" c="dimmed" className="mono">
-              {step.key} · started {fmtDate(step.startedAt)}
+              {t('detail.step.started', { key: step.key, date: fmtDate(step.startedAt) })}
             </Text>
             {step.error && <Alert color="red" p="xs">{step.error}</Alert>}
             {childRuns && childRuns.length > 0 && (
               <Group gap={6}>
                 <Text size="xs" fw={600}>
-                  Child run:
+                  {t('detail.step.childRun')}
                 </Text>
                 {childRuns.map((c) => (
                   <Anchor key={c.id} component={Link} to={`/runs/${c.id}`} size="xs" className="mono">
-                    {c.id} ({c.status})
+                    {c.id} ({statusLabel(c.status)})
                   </Anchor>
                 ))}
               </Group>
@@ -503,7 +532,7 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
             {s.input !== undefined && s.input !== null && (
               <>
                 <Text size="xs" fw={600}>
-                  Request / configuration
+                  {t('detail.step.request')}
                 </Text>
                 <JsonView value={s.input} maxHeight={260} />
               </>
@@ -512,7 +541,7 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
               <>
                 <Group gap="xs">
                   <Text size="xs" fw={600}>
-                    Result
+                    {t('detail.step.result')}
                   </Text>
                   {step.outputTruncated && !full && (
                     <Button
@@ -524,7 +553,7 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
                           .catch((e) => notifyError(e))
                       }
                     >
-                      Load full result
+                      {t('detail.step.loadFull')}
                     </Button>
                   )}
                 </Group>
@@ -539,6 +568,7 @@ const StepRow = memo(function StepRow({ runId, step, childRuns }: { runId: strin
 });
 
 function RunAudit({ runId }: { runId: string }) {
+  const { t } = useTranslation('runs');
   const q = useQuery({ queryKey: ['audit', 'run', runId], queryFn: () => get<AuditEntry[]>(`/audit?runId=${runId}&limit=1000`) });
   return (
     <div className="table-scroll">
@@ -546,10 +576,10 @@ function RunAudit({ runId }: { runId: string }) {
         <Table.Thead>
           <Table.Tr>
             <Table.Th>#</Table.Th>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Actor</Table.Th>
-            <Table.Th>Action</Table.Th>
-            <Table.Th>Summary</Table.Th>
+            <Table.Th>{t('detail.audit.time')}</Table.Th>
+            <Table.Th>{t('detail.audit.actor')}</Table.Th>
+            <Table.Th>{t('detail.audit.action')}</Table.Th>
+            <Table.Th>{t('detail.audit.summary')}</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>

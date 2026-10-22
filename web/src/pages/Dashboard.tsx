@@ -2,15 +2,17 @@ import { Alert, Anchor, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Te
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconAlertTriangle, IconInbox, IconRocket } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { DashboardData } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
-import { PageHeader } from '../components/common';
+import { PageHeader, severityLabel } from '../components/common';
 import { RunTable } from '../components/RunTable';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { useState } from 'react';
 
 export function DashboardPage({ demo }: { demo: boolean }) {
+  const { t } = useTranslation('dashboard');
   const qc = useQueryClient();
   const navigate = useNavigate();
   const d = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
@@ -19,24 +21,28 @@ export function DashboardPage({ demo }: { demo: boolean }) {
   const data = d.data;
   return (
     <>
-      <PageHeader title="Dashboard" description="What needs your attention, what is running and what is planned." />
+      <PageHeader title={t('title')} description={t('description')} />
       {demoAccounts && (
-        <Alert color="yellow" title="Demo accounts created" mb="md" withCloseButton onClose={() => setDemoAccounts(null)}>
+        <Alert color="yellow" title={t('demoAccounts.title')} mb="md" withCloseButton onClose={() => setDemoAccounts(null)}>
           <Text size="sm">
-            Sign in as <b>{demoAccounts.users.join(', ')}</b> with the password <code>{demoAccounts.password}</code> to see the roles in action
-            (dana = designer, olivia = operator, adam = approver, audrey = auditor, vera = viewer; olivia and adam form the team “Service Desk”).
+            <Trans
+              t={t}
+              i18nKey="demoAccounts.text"
+              values={{ users: demoAccounts.users.join(', '), password: demoAccounts.password }}
+              components={{ b: <b />, code: <code /> }}
+            />
           </Text>
         </Alert>
       )}
       {data && data.counts.platforms === 0 && (
-        <Alert icon={<IconRocket />} title="Get started" mb="md">
+        <Alert icon={<IconRocket />} title={t('getStarted.title')} mb="md">
           <Stack gap="xs">
             <Text size="sm">
-              1. Add a <Anchor component={Link} to="/platforms">platform</Anchor> (Insights Hub tenant, Industrial Edge Management, any REST API) with its credentials and API spec.
+              <Trans t={t} i18nKey="getStarted.step1" components={{ a: <Anchor component={Link} to="/platforms" /> }} />
               <br />
-              2. Create a <Anchor component={Link} to="/processes">process</Anchor> from a template or from scratch.
+              <Trans t={t} i18nKey="getStarted.step2" components={{ a: <Anchor component={Link} to="/processes" /> }} />
               <br />
-              3. Run it (start with a dry run) or <Anchor component={Link} to="/schedules">schedule</Anchor> it.
+              <Trans t={t} i18nKey="getStarted.step3" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
             </Text>
             {demo && isAdmin && (
               <Group>
@@ -45,7 +51,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                   onClick={async () => {
                     try {
                       const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup');
-                      notifyOk(`Loaded ${r.platforms} demo platforms and ${r.processes} processes`);
+                      notifyOk(t('getStarted.demoLoaded', { platforms: r.platforms, processes: r.processes }));
                       setDemoAccounts({ users: r.users, password: r.password });
                       qc.invalidateQueries();
                     } catch (e) {
@@ -53,7 +59,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                     }
                   }}
                 >
-                  Load demo platforms & processes
+                  {t('getStarted.loadDemo')}
                 </Button>
               </Group>
             )}
@@ -63,27 +69,27 @@ export function DashboardPage({ demo }: { demo: boolean }) {
       {data && (
         <Stack>
           <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="xs">
-            <Count label="Open tasks" value={data.openTasks.length} color={data.openTasks.length ? 'violet' : undefined} onClick={() => navigate('/tasks')} />
-            <Count label="Runs (24 h)" value={data.counts.runs24h} onClick={() => navigate('/runs')} />
-            <Count label="Failed (24 h)" value={data.counts.failed24h} color={data.counts.failed24h ? 'red' : undefined} onClick={() => navigate('/runs')} />
-            <Count label="Active schedules" value={data.counts.schedules} onClick={() => navigate('/schedules')} />
-            <Count label="Platforms" value={data.counts.platforms} onClick={() => navigate('/platforms')} />
+            <Count label={t('counts.openTasks')} value={data.openTasks.length} color={data.openTasks.length ? 'violet' : undefined} onClick={() => navigate('/tasks')} />
+            <Count label={t('counts.runs24h')} value={data.counts.runs24h} onClick={() => navigate('/runs')} />
+            <Count label={t('counts.failed24h')} value={data.counts.failed24h} color={data.counts.failed24h ? 'red' : undefined} onClick={() => navigate('/runs')} />
+            <Count label={t('counts.schedules')} value={data.counts.schedules} onClick={() => navigate('/schedules')} />
+            <Count label={t('counts.platforms')} value={data.counts.platforms} onClick={() => navigate('/platforms')} />
           </SimpleGrid>
 
           {data.openTasks.length > 0 && (
             <Card withBorder>
-              <Group mb="xs" gap="xs">
+              <Group mb="xs" gap="xs" wrap="nowrap">
                 <IconInbox size={18} />
-                <Title order={5}>Waiting for your decision</Title>
+                <Title order={5}>{t('waiting')}</Title>
               </Group>
               <Stack gap={6}>
-                {data.openTasks.map((t) => (
-                  <Group key={t.id} justify="space-between" gap={4} wrap="wrap">
-                    <Anchor component={Link} to={`/runs/${t.runId}`} size="sm" style={{ minWidth: 0 }}>
-                      {t.title}
+                {data.openTasks.map((task) => (
+                  <Group key={task.id} justify="space-between" gap={4} wrap="wrap">
+                    <Anchor component={Link} to={`/runs/${task.runId}`} size="sm" style={{ minWidth: 0 }}>
+                      {task.title}
                     </Anchor>
                     <Text size="xs" c="dimmed" className="nowrap">
-                      {t.processName} · {fmtRelative(t.createdAt)}
+                      {task.processName} · {fmtRelative(task.createdAt)}
                     </Text>
                   </Group>
                 ))}
@@ -93,9 +99,9 @@ export function DashboardPage({ demo }: { demo: boolean }) {
 
           {data.failedChecks.length > 0 && (
             <Card withBorder>
-              <Group mb="xs" gap="xs">
+              <Group mb="xs" gap="xs" wrap="nowrap">
                 <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" />
-                <Title order={5}>Failed checks (last 7 days)</Title>
+                <Title order={5}>{t('failedChecks')}</Title>
               </Group>
               <Stack gap={6}>
                 {data.failedChecks.map((c, i) => (
@@ -103,7 +109,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                     <div style={{ minWidth: 0 }}>
                       <Group gap={6}>
                         <Badge size="xs" color={c.severity === 'error' ? 'red' : c.severity === 'warning' ? 'orange' : 'gray'}>
-                          {c.severity}
+                          {severityLabel(c.severity)}
                         </Badge>
                         <Anchor component={Link} to={`/runs/${c.runId}`} size="sm">
                           {c.name}
@@ -125,17 +131,17 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           <SimpleGrid cols={{ base: 1, lg: 3 }}>
             <Card withBorder style={{ gridColumn: 'span 2' }}>
               <Title order={5} mb="xs">
-                Recent runs
+                {t('recentRuns')}
               </Title>
               <RunTable runs={data.recentRuns} compact />
             </Card>
             <Card withBorder>
               <Title order={5} mb="xs">
-                Upcoming
+                {t('upcoming')}
               </Title>
               {data.upcoming.length === 0 && (
                 <Text size="sm" c="dimmed">
-                  Nothing scheduled. <Anchor component={Link} to="/schedules">Plan a process</Anchor>.
+                  <Trans t={t} i18nKey="nothingScheduled" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
                 </Text>
               )}
               <Stack gap={8}>
@@ -145,7 +151,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                       {s.name}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {s.processName} · {fmtDate(s.nextRunAt)} ({fmtRelative(s.nextRunAt)}){s.dryRun ? ' · dry run' : ''}
+                      {t(s.dryRun ? 'upcomingLineDryRun' : 'upcomingLine', { process: s.processName, date: fmtDate(s.nextRunAt), relative: fmtRelative(s.nextRunAt) })}
                     </Text>
                   </Paper>
                 ))}
@@ -165,7 +171,7 @@ function Count({ label, value, color, onClick }: { label: string; value: number;
         {label}
       </Text>
       <Text fw={700} fz={26} c={color}>
-        {value}
+        {fmtNumber(value)}
       </Text>
     </Paper>
   );

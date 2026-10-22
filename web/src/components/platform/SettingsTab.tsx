@@ -20,18 +20,12 @@ import {
 } from '@mantine/core';
 import { IconDeviceFloppy } from '@tabler/icons-react';
 import YAML from 'yaml';
+import { useTranslation } from 'react-i18next';
 import type { AuthConfig, AuthType, HttpOptions, Platform, PlatformConfig } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { Hint, KeyValueEditor } from '../common';
 
-const AUTH_OPTIONS: { value: AuthType; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'basic', label: 'Basic auth (username / password)' },
-  { value: 'bearer', label: 'Static bearer token' },
-  { value: 'apiKey', label: 'API key (header or query)' },
-  { value: 'oauth2_client_credentials', label: 'OAuth2 client credentials' },
-  { value: 'token_request', label: 'Custom login request (token from response)' },
-];
+const AUTH_OPTIONS: AuthType[] = ['none', 'basic', 'bearer', 'apiKey', 'oauth2_client_credentials', 'token_request'];
 
 const toStringMap = (v: Record<string, unknown> | undefined): Record<string, string> =>
   Object.fromEntries(Object.entries(v ?? {}).map(([k, x]) => [k, typeof x === 'string' ? x : JSON.stringify(x)]));
@@ -57,6 +51,7 @@ export function requiredSecrets(auth: AuthConfig | undefined): string[] {
 }
 
 export function SettingsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const [name, setName] = useState(platform.name);
   const [kind, setKind] = useState(platform.kind);
@@ -114,9 +109,9 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     try {
       await put(`/platforms/${platform.id}`, { name, kind, description, baseUrl, environment, config });
       await Promise.all([qc.invalidateQueries({ queryKey: ['platform', platform.id] }), qc.invalidateQueries({ queryKey: ['platforms'] })]);
-      notifyOk('Platform saved');
+      notifyOk(t('settings.saved'));
     } catch (e) {
-      notifyError(e, 'Not saved');
+      notifyError(e, t('settings.notSaved'));
     } finally {
       setBusy(false);
     }
@@ -127,62 +122,61 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
     <Stack>
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          General
+          {t('settings.general')}
         </Title>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} />
+          <TextInput label={t('common:name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} />
           <Autocomplete
-            label="Kind"
-            description="Processes can require a kind for a connection"
+            label={t('settings.kind')}
+            description={t('settings.kindHint')}
             data={['insights-hub', 'industrial-edge-management', 'generic']}
             value={kind}
             onChange={setKind}
           />
-          <TextInput label="Environment" placeholder="prod, test…" value={environment} onChange={(e) => setEnvironment(e.currentTarget.value)} />
+          <TextInput label={t('settings.environment')} placeholder={t('settings.environmentPlaceholder')} value={environment} onChange={(e) => setEnvironment(e.currentTarget.value)} />
           <TextInput
-            label="Base URL"
+            label={t('settings.baseUrl')}
             classNames={{ input: 'mono' }}
-            description="May contain templates such as {{ vars.region }}"
+            description={t('settings.baseUrlHint', { example: '{{ vars.region }}' })}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.currentTarget.value)}
           />
           <TextInput
-            label="Test path"
-            description="GET request used by “Test connection”"
+            label={t('settings.testPath')}
+            description={t('settings.testPathHint')}
             classNames={{ input: 'mono' }}
             value={cfg.testPath ?? ''}
             onChange={(e) => setCfg({ ...cfg, testPath: e.currentTarget.value || undefined })}
           />
           <TextInput
-            label="Portal URL"
-            description="Start URL for browser automation (default: base URL)"
+            label={t('settings.portalUrl')}
+            description={t('settings.portalUrlHint')}
             classNames={{ input: 'mono' }}
             value={cfg.portalUrl ?? ''}
             onChange={(e) => setCfg({ ...cfg, portalUrl: e.currentTarget.value || undefined })}
           />
         </SimpleGrid>
-        <Textarea label="Description" mt="sm" autosize minRows={2} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+        <Textarea label={t('settings.description')} mt="sm" autosize minRows={2} value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
       </Paper>
 
       <Paper withBorder p="md">
-        <Title order={5}>Variables</Title>
+        <Title order={5}>{t('settings.variables')}</Title>
         <Hint>
-          Non-secret values such as tenant or region. Usable in URLs as {'{{ vars.tenant }}'}, in processes as conn.&lt;slot&gt;.vars.tenant or
-          $pvar('&lt;slot&gt;', 'tenant', 'default').
+          {t('settings.variablesHint', { url: '{{ vars.tenant }}', conn: 'conn.<slot>.vars.tenant', pvar: "$pvar('<slot>', 'tenant', 'default')" })}
         </Hint>
         <Stack mt="sm">
-          <KeyValueEditor value={cfg.variables} onChange={(v) => setCfg({ ...cfg, variables: toStringMap(v) })} addLabel="Add variable" />
+          <KeyValueEditor value={cfg.variables} onChange={(v) => setCfg({ ...cfg, variables: toStringMap(v) })} addLabel={t('settings.addVariable')} />
         </Stack>
       </Paper>
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Authentication
+          {t('settings.authentication')}
         </Title>
         <Stack>
           <Select
-            label="Type"
-            data={AUTH_OPTIONS}
+            label={t('settings.type')}
+            data={AUTH_OPTIONS.map((a) => ({ value: a, label: t(`settings.authOptions.${a}`) }))}
             value={auth.type}
             allowDeselect={false}
             onChange={(v) => setAuth({ type: (v as AuthType) ?? 'none' })}
@@ -190,22 +184,25 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           {needed.length > 0 && (
             <Alert color={missing.length ? 'orange' : 'gray'} variant="light">
               <Text size="sm">
-                Needs secrets: {needed.map((k) => <code key={k}>{k} </code>)}
-                {missing.length > 0 ? ` – missing: ${missing.join(', ')} (add them on the Credentials tab)` : ' – all stored'}
+                {t('settings.needsSecrets')} {needed.map((k) => <code key={k}>{k} </code>)}
+                {missing.length > 0 ? ` – ${t('settings.missingSecrets', { keys: missing.join(', ') })}` : ` – ${t('settings.allStored')}`}
               </Text>
             </Alert>
           )}
           {auth.type === 'apiKey' && (
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <Select
-                label="Send key in"
-                data={['header', 'query']}
+                label={t('settings.apiKeyIn')}
+                data={[
+                  { value: 'header', label: t('settings.inHeader') },
+                  { value: 'query', label: t('settings.inQuery') },
+                ]}
                 value={auth.apiKeyIn ?? 'header'}
                 allowDeselect={false}
                 onChange={(v) => setAuth({ apiKeyIn: (v as 'header' | 'query') ?? 'header' })}
               />
               <TextInput
-                label={auth.apiKeyIn === 'query' ? 'Query parameter' : 'Header name'}
+                label={auth.apiKeyIn === 'query' ? t('settings.queryParam') : t('settings.headerName')}
                 placeholder={auth.apiKeyIn === 'query' ? 'api_key' : 'x-api-key'}
                 value={auth.apiKeyName ?? ''}
                 onChange={(e) => setAuth({ apiKeyName: e.currentTarget.value })}
@@ -215,19 +212,19 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           {auth.type === 'oauth2_client_credentials' && (
             <>
               <TextInput
-                label="Token URL"
+                label={t('settings.tokenUrl')}
                 classNames={{ input: 'mono' }}
-                description="Templates allowed, e.g. https://{{ vars.tenant }}.piam.{{ vars.region }}.mindsphere.io/oauth/token"
+                description={t('settings.tokenUrlHint', { example: 'https://{{ vars.tenant }}.piam.{{ vars.region }}.mindsphere.io/oauth/token' })}
                 value={auth.tokenUrl ?? ''}
                 onChange={(e) => setAuth({ tokenUrl: e.currentTarget.value })}
               />
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label="Scope" value={auth.scope ?? ''} onChange={(e) => setAuth({ scope: e.currentTarget.value || undefined })} />
+                <TextInput label={t('settings.scope')} value={auth.scope ?? ''} onChange={(e) => setAuth({ scope: e.currentTarget.value || undefined })} />
                 <Select
-                  label="Send client credentials as"
+                  label={t('settings.clientAuth')}
                   data={[
-                    { value: 'basic', label: 'Basic auth header' },
-                    { value: 'body', label: 'Form body (client_id / client_secret)' },
+                    { value: 'basic', label: t('settings.clientAuthBasic') },
+                    { value: 'body', label: t('settings.clientAuthBody') },
                   ]}
                   value={auth.clientAuth ?? 'basic'}
                   allowDeselect={false}
@@ -236,7 +233,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               </SimpleGrid>
               <div>
                 <Text size="sm" fw={500} mb={4}>
-                  Extra token parameters
+                  {t('settings.extraParams')}
                 </Text>
                 <KeyValueEditor value={auth.extraParams} onChange={(v) => setAuth({ extraParams: v ? toStringMap(v) : undefined })} />
               </div>
@@ -245,21 +242,20 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           {auth.type === 'token_request' && (
             <>
               <Hint>
-                A login call is made first; the token is extracted from its response and added to every API call. Use {'{{ secrets.x }}'} and{' '}
-                {'{{ vars.x }}'} in URL, headers and body.
+                {t('settings.tokenRequestHint', { secrets: '{{ secrets.x }}', vars: '{{ vars.x }}' })}
               </Hint>
               <SimpleGrid cols={{ base: 1, sm: 3 }}>
                 <Select
-                  label="Method"
+                  label={t('settings.method')}
                   data={['POST', 'GET', 'PUT']}
                   value={auth.request?.method ?? 'POST'}
                   allowDeselect={false}
                   onChange={(v) => setReq({ method: (v as 'POST' | 'GET' | 'PUT') ?? 'POST' })}
                 />
                 <TextInput
-                  label="Login URL"
+                  label={t('settings.loginUrl')}
                   classNames={{ input: 'mono' }}
-                  description="Absolute or relative to base URL"
+                  description={t('settings.loginUrlHint')}
                   value={auth.request?.url ?? ''}
                   onChange={(e) => setReq({ url: e.currentTarget.value })}
                   style={{ gridColumn: 'span 2' }}
@@ -267,12 +263,12 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               </SimpleGrid>
               <div>
                 <Text size="sm" fw={500} mb={4}>
-                  Login headers
+                  {t('settings.loginHeaders')}
                 </Text>
                 <KeyValueEditor value={auth.request?.headers} onChange={(v) => setReq({ headers: v ? toStringMap(v) : undefined })} />
               </div>
               <Textarea
-                label="Login body (JSON or YAML)"
+                label={t('settings.loginBody')}
                 classNames={{ input: 'mono' }}
                 autosize
                 minRows={3}
@@ -285,34 +281,34 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               />
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <Select
-                  label="Body encoding"
+                  label={t('settings.bodyEncoding')}
                   data={['json', 'form']}
                   value={auth.request?.bodyType ?? 'json'}
                   allowDeselect={false}
                   onChange={(v) => setReq({ bodyType: (v as 'json' | 'form') ?? 'json' })}
                 />
                 <TextInput
-                  label="Token path (JSONata)"
+                  label={t('settings.tokenPath')}
                   classNames={{ input: 'mono' }}
                   placeholder="access_token"
                   value={auth.tokenPath ?? ''}
                   onChange={(e) => setAuth({ tokenPath: e.currentTarget.value })}
                 />
                 <TextInput
-                  label="Expires-in path (seconds, optional)"
+                  label={t('settings.expiresInPath')}
                   classNames={{ input: 'mono' }}
                   placeholder="expires_in"
                   value={auth.expiresInPath ?? ''}
                   onChange={(e) => setAuth({ expiresInPath: e.currentTarget.value || undefined })}
                 />
                 <TextInput
-                  label="Header name"
+                  label={t('settings.headerName')}
                   placeholder="Authorization"
                   value={auth.headerName ?? ''}
                   onChange={(e) => setAuth({ headerName: e.currentTarget.value || undefined })}
                 />
                 <TextInput
-                  label="Header value"
+                  label={t('settings.headerValue')}
                   classNames={{ input: 'mono' }}
                   placeholder="Bearer {{ token }}"
                   value={auth.headerValue ?? ''}
@@ -326,17 +322,17 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          HTTP options
+          {t('settings.http')}
         </Title>
         <Stack>
           <Switch
-            label="Accept self-signed certificates"
-            description="Common for on-premise Industrial Edge Management. Prefer adding the CA certificate below."
+            label={t('settings.insecureTls')}
+            description={t('settings.insecureTlsHint')}
             checked={!!http.insecureTls}
             onChange={(e) => setHttp({ insecureTls: e.currentTarget.checked })}
           />
           <Textarea
-            label="Additional CA certificate (PEM)"
+            label={t('settings.caPem')}
             classNames={{ input: 'mono' }}
             autosize
             minRows={2}
@@ -347,14 +343,14 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput
-              label="Proxy"
-              description="Empty = HTTPS_PROXY / NO_PROXY environment, 'none' = direct, or a URL"
+              label={t('settings.proxy')}
+              description={t('settings.proxyHint')}
               classNames={{ input: 'mono' }}
               value={http.proxy ?? ''}
               onChange={(e) => setHttp({ proxy: e.currentTarget.value || undefined })}
             />
             <NumberInput
-              label="Timeout (ms)"
+              label={t('settings.timeout')}
               placeholder="60000"
               min={1000}
               value={http.timeoutMs ?? ''}
@@ -363,18 +359,16 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           </SimpleGrid>
           <div>
             <Text size="sm" fw={500} mb={4}>
-              Default headers
+              {t('settings.defaultHeaders')}
             </Text>
             <KeyValueEditor value={http.defaultHeaders} onChange={(v) => setHttp({ defaultHeaders: v ? toStringMap(v) : undefined })} />
           </div>
-          <Divider label="Retries and load" labelPosition="left" />
-          <Hint>
-            Requests that fail with 429, 502, 503, 504 or a network error are repeated with growing delays (honouring Retry-After). Empty fields use the defaults.
-          </Hint>
+          <Divider label={t('settings.retries')} labelPosition="left" />
+          <Hint>{t('settings.retriesHint')}</Hint>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <NumberInput
-              label="Max retries"
-              description="0 turns retries off"
+              label={t('settings.maxRetries')}
+              description={t('settings.maxRetriesHint')}
               placeholder="3"
               min={0}
               max={10}
@@ -382,8 +376,8 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               onChange={(v) => setRetry({ maxRetries: num(v) })}
             />
             <NumberInput
-              label="Max concurrent requests"
-              description="Calls to this platform at the same time"
+              label={t('settings.maxConcurrency')}
+              description={t('settings.maxConcurrencyHint')}
               placeholder="4"
               min={1}
               max={64}
@@ -391,7 +385,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               onChange={(v) => setHttp({ maxConcurrency: num(v) })}
             />
             <NumberInput
-              label="First retry delay (ms)"
+              label={t('settings.baseDelay')}
               placeholder="500"
               min={0}
               step={100}
@@ -399,7 +393,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
               onChange={(v) => setRetry({ baseDelayMs: num(v) })}
             />
             <NumberInput
-              label="Longest retry delay (ms)"
+              label={t('settings.maxDelay')}
               placeholder="30000"
               min={0}
               step={1000}
@@ -408,14 +402,14 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
             />
           </SimpleGrid>
           <Switch
-            label="Also retry POST and PATCH"
-            description="Only turn on if the API handles repeated requests safely – they may create or change data twice."
+            label={t('settings.retryNonIdempotent')}
+            description={t('settings.retryNonIdempotentHint')}
             checked={!!retry.retryNonIdempotent}
             onChange={(e) => setRetry({ retryNonIdempotent: e.currentTarget.checked })}
           />
           <TagsInput
-            label="Trusted origins"
-            description="Credentials are only sent to the base URL's origin. Add further origins (https://host[:port]) that belong to this platform and may receive them, e.g. a separate gateway host. Requests to other hosts are sent without credentials."
+            label={t('settings.trustedOrigins')}
+            description={t('settings.trustedOriginsHint')}
             placeholder="https://gateway.example.com"
             value={http.trustedOrigins ?? []}
             onChange={(v) => setHttp({ trustedOrigins: v.length ? v : undefined })}
@@ -429,7 +423,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
           <Divider />
           <Group justify="flex-end">
             <Button leftSection={<IconDeviceFloppy size={16} />} onClick={save} loading={busy} disabled={!name.trim()}>
-              Save settings
+              {t('settings.save')}
             </Button>
           </Group>
         </>

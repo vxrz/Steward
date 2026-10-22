@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { ROLES, type Role, type Team, type UserInfo } from '@sm/shared';
+import { ROLES, isLocale, type Locale, type Role, type Team, type UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -22,6 +22,7 @@ interface UserRow {
   auth_source: string;
   external_id: string | null;
   email_notifications?: number;
+  locale?: string | null;
 }
 
 const USERNAME = /^[a-zA-Z0-9._@-]{2,64}$/;
@@ -46,6 +47,7 @@ function toInfo(r: UserRow): UserInfo {
     lastLoginAt: r.last_login_at,
     createdAt: r.created_at,
     authSource: r.auth_source ?? 'local',
+    locale: isLocale(r.locale) ? r.locale : null,
   };
 }
 
@@ -94,7 +96,7 @@ export function createUser(input: {
     password = temp = temporaryPassword();
   } else {
     const err = checkPasswordPolicy(password);
-    if (err) throw new HttpError(400, err);
+    if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
   }
   const id = newId('usr_');
   const ts = nowIso();
@@ -150,29 +152,35 @@ export function updateUser(id: string, patch: { displayName?: string; email?: st
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider. */
-export function updateProfile(id: string, patch: { displayName?: string; email?: string; emailNotifications?: boolean }): UserInfo {
+export function updateProfile(
+  id: string,
+  patch: { displayName?: string; email?: string; emailNotifications?: boolean; locale?: Locale | null },
+): UserInfo {
   const before = getUser(id);
   const sso = before.authSource !== 'local';
   const displayName = patch.displayName?.trim();
   const email = patch.email === undefined ? undefined : patch.email.trim();
   if (sso && ((displayName !== undefined && displayName !== before.displayName) || (email !== undefined && email !== (before.email ?? '')))) {
-    throw new HttpError(400, 'Name and e-mail of this account are managed by single sign-on');
+    throw new HttpError(400, 'Name and e-mail of this account are managed by single sign-on', 'SSO_MANAGED_PROFILE');
   }
   if (displayName !== undefined && (!displayName || displayName.length > 100)) throw new HttpError(400, 'Display name: 1–100 characters');
-  if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address');
+  if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address', 'INVALID_EMAIL');
+  if (patch.locale !== undefined && patch.locale !== null && !isLocale(patch.locale)) throw new HttpError(400, `Unsupported language "${patch.locale}"`, 'UNSUPPORTED_LOCALE');
   const changes: string[] = [];
   if (displayName !== undefined && displayName !== before.displayName) changes.push('name');
   if (email !== undefined && email !== (before.email ?? '')) changes.push('e-mail');
   if (patch.emailNotifications !== undefined && patch.emailNotifications !== before.emailNotifications) {
     changes.push(`e-mail notifications ${patch.emailNotifications ? 'on' : 'off'}`);
   }
+  if (patch.locale !== undefined && patch.locale !== before.locale) changes.push(`language ${patch.locale ?? 'default'}`);
   if (!changes.length) return before;
   db().tx(() => {
     db().run(
-      'UPDATE users SET display_name = ?, email = ?, email_notifications = ?, updated_at = ? WHERE id = ?',
+      'UPDATE users SET display_name = ?, email = ?, email_notifications = ?, locale = ?, updated_at = ? WHERE id = ?',
       displayName ?? before.displayName,
       email === undefined ? (before.email ?? null) : email || null,
       (patch.emailNotifications ?? before.emailNotifications) ? 1 : 0,
+      patch.locale === undefined ? before.locale : patch.locale,
       nowIso(),
       id,
     );
@@ -183,7 +191,7 @@ export function updateProfile(id: string, patch: { displayName?: string; email?:
 
 function ensureAnotherAdmin(exceptId: string): void {
   const admins = listUsers().filter((u) => u.active && u.roles.includes('admin') && u.id !== exceptId);
-  if (!admins.length) throw new HttpError(409, 'At least one active administrator is required');
+  if (!admins.length) throw new HttpError(409, 'At least one active administrator is required', 'LAST_ADMIN');
 }
 
 export function resetPassword(id: string): string {
@@ -203,10 +211,10 @@ export function changePassword(id: string, current: string, next: string, keepSe
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
   if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
-  if (!verifyPassword(current, r.password_hash)) throw new HttpError(400, 'Current password is wrong');
+  if (!verifyPassword(current, r.password_hash)) throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
   const err = checkPasswordPolicy(next);
-  if (err) throw new HttpError(400, err);
-  if (current === next) throw new HttpError(400, 'Choose a new password');
+  if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
+  if (current === next) throw new HttpError(400, 'Choose a new password', 'SAME_PASSWORD');
   db().tx(() => {
     db().run('UPDATE users SET password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?', hashPassword(next), nowIso(), id);
     const signedOut = db().run('DELETE FROM sessions WHERE user_id = ? AND id <> ?', id, keepSession ? hashToken(keepSession) : '').changes;
@@ -291,10 +299,10 @@ const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('h
 export function login(username: string, password: string, meta: { ip?: string; userAgent?: string }): { token: string; user: UserInfo } {
   const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
   const f = failures.get(key);
-  if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes');
+  if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const recent = (accountFailures.get(account) ?? []).filter((t) => t > Date.now() - ACCOUNT_WINDOW_MS);
-  if (recent.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes');
+  if (recent.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const r = db().get<UserRow>('SELECT * FROM users WHERE username = ?', username);
   // always run the hash to keep timing similar for unknown users
   const ok = r ? verifyPassword(password, r.password_hash) : (verifyPassword(password, hashPassword('x-dummy-password-1')), false);
@@ -310,13 +318,13 @@ export function login(username: string, password: string, meta: { ip?: string; u
       summary: `Failed sign-in for "${username}"${r && !r.active ? ' (account disabled)' : ''}`,
       details: { ip: meta.ip },
     });
-    throw new HttpError(401, 'Wrong user name or password');
+    throw new HttpError(401, 'Wrong user name or password', 'WRONG_CREDENTIALS');
   }
   failures.delete(key);
   accountFailures.delete(account);
   const roles = parseJson<Role[]>(r.roles, []);
   if (getSettings().passwordLogin === 'adminsOnly' && !roles.includes('admin')) {
-    throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on');
+    throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on', 'PASSWORD_LOGIN_DISABLED');
   }
   const token = createSession(r.id, r.username, meta, 'password');
   return { token, user: toInfo(r) };

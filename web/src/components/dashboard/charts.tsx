@@ -1,8 +1,9 @@
 import { useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { Group, Table, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useElementSize } from '@mantine/hooks';
+import { useTranslation } from 'react-i18next';
 import type { DatasetStatus, MetricSeries } from '@sm/shared';
-import { axisLabel, compact, dateTime, niceTicks } from './format';
+import { axisLabel, compact, dateTime, niceTicks, percent } from './format';
 import { STATUS_META, STATUS_ORDER, StatusLabel } from './status';
 
 /** Categorical slots 1–3 (fixed order: the color follows the metric's position in the widget, never its rank). */
@@ -26,6 +27,7 @@ function LineKey({ color }: { color: string }) {
 // ---------------------------------------------------------------------------
 
 export function TrendChart({ series, names, height = 220 }: { series: MetricSeries[]; names: string[]; height?: number }) {
+  const { t } = useTranslation('dashboards');
   const { ref, width } = useElementSize();
   const [hover, setHover] = useState<number | null>(null);
 
@@ -107,7 +109,7 @@ export function TrendChart({ series, names, height = 220 }: { series: MetricSeri
           width={w}
           height={height}
           role="img"
-          aria-label={`Trend of ${names.join(', ')}. Use the arrow keys to read values.`}
+          aria-label={t('charts.trendLabel', { names: names.join(', ') })}
           tabIndex={0}
           onPointerMove={onMove}
           onPointerLeave={() => setHover(null)}
@@ -183,14 +185,15 @@ export function TrendChart({ series, names, height = 220 }: { series: MetricSeri
 
 /** Table twin of a trend chart. */
 export function TrendTable({ series, names }: { series: MetricSeries[]; names: string[] }) {
+  const { t } = useTranslation('dashboards');
   const times = [...new Set(series.flatMap((s) => s.points.map((p) => p.ts)))].sort().reverse();
   const val = (name: string, ts: string) => series.find((s) => s.name === name)?.points.find((p) => p.ts === ts)?.value;
   return (
-    <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={`Values of ${names.join(', ')}`}>
+    <div className="table-scroll" style={{ maxHeight: 260, overflowY: 'auto' }} tabIndex={0} role="region" aria-label={t('charts.valuesOf', { names: names.join(', ') })}>
       <Table fz="xs" striped>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Time</Table.Th>
+            <Table.Th>{t('charts.time')}</Table.Th>
             {names.map((n) => (
               <Table.Th key={n} ta="right">
                 {n}
@@ -273,18 +276,23 @@ export function StatusBar({
   active?: DatasetStatus | null;
   onSelect?: (s: DatasetStatus | null) => void;
 }) {
+  const { t } = useTranslation('dashboards');
   const total = STATUS_ORDER.reduce((n, s) => n + (counts[s] ?? 0), 0);
   const present = STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
-  if (!total) return <Text size="sm" c="dimmed">No rows with a status.</Text>;
-  const pct = (n: number) => `${Math.round((n / total) * 100)}%`;
+  if (!total) return <Text size="sm" c="dimmed">{t('charts.noStatusRows')}</Text>;
+  const pct = (n: number) => percent(n / total);
   return (
     <div className="viz-root">
-      <div style={{ display: 'flex', gap: 2, width: '100%' }} role="list" aria-label="Status distribution">
+      <div style={{ display: 'flex', gap: 2, width: '100%' }} role="list" aria-label={t('widgets.status.label')}>
         {present.map((s, i) => {
           const n = counts[s]!;
           const last = i === present.length - 1;
           return (
-            <Tooltip key={s} label={`${STATUS_META[s].label}: ${n} (${pct(n)})${onSelect ? ' – click to filter tables' : ''}`} withArrow>
+            <Tooltip
+              key={s}
+              label={t(onSelect ? 'charts.segmentFilter' : 'charts.segment', { status: STATUS_META[s].label, count: n, share: pct(n) })}
+              withArrow
+            >
               <div
                 role="listitem"
                 tabIndex={0}
@@ -330,14 +338,15 @@ export function StatusBar({
 }
 
 export function StatusTable({ counts }: { counts: Partial<Record<DatasetStatus, number>> }) {
+  const { t } = useTranslation('dashboards');
   const total = STATUS_ORDER.reduce((n, s) => n + (counts[s] ?? 0), 0) || 1;
   return (
     <Table fz="sm">
       <Table.Thead>
         <Table.Tr>
-          <Table.Th>Status</Table.Th>
-          <Table.Th ta="right">Rows</Table.Th>
-          <Table.Th ta="right">Share</Table.Th>
+          <Table.Th>{t('datasets.status')}</Table.Th>
+          <Table.Th ta="right">{t('datasets.rows')}</Table.Th>
+          <Table.Th ta="right">{t('charts.share')}</Table.Th>
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
@@ -350,7 +359,7 @@ export function StatusTable({ counts }: { counts: Partial<Record<DatasetStatus, 
               {counts[s] ?? 0}
             </Table.Td>
             <Table.Td ta="right" className="viz-num">
-              {Math.round(((counts[s] ?? 0) / total) * 100)}%
+              {percent((counts[s] ?? 0) / total)}
             </Table.Td>
           </Table.Tr>
         ))}

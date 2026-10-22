@@ -1,42 +1,42 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Accordion, Badge, Code, Divider, Group, NumberInput, Paper, SimpleGrid, Stack, Text, TextInput, Textarea } from '@mantine/core';
+import { Trans, useTranslation } from 'react-i18next';
 import { COMMON_FIELDS, STEP_META, nodePorts, type ConnectionSlot, type FlowNode } from '@sm/shared';
 import { FieldInput } from './fields';
 import { ApiOperationSection } from './ApiOperation';
 import { ExprNodeScope } from './ExprContext';
 import { SubprocessSection } from './SubprocessSection';
-import { NODE_ICONS, PORT_HELP, nodeColor } from '../flow/meta';
+import { NODE_ICONS, nodeColor, portHelp } from '../flow/meta';
+import { localizeField, portLabel, stepDescription, stepLabel } from '../../i18n/meta';
 
 const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function ExpressionHelp() {
+  const { t } = useTranslation('editor');
+  // Code samples are passed as values so translators only see <c>…</c> placeholders, never JSONata.
+  const c = { c: <Code /> };
   return (
     <Accordion variant="contained" chevronPosition="left">
       <Accordion.Item value="help">
         <Accordion.Control>
-          <Text size="sm">Expression & template help</Text>
+          <Text size="sm">{t('exprHelp.title')}</Text>
         </Accordion.Control>
         <Accordion.Panel>
           <Stack gap={4}>
             <Text size="xs">
-              Expressions use <b>JSONata</b>. Template fields accept <Code>{'{{ expression }}'}</Code> placeholders; a field that is exactly one
-              placeholder keeps the raw value (list, object, number).
+              <Trans t={t} i18nKey="exprHelp.p1" values={{ placeholder: '{{ expression }}' }} components={{ b: <b />, ...c }} />
             </Text>
             <Text size="xs">
-              Start typing (or press <Code>Ctrl+Space</Code>) for suggestions; the value below a field is a live preview using the latest run. Scope: <Code>inputs.*</Code> run inputs · <Code>vars.*</Code> node results (saveAs, set, loop items) · <Code>const.*</Code> constants ·{' '}
-              <Code>run.id / run.dryRun / run.actor</Code> · <Code>conn.&lt;slot&gt;.vars.*</Code> platform variables.
+              <Trans t={t} i18nKey="exprHelp.p2" components={{ ...c, slotvars: <Code>{'conn.<slot>.vars.*'}</Code> }} />
             </Text>
             <Text size="xs">
-              Inside filters <Code>[...]</Code> the context is the current item – use <Code>$inputs</Code>, <Code>$vars</Code>, <Code>$const</Code> there,
-              e.g. <Code>vars.users.body[$not(userName in $inputs.exempt)]</Code>. Append <Code>[]</Code> to always get a list.
+              <Trans t={t} i18nKey="exprHelp.p3" values={{ example: 'vars.users.body[$not(userName in $inputs.exempt)]' }} components={c} />
             </Text>
             <Text size="xs">
-              Helpers: <Code>$daysSince(ts)</Code> <Code>$daysAgo(n)</Code> <Code>$ts(value)</Code> <Code>$uuid()</Code>{' '}
-              <Code>$pvar(slot, name, default)</Code> <Code>$secret(slot, key)</Code> (value is redacted in logs) plus all JSONata functions ($count,
-              $join, $filter, $lookup, $distinct, …).
+              <Trans t={t} i18nKey="exprHelp.p4" components={c} />
             </Text>
             <Text size="xs">
-              Per-item fields (columns, preselect) are evaluated against the item itself: <Code>userName</Code>, <Code>$item</Code>.
+              <Trans t={t} i18nKey="exprHelp.p5" components={c} />
             </Text>
           </Stack>
         </Accordion.Panel>
@@ -58,6 +58,7 @@ export function NodeForm({
   otherIds: Set<string>;
   connections: ConnectionSlot[];
 }) {
+  const { t, i18n } = useTranslation('editor');
   const meta = STEP_META[node.type];
   const rec = node as unknown as Record<string, unknown>;
   const set = (key: string, v: unknown) => {
@@ -68,32 +69,34 @@ export function NodeForm({
   };
   const [idDraft, setIdDraft] = useState(node.id);
   useEffect(() => setIdDraft(node.id), [node.id]);
-  const idError = !ID_RE.test(idDraft) ? 'Letters, digits and _ only' : otherIds.has(idDraft) ? 'Id already used by another node' : null;
+  const idError = !ID_RE.test(idDraft) ? t('form.idInvalid') : otherIds.has(idDraft) ? t('form.idUsed') : null;
   const Icon = NODE_ICONS[node.type];
   const ports = nodePorts(node as never);
   const executable = node.type !== 'note' && node.type !== 'start';
-  const commonFields = COMMON_FIELDS.filter((f) => !(node.type === 'if' && f.key === 'when'));
+  const commonFields = COMMON_FIELDS.filter((f) => !(node.type === 'if' && f.key === 'when')).map((f) => localizeField('common', f));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fields = useMemo(() => meta.fields.map((f) => localizeField(node.type, f)), [meta, node.type, i18n.language]);
 
   return (
     <ExprNodeScope nodeId={node.id} enabled={node.type !== 'note'}>
     <Stack gap="sm">
       <Group gap="xs" wrap="nowrap">
         <Badge size="lg" variant="light" color={nodeColor(node.type)} leftSection={<Icon size={14} />}>
-          {meta.label}
+          {stepLabel(node.type, meta)}
         </Badge>
       </Group>
       <Text size="xs" c="dimmed">
-        {meta.description}
+        {stepDescription(node.type, meta)}
       </Text>
       {node.type === 'start' && (
         <Text size="xs">
-          Inputs (asked when a run starts) and connection slots (which platforms the process uses) are defined in the <b>Settings</b> tab.
+          <Trans t={t} i18nKey="form.startHint" components={{ b: <b /> }} />
         </Text>
       )}
       <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
         <TextInput
-          label="Node id"
-          description="Unique; used in run protocols"
+          label={t('form.nodeId')}
+          description={t('form.nodeIdHint')}
           classNames={{ input: 'mono' }}
           value={idDraft}
           error={idDraft !== node.id ? idError : null}
@@ -104,13 +107,13 @@ export function NodeForm({
           }}
         />
         {node.type !== 'note' && (
-          <TextInput label="Name" description="Shown on the canvas and in protocols" value={node.name ?? ''} onChange={(e) => set('name', e.currentTarget.value || undefined)} />
+          <TextInput label={t('form.name')} description={t('form.nameHint')} value={node.name ?? ''} onChange={(e) => set('name', e.currentTarget.value || undefined)} />
         )}
       </SimpleGrid>
       {executable && (
-        <Textarea label="Description" autosize minRows={1} maxRows={4} value={node.description ?? ''} onChange={(e) => set('description', e.currentTarget.value || undefined)} />
+        <Textarea label={t('form.description')} autosize minRows={1} maxRows={4} value={node.description ?? ''} onChange={(e) => set('description', e.currentTarget.value || undefined)} />
       )}
-      {meta.fields.map((f) => (
+      {fields.map((f) => (
         <Fragment key={f.key}>
           {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
             <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
@@ -142,16 +145,16 @@ export function NodeForm({
       {ports.length > 0 && (
         <Paper withBorder p="xs">
           <Text size="xs" fw={600} mb={4}>
-            Outputs
+            {t('form.outputs')}
           </Text>
           <Stack gap={4}>
             {ports.map((p) => (
               <Group key={p.id} gap={6} wrap="nowrap" align="flex-start">
                 <Badge size="xs" variant="outline" color={p.id === 'error' ? 'red' : 'gray'} style={{ flexShrink: 0 }}>
-                  {p.label || p.id}
+                  {portLabel(p.id, p.label) || p.id}
                 </Badge>
                 <Text size="xs" c="dimmed">
-                  {PORT_HELP[p.id] ?? ''}
+                  {portHelp(p.id)}
                 </Text>
               </Group>
             ))}
@@ -160,21 +163,21 @@ export function NodeForm({
       )}
       {executable && (
         <>
-          <Divider label="Execution" labelPosition="left" />
+          <Divider label={t('form.execution')} labelPosition="left" />
           {commonFields.map((f) => (
             <FieldInput key={f.key} field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
           ))}
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
             <NumberInput
-              label="Retry attempts"
-              description="Total attempts incl. the first (1–10)"
+              label={t('form.retryAttempts')}
+              description={t('form.retryAttemptsHint')}
               min={1}
               max={10}
               value={node.retry?.attempts ?? ''}
               onChange={(v) => set('retry', v === '' || Number(v) <= 1 ? undefined : { ...(node.retry ?? {}), attempts: Number(v) })}
             />
             <NumberInput
-              label="Retry delay (ms)"
+              label={t('form.retryDelay')}
               min={0}
               disabled={!node.retry}
               value={node.retry?.delayMs ?? ''}

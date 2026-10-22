@@ -1,0 +1,72 @@
+{
+  "add": "Hinzufügen",
+  "remove": "Entfernen",
+  "copy": "Kopieren",
+  "copied": "Kopiert",
+  "name": "Name",
+  "value": "Wert",
+  "status": {
+    "queued": "in Warteschlange",
+    "running": "läuft",
+    "waiting": "wartet",
+    "succeeded": "erfolgreich",
+    "failed": "fehlgeschlagen",
+    "cancelled": "abgebrochen",
+    "interrupted": "unterbrochen",
+    "skipped": "übersprungen",
+    "dryrun": "Probelauf",
+    "open": "offen",
+    "completed": "abgeschlossen"
+  },
+  "footer": {
+    "madeWith": "Mit <heart>❤️</heart> gemacht in Erlangen",
+    "love": "Liebe",
+    "builtBy": "Gestaltet und entwickelt von <author>{{author}}</author> mit KI",
+    "openSource": "Open Source ({{license}})",
+    "onGithub": "{{brand}} auf GitHub",
+    "rake": "Fränkischer Rechen",
+    "rakeTitle": "Fränkischer Rechen"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "designer": "Designer",
+    "operator": "Operator",
+    "approver": "Freigeber",
+    "auditor": "Prüfer",
+    "viewer": "Betrachter"
+  },
+  "roleInfo": {
+    "admin": "Alles: Benutzer, Teams, Plattformen und Zugangsdaten, Einstellungen, alle Prozesse",
+    "designer": "Prozesse anlegen; Prozesse bearbeiten und ausführen (sofern nicht eingeschränkt)",
+    "operator": "Prozesse ausführen und planen (sofern nicht eingeschränkt)",
+    "approver": "Über Freigaben und Benutzeraufgaben entscheiden",
+    "auditor": "Lesezugriff auf alle Prozesse, Ausführungen, Protokolle und das Audit-Log",
+    "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)"
+  },
+  "loading": "Wird geladen…",
+  "severity": {
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Rolle: {{role}}"
+  },
+  "cancel": "Abbrechen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "close": "Schließen",
+  "edit": "Bearbeiten",
+  "back": "Zurück",
+  "yes": "Ja",
+  "no": "Nein",
+  "permissions": {
+    "view": "Ansehen",
+    "run": "Ausführen",
+    "edit": "Bearbeiten",
+    "approve": "Freigeben",
+    "manage": "Verwalten",
+    "use": "Nutzen"
+  }
+}

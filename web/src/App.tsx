@@ -3,6 +3,7 @@ import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import {
   IconLayoutDashboard,
@@ -30,6 +31,7 @@ import { ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from 
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
+import { currentLanguage, setLanguage } from './i18n';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -61,24 +63,31 @@ function PageLoader() {
   );
 }
 
-const NAV: { to: string; label: string; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
-  { to: '/', label: 'Dashboard', icon: IconLayoutDashboard },
-  { to: '/dashboards', label: 'Dashboards', icon: IconChartBar },
-  { to: '/tasks', label: 'My tasks', icon: IconInbox },
-  { to: '/runs', label: 'Runs', icon: IconPlayerPlay },
-  { to: '/processes', label: 'Processes', icon: IconSitemap },
-  { to: '/schedules', label: 'Schedules', icon: IconCalendarTime },
-  { to: '/triggers', label: 'Triggers', icon: IconWebhook },
-  { to: '/platforms', label: 'Platforms', icon: IconServer },
-  { to: '/audit', label: 'Audit log', icon: IconShieldCheck, cap: 'viewAudit' },
-  { to: '/users', label: 'Users & teams', icon: IconUsers, cap: 'manageUsers' },
-  { to: '/settings', label: 'Settings', icon: IconSettings },
+type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'platforms' | 'audit' | 'users' | 'settings';
+const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
+  { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
+  { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
+  { to: '/tasks', key: 'tasks', icon: IconInbox },
+  { to: '/runs', key: 'runs', icon: IconPlayerPlay },
+  { to: '/processes', key: 'processes', icon: IconSitemap },
+  { to: '/schedules', key: 'schedules', icon: IconCalendarTime },
+  { to: '/triggers', key: 'triggers', icon: IconWebhook },
+  { to: '/platforms', key: 'platforms', icon: IconServer },
+  { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
+  { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
+  { to: '/settings', key: 'settings', icon: IconSettings },
 ];
 
 export function App() {
+  const { t } = useTranslation('nav');
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
   useEffect(() => setAuthChangeHandler(() => qc.invalidateQueries({ queryKey: ['auth'] })), [qc]);
+  // The language stored in the profile wins over the browser language once the user is known.
+  const userLocale = status.data?.me?.user.locale;
+  useEffect(() => {
+    if (userLocale && userLocale !== currentLanguage()) void setLanguage(userLocale);
+  }, [userLocale]);
   const onSignOut = () => signOut(qc);
 
   if (status.isLoading) {
@@ -91,7 +100,7 @@ export function App() {
   if (status.error || !status.data) {
     return (
       <Center h="100vh" p="md">
-        <Text c="red">Cannot reach the {BRAND.name} server: {(status.error as Error)?.message}</Text>
+        <Text c="red">{t('serverUnreachable', { brand: BRAND.name, error: (status.error as Error)?.message ?? '' })}</Text>
       </Center>
     );
   }
@@ -108,6 +117,7 @@ export function App() {
 }
 
 function Shell({ status }: { status: AuthStatus }) {
+  const { t } = useTranslation('nav');
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
   const navigate = useNavigate();
@@ -116,7 +126,7 @@ function Shell({ status }: { status: AuthStatus }) {
   const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
   const openTasks = tasks.data?.length ?? 0;
 
-  const navItems = NAV.filter((n) => !n.cap || caps[n.cap]);
+  const navItems = NAV.filter((n) => !n.cap || caps[n.cap]).map((n) => ({ ...n, label: t(`items.${n.key}`) }));
   const isActive = (to: string) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to));
 
   return (
@@ -124,7 +134,7 @@ function Shell({ status }: { status: AuthStatus }) {
       <AppShell.Header>
         <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
-            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
+            <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('toggleNavigation')} />
             <a
               href="/"
               onClick={(e) => (e.preventDefault(), navigate('/'))}
@@ -137,18 +147,18 @@ function Shell({ status }: { status: AuthStatus }) {
             </a>
             {status.demo && (
               <Badge color="yellow" variant="light" visibleFrom="xs" style={{ flexShrink: 0 }}>
-                demo
+                {t('demo')}
               </Badge>
             )}
           </Group>
           <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
             <CommandPaletteButton />
             <NotificationCenter />
-            <Tooltip label={colorScheme === 'dark' ? 'Light mode' : 'Dark mode'}>
+            <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
               <ActionIcon
                 variant="subtle"
                 onClick={() => setColorScheme(colorScheme === 'dark' ? 'light' : 'dark')}
-                aria-label="Toggle color scheme"
+                aria-label={t('toggleColorScheme')}
                 visibleFrom="xs"
               >
                 {colorScheme === 'dark' ? <IconSun size={18} /> : <IconMoon size={18} />}
@@ -203,7 +213,7 @@ function Shell({ status }: { status: AuthStatus }) {
           {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
           <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Text>Page not found</Text>} />
+          <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
         </Routes>
         </Suspense>
         </ErrorBoundary>

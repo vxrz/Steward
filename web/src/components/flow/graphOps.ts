@@ -1,4 +1,5 @@
 import { STEP_META, autoLayout, hasInput, newStepId, type FlowNode, type NodeType, type ProcessDefinition, type Wire } from '@sm/shared';
+import i18n from '../../i18n';
 
 type Def = ProcessDefinition;
 
@@ -9,6 +10,10 @@ export const wireId = (w: Wire): string => `${w.from}|${w.port}|${w.to}`;
 export function createNode(def: Def, type: NodeType, x: number, y: number): FlowNode {
   const id = newStepId(type, allIds(def));
   const base: Record<string, unknown> = { id, type, ...STEP_META[type].defaults(), x: Math.round(x), y: Math.round(y) };
+  // Default texts of new nodes in the UI language (they become part of the process, like anything the user types).
+  for (const key of ['text', 'title', 'message'] as const) {
+    if (typeof base[key] === 'string' && base[key]) base[key] = i18n.t(`editor:defaults.${type}.${key}` as 'editor:defaults.note.text', { defaultValue: base[key] as string });
+  }
   if ((type === 'http' || type === 'browser') && def.connections[0] && !base.connection) base.connection = def.connections[0].slot;
   return base as unknown as FlowNode;
 }

@@ -42,7 +42,7 @@ test.describe('human in the loop', () => {
     await expect(olivia.getByText('Users flagged for access review')).toBeVisible();
     await expect(olivia.getByText(/dry run – nothing changed/)).toBeVisible();
     await olivia.getByRole('tab', { name: 'Decisions (1)' }).click();
-    await expect(olivia.getByText(`${count} item(s) selected by`)).toContainText('adam');
+    await expect(olivia.getByText(`${count} ${count === 1 ? 'item' : 'items'} selected by`)).toContainText('adam');
 
     // protocol (HTML) opens in a new tab and contains the decision
     await olivia.getByRole('button', { name: 'Protocol' }).click();

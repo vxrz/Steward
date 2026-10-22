@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ActionIcon, Alert, Autocomplete, Badge, Button, Group, Modal, Paper, PasswordInput, Stack, Table, Text, Title, Tooltip } from '@mantine/core';
 import { IconLock, IconPencil, IconTrash } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { Platform } from '@sm/shared';
 import { notifyError, notifyOk, put } from '../../api';
 import { Hint } from '../common';
@@ -10,6 +11,7 @@ import { requiredSecrets } from './SettingsTab';
 const COMMON_KEYS = ['clientId', 'clientSecret', 'username', 'password', 'token', 'apiKey'];
 
 export function CredentialsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const [key, setKey] = useState('');
   const [value, setValue] = useState('');
@@ -26,11 +28,11 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
     try {
       await put(`/platforms/${platform.id}/secrets`, { [key.trim()]: value });
       await refresh();
-      notifyOk(`Secret "${key.trim()}" stored`);
+      notifyOk(t('credentials.stored', { key: key.trim() }));
       setKey('');
       setValue('');
     } catch (e) {
-      notifyError(e, 'Secret not stored');
+      notifyError(e, t('credentials.notStored'));
     } finally {
       setBusy(false);
     }
@@ -40,9 +42,9 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
     try {
       await put(`/platforms/${platform.id}/secrets`, { [k]: null });
       await refresh();
-      notifyOk(`Secret "${k}" removed`);
+      notifyOk(t('credentials.removed', { key: k }));
     } catch (e) {
-      notifyError(e, 'Not removed');
+      notifyError(e, t('credentials.notRemoved'));
     } finally {
       setRemoving(null);
     }
@@ -51,22 +53,20 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
   return (
     <Stack>
       <Alert color="blue" variant="light" icon={<IconLock size={18} />}>
-        Secrets are encrypted (AES-256-GCM) with a key derived from your master passphrase and never shown again or sent to the
-        browser. Every change is recorded in the audit log (names only, never values). In processes they are available via{' '}
-        <code>$secret('&lt;slot&gt;', 'key')</code> and are masked in all logs.
+        <Trans t={t} i18nKey="credentials.info" components={{ code: <code>{"$secret('<slot>', 'key')"}</code> }} />
       </Alert>
       {missing.length > 0 && (
         <Alert color="orange" variant="light">
-          The configured authentication needs: {missing.join(', ')}
+          {t('credentials.missing', { keys: missing.join(', ') })}
         </Alert>
       )}
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Stored secrets
+          {t('credentials.storedTitle')}
         </Title>
         {platform.secretKeys.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No secrets stored yet.
+            {t('credentials.none')}
           </Text>
         ) : (
           <div className="table-scroll">
@@ -79,7 +79,7 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
                         <Text className="mono">{k}</Text>
                         {needed.includes(k) && (
                           <Badge size="xs" variant="light">
-                            used by auth
+                            {t('credentials.usedByAuth')}
                           </Badge>
                         )}
                       </Group>
@@ -87,20 +87,20 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
                     <Table.Td c="dimmed">••••••••</Table.Td>
                     <Table.Td w={90}>
                       {!readOnly && <Group gap={4} wrap="nowrap" justify="flex-end">
-                        <Tooltip label="Replace">
+                        <Tooltip label={t('credentials.replace')}>
                           <ActionIcon
                             variant="subtle"
                             onClick={() => {
                               setKey(k);
                               setValue('');
                             }}
-                            aria-label="Replace"
+                            aria-label={t('credentials.replace')}
                           >
                             <IconPencil size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <Tooltip label="Remove">
-                          <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(k)} aria-label="Remove">
+                        <Tooltip label={t('common:remove')}>
+                          <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(k)} aria-label={t('common:remove')}>
                             <IconTrash size={16} />
                           </ActionIcon>
                         </Tooltip>
@@ -114,11 +114,11 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
         )}
       </Paper>
       {readOnly ? (
-        <Text size="sm" c="dimmed">Only users who may manage this platform can change credentials.</Text>
+        <Text size="sm" c="dimmed">{t('credentials.readOnly')}</Text>
       ) : (
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Add or replace a secret
+          {t('credentials.addTitle')}
         </Title>
         <form
           onSubmit={(e) => {
@@ -128,33 +128,33 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
         >
           <Stack>
             <Autocomplete
-              label="Name"
-              placeholder="e.g. clientSecret"
+              label={t('common:name')}
+              placeholder={t('credentials.namePlaceholder')}
               data={[...new Set([...needed, ...COMMON_KEYS])]}
               value={key}
               onChange={setKey}
             />
-            <PasswordInput label="Value" value={value} onChange={(e) => setValue(e.currentTarget.value)} autoComplete="new-password" />
-            {platform.secretKeys.includes(key.trim()) && <Hint>This replaces the stored value of “{key.trim()}”.</Hint>}
+            <PasswordInput label={t('common:value')} value={value} onChange={(e) => setValue(e.currentTarget.value)} autoComplete="new-password" />
+            {platform.secretKeys.includes(key.trim()) && <Hint>{t('credentials.replaces', { key: key.trim() })}</Hint>}
             <Group justify="flex-end">
               <Button type="submit" loading={busy} disabled={!key.trim() || !value || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key.trim())}>
-                Store secret
+                {t('credentials.store')}
               </Button>
             </Group>
           </Stack>
         </form>
       </Paper>
       )}
-      <Modal opened={!!removing} onClose={() => setRemoving(null)} title="Remove secret">
+      <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('credentials.removeTitle')}>
         <Text size="sm">
-          Remove the secret <strong>{removing}</strong>? Processes using it will fail until it is set again.
+          <Trans t={t} i18nKey="credentials.removeText" values={{ key: removing ?? '' }} components={{ b: <strong /> }} />
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setRemoving(null)}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button color="red" onClick={() => removing && remove(removing)}>
-            Remove
+            {t('common:remove')}
           </Button>
         </Group>
       </Modal>

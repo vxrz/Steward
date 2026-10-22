@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconTrashX } from '@tabler/icons-react';
+import { IconLanguage, IconTrashX } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ApiToken, AuthStatus, MaintenanceStatus, Settings } from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { useMe } from '../auth';
-import { fmtDate, fmtRelative } from '../format';
+import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
+import { DEFAULT_LOCALE, LANGUAGES, isLocale } from '../i18n/languages';
+import i18n from '../i18n';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
+  const { t } = useTranslation(['settings', 'common']);
   const qc = useQueryClient();
   const { caps } = useMe();
   // Settings are admin-only on the server; other users just see a note.
@@ -26,15 +30,15 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   useEffect(() => {
     if (settings.data) setS(settings.data);
   }, [settings.data]);
-  if (readOnly) return <PageHeader title="Settings" description="Only administrators can change settings." />;
+  if (readOnly) return <PageHeader title={t("title")} description={t("readOnly")} />;
   if (!s) return null;
   return (
     <>
-      <PageHeader title="Settings" description={readOnly ? 'Only administrators can change settings.' : undefined} />
+      <PageHeader title={t('title')} description={readOnly ? t('readOnly') : undefined} />
       <Stack maw={760}>
         <Card withBorder>
           <Title order={5} mb="sm">
-            Sign-in
+            {t('signIn.title')}
           </Title>
           <Stack gap="xs">
             <SegmentedControl
@@ -43,77 +47,94 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
               value={s.passwordLogin ?? 'all'}
               onChange={(v) => setS({ ...s, passwordLogin: v as Settings['passwordLogin'] })}
               data={[
-                { value: 'all', label: 'Password and SSO' },
-                { value: 'adminsOnly', label: 'SSO only' },
+                { value: 'all', label: t('signIn.all') },
+                { value: 'adminsOnly', label: t('signIn.adminsOnly') },
               ]}
             />
             <Text size="xs" c="dimmed">
-              {(s.passwordLogin ?? 'all') === 'adminsOnly'
-                ? 'Everyone signs in with single sign-on. Local administrator accounts can still use their password – keep at least one as break-glass access in case the identity provider is unavailable.'
-                : 'Users can sign in with a local password or, if configured, with single sign-on.'}
+              {(s.passwordLogin ?? 'all') === 'adminsOnly' ? t('signIn.adminsOnlyHint') : t('signIn.allHint')}
             </Text>
             {ssoCount === 0 && (s.passwordLogin ?? 'all') === 'adminsOnly' && (
               <Alert color="orange" variant="light" p="xs">
-                No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users &amp; teams.
+                {t('signIn.noProvider')}
               </Alert>
             )}
           </Stack>
         </Card>
         <Card withBorder>
+          <Group gap="xs" mb="sm" wrap="nowrap">
+            <IconLanguage size={18} />
+            <Title order={5}>{t('language.title')}</Title>
+          </Group>
+          <Select
+            disabled={readOnly}
+            label={t('language.default')}
+            description={t('language.defaultHint')}
+            data={LANGUAGES.map((l) => ({ value: l.code, label: l.nativeName }))}
+            value={s.defaultLocale ?? DEFAULT_LOCALE}
+            allowDeselect={false}
+            onChange={(v) => isLocale(v) && setS({ ...s, defaultLocale: v })}
+            maw={320}
+          />
+          <Text size="xs" c="dimmed" mt="xs">
+            {t('language.hint')}
+          </Text>
+        </Card>
+        <Card withBorder>
           <Title order={5} mb="sm">
-            Browser automation
+            {t('browser.title')}
           </Title>
           {!browserAvailable && (
             <Alert color="orange" mb="sm">
-              Playwright is not installed. Run <Code>npm install</Code> and <Code>npx playwright install chromium</Code>, then restart.
+              <Trans t={t} i18nKey="browser.missing" components={{ c: <Code /> }} />
             </Alert>
           )}
           <Stack>
             <Switch
               disabled={readOnly}
-              label="Run browser headless"
-              description="Turn off to watch the browser while a process runs (useful when building browser steps)."
+              label={t('browser.headless')}
+              description={t('browser.headlessHint')}
               checked={s.browserHeadless}
               onChange={(e) => setS({ ...s, browserHeadless: e.currentTarget.checked })}
             />
             <NumberInput
               disabled={readOnly}
-              label="Default timeout per action (ms)"
+              label={t('browser.timeout')}
               min={1000}
               step={1000}
               value={s.browserTimeoutMs}
               onChange={(v) => setS({ ...s, browserTimeoutMs: Number(v) || 30000 })}
             />
             <Text size="xs" c="dimmed">
-              Tip: <Code>npx playwright codegen https://your-portal</Code> records clicks and shows selectors you can paste into browser steps.
+              <Trans t={t} i18nKey="browser.tip" components={{ c: <Code /> }} />
             </Text>
           </Stack>
         </Card>
         <Card withBorder>
           <Title order={5} mb="sm">
-            Data retention
+            {t('retention.title')}
           </Title>
           <Stack>
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
               <NumberInput
                 disabled={readOnly}
-                label="Keep runs (days)"
-                description="Includes logs and evidence files. 0 = forever."
+                label={t('retention.runs')}
+                description={t('retention.runsHint')}
                 min={0}
                 value={s.retentionRunDays ?? 0}
                 onChange={(v) => setS({ ...s, retentionRunDays: typeof v === 'number' ? v : 0 })}
               />
               <NumberInput
                 disabled={readOnly}
-                label="Keep read notifications (days)"
-                description="Unread ones are always kept."
+                label={t('retention.notifications')}
+                description={t('retention.notificationsHint')}
                 min={1}
                 value={s.retentionNotificationDays ?? 30}
                 onChange={(v) => setS({ ...s, retentionNotificationDays: typeof v === 'number' ? v : 30 })}
               />
             </SimpleGrid>
             <Text size="xs" c="dimmed">
-              Older runs and read notifications are deleted automatically. The audit log is never pruned.
+              {t('retention.hint')}
             </Text>
             {!readOnly && <MaintenanceStatusView />}
           </Stack>
@@ -121,14 +142,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {publicApi.data && (
           <Card withBorder>
             <Title order={5} mb="sm">
-              REST API
+              {t('publicApi.title')}
             </Title>
             <Stack gap="xs">
               <PublicApiInfo status={publicApi.data} />
               {publicApi.data.enabled && (
                 <>
                   <Text size="sm" fw={500}>
-                    Who can open the API documentation
+                    {t('publicApi.docsAccess')}
                   </Text>
                   <SegmentedControl
                     disabled={readOnly || publicApi.data.docsSource === 'env'}
@@ -136,19 +157,20 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
                     value={publicApi.data.docsSource === 'env' ? publicApi.data.docs : (s.apiDocs ?? 'authenticated')}
                     onChange={(v) => setS({ ...s, apiDocs: v as Settings['apiDocs'] })}
                     data={[
-                      { value: 'off', label: 'Off' },
-                      { value: 'authenticated', label: 'Signed-in users' },
-                      { value: 'public', label: 'Public' },
+                      { value: 'off', label: t('publicApi.docsModes.off') },
+                      { value: 'authenticated', label: t('publicApi.docsModes.authenticated') },
+                      { value: 'public', label: t('publicApi.docsModes.public') },
                     ]}
                   />
                   <Text size="xs" c="dimmed">
                     {publicApi.data.docsSource === 'env' ? (
                       <>
-                        Set by the environment variable <Code>SM_API_DOCS</Code> on the server.{' '}
+                        <Trans t={t} i18nKey="publicApi.docsFromEnv" values={{ name: 'SM_API_DOCS' }} components={{ c: <Code /> }} />{' '}
                       </>
                     ) : null}
-                    Who may open the interactive documentation (Swagger UI) and the OpenAPI document without a token. The API itself always needs an API token
-                    (created on the profile page){publicApi.data.rateLimitPerMinute ? ` and allows ${publicApi.data.rateLimitPerMinute} requests per minute and token` : ''}.
+                    {publicApi.data.rateLimitPerMinute
+                      ? t('publicApi.docsHintRateLimit', { count: publicApi.data.rateLimitPerMinute })
+                      : t('publicApi.docsHint')}
                   </Text>
                 </>
               )}
@@ -161,14 +183,14 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
             onClick={async () => {
               try {
                 await put('/settings', s);
-                notifyOk('Settings saved');
+                notifyOk(t('saved'));
                 qc.invalidateQueries();
               } catch (e) {
                 notifyError(e);
               }
             }}
           >
-            Save
+            {t('common:save')}
           </Button>
         </Group>
         )}
@@ -177,30 +199,23 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <AdminTokensCard />}
         <Card withBorder>
           <Title order={5} mb="xs">
-            Unattended operation
+            {t('unattended.title')}
           </Title>
           <Text size="sm">
-            Schedules only run while the vault is unlocked; scheduled runs use the rights of the person who owns the schedule. To start unlocked after a reboot (e.g. as a Windows service), set the environment variable{' '}
-            <Code>SM_MASTER_PASSPHRASE</Code>. To let colleagues use the tool over the network, start it with <Code>SM_HOST=0.0.0.0</Code>,{' '}
-            <Code>SM_ALLOWED_HOSTS=&lt;hostname&gt;</Code> and HTTPS (<Code>SM_TLS_CERT</Code>/<Code>SM_TLS_KEY</Code>). Keep the data directory (<Code>data/</Code>) backed up – it contains the database, encrypted credentials, evidence files and the
-            audit log. See the <Anchor href={`${BRAND.repoUrl}#readme`} target="_blank">README</Anchor> for details.
+            <Trans
+              t={t}
+              i18nKey="unattended.text"
+              components={{
+                c: <Code />,
+                hosts: <Code>{'SM_ALLOWED_HOSTS=<hostname>'}</Code>,
+                readme: <Anchor href={`${BRAND.repoUrl}#readme`} target="_blank" />,
+              }}
+            />
           </Text>
         </Card>
       </Stack>
     </>
   );
-}
-
-function fmtBytes(n?: number | null): string {
-  if (n == null || !Number.isFinite(n)) return '–';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let v = n;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${units[i]}`;
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -216,24 +231,25 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 
 /** Storage numbers and the "Clean up now" button. Hidden while the server has no maintenance endpoint. */
 function MaintenanceStatusView() {
+  const { t } = useTranslation('settings');
   const qc = useQueryClient();
   const status = useQuery({ queryKey: ['maintenance'], queryFn: () => getOptional<MaintenanceStatus | null>('/maintenance', null) });
   const [busy, setBusy] = useState(false);
   const m = status.data;
   if (!m) return null;
   const cleanup = async () => {
-    if (!confirm('Delete runs and notifications older than the saved retention periods now? This cannot be undone.')) return;
+    if (!confirm(t('maintenance.confirm'))) return;
     setBusy(true);
     try {
       type Result = { runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number };
       // Accepts the cleanup result or the refreshed maintenance status (which carries it as lastCleanup).
       const r = await post<Result | MaintenanceStatus>('/maintenance/cleanup');
       const c = r && 'runsDeleted' in r ? r : (r as MaintenanceStatus | null)?.lastCleanup;
-      notifyOk(c ? `${c.runsDeleted} runs, ${c.artifactsDeleted} files and ${c.notificationsDeleted} notifications deleted.` : 'Done.', 'Cleanup finished');
+      notifyOk(c ? t('maintenance.result', cleanupCounts(c)) : t('maintenance.done'), t('maintenance.finished'));
       if (r && 'databaseBytes' in r) qc.setQueryData(['maintenance'], r);
       else qc.invalidateQueries({ queryKey: ['maintenance'] });
     } catch (e) {
-      notifyError(e, 'Cleanup failed');
+      notifyError(e, t('maintenance.failed'));
     } finally {
       setBusy(false);
     }
@@ -241,40 +257,54 @@ function MaintenanceStatusView() {
   return (
     <Stack gap="xs">
       <SimpleGrid cols={{ base: 2, sm: 3 }} spacing="xs">
-        <Stat label="Database" value={fmtBytes(m.databaseBytes)} />
-        <Stat label="Evidence files" value={fmtBytes(m.artifactBytes)} />
-        <Stat label="Runs" value={m.runs.toLocaleString()} />
-        <Stat label="Oldest run" value={m.oldestRun ? fmtRelative(m.oldestRun) : '–'} hint={m.oldestRun ? fmtDate(m.oldestRun) : undefined} />
-        <Stat label="Audit entries" value={m.auditEntries.toLocaleString()} />
-        <Stat label="Last cleanup" value={m.lastCleanup ? fmtRelative(m.lastCleanup.at) : 'never'} hint={m.lastCleanup ? fmtDate(m.lastCleanup.at) : undefined} />
+        <Stat label={t('maintenance.database')} value={fmtBytes(m.databaseBytes)} />
+        <Stat label={t('maintenance.evidence')} value={fmtBytes(m.artifactBytes)} />
+        <Stat label={t('maintenance.runs')} value={fmtNumber(m.runs)} />
+        <Stat label={t('maintenance.oldest')} value={m.oldestRun ? fmtRelative(m.oldestRun) : '–'} hint={m.oldestRun ? fmtDate(m.oldestRun) : undefined} />
+        <Stat label={t('maintenance.auditEntries')} value={fmtNumber(m.auditEntries)} />
+        <Stat
+          label={t('maintenance.lastCleanup')}
+          value={m.lastCleanup ? fmtRelative(m.lastCleanup.at) : t('maintenance.never')}
+          hint={m.lastCleanup ? fmtDate(m.lastCleanup.at) : undefined}
+        />
       </SimpleGrid>
       {m.lastCleanup && (
         <Text size="xs" c="dimmed">
-          Last cleanup removed {m.lastCleanup.runsDeleted} runs, {m.lastCleanup.artifactsDeleted} files and {m.lastCleanup.notificationsDeleted} notifications.
+          {t('maintenance.lastResult', cleanupCounts(m.lastCleanup))}
         </Text>
       )}
       <Group>
         <Button variant="light" color="red" leftSection={<IconTrashX size={16} />} loading={busy} onClick={cleanup}>
-          Clean up now
+          {t('maintenance.cleanup')}
         </Button>
         <Text size="xs" c="dimmed">
-          Uses the saved retention periods. Cleanup also runs automatically.
+          {t('maintenance.cleanupHint')}
         </Text>
       </Group>
     </Stack>
   );
 }
 
+/** "3 runs", "1 file", … as values for the cleanup messages. */
+function cleanupCounts(c: { runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number }) {
+  return {
+    runs: i18n.t('settings:maintenance.nRuns', { count: c.runsDeleted }),
+    files: i18n.t('settings:maintenance.nFiles', { count: c.artifactsDeleted }),
+    notifications: i18n.t('settings:maintenance.nNotifications', { count: c.notificationsDeleted }),
+  };
+}
+
 /** Every user's API tokens (administrators). Hidden while the server has no token endpoint. */
 function AdminTokensCard() {
+  const { t } = useTranslation('settings');
   const qc = useQueryClient();
   const tokens = useQuery({ queryKey: ['tokens', 'all'], queryFn: () => getOptional<ApiToken[] | null>('/tokens', null) });
   if (!tokens.data) return null;
-  const revoke = async (t: ApiToken) => {
-    if (!confirm(`Revoke the token “${t.name}” of ${t.owner}? Scripts using it stop working immediately.`)) return;
+  const revoke = async (token: ApiToken) => {
+    if (!confirm(t('tokens.revokeConfirm', { name: token.name, owner: token.owner }))) return;
     try {
-      await del(`/tokens/${encodeURIComponent(t.id)}`);
-      notifyOk('Token revoked');
+      await del(`/tokens/${encodeURIComponent(token.id)}`);
+      notifyOk(t('tokens.revoked'));
       qc.invalidateQueries({ queryKey: ['tokens'] });
       qc.invalidateQueries({ queryKey: ['me', 'tokens'] });
     } catch (e) {
@@ -283,13 +313,13 @@ function AdminTokensCard() {
   };
   return (
     <Card withBorder>
-      <Title order={5}>API tokens</Title>
+      <Title order={5}>{t('tokens.title')}</Title>
       <Text size="sm" c="dimmed" mb="sm">
-        Tokens of all users. Users create their own tokens on their profile page.
+        {t('tokens.hint')}
       </Text>
       {tokens.data.length === 0 ? (
         <Text size="sm" c="dimmed">
-          No tokens yet.
+          {t('tokens.none')}
         </Text>
       ) : (
         <ApiTokenTable tokens={tokens.data} showOwner onRevoke={revoke} />

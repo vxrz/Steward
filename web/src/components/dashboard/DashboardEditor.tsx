@@ -22,6 +22,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import YAML from 'yaml';
+import { useTranslation } from 'react-i18next';
 import {
   WIDGET_INFO,
   WIDGET_TYPES,
@@ -34,31 +35,21 @@ import {
 } from '@sm/shared';
 import { get } from '../../api';
 import { defaultWidth } from './widgets';
+import i18n from '../../i18n';
 
-const TYPE_LABEL: Record<WidgetType, string> = {
-  kpi: 'Stat tile',
-  trend: 'Trend chart',
-  status: 'Status distribution',
-  table: 'Table',
-  checks: 'Checks',
-  freshness: 'Data freshness',
-  markdown: 'Text',
-};
+/** Widget type name and description in the UI language (descriptions default to WIDGET_INFO in shared/). */
+export const widgetLabel = (type: WidgetType): string => i18n.t(`dashboards:widgets.${type}.label`);
+export const widgetInfo = (type: WidgetType): string => i18n.t(`dashboards:widgets.${type}.info`, { defaultValue: WIDGET_INFO[type] });
 
-const WIDTHS = [
-  { value: '3', label: 'Quarter (3/12)' },
-  { value: '4', label: 'Third (4/12)' },
-  { value: '6', label: 'Half (6/12)' },
-  { value: '8', label: 'Two thirds (8/12)' },
-  { value: '12', label: 'Full width' },
-];
+const WIDTHS = ['3', '4', '6', '8', '12'] as const;
 
 function newWidget(type: WidgetType, existing: DashboardWidget[]): DashboardWidget {
   let i = existing.length + 1;
   while (existing.some((w) => w.id === `w${i}`)) i++;
   const w: DashboardWidget = { id: `w${i}`, type, width: defaultWidth(type) };
-  if (type === 'markdown') w.text = 'Notes for this dashboard';
-  if (type === 'freshness') w.title = 'Data freshness';
+  // Default texts in the UI language – they become part of the dashboard like anything typed.
+  if (type === 'markdown') w.text = i18n.t('dashboards:editor.defaultNotes');
+  if (type === 'freshness') w.title = widgetLabel('freshness');
   return w;
 }
 
@@ -70,6 +61,7 @@ function clean(w: DashboardWidget): DashboardWidget {
 }
 
 export function DashboardEditor({ value, onChange }: { value: DashboardDefinition; onChange: (d: DashboardDefinition) => void }) {
+  const { t } = useTranslation(['dashboards', 'common']);
   const [editing, setEditing] = useState<DashboardWidget | null>(null);
   const [yaml, setYaml] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
@@ -95,8 +87,8 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
     <Paper withBorder p="sm" mb="md">
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
-          <Tabs.Tab value="widgets">Widgets ({widgets.length})</Tabs.Tab>
-          <Tabs.Tab value="settings">Settings</Tabs.Tab>
+          <Tabs.Tab value="widgets">{t('editor.widgets', { count: widgets.length })}</Tabs.Tab>
+          <Tabs.Tab value="settings">{t('editor.settings')}</Tabs.Tab>
           <Tabs.Tab value="yaml">YAML</Tabs.Tab>
         </Tabs.List>
 
@@ -106,7 +98,7 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
               <Group key={w.id} justify="space-between" wrap="nowrap" gap="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', paddingBottom: 6 }}>
                 <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
                   <Badge variant="light" size="sm" style={{ flexShrink: 0 }}>
-                    {TYPE_LABEL[w.type]}
+                    {widgetLabel(w.type)}
                   </Badge>
                   <Text size="sm" truncate>
                     {w.title || w.dataset || w.process || w.id}
@@ -116,16 +108,16 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
                   </Text>
                 </Group>
                 <Group gap={2} wrap="nowrap">
-                  <ActionIcon variant="subtle" size="sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
+                  <ActionIcon variant="subtle" size="sm" aria-label={t('editor.moveUp')} disabled={i === 0} onClick={() => move(i, -1)}>
                     <IconArrowUp size={14} />
                   </ActionIcon>
-                  <ActionIcon variant="subtle" size="sm" aria-label="Move down" disabled={i === widgets.length - 1} onClick={() => move(i, 1)}>
+                  <ActionIcon variant="subtle" size="sm" aria-label={t('editor.moveDown')} disabled={i === widgets.length - 1} onClick={() => move(i, 1)}>
                     <IconArrowDown size={14} />
                   </ActionIcon>
-                  <ActionIcon variant="subtle" size="sm" aria-label="Edit" onClick={() => setEditing(w)}>
+                  <ActionIcon variant="subtle" size="sm" aria-label={t('common:edit')} onClick={() => setEditing(w)}>
                     <IconEdit size={14} />
                   </ActionIcon>
-                  <ActionIcon variant="subtle" color="red" size="sm" aria-label="Remove" onClick={() => setWidgets(widgets.filter((x) => x.id !== w.id))}>
+                  <ActionIcon variant="subtle" color="red" size="sm" aria-label={t('common:remove')} onClick={() => setWidgets(widgets.filter((x) => x.id !== w.id))}>
                     <IconTrash size={14} />
                   </ActionIcon>
                 </Group>
@@ -134,24 +126,24 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
             <Menu position="bottom-start" width={340}>
               <Menu.Target>
                 <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} w="fit-content">
-                  Add widget
+                  {t('editor.addWidget')}
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                {WIDGET_TYPES.map((t) => (
+                {WIDGET_TYPES.map((type) => (
                   <Menu.Item
-                    key={t}
+                    key={type}
                     onClick={() => {
-                      const w = newWidget(t, widgets);
+                      const w = newWidget(type, widgets);
                       setWidgets([...widgets, w]);
-                      if (t !== 'freshness') setEditing(w);
+                      if (type !== 'freshness') setEditing(w);
                     }}
                   >
                     <Text size="sm" fw={500}>
-                      {TYPE_LABEL[t]}
+                      {widgetLabel(type)}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {WIDGET_INFO[t]}
+                      {widgetInfo(type)}
                     </Text>
                   </Menu.Item>
                 ))}
@@ -162,11 +154,11 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
 
         <Tabs.Panel value="settings" pt="sm">
           <Stack gap="sm" maw={560}>
-            <TextInput label="Name" required value={value.name} onChange={(e) => onChange({ ...value, name: e.currentTarget.value })} />
-            <Textarea label="Description" autosize minRows={2} value={value.description ?? ''} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || undefined })} />
+            <TextInput label={t('common:name')} required value={value.name} onChange={(e) => onChange({ ...value, name: e.currentTarget.value })} />
+            <Textarea label={t('editor.description')} autosize minRows={2} value={value.description ?? ''} onChange={(e) => onChange({ ...value, description: e.currentTarget.value || undefined })} />
             <NumberInput
-              label="Re-read stored data every (seconds)"
-              description="The dashboard only reads stored datasets; the platforms are queried by the processes (schedules) that publish them."
+              label={t('editor.refreshSeconds')}
+              description={t('editor.refreshSecondsHint')}
               min={10}
               max={3600}
               value={value.refreshSeconds ?? 60}
@@ -194,7 +186,7 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
                   }
                 }}
               >
-                Apply YAML
+                {t('editor.applyYaml')}
               </Button>
             </Group>
           </Stack>
@@ -216,6 +208,7 @@ export function DashboardEditor({ value, onChange }: { value: DashboardDefinitio
 }
 
 function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onClose: () => void; onSave: (w: DashboardWidget) => void }) {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [w, setW] = useState<DashboardWidget>(widget);
   const set = (patch: Partial<DashboardWidget>) => setW((x) => ({ ...x, ...patch }));
   const datasets = useQuery({ queryKey: ['datasets'], queryFn: () => get<DatasetMeta[]>('/datasets') });
@@ -225,74 +218,74 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
   const usesDataset = ['kpi', 'trend', 'status', 'table'].includes(w.type);
 
   return (
-    <Modal opened onClose={onClose} title={`${TYPE_LABEL[w.type]} widget`} size="lg">
+    <Modal opened onClose={onClose} title={t('form.title', { type: widgetLabel(w.type) })} size="lg">
       <Stack gap="sm">
         <Text size="xs" c="dimmed">
-          {WIDGET_INFO[w.type]}
+          {widgetInfo(w.type)}
         </Text>
         <Group grow align="flex-start">
-          <TextInput label="Title" placeholder="Automatic" value={w.title ?? ''} onChange={(e) => set({ title: e.currentTarget.value || undefined })} />
-          <Select label="Width" data={WIDTHS} value={String(w.width ?? defaultWidth(w.type))} onChange={(v) => set({ width: Number(v) || undefined })} allowDeselect={false} />
+          <TextInput label={t('form.widgetTitle')} placeholder={t('form.automatic')} value={w.title ?? ''} onChange={(e) => set({ title: e.currentTarget.value || undefined })} />
+          <Select label={t('form.width')} data={WIDTHS.map((v) => ({ value: v, label: t(`form.widths.w${v}`) }))} value={String(w.width ?? defaultWidth(w.type))} onChange={(v) => set({ width: Number(v) || undefined })} allowDeselect={false} />
         </Group>
         {usesDataset && (
           <Autocomplete
-            label="Dataset"
-            description="Published by a “Publish to dashboard” node; unpublished keys are allowed and show data after the first run."
+            label={t('form.dataset')}
+            description={t('form.datasetHint', { node: t('editor:steps.publish.label') })}
             data={(datasets.data ?? []).map((d) => ({ value: d.key, label: `${d.key} – ${d.title}` }))}
             value={w.dataset ?? ''}
             onChange={(v) => set({ dataset: v || undefined })}
-            placeholder="e.g. iem.devices"
+            placeholder={t('form.datasetPlaceholder')}
           />
         )}
         {w.type === 'kpi' && (
           <>
             <Select
-              label="Value"
-              data={[{ value: '_rows', label: 'Number of rows' }, ...metricNames.map((m) => ({ value: m, label: `Metric: ${m}` }))]}
+              label={t('form.value')}
+              data={[{ value: '_rows', label: t('form.rowCount') }, ...metricNames.map((m) => ({ value: m, label: t('form.metric', { name: m }) }))]}
               value={w.metric ?? '_rows'}
               onChange={(v) => set({ metric: v ?? undefined })}
               searchable
             />
             <Group grow>
               <Select
-                label="Increase is"
+                label={t('form.increaseIs')}
                 data={[
-                  { value: '', label: 'Neutral' },
-                  { value: 'up', label: 'Good' },
-                  { value: 'down', label: 'Bad' },
+                  { value: '', label: t('form.neutral') },
+                  { value: 'up', label: t('form.good') },
+                  { value: 'down', label: t('form.bad') },
                 ]}
                 value={w.goodWhen ?? ''}
                 onChange={(v) => set({ goodWhen: (v || undefined) as DashboardWidget['goodWhen'] })}
               />
-              <NumberInput label="Compare with (days ago)" min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
+              <NumberInput label={t('form.compareDays')} min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
             </Group>
           </>
         )}
         {w.type === 'trend' && (
           <>
             <MultiSelect
-              label="Metrics (max. 3)"
+              label={t('form.metrics')}
               data={metricNames}
               value={w.metrics ?? []}
               onChange={(v) => set({ metrics: v.slice(0, 3) })}
               maxValues={3}
-              placeholder={metricNames.length ? 'Pick metrics' : 'No metrics published yet'}
+              placeholder={metricNames.length ? t('form.pickMetrics') : t('form.noMetrics')}
             />
-            <NumberInput label="Days" min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
+            <NumberInput label={t('form.days')} min={1} max={365} value={w.days ?? 30} onChange={(v) => set({ days: Number(v) || undefined })} />
           </>
         )}
         {w.type === 'table' && (
           <>
-            <MultiSelect label="Columns" placeholder="All columns" data={meta?.columns ?? []} value={w.columns ?? []} onChange={(v) => set({ columns: v })} searchable />
+            <MultiSelect label={t('form.columns')} placeholder={t('form.allColumns')} data={meta?.columns ?? []} value={w.columns ?? []} onChange={(v) => set({ columns: v })} searchable />
             <Group grow align="flex-end">
-              <Switch label="Show problems only by default" checked={!!w.problemsOnly} onChange={(e) => set({ problemsOnly: e.currentTarget.checked || undefined })} />
-              <NumberInput label="Rows shown" min={5} max={5000} value={w.limit ?? 50} onChange={(v) => set({ limit: Number(v) || undefined })} />
+              <Switch label={t('form.problemsOnly')} checked={!!w.problemsOnly} onChange={(e) => set({ problemsOnly: e.currentTarget.checked || undefined })} />
+              <NumberInput label={t('form.rowsShown')} min={5} max={5000} value={w.limit ?? 50} onChange={(v) => set({ limit: Number(v) || undefined })} />
             </Group>
           </>
         )}
         {w.type === 'checks' && (
           <Select
-            label="Process"
+            label={t('form.process')}
             searchable
             data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
             value={w.process ?? null}
@@ -300,13 +293,13 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
           />
         )}
         {w.type === 'markdown' && (
-          <Textarea label="Text (markdown subset)" autosize minRows={4} value={w.text ?? ''} onChange={(e) => set({ text: e.currentTarget.value })} />
+          <Textarea label={t('form.text')} autosize minRows={4} value={w.text ?? ''} onChange={(e) => set({ text: e.currentTarget.value })} />
         )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
-            Cancel
+            {t('common:cancel')}
           </Button>
-          <Button onClick={() => onSave(w)}>Apply</Button>
+          <Button onClick={() => onSave(w)}>{t('form.apply')}</Button>
         </Group>
       </Stack>
     </Modal>

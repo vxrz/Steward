@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Stack } from '@mantine/core';
 import { IconBrandWindows, IconKey } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { SsoProviderPublic } from '@sm/shared';
 
 /** Reads ?sso_error=… once and removes it from the address bar. */
@@ -22,6 +23,7 @@ export function useSsoError(): [string | null, () => void] {
 }
 
 export function SsoButtons({ providers }: { providers: SsoProviderPublic[] }) {
+  const { t } = useTranslation('auth');
   if (!providers.length) return null;
   const path = window.location.pathname + window.location.search;
   const returnTo = encodeURIComponent(path.startsWith('/') ? path : '/');
@@ -40,7 +42,7 @@ export function SsoButtons({ providers }: { providers: SsoProviderPublic[] }) {
           py={8}
           styles={{ label: { whiteSpace: 'normal', textAlign: 'center' }, inner: { minHeight: 26 } }}
         >
-          Sign in with {p.displayName}
+          {t('sso.signInWith', { provider: p.displayName })}
         </Button>
       ))}
     </Stack>
@@ -48,9 +50,10 @@ export function SsoButtons({ providers }: { providers: SsoProviderPublic[] }) {
 }
 
 export function SsoErrorAlert({ error, onClose }: { error: string | null; onClose: () => void }) {
+  const { t } = useTranslation('auth');
   if (!error) return null;
   return (
-    <Alert color="red" title="Single sign-on failed" withCloseButton onClose={onClose}>
+    <Alert color="red" title={t('sso.failed')} withCloseButton onClose={onClose}>
       {error}
     </Alert>
   );

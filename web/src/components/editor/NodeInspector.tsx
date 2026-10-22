@@ -2,8 +2,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { ActionIcon, Alert, Anchor, Badge, Box, Button, Center, Collapse, Group, Loader, Paper, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconChevronDown, IconChevronRight, IconRefresh } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { NodeInspection } from '@sm/shared';
-import { JsonView, StatusBadge } from '../common';
+import i18n from '../../i18n';
+import { JsonView, StatusBadge, statusLabel } from '../common';
 import { fmtDate, fmtDuration, fmtRelative } from '../../format';
 import { inspectNode, isNotFound, useLatestRun, useRunDetail } from './editorApi';
 
@@ -30,12 +32,13 @@ function Section({ title, children, defaultOpen = false, color }: { title: strin
 
 const loopLabel = (key: string): string | null => {
   const idx = [...key.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) + 1);
-  return idx.length ? `item ${idx.join(' / ')}` : null;
+  return idx.length ? i18n.t('editor:inspector.item', { n: idx.join(' / ') }) : null;
 };
 
 const present = (v: unknown) => v !== undefined && v !== null;
 
 function ActivationView({ a, first }: { a: Activation; first: boolean }) {
+  const { t } = useTranslation('editor');
   const loop = loopLabel(a.key);
   return (
     <Paper withBorder p={6}>
@@ -64,18 +67,18 @@ function ActivationView({ a, first }: { a: Activation; first: boolean }) {
           </Alert>
         )}
         {present(a.input) && (
-          <Section title="Input">
+          <Section title={t('inspector.input')}>
             <JsonView value={a.input} maxHeight={240} />
           </Section>
         )}
         {present(a.output) && (
-          <Section title="Output" defaultOpen={first}>
+          <Section title={t('inspector.output')} defaultOpen={first}>
             <JsonView value={a.output} maxHeight={300} />
           </Section>
         )}
         {!present(a.input) && !present(a.output) && !a.error && (
           <Text size="xs" c="dimmed">
-            No data recorded.
+            {t('inspector.noData')}
           </Text>
         )}
       </Stack>
@@ -85,6 +88,7 @@ function ActivationView({ a, first }: { a: Activation; first: boolean }) {
 
 /** "Last run" view of one node: activations with input / output / error and the variables before it ran. */
 export function NodeInspector({ processId, nodeId }: { processId?: string; nodeId: string }) {
+  const { t } = useTranslation(['editor', 'common']);
   const qc = useQueryClient();
   const latest = useLatestRun(processId);
   const run = latest.data?.[0];
@@ -112,7 +116,7 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
   if (!processId) {
     return (
       <Text size="sm" c="dimmed">
-        Save the process and run it to inspect nodes.
+        {t('inspector.saveFirst')}
       </Text>
     );
   }
@@ -126,7 +130,7 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
   if (!run) {
     return (
       <Text size="sm" c="dimmed">
-        No run yet – run the process (dry run) to see what this node did.
+        {t('inspector.noRun')}
       </Text>
     );
   }
@@ -138,18 +142,18 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
     <Stack gap="xs">
       <Group justify="space-between" wrap="nowrap">
         <Text size="xs" c="dimmed" truncate>
-          Run{' '}
-          <Anchor href={`/runs/${run.id}`} target="_blank" size="xs" className="mono">
-            {run.id}
-          </Anchor>{' '}
-          · {run.status}
-          {run.dryRun ? ' (dry run)' : ''} · {fmtRelative(run.startedAt)}
+          <Trans
+            t={t}
+            i18nKey={run.dryRun ? 'inspector.runLineDry' : 'inspector.runLine'}
+            values={{ id: run.id, status: statusLabel(run.status), when: fmtRelative(run.startedAt) }}
+            components={{ a: <Anchor href={`/runs/${run.id}`} target="_blank" size="xs" className="mono" /> }}
+          />
         </Text>
-        <Tooltip label="Reload">
+        <Tooltip label={t('inspector.reload')}>
           <ActionIcon
             size="sm"
             variant="subtle"
-            aria-label="Reload last run"
+            aria-label={t('inspector.reloadLabel')}
             onClick={() => {
               qc.invalidateQueries({ queryKey: ['runs', 'latest', processId] });
               qc.invalidateQueries({ queryKey: ['inspect'] });
@@ -167,12 +171,12 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
       )}
       {!hardError && activations.length === 0 && (
         <Text size="sm" c="dimmed">
-          This node did not run in the latest run.
+          {t('inspector.didNotRun')}
         </Text>
       )}
       {activations.length > 1 && (
         <Text size="xs" c="dimmed">
-          {activations.length} activations
+          {t('inspector.activations', { count: activations.length })}
         </Text>
       )}
       {activations.slice(0, limit).map((a, i) => (
@@ -180,19 +184,19 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
       ))}
       {activations.length > limit && (
         <Button size="compact-xs" variant="light" onClick={() => setShowAll(true)}>
-          Show all {activations.length}
+          {t('inspector.showAll', { count: activations.length })}
         </Button>
       )}
       {varsBefore && Object.keys(varsBefore).length > 0 && (
         <Paper withBorder p={6}>
-          <Section title={`Variables before this node (${Object.keys(varsBefore).length})`}>
+          <Section title={t('inspector.varsBefore', { count: Object.keys(varsBefore).length })}>
             <JsonView value={varsBefore} maxHeight={300} />
           </Section>
         </Paper>
       )}
       {fallback && (
         <Text size="10px" c="dimmed">
-          Variables before the node are not available on this server.
+          {t('inspector.varsUnavailable')}
         </Text>
       )}
     </Stack>

@@ -1,5 +1,6 @@
 import { FileButton, Button, Group, JsonInput, NumberInput, Select, Stack, Switch, Text, TextInput, Textarea } from '@mantine/core';
 import { IconUpload } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { InputDef } from '@sm/shared';
 
 export function defaultInputs(defs: InputDef[]): Record<string, unknown> {
@@ -22,7 +23,8 @@ export function InputsForm({
   value: Record<string, unknown>;
   onChange: (v: Record<string, unknown>) => void;
 }) {
-  if (!defs.length) return <Text size="sm" c="dimmed">This process has no inputs.</Text>;
+  const { t } = useTranslation('runs');
+  if (!defs.length) return <Text size="sm" c="dimmed">{t('inputs.none')}</Text>;
   const set = (k: string, v: unknown) => onChange({ ...value, [k]: v });
   return (
     <Stack gap="sm">
@@ -41,7 +43,7 @@ export function InputsForm({
             return (
               <Textarea
                 key={d.name} {...common}
-                description={d.description ?? 'One value per line'}
+                description={d.description ?? t('inputs.listHint')}
                 autosize
                 minRows={2}
                 maxRows={10}
@@ -55,7 +57,7 @@ export function InputsForm({
                 <Textarea
                   label={label}
                   required={d.required}
-                  description={`CSV with header row${d.columns?.length ? `: ${d.columns.join(', ')}` : ''} (comma, semicolon or tab separated)`}
+                  description={d.columns?.length ? t('inputs.csvHintColumns', { columns: d.columns.join(', ') }) : t('inputs.csvHint')}
                   autosize
                   minRows={3}
                   maxRows={14}
@@ -64,10 +66,10 @@ export function InputsForm({
                   onChange={(e) => set(d.name, e.currentTarget.value)}
                 />
                 <Group>
-                  <FileButton accept=".csv,text/csv,text/plain" onChange={(f) => f && f.text().then((t) => set(d.name, t))}>
+                  <FileButton accept=".csv,text/csv,text/plain" onChange={(f) => f && f.text().then((text) => set(d.name, text))}>
                     {(props) => (
                       <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />}>
-                        Load CSV file
+                        {t('inputs.loadCsv')}
                       </Button>
                     )}
                   </FileButton>

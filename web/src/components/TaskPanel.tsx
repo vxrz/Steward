@@ -3,14 +3,18 @@ import { Alert, Anchor, Badge, Button, Checkbox, Group, Paper, Stack, Table, Tex
 import { IconCheck, IconSearch, IconX } from '@tabler/icons-react';
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import type { TaskRecord } from '@sm/shared';
 import { notifyError, notifyOk, post } from '../api';
 import { fmtDate } from '../format';
-import { Markdown, StatusBadge } from './common';
+import { Markdown, StatusBadge, subjectLabel } from './common';
+import { useMe } from '../auth';
 
 const MAX_ROWS = 1000;
 
 export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; showRunLink?: boolean }) {
+  const { t } = useTranslation(['tasks', 'common']);
+  const { username } = useMe();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(() => new Set(task.items.filter((i) => i.preselected).map((i) => i.key)));
   const [filter, setFilter] = useState('');
@@ -44,10 +48,10 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
         selectedKeys: task.mode === 'select' ? [...selected] : [],
         comment: comment || undefined,
       });
-      notifyOk(task.mode === 'select' ? `Submitted: ${selected.size} selected` : approved ? 'Approved' : 'Rejected');
+      notifyOk(task.mode === 'select' ? t('panel.submitted', { count: selected.size }) : approved ? t('panel.approved') : t('panel.rejected'));
       await qc.invalidateQueries();
     } catch (e) {
-      notifyError(e, 'Could not submit decision');
+      notifyError(e, t('panel.submitFailed'));
     } finally {
       setBusy(null);
     }
@@ -63,12 +67,12 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
               <StatusBadge status={task.status} />
               {task.dryRun && (
                 <Badge color="yellow" variant="light">
-                  dry run
+                  {t('common:status.dryrun')}
                 </Badge>
               )}
               {task.fourEyes && (
-                <Badge color="grape" variant="light" title="The person who started the run may not decide">
-                  four-eyes
+                <Badge color="grape" variant="light" title={t('panel.fourEyesHint')}>
+                  {t('panel.fourEyes')}
                 </Badge>
               )}
             </Group>
@@ -78,21 +82,22 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                 <>
                   {' · '}
                   <Anchor component={Link} to={`/runs/${task.runId}`} size="xs">
-                    open run
+                    {t('panel.openRun')}
                   </Anchor>
                 </>
               )}
-              {' · '}created {fmtDate(task.createdAt)}
-              {task.startedBy ? ` · run started by ${task.startedBy}` : ''}
+              {' · '}
+              {t('panel.created', { date: fmtDate(task.createdAt) })}
+              {task.startedBy ? ` · ${t('panel.startedBy', { user: task.startedBy })}` : ''}
             </Text>
             {task.assignees?.length > 0 && (
               <Group gap={4} mt={4}>
                 <Text size="xs" c="dimmed">
-                  Assigned to
+                  {t('panel.assignedTo')}
                 </Text>
                 {task.assignees.map((a) => (
-                  <Badge key={a} size="xs" variant="outline" color={a.startsWith('user:') ? 'blue' : a.startsWith('team:') ? 'grape' : 'gray'}>
-                    {a}
+                  <Badge key={a} size="xs" variant="outline" tt="none" color={a.startsWith('user:') ? 'blue' : a.startsWith('team:') ? 'grape' : 'gray'}>
+                    {subjectLabel(a)}
                   </Badge>
                 ))}
               </Group>
@@ -106,14 +111,16 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
             <Group justify="space-between" wrap="wrap" gap="xs">
               <TextInput
                 size="xs"
-                placeholder="Filter…"
+                placeholder={t('panel.filter')}
                 leftSection={<IconSearch size={14} />}
                 value={filter}
                 onChange={(e) => setFilter(e.currentTarget.value)}
                 w={220}
               />
               <Text size="sm" c="dimmed">
-                {open ? `${selected.size} of ${task.items.length} selected` : `${decided.size} of ${task.items.length} were selected`}
+                {open
+                  ? t('panel.selectedOf', { count: selected.size, total: task.items.length })
+                  : t('panel.wereSelectedOf', { count: decided.size, total: task.items.length })}
               </Text>
             </Group>
             <div className="table-scroll">
@@ -127,7 +134,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                           checked={allVisibleSelected}
                           indeterminate={!allVisibleSelected && someVisibleSelected}
                           onChange={toggleAll}
-                          aria-label="Select all"
+                          aria-label={t('panel.selectAll')}
                         />
                       )}
                     </Table.Th>
@@ -151,7 +158,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                     >
                       <Table.Td>
                         {open ? (
-                          <Checkbox size="xs" checked={selected.has(i.key)} readOnly aria-label={`Select ${i.cells[0] ?? i.key}`} />
+                          <Checkbox size="xs" checked={selected.has(i.key)} readOnly aria-label={t('panel.selectItem', { name: i.cells[0] ?? i.key })} />
                         ) : decided.has(i.key) ? (
                           <IconCheck size={14} color="var(--mantine-color-green-6)" />
                         ) : (
@@ -168,7 +175,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
             </div>
             {visible.length > MAX_ROWS && (
               <Text size="xs" c="dimmed">
-                Showing the first {MAX_ROWS} of {visible.length} rows – use the filter to narrow down.
+                {t('panel.truncated', { max: MAX_ROWS, total: visible.length })}
               </Text>
             )}
           </>
@@ -176,36 +183,49 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
 
         {isOpen && !open ? (
           <Alert color="gray" variant="light">
-            Waiting for someone else: {task.cannotDecideReason ?? 'you may not decide this task'}.
+            {t('panel.waitingForOthers', {
+              reason:
+                task.fourEyes && task.startedBy && task.startedBy.toLowerCase() === username.toLowerCase()
+                  ? t('panel.reasonFourEyes')
+                  : task.assignees?.length
+                    ? t('panel.reasonAssigned', { subjects: task.assignees.map(subjectLabel).join(', ') })
+                    : t('panel.reasonRights'),
+            })}
           </Alert>
         ) : open ? (
           <>
-            <Textarea label="Comment (stored in the protocol)" autosize minRows={1} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+            <Textarea label={t('panel.comment')} autosize minRows={1} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
             <Group justify="flex-end">
               {task.mode === 'approve' ? (
                 <>
                   <Button color="red" variant="light" leftSection={<IconX size={16} />} loading={busy === 'reject'} onClick={() => submit(false)}>
-                    Reject
+                    {t('panel.reject')}
                   </Button>
                   <Button color="green" leftSection={<IconCheck size={16} />} loading={busy === 'approve'} onClick={() => submit(true)}>
-                    Approve
+                    {t('panel.approve')}
                   </Button>
                 </>
               ) : (
                 <Button leftSection={<IconCheck size={16} />} loading={busy === 'approve'} onClick={() => submit(true)}>
-                  Submit selection ({selected.size})
+                  {t('panel.submitSelection', { count: selected.size })}
                 </Button>
               )}
             </Group>
           </>
         ) : task.status === 'completed' ? (
           <Alert color={task.mode === 'approve' && !task.decision?.approved ? 'red' : 'green'} variant="light">
-            {task.mode === 'approve' ? (task.decision?.approved ? 'Approved' : 'Rejected') : `${decided.size} item(s) selected`} by{' '}
-            <strong>{task.decidedBy}</strong> on {fmtDate(task.decidedAt)}
-            {task.decision?.comment ? ` – “${task.decision.comment}”` : ''}
+            <Trans
+              t={t}
+              i18nKey={
+                task.mode === 'approve' ? (task.decision?.approved ? 'panel.decidedApproved' : 'panel.decidedRejected') : 'panel.decidedSelected'
+              }
+              values={{ count: decided.size, user: task.decidedBy ?? '', date: fmtDate(task.decidedAt) }}
+              components={{ b: <strong /> }}
+            />
+            {task.decision?.comment ? ` – ${t('panel.quoted', { text: task.decision.comment })}` : ''}
           </Alert>
         ) : (
-          <Alert color="gray">Cancelled</Alert>
+          <Alert color="gray">{t('panel.cancelled')}</Alert>
         )}
       </Stack>
     </Paper>

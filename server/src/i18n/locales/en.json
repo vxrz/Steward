@@ -1,0 +1,51 @@
+{
+  "common": {
+    "openIn": "Open in {{brand}}",
+    "minutes_one": "{{count}} minute",
+    "minutes_other": "{{count}} minutes"
+  },
+  "severity": {
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  },
+  "task": {
+    "title": "Decision needed: {{title}}",
+    "body": "The run of “{{process}}” (started by {{actor}}) waits for your decision.",
+    "bodyFourEyes": "The run of “{{process}}” (started by {{actor}}) waits for your decision. Four-eyes principle: the person who started the run may not decide."
+  },
+  "runFailed": {
+    "title": "Run failed: {{process}}",
+    "titleDryRun": "Run failed: {{process}} (dry run)",
+    "body": "Error: {{error}}",
+    "bodyNoError": "The run failed."
+  },
+  "checkFailed": {
+    "title": "Check failed: {{check}} in {{process}}",
+    "titleDryRun": "Check failed: {{check}} in {{process}} (dry run)",
+    "body": "{{severity}}: {{message}}"
+  },
+  "scheduleSkipped": {
+    "title": "Schedule skipped: {{name}}",
+    "body": "The schedule did not start a run: {{reason}}.",
+    "reasons": {
+      "overlap": "the previous run {{runId}} is still {{status}}",
+      "ownerMissing": "the owner {{owner}} is missing or deactivated",
+      "mayNotRun": "{{user}} may not run this process",
+      "mayNotUsePlatform": "{{user}} may not use the platform {{platform}}"
+    }
+  },
+  "runStatus": {
+    "queued": "queued",
+    "running": "running",
+    "waiting": "waiting"
+  },
+  "datasetStale": {
+    "title": "Dashboard data is stale: {{title}}",
+    "body": "“{{title}}” was last updated on {{updatedAt}} by “{{process}}” (freshness limit: {{limit}})."
+  },
+  "test": {
+    "title": "Test notification",
+    "body": "If you can read this, notifications from {{brand}} reach this channel."
+  }
+}

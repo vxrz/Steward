@@ -1,4 +1,5 @@
 import type { Column, ProcessDefinition } from './process.js';
+import type { Locale } from './locales.js';
 
 // ---------- Users, roles, permissions ----------
 
@@ -40,6 +41,8 @@ export interface UserInfo {
   authSource: string;
   /** Receive e-mail notifications (if an e-mail address is set and e-mail is configured) */
   emailNotifications: boolean;
+  /** Preferred UI and notification language; null = not chosen yet (browser language in the UI, Settings.defaultLocale for messages) */
+  locale: Locale | null;
 }
 
 // ---------- Single sign-on (OpenID Connect) ----------
@@ -141,8 +144,11 @@ export interface AuthStatus {
 
 export interface Subject {
   value: string;
+  /** English display label (the web UI builds a translated one from kind + name) */
   label: string;
   kind: 'user' | 'team' | 'role';
+  /** Team name (original spelling) or role id */
+  name?: string;
 }
 
 // ---------- Platforms ----------
@@ -590,6 +596,8 @@ export interface Settings {
   /** Delete read notifications older than this many days */
   retentionNotificationDays: number;
   browserTimeoutMs: number;
+  /** Language of messages that go to a channel rather than a person (Teams, webhook), and for users without a chosen language */
+  defaultLocale: Locale;
   /** Who may open the public API documentation (Swagger UI) and its OpenAPI document. SM_API_DOCS overrides it. */
   apiDocs: ApiDocsMode;
 }

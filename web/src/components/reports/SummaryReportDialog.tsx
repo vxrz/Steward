@@ -3,8 +3,9 @@ import { Alert, Anchor, Button, Divider, Group, Modal, MultiSelect, SimpleGrid, 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDownload, IconReportAnalytics } from '@tabler/icons-react';
 import type { ProcessSummary, ReportLang, ReportRecord } from '@sm/shared';
+import { useTranslation } from 'react-i18next';
 import { get, notifyError, notifyOk, post } from '../../api';
-import { fmtDate } from '../../format';
+import { fmtDate, fmtDay } from '../../format';
 import { LangControl, browserTimeZone, defaultReportLang } from './RunReports';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -29,6 +30,7 @@ function presetRange(preset: 'lastQuarter' | 'thisQuarter' | 'lastMonth' | 'last
 
 /** Periodic summary report (e.g. "Access reviews Q3") for one or more processes and a period. */
 export function SummaryReportDialog({ opened, onClose, processIds }: { opened: boolean; onClose: () => void; processIds?: string[] }) {
+  const { t } = useTranslation(['reports', 'common']);
   const qc = useQueryClient();
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes'), enabled: opened });
   const previous = useQuery({ queryKey: ['summary-reports'], queryFn: () => get<ReportRecord[]>('/reports?kind=summary&limit=20'), enabled: opened });
@@ -60,11 +62,11 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
         comment: comment.trim() || undefined,
         timeZone: browserTimeZone(),
       });
-      notifyOk(`${rec.filename} was archived.`, 'Summary report generated');
+      notifyOk(t('archived', { file: rec.filename }), t('summary.generated'));
       setDone(rec);
       qc.invalidateQueries({ queryKey: ['summary-reports'] });
     } catch (e) {
-      notifyError(e, 'The summary report could not be generated');
+      notifyError(e, t('summary.failed'));
     } finally {
       setBusy(false);
     }
@@ -75,10 +77,10 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
   };
 
   return (
-    <Modal opened={opened} onClose={close} title="Summary report" size="xl">
+    <Modal opened={opened} onClose={close} title={t('summary.title')} size="xl">
       {done ? (
         <Stack>
-          <Alert color="green" variant="light" title="The summary report was generated and archived">
+          <Alert color="green" variant="light" title={t('summary.doneTitle')}>
             <Text size="sm">{done.filename}</Text>
             <Text size="xs" c="dimmed" className="mono" style={{ wordBreak: 'break-all' }}>
               SHA-256 {done.sha256}
@@ -86,64 +88,63 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
           </Alert>
           <Group justify="flex-end">
             <Button variant="default" onClick={() => setDone(null)}>
-              New summary
+              {t('summary.new')}
             </Button>
             <Button component="a" href={`/api/reports/${done.id}/download`} leftSection={<IconDownload size={16} />}>
-              Download PDF
+              {t('downloadPdf')}
             </Button>
           </Group>
         </Stack>
       ) : (
         <Stack>
           <Text size="sm" c="dimmed">
-            One PDF for audits: all runs of the selected processes in a period, with status, who started them, decisions, changes and failed checks, plus totals. It
-            is archived and its SHA-256 is recorded in the audit log.
+            {t('summary.intro')}
           </Text>
           <MultiSelect
-            label="Processes"
+            label={t('summary.processes')}
             required
             searchable
             clearable
-            placeholder="Select one or more processes"
+            placeholder={t('summary.processesPlaceholder')}
             data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
             value={selected}
             onChange={setSelected}
           />
           <Group gap="xs">
             <Text size="sm" fw={500}>
-              Period
+              {t('summary.period')}
             </Text>
             <Button size="compact-xs" variant="light" onClick={() => setRange(presetRange('lastQuarter'))}>
-              Last quarter
+              {t('summary.presets.lastQuarter')}
             </Button>
             <Button size="compact-xs" variant="light" onClick={() => setRange(presetRange('thisQuarter'))}>
-              This quarter
+              {t('summary.presets.thisQuarter')}
             </Button>
             <Button size="compact-xs" variant="light" onClick={() => setRange(presetRange('lastMonth'))}>
-              Last month
+              {t('summary.presets.lastMonth')}
             </Button>
             <Button size="compact-xs" variant="light" onClick={() => setRange(presetRange('last30'))}>
-              Last 30 days
+              {t('summary.presets.last30')}
             </Button>
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput type="date" label="From" required value={from} onChange={(e) => setRange([e.currentTarget.value, to])} />
-            <TextInput type="date" label="To (inclusive)" required value={to} onChange={(e) => setRange([from, e.currentTarget.value])} error={from && to && from > to ? 'The end must not be before the start' : undefined} />
+            <TextInput type="date" label={t('summary.from')} required value={from} onChange={(e) => setRange([e.currentTarget.value, to])} />
+            <TextInput type="date" label={t('summary.to')} required value={to} onChange={(e) => setRange([from, e.currentTarget.value])} error={from && to && from > to ? t('summary.endBeforeStart') : undefined} />
           </SimpleGrid>
-          <TextInput label="Title" description="Optional, e.g. Access reviews Q3" maxLength={200} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+          <TextInput label={t('summary.reportTitle')} description={t('summary.reportTitleHint')} maxLength={200} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
           <LangControl value={lang} onChange={setLang} />
-          <Textarea label="Reviewer comment" description="Optional. Printed in the report with your name and the time." autosize minRows={2} maxRows={8} maxLength={4000} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+          <Textarea label={t('comment')} description={t('summary.commentHint')} autosize minRows={2} maxRows={8} maxLength={4000} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
           <Group justify="flex-end">
             <Button variant="default" onClick={close}>
-              Cancel
+              {t('common:cancel')}
             </Button>
             <Button leftSection={<IconReportAnalytics size={16} />} loading={busy} disabled={!valid} onClick={generate}>
-              Generate PDF
+              {t('generatePdf')}
             </Button>
           </Group>
           {(previous.data?.length ?? 0) > 0 && (
             <>
-              <Divider label="Recent summary reports" labelPosition="left" />
+              <Divider label={t('summary.recent')} labelPosition="left" />
               <div className="table-scroll">
                 <Table fz="sm" striped>
                   <Table.Tbody>
@@ -152,7 +153,7 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
                         <Table.Td className="nowrap">{fmtDate(r.createdAt)}</Table.Td>
                         <Table.Td>{r.title}</Table.Td>
                         <Table.Td className="nowrap">
-                          {r.from ? new Date(r.from).toLocaleDateString() : ''} – {r.to ? new Date(new Date(r.to).getTime() - 1).toLocaleDateString() : ''}
+                          {r.from ? fmtDay(r.from) : ''} – {r.to ? fmtDay(new Date(r.to).getTime() - 1) : ''}
                         </Table.Td>
                         <Table.Td>{r.createdBy}</Table.Td>
                         <Table.Td className="nowrap">

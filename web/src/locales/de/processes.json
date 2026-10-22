@@ -1,0 +1,68 @@
+{
+  "title": "Prozesse",
+  "description": "Wiederverwendbare Abläufe: API-Aufrufe, Schleifen, Entscheidungen, Freigaben, Prüfungen und Browser-Schritte. Jedes Speichern erzeugt eine neue Version.",
+  "newProcessName": "Neuer Prozess",
+  "newProcess": "Neuer Prozess",
+  "importYaml": "YAML importieren",
+  "fromTemplate": "Aus Vorlage",
+  "search": "Nach Name oder Tag suchen",
+  "empty": {
+    "title": "Noch keine Prozesse",
+    "text": "Mit einer Vorlage beginnen – Benutzer-Onboarding, Zugriffsprüfungen, Attributoptimierung, Health Checks – oder einen eigenen Prozess erstellen.",
+    "browse": "Vorlagen durchsuchen",
+    "askForAccess": "Einen Designer oder Administrator bitten, Prozesse anzulegen oder Ihnen Zugriff zu geben."
+  },
+  "card": {
+    "run": "Ausführen",
+    "more": "Mehr",
+    "exportYaml": "YAML exportieren",
+    "archive": "Archivieren",
+    "archiveConfirm": "„{{name}}“ archivieren? Seine Zeitpläne werden deaktiviert; Ausführungen und Versionen bleiben erhalten.",
+    "restricted": "eingeschränkt",
+    "restrictedHint": "Zugriff durch eine Zugriffsliste eingeschränkt",
+    "readOnly": "schreibgeschützt",
+    "lastRun": "zuletzt ausgeführt {{when}}",
+    "runNamed": "{{name}} ausführen",
+    "moreFor": "Weitere Aktionen für {{name}}"
+  },
+  "templates": {
+    "title": "Mit einer Vorlage beginnen",
+    "steps_one": "{{count}} Schritt",
+    "steps_other": "{{count}} Schritte",
+    "created": "„{{name}}“ angelegt",
+    "use": "Verwenden",
+    "useNamed": "Vorlage {{name}} verwenden"
+  },
+  "import": {
+    "title": "Prozess importieren (YAML oder JSON)",
+    "hint": "Eine Definition einfügen oder eine Datei laden, um sie zuerst zu prüfen. Bei mehreren Dateien wird jede direkt importiert (z. B. die Dateien im Ordner examples/processes des Repositorys).",
+    "created": "„{{name}}“ angelegt",
+    "imported_one": "{{count}} von {{total}} Datei importiert",
+    "imported_other": "{{count}} von {{total}} Dateien importiert",
+    "result": "Importergebnis",
+    "failedItem": "fehlgeschlagen – {{message}}",
+    "loadFiles": "Datei(en) laden",
+    "failed": "Import fehlgeschlagen",
+    "submit": "Importieren"
+  },
+  "bundle": {
+    "button": "Paket",
+    "exportAll": "Alle Prozesse & Dashboards exportieren",
+    "importMenu": "Paket importieren…",
+    "importTitle": "Paket importieren",
+    "hint": "Ein Paket (JSON, erstellt mit „Alle Prozesse & Dashboards exportieren“) enthält mehrere Prozesse und Dashboards. Zugangsdaten und Plattformen sind nie Teil eines Pakets.",
+    "choose": "Paketdatei auswählen",
+    "notABundle": "Kein {{brand}}-Paket",
+    "cannotRead": "Paket kann nicht gelesen werden",
+    "summary": "{{processes}}, {{dashboards}}, exportiert {{when}}.",
+    "processes_one": "{{count}} Prozess",
+    "processes_other": "{{count}} Prozesse",
+    "dashboards_one": "{{count}} Dashboard",
+    "dashboards_other": "{{count}} Dashboards",
+    "conflict": "Wenn bereits ein Element mit derselben ID existiert",
+    "newVersion": "Als neue Version speichern",
+    "skip": "Überspringen",
+    "copy": "Als Kopie importieren",
+    "result": "{{created}} angelegt, {{updated}} aktualisiert, {{skipped}} übersprungen"
+  }
+}

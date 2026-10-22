@@ -1,0 +1,35 @@
+{
+  "title": "Audit-Log",
+  "description": "Nur ergänzbare Aufzeichnung aller Aktionen in diesem Tool. Die Einträge sind verkettet und mit einem aus der Master-Passphrase abgeleiteten Schlüssel signiert (HMAC), sodass Änderungen oder Löschungen erkannt werden. Einträge werden bewusst auf Englisch geführt, damit der Nachweis für alle gleich lautet.",
+  "verify": "Kette prüfen",
+  "export": "Exportieren",
+  "jsonl": "JSON Lines (mit Hashes)",
+  "intact": "Audit-Kette intakt",
+  "broken": "Audit-Kette unterbrochen",
+  "intactText_one": "Der Eintrag ist intakt.",
+  "intactText_other": "Alle {{count}} Einträge sind intakt.",
+  "brokenText": "Die Kette ist ab Eintrag #{{seq}} unterbrochen ({{message}}).",
+  "search": "Suchen",
+  "allCategories": "Alle Kategorien",
+  "category": "Kategorie",
+  "categories": {
+    "run": "Ausführungen",
+    "api": "API-Aufrufe",
+    "task": "Entscheidungen",
+    "check": "Prüfungen",
+    "platform": "Plattformen",
+    "process": "Prozesse",
+    "schedule": "Zeitpläne",
+    "vault": "Tresor",
+    "report": "Berichte"
+  },
+  "table": {
+    "time": "Zeit",
+    "actor": "Akteur",
+    "action": "Aktion",
+    "summary": "Zusammenfassung",
+    "run": "Ausführung",
+    "hash": "Hash {{hash}}"
+  },
+  "loadOlder": "Ältere Einträge laden"
+}

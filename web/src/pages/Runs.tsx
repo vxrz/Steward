@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Button, Group, Select } from '@mantine/core';
 import { IconReportAnalytics } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import type { ProcessSummary, RunSummary } from '@sm/shared';
 import { get } from '../api';
-import { PageHeader } from '../components/common';
+import { PageHeader, statusLabel } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { SummaryReportDialog } from '../components/reports/SummaryReportDialog';
 
 export function RunsPage() {
+  const { t } = useTranslation('runs');
   const [status, setStatus] = useState<string | null>(null);
   const [processId, setProcessId] = useState<string | null>(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -18,13 +20,13 @@ export function RunsPage() {
   return (
     <>
       <PageHeader
-        title="Runs"
-        description="Every execution of a process with its full protocol."
+        title={t('list.title')}
+        description={t('list.description')}
         actions={
           <Group gap="xs">
             <Select
               size="xs"
-              placeholder="All processes"
+              placeholder={t('list.allProcesses')}
               clearable
               searchable
               data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
@@ -34,15 +36,15 @@ export function RunsPage() {
             />
             <Select
               size="xs"
-              placeholder="Any status"
+              placeholder={t('list.anyStatus')}
               clearable
-              data={['running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted']}
+              data={['running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'].map((s) => ({ value: s, label: statusLabel(s) }))}
               value={status}
               onChange={setStatus}
-              w={140}
+              w={160}
             />
             <Button size="xs" variant="light" leftSection={<IconReportAnalytics size={14} />} onClick={() => setSummaryOpen(true)}>
-              Summary report
+              {t('list.summaryReport')}
             </Button>
           </Group>
         }

@@ -1,0 +1,72 @@
+{
+  "add": "Add",
+  "remove": "Remove",
+  "copy": "Copy",
+  "copied": "Copied",
+  "name": "Name",
+  "value": "Value",
+  "status": {
+    "queued": "queued",
+    "running": "running",
+    "waiting": "waiting",
+    "succeeded": "succeeded",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "interrupted": "interrupted",
+    "skipped": "skipped",
+    "dryrun": "dry run",
+    "open": "open",
+    "completed": "completed"
+  },
+  "footer": {
+    "madeWith": "Made with <heart>❤️</heart> in Erlangen, Germany",
+    "love": "love",
+    "builtBy": "Designed & built by <author>{{author}}</author> with AI",
+    "openSource": "Open source ({{license}})",
+    "onGithub": "{{brand}} on GitHub",
+    "rake": "Franconian rake",
+    "rakeTitle": "Franconian rake (Fränkischer Rechen)"
+  },
+  "roles": {
+    "admin": "admin",
+    "designer": "designer",
+    "operator": "operator",
+    "approver": "approver",
+    "auditor": "auditor",
+    "viewer": "viewer"
+  },
+  "roleInfo": {
+    "admin": "Everything: users, teams, platforms and credentials, settings, all processes",
+    "designer": "Create processes; edit and run processes (unless restricted)",
+    "operator": "Run and schedule processes (unless restricted)",
+    "approver": "Decide approvals and user tasks",
+    "auditor": "Read-only access to all processes, runs, protocols and the audit log",
+    "viewer": "Read-only access to processes and their runs (unless restricted)"
+  },
+  "loading": "Loading…",
+  "severity": {
+    "error": "error",
+    "warning": "warning",
+    "info": "info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Role: {{role}}"
+  },
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "close": "Close",
+  "edit": "Edit",
+  "back": "Back",
+  "yes": "Yes",
+  "no": "No",
+  "permissions": {
+    "view": "view",
+    "run": "run",
+    "edit": "edit",
+    "approve": "approve",
+    "manage": "manage",
+    "use": "use"
+  }
+}

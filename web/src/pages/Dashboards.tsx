@@ -4,10 +4,11 @@ import { ActionIcon, Anchor, Badge, Button, Card, Group, Modal, SimpleGrid, Stac
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconAlertTriangle, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetMeta } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader } from '../components/common';
-import { fmtRelative } from '../format';
+import { fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
 import '../components/dashboard/viz.css';
@@ -20,6 +21,7 @@ interface DashboardTemplate {
 }
 
 export function DashboardsPage() {
+  const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { caps, isAdmin } = useMe();
@@ -30,7 +32,7 @@ export function DashboardsPage() {
 
   const createBlank = async () => {
     try {
-      const d = await post<Dashboard>('/dashboards', { definition: { name: 'New dashboard', widgets: [] } });
+      const d = await post<Dashboard>('/dashboards', { definition: { name: t('list.newName'), widgets: [] } });
       qc.invalidateQueries({ queryKey: ['dashboards'] });
       navigate(`/dashboards/${d.id}`);
     } catch (e) {
@@ -41,19 +43,19 @@ export function DashboardsPage() {
   return (
     <>
       <PageHeader
-        title="Dashboards"
-        description="Status overviews built from data that your processes publish (once, on demand or on a schedule). Dashboards only read stored data – they never call the platforms themselves."
+        title={t('list.title')}
+        description={t('list.description')}
         actions={
           caps.createProcesses && (
             <>
               <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-                Import YAML
+                {t('list.importYaml')}
               </Button>
               <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-                From template
+                {t('list.fromTemplate')}
               </Button>
               <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
-                New dashboard
+                {t('list.new')}
               </Button>
             </>
           )
@@ -61,9 +63,9 @@ export function DashboardsPage() {
       />
       {dashboards.data?.length === 0 && (
         <Card withBorder p="lg" mb="md">
-          <Text fw={600}>No dashboards yet</Text>
+          <Text fw={600}>{t('list.emptyTitle')}</Text>
           <Text size="sm" c="dimmed">
-            Start from a template (e.g. platform operations), then run the inventory processes that feed it – or schedule them so the data stays fresh.
+            {t('list.emptyText')}
           </Text>
         </Card>
       )}
@@ -76,15 +78,15 @@ export function DashboardsPage() {
             </Text>
             <Group gap={6} mt="sm">
               <Badge size="xs" variant="outline">
-                {d.definition.widgets.length} widgets
+                {t('list.widgets', { count: d.definition.widgets.length })}
               </Badge>
               {d.owner && (
                 <Text size="xs" c="dimmed">
-                  by {d.owner}
+                  {t('list.by', { owner: d.owner })}
                 </Text>
               )}
               <Text size="xs" c="dimmed" ml="auto">
-                updated {fmtRelative(d.updatedAt)}
+                {t('list.updated', { when: fmtRelative(d.updatedAt) })}
               </Text>
             </Group>
           </Card>
@@ -92,21 +94,20 @@ export function DashboardsPage() {
       </SimpleGrid>
 
       <Title order={4} mb={4}>
-        Datasets
+        {t('datasets.title')}
       </Title>
       <Text size="sm" c="dimmed" mb="sm">
-        Published by “Publish to dashboard” nodes. Each run replaces the rows and adds metric values to the history used by trend charts. You see the datasets of
-        processes you may view.
+        {t('datasets.hint', { node: t('editor:steps.publish.label') })}
       </Text>
       <div className="table-scroll">
         <Table fz="sm" highlightOnHover className="viz-root">
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Dataset</Table.Th>
-              <Table.Th>Source</Table.Th>
-              <Table.Th>Updated</Table.Th>
-              <Table.Th ta="right">Rows</Table.Th>
-              <Table.Th>Status</Table.Th>
+              <Table.Th>{t('datasets.dataset')}</Table.Th>
+              <Table.Th>{t('datasets.source')}</Table.Th>
+              <Table.Th>{t('datasets.updated')}</Table.Th>
+              <Table.Th ta="right">{t('datasets.rows')}</Table.Th>
+              <Table.Th>{t('datasets.status')}</Table.Th>
               {isAdmin && <Table.Th />}
             </Table.Tr>
           </Table.Thead>
@@ -115,7 +116,7 @@ export function DashboardsPage() {
               <Table.Tr>
                 <Table.Td colSpan={6}>
                   <Text size="sm" c="dimmed">
-                    No datasets yet – run a process that contains a “Publish to dashboard” node.
+                    {t('datasets.none', { node: t('editor:steps.publish.label') })}
                   </Text>
                 </Table.Td>
               </Table.Tr>
@@ -140,31 +141,31 @@ export function DashboardsPage() {
                   <Group gap={4} mt={2}>
                     {m.stale && (
                       <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
-                        stale
+                        {t('datasets.stale')}
                       </Badge>
                     )}
                     {m.dryRun && (
                       <Badge size="xs" color="gray" variant="light" leftSection={<IconFlask size={10} />}>
-                        dry run
+                        {t('common:status.dryrun')}
                       </Badge>
                     )}
                   </Group>
                 </Table.Td>
                 <Table.Td ta="right" className="viz-num">
-                  {m.rowCount}
+                  {fmtNumber(m.rowCount)}
                 </Table.Td>
                 <Table.Td>
                   <StatusCounts counts={m.statusCounts} />
                 </Table.Td>
                 {isAdmin && (
                   <Table.Td>
-                    <Tooltip label="Delete dataset and its history">
+                    <Tooltip label={t('datasets.deleteHint')}>
                       <ActionIcon
                         variant="subtle"
                         color="red"
-                        aria-label="Delete dataset"
+                        aria-label={t('datasets.delete')}
                         onClick={async () => {
-                          if (!confirm(`Delete dataset "${m.key}" and its metric history? It is recreated by the next run of ${m.processName}.`)) return;
+                          if (!confirm(t('datasets.deleteConfirm', { key: m.key, process: m.processName }))) return;
                           await del(`/datasets/${encodeURIComponent(m.key)}`).catch(notifyError);
                           qc.invalidateQueries({ queryKey: ['datasets'] });
                         }}
@@ -187,35 +188,36 @@ export function DashboardsPage() {
 }
 
 function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation('dashboards');
   const navigate = useNavigate();
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ['dashboard-templates'], queryFn: () => get<DashboardTemplate[]>('/dashboard-templates'), enabled: opened });
   const [busy, setBusy] = useState<string | null>(null);
   return (
-    <Modal opened={opened} onClose={onClose} title="Dashboard templates" size="lg">
+    <Modal opened={opened} onClose={onClose} title={t('templates.title')} size="lg">
       <Stack>
-        {list.data?.length === 0 && <Text c="dimmed">No templates found in examples/dashboards.</Text>}
-        {list.data?.map((t) => (
-          <Card key={t.id} withBorder padding="sm">
+        {list.data?.length === 0 && <Text c="dimmed">{t('templates.none')}</Text>}
+        {list.data?.map((tpl) => (
+          <Card key={tpl.id} withBorder padding="sm">
             <Group justify="space-between" wrap="nowrap" align="flex-start">
               <div style={{ minWidth: 0 }}>
-                <Text fw={600}>{t.name}</Text>
+                <Text fw={600}>{tpl.name}</Text>
                 <Text size="sm" c="dimmed" lineClamp={3}>
-                  {t.description}
+                  {tpl.description}
                 </Text>
                 <Badge size="xs" variant="outline" mt={6}>
-                  {t.definition.widgets.length} widgets
+                  {t('list.widgets', { count: tpl.definition.widgets.length })}
                 </Badge>
               </div>
               <Button
                 size="xs"
-                loading={busy === t.id}
+                loading={busy === tpl.id}
                 onClick={async () => {
-                  setBusy(t.id);
+                  setBusy(tpl.id);
                   try {
-                    const d = await post<Dashboard>('/dashboards', { templateId: t.id });
+                    const d = await post<Dashboard>('/dashboards', { templateId: tpl.id });
                     qc.invalidateQueries({ queryKey: ['dashboards'] });
-                    notifyOk(`Created "${d.name}"`);
+                    notifyOk(t('templates.created', { name: d.name }));
                     onClose();
                     navigate(`/dashboards/${d.id}`);
                   } catch (e) {
@@ -225,7 +227,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
                   }
                 }}
               >
-                Use
+                {t('templates.use')}
               </Button>
             </Group>
           </Card>
@@ -236,17 +238,18 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
 }
 
 function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const { t } = useTranslation('dashboards');
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   return (
-    <Modal opened={opened} onClose={onClose} title="Import dashboard (YAML or JSON)" size="lg">
+    <Modal opened={opened} onClose={onClose} title={t('import.title')} size="lg">
       <Stack>
         <Textarea classNames={{ input: 'mono' }} autosize minRows={10} maxRows={24} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder={'name: My dashboard\nwidgets:\n  - { id: w1, type: kpi, dataset: iem.devices }'} />
         <Group justify="space-between">
           <Button variant="default" size="xs" component="label" leftSection={<IconUpload size={14} />}>
-            Load file
+            {t('import.loadFile')}
             <input type="file" accept=".yaml,.yml,.json" hidden onChange={(e) => e.currentTarget.files?.[0]?.text().then(setText)} />
           </Button>
           <Button
@@ -260,13 +263,13 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
                 onClose();
                 navigate(`/dashboards/${d.id}`);
               } catch (e) {
-                notifyError(e, 'Import failed');
+                notifyError(e, t('import.failed'));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            Import
+            {t('import.submit')}
           </Button>
         </Group>
       </Stack>

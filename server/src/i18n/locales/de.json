@@ -1,0 +1,51 @@
+{
+  "common": {
+    "openIn": "In {{brand}} öffnen",
+    "minutes_one": "{{count}} Minute",
+    "minutes_other": "{{count}} Minuten"
+  },
+  "severity": {
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Info"
+  },
+  "task": {
+    "title": "Entscheidung erforderlich: {{title}}",
+    "body": "Die Ausführung von „{{process}}“ (gestartet von {{actor}}) wartet auf Ihre Entscheidung.",
+    "bodyFourEyes": "Die Ausführung von „{{process}}“ (gestartet von {{actor}}) wartet auf Ihre Entscheidung. Vier-Augen-Prinzip: Wer die Ausführung gestartet hat, darf nicht entscheiden."
+  },
+  "runFailed": {
+    "title": "Ausführung fehlgeschlagen: {{process}}",
+    "titleDryRun": "Ausführung fehlgeschlagen: {{process}} (Probelauf)",
+    "body": "Fehler: {{error}}",
+    "bodyNoError": "Die Ausführung ist fehlgeschlagen."
+  },
+  "checkFailed": {
+    "title": "Prüfung fehlgeschlagen: {{check}} in {{process}}",
+    "titleDryRun": "Prüfung fehlgeschlagen: {{check}} in {{process}} (Probelauf)",
+    "body": "{{severity}}: {{message}}"
+  },
+  "scheduleSkipped": {
+    "title": "Zeitplan übersprungen: {{name}}",
+    "body": "Der Zeitplan hat keine Ausführung gestartet: {{reason}}.",
+    "reasons": {
+      "overlap": "Die vorherige Ausführung {{runId}} ist noch nicht abgeschlossen (Status: {{status}})",
+      "ownerMissing": "Der Eigentümer {{owner}} fehlt oder ist deaktiviert",
+      "mayNotRun": "{{user}} darf diesen Prozess nicht ausführen",
+      "mayNotUsePlatform": "{{user}} darf die Plattform {{platform}} nicht verwenden"
+    }
+  },
+  "runStatus": {
+    "queued": "in Warteschlange",
+    "running": "läuft",
+    "waiting": "wartet auf Entscheidung"
+  },
+  "datasetStale": {
+    "title": "Dashboard-Daten veraltet: {{title}}",
+    "body": "„{{title}}“ wurde zuletzt am {{updatedAt}} von „{{process}}“ aktualisiert (Aktualitätsgrenze: {{limit}})."
+  },
+  "test": {
+    "title": "Testbenachrichtigung",
+    "body": "Wenn Sie diese Nachricht lesen können, erreichen Benachrichtigungen von {{brand}} diesen Kanal."
+  }
+}

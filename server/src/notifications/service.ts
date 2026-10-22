@@ -1,4 +1,4 @@
-import type { AclEntry, NotificationEvent, ProcessPermission, UserInfo } from '@sm/shared';
+import type { AclEntry, Locale, NotificationEvent, ProcessPermission, UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
 import { logger } from '../log.js';
@@ -10,15 +10,22 @@ import { absoluteLink, channelSecrets, getNotificationSettings } from './setting
 import { addInApp, claimSend } from './store.js';
 import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './channels.js';
 import { BRAND } from '@sm/shared';
+import { getSettings } from '../settings.js';
+import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 
 /** Same event + entity within this window → no second e-mail/Teams/webhook message (and no second in-app entry for the same key). */
 export const DEDUPE_WINDOW_MS = 60 * 60000;
 const STALE_CHECK_MS = 5 * 60000;
 
-export interface Notice {
-  event: NotificationEvent;
+export interface NoticeText {
   title: string;
   body: string;
+}
+
+export interface Notice {
+  event: NotificationEvent;
+  /** Title and body in one language – called per recipient (in-app, e-mail) and once for channel posts (Teams, webhook). */
+  text: (locale: Locale) => NoticeText;
   /** In-app path, e.g. /runs/run_123 */
   link?: string;
   recipients: UserInfo[];
@@ -70,6 +77,13 @@ function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; schedule
   return { actor: userNamed(r.actor, all), scheduleOwner: userNamed(owner, all) };
 }
 
+// ---------- language ----------
+
+/** Language for channel posts (Teams, webhook) and for users who have not chosen one. */
+export const defaultLocale = (): Locale => resolveLocale(getSettings().defaultLocale);
+/** The recipient's chosen language, else the default language. */
+export const userLocale = (u: UserInfo, fallback = defaultLocale()): Locale => resolveLocale(u.locale, fallback);
+
 // ---------- delivery ----------
 
 const pending = new Set<Promise<void>>();
@@ -79,10 +93,17 @@ export function notify(n: Notice): void {
   if (!n.recipients.length) return;
   const settings = getNotificationSettings();
   const channels = settings.routes[n.event] ?? [];
+  const fallback = defaultLocale();
+  const texts = new Map<Locale, NoticeText>();
+  const textIn = (locale: Locale): NoticeText => {
+    if (!texts.has(locale)) texts.set(locale, n.text(locale));
+    return texts.get(locale)!;
+  };
   if (channels.includes('inApp')) {
     for (const u of n.recipients) {
       try {
-        addInApp(u.id, { event: n.event, title: n.title, body: n.body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
+        const m = textIn(userLocale(u, fallback));
+        addInApp(u.id, { event: n.event, title: m.title, body: m.body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
       } catch (err) {
         logger.warn({ err, event: n.event }, 'could not store notification');
       }
@@ -94,7 +115,7 @@ export function notify(n: Notice): void {
     logger.warn({ event: n.event }, 'notification not sent: the vault is locked');
     return;
   }
-  const msg: OutgoingMessage = { event: n.event, title: n.title, body: n.body, link: absoluteLink(n.link), ts: nowIso(), data: n.data };
+  const message = (locale: Locale): OutgoingMessage => ({ event: n.event, ...textIn(locale), locale, link: absoluteLink(n.link), ts: nowIso(), data: n.data });
   const key = `${n.event}:${n.externalKey}`;
   const jobs: { channel: string; to?: string; send: () => Promise<void> }[] = [];
   let secrets: ReturnType<typeof channelSecrets>;
@@ -108,14 +129,17 @@ export function notify(n: Notice): void {
     for (const u of n.recipients) {
       if (!u.email || !u.emailNotifications) continue;
       if (claimSend(`email:${key}:${u.id}`, DEDUPE_WINDOW_MS)) {
+        const msg = message(userLocale(u, fallback));
         jobs.push({ channel: 'email', to: u.username, send: () => sendEmail(settings.email, secrets, u.email!, msg) });
       }
     }
   }
   if (external.includes('teams') && secrets.teamsWebhookUrl && claimSend(`teams:${key}`, DEDUPE_WINDOW_MS)) {
+    const msg = message(fallback);
     jobs.push({ channel: 'teams', send: () => sendTeams(secrets.teamsWebhookUrl!, msg) });
   }
   if (external.includes('webhook') && secrets.webhookUrl && claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
+    const msg = message(fallback);
     jobs.push({ channel: 'webhook', send: () => sendWebhook(secrets.webhookUrl!, msg) });
   }
   for (const j of jobs) {
@@ -139,8 +163,10 @@ export async function flushNotifications(): Promise<void> {
 export function onTaskCreated(e: DomainEvents['task.created']): void {
   notify({
     event: 'task.assigned',
-    title: `Decision needed: ${e.title}`,
-    body: `The run of "${e.processName}" (started by ${e.runActor}) waits for your decision.${e.fourEyes ? ' Four-eyes principle: the starter may not decide.' : ''}`,
+    text: (l) => ({
+      title: t(l, 'task.title', { title: e.title }),
+      body: t(l, e.fourEyes ? 'task.bodyFourEyes' : 'task.body', { process: e.processName, actor: e.runActor }),
+    }),
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
     inAppKey: `task:${e.taskId}`,
@@ -155,8 +181,11 @@ export function onRunFinished(e: DomainEvents['run.finished']): void {
   const { actor, scheduleOwner } = runPeople(e.runId, all);
   notify({
     event: 'run.failed',
-    title: `Run failed: ${e.processName}${e.dryRun ? ' (dry run)' : ''}`,
-    body: e.error ? `Error: ${e.error.slice(0, 500)}` : 'The run failed.',
+    text: (l) => ({
+      title: t(l, e.dryRun ? 'runFailed.titleDryRun' : 'runFailed.title', { process: e.processName }),
+      // The error itself comes from the platform or the engine and stays as it is.
+      body: e.error ? t(l, 'runFailed.body', { error: e.error.slice(0, 500) }) : t(l, 'runFailed.bodyNoError'),
+    }),
     link: `/runs/${e.runId}`,
     recipients: uniqueUsers([actor, scheduleOwner]),
     inAppKey: `run:${e.runId}`,
@@ -171,8 +200,10 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
   const owner = userNamed(processAccess(e.processId).owner, all);
   notify({
     event: 'check.failed',
-    title: `Check failed: ${e.check} in ${e.processName}${e.dryRun ? ' (dry run)' : ''}`,
-    body: `${e.severity}: ${e.message.slice(0, 500)}`,
+    text: (l) => ({
+      title: t(l, e.dryRun ? 'checkFailed.titleDryRun' : 'checkFailed.title', { check: e.check, process: e.processName }),
+      body: t(l, 'checkFailed.body', { severity: severityLabel(l, e.severity), message: e.message.slice(0, 500) }),
+    }),
     link: `/runs/${e.runId}`,
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check:${e.runId}:${e.check}`,
@@ -181,12 +212,21 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
   });
 }
 
+const severityLabel = (l: Locale, severity: string): string =>
+  severity === 'error' || severity === 'warning' || severity === 'info' ? t(l, `severity.${severity}`) : severity;
+
+function skipReason(l: Locale, e: DomainEvents['schedule.skipped']): string {
+  if (!e.reasonCode) return e.reason;
+  const vars = { ...e.reasonVars };
+  if (vars.status === 'queued' || vars.status === 'running' || vars.status === 'waiting') vars.status = t(l, `runStatus.${vars.status}`);
+  return t(l, `scheduleSkipped.reasons.${e.reasonCode}`, vars);
+}
+
 export function onScheduleSkipped(e: DomainEvents['schedule.skipped']): void {
   const all = activeUsers();
   notify({
     event: 'schedule.skipped',
-    title: `Schedule skipped: ${e.name}`,
-    body: `The schedule did not start a run: ${e.reason}.`,
+    text: (l) => ({ title: t(l, 'scheduleSkipped.title', { name: e.name }), body: t(l, 'scheduleSkipped.body', { reason: skipReason(l, e) }) }),
     link: '/schedules',
     recipients: uniqueUsers([userNamed(e.owner, all), ...admins(all)]),
     inAppKey: `schedule:${e.scheduleId}`,
@@ -215,8 +255,15 @@ export function checkStaleDatasets(now = Date.now()): number {
     const all = activeUsers();
     notify({
       event: 'dataset.stale',
-      title: `Dashboard data is stale: ${r.title}`,
-      body: `"${r.title}" was last updated ${r.updated_at} by "${r.process_name}" (freshness limit ${r.stale_after_minutes} minutes).`,
+      text: (l) => ({
+        title: t(l, 'datasetStale.title', { title: r.title }),
+        body: t(l, 'datasetStale.body', {
+          title: r.title,
+          updatedAt: formatDateTime(l, r.updated_at),
+          process: r.process_name,
+          limit: t(l, 'common.minutes', { count: r.stale_after_minutes }),
+        }),
+      }),
       link: '/dashboards',
       recipients: uniqueUsers([userNamed(processAccess(r.process_id).owner, all), ...admins(all)]),
       inAppKey: `dataset:${r.key}:${r.updated_at}`,
@@ -277,10 +324,12 @@ export function stopNotificationJobs(): void {
 /** Sends a test message on one channel (ignores routes and de-duplication). */
 export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: string | undefined): Promise<{ ok: boolean; error?: string }> {
   const settings = getNotificationSettings();
+  const locale = defaultLocale();
   const msg: OutgoingMessage = {
     event: 'test',
-    title: 'Test notification',
-    body: `If you can read this, notifications from ${BRAND.name} reach this channel.`,
+    title: t(locale, 'test.title'),
+    body: t(locale, 'test.body', { brand: BRAND.name }),
+    locale,
     link: absoluteLink('/'),
     ts: nowIso(),
     data: { test: true },

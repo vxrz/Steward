@@ -18,19 +18,16 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconFile, IconLink, IconNote, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { Platform, PlatformDoc } from '@sm/shared';
 import { api, del, get, notifyError, notifyOk, post } from '../../api';
 import { Markdown } from '../common';
-import { fmtDate } from '../../format';
+import { fmtBytes, fmtDate } from '../../format';
 
-function fmtSize(n?: number): string {
-  if (!n) return '';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+const fmtSize = (n?: number): string => (n ? fmtBytes(n) : '');
 
 export function DocsTab({ platform, readOnly = false }: { platform: Platform; readOnly?: boolean }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const docs = useQuery({ queryKey: ['platform', platform.id, 'docs'], queryFn: () => get<PlatformDoc[]>(`/platforms/${platform.id}/docs`) });
   const [kind, setKind] = useState<'note' | 'link' | 'file'>('note');
@@ -59,14 +56,14 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
       } else {
         await post(`/platforms/${platform.id}/docs`, { title, kind: 'note', content });
       }
-      notifyOk('Documentation added');
+      notifyOk(t('docs.added'));
       setTitle('');
       setContent('');
       setUrl('');
       setFile(null);
       await refresh();
     } catch (e) {
-      notifyError(e, 'Not added');
+      notifyError(e, t('docs.notAdded'));
     } finally {
       setBusy(false);
     }
@@ -90,47 +87,47 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
       {!readOnly && (
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Add documentation
+          {t('docs.addTitle')}
         </Title>
         <Stack>
           <SegmentedControl
             value={kind}
             onChange={(v) => setKind(v as 'note' | 'link' | 'file')}
             data={[
-              { value: 'note', label: 'Note' },
-              { value: 'link', label: 'Link' },
-              { value: 'file', label: 'File' },
+              { value: 'note', label: t('docs.kinds.note') },
+              { value: 'link', label: t('docs.kinds.link') },
+              { value: 'file', label: t('docs.kinds.file') },
             ]}
           />
-          <TextInput label="Title" required={kind === 'note'} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+          <TextInput label={t('docs.title')} required={kind === 'note'} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
           {kind === 'note' && (
             <Textarea
-              label="Note (markdown)"
+              label={t('docs.note')}
               autosize
               minRows={4}
-              placeholder="e.g. Runbook: how to rotate service credentials…"
+              placeholder={t('docs.notePlaceholder')}
               value={content}
               onChange={(e) => setContent(e.currentTarget.value)}
             />
           )}
-          {kind === 'link' && <TextInput label="URL" placeholder="https://…" value={url} onChange={(e) => setUrl(e.currentTarget.value)} />}
+          {kind === 'link' && <TextInput label={t('docs.url')} placeholder="https://…" value={url} onChange={(e) => setUrl(e.currentTarget.value)} />}
           {kind === 'file' && (
             <Group>
               <FileButton onChange={setFile}>
                 {(props) => (
                   <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
-                    Choose file
+                    {t('docs.chooseFile')}
                   </Button>
                 )}
               </FileButton>
               <Text size="sm" c="dimmed">
-                {file ? `${file.name} (${fmtSize(file.size)})` : 'PDF, Word, text… up to 50 MB'}
+                {file ? `${file.name} (${fmtSize(file.size)})` : t('docs.fileHint')}
               </Text>
             </Group>
           )}
           <Group justify="flex-end">
             <Button onClick={add} loading={busy} disabled={!canAdd}>
-              Add
+              {t('common:add')}
             </Button>
           </Group>
         </Stack>
@@ -139,11 +136,11 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Documentation
+          {t('docs.listTitle')}
         </Title>
         {docs.data?.length === 0 && (
           <Text size="sm" c="dimmed">
-            No documentation yet. Keep runbooks, API manuals and useful links next to the platform.
+            {t('docs.none')}
           </Text>
         )}
         <Stack gap="xs">
@@ -169,12 +166,12 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
                       </Anchor>
                     )}
                     <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
-                      {d.kind === 'link' ? d.url : d.kind === 'file' ? `${d.filename} · ${fmtSize(d.size)}` : 'Note'} · {fmtDate(d.createdAt)}
+                      {d.kind === 'link' ? d.url : d.kind === 'file' ? `${d.filename} · ${fmtSize(d.size)}` : t('docs.kinds.note')} · {fmtDate(d.createdAt)}
                     </Text>
                   </div>
                 </Group>
-                <Tooltip label="Delete">
-                  {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label="Delete">
+                <Tooltip label={t('common:delete')}>
+                  {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(d)} aria-label={t('common:delete')}>
                     <IconTrash size={16} />
                   </ActionIcon>}
                 </Tooltip>
@@ -191,16 +188,16 @@ export function DocsTab({ platform, readOnly = false }: { platform: Platform; re
         </Stack>
       </Paper>
 
-      <Modal opened={!!removing} onClose={() => setRemoving(null)} title="Delete documentation">
+      <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('docs.deleteTitle')}>
         <Text size="sm">
-          Delete <strong>{removing?.title}</strong>?
+          <Trans t={t} i18nKey="docs.deleteText" values={{ name: removing?.title ?? '' }} components={{ b: <strong /> }} />
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setRemoving(null)}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button color="red" onClick={() => removing && remove(removing)}>
-            Delete
+            {t('common:delete')}
           </Button>
         </Group>
       </Modal>

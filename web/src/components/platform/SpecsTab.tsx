@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from '@mantine/core';
 import { IconExternalLink, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
+import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, Platform, PlatformSpec } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../../api';
 import { Hint } from '../common';
@@ -50,6 +51,7 @@ export function SpecsTab({
   onPickOperation: (op: ApiOperation) => void;
   readOnly?: boolean;
 }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const specs = useQuery({ queryKey: ['platform', platform.id, 'specs'], queryFn: () => get<PlatformSpec[]>(`/platforms/${platform.id}/specs`) });
   const ops = useQuery({ queryKey: ['platform', platform.id, 'operations'], queryFn: () => get<ApiOperation[]>(`/platforms/${platform.id}/operations`) });
@@ -70,13 +72,13 @@ export function SpecsTab({
         `/platforms/${platform.id}/specs`,
         fromUrl ? { name: name || undefined, url: url.trim() } : { name: name || undefined, content },
       );
-      notifyOk(`${s.operationCount} operations imported`, s.name);
+      notifyOk(t('specs.imported', { count: s.operationCount }), s.name);
       setName('');
       setContent('');
       setUrl('');
       await refresh();
     } catch (e) {
-      notifyError(e, 'Specification not imported');
+      notifyError(e, t('specs.notImported'));
     } finally {
       setBusy(false);
     }
@@ -107,31 +109,31 @@ export function SpecsTab({
     <Stack>
       {!readOnly && (
       <Paper withBorder p="md">
-        <Title order={5}>Import an API specification</Title>
-        <Hint>OpenAPI 3.x or Swagger 2.0, JSON or YAML. Operations become searchable here and can be picked in the explorer.</Hint>
+        <Title order={5}>{t('specs.importTitle')}</Title>
+        <Hint>{t('specs.importHint')}</Hint>
         <Stack mt="sm">
           <Group align="flex-end" wrap="wrap">
-            <TextInput label="Name (optional)" value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />
+            <TextInput label={t('specs.name')} value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />
             <FileButton
               accept=".json,.yaml,.yml,application/json,text/yaml"
               onChange={(f) => {
                 if (!f) return;
-                f.text().then((t) => {
-                  setContent(t);
+                f.text().then((text) => {
+                  setContent(text);
                   if (!name) setName(f.name.replace(/\.(json|ya?ml)$/i, ''));
                 });
               }}
             >
               {(props) => (
                 <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
-                  Choose file
+                  {t('specs.chooseFile')}
                 </Button>
               )}
             </FileButton>
           </Group>
           <Group align="flex-end" wrap="wrap">
             <TextInput
-              label="…or import from a URL"
+              label={t('specs.fromUrl')}
               placeholder="https://example.com/openapi.json"
               classNames={{ input: 'mono' }}
               value={url}
@@ -139,11 +141,11 @@ export function SpecsTab({
               style={{ flex: 1, minWidth: 220 }}
             />
             <Button variant="light" onClick={() => upload(true)} loading={busy} disabled={!/^https?:\/\/\S+$/.test(url.trim())}>
-              Import from URL
+              {t('specs.importUrl')}
             </Button>
           </Group>
           <Textarea
-            label="…or paste the specification"
+            label={t('specs.paste')}
             classNames={{ input: 'mono' }}
             autosize
             minRows={3}
@@ -153,7 +155,7 @@ export function SpecsTab({
           />
           <Group justify="flex-end">
             <Button onClick={() => upload(false)} loading={busy} disabled={content.trim().length < 2}>
-              Import
+              {t('specs.import')}
             </Button>
           </Group>
         </Stack>
@@ -162,11 +164,11 @@ export function SpecsTab({
 
       <Paper withBorder p="md">
         <Title order={5} mb="sm">
-          Specifications
+          {t('specs.title')}
         </Title>
         {specs.data?.length === 0 && (
           <Text size="sm" c="dimmed">
-            None imported yet.
+            {t('specs.none')}
           </Text>
         )}
         {!!specs.data?.length && (
@@ -174,11 +176,11 @@ export function SpecsTab({
             <Table>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th>Version</Table.Th>
-                  <Table.Th>Format</Table.Th>
-                  <Table.Th>Operations</Table.Th>
-                  <Table.Th>Added</Table.Th>
+                  <Table.Th>{t('common:name')}</Table.Th>
+                  <Table.Th>{t('specs.version')}</Table.Th>
+                  <Table.Th>{t('specs.format')}</Table.Th>
+                  <Table.Th>{t('specs.operations')}</Table.Th>
+                  <Table.Th>{t('specs.added')}</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
@@ -201,13 +203,13 @@ export function SpecsTab({
                     <Table.Td className="nowrap">{fmtDate(s.createdAt)}</Table.Td>
                     <Table.Td>
                       <Group gap={4} wrap="nowrap" justify="flex-end">
-                        <Tooltip label="View raw">
-                          <ActionIcon component="a" href={`/api/specs/${s.id}/content`} target="_blank" variant="subtle" aria-label="View raw">
+                        <Tooltip label={t('specs.viewRaw')}>
+                          <ActionIcon component="a" href={`/api/specs/${s.id}/content`} target="_blank" variant="subtle" aria-label={t('specs.viewRaw')}>
                             <IconExternalLink size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        <Tooltip label="Delete">
-                          {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label="Delete">
+                        <Tooltip label={t('common:delete')}>
+                          {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label={t('common:delete')}>
                             <IconTrash size={16} />
                           </ActionIcon>}
                         </Tooltip>
@@ -224,28 +226,29 @@ export function SpecsTab({
       {!!ops.data?.length && (
         <Paper withBorder p="md">
           <Group justify="space-between" mb="sm" wrap="wrap">
-            <Title order={5}>Operations ({filtered.length})</Title>
+            <Title order={5}>{t('specs.operationsCount', { count: filtered.length })}</Title>
             <Group gap="xs" wrap="wrap">
               <TextInput
                 size="xs"
-                placeholder="Search path, summary, id…"
+                placeholder={t('specs.search')}
+                aria-label={t('specs.search')}
                 leftSection={<IconSearch size={14} />}
                 value={filter}
                 onChange={(e) => setFilter(e.currentTarget.value)}
               />
-              {tags.length > 0 && <Select size="xs" placeholder="All tags" data={tags} value={tag} onChange={setTag} clearable searchable />}
+              {tags.length > 0 && <Select size="xs" placeholder={t('specs.allTags')} aria-label={t('specs.tag')} data={tags} value={tag} onChange={setTag} clearable searchable />}
             </Group>
           </Group>
-          <Hint>Click an operation to try it in the explorer.</Hint>
+          <Hint>{t('specs.clickHint')}</Hint>
           <div className="table-scroll">
             <Table highlightOnHover mt="xs">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Method</Table.Th>
-                  <Table.Th>Path</Table.Th>
-                  <Table.Th>Summary</Table.Th>
-                  <Table.Th>Tag</Table.Th>
-                  <Table.Th>Operation id</Table.Th>
+                  <Table.Th>{t('specs.method')}</Table.Th>
+                  <Table.Th>{t('specs.path')}</Table.Th>
+                  <Table.Th>{t('specs.summary')}</Table.Th>
+                  <Table.Th>{t('specs.tag')}</Table.Th>
+                  <Table.Th>{t('specs.operationId')}</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -271,28 +274,28 @@ export function SpecsTab({
           </div>
           {filtered.length > 500 && (
             <Text size="xs" c="dimmed" mt="xs">
-              Showing the first 500 – refine the search.
+              {t('specs.truncated', { count: 500 })}
             </Text>
           )}
         </Paper>
       )}
 
-      <Modal opened={!!removing} onClose={() => setRemoving(null)} title="Delete specification">
+      <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('specs.deleteTitle')}>
         <Text size="sm">
-          Delete <strong>{removing?.name}</strong> and its {removing?.operationCount} operations?
+          <Trans t={t} i18nKey="specs.deleteText" values={{ name: removing?.name ?? '', count: removing?.operationCount ?? 0 }} components={{ b: <strong /> }} />
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setRemoving(null)}>
-            Cancel
+            {t('common:cancel')}
           </Button>
           <Button color="red" onClick={() => removing && remove(removing)}>
-            Delete
+            {t('common:delete')}
           </Button>
         </Group>
       </Modal>
       {ops.data?.length === 0 && specs.data && specs.data.length > 0 && (
         <Text size="sm" c="dimmed">
-          The imported specifications contain no operations. <Anchor onClick={() => refresh()}>Reload</Anchor>
+          {t('specs.noOperations')} <Anchor onClick={() => refresh()}>{t('specs.reload')}</Anchor>
         </Text>
       )}
     </Stack>

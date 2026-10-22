@@ -1,0 +1,46 @@
+{
+  "center": {
+    "title": "Notifications",
+    "labelUnread_one": "Notifications ({{count}} unread)",
+    "labelUnread_other": "Notifications ({{count}} unread)",
+    "unread_one": "{{count}} unread",
+    "unread_other": "{{count}} unread",
+    "markAllRead": "Mark all read",
+    "settings": "Notification settings",
+    "unavailable": "Notifications are not available on this server.",
+    "empty": "You are all caught up.",
+    "unreadItem": "Unread: {{title}}"
+  },
+  "events": {
+    "task": {
+      "assigned": {
+        "label": "Decision",
+        "info": "A run waits for a decision you may take"
+      }
+    },
+    "run": {
+      "failed": {
+        "label": "Run failed",
+        "info": "A run you started (or a scheduled run you own) failed"
+      }
+    },
+    "check": {
+      "failed": {
+        "label": "Check failed",
+        "info": "A check failed in a run you started or a process you own"
+      }
+    },
+    "dataset": {
+      "stale": {
+        "label": "Stale data",
+        "info": "Dashboard data you feed is older than its freshness limit"
+      }
+    },
+    "schedule": {
+      "skipped": {
+        "label": "Schedule skipped",
+        "info": "A schedule you own was skipped (missing rights, still running …)"
+      }
+    }
+  }
+}

@@ -1,0 +1,151 @@
+{
+  "list": {
+    "title": "Runs",
+    "description": "Every execution of a process with its full protocol.",
+    "allProcesses": "All processes",
+    "anyStatus": "Any status",
+    "summaryReport": "Summary report"
+  },
+  "table": {
+    "empty": "No runs yet.",
+    "status": "Status",
+    "process": "Process",
+    "started": "Started",
+    "duration": "Duration",
+    "by": "By",
+    "result": "Result",
+    "dry": "dry",
+    "scheduled": "scheduled",
+    "subprocess": "sub-process",
+    "tasksWaiting_one": "{{count}} task waiting",
+    "tasksWaiting_other": "{{count}} tasks waiting",
+    "changes_one": "{{count}} change",
+    "changes_other": "{{count}} changes",
+    "simulated_one": "{{count}} simulated",
+    "simulated_other": "{{count}} simulated",
+    "checksOk": "checks {{passed}}/{{total}} ok",
+    "failedSteps_one": "{{count}} failed step",
+    "failedSteps_other": "{{count}} failed steps",
+    "webhook": "webhook"
+  },
+  "bindings": {
+    "noPermission": "{{name}} (no permission to use)",
+    "kind": "Kind: {{kind}}",
+    "platforms": "Platforms",
+    "otherPlatforms": "Other platforms",
+    "connection": "Connection \"{{slot}}\"",
+    "expects": "Expects a {{kind}} platform",
+    "blocked": "platforms you may not use are disabled",
+    "select": "Select platform",
+    "none": "No platforms yet – add one under Platforms"
+  },
+  "dialog": {
+    "notStarted": "Run not started",
+    "title": "Run: {{name}}",
+    "titleFallback": "Run process",
+    "inputs": "Inputs",
+    "dryRun": "Dry run – simulate all changes",
+    "dryRunHint": "Read calls are executed, write calls (POST/PUT/PATCH/DELETE) are only recorded. User tasks still ask you.",
+    "writesTitle": "This run will change data",
+    "writesText": "The process contains write operations that will be executed against the selected platform(s).",
+    "startDryRun": "Start dry run",
+    "startRun": "Start run"
+  },
+  "inputs": {
+    "none": "This process has no inputs.",
+    "listHint": "One value per line",
+    "csvHint": "CSV with header row (comma, semicolon or tab separated)",
+    "csvHintColumns": "CSV with header row: {{columns}} (comma, semicolon or tab separated)",
+    "loadCsv": "Load CSV file"
+  },
+  "trigger": {
+    "manual": "manual",
+    "schedule": "schedule",
+    "resume": "resume",
+    "subprocess": "sub-process",
+    "webhook": "webhook",
+    "webhookNamed": "webhook trigger \"{{name}}\""
+  },
+  "detail": {
+    "description": "Run <id>{{id}}</id> · <version>version {{version}}</version> · started by {{actor}} ({{trigger}}) {{date}} · {{duration}}",
+    "cancel": "Cancel",
+    "resume": "Resume",
+    "resumeHint": "Replays completed steps from the journal and continues with the interrupted step (it may be executed again).",
+    "runAgain": "Run again",
+    "protocol": "Protocol",
+    "openHtml": "Open HTML protocol",
+    "downloadPdf": "Download PDF",
+    "downloadHtml": "Download HTML",
+    "downloadJson": "Download JSON (full data)",
+    "startedByStep": "Started by sub-process step <step>{{step}}</step> of run <run>{{run}}</run>",
+    "startedBySubprocess": "Started by a sub-process step of run <run>{{run}}</run>",
+    "failed": "Run failed",
+    "interrupted": "Run interrupted",
+    "interruptedText": "The application stopped while this run was active. Resume to continue from where it stopped, or cancel it.",
+    "stats": {
+      "steps": "Steps",
+      "failed_one": "{{count}} failed",
+      "failed_other": "{{count}} failed",
+      "changes": "Changes made",
+      "simulated": "Simulated",
+      "checksPassed": "Checks passed",
+      "checksFailed": "Checks failed",
+      "decisions": "Decisions"
+    },
+    "tabs": {
+      "steps": "Steps",
+      "reports_one": "Reports ({{count}})",
+      "reports_other": "Reports ({{count}})",
+      "checks_one": "Checks ({{count}})",
+      "checks_other": "Checks ({{count}})",
+      "decisions_one": "Decisions ({{count}})",
+      "decisions_other": "Decisions ({{count}})",
+      "evidence_one": "Evidence ({{count}})",
+      "evidence_other": "Evidence ({{count}})",
+      "log_one": "Log ({{count}})",
+      "log_other": "Log ({{count}})",
+      "inputs": "Inputs",
+      "audit": "Audit",
+      "pdf": "PDF reports"
+    },
+    "noSteps": "No steps yet.",
+    "noRows": "No rows",
+    "checks": {
+      "result": "Result",
+      "check": "Check",
+      "severity": "Severity",
+      "message": "Message",
+      "passed": "passed",
+      "failedLabel": "failed"
+    },
+    "artifactLine": "{{step}} · sha256 {{hash}} · {{date}}",
+    "connections": "Connections",
+    "outputs": "Outputs",
+    "definitionHash": "Definition hash {{hash}}",
+    "childRuns_one": "Sub-process runs ({{count}})",
+    "childRuns_other": "Sub-process runs ({{count}})",
+    "step": {
+      "started": "{{key}} · started {{date}}",
+      "childRun": "Child run:",
+      "request": "Request / configuration",
+      "result": "Result",
+      "loadFull": "Load full result"
+    },
+    "audit": {
+      "time": "Time",
+      "actor": "Actor",
+      "action": "Action",
+      "summary": "Summary"
+    },
+    "generatePdf": "Generate PDF report…",
+    "showMore": {
+      "steps_one": "Showing {{shown}} of {{total}} step",
+      "steps_other": "Showing {{shown}} of {{total}} steps",
+      "logLines_one": "Showing {{shown}} of {{total}} log line",
+      "logLines_other": "Showing {{shown}} of {{total}} log lines",
+      "more_one": "Show {{count}} more",
+      "more_other": "Show {{count}} more",
+      "all": "Show all"
+    }
+  }
+}

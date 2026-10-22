@@ -60,7 +60,7 @@ Then:
 - **Node.js:** see below.
 - **Container:** `docker compose up -d`.
 
-Details, autostart for schedules and code-signing notes are in [docs/INSTALL.md](docs/INSTALL.md). Naming ideas and how to rebrand are in [docs/BRANDING.md](docs/BRANDING.md).
+Details, autostart for schedules and code-signing notes are in [docs/INSTALL.md](docs/INSTALL.md). Naming ideas and how to rebrand are in [docs/BRANDING.md](docs/BRANDING.md). Languages (English, German) and how to add one: [docs/I18N.md](docs/I18N.md).
 
 ## Everyday use
 

@@ -1,0 +1,44 @@
+{
+  "title": "Schedules",
+  "description": "Plan processes to run automatically (e.g. weekly health checks, quarterly access reviews). Scheduled runs use the rights of the schedule's owner; runs that need a decision wait in My tasks.",
+  "new": "New schedule",
+  "edit": "Edit schedule",
+  "empty": "No schedules yet.",
+  "notSaved": "Schedule not saved",
+  "saved": "Schedule saved",
+  "enabled": "Enabled",
+  "deleteConfirm": "Delete schedule \"{{name}}\"?",
+  "table": {
+    "active": "Active",
+    "name": "Name",
+    "when": "When",
+    "next": "Next run",
+    "last": "Last run",
+    "runsAs": "runs as {{owner}}",
+    "runNow": "Run now"
+  },
+  "presets": {
+    "every15": "Every 15 min",
+    "hourly": "Hourly",
+    "daily": "Daily 07:00",
+    "weekdays": "Weekdays 07:00",
+    "mondays": "Mondays 06:00",
+    "monthly": "1st of month 06:00",
+    "quarterly": "Quarterly"
+  },
+  "form": {
+    "process": "Process",
+    "name": "Name",
+    "when": "When",
+    "cron": "Cron expression",
+    "cronHint": "minute hour day-of-month month day-of-week",
+    "timezone": "Time zone",
+    "next": "Next: {{dates}}",
+    "connectionsInputs": "Connections & inputs",
+    "rightsOwner": "Scheduled runs execute with the rights of <b>{{owner}}</b>; they are skipped and logged if the owner loses access to the process or a platform.",
+    "rightsYou": "Scheduled runs execute with the rights of you (the owner); they are skipped and logged if the owner loses access to the process or a platform.",
+    "dryRun": "Dry run (simulate changes)",
+    "overlap": "Allow overlapping runs",
+    "overlapHint": "Off: a new run is skipped while the previous one is still running or waiting for a decision."
+  }
+}

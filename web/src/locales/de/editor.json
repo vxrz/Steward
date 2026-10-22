@@ -1,0 +1,821 @@
+{
+  "steps": {
+    "start": {
+      "label": "Start",
+      "description": "Einstiegspunkt des Prozesses. Eingaben und Verbindungen werden in den Prozesseinstellungen festgelegt."
+    },
+    "note": {
+      "label": "Kommentar",
+      "description": "Ein Kommentar auf der Arbeitsfläche. Wird nicht ausgeführt.",
+      "fields": {
+        "text": {
+          "label": "Text (Markdown)"
+        }
+      }
+    },
+    "http": {
+      "label": "API-Aufruf",
+      "description": "Ruft einen Endpunkt einer verbundenen Plattform auf. Schreibende Aufrufe (POST/PUT/PATCH/DELETE) werden im Probelauf übersprungen. Den Ausgang „Fehler“ verbinden, um Fehler zu behandeln, statt die Ausführung abzubrechen.",
+      "fields": {
+        "connection": {
+          "label": "Verbindung"
+        },
+        "method": {
+          "label": "Methode"
+        },
+        "path": {
+          "label": "Pfad oder URL"
+        },
+        "query": {
+          "label": "Query-Parameter"
+        },
+        "headers": {
+          "label": "Header"
+        },
+        "body": {
+          "label": "Body (JSON / YAML, Vorlagen erlaubt)"
+        },
+        "bodyType": {
+          "label": "Body-Kodierung"
+        },
+        "paginate": {
+          "label": "Paginierung"
+        },
+        "expectStatus": {
+          "label": "Akzeptierte Statuscodes",
+          "help": "Durch Komma getrennt. Leer = jeder 2xx-Code."
+        },
+        "mutating": {
+          "label": "Als schreibend behandeln (im Probelauf überspringen)",
+          "help": "Standard: jede Methode außer GET/HEAD"
+        }
+      }
+    },
+    "set": {
+      "label": "Variablen setzen",
+      "description": "Werte mit JSONata-Ausdrücken berechnen und in vars.<name> speichern.",
+      "fields": {
+        "values": {
+          "label": "Variablen (Name → Vorlage)"
+        }
+      }
+    },
+    "forEach": {
+      "label": "Für jedes Element",
+      "description": "Führt die mit „je Element“ verbundenen Knoten einmal pro Element aus (das Element ist vars.<as>) und fährt dann mit „fertig“ fort. Den letzten Knoten des Schleifenrumpfs nicht weiter verbinden.",
+      "fields": {
+        "items": {
+          "label": "Elemente (Ausdruck)"
+        },
+        "as": {
+          "label": "Name der Elementvariable"
+        },
+        "delayMs": {
+          "label": "Pause zwischen Elementen (ms)"
+        },
+        "maxItems": {
+          "label": "Max. Elemente (Sicherheitsgrenze)"
+        },
+        "concurrency": {
+          "label": "Parallele Elemente (1 = nacheinander)",
+          "help": "Bis zu 20. Im Parallelbetrieb sind in der Schleife gesetzte Variablen pro Element lokal; das Schleifenergebnis (Ergebnis speichern als) enthält sie pro Element in results[]."
+        }
+      }
+    },
+    "if": {
+      "label": "Wenn / sonst",
+      "description": "Fährt je nach Bedingung mit „wahr“ oder „falsch“ fort.",
+      "fields": {
+        "condition": {
+          "label": "Bedingung (Ausdruck)"
+        }
+      }
+    },
+    "userTask": {
+      "label": "Benutzeraufgabe / Freigabe",
+      "description": "Hält die Ausführung an und bittet eine Person, Einträge aus einer Liste auszuwählen (Auswahl) oder freizugeben bzw. abzulehnen (Freigabe, mit den Ausgängen „freigegeben“ und „abgelehnt“ – ein nicht verbundener Ausgang „abgelehnt“ lässt die Ausführung fehlschlagen). Die Entscheidung wird im Protokoll festgehalten.",
+      "fields": {
+        "mode": {
+          "label": "Modus"
+        },
+        "title": {
+          "label": "Titel"
+        },
+        "instructions": {
+          "label": "Anleitung (Markdown, Vorlagen erlaubt)"
+        },
+        "items": {
+          "label": "Einträge (Ausdruck, Auswahlmodus)"
+        },
+        "itemKey": {
+          "label": "Schlüsselfeld der Einträge"
+        },
+        "columns": {
+          "label": "Spalten"
+        },
+        "preselect": {
+          "label": "Vorauswahl (Ausdruck pro Eintrag, $item)"
+        },
+        "assignees": {
+          "label": "Wer entscheiden darf",
+          "help": "Benutzer, Teams oder Rollen. Leer = alle, die diesen Prozess ausführen oder freigeben dürfen."
+        },
+        "fourEyes": {
+          "label": "Vier-Augen-Prinzip: Wer die Ausführung gestartet hat, darf nicht entscheiden"
+        }
+      }
+    },
+    "check": {
+      "label": "Prüfung / Zusicherung",
+      "description": "Ein Prüfergebnis (bestanden/fehlgeschlagen) festhalten, z. B. für Statustests und Health Checks.",
+      "fields": {
+        "condition": {
+          "label": "Bestanden, wenn (Ausdruck)"
+        },
+        "severity": {
+          "label": "Schweregrad"
+        },
+        "message": {
+          "label": "Meldung"
+        },
+        "failRun": {
+          "label": "Ausführung abbrechen, wenn die Prüfung fehlschlägt"
+        }
+      }
+    },
+    "log": {
+      "label": "Log-Meldung",
+      "description": "Eine Meldung (und optionale Daten) in das Ausführungsprotokoll schreiben.",
+      "fields": {
+        "level": {
+          "label": "Stufe"
+        },
+        "message": {
+          "label": "Meldung"
+        },
+        "data": {
+          "label": "Daten (Ausdruck)"
+        }
+      }
+    },
+    "report": {
+      "label": "Berichtsabschnitt",
+      "description": "Einen Abschnitt mit Text und/oder Tabelle zum Ausführungsprotokoll hinzufügen.",
+      "fields": {
+        "title": {
+          "label": "Titel"
+        },
+        "text": {
+          "label": "Text (Markdown, Vorlagen erlaubt)"
+        },
+        "rows": {
+          "label": "Tabellenzeilen (Ausdruck)"
+        },
+        "columns": {
+          "label": "Spalten"
+        }
+      }
+    },
+    "browser": {
+      "label": "Browser-Automatisierung",
+      "description": "Steuert einen echten Browser (Playwright): Seiten öffnen, Formulare ausfüllen, klicken, Text auslesen und Screenshots als Nachweis erstellen. Alle Browser-Schritte einer Ausführung teilen sich eine Browser-Sitzung.",
+      "fields": {
+        "connection": {
+          "label": "Verbindung (für Basis-URL & Geheimnisse)"
+        },
+        "actions": {
+          "label": "Aktionen"
+        },
+        "mutating": {
+          "label": "Ändert Daten (im Probelauf überspringen)"
+        }
+      }
+    },
+    "publish": {
+      "label": "Im Dashboard veröffentlichen",
+      "description": "Speichert einen Schnappschuss von Zeilen (mit Status pro Zeile) und Kennzahlen in einer Datenquelle für Dashboards. Jede Ausführung ersetzt die Zeilen; Kennzahlen werden als Verlauf für Trends aufbewahrt. Dashboards lesen die gespeicherten Daten – sie rufen die Plattformen nie selbst auf.",
+      "fields": {
+        "dataset": {
+          "label": "Schlüssel der Datenquelle",
+          "help": "Dashboards verweisen auf diesen Schlüssel"
+        },
+        "title": {
+          "label": "Titel"
+        },
+        "rows": {
+          "label": "Zeilen (Ausdruck → Liste)"
+        },
+        "columns": {
+          "label": "Spalten (nur das, was das Dashboard braucht)"
+        },
+        "key": {
+          "label": "Zeilenschlüssel (Ausdruck pro Eintrag)"
+        },
+        "status": {
+          "label": "Status (Ausdruck pro Eintrag)",
+          "help": "good | warning | serious | critical | unknown"
+        },
+        "statusText": {
+          "label": "Statusbegründung (Ausdruck pro Eintrag)"
+        },
+        "metrics": {
+          "label": "Kennzahlen (Name → Zahlenausdruck)",
+          "help": "Werden für Trenddiagramme an den Verlauf angehängt"
+        },
+        "staleAfterMinutes": {
+          "label": "Veraltet nach (Minuten)"
+        },
+        "maxRows": {
+          "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)"
+        }
+      }
+    },
+    "subprocess": {
+      "label": "Unterprozess ausführen",
+      "description": "Führt einen anderen Prozess als einen Schritt aus (wiederverwendbare Bausteine). Die untergeordnete Ausführung erhält ein eigenes, mit dieser Ausführung verknüpftes Protokoll; ihre Ausgaben (Prozesseinstellung „Ausgaben“) werden zum Ergebnis dieses Knotens. „Fehler“ verbinden, um eine fehlgeschlagene untergeordnete Ausführung zu behandeln.",
+      "fields": {
+        "process": {
+          "label": "Prozess"
+        },
+        "version": {
+          "label": "Version (leer = aktuelle)"
+        },
+        "inputs": {
+          "label": "Eingaben (Eingabe des Unterprozesses → Vorlage)"
+        },
+        "connections": {
+          "label": "Verbindungen (Verbindung des Unterprozesses → Verbindung dieses Prozesses)",
+          "help": "Leer = gleiche Namen"
+        }
+      }
+    },
+    "wait": {
+      "label": "Warten",
+      "description": "Für eine Anzahl von Sekunden pausieren.",
+      "fields": {
+        "seconds": {
+          "label": "Sekunden"
+        }
+      }
+    },
+    "fail": {
+      "label": "Mit Fehler beenden",
+      "description": "Beendet die Ausführung mit einer Fehlermeldung.",
+      "fields": {
+        "message": {
+          "label": "Meldung"
+        }
+      }
+    }
+  },
+  "commonFields": {
+    "when": {
+      "label": "Nur ausführen, wenn (Ausdruck)",
+      "help": "Wird übersprungen, wenn falsch"
+    },
+    "saveAs": {
+      "label": "Ergebnis speichern als vars."
+    },
+    "onError": {
+      "label": "Bei Fehler"
+    }
+  },
+  "browserActions": {
+    "goto": "URL öffnen",
+    "click": "Klicken",
+    "fill": "Feld ausfüllen",
+    "press": "Taste drücken",
+    "select": "Option auswählen",
+    "check": "Kontrollkästchen ankreuzen",
+    "waitFor": "Auf Element warten",
+    "expectText": "Text erwarten",
+    "extract": "Text/Attribut auslesen",
+    "screenshot": "Screenshot (Nachweis)",
+    "wait": "Warten (ms)",
+    "evaluate": "JavaScript in der Seite ausführen"
+  },
+  "categories": {
+    "Flow": "Ablauf",
+    "API": "API",
+    "Data": "Daten",
+    "Control": "Steuerung",
+    "People": "Personen",
+    "Evidence": "Nachweise",
+    "Browser": "Browser"
+  },
+  "ports": {
+    "true": "wahr",
+    "false": "falsch",
+    "each": "je Element",
+    "done": "fertig",
+    "approved": "freigegeben",
+    "rejected": "abgelehnt",
+    "error": "Fehler"
+  },
+  "portHelp": {
+    "out": "Hier geht es weiter, wenn der Knoten fertig ist.",
+    "error": "Wird genommen, wenn der Knoten fehlschlägt. Ist er nicht verbunden, schlägt die Ausführung fehl (außer „Bei Fehler“ steht auf Fortfahren).",
+    "true": "Wird genommen, wenn die Bedingung wahr ist.",
+    "false": "Wird genommen, wenn die Bedingung falsch ist.",
+    "each": "Läuft einmal pro Element. Den letzten Knoten des Schleifenrumpfs nicht weiter verbinden – die Schleife fährt dann mit dem nächsten Element fort.",
+    "done": "Hier geht es weiter, nachdem alle Elemente verarbeitet sind.",
+    "approved": "Wird genommen, wenn die Aufgabe freigegeben wird (auch wenn der Knoten übersprungen wird).",
+    "rejected": "Wird genommen, wenn die Aufgabe abgelehnt wird. Ist er nicht verbunden, lässt eine Ablehnung die Ausführung fehlschlagen."
+  },
+  "summary": {
+    "start": "Hier beginnt die Ausführung",
+    "forEach": "je {{as}} in {{items}}",
+    "actions_one": "{{count}} Aktion",
+    "actions_other": "{{count}} Aktionen",
+    "subprocess": "führt {{process}} aus",
+    "subprocessVersion": "führt {{process}} v{{version}} aus",
+    "noProcess": "kein Prozess gewählt"
+  },
+  "options": {
+    "select": "Auswahl",
+    "approve": "Freigabe",
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Info",
+    "warn": "Warnung",
+    "fail": "fehlschlagen",
+    "continue": "fortfahren",
+    "json": "JSON",
+    "form": "Formular",
+    "text": "Text"
+  },
+  "palette": {
+    "search": "Knoten suchen",
+    "hint": "Auf die Arbeitsfläche ziehen oder zum Hinzufügen klicken."
+  },
+  "node": {
+    "ok": "ok",
+    "parallel": "×{{count}} parallel",
+    "parallelHint": "Bis zu {{count}} Elemente laufen gleichzeitig"
+  },
+  "defaults": {
+    "note": {
+      "text": "Kommentar"
+    },
+    "userTask": {
+      "title": "Bitte bestätigen"
+    },
+    "report": {
+      "title": "Zusammenfassung"
+    },
+    "fail": {
+      "message": "Gestoppt"
+    }
+  },
+  "flow": {
+    "copied_one": "{{count}} Knoten kopiert – mit {{key}} einfügen, auch in einem anderen Prozess",
+    "copied_other": "{{count}} Knoten kopiert – mit {{key}} einfügen, auch in einem anderen Prozess",
+    "properties": "Eigenschaften",
+    "duplicate": "Duplizieren",
+    "delete": "Löschen",
+    "deleteHint": "Löschen (Entf)",
+    "lastRun": "Letzte Ausführung",
+    "readOnlyHint": "Schreibgeschützt: einen Knoten auswählen, um seine Konfiguration zu sehen.",
+    "editHint": "Einen Knoten auswählen, um ihn zu bearbeiten. Von einem Ausgang (rechts) zu einem Eingang (links) ziehen, um Knoten zu verknüpfen. Eine Verknüpfung oder einen Knoten auswählen und Entf drücken, um ihn zu entfernen. {{copy}} / {{paste}} kopieren und fügen ausgewählte Knoten ein; {{undo}} macht rückgängig.",
+    "runHint": "Die Ausführung beginnt am Start-Knoten und folgt den Verknüpfungen. Hat ein Ausgang mehrere Verknüpfungen, laufen sie nacheinander von oben nach unten.",
+    "undo": "Rückgängig",
+    "undoHint": "Rückgängig ({{key}})",
+    "redo": "Wiederholen",
+    "redoHint": "Wiederholen ({{key}})",
+    "tidy": "Aufräumen",
+    "tidyHint": "Knoten automatisch anordnen",
+    "addNode": "Knoten hinzufügen"
+  },
+  "exprHelp": {
+    "title": "Hilfe zu Ausdrücken & Vorlagen",
+    "p1": "Ausdrücke verwenden <b>JSONata</b>. Vorlagenfelder akzeptieren Platzhalter der Form <c>{{placeholder}}</c>; ein Feld, das genau aus einem Platzhalter besteht, behält den Rohwert (Liste, Objekt, Zahl).",
+    "p2": "Für Vorschläge tippen (oder <c>Strg+Leertaste</c> drücken); der Wert unter einem Feld ist eine Live-Vorschau mit den Daten der letzten Ausführung. Bereich: <c>inputs.*</c> Eingaben der Ausführung · <c>vars.*</c> Knotenergebnisse (saveAs, set, Schleifenelemente) · <c>const.*</c> Konstanten · <c>run.id / run.dryRun / run.actor</c> · <slotvars/> Plattformvariablen.",
+    "p3": "Innerhalb von Filtern <c>[...]</c> ist der Kontext das aktuelle Element – dort <c>$inputs</c>, <c>$vars</c>, <c>$const</c> verwenden, z. B. <c>{{example}}</c>. <c>[]</c> anhängen, um immer eine Liste zu erhalten.",
+    "p4": "Hilfsfunktionen: <c>$daysSince(ts)</c> <c>$daysAgo(n)</c> <c>$ts(value)</c> <c>$uuid()</c> <c>$pvar(slot, name, default)</c> <c>$secret(slot, key)</c> (Wert wird in Logs geschwärzt) sowie alle JSONata-Funktionen ($count, $join, $filter, $lookup, $distinct, …).",
+    "p5": "Felder pro Eintrag (Spalten, Vorauswahl) werden gegen den Eintrag selbst ausgewertet: <c>userName</c>, <c>$item</c>."
+  },
+  "form": {
+    "idInvalid": "Nur Buchstaben, Ziffern und _",
+    "idUsed": "ID wird bereits von einem anderen Knoten verwendet",
+    "startHint": "Eingaben (werden beim Start einer Ausführung abgefragt) und Verbindungen (welche Plattformen der Prozess nutzt) werden im Reiter <b>Einstellungen</b> festgelegt.",
+    "nodeId": "Knoten-ID",
+    "nodeIdHint": "Eindeutig; wird in Ausführungsprotokollen verwendet",
+    "name": "Name",
+    "nameHint": "Wird auf der Arbeitsfläche und in Protokollen angezeigt",
+    "description": "Beschreibung",
+    "outputs": "Ausgänge",
+    "execution": "Ausführung",
+    "retryAttempts": "Versuche",
+    "retryAttemptsHint": "Versuche insgesamt einschl. des ersten (1–10)",
+    "retryDelay": "Wartezeit zwischen Versuchen (ms)"
+  },
+  "fields": {
+    "exprHint": "JSONata-Ausdruck, z. B. {{example}}",
+    "templateHint": "Text mit Platzhaltern der Form {{expr}}",
+    "default": "Standard",
+    "declareConnections": "Zuerst Verbindungen im Reiter „Einstellungen“ anlegen",
+    "valueOrExpr": "Wert oder {{expr}}",
+    "invalidYamlJson": "Ungültiges YAML/JSON",
+    "jsonHint": "JSON oder YAML. Zeichenketten dürfen {{exprs}} enthalten.",
+    "columnsHint": "Der Wert ist ein Ausdruck, der für jeden Eintrag ausgewertet wird (z. B. {{example}}).",
+    "columnLabel": "Bezeichnung",
+    "expression": "Ausdruck",
+    "columnValue": "Spaltenwert (Ausdruck)",
+    "up": "Nach oben",
+    "down": "Nach unten",
+    "addColumn": "Spalte hinzufügen",
+    "valueOf": "Wert von {{key}}",
+    "removeKey": "{{key}} entfernen",
+    "newKey": "Neu: {{label}}",
+    "notFound": "{{value}} (nicht gefunden)",
+    "processHint": "Der Prozess, der als ein Schritt ausgeführt wird",
+    "chooseProcess": "Prozess auswählen",
+    "noOtherProcess": "Kein anderer Prozess",
+    "selfReference": "Ein Prozess kann sich nicht selbst ausführen"
+  },
+  "paginate": {
+    "label": "Paginierung",
+    "hint": "Alle Seiten abrufen und die zusammengeführten Einträge als Body zurückgeben",
+    "none": "Keine (einzelne Anfrage)",
+    "scim": "SCIM (startIndex / count, z. B. Identity Management)",
+    "page": "Seitennummer (page / size, z. B. Asset Management)",
+    "offset": "Offset / Limit",
+    "nextLink": "Next-Link in der Antwort",
+    "pageSize": "Seitengröße",
+    "itemsPath": "Pfad der Einträge (Ausdruck)",
+    "pageParam": "Seitenparameter",
+    "sizeParam": "Größenparameter",
+    "totalPagesPath": "Pfad der Seitenanzahl",
+    "firstPage": "Nummer der ersten Seite",
+    "nextPath": "Pfad der nächsten URL",
+    "maxPages": "Max. Seiten (Sicherheitsgrenze)"
+  },
+  "actions": {
+    "label": "Aktionen",
+    "hint": "Playwright-Selektoren: {{selectors}}. Werte dürfen {{exprs}} enthalten, z. B. {{example}}.",
+    "action": "Aktion {{n}}",
+    "fields": {
+      "selector": "Selektor",
+      "value": "Wert",
+      "as": "Speichern als",
+      "attribute": "Attribut",
+      "name": "Name"
+    },
+    "valueLabels": {
+      "goto": "URL oder Pfad",
+      "press": "Taste (z. B. Enter)",
+      "expectText": "Erwarteter Text",
+      "wait": "Millisekunden",
+      "evaluate": "JavaScript"
+    },
+    "fullPage": "Ganze Seite",
+    "allMatches": "Alle Treffer (Liste)",
+    "timeout": "Zeitlimit (ms)",
+    "timeoutDefault": "Standard",
+    "add": "Aktion hinzufügen"
+  },
+  "inspector": {
+    "item": "Element {{n}}",
+    "input": "Eingabe",
+    "output": "Ausgabe",
+    "noData": "Keine Daten aufgezeichnet.",
+    "saveFirst": "Prozess speichern und ausführen, um Knoten zu untersuchen.",
+    "noRun": "Noch keine Ausführung – den Prozess ausführen (Probelauf), um zu sehen, was dieser Knoten getan hat.",
+    "runLine": "Ausführung <a>{{id}}</a> · {{status}} · {{when}}",
+    "runLineDry": "Ausführung <a>{{id}}</a> · {{status}} (Probelauf) · {{when}}",
+    "reload": "Neu laden",
+    "reloadLabel": "Letzte Ausführung neu laden",
+    "didNotRun": "Dieser Knoten wurde in der letzten Ausführung nicht ausgeführt.",
+    "activations_one": "{{count}} Durchlauf",
+    "activations_other": "{{count}} Durchläufe",
+    "showAll_one": "Alle {{count}} anzeigen",
+    "showAll_other": "Alle {{count}} anzeigen",
+    "varsBefore_one": "Variablen vor diesem Knoten ({{count}})",
+    "varsBefore_other": "Variablen vor diesem Knoten ({{count}})",
+    "varsUnavailable": "Variablen vor dem Knoten sind auf diesem Server nicht verfügbar."
+  },
+  "sub": {
+    "choose": "Einen Prozess wählen, um seine Eingaben und Verbindungen auszufüllen.",
+    "loading": "Prozess wird geladen…",
+    "open": "Prozess öffnen",
+    "loadFailed": "Der gewählte Prozess konnte nicht geladen werden: {{error}}",
+    "loadFailedVersion": "Der gewählte Prozess (v{{version}}) konnte nicht geladen werden: {{error}}",
+    "notFound": "nicht gefunden",
+    "childSlot": "Verbindung des Unterprozesses",
+    "pinned": "{{name}} · v{{version}} (festgelegt)",
+    "current": "{{name}} · v{{version}} (aktuell)",
+    "inputs": "Eingaben",
+    "inputsHint": "Werte, die an die untergeordnete Ausführung übergeben werden. Vorlagen werden in diesem Prozess ausgewertet. Leer = Standard des Unterprozesses.",
+    "noInputs": "Der Prozess hat keine Eingaben.",
+    "default": "Standard: {{value}}",
+    "required": "Vom Unterprozess verlangt",
+    "unknownInput": "Keine Eingabe dieses Prozesses – wird ignoriert",
+    "removeInput": "Eingabe {{name}} entfernen",
+    "connections": "Verbindungen",
+    "connectionsHint": "Welche Verbindungen dieses Prozesses der Unterprozess nutzt. Leer = gleicher Name.",
+    "noConnections": "Der Prozess nutzt keine Verbindungen.",
+    "connectionFor": "Verbindung für {{slot}} des Unterprozesses",
+    "sameName": "gleicher Name ({{slot}})",
+    "chooseConnection": "Verbindung wählen",
+    "noSuchConnection": "Dieser Prozess hat keine Verbindung „{{slot}}“",
+    "unknownConnection": "Unbekannte Verbindung",
+    "result": "Ergebnis",
+    "returns": "Der Unterprozess liefert <outputs/> – „Ergebnis speichern als“ setzen, um sie zu verwenden.",
+    "returnsSaved": "Der Unterprozess liefert <outputs/> – verfügbar als <path/>.",
+    "noOutputs": "Der Unterprozess deklariert keine Ausgaben (Einstellungen → Ausgaben)."
+  },
+  "settings": {
+    "general": "Allgemein",
+    "connections_one": "Verbindungen ({{count}})",
+    "connections_other": "Verbindungen ({{count}})",
+    "inputs_one": "Eingaben ({{count}})",
+    "inputs_other": "Eingaben ({{count}})",
+    "constants": "Konstanten",
+    "outputs_one": "Ausgaben ({{count}})",
+    "outputs_other": "Ausgaben ({{count}})",
+    "report": {
+      "title": "PDF-Bericht",
+      "auto": "PDF-Bericht automatisch erstellen, wenn eine Ausführung endet",
+      "autoHint": "Praktisch für geplante Ausführungen: Der Bericht wird mit der Ausführung archiviert, sein SHA-256 steht im Audit-Log. Berichte lassen sich jederzeit auch von Hand auf der Seite der Ausführung erstellen.",
+      "language": "Sprache des Berichts"
+    }
+  },
+  "general": {
+    "name": "Name",
+    "description": "Beschreibung",
+    "descriptionHint": "Beschreiben, was der Prozess tut, was vorausgesetzt wird und was zu beachten ist. Wird beim Start einer Ausführung angezeigt.",
+    "tags": "Tags",
+    "tagsHint": "Mit Enter hinzufügen"
+  },
+  "inputs": {
+    "hint": "Eingaben werden beim Start einer Ausführung abgefragt (oder in einem Zeitplan gespeichert) und stehen als <path/> zur Verfügung.",
+    "unnamed": "(ohne Namen)",
+    "name": "Name",
+    "label": "Bezeichnung",
+    "type": "Typ",
+    "options": "Optionen",
+    "columns": "Erwartete CSV-Spalten",
+    "description": "Beschreibung",
+    "required": "Pflichtfeld",
+    "add": "Eingabe hinzufügen",
+    "default": "Standard",
+    "defaultList": "Standard (ein Wert pro Zeile)",
+    "defaultCsv": "Standard-CSV",
+    "defaultJson": "Standard-JSON"
+  },
+  "inputTypes": {
+    "string": "Text",
+    "number": "Zahl",
+    "boolean": "Ja/Nein",
+    "select": "Auswahl",
+    "list": "Liste",
+    "table": "Tabelle (CSV)",
+    "json": "JSON"
+  },
+  "connections": {
+    "hint": "Verbindungen halten den Prozess plattformunabhängig: Schritte verweisen auf eine Verbindung (z. B. <c>hub</c>), und die konkrete Plattform wird beim Start der Ausführung gewählt. Optional lässt sich eine Verbindung auf eine Plattformart beschränken.",
+    "slot": "Verbindung",
+    "kind": "Plattformart",
+    "anyKind": "beliebig",
+    "description": "Beschreibung",
+    "add": "Verbindung hinzufügen"
+  },
+  "constants": {
+    "notMapping": "Konstanten müssen eine Zuordnung sein (Schlüssel: Wert)",
+    "invalid": "Ungültiges YAML",
+    "hint": "Statische Konfiguration, verfügbar als <c>const.*</c> (bzw. <c>$const</c> in Filtern), z. B. Gruppenpakete für das Onboarding. YAML oder JSON."
+  },
+  "source": {
+    "validateFailed": "Validierung nicht möglich",
+    "hint": "Die vollständige Prozessdefinition als YAML (Knoten + Verknüpfungen). Das kompakte sequenzielle Format (<c>steps:</c> mit verschachtelten Schleifen und Verzweigungen) kann ebenfalls eingefügt werden – es wird in einen Ablauf umgewandelt. „In den Editor übernehmen“ klicken und anschließend speichern, um eine neue Version zu erstellen.",
+    "applied": "Übernommen – die Definition ist gültig.",
+    "apply": "In den Editor übernehmen",
+    "reset": "Auf Editor-Stand zurücksetzen"
+  },
+  "issues": {
+    "count_one": "{{count}} Problem",
+    "count_other": "{{count}} Probleme",
+    "warnings_one": "{{count}} Warnung",
+    "warnings_other": "{{count}} Warnungen",
+    "refused_one": "{{count}} Problem – Speichern wird abgelehnt",
+    "refused_other": "{{count}} Probleme – Speichern wird abgelehnt"
+  },
+  "versions": {
+    "hint": "Jedes Speichern erzeugt eine neue, unveränderliche Version. Ausführungen halten die genaue Version und ihren Hash fest.",
+    "compare": "Versionen vergleichen",
+    "version": "Version",
+    "saved": "Gespeichert",
+    "author": "Autor",
+    "comment": "Kommentar",
+    "hash": "Hash",
+    "current": "v{{version}} (aktuell)",
+    "view": "Ansehen",
+    "title": "Version v{{version}}",
+    "hashLine": "Hash {{hash}}",
+    "restore": "Als Arbeitskopie wiederherstellen"
+  },
+  "outputs": {
+    "duplicate": "Name doppelt vergeben",
+    "hint": "Werte, die zurückgegeben werden, wenn dieser Prozess als Unterprozess läuft. Jeder Wert ist ein Ausdruck, der am Ende der Ausführung ausgewertet wird, z. B. <example/>. Der aufrufende Prozess erhält sie als Knotenergebnis (<path/>).",
+    "name": "Name der Ausgabe",
+    "namePlaceholder": "Name",
+    "expressionFor": "Ausdruck für Ausgabe {{name}}",
+    "expressionPlaceholder": "Ausdruck, z. B. {{example}}",
+    "remove": "Ausgabe {{name}} entfernen",
+    "add": "Ausgabe hinzufügen"
+  },
+  "page": {
+    "loadFailed": "Prozess konnte nicht geladen werden: {{error}}",
+    "noRuns": "noch keine Ausführungen",
+    "unsaved": "ungespeicherte Änderungen",
+    "exportYaml": "YAML exportieren",
+    "run": "Ausführen",
+    "readOnly": "schreibgeschützt",
+    "tabs": {
+      "flow": "Ablauf",
+      "settings": "Einstellungen",
+      "source": "Quelltext",
+      "versions": "Versionen",
+      "access": "Zugriff"
+    },
+    "viewOnly": "Sie dürfen diesen Prozess ansehen, aber nicht ändern",
+    "restored": "Version v{{version}} als Arbeitskopie geladen – speichern, um sie zur aktuellen Version zu machen.",
+    "accessSaved": "Zugriff gespeichert",
+    "accessNotSaved": "Zugriff nicht gespeichert",
+    "unsavedTitle": "Ungespeicherte Änderungen",
+    "unsavedText": "Ausführungen verwenden immer eine gespeicherte Version. Ihre aktuellen Änderungen sind noch nicht gespeichert – die Ausführung würde v{{version}} verwenden.",
+    "runVersion": "v{{version}} ausführen",
+    "saveFirst": "Zuerst speichern"
+  },
+  "save": {
+    "saved": "Als Version v{{version}} gespeichert",
+    "notSaved": "Nicht gespeichert",
+    "title": "Neue Version speichern",
+    "comment": "Änderungskommentar (optional)",
+    "commentHint": "Wird mit der Version und im Audit-Log gespeichert",
+    "validationFailed": "Validierung fehlgeschlagen"
+  },
+  "validation": {
+    "duplicateNodeId": "Knoten-ID „{{id}}“ ist doppelt vergeben",
+    "unknownConnection": "Unbekannte Verbindung „{{slot}}“. Unter Verbindungen anlegen.",
+    "selectNeedsItems": "Auswahlaufgaben benötigen einen Ausdruck für „Einträge“",
+    "invalidSlotName": "Ungültiger Verbindungsname „{{slot}}“",
+    "unknownSubprocessConnection": "Unbekannte Verbindung „{{slot}}“ für die Verbindung „{{childSlot}}“ des Unterprozesses. Unter Verbindungen anlegen.",
+    "invalidInputName": "Ungültiger Eingabename „{{name}}“",
+    "whenOnIf": "„Nur ausführen, wenn“ wird bei Wenn-Knoten nicht unterstützt – stattdessen in die Bedingung aufnehmen",
+    "invalidOutputName": "Ungültiger Ausgabename „{{name}}“ (nur Buchstaben, Ziffern und _)",
+    "startCount": "Ein Prozess braucht genau einen Start-Knoten (gefunden: {{count}})",
+    "wireUnknownNode": "Verknüpfung verweist auf einen unbekannten Knoten ({{from}} → {{to}})",
+    "unknownPort": "Knoten „{{id}}“ hat keinen Ausgang „{{port}}“",
+    "noInput": "Knoten „{{id}}“ kann keine Verknüpfungen empfangen",
+    "duplicateWire": "Doppelte Verknüpfung",
+    "cycle": "Verknüpfungen bilden einen Kreis ({{cycle}}). Für Schleifen einen „Für jedes Element“-Knoten verwenden.",
+    "unreachable": "„{{name}}“ ist nicht mit dem Start-Knoten verbunden und wird nie ausgeführt"
+  },
+  "diff": {
+    "none": "Keine Unterschiede.",
+    "node": {
+      "added": "hinzugefügt",
+      "removed": "entfernt",
+      "changed": "geändert"
+    },
+    "added_one": "{{count}} hinzugefügt",
+    "added_other": "{{count}} hinzugefügt",
+    "removed_one": "{{count}} entfernt",
+    "removed_other": "{{count}} entfernt",
+    "changed_one": "{{count}} geändert",
+    "changed_other": "{{count}} geändert",
+    "moved_one": "{{count}} verschoben",
+    "moved_other": "{{count}} verschoben",
+    "wires": "Verknüpfungen +{{added}} −{{removed}}",
+    "settings": "Einstellungen: {{list}}",
+    "workingCopyUnsaved": "Arbeitskopie (ungespeichert)",
+    "workingCopy": "Arbeitskopie",
+    "onlyOne": "Bisher gibt es nur eine Version – noch nichts zu vergleichen.",
+    "from": "Von",
+    "to": "Bis",
+    "loadFailed": "Version konnte nicht geladen werden: {{error}}",
+    "contextOnly": "Nur geänderte Zeilen mit Kontext"
+  },
+  "api": {
+    "lookUpOn": "Operationen nachschlagen auf",
+    "kindHint": "Plattformen der Art {{kind}} (mit importierter API-Spezifikation)",
+    "anyHint": "Jede Plattform mit importierter API-Spezifikation",
+    "selectPlatform": "Plattform auswählen",
+    "noPlatforms": "Keine passenden Plattformen",
+    "title": "API-Operation",
+    "change": "Ändern",
+    "pick": "Aus API-Spezifikation wählen",
+    "connectionFirst": "Zuerst eine Verbindung auswählen.",
+    "loadingSpec": "Spezifikation wird geladen…",
+    "notInSpec": "in den Spezifikationen der gewählten Plattform nicht gefunden.",
+    "noSpecPlatform": "keine Plattform mit Spezifikation zum Nachschlagen.",
+    "pickTitle": "API-Operation auswählen",
+    "search": "Pfad, Zusammenfassung, operationId suchen…",
+    "noSpec": "Diese Plattform hat noch keine API-Spezifikation. Auf der Plattformseite hochladen (Reiter „API-Spezifikationen“).",
+    "more": "mehr",
+    "less": "weniger",
+    "methodDiffers": "Der Knoten verwendet {{node}}, die Operation aber {{op}}.",
+    "useMethod": "{{method}} verwenden",
+    "pathEdited": "Der Pfad wurde von Hand bearbeitet und passt nicht mehr zu <path>{{path}}</path>. Das Bearbeiten eines Pfadparameters unten baut ihn neu auf.",
+    "parameters": "Parameter",
+    "insertBody": "Beispiel-Body einfügen",
+    "acceptCodes": "Dokumentierte Erfolgscodes übernehmen ({{codes}})"
+  },
+  "functions": {
+    "daysSince": "Tage seit einem Zeitstempel (ISO oder Epoch). Leer → undefined.",
+    "daysAgo": "ISO-Zeitstempel vor n Tagen.",
+    "ts": "Zeitstempel in Epoch-Millisekunden umwandeln.",
+    "uuid": "Eine zufällige UUID.",
+    "pvar": "Plattformvariable einer Verbindung.",
+    "secret": "Geheimnis einer Verbindung (wird in Logs geschwärzt).",
+    "count": "Anzahl der Elemente.",
+    "sum": "Summe von Zahlen.",
+    "max": "Größte Zahl.",
+    "min": "Kleinste Zahl.",
+    "average": "Mittelwert von Zahlen.",
+    "join": "Zeichenketten verbinden.",
+    "split": "Zeichenkette in eine Liste aufteilen.",
+    "string": "In eine Zeichenkette umwandeln (Objekte → JSON).",
+    "number": "In eine Zahl umwandeln.",
+    "boolean": "In true/false umwandeln.",
+    "not": "Logisches Nicht.",
+    "exists": "true, wenn der Wert definiert ist.",
+    "length": "Länge einer Zeichenkette.",
+    "lowercase": "Kleinbuchstaben.",
+    "uppercase": "Großbuchstaben.",
+    "trim": "Umgebende Leerzeichen entfernen.",
+    "substring": "Teil einer Zeichenkette.",
+    "substringBefore": "Text vor dem ersten Vorkommen.",
+    "substringAfter": "Text nach dem ersten Vorkommen.",
+    "contains": "true, wenn die Zeichenkette das Muster enthält.",
+    "replace": "Text oder Regex-Treffer ersetzen.",
+    "match": "Regex-Treffer.",
+    "pad": "Zeichenkette auffüllen.",
+    "keys": "Schlüssel eines Objekts.",
+    "lookup": "Wert eines Schlüssels.",
+    "merge": "Objekte zu einem zusammenführen.",
+    "each": "Über Schlüssel/Wert-Paare abbilden.",
+    "map": "Jedes Element umwandeln.",
+    "filter": "Passende Elemente behalten.",
+    "reduce": "Liste zu einem Wert zusammenfassen.",
+    "sort": "Liste sortieren.",
+    "reverse": "Liste umkehren.",
+    "distinct": "Duplikate entfernen.",
+    "append": "Listen verketten.",
+    "zip": "Listen elementweise kombinieren.",
+    "now": "Aktuelle Zeit als ISO-Zeichenkette.",
+    "millis": "Aktuelle Zeit in Epoch-Millisekunden.",
+    "fromMillis": "Epoch-Millisekunden → ISO-Zeichenkette.",
+    "toMillis": "ISO-Zeichenkette → Epoch-Millisekunden.",
+    "round": "Zahl runden.",
+    "floor": "Abrunden.",
+    "ceil": "Aufrunden.",
+    "abs": "Absolutwert.",
+    "type": "Typname eines Werts.",
+    "base64encode": "Base64-kodieren.",
+    "base64decode": "Base64-dekodieren.",
+    "encodeUrlComponent": "Wert URL-kodieren."
+  },
+  "suggest": {
+    "loopItem": "aktuelles Schleifenelement",
+    "loopIndex": "Schleifenindex (ab 0)",
+    "input": "Eingabe",
+    "constant": "Konstante",
+    "field": "Feld",
+    "resultOf": "Ergebnis von {{node}}",
+    "setBy": "gesetzt von {{node}}",
+    "loopItemOutside": "Schleifenelement (innerhalb seiner Schleife)",
+    "connection": "Verbindung",
+    "platformName": "Plattformname",
+    "platformVariable": "Plattformvariable",
+    "runId": "ID der Ausführung",
+    "dryRun": "true im Probelauf",
+    "actor": "wer die Ausführung gestartet hat",
+    "startedAt": "Startzeit",
+    "item": "aktueller Eintrag (Felder pro Eintrag)",
+    "inputsInFilters": "Eingaben innerhalb von Filtern [ ]",
+    "varsInFilters": "Variablen innerhalb von Filtern [ ]",
+    "constInFilters": "Konstanten innerhalb von Filtern [ ]",
+    "rootInputs": "Eingaben der Ausführung",
+    "rootVars": "Knotenergebnisse, Schleifenelemente",
+    "rootConst": "Konstanten",
+    "rootConn": "Verbindungen",
+    "rootRun": "Infos zur Ausführung",
+    "rootFunctions": "Funktionen"
+  },
+  "expr": {
+    "suggestions": "Vorschläge",
+    "keys": "↑↓ wählen · Enter/Tab einfügen · Esc schließen",
+    "saveToPreview": "Prozess speichern, um Werte in der Vorschau zu sehen.",
+    "previewUnavailable": "Die Live-Vorschau ist auf diesem Server nicht verfügbar.",
+    "evaluating": "Wird ausgewertet…",
+    "previewFailed": "Vorschau fehlgeschlagen: {{error}}",
+    "error": "Fehler",
+    "collapse": "Einklappen",
+    "collapseValue": "Wert einklappen",
+    "showFull": "Vollständigen Wert anzeigen",
+    "usingRun": "Daten der Ausführung <a>{{id}}</a>",
+    "noRun": "Noch keine Ausführung – den Prozess ausführen (Probelauf), um eine Vorschau mit Daten zu sehen"
+  }
+}

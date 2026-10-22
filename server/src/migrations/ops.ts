@@ -48,4 +48,9 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     CREATE INDEX api_tokens_user ON api_tokens(user_id);
     `,
   },
+  {
+    // Preferred language per user (UI and notifications); NULL = not chosen, Settings.defaultLocale applies.
+    name: 'ops-003-user-locale',
+    sql: `ALTER TABLE users ADD COLUMN locale TEXT;`,
+  },
 ];

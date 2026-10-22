@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
+  LOCALE_CODES,
   API_DOCS_MODES,
   ROLES,
   validateProcess,
@@ -75,7 +76,7 @@ const platformBody = z.object({
 
 const me = (): AuthUser => {
   const u = currentUser();
-  if (!u) throw new HttpError(401, 'Please sign in');
+  if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
 
@@ -364,8 +365,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .listUsers()
       .filter((u: UserInfo) => u.active)
       .map((u) => ({ value: `user:${u.username.toLowerCase()}`, label: `${u.displayName} (${u.username})`, kind: 'user' as const })),
-    ...users.listTeams().map((t) => ({ value: `team:${t.name.toLowerCase()}`, label: `Team ${t.name}`, kind: 'team' as const })),
-    ...ROLES.map((r) => ({ value: `role:${r}`, label: `Everyone with role ${r}`, kind: 'role' as const })),
+    ...users.listTeams().map((t) => ({ value: `team:${t.name.toLowerCase()}`, label: `Team ${t.name}`, kind: 'team' as const, name: t.name })),
+    ...ROLES.map((r) => ({ value: `role:${r}`, label: `Everyone with role ${r}`, kind: 'role' as const, name: r })),
   ];
 
   // ---------- settings ----------
@@ -382,6 +383,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
         retentionNotificationDays: z.number().int().min(1).max(3650).optional(),
+        defaultLocale: z.enum(LOCALE_CODES).optional(),
         apiDocs: z.enum(API_DOCS_MODES).optional(),
       })
       .parse(req.body);

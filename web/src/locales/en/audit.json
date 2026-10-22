@@ -1,0 +1,35 @@
+{
+  "title": "Audit log",
+  "description": "Append-only record of everything done with this tool. Entries are chained and signed (HMAC) with a key derived from your master passphrase, so edits or deletions are detected.",
+  "verify": "Verify chain",
+  "export": "Export",
+  "jsonl": "JSON lines (with hashes)",
+  "intact": "Audit chain intact",
+  "broken": "Audit chain broken",
+  "intactText_one": "The entry is intact.",
+  "intactText_other": "All {{count}} entries are intact.",
+  "brokenText": "The chain breaks at entry #{{seq}} ({{message}}).",
+  "search": "Search",
+  "allCategories": "All categories",
+  "category": "Category",
+  "categories": {
+    "run": "Runs",
+    "api": "API calls",
+    "task": "Decisions",
+    "check": "Checks",
+    "platform": "Platforms",
+    "process": "Processes",
+    "schedule": "Schedules",
+    "vault": "Vault",
+    "report": "Reports"
+  },
+  "table": {
+    "time": "Time",
+    "actor": "Actor",
+    "action": "Action",
+    "summary": "Summary",
+    "run": "run",
+    "hash": "hash {{hash}}"
+  },
+  "loadOlder": "Load older entries"
+}

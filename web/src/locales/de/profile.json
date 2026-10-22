@@ -1,0 +1,82 @@
+{
+  "tokens": {
+    "owner": "Eigentümer",
+    "token": "Token",
+    "scope": "Umfang",
+    "created": "Erstellt",
+    "lastUsed": "Zuletzt verwendet",
+    "expires": "Läuft ab",
+    "status": "Status",
+    "full": "Vollzugriff",
+    "read": "nur lesen",
+    "never": "nie",
+    "states": {
+      "revoked": "widerrufen",
+      "expired": "abgelaufen",
+      "active": "aktiv"
+    },
+    "revoke": "Token widerrufen",
+    "revokeNamed": "Token {{name}} widerrufen",
+    "revokeConfirm": "Token „{{name}}“ widerrufen? Skripte, die es verwenden, funktionieren sofort nicht mehr.",
+    "revoked": "Token widerrufen",
+    "title": "API-Token",
+    "hint": "Für Skripte und andere Tools. Ein Token handelt mit Ihren Rechten.",
+    "new": "Neues Token",
+    "unavailable": "API-Token sind auf diesem Server nicht verfügbar.",
+    "none": "Noch keine Token.",
+    "example": "Beispiel:",
+    "createdTitle": "Token erstellt",
+    "copyNow": "Token jetzt kopieren. Es wird nur einmal angezeigt und lässt sich nicht wiederherstellen.",
+    "useLike": "So verwenden:",
+    "done": "Fertig",
+    "notCreated": "Token nicht erstellt",
+    "newTitle": "Neues API-Token",
+    "nameHint": "Wofür das Token gedacht ist, z. B. „Nächtliches Berichtsskript“",
+    "access": "Zugriff",
+    "readOnly": "Nur lesen",
+    "fullAccess": "Vollzugriff",
+    "readHint": "Kann nur Daten lesen (GET-Anfragen).",
+    "fullHint": "Kann alles, was Sie dürfen, einschließlich Ausführungen starten und Daten ändern.",
+    "expiresAfter": "Läuft ab nach (Tagen)",
+    "expiresHint": "Leer lassen für ein Token, das nie abläuft",
+    "create": "Token erstellen",
+    "exampleReadOnly": "Beispiel (ein Token mit Lesezugriff genügt):"
+  },
+  "title": "Profil",
+  "description": "Ihr Konto, Ihre Sprache, Benachrichtigungen und API-Token.",
+  "notSaved": "Nicht gespeichert",
+  "language": {
+    "title": "Sprache",
+    "label": "Sprache",
+    "hint": "Für die Oberfläche, In-App-Benachrichtigungen und E-Mails an Sie.",
+    "notChosen": "Noch nicht gewählt – die Oberfläche folgt Ihrem Browser, Nachrichten verwenden die Standardsprache des Servers."
+  },
+  "account": {
+    "saved": "Profil gespeichert",
+    "title": "Konto",
+    "username": "Benutzername",
+    "displayName": "Anzeigename",
+    "email": "E-Mail",
+    "ssoHint": "Name und E-Mail-Adresse stammen von Ihrem Single-Sign-on-Anbieter und werden bei der Anmeldung aktualisiert."
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "intro": "Die Glocke in der Kopfzeile zeigt immer Ihre Benachrichtigungen. Administratoren legen fest, welche Ereignisse über welchen Kanal gesendet werden.",
+    "email": "E-Mail-Benachrichtigungen",
+    "emailHint": "Werden an {{email}} gesendet, sobald E-Mail auf diesem Server eingerichtet ist.",
+    "emailMissing": "Zuerst eine E-Mail-Adresse im Konto hinterlegen.",
+    "browser": "Browser-Benachrichtigungen",
+    "browserUnsupported": "Dieser Browser unterstützt keine Benachrichtigungen.",
+    "browserDenied": "Vom Browser blockiert. Benachrichtigungen für diese Seite in den Browsereinstellungen erlauben und erneut versuchen.",
+    "browserHint": "Zeigt eine Systembenachrichtigung auf diesem Gerät, solange die App in einem Tab geöffnet ist.",
+    "testTitle": "Testbenachrichtigung",
+    "testBody": "Browser-Benachrichtigungen funktionieren.",
+    "test": "Testbenachrichtigung anzeigen"
+  },
+  "password": {
+    "title": "Passwort",
+    "hint": "Das Passwort für die Anmeldung ändern.",
+    "change": "Passwort ändern",
+    "changed": "Passwort geändert"
+  }
+}

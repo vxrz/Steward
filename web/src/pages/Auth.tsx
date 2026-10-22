@@ -1,26 +1,31 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Button, Center, Collapse, Divider, Group, Paper, PasswordInput, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import { Alert, Anchor, Badge, Box, Button, Center, Collapse, Divider, Group, Paper, PasswordInput, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Trans, useTranslation } from 'react-i18next';
 import type { AuthStatus } from '@sm/shared';
 import { post } from '../api';
 import { SsoButtons, SsoErrorAlert, useSsoError } from '../components/sso/SsoButtons';
 import { AppFooter } from '../components/brand/AppFooter';
 import { Logo } from '../components/brand/Logo';
+import { LanguageMenu } from '../components/LanguageSwitcher';
+import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 
-const POLICY = 'At least 10 characters, letters plus a digit or symbol.';
+type PolicyError = 'policyTooShort' | 'policyCharacters';
 
-function policyError(pw: string): string | null {
-  if (pw.length < 10) return 'Password must have at least 10 characters';
-  if (!/[A-Za-z]/.test(pw) || !/[^A-Za-z]/.test(pw)) return 'Use letters and at least one digit or symbol';
+function policyError(pw: string): PolicyError | null {
+  if (pw.length < 10) return 'policyTooShort';
+  if (!/[A-Za-z]/.test(pw) || !/[^A-Za-z]/.test(pw)) return 'policyCharacters';
   return null;
 }
 
 function Card({ icon, title, intro, children }: { icon: ReactNode; title: string; intro?: ReactNode; children: ReactNode }) {
   return (
     <Stack mih="100vh" p="md" gap={0} justify="space-between" align="center">
-      <div />
+      <Group w="100%" justify="flex-end">
+        <LanguageMenu />
+      </Group>
       <Paper withBorder shadow="sm" p="xl" w="100%" maw={440}>
         <Stack>
           <Center>{icon}</Center>
@@ -46,6 +51,7 @@ function useRefreshAuth() {
 }
 
 export function SetupPage({ status }: { status: AuthStatus }) {
+  const { t } = useTranslation('auth');
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
   const [passphrase2, setPassphrase2] = useState('');
@@ -59,16 +65,16 @@ export function SetupPage({ status }: { status: AuthStatus }) {
 
   const submit = async () => {
     setError(null);
-    if (!existingVault && passphrase !== passphrase2) return setError('Passphrases do not match');
-    if (password !== password2) return setError('Passwords do not match');
+    if (!existingVault && passphrase !== passphrase2) return setError(t('passphrasesDiffer'));
+    if (password !== password2) return setError(t('passwordsDiffer'));
     const pe = policyError(password);
-    if (pe) return setError(pe);
+    if (pe) return setError(t(pe));
     setBusy(true);
     try {
       await post('/auth/setup', { passphrase, username: username.trim(), displayName: displayName.trim() || undefined, password });
       await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -77,12 +83,8 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   return (
     <Card
       icon={<IconShieldLock size={40} stroke={1.4} />}
-      title={`Set up ${BRAND.name}`}
-      intro={
-        existingVault
-          ? 'This installation has no user accounts yet. Enter the existing master passphrase and create the first administrator.'
-          : 'Choose a master passphrase and create the first administrator account.'
-      }
+      title={t('setup.title', { brand: BRAND.name })}
+      intro={existingVault ? t('setup.introExistingVault') : t('setup.intro')}
     >
       <form
         onSubmit={(e) => {
@@ -93,29 +95,41 @@ export function SetupPage({ status }: { status: AuthStatus }) {
         <Stack>
           <Alert variant="light" color="blue" p="xs">
             <Text size="xs">
-              The <b>master passphrase</b> encrypts all platform credentials and signs the audit log. It is needed after every restart
-              to unlock the tool (or set <code>SM_MASTER_PASSPHRASE</code>). It cannot be recovered – keep it safe, e.g. in your company
-              password manager.
+              <Trans t={t} i18nKey="setup.passphraseInfo" components={{ b: <b />, code: <code /> }} />
             </Text>
           </Alert>
-          <PasswordInput label="Master passphrase" required value={passphrase} onChange={(e) => setPassphrase(e.currentTarget.value)} autoFocus />
+          <PasswordInput label={t('masterPassphrase')} required value={passphrase} onChange={(e) => setPassphrase(e.currentTarget.value)} autoFocus />
           {!existingVault && (
-            <PasswordInput label="Repeat passphrase" required value={passphrase2} onChange={(e) => setPassphrase2(e.currentTarget.value)} />
+            <PasswordInput label={t('setup.repeatPassphrase')} required value={passphrase2} onChange={(e) => setPassphrase2(e.currentTarget.value)} />
           )}
           <Text fw={600} size="sm" mt="xs">
-            First administrator
+            {t('setup.firstAdmin')}
           </Text>
-          <TextInput label="User name" required value={username} onChange={(e) => setUsername(e.currentTarget.value)} placeholder="e.g. jdoe" autoComplete="username" />
-          <TextInput label="Display name" value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} placeholder="e.g. Jane Doe" />
-          <PasswordInput label="Password" description={POLICY} required value={password} onChange={(e) => setPassword(e.currentTarget.value)} autoComplete="new-password" />
-          <PasswordInput label="Repeat password" required value={password2} onChange={(e) => setPassword2(e.currentTarget.value)} autoComplete="new-password" />
+          <TextInput
+            label={t('username')}
+            required
+            value={username}
+            onChange={(e) => setUsername(e.currentTarget.value)}
+            placeholder={t('setup.usernamePlaceholder')}
+            autoComplete="username"
+          />
+          <TextInput label={t('displayName')} value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} placeholder={t('setup.displayNamePlaceholder')} />
+          <PasswordInput
+            label={t('password')}
+            description={t('policy')}
+            required
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            autoComplete="new-password"
+          />
+          <PasswordInput label={t('repeatPassword')} required value={password2} onChange={(e) => setPassword2(e.currentTarget.value)} autoComplete="new-password" />
           {error && <Alert color="red">{error}</Alert>}
           <Button type="submit" loading={busy} disabled={passphrase.length < 8 || !username.trim() || !password}>
-            {existingVault ? 'Create administrator' : 'Set up'}
+            {existingVault ? t('setup.createAdmin') : t('setup.submit')}
           </Button>
           {status.demo && (
             <Text size="xs" c="dimmed" ta="center">
-              Demo mode – pick any passphrase (min. 8 characters).
+              {t('setup.demoHint')}
             </Text>
           )}
         </Stack>
@@ -124,9 +138,18 @@ export function SetupPage({ status }: { status: AuthStatus }) {
   );
 }
 
+function lastUser(): string {
+  try {
+    return localStorage.getItem('sm.lastUser') ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function LoginPage({ status }: { status: AuthStatus }) {
+  const { t } = useTranslation('auth');
   const refresh = useRefreshAuth();
-  const [username, setUsername] = useState(localStorage.getItem('sm.lastUser') ?? '');
+  const [username, setUsername] = useState(lastUser);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -144,7 +167,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
       }
       await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -162,9 +185,16 @@ export function LoginPage({ status }: { status: AuthStatus }) {
       }}
     >
       <Stack>
-        <TextInput label="User name" required value={username} onChange={(e) => setUsername(e.currentTarget.value)} autoFocus={!ssoFirst && !username} autoComplete="username" />
+        <TextInput
+          label={t('username')}
+          required
+          value={username}
+          onChange={(e) => setUsername(e.currentTarget.value)}
+          autoFocus={!ssoFirst && !username}
+          autoComplete="username"
+        />
         <PasswordInput
-          label="Password"
+          label={t('password')}
           required
           value={password}
           onChange={(e) => setPassword(e.currentTarget.value)}
@@ -173,24 +203,24 @@ export function LoginPage({ status }: { status: AuthStatus }) {
         />
         {error && <Alert color="red">{error}</Alert>}
         <Button type="submit" loading={busy} disabled={!username.trim() || !password} variant={ssoFirst ? 'light' : 'filled'}>
-          Sign in
+          {t('login.submit')}
         </Button>
       </Stack>
     </form>
   );
 
   return (
-    <Card icon={<Logo size={48} title={BRAND.name} />} title={`Sign in to ${BRAND.name}`}>
+    <Card icon={<Logo size={48} title={BRAND.name} />} title={t('login.title', { brand: BRAND.name })}>
       <SsoErrorAlert error={ssoError} onClose={clearSsoError} />
       {ssoFirst ? (
         <>
           <SsoButtons providers={providers} />
           <Divider />
           <UnstyledButton onClick={() => setShowPassword((v) => !v)}>
-            <Group gap={4}>
+            <Group gap={4} wrap="nowrap">
               {showPassword ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
               <Text size="sm" c="dimmed">
-                Administrator sign-in (break-glass)
+                {t('login.breakGlass')}
               </Text>
             </Group>
           </UnstyledButton>
@@ -201,7 +231,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
           {passwordForm}
           {providers.length > 0 && (
             <>
-              <Divider label="or" labelPosition="center" />
+              <Divider label={t('login.or')} labelPosition="center" />
               <SsoButtons providers={providers} />
             </>
           )}
@@ -209,12 +239,12 @@ export function LoginPage({ status }: { status: AuthStatus }) {
       )}
       {!status.unlocked && (
         <Text size="xs" c="dimmed" ta="center">
-          The vault is locked. After signing in, an administrator can unlock it.
+          {t('login.vaultLocked')}
         </Text>
       )}
       {status.demo && (
         <Text size="xs" c="dimmed" ta="center">
-          Demo mode · v{status.version}
+          {t('login.demo', { version: status.version })}
         </Text>
       )}
     </Card>
@@ -222,6 +252,7 @@ export function LoginPage({ status }: { status: AuthStatus }) {
 }
 
 export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDone?: () => void }) {
+  const { t } = useTranslation('auth');
   const refresh = useRefreshAuth();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
@@ -230,16 +261,16 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     setError(null);
-    if (next !== next2) return setError('New passwords do not match');
+    if (next !== next2) return setError(t('changePassword.newPasswordsDiffer'));
     const pe = policyError(next);
-    if (pe) return setError(pe);
+    if (pe) return setError(t(pe));
     setBusy(true);
     try {
       await post('/auth/password', { current, next });
       await refresh();
       onDone?.();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
@@ -253,18 +284,25 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
     >
       <Stack>
         <PasswordInput
-          label={forced ? 'Temporary password' : 'Current password'}
+          label={forced ? t('changePassword.temporary') : t('changePassword.current')}
           required
           value={current}
           onChange={(e) => setCurrent(e.currentTarget.value)}
           autoComplete="current-password"
           autoFocus
         />
-        <PasswordInput label="New password" description={POLICY} required value={next} onChange={(e) => setNext(e.currentTarget.value)} autoComplete="new-password" />
-        <PasswordInput label="Repeat new password" required value={next2} onChange={(e) => setNext2(e.currentTarget.value)} autoComplete="new-password" />
+        <PasswordInput
+          label={t('changePassword.new')}
+          description={t('policy')}
+          required
+          value={next}
+          onChange={(e) => setNext(e.currentTarget.value)}
+          autoComplete="new-password"
+        />
+        <PasswordInput label={t('changePassword.repeatNew')} required value={next2} onChange={(e) => setNext2(e.currentTarget.value)} autoComplete="new-password" />
         {error && <Alert color="red">{error}</Alert>}
         <Button type="submit" loading={busy} disabled={!current || !next}>
-          Change password
+          {t('changePassword.submit')}
         </Button>
       </Stack>
     </form>
@@ -272,21 +310,19 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
 }
 
 export function ForcedPasswordChangePage({ status, onSignOut }: { status: AuthStatus; onSignOut: () => void }) {
+  const { t } = useTranslation('auth');
   return (
-    <Card
-      icon={<IconLock size={40} stroke={1.4} />}
-      title="Choose a new password"
-      intro={`Welcome ${status.me?.user.displayName ?? ''}. Your account uses a temporary password – please choose your own before continuing.`}
-    >
+    <Card icon={<IconLock size={40} stroke={1.4} />} title={t('forced.title')} intro={t('forced.intro', { name: status.me?.user.displayName ?? '' })}>
       <ChangePasswordForm forced />
       <Anchor size="xs" ta="center" onClick={onSignOut}>
-        Sign out
+        {t('signOut')}
       </Anchor>
     </Card>
   );
 }
 
 export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onSignOut: () => void }) {
+  const { t } = useTranslation(['auth', 'common']);
   const refresh = useRefreshAuth();
   const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -295,17 +331,13 @@ export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onS
 
   if (!isAdmin) {
     return (
-      <Card
-        icon={<IconClockHour4 size={40} stroke={1.4} />}
-        title="Waiting for an administrator"
-        intro={`${BRAND.name} was restarted and its vault is locked. An administrator has to unlock it with the master passphrase before you can continue.`}
-      >
+      <Card icon={<IconClockHour4 size={40} stroke={1.4} />} title={t('vault.waitingTitle')} intro={t('vault.waitingIntro', { brand: BRAND.name })}>
         <Group justify="center">
           <Button variant="light" onClick={() => refresh()}>
-            Check again
+            {t('vault.checkAgain')}
           </Button>
           <Button variant="subtle" onClick={onSignOut}>
-            Sign out
+            {t('signOut')}
           </Button>
         </Group>
       </Card>
@@ -319,18 +351,14 @@ export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onS
       await post('/vault/unlock', { passphrase });
       await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Card
-      icon={<IconShieldLock size={40} stroke={1.4} />}
-      title="Unlock the vault"
-      intro="Enter the master passphrase to decrypt credentials, verify the audit log and start schedules."
-    >
+    <Card icon={<IconShieldLock size={40} stroke={1.4} />} title={t('vault.unlockTitle')} intro={t('vault.unlockIntro')}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -339,19 +367,21 @@ export function VaultLockedPage({ status, onSignOut }: { status: AuthStatus; onS
       >
         <Stack>
           <Group justify="center" gap={6}>
-            <Text size="sm">Signed in as {status.me?.user.displayName}</Text>
+            <Text size="sm">{t('vault.signedInAs', { name: status.me?.user.displayName ?? '' })}</Text>
             <Badge size="xs" variant="light">
-              admin
+              {t('common:roles.admin')}
             </Badge>
           </Group>
-          <PasswordInput label="Master passphrase" required value={passphrase} onChange={(e) => setPassphrase(e.currentTarget.value)} autoFocus />
+          <PasswordInput label={t('masterPassphrase')} required value={passphrase} onChange={(e) => setPassphrase(e.currentTarget.value)} autoFocus />
           {error && <Alert color="red">{error}</Alert>}
           <Button type="submit" loading={busy} disabled={!passphrase}>
-            Unlock
+            {t('vault.unlock')}
           </Button>
-          <Anchor size="xs" ta="center" onClick={onSignOut}>
-            Sign out
-          </Anchor>
+          <Box ta="center">
+            <Anchor size="xs" onClick={onSignOut}>
+              {t('signOut')}
+            </Anchor>
+          </Box>
         </Stack>
       </form>
     </Card>

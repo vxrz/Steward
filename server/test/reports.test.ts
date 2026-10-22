@@ -204,7 +204,7 @@ describe('run report', () => {
     expect(text).toContain('Simulated – not executed');
     keep('run-report-dry-run-en.pdf', fs.readFileSync(path.join(s.dataDir, 'reports', dryRun.id, `${r.id}.pdf`)));
     const de = await generateRunReport(dryRun.id, { lang: 'de', actor: 'admin' });
-    expect(de.texts.join('\n')).toContain('TESTLAUF (DRY RUN)');
+    expect(de.texts.join('\n')).toContain('PROBELAUF (DRY RUN)');
   });
 
   it('allows interim reports for waiting runs and refuses running ones', async () => {

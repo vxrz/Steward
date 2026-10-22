@@ -23,19 +23,14 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconPlus, IconServer, IconKey, IconPlug, IconUpload, IconDownload, IconTrash } from '@tabler/icons-react';
+import { useTranslation } from 'react-i18next';
 import { CONNECTOR_FORMATS, type ConnectorPackage, type Platform, type PlatformPreset } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { Hint, KeyValueEditor, PageHeader } from '../components/common';
-
-export const AUTH_LABELS: Record<string, string> = {
-  none: 'No auth',
-  basic: 'Basic auth',
-  bearer: 'Bearer token',
-  apiKey: 'API key',
-  oauth2_client_credentials: 'OAuth2 client credentials',
-  token_request: 'Custom login',
-};
+import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
+import i18n from '../i18n';
+import { BRAND } from '../../../shared/src/brand';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -44,6 +39,7 @@ export const KIND_COLORS: Record<string, string> = {
 };
 
 export function PlatformsPage() {
+  const { t } = useTranslation('platforms');
   const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
@@ -53,16 +49,16 @@ export function PlatformsPage() {
   return (
     <>
       <PageHeader
-        title="Platforms"
-        description="Systems you manage – e.g. an Insights Hub tenant or an Industrial Edge Management instance – with their base URL, credentials, API specifications and documentation."
+        title={t('title')}
+        description={t('description')}
         actions={
           <>
             <Button variant="default" leftSection={<IconPlug size={16} />} onClick={() => setTypesOpen(true)}>
-              Connector types
+              {t('types.button')}
             </Button>
             {caps.createPlatforms && (
               <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
-                Add platform
+                {t('add')}
               </Button>
             )}
           </>
@@ -77,19 +73,17 @@ export function PlatformsPage() {
         <Paper withBorder p="xl">
           <Stack align="center" gap="xs">
             <IconServer size={40} stroke={1.3} />
-            <Text fw={600}>No platforms yet</Text>
+            <Text fw={600}>{t('empty.title')}</Text>
             <Text size="sm" c="dimmed" ta="center" maw={520}>
-              A platform is one instance of a system you administer, for example your production Insights Hub tenant or an
-              on-premise Industrial Edge Management. It stores the base URL, how to authenticate, encrypted credentials, API
-              specifications (OpenAPI) and documentation. Processes then pick a platform for each connection when they run.
+              {t('empty.text')}
             </Text>
             {caps.createPlatforms ? (
               <Button mt="sm" leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
-                Add your first platform
+                {t('empty.addFirst')}
               </Button>
             ) : (
               <Text size="sm" c="dimmed">
-                Only administrators can add platforms.
+                {t('empty.adminsOnly')}
               </Text>
             )}
           </Stack>
@@ -113,25 +107,25 @@ export function PlatformsPage() {
                 {p.kind}
               </Badge>
               <Badge color="gray" variant="light" size="sm">
-                {AUTH_LABELS[p.config.auth?.type ?? 'none'] ?? p.config.auth?.type}
+                {authLabel(p.config.auth?.type)}
               </Badge>
             </Group>
             <Text size="xs" c="dimmed" className="mono" mt="sm" style={{ wordBreak: 'break-all' }}>
-              {p.baseUrl || 'no base URL'}
+              {p.baseUrl || t('card.noBaseUrl')}
             </Text>
             <Group gap={4} mt="xs">
               <IconKey size={14} />
               <Text size="xs" c="dimmed">
-                {p.secretKeys.length} stored secret{p.secretKeys.length === 1 ? '' : 's'}
+                {t('card.secrets', { count: p.secretKeys.length })}
               </Text>
               {p.acl.length > 0 && (
                 <Badge size="xs" variant="light" color="orange" ml="auto">
-                  restricted
+                  {t('card.restricted')}
                 </Badge>
               )}
               {!p.permissions.includes('use') && (
                 <Badge size="xs" variant="light" color="gray" ml={p.acl.length ? undefined : 'auto'}>
-                  no access
+                  {t('card.noAccess')}
                 </Badge>
               )}
             </Group>
@@ -149,36 +143,34 @@ export function PlatformsPage() {
 async function importConnector(file: File): Promise<string | null> {
   try {
     const pkg = JSON.parse(await file.text()) as ConnectorPackage;
-    if (!(CONNECTOR_FORMATS as readonly string[]).includes(pkg?.format)) throw new Error('Not a Steward connector file');
+    if (!(CONNECTOR_FORMATS as readonly string[]).includes(pkg?.format)) throw new Error(i18n.t('platforms:types.notAConnector', { brand: BRAND.name }));
     await post('/platform-types/import', { package: pkg });
-    notifyOk(`Connector type "${pkg.label}" imported`);
+    notifyOk(i18n.t('platforms:types.imported', { name: pkg.label }));
     return pkg.kind;
   } catch (e) {
-    notifyError(e, 'Import failed');
+    notifyError(e, i18n.t('platforms:types.importFailed'));
     return null;
   }
 }
 
 function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; onClose: () => void; canManage: boolean }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const custom = (presets.data ?? []).filter((p) => p.custom);
   const refresh = () => qc.invalidateQueries({ queryKey: ['platform-presets'] });
   return (
-    <Modal opened={opened} onClose={onClose} title="Connector types" size="lg">
+    <Modal opened={opened} onClose={onClose} title={t('types.title')} size="lg">
       <Stack>
         <Text size="sm" c="dimmed">
-          A connector type is a reusable template for a kind of system: authentication, variables, HTTP options, which credentials are
-          needed, documentation links and API specifications – never credential values. Create one from a configured platform
-          (platform page → menu → “Save as connector type”), export it as a file and import it on another installation. New platforms of
-          that type get its API specifications automatically.
+          {t('types.hint')}
         </Text>
         {canManage && (
           <Group>
             <FileButton accept=".json,application/json" onChange={(f) => f && importConnector(f).then(() => refresh())}>
               {(props) => (
                 <Button {...props} size="xs" variant="light" leftSection={<IconUpload size={14} />}>
-                  Import connector file
+                  {t('types.import')}
                 </Button>
               )}
             </FileButton>
@@ -186,48 +178,48 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
         )}
         {custom.length === 0 ? (
           <Text size="sm" c="dimmed">
-            No custom connector types yet. Built-in presets: {(presets.data ?? []).filter((p) => !p.custom).map((p) => p.label).join(', ')}.
+            {t('types.none', { presets: (presets.data ?? []).filter((p) => !p.custom).map((p) => p.label).join(', ') })}
           </Text>
         ) : (
           <div className="table-scroll">
             <Table fz="sm">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Connector</Table.Th>
-                  <Table.Th>Kind</Table.Th>
-                  <Table.Th>Specs</Table.Th>
+                  <Table.Th>{t('types.connector')}</Table.Th>
+                  <Table.Th>{t('types.kind')}</Table.Th>
+                  <Table.Th>{t('types.specs')}</Table.Th>
                   <Table.Th />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {custom.map((t) => (
-                  <Table.Tr key={t.kind}>
+                {custom.map((ct) => (
+                  <Table.Tr key={ct.kind}>
                     <Table.Td>
                       <Text size="sm" fw={500}>
-                        {t.label}
+                        {ct.label}
                       </Text>
                       <Text size="xs" c="dimmed" lineClamp={2}>
-                        {t.description}
+                        {ct.description}
                       </Text>
                     </Table.Td>
-                    <Table.Td className="mono">{t.kind}</Table.Td>
-                    <Table.Td>{t.specCount ?? 0}</Table.Td>
+                    <Table.Td className="mono">{ct.kind}</Table.Td>
+                    <Table.Td>{ct.specCount ?? 0}</Table.Td>
                     <Table.Td>
                       <Group gap={2} wrap="nowrap" justify="flex-end">
-                        <Tooltip label="Export as file">
-                          <ActionIcon component="a" href={`/api/platform-types/${encodeURIComponent(t.kind)}/export`} variant="subtle" aria-label="Export">
+                        <Tooltip label={t('types.exportFile')}>
+                          <ActionIcon component="a" href={`/api/platform-types/${encodeURIComponent(ct.kind)}/export`} variant="subtle" aria-label={t('types.export')}>
                             <IconDownload size={16} />
                           </ActionIcon>
                         </Tooltip>
                         {canManage && (
-                          <Tooltip label="Delete connector type (existing platforms are not affected)">
+                          <Tooltip label={t('types.deleteHint')}>
                             <ActionIcon
                               variant="subtle"
                               color="red"
-                              aria-label="Delete"
+                              aria-label={t('common:delete')}
                               onClick={async () => {
-                                if (!confirm(`Delete connector type "${t.label}"? Existing platforms keep working.`)) return;
-                                await del(`/platform-types/${encodeURIComponent(t.kind)}`).catch(notifyError);
+                                if (!confirm(t('types.deleteConfirm', { name: ct.label }))) return;
+                                await del(`/platform-types/${encodeURIComponent(ct.kind)}`).catch(notifyError);
                                 refresh();
                               }}
                             >
@@ -249,6 +241,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
 }
 
 function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
   const presets = useQuery({ queryKey: ['platform-presets'], queryFn: () => get<PlatformPreset[]>('/platform-presets'), enabled: opened });
   const [preset, setPreset] = useState<PlatformPreset | null>(null);
@@ -285,25 +278,25 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
         name,
         kind: preset.kind,
         environment,
-        description: preset.description,
+        description: presetDescription(preset),
         baseUrl,
         config: { ...preset.config, variables: vars },
         secrets: filtered,
         typeKind: preset.custom ? preset.kind : undefined,
       });
       await qc.invalidateQueries({ queryKey: ['platforms'] });
-      notifyOk(`Platform "${p.name}" created`);
+      notifyOk(t('addModal.created', { name: p.name }));
       onClose();
       onCreated(p.id);
     } catch (e) {
-      notifyError(e, 'Platform not created');
+      notifyError(e, t('addModal.notCreated'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title={preset ? `New platform – ${preset.label}` : 'Add platform – choose a starting point'} size="lg">
+    <Modal opened={opened} onClose={onClose} title={preset ? t('addModal.titlePreset', { preset: preset.label }) : t('addModal.title')} size="lg">
       {!preset && (
         <Stack gap="xs">
           {presets.isLoading && <Loader />}
@@ -317,23 +310,23 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
                   </Badge>
                   {p.custom && (
                     <Badge size="xs" variant="filled" color="grape">
-                      custom
+                      {t('addModal.custom')}
                     </Badge>
                   )}
                   {!!p.specCount && (
                     <Badge size="xs" variant="outline">
-                      {p.specCount} API spec{p.specCount === 1 ? '' : 's'}
+                      {t('addModal.specs', { count: p.specCount })}
                     </Badge>
                   )}
                 </Group>
                 <Text size="sm" c="dimmed" mt={4}>
-                  {p.description}
+                  {presetDescription(p)}
                 </Text>
               </Paper>
             </UnstyledButton>
           ))}
           <Group justify="space-between" wrap="wrap">
-            <Hint>Everything can be changed later – presets only pre-fill authentication and URLs.</Hint>
+            <Hint>{t('addModal.hint')}</Hint>
             <FileButton
               accept=".json,application/json"
               onChange={(f) =>
@@ -341,14 +334,14 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
                 importConnector(f).then(async (kind) => {
                   if (!kind) return;
                   const list = (await presets.refetch()).data ?? [];
-                  const t = list.find((x) => x.custom && x.kind === kind);
-                  if (t) choose(t);
+                  const found = list.find((x) => x.custom && x.kind === kind);
+                  if (found) choose(found);
                 })
               }
             >
               {(props) => (
                 <Button {...props} size="xs" variant="subtle" leftSection={<IconUpload size={14} />}>
-                  Import connector file
+                  {t('types.import')}
                 </Button>
               )}
             </FileButton>
@@ -357,51 +350,57 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       )}
       {preset && (
         <Stack>
-          <TextInput label="Name" required value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder="e.g. Insights Hub – Production" />
           <TextInput
-            label="Environment"
-            value={environment}
-            onChange={(e) => setEnvironment(e.currentTarget.value)}
-            placeholder="prod, test, dev…"
+            label={t('form.name')}
+            required
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            placeholder={t('form.namePlaceholder')}
           />
           <TextInput
-            label="Base URL"
+            label={t('form.environment')}
+            value={environment}
+            onChange={(e) => setEnvironment(e.currentTarget.value)}
+            placeholder={t('form.environmentPlaceholder')}
+          />
+          <TextInput
+            label={t('form.baseUrl')}
             classNames={{ input: 'mono' }}
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.currentTarget.value)}
-            description="May contain templates like {{ vars.region }}"
+            description={t('form.baseUrlHint', { example: '{{ vars.region }}' })}
           />
           <div>
             <Text size="sm" fw={500} mb={4}>
-              Variables
+              {t('form.variables')}
             </Text>
             <KeyValueEditor value={variables} onChange={(v) => setVariables(v ?? {})} />
           </div>
           {preset.secretFields.length > 0 && (
             <>
-              <Divider label="Credentials (encrypted at rest)" labelPosition="left" />
+              <Divider label={t('form.credentials')} labelPosition="left" />
               {preset.secretFields.map((f) => (
                 <PasswordInput
                   key={f.key}
-                  label={f.label}
-                  description={f.help ?? `Stored as secret "${f.key}"`}
+                  label={presetSecretLabel(preset, f)}
+                  description={presetSecretHelp(preset, f) ?? t('form.storedAs', { key: f.key })}
                   value={secrets[f.key] ?? ''}
                   onChange={(e) => setSecrets({ ...secrets, [f.key]: e.currentTarget.value })}
                 />
               ))}
-              <Hint>Leave fields empty that you don't need. You can add or replace credentials later.</Hint>
+              <Hint>{t('form.credentialsHint')}</Hint>
             </>
           )}
           <Group justify="space-between">
             <Button variant="subtle" onClick={() => setPreset(null)}>
-              Back
+              {t('common:back')}
             </Button>
             <Group>
               <Button variant="default" onClick={onClose}>
-                Cancel
+                {t('common:cancel')}
               </Button>
               <Button onClick={create} loading={busy} disabled={!name.trim()}>
-                Create platform
+                {t('addModal.create')}
               </Button>
             </Group>
           </Group>
