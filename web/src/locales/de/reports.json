@@ -71,7 +71,10 @@
     "recordedHash": "Eingetragener SHA-256",
     "archive": "Archiv",
     "archiveRemoved": "Die gespeicherte Kopie wurde durch die Aufbewahrungsregel gelöscht; das Audit-Log belegt den Inhalt weiterhin.",
-    "chain": "Audit-Kette: {{result}}"
+    "chain": "Audit-Kette: {{result}}",
+    "forgedTitle": "Gefälschte Audit-Einträge",
+    "forgedText_one": "Das Audit-Log enthält einen Eintrag, der diese Datei angeblich belegt, aber die Integritätsprüfung (HMAC oder Position in der Kette) nicht besteht. Er wurde außerhalb von Steward eingefügt und wird ignoriert.",
+    "forgedText_other": "Das Audit-Log enthält {{count}} Einträge, die diese Datei angeblich belegen, aber die Integritätsprüfung (HMAC oder Position in der Kette) nicht bestehen. Sie wurden außerhalb von Steward eingefügt und werden ignoriert."
   },
   "branding": {
     "title": "Berichtslayout",
