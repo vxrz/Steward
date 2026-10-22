@@ -23,6 +23,10 @@
     "test:pg": "node scripts/test-pg.mjs",
     "db:copy": "tsx server/src/cli/db-copy.ts",
     "typecheck": "tsc -p shared && tsc -p server && tsc -p web && tsc -p e2e",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs",
     "validate": "tsx server/src/cli/validate.ts",
     "openapi": "tsx server/src/cli/openapi.ts",
@@ -30,16 +34,26 @@
     "desktop": "tsx server/src/desktop/launcher.ts",
     "contract": "tsx server/src/cli/contract.ts",
     "audit:verify-export": "tsx server/src/cli/audit-verify-export.ts",
-    "i18n:check": "node scripts/i18n-check.mjs"
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@axe-core/playwright": "~4.10.2",
+    "@eslint/js": "~10.0.1",
     "@playwright/test": "^1.56.1",
     "cross-env": "^7.0.3",
     "esbuild": "^0.28.2",
+    "eslint": "~10.12.0",
+    "eslint-config-prettier": "~10.1.8",
+    "eslint-plugin-react-hooks": "~7.1.1",
+    "globals": "~17.13.0",
+    "husky": "~9.1.7",
+    "lint-staged": "~17.6.0",
     "postject": "^1.0.0-alpha.6",
+    "prettier": "~3.9.9",
     "tinypool": "~2.2.0",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.71.1"
   },
   "overrides": {
     "tinypool": "$tinypool"

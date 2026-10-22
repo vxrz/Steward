@@ -227,7 +227,7 @@ function ownerProblem(r: TriggerRow): { problem: string } | { user: ReturnType<t
     if (processArchived(r.process_id)) return 'the process is archived';
     if (!permissionsFor(r.process_id).includes('run')) return `${user.username} may not run process ${r.process_id}`;
     for (const pid of Object.values(parseJson<Record<string, string>>(r.bindings, {}))) {
-      let ok = false;
+      let ok: boolean;
       try {
         ok = getPlatform(pid).permissions.includes('use');
       } catch {

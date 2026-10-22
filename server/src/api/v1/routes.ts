@@ -259,7 +259,8 @@ const mapUser = (u: ReturnType<typeof users.getUser>) => ({
 
 // ---------- route definitions ----------
 
-const ERR = { 400: 'Bad request', 401: 'Missing or invalid token', 403: 'Not allowed', 404: 'Not found', 409: 'Conflict', 429: 'Rate limit exceeded' } as const;
+/** Error statuses an operation can declare (their OpenAPI responses: RESPONSES in ../index.ts). */
+type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 429;
 
 export interface Op {
   operationId: string;
@@ -274,7 +275,7 @@ export interface Op {
   /** Paginated list (Link header, nextCursor) */
   paginated?: boolean;
   /** Extra documented error statuses */
-  errors?: (keyof typeof ERR)[];
+  errors?: ErrorStatus[];
 }
 
 /** Operations that return pages (documented with a Link header). */

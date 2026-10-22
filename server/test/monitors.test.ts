@@ -13,7 +13,6 @@ let dana: Client, olivia: Client, vera: Client;
 let eng: typeof import('../src/monitors/engine.js');
 let P: Record<string, string>;
 const PW = 'Demo-password-1';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
 
 async function hook(path: string, body: unknown, headers: Record<string, string> = {}) {
@@ -23,7 +22,7 @@ async function hook(path: string, body: unknown, headers: Record<string, string>
     body: typeof body === 'string' ? body : JSON.stringify(body),
   });
   const text = await res.text();
-  let json: any = null;
+  let json: any;
   try {
     json = text ? JSON.parse(text) : null;
   } catch {

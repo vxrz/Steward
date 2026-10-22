@@ -1,5 +1,5 @@
 # Woodpecker CI: build and test (counterpart of .github/workflows/ci.yml).
-# Typecheck, example validation, i18n and OpenAPI checks, the vitest suite (incl. browser
+# Typecheck, lint and formatting, example validation, i18n and OpenAPI checks, the vitest suite (incl. browser
 # automation, so Chromium is installed), the web UI build and npm audit of the production
 # dependencies. Steps run in parallel after "install" and share the workspace.
 # Setup and secrets: docs/WOODPECKER.md. This workflow needs no secrets.
@@ -37,6 +37,13 @@ steps:
     depends_on: [install]
     commands:
       - npm run typecheck
+
+  - name: lint
+    image: *node_image
+    depends_on: [install]
+    commands:
+      - npm run lint # ESLint
+      - npm run format:check # Prettier
 
   - name: validate
     image: *node_image

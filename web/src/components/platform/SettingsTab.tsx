@@ -88,7 +88,7 @@ export function SettingsTab({ platform, readOnly = false }: { platform: Platform
   };
   const num = (v: string | number) => (typeof v === 'number' ? v : undefined);
 
-  const needed = useMemo(() => requiredSecrets(auth), [auth]);
+  const needed = useMemo(() => requiredSecrets(cfg.auth ?? { type: 'none' }), [cfg.auth]);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
 
   const save = async () => {

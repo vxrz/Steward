@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Badge, Button, Card, Code, CopyButton, Group, SimpleGrid, Stack, Switch, Text, Title, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, Button, Card, Code, CopyButton, Group, SimpleGrid, Switch, Text, Title, Tooltip } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconBrandWindows, IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';

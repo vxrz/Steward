@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Alert, Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
+import { Alert, Anchor, Button, Menu, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';

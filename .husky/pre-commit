@@ -1,0 +1,4 @@
+# Installed by "npm install" (husky). Skip in an emergency with: git commit --no-verify (CI still checks).
+# Prettier and ESLint on the staged files (lint-staged.config.js), then a secret scan of the staged changes.
+lint-staged
+sh scripts/gitleaks-staged.sh

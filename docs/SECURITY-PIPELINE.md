@@ -69,6 +69,11 @@ Semgrep runs in its official container (Docker). Reports land in `.tools/reports
 (ignored by git). Without access to `api.osv.dev`, set
 `OSV_SCANNER_FLAGS="--offline-vulnerabilities --download-offline-databases"`.
 
+With gitleaks installed (on `PATH` or in `.tools/bin`), the pre-commit hook also scans the
+staged changes before each commit (`scripts/gitleaks-staged.sh`, see
+[CONTRIBUTING.md](../CONTRIBUTING.md#pre-commit-hooks)). Without it the hook skips this step
+with a notice; the full-history scan in CI still runs.
+
 ## Handling a finding
 
 1. **Is it real?** Read the rule/advisory. For dependencies check whether the

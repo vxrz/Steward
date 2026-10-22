@@ -128,7 +128,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
       headers: { ...extra, 'content-type': 'application/json', ...auth, 'x-steward-test': registerTestNonce(r.id, b.dryRun) },
       payload: raw,
     });
-    let response: WebhookTestResult['response'] = {};
+    let response: WebhookTestResult['response'];
     try {
       response = JSON.parse(res.body);
     } catch {

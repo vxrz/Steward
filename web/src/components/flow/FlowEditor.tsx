@@ -331,7 +331,6 @@ function FlowEditorInner({
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onChange, readOnly, t]);
 
   const selectedNode = selectedId ? def.nodes.find((n) => n.id === selectedId) : undefined;

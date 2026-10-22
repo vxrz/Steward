@@ -78,7 +78,7 @@ export function docsAccess(req: FastifyRequest): { allowed: true } | { allowed: 
   const { mode } = docsMode();
   if (mode === 'public') return { allowed: true };
   if (mode === 'authenticated') {
-    let user: UserInfo | null = null;
+    let user: UserInfo | null;
     try {
       // documentation only: page loads cannot carry the session key header, and the docs reveal nothing secret
       user = sessionUser(readCookie(req.headers.cookie, SESSION_COOKIE), 'skip');

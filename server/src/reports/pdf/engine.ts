@@ -265,6 +265,7 @@ export class ReportWriter {
    */
   private glyphSafe(s: string): string {
     const f = (this.doc as unknown as { _font?: { font?: { hasGlyphForCodePoint(cp: number): boolean } } })._font?.font;
+    // eslint-disable-next-line no-control-regex -- an ASCII-only check, control characters included
     if (!f || /^[\x00-\x7f]*$/.test(s)) return s;
     let out = '';
     for (const ch of s) {
@@ -304,7 +305,7 @@ export class ReportWriter {
   cover(o: { title: string; subtitle: string; meta: string[] }): void {
     const top = 34;
     const logoH = 42;
-    let logoW = 0;
+    let logoW: number;
     try {
       const img = this.logoImage();
       logoW = Math.min(150, (img.width / img.height) * logoH);

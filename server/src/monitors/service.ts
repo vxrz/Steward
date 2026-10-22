@@ -1,18 +1,13 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import jsonata from 'jsonata';
 import YAML from 'yaml';
 import {
-  CHECK_TYPES,
   MONITOR_KEY_RE,
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
   definitionIssues,
   findCycle,
-  monitorDefinitionSchema,
-  monitorFileSchema,
-  templateParamSchema,
   type AclEntry,
   type CheckDef,
   type CheckResultInfo,

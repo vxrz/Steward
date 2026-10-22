@@ -40,6 +40,8 @@ On the first start, set a master passphrase and create an admin account. Then cl
 | Command | What it checks |
 | --- | --- |
 | `npm run typecheck` | TypeScript in all workspaces |
+| `npm run lint` | ESLint (`eslint.config.js`): no errors and no warnings. `npm run lint:fix` fixes what it can. |
+| `npm run format:check` | Prettier formatting (`.prettierrc.json`). `npm run format` formats all files. |
 | `npm test` | API, engine and integration tests (vitest, SQLite) |
 | `npm run test:pg` | The same suite on PostgreSQL (`SM_TEST_DATABASE_URL`, see [docs/TESTING.md](docs/TESTING.md)). Needed when you touch SQL or migrations. |
 | `npm run build && npm run test:ui` | Playwright browser tests, including accessibility (axe) checks |
@@ -48,6 +50,15 @@ On the first start, set a master passphrase and create an admin account. Then cl
 | `scripts/security/scan.sh` | Optional: the security scanners CI runs (see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md)) |
 
 CI runs all of these on every push and pull request: GitHub Actions (`.github/workflows/`), and Woodpecker CI (`.woodpecker/`) on a Forgejo mirror – see [docs/WOODPECKER.md](docs/WOODPECKER.md). A change to one CI system usually needs the same change in the other.
+
+### Pre-commit hooks
+
+`npm install` installs two git hooks (with [husky](https://typicode.github.io/husky/), in `.husky/`):
+
+- **pre-commit:** Prettier and `eslint --fix` on the staged files ([lint-staged](https://github.com/lint-staged/lint-staged), `lint-staged.config.js`), then a [gitleaks](https://github.com/gitleaks/gitleaks) scan of the staged changes (`scripts/gitleaks-staged.sh`; skipped with a notice when gitleaks is not installed, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md)).
+- **commit-msg:** checks the message against Conventional Commits (`scripts/commit-msg.mjs`, see below). Merge commits, `Revert "…"` and `fixup!`/`squash!` commits pass.
+
+In an emergency, skip them with `git commit --no-verify`; CI still runs lint, formatting and the secret scan. Your editor picks up the basics (UTF-8, LF, two-space indent) from `.editorconfig`.
 
 ## Conventions
 
@@ -69,11 +80,13 @@ We use [Conventional Commits 1.0](https://www.conventionalcommits.org/en/v1.0.0/
 | `fix` | Bug fixes |
 | `perf` | Performance improvements |
 | `refactor` | Code changes that neither fix a bug nor add a feature |
+| `style` | Formatting only (no change in behaviour) |
 | `docs` | Documentation |
 | `test` | Tests |
 | `build` | Build system, dependencies |
 | `ci` | Workflows |
 | `chore` | Other maintenance |
+| `revert` | Reverting an earlier commit |
 
 Common scopes: `engine`, `api`, `db`, `auth`, `reports`, `triggers`, `monitors`, `web`, `editor`, `i18n`, `security`, `examples`.
 

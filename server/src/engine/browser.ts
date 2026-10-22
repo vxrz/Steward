@@ -86,7 +86,7 @@ export async function openBrowser(opts: { headless: boolean; timeoutMs: number; 
     // Enforce the outbound policy on every browser request, including sub-resources
     // (the browser uses Chromium's own network stack, not our guarded dispatcher).
     await context.route('**/*', async (route) => {
-      let ok = false;
+      let ok: boolean;
       try {
         ok = await guard(route.request().url(), route.request().isNavigationRequest());
       } catch {

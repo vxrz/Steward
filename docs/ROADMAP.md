@@ -108,7 +108,7 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 **Engineering**
 
-1. CI is included in `.github/workflows/ci.yml` (typecheck, validate, tests, build, audit). Playwright UI tests cover the critical paths (`.github/workflows/ui-tests.yml`, see [TESTING.md](TESTING.md)). ESLint/Prettier are next.
+1. CI is included in `.github/workflows/ci.yml` (lint, formatting, typecheck, validate, tests, build, audit). Playwright UI tests cover the critical paths (`.github/workflows/ui-tests.yml`, see [TESTING.md](TESTING.md)). ESLint, Prettier and pre-commit hooks are in place (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 2. Contract tests against a real sandbox tenant (recorded fixtures), so API changes at Siemens are noticed before production runs fail.
 3. Our own OpenAPI description of the Steward API (generated from the zod schemas). That allows automation and integration with ITSM tools such as ServiceNow or Jira Service Management.
 4. Semantic versioning, a changelog, migration tests.

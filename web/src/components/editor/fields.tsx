@@ -220,7 +220,6 @@ function JsonField({ label, description, value, onChange }: { label: React.React
       setText(toText(value));
       setError(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
   const commit = () => {
     if (!text.trim()) {

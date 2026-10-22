@@ -101,6 +101,7 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Container SBOMs (Syft) and image scan (Grype), OpenSSF Scorecard, Dependabot.
 - Woodpecker CI pipelines (`.woodpecker/`) for a self-hosted Forgejo mirror, next to GitHub Actions: tests on SQLite and PostgreSQL, UI tests, the security scans (weekly too), the container image pushed to Harbor (release tags only after a passed scan, optional cosign signature) with SBOMs in Dependency-Track, and the Linux executable with an optional Forgejo release. See [docs/WOODPECKER.md](docs/WOODPECKER.md).
 - Command-line tools follow clig.dev conventions (`--help`, exit codes, `--json`, `NO_COLOR`).
+- ESLint, Prettier and EditorConfig for the whole repository (`npm run lint`, `npm run format:check`, checked in CI), with pre-commit hooks for staged files, a gitleaks scan and a Conventional Commits check of the message ([CONTRIBUTING.md](CONTRIBUTING.md#pre-commit-hooks)).
 
 ### Security
 

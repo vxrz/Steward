@@ -18,7 +18,7 @@ Written for Woodpecker 3.x. The files were checked with `woodpecker-cli` 3.19.0
 
 | Workflow | What it does | Runs on | GitHub counterpart |
 | --- | --- | --- | --- |
-| [`ci.yaml`](../.woodpecker/ci.yaml) | `npm ci`, then in parallel: typecheck, `validate`, `i18n:check`, `openapi -- --check`, `npm test` (with Chromium), web build, `npm audit --omit=dev --audit-level=moderate` | push to `main` / `claude/**`, pull requests (not for documentation-only changes), `v*` tags, manual | `ci.yml` (build-test) |
+| [`ci.yaml`](../.woodpecker/ci.yaml) | `npm ci`, then in parallel: typecheck, lint and `format:check`, `validate`, `i18n:check`, `openapi -- --check`, `npm test` (with Chromium), web build, `npm audit --omit=dev --audit-level=moderate` | push to `main` / `claude/**`, pull requests (not for documentation-only changes), `v*` tags, manual | `ci.yml` (lint, build-test) |
 | [`postgres.yaml`](../.woodpecker/postgres.yaml) | the server test suite against a `postgres:16` service (`npm run test:pg`) | push to `main` / `claude/**`, pull requests, manual | `ci.yml` (test-postgres) |
 | [`ui-tests.yaml`](../.woodpecker/ui-tests.yaml) | build, then Playwright UI tests (`npm run test:ui`); on failure the server log and failed tests are printed | push to `main` / `claude/**`, pull requests, manual | `ui-tests.yml` |
 | [`security.yaml`](../.woodpecker/security.yaml) | gitleaks (full history), npm audit (high), OSV-Scanner, Semgrep, Trivy fs + config, hadolint, actionlint, zizmor, `woodpecker-cli lint` | push to `main` / `claude/**`, pull requests, manual, **cron `weekly`** | `security.yml` |

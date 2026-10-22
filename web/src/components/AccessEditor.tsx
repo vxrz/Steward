@@ -43,6 +43,8 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
     setOwn(owner ?? null);
   }, [acl, owner]);
 
+  // `t`: recompute when the language changes (subjectOptionLabel translates with the global i18n instance)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const labelOf = useMemo(() => new Map((subjects.data ?? []).map((s) => [s.value, subjectOptionLabel(s)])), [subjects.data, t]);
   const dirty = JSON.stringify(rows) !== JSON.stringify(acl) || (own ?? null) !== (owner ?? null);
   const kindColor = (s: string) => (s.startsWith('user:') ? 'blue' : s.startsWith('team:') ? 'grape' : 'gray');

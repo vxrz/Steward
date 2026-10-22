@@ -1,0 +1,2 @@
+# Conventional Commits (CONTRIBUTING.md)
+node scripts/commit-msg.mjs "$1"
