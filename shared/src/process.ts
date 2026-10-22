@@ -30,6 +30,7 @@ export const NODE_TYPES = [
   'report',
   'browser',
   'publish',
+  'subprocess',
   'wait',
   'fail',
   'note',
@@ -37,7 +38,7 @@ export const NODE_TYPES = [
 export type NodeType = (typeof NODE_TYPES)[number];
 
 /** Step types of the sequential (YAML) format. */
-export const STEP_TYPES = ['http', 'set', 'forEach', 'if', 'group', 'userTask', 'check', 'log', 'report', 'browser', 'publish', 'wait', 'fail'] as const;
+export const STEP_TYPES = ['http', 'set', 'forEach', 'if', 'group', 'userTask', 'check', 'log', 'report', 'browser', 'publish', 'subprocess', 'wait', 'fail'] as const;
 export type StepType = (typeof STEP_TYPES)[number];
 
 const identifier = z
@@ -123,6 +124,11 @@ export interface ForEachConfig {
   as: string;
   delayMs?: number;
   maxItems?: number;
+  /**
+   * Items processed in parallel (default 1 = one after another). With more
+   * than 1, variables set inside the loop body are local to each item.
+   */
+  concurrency?: number;
 }
 export interface IfConfig {
   type: 'if';
@@ -195,6 +201,21 @@ export interface PublishConfig {
   /** Safety limit (default 5000 rows) */
   maxRows?: number;
 }
+/**
+ * Run another process as a step (sub-flow). The child run is a normal run
+ * (own protocol, linked to the parent); its `outputs` become this node's result.
+ */
+export interface SubprocessConfig {
+  type: 'subprocess';
+  /** Id of the process to run */
+  process: string;
+  /** Pin a version (default: current version) */
+  version?: number;
+  /** Child input name → template evaluated in the parent */
+  inputs?: Record<string, unknown>;
+  /** Child connection slot → parent connection slot (default: same slot names) */
+  connections?: Record<string, string>;
+}
 export interface WaitConfig {
   type: 'wait';
   seconds: number;
@@ -243,6 +264,7 @@ const shapes = {
     as: identifier,
     delayMs: z.number().int().min(0).optional(),
     maxItems: z.number().int().min(1).optional(),
+    concurrency: z.number().int().min(1).max(20).optional(),
   },
   if: { type: z.literal('if'), condition: z.string().min(1) },
   userTask: {
@@ -286,6 +308,13 @@ const shapes = {
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
   },
+  subprocess: {
+    type: z.literal('subprocess'),
+    process: z.string().min(1),
+    version: z.number().int().min(1).optional(),
+    inputs: z.record(z.unknown()).optional(),
+    connections: z.record(z.string()).optional(),
+  },
   wait: { type: z.literal('wait'), seconds: z.number().min(0).max(3600) },
   fail: { type: z.literal('fail'), message: z.string() },
   start: { type: z.literal('start') },
@@ -307,6 +336,7 @@ export type LogStep = Base & LogConfig;
 export type ReportStep = Base & ReportConfig;
 export type BrowserStep = Base & BrowserConfig;
 export type PublishStep = Base & PublishConfig;
+export type SubprocessStep = Base & SubprocessConfig;
 export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
 export type Step =
@@ -321,6 +351,7 @@ export type Step =
   | ReportStep
   | BrowserStep
   | PublishStep
+  | SubprocessStep
   | WaitStep
   | FailStep;
 
@@ -337,6 +368,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
     z.object({ ...baseFields, ...shapes.report }),
     z.object({ ...baseFields, ...shapes.browser }),
     z.object({ ...baseFields, ...shapes.publish }),
+    z.object({ ...baseFields, ...shapes.subprocess }),
     z.object({ ...baseFields, ...shapes.wait }),
     z.object({ ...baseFields, ...shapes.fail }),
   ]),
@@ -358,6 +390,7 @@ export type NodeConfig =
   | ReportConfig
   | BrowserConfig
   | PublishConfig
+  | SubprocessConfig
   | WaitConfig
   | FailConfig
   | StartConfig
@@ -378,6 +411,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.report }),
   z.object({ ...baseFields, ...pos, ...shapes.browser }),
   z.object({ ...baseFields, ...pos, ...shapes.publish }),
+  z.object({ ...baseFields, ...pos, ...shapes.subprocess }),
   z.object({ ...baseFields, ...pos, ...shapes.wait }),
   z.object({ ...baseFields, ...pos, ...shapes.fail }),
   z.object({ ...baseFields, ...pos, ...shapes.note }),
@@ -417,6 +451,7 @@ export function nodePorts(n: Pick<FlowNode, 'type'> & { mode?: string }): PortDe
         : [{ id: 'out', label: '' }];
     case 'http':
     case 'browser':
+    case 'subprocess':
       return [
         { id: 'out', label: '' },
         { id: 'error', label: 'error' },
@@ -463,6 +498,8 @@ const definitionBase = {
   connections: z.array(connectionSlotSchema).default([]),
   inputs: z.array(inputDefSchema).default([]),
   constants: z.record(z.unknown()).optional(),
+  /** Values returned to a parent process (name → expression evaluated when the run ends) */
+  outputs: z.record(z.string()).optional(),
 };
 
 export const processDefinitionSchema = z.object({

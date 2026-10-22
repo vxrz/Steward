@@ -38,6 +38,8 @@ export interface UserInfo {
   createdAt: string;
   /** 'local' (password) or the id of the single sign-on provider the account belongs to */
   authSource: string;
+  /** Receive e-mail notifications (if an e-mail address is set and e-mail is configured) */
+  emailNotifications: boolean;
 }
 
 // ---------- Single sign-on (OpenID Connect) ----------
@@ -190,6 +192,19 @@ export interface HttpOptions {
   proxy?: string;
   timeoutMs?: number;
   defaultHeaders?: Record<string, string>;
+  /** Retries for 429/502/503/504 and network errors, honouring Retry-After (exponential backoff with jitter) */
+  retry?: {
+    /** default 3; 0 disables */
+    maxRetries?: number;
+    /** default 500 ms */
+    baseDelayMs?: number;
+    /** default 30 s */
+    maxDelayMs?: number;
+    /** POST/PATCH are not repeated unless enabled (they may not be idempotent) */
+    retryNonIdempotent?: boolean;
+  };
+  /** Maximum concurrent requests to this platform (default 4) */
+  maxConcurrency?: number;
 }
 
 export interface PlatformConfig {
@@ -540,6 +555,10 @@ export interface Settings {
   /** 'adminsOnly' limits password sign-in to administrators once SSO is in place */
   passwordLogin: 'all' | 'adminsOnly';
   browserHeadless: boolean;
+  /** Delete runs (journal, logs, evidence files) older than this many days; 0 = keep forever. The audit log is never pruned. */
+  retentionRunDays: number;
+  /** Delete read notifications older than this many days */
+  retentionNotificationDays: number;
   browserTimeoutMs: number;
 }
 

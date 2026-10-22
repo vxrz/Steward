@@ -13,12 +13,14 @@ import {
   IconUserCheck,
   IconVariable,
   IconX,
+  IconBoxMultiple,
 } from '@tabler/icons-react';
 import { STEP_META, type FlowNode, type NodeType } from '@sm/shared';
 
 export const NODE_ICONS: Record<NodeType, typeof IconApi> = {
   start: IconPlayerPlayFilled,
   http: IconApi,
+  subprocess: IconBoxMultiple,
   set: IconVariable,
   forEach: IconRepeat,
   if: IconArrowsSplit,

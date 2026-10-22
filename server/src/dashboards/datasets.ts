@@ -1,6 +1,7 @@
 import { normalizeStatus, type Dataset, type DatasetMeta, type DatasetRow, type DatasetStatus, type MetricSeries } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
+import { emit } from '../events.js';
 
 /**
  * Datasets are written by "Publish to dashboard" nodes: the latest snapshot of
@@ -127,6 +128,7 @@ export function publishDataset(input: {
       );
     }
   });
+  emit('dataset.published', { key: input.key, title: input.title, processId: input.processId, staleAfterMinutes: input.staleAfterMinutes });
   return getDatasetMeta(input.key);
 }
 

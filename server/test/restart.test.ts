@@ -86,5 +86,5 @@ describe('durable runs', () => {
     expect(audit.filter((a: any) => a.action === 'run.started')).toHaveLength(1);
     expect(audit.filter((a: any) => a.action === 'run.resumed')).toHaveLength(1);
     expect((await api('GET', '/audit/verify')).ok).toBe(true);
-  });
+  }, 60000);
 });

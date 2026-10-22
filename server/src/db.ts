@@ -2,11 +2,19 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
 import { config } from './config.js';
+import { OPS_MIGRATIONS } from './migrations/ops.js';
+import { ENGINE_MIGRATIONS } from './migrations/engine.js';
 
 // Loaded lazily so the ExperimentalWarning filter in bootstrap.ts is active first.
 const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
 
 type Row = Record<string, unknown>;
+
+export interface NamedMigration {
+  name: string;
+  sql: string;
+}
+const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS];
 
 const MIGRATIONS: string[] = [
   `
@@ -290,6 +298,21 @@ export class Db {
     this.migrate();
   }
 
+  /**
+   * Feature migrations by name (applied once, in list order, after the core list).
+   * Feature modules own their lists, so parallel work never collides on numbers.
+   */
+  private migrateNamed(): void {
+    this.raw.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
+    for (const m of NAMED_MIGRATIONS) {
+      if (this.get('SELECT 1 FROM schema_migrations WHERE name = ?', m.name)) continue;
+      this.tx(() => {
+        this.raw.exec(m.sql);
+        this.run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', m.name, new Date().toISOString());
+      });
+    }
+  }
+
   private migrate(): void {
     this.raw.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)');
     const row = this.get<{ version: number }>('SELECT version FROM schema_version');
@@ -302,6 +325,7 @@ export class Db {
         this.run('UPDATE schema_version SET version = ?', version);
       });
     }
+    this.migrateNamed();
   }
 
   all<T = Row>(sql: string, ...params: unknown[]): T[] {

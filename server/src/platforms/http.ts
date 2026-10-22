@@ -4,6 +4,7 @@ import { evalExpr, render, renderString } from '../engine/expr.js';
 import { HttpError } from '../util.js';
 import { SpanKind, SpanStatusCode, injectTraceHeaders, withSpan } from '../telemetry.js';
 import { logger } from '../log.js';
+import { emit } from '../events.js';
 
 export interface HttpRequest {
   method: string;
@@ -107,7 +108,15 @@ async function rawRequest(p: Platform, req: HttpRequest, signal?: AbortSignal): 
       'sm.platform.name': p.name,
     },
     async (span) => {
-      const res = await sendRaw(p, req, signal);
+      const t0 = Date.now();
+      let res: HttpResult;
+      try {
+        res = await sendRaw(p, req, signal);
+      } catch (e) {
+        emit('http.request', { host: target?.host ?? 'unknown', method: req.method, status: 0, durationMs: Date.now() - t0, error: true });
+        throw e;
+      }
+      emit('http.request', { host: target?.host ?? 'unknown', method: req.method, status: res.status, durationMs: res.durationMs, error: res.status >= 500 });
       span.setAttribute('http.response.status_code', res.status);
       if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR, message: `HTTP ${res.status}` });
       logger.debug({ platform: p.name, method: req.method, host: target?.host, path: target?.pathname, status: res.status, ms: res.durationMs }, 'platform call');

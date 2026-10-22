@@ -5,6 +5,8 @@ const DEFAULTS = (): Settings => ({
   passwordLogin: 'all',
   browserHeadless: true,
   browserTimeoutMs: 30000,
+  retentionRunDays: 0,
+  retentionNotificationDays: 30,
 });
 
 export function getSettings(): Settings {
@@ -21,7 +23,7 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs'];
+  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays'];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {

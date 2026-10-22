@@ -37,6 +37,7 @@ function toInfo(r: UserRow): UserInfo {
     username: r.username,
     displayName: r.display_name,
     email: r.email ?? undefined,
+    emailNotifications: false, // TODO(ops): stored per user
     roles: parseJson<Role[]>(r.roles, []),
     teams: teamsOf(r.id),
     active: !!r.active,

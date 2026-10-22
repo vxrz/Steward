@@ -31,6 +31,7 @@ import { publishDataset } from '../dashboards/datasets.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
+import { emit } from '../events.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -459,6 +460,8 @@ async function execute(ctx: RunContext): Promise<void> {
   const log = logger.child({ runId: ctx.runId, processId: run.process_id, processVersion: run.process_version });
   const t0 = Date.now();
   log.info({ trigger: run.trigger, actor: ctx.actor, dryRun: ctx.dryRun, resumed: ctx.journal.size > 0 }, 'run started');
+  const evBase = { runId: ctx.runId, processId: run.process_id, processName: ctx.def.name, actor: ctx.actor, trigger: run.trigger, dryRun: ctx.dryRun };
+  emit('run.started', evBase);
   try {
     const start = ctx.def.nodes.find((n) => n.type === 'start');
     if (!start) throw new Error('Process has no start node');
@@ -489,6 +492,7 @@ async function execute(ctx: RunContext): Promise<void> {
   store.saveStats(ctx.runId, ctx.stats);
   store.setRunStatus(ctx.runId, status, { error: error ?? null, finished: true });
   log[status === 'failed' ? 'warn' : 'info']({ status, error, durationMs: Date.now() - t0, stats: ctx.stats }, 'run finished');
+  emit('run.finished', { ...evBase, scheduleId: run.schedule_id ?? null, status, error, durationMs: Date.now() - t0 });
   if (error && status === 'failed') ctx.log('error', `Run failed: ${error}`);
   audit({
     actor: ctx.actor,
@@ -747,6 +751,15 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string): Promise<L
           entityId: ctx.runId,
           runId: ctx.runId,
           summary: `Check "${step.name || step.id}" failed (${severity}): ${message.slice(0, 200)}`,
+        });
+        emit('check.failed', {
+          runId: ctx.runId,
+          processId: store.runRow(ctx.runId).process_id,
+          processName: ctx.def.name,
+          check: step.name || step.id,
+          severity,
+          message,
+          dryRun: ctx.dryRun,
         });
       }
       if (!passed && step.failRun) throw new Error(message);
@@ -1033,6 +1046,16 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
   if (!task) {
     const id = newId('task_');
     store.insertTask({ id, runId: ctx.runId, stepKey: key, mode: step.mode, title, instructions, columns, items: ctx.redactor.apply(items), assignees: step.assignees ?? [], fourEyes: !!step.fourEyes });
+    emit('task.created', {
+      taskId: id,
+      runId: ctx.runId,
+      processId: store.runRow(ctx.runId).process_id,
+      processName: ctx.def.name,
+      title,
+      assignees: step.assignees ?? [],
+      fourEyes: !!step.fourEyes,
+      runActor: ctx.actor,
+    });
     audit({
       actor: ctx.actor,
       action: 'task.created',

@@ -18,7 +18,8 @@ export type FieldKind =
   | 'paginate'
   | 'statusList'
   | 'identifier'
-  | 'subjects';
+  | 'subjects'
+  | 'process';
 
 export interface FieldMeta {
   key: string;
@@ -117,6 +118,12 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'as', label: 'Item variable name', kind: 'identifier', required: true },
       { key: 'delayMs', label: 'Delay between items (ms)', kind: 'number' },
       { key: 'maxItems', label: 'Max items (safety limit)', kind: 'number' },
+      {
+        key: 'concurrency',
+        label: 'Parallel items (1 = one after another)',
+        kind: 'number',
+        help: 'Up to 20. In parallel mode variables set inside the loop are local to each item – aggregate with a Set node after the loop.',
+      },
     ],
     defaults: () => ({ items: 'vars.items', as: 'item' }),
   },
@@ -235,6 +242,21 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'maxRows', label: 'Max rows (safety limit, default 5000)', kind: 'number' },
     ],
     defaults: () => ({ dataset: 'my.dataset', rows: 'vars.items', metrics: { total: '$count(vars.items)' } }),
+  },
+  subprocess: {
+    type: 'subprocess',
+    label: 'Run sub-process',
+    category: 'Control',
+    color: 'violet',
+    description:
+      'Runs another process as one step (reusable building blocks). The child run gets its own protocol, linked to this run; its outputs (process setting "Outputs") become this node\'s result. Connect "error" to handle a failed child run.',
+    fields: [
+      { key: 'process', label: 'Process', kind: 'process', required: true },
+      { key: 'version', label: 'Version (empty = current)', kind: 'number' },
+      { key: 'inputs', label: 'Inputs (child input → template)', kind: 'keyValue' },
+      { key: 'connections', label: 'Connections (child slot → this process\' slot)', kind: 'keyValue', help: 'Empty = same slot names' },
+    ],
+    defaults: () => ({ process: '', inputs: {} }),
   },
   wait: {
     type: 'wait',

@@ -24,8 +24,10 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "typescript": "~5.9.3",
-    "tinypool": "~2.2.0"
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
+    "tinypool": "~2.2.0",
+    "typescript": "~5.9.3"
   },
   "overrides": {
     "tinypool": "$tinypool"

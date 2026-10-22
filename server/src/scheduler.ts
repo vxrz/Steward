@@ -10,6 +10,7 @@ import { currentUser, runAs } from './auth/context.js';
 import { findUserByName, toAuthUser } from './auth/users.js';
 import { isAdmin } from './auth/permissions.js';
 import { logger } from './log.js';
+import { emit } from './events.js';
 
 interface ScheduleRow {
   id: string;
@@ -186,6 +187,7 @@ export async function fire(id: string, manual = false): Promise<string | null> {
         entityId: id,
         summary: `Schedule "${r.name}" skipped: previous run ${r.last_run_id} is still ${last.status}`,
       });
+      emit('schedule.skipped', { scheduleId: id, name: r.name, owner: r.owner, reason: `previous run ${r.last_run_id} is still ${last.status}` });
       return null;
     }
   }
@@ -204,6 +206,7 @@ export async function fire(id: string, manual = false): Promise<string | null> {
   if (problem) {
     logger.warn({ scheduleId: id, reason: problem }, 'schedule skipped');
     audit({ actor: 'scheduler', action: 'schedule.skipped', entityType: 'schedule', entityId: id, summary: `Schedule "${r.name}" skipped: ${problem}` });
+    emit('schedule.skipped', { scheduleId: id, name: r.name, owner: r.owner, reason: problem });
     return null;
   }
   try {

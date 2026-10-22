@@ -31,6 +31,8 @@ import * as scheduler from '../scheduler.js';
 import { runReportHtml, runReportPdf } from '../reports.js';
 import { setupDemo } from './demo.js';
 import { dashboardRoutes } from './dashboards.js';
+import { opsRoutes } from './ops.js';
+import { engineExtrasRoutes } from './engine-extras.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -727,6 +729,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   await dashboardRoutes(app);
+  await opsRoutes(app);
+  await engineExtrasRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {
