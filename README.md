@@ -265,6 +265,17 @@ _Records_ holds the team's **change requests** and **decision records** (ADR, DR
 
 _Services_ is a minimal service catalogue: contacts, criticality, the entry in your CMDB and links. See [docs/RECORDS.md](docs/RECORDS.md).
 
+## Compliance: access governance evidence
+
+For ISO/IEC 27001, IEC 62443-2-1 and NIS2 audits, _Compliance_ collects the evidence of how access is managed – Steward provides evidence, it does not make you compliant:
+
+- **Access changes**: documented grants, revocations and changes of access rights (a record type with four-eyes verification), also created automatically by runs of processes that change access;
+- **Access reconciliation**: scheduled snapshots of who has which access, compared with the documented changes; changes made outside Steward show up as findings and are documented after the fact with one click;
+- **Controls**: catalogues (identifiers and short topic names only) with the mapped Steward items and the evidence coverage per period, gaps highlighted;
+- **Evidence packs**: signed ZIP exports for auditors, checked offline with `npm run evidence:verify -- pack.zip`.
+
+See [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
+
 ## Writing processes
 
 Processes are built on the canvas or as YAML (_Source_ tab, or _Import YAML_).
