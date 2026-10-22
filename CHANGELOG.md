@@ -10,6 +10,16 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Added
 
+- **MCP server for AI assistants** ([docs/MCP.md](docs/MCP.md)), read-only, off by default (*Settings → MCP server*):
+  - Streamable HTTP at `POST /api/mcp`, protocol 2026-07-28 (stateless, `server/discover`) and the earlier 2025-11-25 and 2025-06-18 (`initialize`), JSON responses;
+  - tools for processes, runs and their steps, monitors, dashboards and datasets, platforms (metadata), schedules, webhook triggers, the audit log (auditors and administrators) and the system status – paginated, size-capped, with the rights of the token owner;
+  - the semantic model as resource `steward://semantic-model`;
+  - a new token scope *MCP client* (profile page) that works only on the MCP endpoint; the token dialog and the settings show a ready-to-copy client configuration;
+  - stdio bridge for desktop clients: `steward mcp` / `npm run mcp` (`--url`, `--api-key-file` or `STEWARD_API_KEY`); it never opens the database and checks that a local URL is really your Steward before sending the token;
+  - Prometheus counters `steward_mcp_requests_total`, `steward_mcp_tool_calls_total`, `steward_mcp_gateway_calls_total`.
+- **Platform MCP gateway** (platform → tab *MCP*, `manage` right): MCP clients find, describe and call the GET/HEAD operations of the platform's OpenAPI specifications – or GET paths below allow-listed prefixes – with the credentials Steward holds; every call is audited.
+- **Semantic model** ([docs/SEMANTIC-MODEL.md](docs/SEMANTIC-MODEL.md)): `GET /api/v1/semantic-model` describes the REST API's datasets, fields, relationships and metrics (run success rate, monitor availability, …) as an Apache Ossie (formerly OSI) model – revision 0.1.1 or 0.2.0.dev0, JSON or YAML, validated against the official schemas in the tests.
+- REST API 1.1: webhook triggers (`GET /api/v1/triggers`, `/triggers/{triggerId}`, metadata only).
 - **Account recovery:** `steward admin list-admins` and `steward admin reset-password <user> [--activate]` (also `npm run admin`) set a one-time password on the server. They need the data folder and the master passphrase, refuse while Steward is running, sign out the account's sessions and are audited. Docs on resetting a demo instance.
 
 **Processes and engine**
@@ -106,6 +116,7 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 
 ### Security
 
+- MCP (new): its own token scope that no other API accepts (and MCP endpoints accept no other scope); `Origin` validation against DNS rebinding next to the `Host` allow-list; 64 kB request limit, no batches, strict argument schemas, per-token rate limits and time limits; tool output is structured JSON marked as untrusted data. The platform gateway is opt-in per platform, read-only (writes are refused and audited), builds paths only from the API specification or allow-listed prefixes (no absolute URLs, dot segments or encoded separators), validates query parameters, applies the outbound policy, does not follow redirects, caps responses at 512 kB, masks credentials and returns no cookies.
 - Platform credentials are no longer sent to hosts outside the platform when a step calls an absolute URL.
 - The vault rejects shortened AES-GCM authentication tags.
 - Audit log integrity (review C):

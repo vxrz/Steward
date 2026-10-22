@@ -37,6 +37,7 @@ Position for erasure requests:
 - Auditors and administrators can read the audit log; everyone else only sees entries of runs they may see.
 - Exports (CSV, JSON) are audited themselves.
 - Credentials are never shown; API tokens are stored as hashes.
+- AI assistants (MCP, off by default) receive what their token owner may read – including user names in runs and, for auditors, the audit log – and pass it to the assistant's language model. Decide whether that is acceptable before turning MCP on ([MCP.md](MCP.md)); the first use of each MCP token per day and every platform gateway call are audited.
 
 ## Data subject access requests
 

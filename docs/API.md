@@ -5,7 +5,7 @@ Steward has a public, **read-only** REST API under `/api/v1` for reports, dashbo
 - Base URL: `https://<your Steward host>/api/v1` (locally `http://127.0.0.1:4310/api/v1`)
 - Description: [OpenAPI 3.1](openapi.json), also served at `/api/v1/openapi.json` (and `/api/v1/openapi.yaml`)
 - Interactive documentation: Swagger UI at `/api/docs/` (see [Documentation page](#documentation-page))
-- API version: `1.0.0` (`info.version` in the document, `apiVersion` in `/health` and `/me`)
+- API version: `1.1.0` (`info.version` in the document, `apiVersion` in `/health` and `/me`)
 
 The web UI keeps using its own internal API under `/api/…`. That one may change with every release – **build integrations on `/api/v1` only.**
 
@@ -37,6 +37,8 @@ Authorization: Bearer smt_…
 2. Choose the scope **Read only** – all `/api/v1` endpoints are read-only, so a read token is enough. *Full access* tokens work as well, but give more power than an integration needs (they can also call the internal API's write endpoints).
 3. Optionally set an expiry. Copy the token; it is shown only once.
 
+Tokens with the scope **MCP client** are for AI assistants and work only on the MCP endpoint (`/api/mcp`, see [MCP.md](MCP.md)); `/api/v1` refuses them with `403` (`token-scope`).
+
 A token acts with the rights of its owner: the API shows exactly what that user sees in the web UI (role defaults, process and platform access lists, auditor rights). `GET /me` tells you who the token belongs to and what it may read.
 
 Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly key-guarded and takes cross-site request forgery off the table. Tokens in the URL (`?access_token=…`, `?token=…`, `?api_key=…`) are refused with `400`.
@@ -47,6 +49,7 @@ Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly
 | Unknown, revoked or expired token | 401 | `invalid-token` |
 | Token owner deactivated | 403 | `owner-disabled` |
 | Token owner has to change their password first | 403 | `password-change-required` |
+| Token with scope *MCP client* | 403 | `token-scope` |
 | Vault locked (after a restart, until an admin unlocks it) | 503 | `vault-locked` |
 
 ## Conventions
@@ -78,6 +81,8 @@ Session cookies are **not** accepted on `/api/v1`. That keeps the API explicitly
 | `GET /tasks` | token | User tasks (selections, approvals). Filters `status` (`open`, `completed`, `cancelled`), `processId`, `runId` |
 | `GET /tasks/{taskId}` | token | With items and the decision |
 | `GET /schedules`, `/schedules/{scheduleId}` | token | Filters `processId`, `enabled` |
+| `GET /triggers`, `/triggers/{triggerId}` | token | Webhook triggers of processes you may view. Filters `processId`, `enabled`. Never the secret, its prefix, the input mapping or the allowed addresses |
+| `GET /semantic-model` | token | The data model of this API as an [Apache Ossie](SEMANTIC-MODEL.md) semantic model; JSON or YAML (`Accept: application/yaml` or `format=yaml`), `version=0.1.1` (default) or `0.2.0.dev0` |
 | `GET /platforms`, `/platforms/{platformId}` | token | **Metadata only** (id, name, kind, description, environment, base URL, auth type, your permissions). Never credentials, variables or authentication settings |
 | `GET /datasets`, `/datasets/{datasetKey}` | token | Dataset metadata (rows, status counts, latest metrics, staleness) |
 | `GET /datasets/{datasetKey}/rows` | token | Snapshot rows, `limit` up to 1000. Filter `status` |
@@ -208,6 +213,7 @@ Errors are *problem details* ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
 <a id="invalid-token"></a>**invalid-token** (401) – the token is unknown, revoked or expired. Create a new one.<br>
 <a id="owner-disabled"></a>**owner-disabled** (403) – the token's owner was deactivated.<br>
 <a id="password-change-required"></a>**password-change-required** (403) – the owner must change their password in the web UI.<br>
+<a id="token-scope"></a>**token-scope** (403) – the token has the scope *MCP client*; it only works on the MCP endpoint. Create a *read* token for the REST API.<br>
 <a id="forbidden"></a>**forbidden** (403) – the owner lacks the right (e.g. audit log without the auditor role).<br>
 <a id="not-found"></a>**not-found** (404) – does not exist, or the owner may not see it.<br>
 <a id="validation-error"></a>**validation-error** (400) – a query or path parameter is invalid; see `errors`.<br>
