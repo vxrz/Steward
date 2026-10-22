@@ -4,6 +4,7 @@ import { ENGINE_MIGRATIONS } from './migrations/engine.js';
 import { PERF_MIGRATIONS } from './migrations/perf.js';
 import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
+import { REPORT_MIGRATIONS } from './migrations/reports.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -14,7 +15,7 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS];
+const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS, ...REPORT_MIGRATIONS];
 
 const MIGRATIONS: string[] = [
   `
@@ -324,6 +325,11 @@ export class Db {
 
   get dialect(): 'sqlite' | 'postgres' {
     return this.driver.dialect;
+  }
+  /** SQL expression for a top-level text field of a JSON column (portable json_extract). */
+  jsonText(column: string, key: string): string {
+    if (!/^[a-zA-Z_][\w.]*$/.test(column) || !/^\w+$/.test(key)) throw new Error('invalid JSON field reference');
+    return this.dialect === 'postgres' ? `(${column}::jsonb ->> '${key}')` : `json_extract(${column}, '$.${key}')`;
   }
   /** Where the data lives, without credentials (for logs and the UI). */
   get label(): string {

@@ -54,7 +54,7 @@ describe('SQL translation', () => {
     const rules: [RegExp, string][] = [
       [/\bINSERT\s+OR\s+(IGNORE|REPLACE)\b/, 'use INSERT … ON CONFLICT … DO NOTHING / DO UPDATE'],
       [/\bPRAGMA\b/, 'PRAGMAs are SQLite-only (add a Db method)'],
-      [/\b(julianday|strftime|group_concat|ifnull|iif)\s*\(/i, 'SQLite-only SQL function'],
+      [/\b(julianday|strftime|group_concat|ifnull|iif|json_extract)\s*\(/i, 'SQLite-only SQL function (JSON: use db().jsonText)'],
       [/db\(\)\.raw\b|lastInsertRowid/, 'use the portable Db API (e.g. INSERT … RETURNING id with get())'],
       [/\bAS [a-z]+[A-Z]\w*/, 'quote camelCase aliases (AS "runId") – PostgreSQL folds unquoted names to lower case'],
     ];

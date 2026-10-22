@@ -192,21 +192,3 @@ ${auditEntries.map((a) => `<tr><td>${a.seq}</td><td>${fmtDate(a.ts)}</td><td>${e
 </table>
 </body></html>`;
 }
-
-export async function runReportPdf(runId: string): Promise<Buffer> {
-  const html = runReportHtml(runId);
-  let pw: { chromium: { launch(o?: unknown): Promise<{ newPage(): Promise<{ setContent(h: string, o?: unknown): Promise<void>; pdf(o: unknown): Promise<Buffer> }>; close(): Promise<void> }> } };
-  try {
-    pw = (await import('playwright')) as never;
-  } catch {
-    throw new Error('PDF export needs Playwright (npm install playwright -w server). Use the HTML report and print to PDF instead.');
-  }
-  const browser = await pw.chromium.launch();
-  try {
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'load' });
-    return await page.pdf({ format: 'A4', printBackground: true, margin: { top: '12mm', bottom: '12mm', left: '10mm', right: '10mm' } });
-  } finally {
-    await browser.close();
-  }
-}

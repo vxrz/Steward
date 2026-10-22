@@ -11,6 +11,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { ApiTokenTable } from '../components/ApiTokenTable';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
+import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const qc = useQueryClient();
@@ -169,6 +170,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           </Button>
         </Group>
         )}
+        {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}
         {!readOnly && <AdminTokensCard />}
         <Card withBorder>

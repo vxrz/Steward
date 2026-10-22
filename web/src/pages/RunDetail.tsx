@@ -29,6 +29,7 @@ import {
   IconCircleCheck,
   IconCircleX,
   IconBoxMultiple,
+  IconFileCertificate,
 } from '@tabler/icons-react';
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post } from '../api';
@@ -36,6 +37,7 @@ import { fmtDate, fmtDuration, runDuration } from '../format';
 import { JsonView, Markdown, PageHeader, StatusBadge } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
+import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -48,6 +50,7 @@ export function RunDetailPage() {
   const [rerun, setRerun] = useState(false);
   const [stepLimit, setStepLimit] = useState(STEP_PAGE);
   const [logLimit, setLogLimit] = useState(LOG_PAGE);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const run = useQuery({
     queryKey: ['run', id],
     queryFn: () => get<RunDetail>(`/runs/${id}`),
@@ -128,8 +131,8 @@ export function RunDetailPage() {
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html`} target="_blank">
                   Open HTML protocol
                 </Menu.Item>
-                <Menu.Item component="a" href={`/api/runs/${r.id}/report.pdf`}>
-                  Download PDF
+                <Menu.Item leftSection={<IconFileCertificate size={14} />} disabled={!canReport(r.status)} onClick={() => setPdfOpen(true)}>
+                  Generate PDF report…
                 </Menu.Item>
                 <Menu.Item component="a" href={`/api/runs/${r.id}/report.html?download=1`}>
                   Download HTML
@@ -143,6 +146,7 @@ export function RunDetailPage() {
         }
       />
       <RunDialog processId={r.processId} opened={rerun} onClose={() => setRerun(false)} />
+      <GenerateReportDialog runId={r.id} status={r.status} opened={pdfOpen} onClose={() => setPdfOpen(false)} />
 
       <Stack>
         {r.parentRunId && (
@@ -189,6 +193,7 @@ export function RunDetailPage() {
             {r.artifacts.length > 0 && <Tabs.Tab value="evidence">Evidence ({r.artifacts.length})</Tabs.Tab>}
             <Tabs.Tab value="log">Log ({r.logs.length})</Tabs.Tab>
             <Tabs.Tab value="inputs">Inputs</Tabs.Tab>
+            <Tabs.Tab value="pdf">PDF reports</Tabs.Tab>
             <Tabs.Tab value="audit">Audit</Tabs.Tab>
           </Tabs.List>
 
@@ -363,6 +368,10 @@ export function RunDetailPage() {
                 Definition hash {r.definitionHash}
               </Text>
             </Stack>
+          </Tabs.Panel>
+
+          <Tabs.Panel value="pdf" pt="sm">
+            <RunReportsPanel runId={r.id} status={r.status} />
           </Tabs.Panel>
 
           <Tabs.Panel value="audit" pt="sm">

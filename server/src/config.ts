@@ -26,6 +26,8 @@ export const config = {
   webDist: process.env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
   templatesDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'processes'),
   dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),
+  /** Fonts, default logo and colour profile for PDF reports (server/assets; unpacked by the desktop executable) */
+  assetsDir: process.env.SM_ASSETS_DIR ?? path.join(ROOT_DIR, 'server', 'assets'),
   /** Optional passphrase for unattended start (scheduled runs after reboot). */
   masterPassphrase: process.env.SM_MASTER_PASSPHRASE,
   /** Serve HTTPS (recommended when other people access the tool over the network). */

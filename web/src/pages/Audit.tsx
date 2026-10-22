@@ -8,6 +8,7 @@ import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
 import { get, notifyError } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
+import { VerifyReportButton } from '../components/reports/VerifyReportButton';
 
 const CATEGORIES = [
   { value: 'run.', label: 'Runs' },
@@ -18,6 +19,7 @@ const CATEGORIES = [
   { value: 'process.', label: 'Processes' },
   { value: 'schedule.', label: 'Schedules' },
   { value: 'vault.', label: 'Vault' },
+  { value: 'report.', label: 'Reports' },
 ];
 
 export function AuditPage() {
@@ -48,6 +50,7 @@ export function AuditPage() {
         description="Append-only record of everything done with this tool. Entries are chained and signed (HMAC) with a key derived from your master passphrase, so edits or deletions are detected."
         actions={
           <>
+            <VerifyReportButton />
             <Button
               size="xs"
               variant="light"

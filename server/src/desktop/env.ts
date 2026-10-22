@@ -75,4 +75,5 @@ if (inExecutable) {
   process.env.SM_WEB_DIST ??= path.join(appDir, 'web');
   process.env.SM_EXAMPLES_DIR ??= path.join(appDir, 'examples');
   if (fs.existsSync(path.join(appDir, 'swagger-ui'))) process.env.SM_SWAGGER_UI_DIR ??= path.join(appDir, 'swagger-ui');
+  process.env.SM_ASSETS_DIR ??= path.join(appDir, 'assets');
 }

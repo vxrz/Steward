@@ -42,7 +42,7 @@ All `SM_*` and `OTEL_*` environment variables from the README work as well.
 
 For a company rollout, sign the binaries (Authenticode on Windows, Developer ID and notarisation on macOS) and distribute them with Intune, Jamf or your software centre.
 
-**Browser steps** (the *Browser* node and PDF protocols) need Playwright and Chromium, which are not embedded because they are large. Use option 3 or 4 (with `WITH_BROWSER=1`) if you need them. Everything else works in the executable.
+**Browser steps** (the *Browser* node) need Playwright and Chromium, which are not embedded because they are large. Use option 3 or 4 (with `WITH_BROWSER=1`) if you need them. Everything else works in the executable, including PDF reports: their fonts, logo and colour profile are embedded and unpacked next to the web UI.
 
 **Build it yourself:**
 

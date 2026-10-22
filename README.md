@@ -15,7 +15,8 @@ Steward is a local tool for running standard service and platform procedures aga
 - **Human in the loop.** A run can pause and ask you to pick items from a list, e.g. "untick the users who still need access", or to approve a change. The decision, who made it and when are all recorded.
 - **Dry runs.** Read calls run, write calls (POST/PUT/PATCH/DELETE) are only recorded. You see exactly what *would* change.
 - **Scheduling.** Cron schedules with time zones. Scheduled runs that need a decision wait in *My tasks*.
-- **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/PDF/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
+- **Auditability.** There is a hash-chained, HMAC-signed audit log and a per-run protocol (HTML/JSON) with inputs, every request, decisions, checks, reports and screenshots. Each protocol has a sealed fingerprint, so later changes are detected.
+- **PDF reports for the archive.** Branded PDF/A-2b reports of finished runs (what was done, when, results, decisions, comments) and periodic summaries, ready to be archived and signed later. Every PDF is stored unchanged and its SHA-256 is recorded in the audit log. See [PDF reports](#pdf-reports).
 - **Dashboards.** Flows publish datasets: a snapshot of rows with a status per row, plus metric history. Dashboards show them as KPI tiles, trends, status distributions and tables, with no live API calls when someone opens a dashboard.
 - **Example library.** [`examples/`](examples/README.md) contains service-management and housekeeping procedures for Insights Hub and Industrial Edge, plus dashboards, all importable.
 - **Sub-processes and parallel loops.** A *Run sub-process* node calls another process as a reusable building block (inputs in, outputs back, linked child runs). *For each* can process items in parallel. Platform calls retry on 429/5xx with backoff and honour `Retry-After`.
@@ -34,7 +35,7 @@ Requirements: **Node.js 24 (LTS)** (it uses the built-in SQLite). Windows, macOS
 
 ```bash
 npm install
-npx playwright install chromium   # only needed for browser automation / PDF export
+npx playwright install chromium   # only needed for browser automation
 npm run demo
 ```
 
@@ -205,6 +206,26 @@ For the bigger picture (standards, UX ideas, Kestra/Temporal, observability, roa
 - **Asset attributes.** These are billed per asset: the asset type's variables plus the variables of its aspects. The optimization template estimates potential from sampled latest values. Cross-check with the Asset Manager attribute calculator before changing models.
 - **IEM device fields.** Field names for connection state differ between IEM versions, so the device template takes the field name and the "online" value as inputs. Use the platform's **API explorer** to look at a real response.
 - Import the official OpenAPI specs from the Siemens developer portal into each platform. The editor's *Pick from API spec* and the explorer then list all operations.
+
+## PDF reports
+
+Steward creates PDF reports without a browser, also in the desktop executable.
+
+- **Run report.** On a run page, open *PDF reports → Generate PDF report* (or *Protocol → Generate PDF report…*). Choose English or German and add a reviewer comment if you like. The report contains:
+  - a summary: process, version and definition hash, who started the run, when and how, the time zone, the status and a prominent *dry run* banner;
+  - the platforms used (names and kinds only, never credentials) and the inputs;
+  - every step in order, the write operations (simulated ones are marked), decisions and approvals (who, when, selection, comment, four-eyes rule), checks, the process's own report sections, evidence with thumbnails and errors;
+  - the reviewer comment, an integrity section with the sealed protocol hash and the run's audit trail, and a sign-off block (*Prepared / Reviewed / Approved by*) with empty digital signature fields.
+- **Interim reports.** Runs that wait for a decision can be reported too. These reports are marked *interim*.
+- **Summary report.** *Runs → Summary report* lists all runs of one or more processes in a period, e.g. "Access reviews Q3", with totals.
+- **Automatic reports.** In the process editor, *Settings → PDF report* (YAML: `report: { auto: true, lang: de }`) generates the report whenever a run finishes, e.g. for scheduled reviews.
+- **Branding.** *Settings → Report branding* (administrators) sets the company name, logo (PNG/JPEG, max. 1 MB; default: the Steward logo), accent colour, default classification (e.g. *Internal*) and a footer note, with a sample preview.
+
+**Archiving and signing.** The files are PDF/A-2b with embedded fonts and metadata (run ID, process, protocol hash, content hash), validated with veraPDF (PDF/A-2b). They are written once to `data/reports/<run>/<report>.pdf` and never overwritten; generating again creates a new version. Each generation is recorded as `report.generated` with the file's SHA-256 in the audit log, and data retention removes a run's reports together with the run. The signature fields can be signed later in Adobe Acrobat or another PDF signing tool.
+
+**Verifying a copy.** *Audit log → Verify PDF report* (or `POST /api/reports/verify`) checks a file against the audit log. It also recognizes signed copies: a signature is appended as an incremental update, so the first bytes of a signed copy are still the original report.
+
+API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the *settings* capability.
 
 ## Writing processes
 

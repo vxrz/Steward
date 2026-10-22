@@ -9,7 +9,7 @@ This document collects what makes sense next: improvements to the tool, standard
 | Processes | Node-RED-style graph flows. Versioned, dry runs, approvals and selections, browser steps. Durable: resumes after a restart without repeating finished steps. |
 | Platforms | Any REST API. OpenAPI import (file, paste, URL), connector types (export/import), encrypted credentials. |
 | Access | Local accounts and OIDC/Entra ID SSO. Roles, teams, per-process and per-platform access lists, four-eyes approvals. |
-| Evidence | HMAC-chained audit log, run protocols (HTML/PDF/JSON) with a sealed fingerprint, screenshots. |
+| Evidence | HMAC-chained audit log, run protocols (HTML/JSON) with a sealed fingerprint, screenshots, branded PDF/A reports (run and summary) recorded in the audit log, ready for signing. |
 | Dashboards | Fed by *Publish to dashboard* nodes: dataset snapshots and metric history, KPI/trend/status/table widgets. |
 | Import / export | Single process (YAML), dashboard (YAML), connector type (JSON), bundles of processes and dashboards (JSON), example library in `examples/`, `npm run validate` for CI. |
 | Observability | Structured JSON logs (pino) with request, run and trace correlation. Optional OpenTelemetry traces (runs → nodes → HTTP calls, W3C `traceparent` propagation). Prometheus metrics and readiness probe. |
