@@ -29,9 +29,7 @@ const providerSchema = z.object({
   displayNameClaim: z.string().default('name'),
   emailClaim: z.string().default('email'),
   groupsClaim: z.string().default('roles'),
-  mappings: z
-    .array(z.object({ claimValue: z.string().min(1), roles: z.array(z.enum(ROLES)).default([]), teams: z.array(z.string()).default([]) }))
-    .default([]),
+  mappings: z.array(z.object({ claimValue: z.string().min(1), roles: z.array(z.enum(ROLES)).default([]), teams: z.array(z.string()).default([]) })).default([]),
   defaultRoles: z.array(z.enum(ROLES)).default([]),
   autoProvision: z.boolean().default(true),
   syncRoles: z.boolean().default(true),
@@ -60,7 +58,12 @@ const secretDigest = (blob: string | null): string | null => {
     return 'undecryptable';
   }
 };
-const macFields = (r: Pick<ProviderRow, 'config' | 'secret' | 'enabled'>) => ({ v: 1, config: parseJson<unknown>(r.config, null), enabled: !!r.enabled, secret: secretDigest(r.secret) });
+const macFields = (r: Pick<ProviderRow, 'config' | 'secret' | 'enabled'>) => ({
+  v: 1,
+  config: parseJson<unknown>(r.config, null),
+  enabled: !!r.enabled,
+  secret: secretDigest(r.secret),
+});
 
 function sealProvider(id: string): void {
   if (!vault().unlocked) return;
@@ -149,7 +152,13 @@ export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider 
         ts,
       );
       sealProvider(pid);
-      audit({ action: 'sso.provider_created', entityType: 'sso', entityId: pid, summary: `Sign-in provider "${config.displayName}" added (${config.issuer})`, details: { ...config, enabled } });
+      audit({
+        action: 'sso.provider_created',
+        entityType: 'sso',
+        entityId: pid,
+        summary: `Sign-in provider "${config.displayName}" added (${config.issuer})`,
+        details: { ...config, enabled },
+      });
     }
   });
   configCache.delete(pid);
@@ -181,8 +190,7 @@ async function clientConfig(p: SsoProvider): Promise<oidc.Configuration> {
   if (hit && hit.stamp === p.updatedAt) return hit.config;
   const secret = p.clientAuth === 'none' ? undefined : providerSecret(p.id);
   if (p.clientAuth !== 'none' && !secret) throw new HttpError(400, `No client secret stored for "${p.displayName}"`);
-  const auth =
-    p.clientAuth === 'none' ? oidc.None() : p.clientAuth === 'client_secret_basic' ? oidc.ClientSecretBasic(secret) : oidc.ClientSecretPost(secret);
+  const auth = p.clientAuth === 'none' ? oidc.None() : p.clientAuth === 'client_secret_basic' ? oidc.ClientSecretBasic(secret) : oidc.ClientSecretPost(secret);
   const config = await oidc.discovery(new URL(p.issuer), p.clientId, undefined, auth, {
     [oidc.customFetch]: proxiedFetch,
     timeout: 15,
@@ -301,7 +309,13 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   const values = claimList(claims[p.groupsClaim]).map((v) => v.toLowerCase());
   const matched = p.mappings.filter((m) => values.includes(m.claimValue.trim().toLowerCase()));
   const deny = (reason: string): never => {
-    audit({ actor: username, action: 'auth.login_failed', entityType: 'sso', entityId: p.id, summary: `Single sign-on of "${username}" via ${p.displayName} denied: ${reason}` });
+    audit({
+      actor: username,
+      action: 'auth.login_failed',
+      entityType: 'sso',
+      entityId: p.id,
+      summary: `Single sign-on of "${username}" via ${p.displayName} denied: ${reason}`,
+    });
     throw new HttpError(403, reason);
   };
   if (p.requireMapping && matched.length === 0) {
@@ -324,8 +338,21 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   db().tx(() => {
     if (existing) {
       // pre-created (or local) account with the same user name → link it
-      db().run('UPDATE users SET external_id = ?, auth_source = ?, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?', externalId, p.id, '!sso', nowIso(), existing.id);
-      audit({ action: 'user.linked_sso', entityType: 'user', entityId: existing.id, actor: username, summary: `Account "${username}" linked to ${p.displayName}` });
+      db().run(
+        'UPDATE users SET external_id = ?, auth_source = ?, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?',
+        externalId,
+        p.id,
+        '!sso',
+        nowIso(),
+        existing.id,
+      );
+      audit({
+        action: 'user.linked_sso',
+        entityType: 'user',
+        entityId: existing.id,
+        actor: username,
+        summary: `Account "${username}" linked to ${p.displayName}`,
+      });
     } else if (created) {
       userId = newId('usr_');
       const ts = nowIso();

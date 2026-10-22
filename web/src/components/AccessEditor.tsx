@@ -69,9 +69,17 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Alert variant="light" color={rows.length ? 'orange' : 'blue'} p="sm">
         <Text size="sm">
           {rows.length ? (
-            <Trans t={t} i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'} components={{ b: <b /> }} />
+            <Trans
+              t={t}
+              i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'}
+              components={{ b: <b /> }}
+            />
           ) : (
-            <Trans t={t} i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'} components={{ b: <b /> }} />
+            <Trans
+              t={t}
+              i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'}
+              components={{ b: <b /> }}
+            />
           )}
         </Text>
       </Alert>
@@ -156,7 +164,9 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               size="xs"
               label={t('addLabel')}
               placeholder={t('addPlaceholder')}
-              data={(subjects.data ?? []).filter((s) => !rows.some((r) => r.subject === s.value)).map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
+              data={(subjects.data ?? [])
+                .filter((s) => !rows.some((r) => r.subject === s.value))
+                .map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
               value={draft}
               onChange={setDraft}
               onOptionSubmit={(v) => setDraft(v)}

@@ -59,7 +59,10 @@ export function SubprocessSection({
       <Stack gap="xs">
         <Alert color="orange" p="xs">
           <Text size="xs">
-            {t(node.version ? 'sub.loadFailedVersion' : 'sub.loadFailed', { version: node.version, error: (child.error as Error)?.message ?? t('sub.notFound') })}
+            {t(node.version ? 'sub.loadFailedVersion' : 'sub.loadFailed', {
+              version: node.version,
+              error: (child.error as Error)?.message ?? t('sub.notFound'),
+            })}
           </Text>
         </Alert>
         <Text size="sm" fw={500}>
@@ -119,7 +122,9 @@ export function SubprocessSection({
                     {inp.required && <span style={{ color: 'var(--mantine-color-red-filled)' }}> *</span>}
                   </>
                 }
-                description={[inp.type, inp.description, inp.default !== undefined ? t('sub.default', { value: asText(inp.default) }) : ''].filter(Boolean).join(' · ')}
+                description={[inp.type, inp.description, inp.default !== undefined ? t('sub.default', { value: asText(inp.default) }) : '']
+                  .filter(Boolean)
+                  .join(' · ')}
                 placeholder={inp.default !== undefined ? asText(inp.default) : '{{ inputs.something }}'}
                 error={missing ? t('sub.required') : undefined}
                 value={v}

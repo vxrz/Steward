@@ -24,7 +24,9 @@ if (args.has('-h') || args.has('--help')) {
 }
 const unknown = [...args].filter((a) => !['--check', '--run'].includes(a));
 if (unknown.length || !args.size) {
-  process.stderr.write(`error: ${unknown.length ? `unknown option '${unknown[0]}'` : 'pass --check and/or --run'}\nRun 'node scripts/install-scripts.mjs --help' for usage.\n`);
+  process.stderr.write(
+    `error: ${unknown.length ? `unknown option '${unknown[0]}'` : 'pass --check and/or --run'}\nRun 'node scripts/install-scripts.mjs --help' for usage.\n`,
+  );
   process.exit(2);
 }
 
@@ -37,7 +39,8 @@ const withScripts = Object.entries(lock.packages ?? {})
 let failed = false;
 if (args.has('--check')) {
   const unreviewed = withScripts.filter((x) => typeof allow[`${x.name}@${x.version}`] !== 'boolean');
-  for (const x of unreviewed) process.stderr.write(`FAIL ${x.name}@${x.version} (${x.path}) has an install script that is not reviewed in package.json "allowScripts"\n`);
+  for (const x of unreviewed)
+    process.stderr.write(`FAIL ${x.name}@${x.version} (${x.path}) has an install script that is not reviewed in package.json "allowScripts"\n`);
   if (unreviewed.length) failed = true;
   else console.log(`ok: ${withScripts.length} package(s) with install scripts, all reviewed in "allowScripts"`);
 }
@@ -45,7 +48,11 @@ if (args.has('--run') && !failed) {
   const run = [...new Set(withScripts.filter((x) => allow[`${x.name}@${x.version}`] === true && fs.existsSync(path.join(root, x.path))).map((x) => x.name))];
   for (const name of run) {
     console.log(`running the install script of ${name} (npm rebuild ${name})`);
-    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['rebuild', name, '--foreground-scripts'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
+    execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['rebuild', name, '--foreground-scripts'], {
+      cwd: root,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
   }
 }
 process.exit(failed ? 1 : 0);

@@ -78,7 +78,11 @@ export const test = base.extend<Fixtures>({
   apiAs: async ({}, use) => {
     const clients: APIRequestContext[] = [];
     await use(async (user) => {
-      const c = await pwRequest.newContext({ baseURL: baseURL(), storageState: authFile(user), extraHTTPHeaders: { 'x-sm-client': '1', ...sessionHeaders(user) } });
+      const c = await pwRequest.newContext({
+        baseURL: baseURL(),
+        storageState: authFile(user),
+        extraHTTPHeaders: { 'x-sm-client': '1', ...sessionHeaders(user) },
+      });
       clients.push(c);
       return c;
     });

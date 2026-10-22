@@ -38,15 +38,22 @@ export function getSettings(): Settings {
 }
 
 export function updateSettings(patch: Partial<Settings>): Settings {
-  const allowed: (keyof Settings)[] = ['passwordLogin', 'browserHeadless', 'browserTimeoutMs', 'retentionRunDays', 'retentionNotificationDays', 'retentionMonitorDays', 'defaultLocale', 'apiDocs', 'outboundPolicy', 'outboundAllowList'];
+  const allowed: (keyof Settings)[] = [
+    'passwordLogin',
+    'browserHeadless',
+    'browserTimeoutMs',
+    'retentionRunDays',
+    'retentionNotificationDays',
+    'retentionMonitorDays',
+    'defaultLocale',
+    'apiDocs',
+    'outboundPolicy',
+    'outboundAllowList',
+  ];
   db().tx(() => {
     for (const k of allowed) {
       if (patch[k] !== undefined) {
-        db().run(
-          'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-          k,
-          JSON.stringify(patch[k]),
-        );
+        db().run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', k, JSON.stringify(patch[k]));
       }
     }
   });

@@ -9,15 +9,7 @@ import { findUserByName, toAuthUser } from '../auth/users.js';
 import { permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
 import { startRun } from '../engine/runner.js';
-import {
-  addressAllowed,
-  countRejection,
-  evaluateMapping,
-  pickHeaders,
-  processArchived,
-  triggerRow,
-  type TriggerRow,
-} from './service.js';
+import { addressAllowed, countRejection, evaluateMapping, pickHeaders, processArchived, triggerRow, type TriggerRow } from './service.js';
 
 /**
  * Inbound webhook: `POST /api/hooks/<triggerId>`.
@@ -137,7 +129,10 @@ function hmacOk(r: HookSecret, req: HookCall): boolean {
   const m = /^sha256=([0-9a-f]{64})$/i.exec(header(req.headers, 'x-steward-signature')?.trim() ?? '');
   if (!m) return false;
   const secret = vault().decrypt<string>(r.secret_enc);
-  const expected = crypto.createHmac('sha256', secret).update(req.raw ?? Buffer.alloc(0)).digest('hex');
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(req.raw ?? Buffer.alloc(0))
+    .digest('hex');
   return timingSafeHexEqual(m[1]!.toLowerCase(), expected);
 }
 
@@ -179,7 +174,11 @@ function duplicate(r: TriggerRow, hash: string): boolean {
   return false;
 }
 
-function recordFire(r: TriggerRow, req: HookRequest, f: { hash: string; outcome: 'started' | 'skipped' | 'failed'; reason?: string; runId?: string; test: boolean }) {
+function recordFire(
+  r: TriggerRow,
+  req: HookRequest,
+  f: { hash: string; outcome: 'started' | 'skipped' | 'failed'; reason?: string; runId?: string; test: boolean },
+) {
   const ts = nowIso();
   db().tx(() => {
     db().run(
@@ -213,7 +212,15 @@ function recordFire(r: TriggerRow, req: HookRequest, f: { hash: string; outcome:
       summary:
         `Webhook trigger "${r.name}"${f.test ? ' (test call)' : ''} called from ${req.ip}: ` +
         (f.outcome === 'started' ? `run ${f.runId} started as ${r.owner}` : `${f.outcome === 'skipped' ? 'run skipped' : 'run not started'} – ${f.reason}`),
-      details: { sourceIp: req.ip, payloadHash: f.hash, runId: f.runId ?? null, owner: r.owner, processId: r.process_id, test: f.test, reason: f.reason ?? null },
+      details: {
+        sourceIp: req.ip,
+        payloadHash: f.hash,
+        runId: f.runId ?? null,
+        owner: r.owner,
+        processId: r.process_id,
+        test: f.test,
+        reason: f.reason ?? null,
+      },
     });
   });
 }
@@ -274,7 +281,14 @@ export async function handleHook(req: HookRequest): Promise<HookResponse> {
   });
   const mapErrors = Object.entries(mapped.errors);
   if (mapErrors.length) {
-    recordFire(r, req, { ...base, outcome: 'failed', reason: `input mapping failed: ${mapErrors.map(([k, v]) => `${k}: ${v}`).join('; ').slice(0, 500)}` });
+    recordFire(r, req, {
+      ...base,
+      outcome: 'failed',
+      reason: `input mapping failed: ${mapErrors
+        .map(([k, v]) => `${k}: ${v}`)
+        .join('; ')
+        .slice(0, 500)}`,
+    });
     return { status: 422, body: { error: 'Input mapping failed' } };
   }
   const owner = ownerProblem(r);

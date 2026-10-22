@@ -55,9 +55,15 @@ export function parseTrustProxy(v: string | undefined): number | string[] | unde
   const s = v?.trim();
   if (!s || /^(0|false|off|no)$/i.test(s)) return undefined;
   if (/^\d+$/.test(s)) return Number(s);
-  if (/^(true|on|yes|\*)$/i.test(s)) throw new Error('SM_TRUST_PROXY=true would trust any client to set its own address – use the number of proxies (e.g. 1) or their addresses');
-  const list = s.split(',').map((x) => x.trim()).filter(Boolean);
-  for (const x of list) if (!/^[0-9a-fA-F.:]+(\/\d{1,3})?$/.test(x) && !['loopback', 'linklocal', 'uniquelocal'].includes(x)) throw new Error(`SM_TRUST_PROXY: "${x}" is not an IP address or CIDR`);
+  if (/^(true|on|yes|\*)$/i.test(s))
+    throw new Error('SM_TRUST_PROXY=true would trust any client to set its own address – use the number of proxies (e.g. 1) or their addresses');
+  const list = s
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  for (const x of list)
+    if (!/^[0-9a-fA-F.:]+(\/\d{1,3})?$/.test(x) && !['loopback', 'linklocal', 'uniquelocal'].includes(x))
+      throw new Error(`SM_TRUST_PROXY: "${x}" is not an IP address or CIDR`);
   return list;
 }
 

@@ -190,7 +190,16 @@ export function onRunFinished(e: DomainEvents['run.finished']): void {
     recipients: uniqueUsers([actor, scheduleOwner]),
     inAppKey: `run:${e.runId}`,
     externalKey: e.scheduleId ? `schedule:${e.scheduleId}` : `process:${e.processId}`,
-    data: { runId: e.runId, processId: e.processId, processName: e.processName, actor: e.actor, trigger: e.trigger, scheduleId: e.scheduleId ?? null, dryRun: e.dryRun, error: e.error ?? null },
+    data: {
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      actor: e.actor,
+      trigger: e.trigger,
+      scheduleId: e.scheduleId ?? null,
+      dryRun: e.dryRun,
+      error: e.error ?? null,
+    },
   });
 }
 

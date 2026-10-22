@@ -1,6 +1,14 @@
 import jsonata from 'jsonata';
 import type { ZodError } from 'zod';
-import { CHECK_TYPES, definitionIssues, monitorDefinitionSchema, monitorFileSchema, templateParamSchema, type MonitorDefinition, type TemplateParam } from '@sm/shared';
+import {
+  CHECK_TYPES,
+  definitionIssues,
+  monitorDefinitionSchema,
+  monitorFileSchema,
+  templateParamSchema,
+  type MonitorDefinition,
+  type TemplateParam,
+} from '@sm/shared';
 import { HttpError } from '../util.js';
 import { renderTemplate, sampleParams } from './templates.js';
 

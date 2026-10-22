@@ -99,67 +99,65 @@ export function SpecsTab({
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     return (ops.data ?? []).filter(
-      (o) =>
-        (!tag || o.tag === tag) &&
-        (!q || [o.method, o.path, o.summary, o.operationId, o.tag].some((x) => x?.toLowerCase().includes(q))),
+      (o) => (!tag || o.tag === tag) && (!q || [o.method, o.path, o.summary, o.operationId, o.tag].some((x) => x?.toLowerCase().includes(q))),
     );
   }, [ops.data, filter, tag]);
 
   return (
     <Stack>
       {!readOnly && (
-      <Paper withBorder p="md">
-        <Title order={5}>{t('specs.importTitle')}</Title>
-        <Hint>{t('specs.importHint')}</Hint>
-        <Stack mt="sm">
-          <Group align="flex-end" wrap="wrap">
-            <TextInput label={t('specs.name')} value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />
-            <FileButton
-              accept=".json,.yaml,.yml,application/json,text/yaml"
-              onChange={(f) => {
-                if (!f) return;
-                f.text().then((text) => {
-                  setContent(text);
-                  if (!name) setName(f.name.replace(/\.(json|ya?ml)$/i, ''));
-                });
-              }}
-            >
-              {(props) => (
-                <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
-                  {t('specs.chooseFile')}
-                </Button>
-              )}
-            </FileButton>
-          </Group>
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label={t('specs.fromUrl')}
-              placeholder="https://example.com/openapi.json"
+        <Paper withBorder p="md">
+          <Title order={5}>{t('specs.importTitle')}</Title>
+          <Hint>{t('specs.importHint')}</Hint>
+          <Stack mt="sm">
+            <Group align="flex-end" wrap="wrap">
+              <TextInput label={t('specs.name')} value={name} onChange={(e) => setName(e.currentTarget.value)} style={{ flex: 1, minWidth: 180 }} />
+              <FileButton
+                accept=".json,.yaml,.yml,application/json,text/yaml"
+                onChange={(f) => {
+                  if (!f) return;
+                  f.text().then((text) => {
+                    setContent(text);
+                    if (!name) setName(f.name.replace(/\.(json|ya?ml)$/i, ''));
+                  });
+                }}
+              >
+                {(props) => (
+                  <Button {...props} variant="light" leftSection={<IconUpload size={16} />}>
+                    {t('specs.chooseFile')}
+                  </Button>
+                )}
+              </FileButton>
+            </Group>
+            <Group align="flex-end" wrap="wrap">
+              <TextInput
+                label={t('specs.fromUrl')}
+                placeholder="https://example.com/openapi.json"
+                classNames={{ input: 'mono' }}
+                value={url}
+                onChange={(e) => setUrl(e.currentTarget.value)}
+                style={{ flex: 1, minWidth: 220 }}
+              />
+              <Button variant="light" onClick={() => upload(true)} loading={busy} disabled={!/^https?:\/\/\S+$/.test(url.trim())}>
+                {t('specs.importUrl')}
+              </Button>
+            </Group>
+            <Textarea
+              label={t('specs.paste')}
               classNames={{ input: 'mono' }}
-              value={url}
-              onChange={(e) => setUrl(e.currentTarget.value)}
-              style={{ flex: 1, minWidth: 220 }}
+              autosize
+              minRows={3}
+              maxRows={10}
+              value={content}
+              onChange={(e) => setContent(e.currentTarget.value)}
             />
-            <Button variant="light" onClick={() => upload(true)} loading={busy} disabled={!/^https?:\/\/\S+$/.test(url.trim())}>
-              {t('specs.importUrl')}
-            </Button>
-          </Group>
-          <Textarea
-            label={t('specs.paste')}
-            classNames={{ input: 'mono' }}
-            autosize
-            minRows={3}
-            maxRows={10}
-            value={content}
-            onChange={(e) => setContent(e.currentTarget.value)}
-          />
-          <Group justify="flex-end">
-            <Button onClick={() => upload(false)} loading={busy} disabled={content.trim().length < 2}>
-              {t('specs.import')}
-            </Button>
-          </Group>
-        </Stack>
-      </Paper>
+            <Group justify="flex-end">
+              <Button onClick={() => upload(false)} loading={busy} disabled={content.trim().length < 2}>
+                {t('specs.import')}
+              </Button>
+            </Group>
+          </Stack>
+        </Paper>
       )}
 
       <Paper withBorder p="md">
@@ -209,9 +207,11 @@ export function SpecsTab({
                           </ActionIcon>
                         </Tooltip>
                         <Tooltip label={t('common:delete')}>
-                          {!readOnly && <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label={t('common:delete')}>
-                            <IconTrash size={16} />
-                          </ActionIcon>}
+                          {!readOnly && (
+                            <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label={t('common:delete')}>
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          )}
                         </Tooltip>
                       </Group>
                     </Table.Td>
@@ -236,7 +236,9 @@ export function SpecsTab({
                 value={filter}
                 onChange={(e) => setFilter(e.currentTarget.value)}
               />
-              {tags.length > 0 && <Select size="xs" placeholder={t('specs.allTags')} aria-label={t('specs.tag')} data={tags} value={tag} onChange={setTag} clearable searchable />}
+              {tags.length > 0 && (
+                <Select size="xs" placeholder={t('specs.allTags')} aria-label={t('specs.tag')} data={tags} value={tag} onChange={setTag} clearable searchable />
+              )}
             </Group>
           </Group>
           <Hint>{t('specs.clickHint')}</Hint>
@@ -282,7 +284,12 @@ export function SpecsTab({
 
       <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('specs.deleteTitle')}>
         <Text size="sm">
-          <Trans t={t} i18nKey="specs.deleteText" values={{ name: removing?.name ?? '', count: removing?.operationCount ?? 0 }} components={{ b: <strong /> }} />
+          <Trans
+            t={t}
+            i18nKey="specs.deleteText"
+            values={{ name: removing?.name ?? '', count: removing?.operationCount ?? 0 }}
+            components={{ b: <strong /> }}
+          />
         </Text>
         <Group justify="flex-end" mt="md">
           <Button variant="default" onClick={() => setRemoving(null)}>

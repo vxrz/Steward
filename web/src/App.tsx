@@ -71,7 +71,8 @@ function PageLoader() {
   );
 }
 
-type NavKey = 'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'audit' | 'users' | 'settings';
+type NavKey =
+  'dashboard' | 'dashboards' | 'tasks' | 'runs' | 'processes' | 'schedules' | 'triggers' | 'monitors' | 'platforms' | 'audit' | 'users' | 'settings';
 const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
   { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
   { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
@@ -204,36 +205,36 @@ function Shell({ status }: { status: AuthStatus }) {
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-        <ErrorBoundary resetKey={location.pathname}>
-        <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="/" element={<DashboardPage demo={status.demo} />} />
-          <Route path="/dashboards" element={<DashboardsPage />} />
-          <Route path="/dashboards/:id" element={<DashboardViewPage />} />
-          <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/runs" element={<RunsPage />} />
-          <Route path="/runs/:id" element={<RunDetailPage />} />
-          <Route path="/processes" element={<ProcessesPage />} />
-          <Route path="/processes/:id" element={<ProcessEditorPage />} />
-          <Route path="/schedules" element={<SchedulesPage />} />
-          <Route path="/triggers" element={<TriggersPage />} />
-          <Route path="/monitors" element={<MonitorsPage />} />
-          <Route path="/monitors/new" element={<MonitorEditorPage />} />
-          <Route path="/monitors/wall" element={<MonitorWallPage />} />
-          <Route path="/monitors/:id" element={<MonitorDetailPage />} />
-          <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
-          <Route path="/platforms" element={<PlatformsPage />} />
-          <Route path="/platforms/:id" element={<PlatformDetailPage />} />
-          {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
-          {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
-          <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
-          <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
-        </Routes>
-        </Suspense>
-        </ErrorBoundary>
+          <ErrorBoundary resetKey={location.pathname}>
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                <Route path="/" element={<DashboardPage demo={status.demo} />} />
+                <Route path="/dashboards" element={<DashboardsPage />} />
+                <Route path="/dashboards/:id" element={<DashboardViewPage />} />
+                <Route path="/tasks" element={<TasksPage />} />
+                <Route path="/runs" element={<RunsPage />} />
+                <Route path="/runs/:id" element={<RunDetailPage />} />
+                <Route path="/processes" element={<ProcessesPage />} />
+                <Route path="/processes/:id" element={<ProcessEditorPage />} />
+                <Route path="/schedules" element={<SchedulesPage />} />
+                <Route path="/triggers" element={<TriggersPage />} />
+                <Route path="/monitors" element={<MonitorsPage />} />
+                <Route path="/monitors/new" element={<MonitorEditorPage />} />
+                <Route path="/monitors/wall" element={<MonitorWallPage />} />
+                <Route path="/monitors/:id" element={<MonitorDetailPage />} />
+                <Route path="/monitors/:id/edit" element={<MonitorEditorPage />} />
+                <Route path="/platforms" element={<PlatformsPage />} />
+                <Route path="/platforms/:id" element={<PlatformDetailPage />} />
+                {caps.viewAudit && <Route path="/audit" element={<AuditPage />} />}
+                {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
+                <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/about" element={<AboutPage />} />
+                {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
+                <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </div>
         <AppFooter signedIn />
       </AppShell.Main>

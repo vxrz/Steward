@@ -44,10 +44,7 @@ describe('graph engine', () => {
   });
 
   it('fails the run when an error output is not connected', async () => {
-    const r = await runGraph(
-      [n('start', 'start'), n('bad', 'http', { connection: 'hub', method: 'GET', path: '/nope' })],
-      [w('start', 'bad')],
-    );
+    const r = await runGraph([n('start', 'start'), n('bad', 'http', { connection: 'hub', method: 'GET', path: '/nope' })], [w('start', 'bad')]);
     expect(r.status).toBe('failed');
   });
 
@@ -78,7 +75,17 @@ describe('graph engine', () => {
       [w('start', 'loop'), w('loop', 'body1', 'each'), w('body1', 'body2'), w('loop', 'after', 'done')],
     );
     expect(r.status).toBe('succeeded');
-    expect(executed(r)).toEqual(['start', 'loop', 'loop[0]/body1', 'loop[0]/body2', 'loop[1]/body1', 'loop[1]/body2', 'loop[2]/body1', 'loop[2]/body2', 'after']);
+    expect(executed(r)).toEqual([
+      'start',
+      'loop',
+      'loop[0]/body1',
+      'loop[0]/body2',
+      'loop[1]/body1',
+      'loop[1]/body2',
+      'loop[2]/body1',
+      'loop[2]/body2',
+      'after',
+    ]);
     expect(r.steps.find((x: any) => x.key === 'after').summary).toBe('sum 6');
   });
 

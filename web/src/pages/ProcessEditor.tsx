@@ -75,10 +75,7 @@ export function ProcessEditorPage() {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  const validation = useMemo(
-    () => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[], warnings: [] as ValidationIssue[] }),
-    [def],
-  );
+  const validation = useMemo(() => (def ? validateProcess(def) : { ok: true, issues: [] as ValidationIssue[], warnings: [] as ValidationIssue[] }), [def]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const issuesByNode = useMemo(() => byNode(validation.issues), [validation.issues, i18n.language]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,10 +95,19 @@ export function ProcessEditorPage() {
   const p = proc.data;
   const canEdit = !!p?.permissions.includes('edit');
   const onRun = () => (dirty ? setRunWarn(true) : setRunOpen(true));
-  const problems = [...validation.issues.map((i) => ({ ...i, severity: 'error' as const })), ...validation.warnings.map((w) => ({ ...w, severity: 'warning' as const }))];
+  const problems = [
+    ...validation.issues.map((i) => ({ ...i, severity: 'error' as const })),
+    ...validation.warnings.map((w) => ({ ...w, severity: 'warning' as const })),
+  ];
 
   const runToolbar = (
-    <Group gap={6} wrap="nowrap" px={6} py={2} style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}>
+    <Group
+      gap={6}
+      wrap="nowrap"
+      px={6}
+      py={2}
+      style={{ background: 'var(--mantine-color-body)', borderRadius: 6, border: '1px solid var(--mantine-color-default-border)' }}
+    >
       <Switch size="xs" label={t('flow.lastRun')} checked={showRun} onChange={(e) => setShowRun(e.currentTarget.checked)} />
       {showRun && lastRun.run && (
         <Anchor component={Link} to={`/runs/${lastRun.run.id}`} size="xs">
@@ -149,7 +155,14 @@ export function ProcessEditorPage() {
                 </Group>
               </UnstyledButton>
             )}
-            <Button size="sm" variant="default" component="a" href={apiUrl(`/processes/${p.id}/export`)} leftSection={<IconDownload size={16} />} visibleFrom="xs">
+            <Button
+              size="sm"
+              variant="default"
+              component="a"
+              href={apiUrl(`/processes/${p.id}/export`)}
+              leftSection={<IconDownload size={16} />}
+              visibleFrom="xs"
+            >
               {t('page.exportYaml')}
             </Button>
             {p.permissions.includes('run') && (
@@ -214,76 +227,78 @@ export function ProcessEditorPage() {
       )}
 
       <ExprProvider processId={p.id} def={def}>
-      <Tabs value={tab} onChange={setTab} keepMounted={false}>
-        <Tabs.List mb="sm">
-          <Tabs.Tab value="flow">{t('page.tabs.flow')}</Tabs.Tab>
-          <Tabs.Tab value="settings">{t('page.tabs.settings')}</Tabs.Tab>
-          <Tabs.Tab value="source">{t('page.tabs.source')}</Tabs.Tab>
-          <Tabs.Tab value="versions">{t('page.tabs.versions')}</Tabs.Tab>
-          <Tabs.Tab value="access">{t('page.tabs.access')}</Tabs.Tab>
-        </Tabs.List>
+        <Tabs value={tab} onChange={setTab} keepMounted={false}>
+          <Tabs.List mb="sm">
+            <Tabs.Tab value="flow">{t('page.tabs.flow')}</Tabs.Tab>
+            <Tabs.Tab value="settings">{t('page.tabs.settings')}</Tabs.Tab>
+            <Tabs.Tab value="source">{t('page.tabs.source')}</Tabs.Tab>
+            <Tabs.Tab value="versions">{t('page.tabs.versions')}</Tabs.Tab>
+            <Tabs.Tab value="access">{t('page.tabs.access')}</Tabs.Tab>
+          </Tabs.List>
 
-        <Tabs.Panel value="flow">
-          <FlowEditor
-            def={def}
-            onChange={history.change}
-            processId={p.id}
-            onUndo={history.undo}
-            onRedo={history.redo}
-            canUndo={history.canUndo}
-            canRedo={history.canRedo}
-            historySeq={history.seq}
-            issuesByNode={issuesByNode}
-            warningsByNode={warningsByNode}
-            runStatus={showRun ? lastRun.statusByNode : undefined}
-            focus={focus}
-            toolbar={runToolbar}
-            height="calc(100vh - 230px)"
-            readOnly={!canEdit}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="settings">
-          <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <SettingsTab key={history.seq} def={def} onChange={(d) => history.change(d, 'settings')} />
-          </fieldset>
-        </Tabs.Panel>
-        <Tabs.Panel value="source">
-          <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-            <SourcePanel key={history.seq} def={def} onChange={(d) => history.change(normalize(d))} />
-          </fieldset>
-        </Tabs.Panel>
-        <Tabs.Panel value="versions">
-          <VersionsPanel
-            processId={p.id}
-            currentVersion={p.currentVersion}
-            workingCopy={dirty ? def : undefined}
-            onRestore={(d, v) => {
-              if (!canEdit) return notifyError(new Error(t('page.viewOnly')));
-              history.change(normalize(d));
-              setTab('flow');
-              notifyOk(t('page.restored', { version: v }));
-            }}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="access" pt="md">
-          <AccessEditor
-            kind="process"
-            acl={p.acl}
-            owner={p.owner}
-            readOnly={!p.permissions.includes('manage')}
-            onSave={async (acl, owner) => {
-              try {
-                const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
-                qc.setQueryData(['process', id], (old: ProcessDetail | undefined) => (old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved));
-                qc.invalidateQueries({ queryKey: ['processes'] });
-                notifyOk(t('page.accessSaved'));
-              } catch (e) {
-                notifyError(e, t('page.accessNotSaved'));
-              }
-            }}
-          />
-        </Tabs.Panel>
-      </Tabs>
+          <Tabs.Panel value="flow">
+            <FlowEditor
+              def={def}
+              onChange={history.change}
+              processId={p.id}
+              onUndo={history.undo}
+              onRedo={history.redo}
+              canUndo={history.canUndo}
+              canRedo={history.canRedo}
+              historySeq={history.seq}
+              issuesByNode={issuesByNode}
+              warningsByNode={warningsByNode}
+              runStatus={showRun ? lastRun.statusByNode : undefined}
+              focus={focus}
+              toolbar={runToolbar}
+              height="calc(100vh - 230px)"
+              readOnly={!canEdit}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="settings">
+            <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+              <SettingsTab key={history.seq} def={def} onChange={(d) => history.change(d, 'settings')} />
+            </fieldset>
+          </Tabs.Panel>
+          <Tabs.Panel value="source">
+            <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+              <SourcePanel key={history.seq} def={def} onChange={(d) => history.change(normalize(d))} />
+            </fieldset>
+          </Tabs.Panel>
+          <Tabs.Panel value="versions">
+            <VersionsPanel
+              processId={p.id}
+              currentVersion={p.currentVersion}
+              workingCopy={dirty ? def : undefined}
+              onRestore={(d, v) => {
+                if (!canEdit) return notifyError(new Error(t('page.viewOnly')));
+                history.change(normalize(d));
+                setTab('flow');
+                notifyOk(t('page.restored', { version: v }));
+              }}
+            />
+          </Tabs.Panel>
+          <Tabs.Panel value="access" pt="md">
+            <AccessEditor
+              kind="process"
+              acl={p.acl}
+              owner={p.owner}
+              readOnly={!p.permissions.includes('manage')}
+              onSave={async (acl, owner) => {
+                try {
+                  const saved = await put<ProcessDetail>(`/processes/${p.id}/access`, { acl, owner });
+                  qc.setQueryData(['process', id], (old: ProcessDetail | undefined) =>
+                    old ? { ...old, acl: saved.acl, owner: saved.owner, permissions: saved.permissions } : saved,
+                  );
+                  qc.invalidateQueries({ queryKey: ['processes'] });
+                  notifyOk(t('page.accessSaved'));
+                } catch (e) {
+                  notifyError(e, t('page.accessNotSaved'));
+                }
+              }}
+            />
+          </Tabs.Panel>
+        </Tabs>
       </ExprProvider>
 
       <SaveModal

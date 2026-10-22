@@ -133,7 +133,8 @@ export async function main(argv: string[]): Promise<number> {
     if (!r.ok) out.push(`${c.red('✘')} ${r.file}: ${r.errors.join('; ')}`);
     else if (!values.quiet) {
       if (r.kind === 'bundle') out.push(`${c.dim('•')} ${r.file}: bundle (skipped)`);
-      else out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : 'nodes'}`);
+      else
+        out.push(`${c.green('✔')} ${r.file}: ${r.kind}, ${r.count} ${r.kind === 'dashboard' ? 'widgets' : r.kind.startsWith('monitor') ? 'checks' : 'nodes'}`);
     }
     if (!values.quiet || !r.ok) for (const w of r.warnings) out.push(`  ${c.yellow('⚠')} ${w}`);
   }

@@ -215,7 +215,12 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'mutating', label: 'Changes data (skip in dry run)', kind: 'boolean' },
       { key: 'dryRunReadOnly', label: 'Read-only in dry runs (skip click/fill/… during a dry run)', kind: 'boolean' },
     ],
-    defaults: () => ({ actions: [{ action: 'goto', value: '/' }, { action: 'screenshot', name: 'page' }] }),
+    defaults: () => ({
+      actions: [
+        { action: 'goto', value: '/' },
+        { action: 'screenshot', name: 'page' },
+      ],
+    }),
   },
   publish: {
     type: 'publish',
@@ -255,7 +260,7 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'process', label: 'Process', kind: 'process', required: true },
       { key: 'version', label: 'Version (empty = current)', kind: 'number' },
       { key: 'inputs', label: 'Inputs (child input → template)', kind: 'keyValue' },
-      { key: 'connections', label: 'Connections (child slot → this process\' slot)', kind: 'keyValue', help: 'Empty = same slot names' },
+      { key: 'connections', label: "Connections (child slot → this process' slot)", kind: 'keyValue', help: 'Empty = same slot names' },
     ],
     defaults: () => ({ process: '', inputs: {} }),
   },

@@ -75,7 +75,9 @@ function writeStorageState(user: UserKey, session: Session) {
 export default async function globalSetup(_config: FullConfig): Promise<() => Promise<void>> {
   const dist = path.join(ROOT, 'web', 'dist', 'index.html');
   if (!fs.existsSync(dist)) {
-    throw new Error(`\n\nThe UI tests need the built web UI, but ${path.relative(ROOT, dist)} is missing.\nRun "npm run build" first, then "npm run test:ui".\n`);
+    throw new Error(
+      `\n\nThe UI tests need the built web UI, but ${path.relative(ROOT, dist)} is missing.\nRun "npm run build" first, then "npm run test:ui".\n`,
+    );
   }
   if (!process.env.SM_E2E_PORT) throw new Error('SM_E2E_PORT is not set (playwright.config.ts chooses it)');
 

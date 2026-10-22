@@ -80,14 +80,10 @@ function cleanRoles(roles: unknown): Role[] {
   return [...new Set(list.filter((r): r is Role => (ROLES as readonly string[]).includes(String(r))))];
 }
 
-export function createUser(input: {
-  username: string;
-  displayName?: string;
-  email?: string;
-  roles: Role[];
-  password?: string;
-  mustChangePassword?: boolean;
-}): { user: UserInfo; temporaryPassword?: string } {
+export function createUser(input: { username: string; displayName?: string; email?: string; roles: Role[]; password?: string; mustChangePassword?: boolean }): {
+  user: UserInfo;
+  temporaryPassword?: string;
+} {
   const username = input.username.trim();
   if (!USERNAME.test(username)) throw new HttpError(400, 'Username: 2–64 characters, letters, digits and . _ @ - only');
   if (findUserByName(username)) throw new HttpError(409, `User "${username}" already exists`);
@@ -116,7 +112,13 @@ export function createUser(input: {
       ts,
       ts,
     );
-    audit({ action: 'user.created', entityType: 'user', entityId: id, summary: `User "${username}" created (${roles.join(', ') || 'no roles'})`, details: { roles } });
+    audit({
+      action: 'user.created',
+      entityType: 'user',
+      entityId: id,
+      summary: `User "${username}" created (${roles.join(', ') || 'no roles'})`,
+      details: { roles },
+    });
   });
   return { user: getUser(id), temporaryPassword: temp };
 }
@@ -153,10 +155,7 @@ export function updateUser(id: string, patch: { displayName?: string; email?: st
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider. */
-export function updateProfile(
-  id: string,
-  patch: { displayName?: string; email?: string; emailNotifications?: boolean; locale?: Locale | null },
-): UserInfo {
+export function updateProfile(id: string, patch: { displayName?: string; email?: string; emailNotifications?: boolean; locale?: Locale | null }): UserInfo {
   const before = getUser(id);
   const sso = before.authSource !== 'local';
   const displayName = patch.displayName?.trim();
@@ -166,7 +165,8 @@ export function updateProfile(
   }
   if (displayName !== undefined && (!displayName || displayName.length > 100)) throw new HttpError(400, 'Display name: 1–100 characters');
   if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address', 'INVALID_EMAIL');
-  if (patch.locale !== undefined && patch.locale !== null && !isLocale(patch.locale)) throw new HttpError(400, `Unsupported language "${patch.locale}"`, 'UNSUPPORTED_LOCALE');
+  if (patch.locale !== undefined && patch.locale !== null && !isLocale(patch.locale))
+    throw new HttpError(400, `Unsupported language "${patch.locale}"`, 'UNSUPPORTED_LOCALE');
   const changes: string[] = [];
   if (displayName !== undefined && displayName !== before.displayName) changes.push('name');
   if (email !== undefined && email !== (before.email ?? '')) changes.push('e-mail');
@@ -327,10 +327,12 @@ export async function login(username: string, password: string, meta: { ip?: str
   if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const account = username.toLowerCase();
   const byAccount = recent(accountFailures, account);
-  if (byAccount.length >= ACCOUNT_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  if (byAccount.length >= ACCOUNT_MAX_FAILURES)
+    throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const address = meta.ip ?? '';
   const byAddress = recent(addressFailures, address);
-  if (byAddress.length >= ADDRESS_MAX_FAILURES) throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  if (byAddress.length >= ADDRESS_MAX_FAILURES)
+    throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const r = db().get<UserRow>('SELECT * FROM users WHERE username = ?', username);
   // One hash per attempt for known and unknown user names alike (same timing; the dummy hash is computed once).
   const ok = await verifyPasswordAsync(password, r?.password_hash && r.password_hash.startsWith('scrypt$') ? r.password_hash : dummyHash());
@@ -414,7 +416,10 @@ function bindingMatches(stored: string | null, b: SessionBinding): boolean {
 export function sessionUser(token: string | undefined, binding: SessionBinding): UserInfo | null {
   if (!token) return null;
   const id = hashToken(token);
-  const s = db().get<{ user_id: string; created_at: string; expires_at: string; last_seen_at: string; binding: string | null }>('SELECT * FROM sessions WHERE id = ?', id);
+  const s = db().get<{ user_id: string; created_at: string; expires_at: string; last_seen_at: string; binding: string | null }>(
+    'SELECT * FROM sessions WHERE id = ?',
+    id,
+  );
   if (!s) return null;
   const now = Date.now();
   if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + SESSION_MAX_MS < now) {
@@ -425,7 +430,12 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ? AND active = 1', s.user_id);
   if (!r) return null;
   if (now - Date.parse(s.last_seen_at) > 60000) {
-    db().run('UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?', new Date(now).toISOString(), new Date(now + SESSION_IDLE_MS).toISOString(), id);
+    db().run(
+      'UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?',
+      new Date(now).toISOString(),
+      new Date(now + SESSION_IDLE_MS).toISOString(),
+      id,
+    );
   }
   return toInfo(r);
 }

@@ -20,8 +20,7 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
   const needed = requiredSecrets(platform.config.auth);
   const missing = needed.filter((k) => !platform.secretKeys.includes(k));
 
-  const refresh = () =>
-    Promise.all([qc.invalidateQueries({ queryKey: ['platform', platform.id] }), qc.invalidateQueries({ queryKey: ['platforms'] })]);
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['platform', platform.id] }), qc.invalidateQueries({ queryKey: ['platforms'] })]);
 
   const save = async () => {
     setBusy(true);
@@ -86,25 +85,27 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
                     </Table.Td>
                     <Table.Td c="dimmed">••••••••</Table.Td>
                     <Table.Td w={90}>
-                      {!readOnly && <Group gap={4} wrap="nowrap" justify="flex-end">
-                        <Tooltip label={t('credentials.replace')}>
-                          <ActionIcon
-                            variant="subtle"
-                            onClick={() => {
-                              setKey(k);
-                              setValue('');
-                            }}
-                            aria-label={t('credentials.replace')}
-                          >
-                            <IconPencil size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                        <Tooltip label={t('common:remove')}>
-                          <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(k)} aria-label={t('common:remove')}>
-                            <IconTrash size={16} />
-                          </ActionIcon>
-                        </Tooltip>
-                      </Group>}
+                      {!readOnly && (
+                        <Group gap={4} wrap="nowrap" justify="flex-end">
+                          <Tooltip label={t('credentials.replace')}>
+                            <ActionIcon
+                              variant="subtle"
+                              onClick={() => {
+                                setKey(k);
+                                setValue('');
+                              }}
+                              aria-label={t('credentials.replace')}
+                            >
+                              <IconPencil size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={t('common:remove')}>
+                            <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(k)} aria-label={t('common:remove')}>
+                              <IconTrash size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </Group>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -114,36 +115,38 @@ export function CredentialsTab({ platform, readOnly = false }: { platform: Platf
         )}
       </Paper>
       {readOnly ? (
-        <Text size="sm" c="dimmed">{t('credentials.readOnly')}</Text>
+        <Text size="sm" c="dimmed">
+          {t('credentials.readOnly')}
+        </Text>
       ) : (
-      <Paper withBorder p="md">
-        <Title order={5} mb="sm">
-          {t('credentials.addTitle')}
-        </Title>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (key.trim() && value) save();
-          }}
-        >
-          <Stack>
-            <Autocomplete
-              label={t('common:name')}
-              placeholder={t('credentials.namePlaceholder')}
-              data={[...new Set([...needed, ...COMMON_KEYS])]}
-              value={key}
-              onChange={setKey}
-            />
-            <PasswordInput label={t('common:value')} value={value} onChange={(e) => setValue(e.currentTarget.value)} autoComplete="new-password" />
-            {platform.secretKeys.includes(key.trim()) && <Hint>{t('credentials.replaces', { key: key.trim() })}</Hint>}
-            <Group justify="flex-end">
-              <Button type="submit" loading={busy} disabled={!key.trim() || !value || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key.trim())}>
-                {t('credentials.store')}
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Paper>
+        <Paper withBorder p="md">
+          <Title order={5} mb="sm">
+            {t('credentials.addTitle')}
+          </Title>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (key.trim() && value) save();
+            }}
+          >
+            <Stack>
+              <Autocomplete
+                label={t('common:name')}
+                placeholder={t('credentials.namePlaceholder')}
+                data={[...new Set([...needed, ...COMMON_KEYS])]}
+                value={key}
+                onChange={setKey}
+              />
+              <PasswordInput label={t('common:value')} value={value} onChange={(e) => setValue(e.currentTarget.value)} autoComplete="new-password" />
+              {platform.secretKeys.includes(key.trim()) && <Hint>{t('credentials.replaces', { key: key.trim() })}</Hint>}
+              <Group justify="flex-end">
+                <Button type="submit" loading={busy} disabled={!key.trim() || !value || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key.trim())}>
+                  {t('credentials.store')}
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Paper>
       )}
       <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('credentials.removeTitle')}>
         <Text size="sm">

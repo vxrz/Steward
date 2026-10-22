@@ -97,7 +97,9 @@ export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: num
     const files = new Map<string, string[]>();
     db().tx(() => {
       for (const id of ids) {
-        const paths = db().all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id).map((r) => r.path);
+        const paths = db()
+          .all<{ path: string }>('SELECT path FROM run_artifacts WHERE run_id = ?', id)
+          .map((r) => r.path);
         files.set(id, paths);
         artifacts += paths.length;
         // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
@@ -133,7 +135,13 @@ export function runCleanup(opts: { manual?: boolean } = {}): LastCleanup {
         action: 'maintenance.cleanup',
         entityType: 'maintenance',
         summary: `Cleanup: ${removed.runs} run(s) older than ${s.retentionRunDays || '–'} days, ${removed.artifacts} artifact(s) and ${notificationsDeleted} read notification(s) deleted`,
-        details: { ...result, retentionRunDays: s.retentionRunDays, retentionNotificationDays: s.retentionNotificationDays, retentionMonitorDays: monitorDays, monitorData },
+        details: {
+          ...result,
+          retentionRunDays: s.retentionRunDays,
+          retentionNotificationDays: s.retentionNotificationDays,
+          retentionMonitorDays: monitorDays,
+          monitorData,
+        },
       });
     }
     logger.info(result, 'maintenance cleanup finished');

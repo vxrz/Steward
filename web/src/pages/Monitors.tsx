@@ -1,5 +1,24 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
+import {
+  ActionIcon,
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Group,
+  Modal,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Stack,
+  Switch,
+  Table,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+  Tooltip,
+} from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -78,7 +97,12 @@ export function MonitorsPage() {
           {list.length > 0 && <MonitorTable monitors={list} />}
         </>
       )}
-      {tab === 'templates' && <TemplatesTab canCreate={canCreate} onCreated={(r) => (setSecrets({ monitor: r[0]!.monitor, secrets: r.flatMap((x) => x.secrets) }), qc.invalidateQueries({ queryKey: ['monitors'] }))} />}
+      {tab === 'templates' && (
+        <TemplatesTab
+          canCreate={canCreate}
+          onCreated={(r) => (setSecrets({ monitor: r[0]!.monitor, secrets: r.flatMap((x) => x.secrets) }), qc.invalidateQueries({ queryKey: ['monitors'] }))}
+        />
+      )}
       {tab === 'gateways' && canCreate && <GatewaysTab />}
       {importing && (
         <ImportModal
@@ -257,7 +281,16 @@ function TemplatesTab({ canCreate, onCreated }: { canCreate: boolean; onCreated:
 
 const AUTH_MODES = ['token', 'hmac', 'either'] as const;
 
-type GatewayDraft = { id?: string; name: string; description: string; enabled: boolean; authMode: 'token' | 'hmac' | 'either'; allowedCidrs: string[]; allowedKeys: string[]; rateLimitPerMinute: number };
+type GatewayDraft = {
+  id?: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  authMode: 'token' | 'hmac' | 'either';
+  allowedCidrs: string[];
+  allowedKeys: string[];
+  rateLimitPerMinute: number;
+};
 
 function GatewaysTab() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -283,7 +316,11 @@ function GatewaysTab() {
         <Text size="sm" c="dimmed" maw={760}>
           <Trans t={t} i18nKey="gateways.intro" values={{ endpoint: 'POST /api/hooks/monitors' }} components={{ c: <span className="mono" /> }} />
         </Text>
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setDraft({ name: '', description: '', enabled: true, authMode: 'token', allowedCidrs: [], allowedKeys: [], rateLimitPerMinute: 120 })}>
+        <Button
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+          onClick={() => setDraft({ name: '', description: '', enabled: true, authMode: 'token', allowedCidrs: [], allowedKeys: [], rateLimitPerMinute: 120 })}
+        >
           {t('gateways.new')}
         </Button>
       </Group>
@@ -371,9 +408,7 @@ function GatewaysTab() {
             <CopyBlock label={t('secrets.secret')} text={secret.secret} />
             <CopyBlock label={t('secrets.url')} text={`${window.location.origin}/api/hooks/monitors`} />
             <CopyBlock label={t('gateways.manyInOneCall')} text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace('*', 'example')))} />
-            <Hint>
-              {t('gateways.reportFormat')}
-            </Hint>
+            <Hint>{t('gateways.reportFormat')}</Hint>
             <Group justify="flex-end">
               <Button onClick={() => setSecret(null)}>{t('gateways.stored')}</Button>
             </Group>
@@ -391,16 +426,33 @@ function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose
     <Modal opened onClose={onClose} title={draft.id ? t('gateways.editTitle') : t('gateways.new')} size="lg">
       <Stack>
         <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
-        <Textarea label={t('form.description')} autosize minRows={1} value={d.description} onChange={(e) => setD({ ...d, description: e.currentTarget.value })} />
+        <Textarea
+          label={t('form.description')}
+          autosize
+          minRows={1}
+          value={d.description}
+          onChange={(e) => setD({ ...d, description: e.currentTarget.value })}
+        />
         <SegmentedControl
           size="xs"
           value={d.authMode}
           onChange={(v) => setD({ ...d, authMode: v as GatewayDraft['authMode'] })}
           data={AUTH_MODES.map((m) => ({ value: m, label: t(`auth.mode.${m}`) }))}
         />
-        <TagsInput label={t('gateways.allowedCheckKeys')} description={t('gateways.allowedCheckKeysHint')} value={d.allowedKeys} onChange={(v) => setD({ ...d, allowedKeys: v })} />
+        <TagsInput
+          label={t('gateways.allowedCheckKeys')}
+          description={t('gateways.allowedCheckKeysHint')}
+          value={d.allowedKeys}
+          onChange={(v) => setD({ ...d, allowedKeys: v })}
+        />
         <TagsInput label={t('gateways.cidrs')} description={t('gateways.cidrsHint')} value={d.allowedCidrs} onChange={(v) => setD({ ...d, allowedCidrs: v })} />
-        <NumberInput label={t('gateways.callsPerMinute')} min={1} max={6000} value={d.rateLimitPerMinute} onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })} />
+        <NumberInput
+          label={t('gateways.callsPerMinute')}
+          min={1}
+          max={6000}
+          value={d.rateLimitPerMinute}
+          onChange={(v) => setD({ ...d, rateLimitPerMinute: Number(v) || 1 })}
+        />
         <Switch label={t('form.enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

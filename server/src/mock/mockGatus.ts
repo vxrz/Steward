@@ -39,7 +39,11 @@ interface Endpoint {
 
 /** Gatus key: <group>_<name>, both lower-cased with / _ . , space # + & replaced by "-" (config/key/key.go). */
 export function gatusKey(group: string, name: string): string {
-  const s = (x: string) => x.trim().toLowerCase().replace(/[/_.,\s#+&]/g, '-');
+  const s = (x: string) =>
+    x
+      .trim()
+      .toLowerCase()
+      .replace(/[/_.,\s#+&]/g, '-');
   return `${s(group)}_${s(name)}`;
 }
 
@@ -144,7 +148,7 @@ function page(results: Result[], q: { page?: string; pageSize?: string }): Resul
 
 /** Go duration string → nanoseconds ("150ms", "1.5s", "1m30s"); NaN when invalid. */
 function goDuration(s: string): number {
-  const unit: Record<string, number> = { ns: 1, us: 1e3, 'µs': 1e3, ms: 1e6, s: 1e9, m: 60e9, h: 3600e9 };
+  const unit: Record<string, number> = { ns: 1, us: 1e3, µs: 1e3, ms: 1e6, s: 1e9, m: 60e9, h: 3600e9 };
   const re = /(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)/gy;
   let total = 0;
   let pos = 0;
@@ -178,7 +182,9 @@ export async function mockGatus(app: FastifyInstance): Promise<void> {
       ? {
           events: [
             { type: 'START', timestamp: e.results[0]?.timestamp },
-            ...(e.results.some((r) => !r.success) ? [{ type: e.results.at(-1)?.success ? 'HEALTHY' : 'UNHEALTHY', timestamp: e.results.at(-1)?.timestamp }] : []),
+            ...(e.results.some((r) => !r.success)
+              ? [{ type: e.results.at(-1)?.success ? 'HEALTHY' : 'UNHEALTHY', timestamp: e.results.at(-1)?.timestamp }]
+              : []),
           ],
         }
       : {}),

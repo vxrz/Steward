@@ -103,7 +103,11 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
     }
   };
 
-  const setMapping = (i: number, m: Partial<SsoRoleMapping>) => set('mappings', form.mappings.map((x, j) => (j === i ? { ...x, ...m } : x)));
+  const setMapping = (i: number, m: Partial<SsoRoleMapping>) =>
+    set(
+      'mappings',
+      form.mappings.map((x, j) => (j === i ? { ...x, ...m } : x)),
+    );
 
   const testDiscovery = async () => {
     setTesting(true);
@@ -201,7 +205,14 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           }}
           rightSectionWidth={150}
           rightSection={
-            <Button size="compact-xs" variant="light" leftSection={<IconPlugConnected size={12} />} loading={testing} disabled={!form.issuer.trim()} onClick={testDiscovery}>
+            <Button
+              size="compact-xs"
+              variant="light"
+              leftSection={<IconPlugConnected size={12} />}
+              loading={testing}
+              disabled={!form.issuer.trim()}
+              onClick={testDiscovery}
+            >
               {t('provider.testDiscovery')}
             </Button>
           }
@@ -304,7 +315,11 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             <TextInput label={t('provider.scopes')} value={form.scopes} onChange={(e) => set('scopes', e.currentTarget.value)} />
             <Group grow align="flex-start">
               <TextInput label={t('provider.usernameClaim')} value={form.usernameClaim} onChange={(e) => set('usernameClaim', e.currentTarget.value)} />
-              <TextInput label={t('provider.displayNameClaim')} value={form.displayNameClaim} onChange={(e) => set('displayNameClaim', e.currentTarget.value)} />
+              <TextInput
+                label={t('provider.displayNameClaim')}
+                value={form.displayNameClaim}
+                onChange={(e) => set('displayNameClaim', e.currentTarget.value)}
+              />
             </Group>
             <Group grow align="flex-start">
               <TextInput label={t('provider.emailClaim')} value={form.emailClaim} onChange={(e) => set('emailClaim', e.currentTarget.value)} />
@@ -356,7 +371,13 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     />
                   </Table.Td>
                   <Table.Td>
-                    <MultiSelect size="xs" data={roleOptions()} value={m.roles} onChange={(v) => setMapping(i, { roles: v as Role[] })} comboboxProps={{ withinPortal: true }} />
+                    <MultiSelect
+                      size="xs"
+                      data={roleOptions()}
+                      value={m.roles}
+                      onChange={(v) => setMapping(i, { roles: v as Role[] })}
+                      comboboxProps={{ withinPortal: true }}
+                    />
                   </Table.Td>
                   <Table.Td>
                     <MultiSelect
@@ -369,7 +390,17 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     />
                   </Table.Td>
                   <Table.Td>
-                    <ActionIcon variant="subtle" color="red" onClick={() => set('mappings', form.mappings.filter((_, j) => j !== i))} aria-label={t('provider.removeMapping')}>
+                    <ActionIcon
+                      variant="subtle"
+                      color="red"
+                      onClick={() =>
+                        set(
+                          'mappings',
+                          form.mappings.filter((_, j) => j !== i),
+                        )
+                      }
+                      aria-label={t('provider.removeMapping')}
+                    >
                       <IconTrash size={14} />
                     </ActionIcon>
                   </Table.Td>
@@ -379,7 +410,12 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Table>
         </div>
         <Group>
-          <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => set('mappings', [...form.mappings, { claimValue: '', roles: [], teams: [] }])}>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => set('mappings', [...form.mappings, { claimValue: '', roles: [], teams: [] }])}
+          >
             {t('provider.addMapping')}
           </Button>
         </Group>
@@ -407,11 +443,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             checked={form.syncRoles}
             onChange={(e) => set('syncRoles', e.currentTarget.checked)}
           />
-          <Switch
-            label={t('provider.requireMapping')}
-            checked={form.requireMapping}
-            onChange={(e) => set('requireMapping', e.currentTarget.checked)}
-          />
+          <Switch label={t('provider.requireMapping')} checked={form.requireMapping} onChange={(e) => set('requireMapping', e.currentTarget.checked)} />
         </Stack>
 
         <Group justify="flex-end">

@@ -253,7 +253,17 @@ function JsonField({ label, description, value, onChange }: { label: React.React
   );
 }
 
-function StatusListField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value?: number[]; onChange: (v: unknown) => void }) {
+function StatusListField({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: React.ReactNode;
+  description?: string;
+  value?: number[];
+  onChange: (v: unknown) => void;
+}) {
   const [text, setText] = useState(() => (value ?? []).join(', '));
   const committed = useRef(value);
   useEffect(() => {
@@ -305,7 +315,14 @@ export function ColumnsEditor({ label, value, onChange }: { label: React.ReactNo
       <Stack gap={6}>
         {cols.map((c, i) => (
           <Group key={i} gap={6} wrap="nowrap">
-            <TextInput size="xs" w={130} placeholder={t('fields.columnLabel')} aria-label={t('fields.columnLabel')} value={c.label} onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, label: e.currentTarget.value } : x)))} />
+            <TextInput
+              size="xs"
+              w={130}
+              placeholder={t('fields.columnLabel')}
+              aria-label={t('fields.columnLabel')}
+              value={c.label}
+              onChange={(e) => set(cols.map((x, j) => (j === i ? { ...x, label: e.currentTarget.value } : x)))}
+            />
             <ExpressionInput
               size="xs"
               style={{ flex: 1, minWidth: 0 }}
@@ -491,10 +508,22 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
                   ),
                 )}
                 {a.action === 'screenshot' && (
-                  <Switch size="xs" mt={6} label={t('actions.fullPage')} checked={!!a.fullPage} onChange={(e) => patch(i, { fullPage: e.currentTarget.checked || undefined })} />
+                  <Switch
+                    size="xs"
+                    mt={6}
+                    label={t('actions.fullPage')}
+                    checked={!!a.fullPage}
+                    onChange={(e) => patch(i, { fullPage: e.currentTarget.checked || undefined })}
+                  />
                 )}
                 {a.action === 'extract' && (
-                  <Switch size="xs" mt={6} label={t('actions.allMatches')} checked={!!a.all} onChange={(e) => patch(i, { all: e.currentTarget.checked || undefined })} />
+                  <Switch
+                    size="xs"
+                    mt={6}
+                    label={t('actions.allMatches')}
+                    checked={!!a.all}
+                    onChange={(e) => patch(i, { all: e.currentTarget.checked || undefined })}
+                  />
                 )}
                 {['click', 'fill', 'waitFor', 'expectText', 'goto'].includes(a.action) && (
                   <NumberInput
@@ -520,7 +549,17 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
 }
 
 /** Users, teams and roles (suggestions from /api/subjects; free text allowed). */
-function SubjectsField({ label, description, value, onChange }: { label: React.ReactNode; description?: string; value?: string[]; onChange: (v: unknown) => void }) {
+function SubjectsField({
+  label,
+  description,
+  value,
+  onChange,
+}: {
+  label: React.ReactNode;
+  description?: string;
+  value?: string[];
+  onChange: (v: unknown) => void;
+}) {
   useTranslation('editor');
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects'), retry: false, staleTime: 60000 });
   const labels = new Map((subjects.data ?? []).map((s) => [s.value, subjectOptionLabel(s)]));
@@ -599,13 +638,26 @@ export function ExprKeyValueEditor({
               update(copy);
             }}
           />
-          <ActionIcon variant="subtle" color="red" mt={4} onClick={() => update(entries.filter((_, j) => j !== i))} aria-label={t('fields.removeKey', { key: k })}>
+          <ActionIcon
+            variant="subtle"
+            color="red"
+            mt={4}
+            onClick={() => update(entries.filter((_, j) => j !== i))}
+            aria-label={t('fields.removeKey', { key: k })}
+          >
             <IconTrash size={14} />
           </ActionIcon>
         </Group>
       ))}
       <Group gap={6}>
-        <TextInput size="xs" w={120} placeholder={keyLabel} aria-label={t('fields.newKey', { label: keyLabel })} value={draftKey} onChange={(e) => setDraftKey(e.currentTarget.value)} />
+        <TextInput
+          size="xs"
+          w={120}
+          placeholder={keyLabel}
+          aria-label={t('fields.newKey', { label: keyLabel })}
+          value={draftKey}
+          onChange={(e) => setDraftKey(e.currentTarget.value)}
+        />
         <Button
           size="xs"
           variant="light"

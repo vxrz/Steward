@@ -40,7 +40,12 @@ export function mockIdentitySpec(): Record<string, unknown> {
       },
       '/api/identitymanagement/v3/Groups/{id}/members': {
         parameters: [{ name: 'id', in: 'path', required: true, description: 'Group id', schema: { type: 'string' } }],
-        get: { operationId: 'listGroupMembers', tags: ['Groups'], summary: 'List members of a group', responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Member' } }) },
+        get: {
+          operationId: 'listGroupMembers',
+          tags: ['Groups'],
+          summary: 'List members of a group',
+          responses: ok({ type: 'array', items: { $ref: '#/components/schemas/Member' } }),
+        },
         post: {
           operationId: 'addGroupMember',
           tags: ['Groups'],
@@ -54,7 +59,12 @@ export function mockIdentitySpec(): Record<string, unknown> {
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
           { name: 'memberId', in: 'path', required: true, schema: { type: 'string' } },
         ],
-        delete: { operationId: 'removeGroupMember', tags: ['Groups'], summary: 'Remove a member from a group', responses: { '200': { description: 'Removed' } } },
+        delete: {
+          operationId: 'removeGroupMember',
+          tags: ['Groups'],
+          summary: 'Remove a member from a group',
+          responses: { '200': { description: 'Removed' } },
+        },
       },
     },
     components: {
@@ -67,7 +77,13 @@ export function mockIdentitySpec(): Record<string, unknown> {
             name: { type: 'object', properties: { givenName: { type: 'string' }, familyName: { type: 'string' } } },
             active: { type: 'boolean' },
             lastLogonTime: { type: 'string', format: 'date-time' },
-            groups: { type: 'array', items: { type: 'object', properties: { display: { type: 'string' }, value: { type: 'string' }, type: { type: 'string', enum: ['DIRECT', 'INDIRECT'] } } } },
+            groups: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { display: { type: 'string' }, value: { type: 'string' }, type: { type: 'string', enum: ['DIRECT', 'INDIRECT'] } },
+              },
+            },
           },
         },
         NewUser: {

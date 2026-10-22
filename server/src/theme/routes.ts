@@ -136,7 +136,13 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     const b = themeBody.parse(req.body ?? {});
     const { settings, changed } = theme.updateTheme(b, u.username);
     if (Object.keys(changed).length) {
-      audit({ action: 'theme.updated', entityType: 'settings', entityId: 'theme', summary: `Theme changed (${Object.keys(changed).join(', ')})`, details: changed });
+      audit({
+        action: 'theme.updated',
+        entityType: 'settings',
+        entityId: 'theme',
+        summary: `Theme changed (${Object.keys(changed).join(', ')})`,
+        details: changed,
+      });
     }
     return settings;
   });
@@ -150,7 +156,16 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
       entityType: 'settings',
       entityId: 'theme',
       summary: 'Theme reset to the defaults',
-      details: { from: { primaryColor: before.primaryColor, accentColor: before.accentColor, colorScheme: before.colorScheme, radius: before.radius, appName: before.appName, logo: before.logo?.sha256 ?? null } },
+      details: {
+        from: {
+          primaryColor: before.primaryColor,
+          accentColor: before.accentColor,
+          colorScheme: before.colorScheme,
+          radius: before.radius,
+          appName: before.appName,
+          logo: before.logo?.sha256 ?? null,
+        },
+      },
     });
     return after;
   });
@@ -173,7 +188,14 @@ export async function themeRoutes(app: FastifyInstance): Promise<void> {
     admin('change the theme');
     const before = theme.getThemeSettings();
     const after = theme.removeLogo();
-    if (before.logo) audit({ action: 'theme.logo_removed', entityType: 'settings', entityId: 'theme', summary: 'Header logo removed', details: { sha256: before.logo.sha256 } });
+    if (before.logo)
+      audit({
+        action: 'theme.logo_removed',
+        entityType: 'settings',
+        entityId: 'theme',
+        summary: 'Header logo removed',
+        details: { sha256: before.logo.sha256 },
+      });
     return after;
   });
 }

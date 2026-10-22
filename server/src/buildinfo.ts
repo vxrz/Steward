@@ -17,7 +17,11 @@ const clean = (v: string | undefined) => (v && v.trim() && !/^(unknown|developme
 export function buildInfo(): BuildInfo {
   const commit = clean(process.env.SM_BUILD_COMMIT);
   const date = clean(process.env.SM_BUILD_DATE);
-  return { version: config.version, commit: commit ? commit.slice(0, 40) : null, date: date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null };
+  return {
+    version: config.version,
+    commit: commit ? commit.slice(0, 40) : null,
+    date: date && !Number.isNaN(Date.parse(date)) ? new Date(date).toISOString() : null,
+  };
 }
 
 let deployment: DeploymentKind | undefined;

@@ -129,11 +129,33 @@ export function SummaryReportDialog({ opened, onClose, processIds }: { opened: b
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput type="date" label={t('summary.from')} required value={from} onChange={(e) => setRange([e.currentTarget.value, to])} />
-            <TextInput type="date" label={t('summary.to')} required value={to} onChange={(e) => setRange([from, e.currentTarget.value])} error={from && to && from > to ? t('summary.endBeforeStart') : undefined} />
+            <TextInput
+              type="date"
+              label={t('summary.to')}
+              required
+              value={to}
+              onChange={(e) => setRange([from, e.currentTarget.value])}
+              error={from && to && from > to ? t('summary.endBeforeStart') : undefined}
+            />
           </SimpleGrid>
-          <TextInput label={t('summary.reportTitle')} description={t('summary.reportTitleHint')} maxLength={200} value={title} onChange={(e) => setTitle(e.currentTarget.value)} />
+          <TextInput
+            label={t('summary.reportTitle')}
+            description={t('summary.reportTitleHint')}
+            maxLength={200}
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+          />
           <LangControl value={lang} onChange={setLang} />
-          <Textarea label={t('comment')} description={t('summary.commentHint')} autosize minRows={2} maxRows={8} maxLength={4000} value={comment} onChange={(e) => setComment(e.currentTarget.value)} />
+          <Textarea
+            label={t('comment')}
+            description={t('summary.commentHint')}
+            autosize
+            minRows={2}
+            maxRows={8}
+            maxLength={4000}
+            value={comment}
+            onChange={(e) => setComment(e.currentTarget.value)}
+          />
           <Group justify="flex-end">
             <Button variant="default" onClick={close}>
               {t('common:cancel')}

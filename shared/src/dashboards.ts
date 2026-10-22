@@ -7,7 +7,9 @@ export type DatasetStatus = (typeof DATASET_STATUSES)[number];
 
 /** Map free-form status words to the canonical set. */
 export function normalizeStatus(v: unknown): DatasetStatus {
-  const s = String(v ?? '').trim().toLowerCase();
+  const s = String(v ?? '')
+    .trim()
+    .toLowerCase();
   if ((DATASET_STATUSES as readonly string[]).includes(s)) return s as DatasetStatus;
   if (['ok', 'pass', 'passed', 'healthy', 'online', 'active', 'success', 'succeeded', 'up', 'green'].includes(s)) return 'good';
   if (['warn', 'degraded', 'stale', 'yellow'].includes(s)) return 'warning';

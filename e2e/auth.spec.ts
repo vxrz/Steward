@@ -91,7 +91,9 @@ test.describe('viewer (vera)', () => {
     const headers = sessionHeaders('vera');
     expect((await request.get('/api/users', { headers })).status()).toBe(403);
     expect((await request.get('/api/audit', { headers })).status()).toBe(403);
-    expect((await request.post('/api/processes', { headers: { 'x-sm-client': '1', ...headers }, data: { templateId: '40-ih-health-check' } })).status()).toBe(403);
+    expect((await request.post('/api/processes', { headers: { 'x-sm-client': '1', ...headers }, data: { templateId: '40-ih-health-check' } })).status()).toBe(
+      403,
+    );
     // the cookie alone is not enough (session binding): another local program that received it gets nothing
     expect((await request.get('/api/processes')).status()).toBe(401);
   });

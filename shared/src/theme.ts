@@ -390,7 +390,8 @@ export function themeContrastNotes(theme: Pick<ThemeInput, 'primaryColor' | 'acc
       if (s.onFilled === BLACK) notes.push({ color, scheme, kind: 'darkTextOnFilled', used: s.filled, ratio: s.onFilledRatio });
       else if (s.filled !== c.input && scheme === 'light') notes.push({ color, scheme, kind: 'filledAdjusted', used: s.filled, ratio: s.onFilledRatio });
       // (the dark scheme always uses a lighter shade for text, like Mantine)
-      if (scheme === 'light' && s.text !== c.input && contrastRatio(c.input, SURFACES[scheme][0]!) < AA_TEXT) notes.push({ color, scheme, kind: 'textAdjusted', used: s.text, ratio: s.textRatio });
+      if (scheme === 'light' && s.text !== c.input && contrastRatio(c.input, SURFACES[scheme][0]!) < AA_TEXT)
+        notes.push({ color, scheme, kind: 'textAdjusted', used: s.text, ratio: s.textRatio });
       if (s.surfaceRatio < (scheme === 'light' ? 1.5 : 2)) notes.push({ color, scheme, kind: 'lowSurfaceContrast', used: s.filled, ratio: s.surfaceRatio });
     }
   }
@@ -408,7 +409,8 @@ export function themeProblems(t: Partial<ThemeInput>): string[] {
   const p: string[] = [];
   if (t.primaryColor !== undefined && !normalizeHex(t.primaryColor)) p.push('primaryColor: use a hex colour like #1c7ed6');
   if (t.accentColor !== undefined && !normalizeHex(t.accentColor)) p.push('accentColor: use a hex colour like #7950f2');
-  if (t.colorScheme !== undefined && !(THEME_COLOR_SCHEMES as readonly string[]).includes(t.colorScheme)) p.push(`colorScheme: one of ${THEME_COLOR_SCHEMES.join(', ')}`);
+  if (t.colorScheme !== undefined && !(THEME_COLOR_SCHEMES as readonly string[]).includes(t.colorScheme))
+    p.push(`colorScheme: one of ${THEME_COLOR_SCHEMES.join(', ')}`);
   if (t.radius !== undefined && !(THEME_RADII as readonly string[]).includes(t.radius)) p.push(`radius: one of ${THEME_RADII.join(', ')}`);
   if (t.appName !== undefined) {
     // eslint-disable-next-line no-control-regex

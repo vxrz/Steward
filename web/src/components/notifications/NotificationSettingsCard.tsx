@@ -1,5 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Checkbox, Divider, Group, NumberInput, PasswordInput, SimpleGrid, Stack, Switch, Table, Text, TextInput, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Card,
+  Checkbox,
+  Divider,
+  Group,
+  NumberInput,
+  PasswordInput,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconSend } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -35,14 +52,35 @@ interface Draft {
 }
 
 const toDraft = (s: NotificationSettings): Draft => ({
-  email: { enabled: s.email.enabled, host: s.email.host ?? '', port: s.email.port ?? 587, secure: s.email.secure, user: s.email.user ?? '', from: s.email.from ?? '' },
+  email: {
+    enabled: s.email.enabled,
+    host: s.email.host ?? '',
+    port: s.email.port ?? 587,
+    secure: s.email.secure,
+    user: s.email.user ?? '',
+    from: s.email.from ?? '',
+  },
   teamsEnabled: s.teams.enabled,
   webhookEnabled: s.webhook.enabled,
   routes: Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, s.routes?.[e] ?? ['inApp']])) as Draft['routes'],
   baseUrl: s.baseUrl ?? '',
 });
 
-function SecretInput({ label, description, stored, value, onChange, mono }: { label: string; description?: string; stored: boolean; value: Secret; onChange: (v: Secret) => void; mono?: boolean }) {
+function SecretInput({
+  label,
+  description,
+  stored,
+  value,
+  onChange,
+  mono,
+}: {
+  label: string;
+  description?: string;
+  stored: boolean;
+  value: Secret;
+  onChange: (v: Secret) => void;
+  mono?: boolean;
+}) {
   const { t } = useTranslation('settings');
   const removing = stored && value === '';
   return (
@@ -182,11 +220,28 @@ export function NotificationSettingsCard() {
         <Divider label={t('notify.email')} labelPosition="left" />
         <Switch label={t('notify.sendEmails')} checked={d.email.enabled} onChange={(e) => setEmail({ enabled: e.currentTarget.checked })} />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label={t('notify.smtpHost')} classNames={{ input: 'mono' }} placeholder="smtp.example.com" value={d.email.host} onChange={(e) => setEmail({ host: e.currentTarget.value })} />
-          <NumberInput label={t('notify.port')} min={1} max={65535} value={d.email.port} onChange={(v) => setEmail({ port: typeof v === 'number' ? v : 587 })} />
+          <TextInput
+            label={t('notify.smtpHost')}
+            classNames={{ input: 'mono' }}
+            placeholder="smtp.example.com"
+            value={d.email.host}
+            onChange={(e) => setEmail({ host: e.currentTarget.value })}
+          />
+          <NumberInput
+            label={t('notify.port')}
+            min={1}
+            max={65535}
+            value={d.email.port}
+            onChange={(v) => setEmail({ port: typeof v === 'number' ? v : 587 })}
+          />
           <TextInput label={t('notify.user')} value={d.email.user ?? ''} onChange={(e) => setEmail({ user: e.currentTarget.value })} autoComplete="off" />
           <SecretInput label={t('notify.password')} stored={stored.email.hasPassword} value={smtpPassword} onChange={setSmtpPassword} />
-          <TextInput label={t('notify.from')} placeholder="Steward <noreply@example.com>" value={d.email.from} onChange={(e) => setEmail({ from: e.currentTarget.value })} />
+          <TextInput
+            label={t('notify.from')}
+            placeholder="Steward <noreply@example.com>"
+            value={d.email.from}
+            onChange={(e) => setEmail({ from: e.currentTarget.value })}
+          />
           <Switch
             label={t('notify.secure')}
             description={t('notify.secureHint')}

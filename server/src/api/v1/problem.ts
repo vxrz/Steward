@@ -61,5 +61,8 @@ export function problemBody(req: FastifyRequest, status: number, init: ProblemIn
 
 export function sendProblem(req: FastifyRequest, reply: FastifyReply, status: number, init: ProblemInit = {}): FastifyReply {
   // Pre-serialised: problem bodies bypass the route's 200 response schema.
-  return reply.code(status).type('application/problem+json; charset=utf-8').send(JSON.stringify(problemBody(req, status, init)));
+  return reply
+    .code(status)
+    .type('application/problem+json; charset=utf-8')
+    .send(JSON.stringify(problemBody(req, status, init)));
 }

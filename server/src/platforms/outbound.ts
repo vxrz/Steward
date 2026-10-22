@@ -91,7 +91,12 @@ export const guardedLookup: LookupFunction = (hostname, options, callback) => {
     (addrs) => {
       for (const a of addrs) {
         const reason = blockedAddressReason(a.address);
-        if (reason) return callback(Object.assign(new Error(`Blocked outbound request to ${hostname} – it resolves to a ${reason}`), { code: 'ESSRFBLOCKED' }), '', a.family);
+        if (reason)
+          return callback(
+            Object.assign(new Error(`Blocked outbound request to ${hostname} – it resolves to a ${reason}`), { code: 'ESSRFBLOCKED' }),
+            '',
+            a.family,
+          );
       }
       const first = addrs[0];
       if (!first) return callback(new Error(`Could not resolve ${hostname}`), '', 4);
@@ -119,7 +124,10 @@ function originOf(url: string): string | null {
 const originCache = new Map<string, { stamp: string; origin: string | undefined }>();
 
 /** Resolve the configured platforms' allowed origins (base URL origin + trusted origins). */
-async function platformOrigins(platforms: () => Promise<Platform[]> | Platform[], resolveOrigin: (p: Platform) => Promise<string | undefined>): Promise<Set<string>> {
+async function platformOrigins(
+  platforms: () => Promise<Platform[]> | Platform[],
+  resolveOrigin: (p: Platform) => Promise<string | undefined>,
+): Promise<Set<string>> {
   const out = new Set<string>();
   const live = await platforms();
   const seen = new Set(live.map((p) => p.id));

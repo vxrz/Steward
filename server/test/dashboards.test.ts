@@ -19,7 +19,17 @@ const flow = {
   connections: [{ slot: 'hub' }],
   nodes: [
     { id: 'start', type: 'start', x: 0, y: 0 },
-    { id: 'users', type: 'http', connection: 'hub', method: 'GET', path: '/api/identitymanagement/v3/Users', paginate: { mode: 'scim' }, saveAs: 'users', x: 1, y: 0 },
+    {
+      id: 'users',
+      type: 'http',
+      connection: 'hub',
+      method: 'GET',
+      path: '/api/identitymanagement/v3/Users',
+      paginate: { mode: 'scim' },
+      saveAs: 'users',
+      x: 1,
+      y: 0,
+    },
     {
       id: 'pub',
       type: 'publish',
@@ -33,7 +43,7 @@ const flow = {
       key: 'id',
       status: "$exists(lastLogonTime) and $daysSince(lastLogonTime) < 90 ? 'good' : ($exists(lastLogonTime) ? 'warning' : 'critical')",
       statusText: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) & ' days' : 'never signed in'",
-      metrics: { total: '$count(vars.users.body)', inactive: "$count(vars.users.body[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90])" },
+      metrics: { total: '$count(vars.users.body)', inactive: '$count(vars.users.body[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90])' },
       staleAfterMinutes: 60,
       x: 2,
       y: 0,

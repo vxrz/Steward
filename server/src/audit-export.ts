@@ -17,7 +17,9 @@ export function csvCell(v: unknown): string {
 export function auditCsv(entries: AuditEntry[]): string {
   const head = ['seq', 'ts', 'actor', 'action', 'entityType', 'entityId', 'runId', 'summary', 'details', 'prevHash', 'hash'];
   const lines = [head.join(',')].concat(
-    entries.map((a) => [a.seq, a.ts, a.actor, a.action, a.entityType, a.entityId, a.runId, a.summary, a.details ?? null, a.prevHash, a.hash].map(csvCell).join(',')),
+    entries.map((a) =>
+      [a.seq, a.ts, a.actor, a.action, a.entityType, a.entityId, a.runId, a.summary, a.details ?? null, a.prevHash, a.hash].map(csvCell).join(','),
+    ),
   );
   return lines.join('\r\n') + '\r\n';
 }

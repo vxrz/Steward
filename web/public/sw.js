@@ -13,7 +13,12 @@ const MAX_ASSETS = 160;
 const SHELL = ['/', '/icon.svg', '/icon-192.png'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches
+      .open(SHELL_CACHE)
+      .then((c) => c.addAll(SHELL))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {

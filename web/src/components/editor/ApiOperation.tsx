@@ -50,7 +50,13 @@ const paramNames = (path: string) => [...path.matchAll(/\{([^}]+)\}/g)].map((m) 
 /** Values of path parameters as currently written in the node's path (null if the path no longer matches the operation). */
 export function extractPathParams(opPath: string, nodePath: string): Record<string, string> | null {
   const names = paramNames(opPath);
-  const pattern = '^' + opPath.split(/\{[^}]+\}/).map(escapeRe).join('(.*?)') + '$';
+  const pattern =
+    '^' +
+    opPath
+      .split(/\{[^}]+\}/)
+      .map(escapeRe)
+      .join('(.*?)') +
+    '$';
   const m = new RegExp(pattern).exec(nodePath);
   if (!m) return null;
   const out: Record<string, string> = {};
@@ -76,7 +82,8 @@ export function applyOperation(node: HttpNode, op: ApiOperation): Partial<HttpNo
   const values: Record<string, string> = {};
   for (const n of paramNames(op.path)) values[n] = defaultPathValue(n);
   const query = { ...(node.query ?? {}) };
-  for (const p of op.parameters ?? []) if (p.in === 'query' && p.required && !(p.name in query)) query[p.name] = p.schema?.default !== undefined ? String(p.schema.default) : '';
+  for (const p of op.parameters ?? [])
+    if (p.in === 'query' && p.required && !(p.name in query)) query[p.name] = p.schema?.default !== undefined ? String(p.schema.default) : '';
   return {
     method: op.method.toUpperCase() as HttpNode['method'],
     path: buildPath(op.path, values),
@@ -88,7 +95,15 @@ export function applyOperation(node: HttpNode, op: ApiOperation): Partial<HttpNo
 }
 
 /** API operation section of an http node: pick an operation from an OpenAPI spec and fill its parameters. */
-export function ApiOperationSection({ node, connections, onChange }: { node: HttpNode; connections: ConnectionSlot[]; onChange: (patch: Partial<HttpNode>) => void }) {
+export function ApiOperationSection({
+  node,
+  connections,
+  onChange,
+}: {
+  node: HttpNode;
+  connections: ConnectionSlot[];
+  onChange: (patch: Partial<HttpNode>) => void;
+}) {
   const { t } = useTranslation(['editor', 'common']);
   const slot = connections.find((c) => c.slot === node.connection);
   const key = storageKey(slot, node.connection ?? '');
@@ -172,11 +187,19 @@ function OperationList({ ops, loading, onPick }: { ops?: ApiOperation[]; loading
   const [q, setQ] = useState('');
   const filtered = useMemo(() => {
     const needle = q.toLowerCase().trim();
-    return (ops ?? []).filter((o) => !needle || [o.method, o.path, o.summary, o.operationId, o.tag].some((x) => x?.toLowerCase().includes(needle))).slice(0, 200);
+    return (ops ?? [])
+      .filter((o) => !needle || [o.method, o.path, o.summary, o.operationId, o.tag].some((x) => x?.toLowerCase().includes(needle)))
+      .slice(0, 200);
   }, [ops, q]);
   return (
     <>
-      <TextInput leftSection={<IconSearch size={14} />} placeholder={t('api.search')} aria-label={t('api.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
+      <TextInput
+        leftSection={<IconSearch size={14} />}
+        placeholder={t('api.search')}
+        aria-label={t('api.search')}
+        value={q}
+        onChange={(e) => setQ(e.currentTarget.value)}
+      />
       {!loading && ops && ops.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('api.noSpec')}
@@ -327,7 +350,9 @@ function ParamInput({ param, value, onChange }: { param: Param; value: string; o
   );
   const description = param.description ? (param.description.length > 160 ? param.description.slice(0, 159) + '…' : param.description) : undefined;
   const placeholder =
-    param.schema?.default !== undefined ? i18n.t('editor:sub.default', { value: String(param.schema.default) }) : i18n.t('editor:fields.valueOrExpr', { expr: '{{ expression }}' });
+    param.schema?.default !== undefined
+      ? i18n.t('editor:sub.default', { value: String(param.schema.default) })
+      : i18n.t('editor:fields.valueOrExpr', { expr: '{{ expression }}' });
   if (param.schema?.enum?.length) {
     return (
       <Autocomplete
@@ -342,5 +367,15 @@ function ParamInput({ param, value, onChange }: { param: Param; value: string; o
       />
     );
   }
-  return <TextInput size="xs" label={label} description={description} classNames={{ input: 'mono' }} value={value} placeholder={placeholder} onChange={(e) => onChange(e.currentTarget.value)} />;
+  return (
+    <TextInput
+      size="xs"
+      label={label}
+      description={description}
+      classNames={{ input: 'mono' }}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.currentTarget.value)}
+    />
+  );
 }

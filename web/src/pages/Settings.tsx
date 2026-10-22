@@ -1,5 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Alert, Anchor, Button, Card, Code, Group, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Switch, Text, Textarea, Title } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Button,
+  Card,
+  Code,
+  Group,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Select,
+  SimpleGrid,
+  Stack,
+  Switch,
+  Text,
+  Textarea,
+  Title,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconLanguage, IconTrashX } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
@@ -243,21 +260,21 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           </Card>
         )}
         {!readOnly && (
-        <Group>
-          <Button
-            onClick={async () => {
-              try {
-                await put('/settings', s);
-                notifyOk(t('saved'));
-                qc.invalidateQueries();
-              } catch (e) {
-                notifyError(e);
-              }
-            }}
-          >
-            {t('common:save')}
-          </Button>
-        </Group>
+          <Group>
+            <Button
+              onClick={async () => {
+                try {
+                  await put('/settings', s);
+                  notifyOk(t('saved'));
+                  qc.invalidateQueries();
+                } catch (e) {
+                  notifyError(e);
+                }
+              }}
+            >
+              {t('common:save')}
+            </Button>
+          </Group>
         )}
         {!readOnly && <ThemeSettingsCard />}
         {!readOnly && <VaultPassphraseCard />}

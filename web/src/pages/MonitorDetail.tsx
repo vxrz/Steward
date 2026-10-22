@@ -1,5 +1,24 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Drawer, Grid, Group, Menu, Paper, ScrollArea, Stack, Switch, Table, Tabs, Text, Timeline, Title, Tooltip } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Button,
+  Drawer,
+  Grid,
+  Group,
+  Menu,
+  Paper,
+  ScrollArea,
+  Stack,
+  Switch,
+  Table,
+  Tabs,
+  Text,
+  Timeline,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -18,7 +37,14 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { type CheckResultInfo, type CheckState, type MaintenanceWindow, type MonitorDetail, type MonitorHistoryEntry, type MonitorSaveResult } from '@sm/shared';
+import {
+  type CheckResultInfo,
+  type CheckState,
+  type MaintenanceWindow,
+  type MonitorDetail,
+  type MonitorHistoryEntry,
+  type MonitorSaveResult,
+} from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { AccessEditor } from '../components/AccessEditor';
@@ -40,7 +66,7 @@ export function MonitorDetailPage() {
   const [maint, setMaint] = useState(false);
   const [ack, setAck] = useState(false);
   const [instances, setInstances] = useState(false);
-  const [secrets, setSecrets] = useState<Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail } | null>(null);
+  const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
   const selected = search.get('check');
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
   const refresh = () => qc.invalidateQueries({ queryKey: ['monitor', id] });
@@ -156,7 +182,9 @@ export function MonitorDetailPage() {
                     {causeText(c, m.id)}
                   </Anchor>
                 )}
-                {c.monitorId === m.id && m.checks.find((x) => x.checkId === c.checkId)?.last?.message ? ` – ${m.checks.find((x) => x.checkId === c.checkId)!.last!.message}` : ''}
+                {c.monitorId === m.id && m.checks.find((x) => x.checkId === c.checkId)?.last?.message
+                  ? ` – ${m.checks.find((x) => x.checkId === c.checkId)!.last!.message}`
+                  : ''}
               </Text>
             ))}
           </Alert>
@@ -165,10 +193,18 @@ export function MonitorDetailPage() {
           <Alert color="blue" title={t('maintenance.window')}>
             <Group justify="space-between">
               <Text size="sm">
-                {t('maintenance.until', { date: fmtDate(m.maintenance.endsAt), reason: m.maintenance.reason || t('maintenance.noReason'), user: m.maintenance.createdBy })}
+                {t('maintenance.until', {
+                  date: fmtDate(m.maintenance.endsAt),
+                  reason: m.maintenance.reason || t('maintenance.noReason'),
+                  user: m.maintenance.createdBy,
+                })}
               </Text>
               {can('acknowledge') && (
-                <Button size="compact-xs" variant="light" onClick={async () => (await del(`/monitors/${m.id}/maintenance/${m.maintenance!.id}`).catch(notifyError), refresh())}>
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  onClick={async () => (await del(`/monitors/${m.id}/maintenance/${m.maintenance!.id}`).catch(notifyError), refresh())}
+                >
                   {t('maintenance.endNow')}
                 </Button>
               )}
@@ -226,7 +262,14 @@ export function MonitorDetailPage() {
         <Tabs.Panel value="graph">
           <Grid>
             <Grid.Col span={{ base: 12, md: sel && !isMobile ? 8 : 12 }}>
-              <MonitorGraph def={m.definition} states={m.isTemplate ? undefined : m.checks} rootCauseIds={rootIds} selected={selected} onSelect={select} height={isMobile ? 380 : 520} />
+              <MonitorGraph
+                def={m.definition}
+                states={m.isTemplate ? undefined : m.checks}
+                rootCauseIds={rootIds}
+                selected={selected}
+                onSelect={select}
+                height={isMobile ? 380 : 520}
+              />
               <Text size="xs" c="dimmed" mt={4}>
                 {t('detail.graphHint')}
               </Text>
@@ -306,7 +349,13 @@ export function MonitorDetailPage() {
       )}
       {maint && <MaintenanceModal monitor={m} onClose={() => setMaint(false)} onSaved={refresh} />}
       {ack && <AcknowledgeModal monitor={m} onClose={() => setAck(false)} onSaved={refresh} />}
-      {instances && <InstantiateModal template={m} onClose={() => setInstances(false)} onCreated={(r) => setSecrets({ monitor: r[0]?.monitor, secrets: r.flatMap((x) => x.secrets) })} />}
+      {instances && (
+        <InstantiateModal
+          template={m}
+          onClose={() => setInstances(false)}
+          onCreated={(r) => setSecrets({ monitor: r[0]?.monitor, secrets: r.flatMap((x) => x.secrets) })}
+        />
+      )}
       {secrets && <SecretsModal result={secrets} onClose={() => setSecrets(null)} />}
     </>
   );
@@ -360,9 +409,27 @@ function ChecksTable({ monitor, onSelect }: { monitor: MonitorDetail; onSelect: 
   );
 }
 
-function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monitor: MonitorDetail; check: CheckState; onClose: () => void; onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void; hideTitle?: boolean }) {
-  const results = useQuery({ queryKey: ['monitor-results', monitor.id, c.checkId, c.last?.ts], queryFn: () => get<CheckResultInfo[]>(`/monitors/${monitor.id}/checks/${encodeURIComponent(c.checkId)}/results?limit=20`) });
-  const history = useQuery({ queryKey: ['monitor-history', monitor.id, c.checkId, c.since], queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?check=${encodeURIComponent(c.checkId)}&limit=20`) });
+function CheckPanel({
+  monitor,
+  check: c,
+  onClose,
+  onSecret,
+  hideTitle,
+}: {
+  monitor: MonitorDetail;
+  check: CheckState;
+  onClose: () => void;
+  onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void;
+  hideTitle?: boolean;
+}) {
+  const results = useQuery({
+    queryKey: ['monitor-results', monitor.id, c.checkId, c.last?.ts],
+    queryFn: () => get<CheckResultInfo[]>(`/monitors/${monitor.id}/checks/${encodeURIComponent(c.checkId)}/results?limit=20`),
+  });
+  const history = useQuery({
+    queryKey: ['monitor-history', monitor.id, c.checkId, c.since],
+    queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?check=${encodeURIComponent(c.checkId)}&limit=20`),
+  });
   const def = monitor.definition.checks.find((x) => x.id === c.checkId);
   const { t } = useTranslation(['monitors', 'common']);
   return (
@@ -415,7 +482,11 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
       </Text>
       <Timeline bulletSize={12} lineWidth={2}>
         {(history.data ?? []).slice(0, 8).map((h) => (
-          <Timeline.Item key={h.id} color={MONITOR_COLORS[h.status]} title={<Text size="xs" fw={600}>{`${h.previous ? monitorStatusLabel(h.previous) : '–'} → ${monitorStatusLabel(h.status)}`}</Text>}>
+          <Timeline.Item
+            key={h.id}
+            color={MONITOR_COLORS[h.status]}
+            title={<Text size="xs" fw={600}>{`${h.previous ? monitorStatusLabel(h.previous) : '–'} → ${monitorStatusLabel(h.status)}`}</Text>}
+          >
             <Text size="xs" c="dimmed">
               {fmtDate(h.ts)}
             </Text>
@@ -452,7 +523,15 @@ function CheckPanel({ monitor, check: c, onClose, onSecret, hideTitle }: { monit
   );
 }
 
-function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail; check: CheckState; onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void }) {
+function HeartbeatCard({
+  monitor,
+  check: c,
+  onSecret,
+}: {
+  monitor: MonitorDetail;
+  check: CheckState;
+  onSecret: (s: { secrets: MonitorSaveResult['secrets'] }) => void;
+}) {
   const hb = c.heartbeat!;
   const canEdit = monitor.permissions.includes('edit');
   const { t } = useTranslation('monitors');
@@ -467,7 +546,11 @@ function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail
           {hb.path}
         </Text>
         <Text size="xs" c="dimmed">
-          {t('heartbeat.line', { auth: t(`auth.short.${hb.authMode as 'token' | 'hmac' | 'either'}`, { defaultValue: hb.authMode }), prefix: hb.secretPrefix, when: fmtRelative(hb.lastPushAt) })}
+          {t('heartbeat.line', {
+            auth: t(`auth.short.${hb.authMode as 'token' | 'hmac' | 'either'}`, { defaultValue: hb.authMode }),
+            prefix: hb.secretPrefix,
+            when: fmtRelative(hb.lastPushAt),
+          })}
         </Text>
         {hb.lastPush != null && <JsonView value={hb.lastPush} maxHeight={120} />}
         {canEdit && (
@@ -478,7 +561,10 @@ function HeartbeatCard({ monitor, check: c, onSecret }: { monitor: MonitorDetail
               leftSection={<IconSend size={12} />}
               onClick={async () => {
                 try {
-                  const r = await post<{ status: number; response: { status?: string; error?: string } }>(`/monitors/${monitor.id}/checks/${c.checkId}/test-report`, { status: 'up', value: 1 });
+                  const r = await post<{ status: number; response: { status?: string; error?: string } }>(
+                    `/monitors/${monitor.id}/checks/${c.checkId}/test-report`,
+                    { status: 'up', value: 1 },
+                  );
                   notifyOk(`HTTP ${r.status}: ${r.response.status ?? r.response.error ?? ''}`, t('heartbeat.testSent'));
                 } catch (e) {
                   notifyError(e);
@@ -528,7 +614,12 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
             <CopyBlock label={t('secrets.url')} text={`${window.location.origin}${c.heartbeat!.path}`} />
             <CopyBlock label={t('heartbeat.oneCheck')} text={heartbeatCurl(c.heartbeat!.path, c.heartbeat!.authMode === 'hmac')} />
             <Text size="xs" c="dimmed">
-              <Trans t={t} i18nKey="heartbeat.gatewayKey" values={{ key: c.key, prefix: c.heartbeat!.secretPrefix }} components={{ c: <span className="mono" /> }} />
+              <Trans
+                t={t}
+                i18nKey="heartbeat.gatewayKey"
+                values={{ key: c.key, prefix: c.heartbeat!.secretPrefix }}
+                components={{ c: <span className="mono" /> }}
+              />
             </Text>
             <HeartbeatCard monitor={monitor} check={c} onSecret={onSecret} />
           </Stack>
@@ -543,7 +634,10 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
 }
 
 function HistoryList({ monitor }: { monitor: MonitorDetail }) {
-  const h = useQuery({ queryKey: ['monitor-history', monitor.id, 'all', monitor.lastEvaluatedAt], queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?limit=200`) });
+  const h = useQuery({
+    queryKey: ['monitor-history', monitor.id, 'all', monitor.lastEvaluatedAt],
+    queryFn: () => get<MonitorHistoryEntry[]>(`/monitors/${monitor.id}/history?limit=200`),
+  });
   const name = new Map(monitor.checks.map((c) => [c.checkId, c.name]));
   const { t } = useTranslation('monitors');
   return (
@@ -585,7 +679,10 @@ function HistoryList({ monitor }: { monitor: MonitorDetail }) {
 
 function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: () => void }) {
   const { t } = useTranslation('monitors');
-  const w = useQuery({ queryKey: ['monitor-maintenance', monitor.id, monitor.maintenance?.id], queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`) });
+  const w = useQuery({
+    queryKey: ['monitor-maintenance', monitor.id, monitor.maintenance?.id],
+    queryFn: () => get<MaintenanceWindow[]>(`/monitors/${monitor.id}/maintenance`),
+  });
   return (
     <Stack>
       {monitor.permissions.includes('acknowledge') && (
@@ -593,7 +690,11 @@ function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: 
           {t('maintenance.plan')}
         </Button>
       )}
-      {(w.data ?? []).length === 0 && <Text size="sm" c="dimmed">{t('maintenance.none')}</Text>}
+      {(w.data ?? []).length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('maintenance.none')}
+        </Text>
+      )}
       {(w.data ?? []).map((x) => (
         <Paper key={x.id} withBorder p="xs">
           <Group justify="space-between">
@@ -607,7 +708,12 @@ function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: 
             </div>
             {monitor.permissions.includes('acknowledge') && Date.parse(x.endsAt) > Date.now() && (
               <Tooltip label={x.active ? t('maintenance.endNow') : t('detail.remove')}>
-                <Button size="compact-xs" variant="subtle" color="red" onClick={async () => (await del(`/monitors/${monitor.id}/maintenance/${x.id}`).catch(notifyError), w.refetch())}>
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  color="red"
+                  onClick={async () => (await del(`/monitors/${monitor.id}/maintenance/${x.id}`).catch(notifyError), w.refetch())}
+                >
                   {x.active ? t('maintenance.endNow') : t('detail.remove')}
                 </Button>
               </Tooltip>

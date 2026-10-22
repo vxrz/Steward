@@ -73,9 +73,7 @@ export function usageFailure(e: UsageError, command: string): number {
 export function palette(stream: NodeJS.WriteStream = process.stdout) {
   const env = process.env;
   const on =
-    env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0'
-      ? true
-      : !env.NO_COLOR && env.TERM !== 'dumb' && !!stream.isTTY && env.FORCE_COLOR !== '0';
+    env.FORCE_COLOR !== undefined && env.FORCE_COLOR !== '0' ? true : !env.NO_COLOR && env.TERM !== 'dumb' && !!stream.isTTY && env.FORCE_COLOR !== '0';
   const wrap = (code: number) => (s: string) => (on ? `\x1b[${code}m${s}\x1b[0m` : s);
   return { enabled: on, red: wrap(31), green: wrap(32), yellow: wrap(33), dim: wrap(2), bold: wrap(1) };
 }

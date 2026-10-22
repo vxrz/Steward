@@ -64,7 +64,13 @@ export function VaultPassphraseCard() {
       )}
       <Stack gap="xs" maw={420}>
         <PasswordInput label={t('vault.current')} value={current} onChange={(e) => setCurrent(e.currentTarget.value)} autoComplete="current-password" />
-        <PasswordInput label={t('vault.next')} description={t('vault.nextHint', { count: min })} value={next} onChange={(e) => setNext(e.currentTarget.value)} autoComplete="new-password" />
+        <PasswordInput
+          label={t('vault.next')}
+          description={t('vault.nextHint', { count: min })}
+          value={next}
+          onChange={(e) => setNext(e.currentTarget.value)}
+          autoComplete="new-password"
+        />
         <PasswordInput label={t('vault.repeat')} value={repeat} onChange={(e) => setRepeat(e.currentTarget.value)} autoComplete="new-password" />
         <Checkbox label={t('vault.rotate')} description={t('vault.rotateHint')} checked={rotate} onChange={(e) => setRotate(e.currentTarget.checked)} />
         {problem && (

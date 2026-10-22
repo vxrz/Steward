@@ -335,7 +335,15 @@ export function rotateSecret(id: string): WebhookTriggerSecret {
   const sec = newSecret();
   const ts = nowIso();
   db().tx(() => {
-    db().run('UPDATE webhook_triggers SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ?, updated_at = ? WHERE id = ?', sec.enc, sec.hash, sec.prefix, ts, ts, id);
+    db().run(
+      'UPDATE webhook_triggers SET secret_enc = ?, secret_hash = ?, secret_prefix = ?, secret_rotated_at = ?, updated_at = ? WHERE id = ?',
+      sec.enc,
+      sec.hash,
+      sec.prefix,
+      ts,
+      ts,
+      id,
+    );
     audit({
       action: 'trigger.secret_rotated',
       entityType: 'trigger',
@@ -365,12 +373,26 @@ export function revealSecretForTest(r: TriggerRow): string {
 export function listFires(id: string, limit = 50): WebhookFire[] {
   getTrigger(id);
   return db()
-    .all<{ id: number; ts: string; source_ip: string; payload_hash: string; outcome: WebhookFire['outcome']; reason: string | null; run_id: string | null; test: number }>(
-      'SELECT * FROM webhook_trigger_fires WHERE trigger_id = ? ORDER BY id DESC LIMIT ?',
-      id,
-      Math.min(Math.max(1, limit), 500),
-    )
-    .map((f) => ({ id: f.id, ts: f.ts, sourceIp: f.source_ip, payloadHash: f.payload_hash, outcome: f.outcome, reason: f.reason, runId: f.run_id, test: !!f.test }));
+    .all<{
+      id: number;
+      ts: string;
+      source_ip: string;
+      payload_hash: string;
+      outcome: WebhookFire['outcome'];
+      reason: string | null;
+      run_id: string | null;
+      test: number;
+    }>('SELECT * FROM webhook_trigger_fires WHERE trigger_id = ? ORDER BY id DESC LIMIT ?', id, Math.min(Math.max(1, limit), 500))
+    .map((f) => ({
+      id: f.id,
+      ts: f.ts,
+      sourceIp: f.source_ip,
+      payloadHash: f.payload_hash,
+      outcome: f.outcome,
+      reason: f.reason,
+      runId: f.run_id,
+      test: !!f.test,
+    }));
 }
 
 // ---------- input mapping ----------

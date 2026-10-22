@@ -1,10 +1,39 @@
 import { useState } from 'react';
-import { Alert, Badge, Button, Card, Group, List, Modal, SegmentedControl, SimpleGrid, Stack, Text, TextInput, Textarea, ActionIcon, Tooltip, Menu } from '@mantine/core';
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Group,
+  List,
+  Modal,
+  SegmentedControl,
+  SimpleGrid,
+  Stack,
+  Text,
+  TextInput,
+  Textarea,
+  ActionIcon,
+  Tooltip,
+  Menu,
+} from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { IconPlayerPlay, IconPlus, IconSearch, IconTemplate, IconUpload, IconDots, IconArchive, IconFileExport, IconPackage, IconPackageExport, IconPackageImport } from '@tabler/icons-react';
+import {
+  IconPlayerPlay,
+  IconPlus,
+  IconSearch,
+  IconTemplate,
+  IconUpload,
+  IconDots,
+  IconArchive,
+  IconFileExport,
+  IconPackage,
+  IconPackageExport,
+  IconPackageImport,
+} from '@tabler/icons-react';
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { PageHeader, StatusBadge } from '../components/common';
@@ -29,7 +58,14 @@ export function ProcessesPage() {
   const createBlank = async () => {
     try {
       const p = await post<ProcessDetail>('/processes', {
-        definition: { name: t('newProcessName'), description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
+        definition: {
+          name: t('newProcessName'),
+          description: '',
+          connections: [],
+          inputs: [],
+          nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }],
+          wires: [],
+        },
       });
       navigate(`/processes/${p.id}`);
     } catch (e) {
@@ -65,22 +101,29 @@ export function ProcessesPage() {
               </Menu.Dropdown>
             </Menu>
             {caps.createProcesses && (
-          <>
-            <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
-              {t('importYaml')}
-            </Button>
-            <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
-              {t('fromTemplate')}
-            </Button>
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
-              {t('newProcess')}
-            </Button>
-          </>
+              <>
+                <Button size="xs" variant="default" leftSection={<IconUpload size={14} />} onClick={importModal.open}>
+                  {t('importYaml')}
+                </Button>
+                <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
+                  {t('fromTemplate')}
+                </Button>
+                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
+                  {t('newProcess')}
+                </Button>
+              </>
             )}
           </>
         }
       />
-      <TextInput mb="md" placeholder={t('search')} leftSection={<IconSearch size={14} />} value={filter} onChange={(e) => setFilter(e.currentTarget.value)} maw={360} />
+      <TextInput
+        mb="md"
+        placeholder={t('search')}
+        leftSection={<IconSearch size={14} />}
+        value={filter}
+        onChange={(e) => setFilter(e.currentTarget.value)}
+        maw={360}
+      />
       {processes.data?.length === 0 && (
         <Card withBorder p="lg">
           <Text fw={600}>{t('empty.title')}</Text>
@@ -125,17 +168,19 @@ export function ProcessesPage() {
                     <Menu.Item leftSection={<IconFileExport size={14} />} component="a" href={apiUrl(`/processes/${p.id}/export`)}>
                       {t('card.exportYaml')}
                     </Menu.Item>
-                    {p.permissions.includes('manage') && <Menu.Item
-                      color="red"
-                      leftSection={<IconArchive size={14} />}
-                      onClick={async () => {
-                        if (!confirm(t('card.archiveConfirm', { name: p.name }))) return;
-                        await del(`/processes/${p.id}`).catch(notifyError);
-                        qc.invalidateQueries({ queryKey: ['processes'] });
-                      }}
-                    >
-                      {t('card.archive')}
-                    </Menu.Item>}
+                    {p.permissions.includes('manage') && (
+                      <Menu.Item
+                        color="red"
+                        leftSection={<IconArchive size={14} />}
+                        onClick={async () => {
+                          if (!confirm(t('card.archiveConfirm', { name: p.name }))) return;
+                          await del(`/processes/${p.id}`).catch(notifyError);
+                          qc.invalidateQueries({ queryKey: ['processes'] });
+                        }}
+                      >
+                        {t('card.archive')}
+                      </Menu.Item>
+                    )}
                   </Menu.Dropdown>
                 </Menu>
               </Group>
@@ -274,7 +319,15 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
         <Text size="xs" c="dimmed">
           {t('import.hint')}
         </Text>
-        <Textarea classNames={{ input: 'mono' }} autosize minRows={10} maxRows={24} value={text} onChange={(e) => setText(e.currentTarget.value)} placeholder="name: My process&#10;steps: []" />
+        <Textarea
+          classNames={{ input: 'mono' }}
+          autosize
+          minRows={10}
+          maxRows={24}
+          value={text}
+          onChange={(e) => setText(e.currentTarget.value)}
+          placeholder="name: My process&#10;steps: []"
+        />
         {results && (
           <Alert color={results.every((r) => r.ok) ? 'green' : 'orange'} title={t('import.result')} withCloseButton onClose={() => setResults(null)}>
             <List size="sm" spacing={2}>
@@ -287,12 +340,7 @@ function ImportModal({ opened, onClose }: { opened: boolean; onClose: () => void
           </Alert>
         )}
         <Group justify="space-between">
-          <Button
-            variant="default"
-            size="xs"
-            component="label"
-            leftSection={<IconUpload size={14} />}
-          >
+          <Button variant="default" size="xs" component="label" leftSection={<IconUpload size={14} />}>
             {t('import.loadFiles')}
             <input
               type="file"
@@ -429,7 +477,10 @@ function BundleImportModal({ opened, onClose }: { opened: boolean; onClose: () =
             onClick={async () => {
               setBusy(true);
               try {
-                const r = await post<{ created: string[]; updated: string[]; skipped: { id: string; reason: string }[] }>('/bundle/import', { bundle, onConflict });
+                const r = await post<{ created: string[]; updated: string[]; skipped: { id: string; reason: string }[] }>('/bundle/import', {
+                  bundle,
+                  onConflict,
+                });
                 setResult(r);
                 qc.invalidateQueries({ queryKey: ['processes'] });
                 qc.invalidateQueries({ queryKey: ['dashboards'] });

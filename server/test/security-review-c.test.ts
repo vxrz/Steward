@@ -45,7 +45,17 @@ async function restore(rows: Record<string, unknown>[]): Promise<void> {
   for (const r of rows) {
     d.run(
       'INSERT INTO audit_log (seq, ts, actor, action, entity_type, entity_id, run_id, summary, details, prev_hash, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      r.seq, r.ts, r.actor, r.action, r.entity_type, r.entity_id, r.run_id, r.summary, r.details, r.prev_hash, r.hash,
+      r.seq,
+      r.ts,
+      r.actor,
+      r.action,
+      r.entity_type,
+      r.entity_id,
+      r.run_id,
+      r.summary,
+      r.details,
+      r.prev_hash,
+      r.hash,
     );
   }
 }
@@ -65,14 +75,20 @@ async function withoutSeqGuard(fn: () => Promise<void>): Promise<void> {
     await fn();
   } finally {
     if (d.dialect === 'sqlite') {
-      d.exec("CREATE TRIGGER audit_log_seq_positive BEFORE INSERT ON audit_log WHEN NEW.seq IS NULL OR NEW.seq < 1 BEGIN SELECT RAISE(ABORT, 'audit_log.seq must be greater than 0'); END;");
+      d.exec(
+        "CREATE TRIGGER audit_log_seq_positive BEFORE INSERT ON audit_log WHEN NEW.seq IS NULL OR NEW.seq < 1 BEGIN SELECT RAISE(ABORT, 'audit_log.seq must be greater than 0'); END;",
+      );
     } else d.exec('ALTER TABLE audit_log ADD CONSTRAINT audit_log_seq_positive CHECK (seq > 0) NOT VALID');
   }
 }
 const insertRow = async (seq: number, action: string, summary: string, details: unknown = null, runId: string | null = null) =>
   (await db()).run(
     "INSERT INTO audit_log (seq, ts, actor, action, entity_type, entity_id, run_id, summary, details, prev_hash, hash) VALUES (?, '2026-09-01T08:00:00.000Z', 'olivia', ?, 'report', 'rep_forged', ?, ?, ?, 'GENESIS', 'deadbeef')",
-    seq, action, runId, summary, details === null ? null : JSON.stringify(details),
+    seq,
+    action,
+    runId,
+    summary,
+    details === null ? null : JSON.stringify(details),
   );
 
 describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', () => {
@@ -193,7 +209,8 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
     expect(bundle.entries[0].prevHash).toBe('GENESIS');
     const { verifyExport } = await import('../src/cli/audit-verify-export.js');
     const pub = bundle.publicKeyPem as string;
-    const check = (entries: any[]) => verifyExport({ entries, checkpoints: [{ source: 'export', cp: bundle.checkpoint }], publicKey: pub, keySource: 'option' });
+    const check = (entries: any[]) =>
+      verifyExport({ entries, checkpoints: [{ source: 'export', cp: bundle.checkpoint }], publicKey: pub, keySource: 'option' });
     expect(check(bundle.entries)).toMatchObject({ ok: true });
     // an entry rewritten in the file
     const edited = structuredClone(bundle.entries);
@@ -203,7 +220,9 @@ describe('H1 – audit chain: truncation, wipe, rows with seq < 1, anchoring', (
     expect(check(bundle.entries.slice(0, bundle.checkpoint.seq - 1)).ok).toBe(false);
     // another installation's key
     const other = crypto.generateKeyPairSync('ed25519').publicKey.export({ format: 'pem', type: 'spki' }).toString();
-    expect(verifyExport({ entries: bundle.entries, checkpoints: [{ source: 'export', cp: bundle.checkpoint }], publicKey: other, keySource: 'option' }).ok).toBe(false);
+    expect(
+      verifyExport({ entries: bundle.entries, checkpoints: [{ source: 'export', cp: bundle.checkpoint }], publicKey: other, keySource: 'option' }).ok,
+    ).toBe(false);
     const csv = await adminText('/audit/export?format=csv');
     expect(csv.split('\r\n')[0]).toBe('seq,ts,actor,action,entityType,entityId,runId,summary,details,prevHash,hash');
   });
@@ -258,7 +277,11 @@ describe('H3 – no audit flooding without signing in', () => {
   it('aggregates repeated failed sign-ins per account and address', async () => {
     const before = await maxSeq();
     for (let i = 0; i < 4; i++) {
-      await fetch(s.base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sm-client': '1' }, body: JSON.stringify({ username: 'dana', password: `wrong-${i}` }) });
+      await fetch(s.base + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
+        body: JSON.stringify({ username: 'dana', password: `wrong-${i}` }),
+      });
     }
     const rows = (await db()).all<{ summary: string }>("SELECT summary FROM audit_log WHERE seq > ? AND action = 'auth.login_failed'", before);
     expect(rows).toHaveLength(1); // the others are summed up in one entry after a minute
@@ -324,7 +347,14 @@ describe('H5 – the master passphrase does not leak into child processes', () =
 
   it('starts the browser with a minimal environment and its sandbox unless running as root', async () => {
     const { browserEnv, sandboxWanted } = await import('../src/engine/browser.js');
-    const env = browserEnv({ PATH: '/usr/bin', HOME: '/home/x', SM_MASTER_PASSPHRASE: 'secret-pass', SM_SENTRY_DSN: 'x', AWS_SECRET_ACCESS_KEY: 'k', DISPLAY: ':0' });
+    const env = browserEnv({
+      PATH: '/usr/bin',
+      HOME: '/home/x',
+      SM_MASTER_PASSPHRASE: 'secret-pass',
+      SM_SENTRY_DSN: 'x',
+      AWS_SECRET_ACCESS_KEY: 'k',
+      DISPLAY: ':0',
+    });
     expect(env).toEqual({ PATH: '/usr/bin', HOME: '/home/x', DISPLAY: ':0' });
     expect(sandboxWanted({ SM_CHROMIUM_SANDBOX: '1' })).toEqual({ sandbox: true, forced: true });
     expect(sandboxWanted({}).sandbox).toBe(process.getuid?.() !== 0);
@@ -419,7 +449,10 @@ describe('M2 – vault: passphrase change, key rotation, format 1 migration, fai
     const file = path.join(dir, 'vault.json');
     const salt = crypto.randomBytes(16);
     const oldKey = crypto.scryptSync('an old short pw', salt, 32, { N: 2 ** 15, r: 8, p: 1, maxmem: 128 * 1024 * 1024 });
-    fs.writeFileSync(file, JSON.stringify({ version: 1, salt: salt.toString('base64'), N: 2 ** 15, r: 8, p: 1, check: encryptWith(oldKey, 'service-manager-vault-v1') }));
+    fs.writeFileSync(
+      file,
+      JSON.stringify({ version: 1, salt: salt.toString('base64'), N: 2 ** 15, r: 8, p: 1, check: encryptWith(oldKey, 'service-manager-vault-v1') }),
+    );
     const secret = encryptWith(oldKey, JSON.stringify({ password: 'platform-secret' }));
     const v = new Vault(file);
     await v.unlock('an old short pw'); // shorter than 12: existing passphrases keep working
@@ -469,7 +502,8 @@ describe('M2 – vault: passphrase change, key rotation, format 1 migration, fai
     const { ENCRYPTED_COLUMNS, ENCRYPTED_SETTINGS } = await import('../src/vault-rotation.js');
     const registered = new Set([...ENCRYPTED_COLUMNS, ...ENCRYPTED_SETTINGS].map((e) => e.file));
     const src = path.resolve(__dirname, '..', 'src');
-    const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+    const walk = (d: string): string[] =>
+      fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
     const users = walk(src)
       .filter((f) => f.endsWith('.ts') && /vault\(\)\.encrypt\(/.test(fs.readFileSync(f, 'utf8')))
       .map((f) => path.relative(src, f).split(path.sep).join('/'));
@@ -488,7 +522,11 @@ describe('M2 – vault: passphrase change, key rotation, format 1 migration, fai
 describe('M3 – sign-in hashing does not block the server', () => {
   it('keeps the server responsive during a burst of failed sign-ins', async () => {
     const logins = Array.from({ length: 8 }, (_, i) =>
-      fetch(s.base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sm-client': '1' }, body: JSON.stringify({ username: `nobody-${i}`, password: 'x' }) }),
+      fetch(s.base + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
+        body: JSON.stringify({ username: `nobody-${i}`, password: 'x' }),
+      }),
     );
     const t0 = Date.now();
     const health = await fetch(s.base + '/api/health');
@@ -579,7 +617,15 @@ describe('M7 – behind a reverse proxy (separate server process)', () => {
     const port = 41000 + Math.floor(Math.random() * 8000);
     const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
       cwd: path.resolve(__dirname, '..'),
-      env: { ...process.env, ...freshDbEnv(), SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_TRUST_PROXY: '1', SM_PUBLIC_URL: 'https://steward.example.com', SM_LOG_LEVEL: 'info' },
+      env: {
+        ...process.env,
+        ...freshDbEnv(),
+        SM_DATA_DIR: dataDir,
+        SM_PORT: String(port),
+        SM_TRUST_PROXY: '1',
+        SM_PUBLIC_URL: 'https://steward.example.com',
+        SM_LOG_LEVEL: 'info',
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     try {
@@ -591,7 +637,11 @@ describe('M7 – behind a reverse proxy (separate server process)', () => {
       });
       const base = `http://127.0.0.1:${port}`;
       const login = (ip: string) =>
-        fetch(base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sm-client': '1', 'x-forwarded-for': ip }, body: JSON.stringify({ username: 'ghost', password: 'x' }) });
+        fetch(base + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-sm-client': '1', 'x-forwarded-for': ip },
+          body: JSON.stringify({ username: 'ghost', password: 'x' }),
+        });
       for (let i = 0; i < 5; i++) expect((await login('203.0.113.7')).status).toBe(401);
       expect((await login('203.0.113.7')).status).toBe(429); // that client is locked out …
       expect((await login('203.0.113.8')).status).toBe(401); // … not everyone behind the proxy
@@ -613,7 +663,11 @@ describe('M7 – behind a reverse proxy (separate server process)', () => {
 describe('M8 – privacy', () => {
   it('does not store user names that belong to no account', async () => {
     const typo = 'Winter2026!-typed-into-the-user-field';
-    await fetch(s.base + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-sm-client': '1' }, body: JSON.stringify({ username: typo, password: 'x' }) });
+    await fetch(s.base + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
+      body: JSON.stringify({ username: typo, password: 'x' }),
+    });
     const all = JSON.stringify(await s.api('GET', '/audit?action=auth.login_failed&limit=50'));
     expect(all).not.toContain(typo);
     expect(all).toMatch(/unknown user name \(ref [0-9a-f]{12}\)/);
@@ -668,7 +722,8 @@ describe('L – redaction, scrubbing, TLS', () => {
         body: { access_token: 'eyJhbGciOi.runtime-token.sig', refresh_token: 'rt-123456' },
       }),
     );
-    for (const leak of [pw, encodeURIComponent(pw), Buffer.from(pw).toString('base64'), 'runtime-token', 'rt-123456', 'k-123456', 'Basic abc']) expect(out).not.toContain(leak);
+    for (const leak of [pw, encodeURIComponent(pw), Buffer.from(pw).toString('base64'), 'runtime-token', 'rt-123456', 'k-123456', 'Basic abc'])
+      expect(out).not.toContain(leak);
     // a token seen once is masked wherever it shows up later
     expect(r.apply('Authorization: Bearer eyJhbGciOi.runtime-token.sig')).toBe('Authorization: Bearer ***');
   });

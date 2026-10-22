@@ -240,7 +240,12 @@ describe('openapi & connectors', () => {
       schemas: {
         Ticket: {
           type: 'object',
-          properties: { title: { type: 'string' }, priority: { type: 'integer' }, tags: { type: 'array', items: { type: 'string' } }, parent: { $ref: '#/components/schemas/Ticket' } },
+          properties: {
+            title: { type: 'string' },
+            priority: { type: 'integer' },
+            tags: { type: 'array', items: { type: 'string' } },
+            parent: { $ref: '#/components/schemas/Ticket' },
+          },
         },
       },
     },

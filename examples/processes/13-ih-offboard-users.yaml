@@ -118,4 +118,7 @@ steps:
       - { label: User, value: requested }
       - { label: Found, value: "$exists(user) ? 'yes' : 'no'" }
       - { label: Memberships, value: "$exists(user) ? $count(user.groups[$not(type = 'INDIRECT')]) : 0" }
-      - { label: Result, value: "$not($exists(user)) ? 'not found' : ($vars.approval.approved = true ? ($inputs.mode = 'delete' ? 'deleted' : 'memberships removed') : 'not confirmed')" }
+      - {
+          label: Result,
+          value: "$not($exists(user)) ? 'not found' : ($vars.approval.approved = true ? ($inputs.mode = 'delete' ? 'deleted' : 'memberships removed') : 'not confirmed')",
+        }

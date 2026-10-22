@@ -13,7 +13,11 @@ let dana: Client, olivia: Client, vera: Client;
 let eng: typeof import('../src/monitors/engine.js');
 let P: Record<string, string>;
 const PW = 'Demo-password-1';
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 
 async function hook(path: string, body: unknown, headers: Record<string, string> = {}) {
   const res = await fetch(`${s.base}${path}`, {
@@ -169,8 +173,12 @@ describe('monitor logic', () => {
       }),
     );
     expect(r).toBe(400);
-    await expect(dana('POST', '/monitors', { definition: { name: 'Bad host', checks: [{ id: 'a', name: 'A', type: 'ping', host: '-c 5 x' }] } })).rejects.toThrow(/host/);
-    await expect(dana('POST', '/monitors', { definition: { name: 'Bad expr', checks: [{ id: 'a', name: 'A', type: 'http', url: 'http://x', condition: 'body.(' }] } })).rejects.toThrow(/invalid expression/);
+    await expect(
+      dana('POST', '/monitors', { definition: { name: 'Bad host', checks: [{ id: 'a', name: 'A', type: 'ping', host: '-c 5 x' }] } }),
+    ).rejects.toThrow(/host/);
+    await expect(
+      dana('POST', '/monitors', { definition: { name: 'Bad expr', checks: [{ id: 'a', name: 'A', type: 'http', url: 'http://x', condition: 'body.(' }] } }),
+    ).rejects.toThrow(/invalid expression/);
   });
 });
 
@@ -193,7 +201,15 @@ describe('check types', () => {
           { id: 'httpSlow', name: 'HTTP slow', type: 'http', url: `${s.base}/mock/test/delay?ms=300`, degradedResponseMs: 100 },
           { id: 'httpCond', name: 'HTTP condition', type: 'http', url: `${s.base}/mock/test/delay?ms=0`, condition: 'body.ok = false' },
           { id: 'http404', name: 'HTTP 404', type: 'http', url: `${s.base}/mock/nope`, expectStatus: '200-299' },
-          { id: 'platform', name: 'IH users', type: 'platform', platform: 'Insights Hub (demo)', path: '/api/identitymanagement/v3/Users', query: { count: '1' }, condition: 'body.totalResults > 0' },
+          {
+            id: 'platform',
+            name: 'IH users',
+            type: 'platform',
+            platform: 'Insights Hub (demo)',
+            path: '/api/identitymanagement/v3/Users',
+            query: { count: '1' },
+            condition: 'body.totalResults > 0',
+          },
           { id: 'platformBad', name: 'IH missing', type: 'platform', platform: P['Insights Hub (demo)'], path: '/api/nothing-here' },
         ],
       },
@@ -460,7 +476,9 @@ describe('heartbeats', () => {
 
   it('heartbeat keys are unique across monitors', async () => {
     await expect(
-      dana('POST', '/monitors', { definition: { name: 'Dup', checks: [{ id: 'x', name: 'X', type: 'heartbeat', key: 'test.pm', mode: 'maxAge', maxAgeSeconds: 60 }] } }),
+      dana('POST', '/monitors', {
+        definition: { name: 'Dup', checks: [{ id: 'x', name: 'X', type: 'heartbeat', key: 'test.pm', mode: 'maxAge', maxAgeSeconds: 60 }] },
+      }),
     ).rejects.toThrow(/already used/);
   });
 });
@@ -534,21 +552,30 @@ describe('dependencies', () => {
     const hist = await s.api('GET', `/monitors/${mon.id}/history?check=data`);
     expect(hist[0].causedBy.map((c: any) => c.checkId)).toEqual(['pm']);
     // notifications: the monitor went down once (root cause named), recipients are owner + subscribers
-    const n = (await olivia('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`));
+    const n = (await olivia('GET', '/notifications?limit=100')).items.filter(
+      (x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`),
+    );
     expect(n.map((x: any) => `${x.title} | ${x.body}`)).toHaveLength(1);
     expect(n[0].title).toBe('Down: Machine 99 – PowerMeter');
     expect(n[0].body).toMatch(/^Root cause: PowerMeter reachable\. /);
-    expect((await dana('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`))).toHaveLength(1);
+    expect(
+      (await dana('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`)),
+    ).toHaveLength(1);
     // evaluating again does not notify again
     await eng.evaluateMonitorNow(mon.id);
-    expect((await olivia('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`))).toHaveLength(1);
+    expect(
+      (await olivia('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`)),
+    ).toHaveLength(1);
   });
 
   it('maintenance silences alerts; acknowledging needs the acknowledge right', async () => {
     expect(await status(vera('POST', `/monitors/${mon.id}/acknowledge`, { comment: 'seen' }))).toBe(403);
     const ack = await olivia('POST', `/monitors/${mon.id}/acknowledge`, { comment: 'Electrician on site' });
     expect(ack.acknowledged).toMatchObject({ by: 'olivia', comment: 'Electrician on site' });
-    const w = await olivia('POST', `/monitors/${mon.id}/maintenance`, { endsAt: new Date(Date.now() + 3600000).toISOString(), reason: 'PowerMeter replacement' });
+    const w = await olivia('POST', `/monitors/${mon.id}/maintenance`, {
+      endsAt: new Date(Date.now() + 3600000).toISOString(),
+      reason: 'PowerMeter replacement',
+    });
     expect(w.active).toBe(true);
     // recovery during maintenance: no "recovered" alert
     pmServer = net.createServer((sock) => sock.end());
@@ -557,18 +584,33 @@ describe('dependencies', () => {
     const m = await evaluate(mon.id);
     expect(m.status).toBe('maintenance');
     expect(m.maintenance.reason).toBe('PowerMeter replacement');
-    const n = (await olivia('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`));
+    const n = (await olivia('GET', '/notifications?limit=100')).items.filter(
+      (x: any) => x.event === 'monitor.status' && x.link.startsWith(`/monitors/${mon.id}`),
+    );
     expect(n).toHaveLength(1);
     await olivia('DELETE', `/monitors/${mon.id}/maintenance/${w.id}`);
     const after = await evaluate(mon.id);
     expect(after.maintenance).toBeNull();
     const audit = await s.api('GET', `/audit?entityType=monitor&entityId=${mon.id}`);
-    expect(audit.map((a: any) => a.action)).toEqual(expect.arrayContaining(['monitor.created', 'monitor.acknowledged', 'monitor.maintenance_added', 'monitor.maintenance_ended']));
+    expect(audit.map((a: any) => a.action)).toEqual(
+      expect.arrayContaining(['monitor.created', 'monitor.acknowledged', 'monitor.maintenance_added', 'monitor.maintenance_ended']),
+    );
   });
 
   it('sub-monitors: referenced by key, evaluated on their own, cycles rejected', async () => {
-    const machine = (await dana('POST', '/monitors', { key: 'test-machine-flow', definition: { name: 'Machine flow', failuresBeforeDown: 1, checks: [{ id: 'hb', name: 'Machine heartbeat', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 60 }] } }));
-    const parent = (await dana('POST', '/monitors', { definition: { name: 'Machine with sub-monitor', checks: [{ id: 'flow', name: 'Machine flow', type: 'monitor', monitor: 'test-machine-flow' }] } })).monitor;
+    const machine = await dana('POST', '/monitors', {
+      key: 'test-machine-flow',
+      definition: {
+        name: 'Machine flow',
+        failuresBeforeDown: 1,
+        checks: [{ id: 'hb', name: 'Machine heartbeat', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 60 }],
+      },
+    });
+    const parent = (
+      await dana('POST', '/monitors', {
+        definition: { name: 'Machine with sub-monitor', checks: [{ id: 'flow', name: 'Machine flow', type: 'monitor', monitor: 'test-machine-flow' }] },
+      })
+    ).monitor;
     expect(parent.definition.checks[0].monitor).toBe(machine.monitor.id);
     // no heartbeat for 2 minutes → the sub-monitor goes down and the parent follows with the sub-monitor's root cause
     const t0 = Date.now();
@@ -584,7 +626,10 @@ describe('dependencies', () => {
     expect(p.rootCauses).toEqual([expect.objectContaining({ monitorId: machine.monitor.id, checkId: 'hb' })]);
     expect((await s.api('GET', `/monitors/${machine.monitor.id}`)).usedBy.map((u: any) => u.id)).toEqual([parent.id]);
     // a cycle is refused, and so is deleting a monitor that is in use
-    const def = { ...machine.monitor.definition, checks: [...machine.monitor.definition.checks, { id: 'back', name: 'Back', type: 'monitor', monitor: parent.id }] };
+    const def = {
+      ...machine.monitor.definition,
+      checks: [...machine.monitor.definition.checks, { id: 'back', name: 'Back', type: 'monitor', monitor: parent.id }],
+    };
     await expect(dana('PUT', `/monitors/${machine.monitor.id}`, { definition: def })).rejects.toThrow(/cycle/);
     expect(await status(olivia('DELETE', `/monitors/${machine.monitor.id}`))).toBe(403); // operators may not delete
     expect(await status(s.api('DELETE', `/monitors/${machine.monitor.id}`))).toBe(409);
@@ -600,7 +645,10 @@ describe('outputs', () => {
   let trapper: net.Server;
   let trapperPort: number;
   const trapped: any[] = [];
-  let zbxRespond: (data: any[]) => any = (data) => ({ response: 'success', info: `processed: ${data.length}; failed: 0; total: ${data.length}; seconds spent: 0.000042` });
+  let zbxRespond: (data: any[]) => any = (data) => ({
+    response: 'success',
+    info: `processed: ${data.length}; failed: 0; total: ${data.length}; seconds spent: 0.000042`,
+  });
 
   beforeAll(async () => {
     web = http.createServer((req, res) => {
@@ -674,7 +722,11 @@ describe('outputs', () => {
     await eng.settle();
     // webhook: one POST per evaluation with the changed subjects
     const evs = received.flatMap((x) => x.body.events);
-    expect(evs.find((e: any) => e.level === 'monitor' && e.status === 'down')).toMatchObject({ status: 'down', statusCode: 2, monitor: { key: 'outputs-test' } });
+    expect(evs.find((e: any) => e.level === 'monitor' && e.status === 'down')).toMatchObject({
+      status: 'down',
+      statusCode: 2,
+      monitor: { key: 'outputs-test' },
+    });
     expect(evs.find((e: any) => e.level === 'check' && e.status === 'down')).toMatchObject({ status: 'down', check: { id: 'hb', key: 'outputs-test.hb' } });
     // Zabbix trapper got monitor and check items with the default keys and numeric codes
     expect(trapped).toEqual(
@@ -685,7 +737,9 @@ describe('outputs', () => {
     );
     // Zabbix API history.push (mock): only checks, as text
     const pushed = (await (await fetch(`${s.base}/mock/zabbix/received`)).json()).received;
-    expect(pushed).toEqual(expect.arrayContaining([expect.objectContaining({ host: 'steward-demo', key: 'steward.check.status[outputs-test,hb]', value: 'down' })]));
+    expect(pushed).toEqual(
+      expect.arrayContaining([expect.objectContaining({ host: 'steward-demo', key: 'steward.check.status[outputs-test,hb]', value: 'down' })]),
+    );
     expect(pushed.some((p: any) => p.key === 'steward.monitor.status[outputs-test]')).toBe(false);
     // Gatus external endpoint got success=false
     const g = await s.api('POST', `/platforms/${P['Gatus (demo)']}/request`, { method: 'GET', path: '/api/v1/endpoints/steward_machine-monitors/statuses' });
@@ -711,21 +765,34 @@ describe('outputs', () => {
     await hook(hb.heartbeat.path, { status: 'down' }, bearer(secret));
     await eng.settle();
     const { db } = await import('../src/db.js');
-    const st = db().get<{ last_error: string; last_status: string }>("SELECT last_error, last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''", m.id)!;
+    const st = db().get<{ last_error: string; last_status: string }>(
+      "SELECT last_error, last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''",
+      m.id,
+    )!;
     expect(st.last_error).toMatch(/processed 0 of 2 values \(failed: 2\)/);
     expect(st.last_status).toBe('up'); // still the last delivered status → retried
     zbxRespond = (data) => ({ response: 'success', info: `processed: ${data.length}; failed: 0; total: ${data.length}; seconds spent: 0.00001` });
     const { resetOutputState } = await import('../src/monitors/outputs.js');
     resetOutputState();
     await eng.evaluateMonitorNow(m.id);
-    expect(db().get<{ last_status: string }>("SELECT last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''", m.id)!.last_status).toBe('down');
+    expect(
+      db().get<{ last_status: string }>("SELECT last_status FROM monitor_output_state WHERE monitor_id = ? AND output_id = 'trap' AND subject = ''", m.id)!
+        .last_status,
+    ).toBe('down');
     await hook(hb.heartbeat.path, { status: 'up' }, bearer(secret));
     await eng.settle();
   });
 
   it('starts a runbook with the monitor context as inputs (as the owner)', async () => {
     await s.api('POST', '/processes', {
-      definition: { name: 'Monitor runbook', inputs: [{ name: 'monitor', type: 'string' }, { name: 'cause', type: 'string' }], steps: [{ id: 'log', type: 'log', message: 'down: {{ inputs.monitor }}' }] },
+      definition: {
+        name: 'Monitor runbook',
+        inputs: [
+          { name: 'monitor', type: 'string' },
+          { name: 'cause', type: 'string' },
+        ],
+        steps: [{ id: 'log', type: 'log', message: 'down: {{ inputs.monitor }}' }],
+      },
     });
     const r = await dana('POST', '/monitors', {
       definition: {
@@ -784,14 +851,32 @@ describe('pull integrations', () => {
   it('Zabbix low-level discovery format', async () => {
     const d = await v1('/monitors/discovery');
     expect(Array.isArray(d.body.data)).toBe(true);
-    expect(d.body.data).toEqual(expect.arrayContaining([{ '{#MONITOR}': 'outputs-test', '{#MONITORNAME}': 'Outputs test', '{#MONITORID}': expect.any(String), '{#CHECK}': 'hb', '{#CHECKNAME}': 'Report', '{#CHECKTYPE}': 'heartbeat', '{#CHECKKEY}': 'outputs-test.hb' }]));
+    expect(d.body.data).toEqual(
+      expect.arrayContaining([
+        {
+          '{#MONITOR}': 'outputs-test',
+          '{#MONITORNAME}': 'Outputs test',
+          '{#MONITORID}': expect.any(String),
+          '{#CHECK}': 'hb',
+          '{#CHECKNAME}': 'Report',
+          '{#CHECKTYPE}': 'heartbeat',
+          '{#CHECKKEY}': 'outputs-test.hb',
+        },
+      ]),
+    );
     const ml = await v1('/monitors/discovery?level=monitors');
-    expect(ml.body.data.find((x: any) => x['{#MONITOR}'] === 'outputs-test')).toEqual({ '{#MONITOR}': 'outputs-test', '{#MONITORNAME}': 'Outputs test', '{#MONITORID}': expect.any(String) });
+    expect(ml.body.data.find((x: any) => x['{#MONITOR}'] === 'outputs-test')).toEqual({
+      '{#MONITOR}': 'outputs-test',
+      '{#MONITORNAME}': 'Outputs test',
+      '{#MONITORID}': expect.any(String),
+    });
   });
 
   it('the OpenAPI document describes the monitor endpoints', async () => {
     const doc = (await v1('/openapi.json')).body;
-    expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(['/monitors', '/monitors/discovery', '/monitors/{monitorId}', '/monitors/{monitorId}/status', '/monitors/{monitorId}/history']));
+    expect(Object.keys(doc.paths)).toEqual(
+      expect.arrayContaining(['/monitors', '/monitors/discovery', '/monitors/{monitorId}', '/monitors/{monitorId}/status', '/monitors/{monitorId}/history']),
+    );
     expect(doc.components.schemas.MonitorStatusReport).toBeTruthy();
   });
 
@@ -819,7 +904,9 @@ describe('permissions, templates and lifecycle', () => {
   it('designers create and edit, operators view and acknowledge, viewers only view; access lists narrow it', async () => {
     expect(await status(olivia('POST', '/monitors', { definition: { name: 'Nope', checks: [] } }))).toBe(403);
     expect(await status(vera('POST', '/monitors', { definition: { name: 'Nope', checks: [] } }))).toBe(403);
-    const { monitor } = await dana('POST', '/monitors', { definition: { name: 'Restricted', checks: [{ id: 't', name: 'T', type: 'tcp', host: '127.0.0.1', port: 1 }] } });
+    const { monitor } = await dana('POST', '/monitors', {
+      definition: { name: 'Restricted', checks: [{ id: 't', name: 'T', type: 'tcp', host: '127.0.0.1', port: 1 }] },
+    });
     expect(monitor.owner).toBe('dana');
     expect((await vera('GET', `/monitors/${monitor.id}`)).permissions).toEqual(['view']);
     expect((await olivia('GET', `/monitors/${monitor.id}`)).permissions).toEqual(['view', 'acknowledge']);
@@ -863,7 +950,11 @@ describe('permissions, templates and lifecycle', () => {
     expect(check(await s.api('GET', `/monitors/${m22.id}`), 'pm-reports').key).toBe('m22.powermeter');
     expect(made[1].secrets).toHaveLength(2); // two heartbeat endpoints
     // a bad row creates nothing
-    await expect(dana('POST', `/monitors/${tpl.id}/instances`, { rows: [{ params: { title: 'X', machine: 'm23', pmHost: '10.0.0.1', pmAssetId: 'a', machineAssetId: 'b' } }, { params: { title: 'Y' } }] })).rejects.toThrow(/Row 2: Parameter \W+Machine code\W+ is required/);
+    await expect(
+      dana('POST', `/monitors/${tpl.id}/instances`, {
+        rows: [{ params: { title: 'X', machine: 'm23', pmHost: '10.0.0.1', pmAssetId: 'a', machineAssetId: 'b' } }, { params: { title: 'Y' } }],
+      }),
+    ).rejects.toThrow(/Row 2: Parameter \W+Machine code\W+ is required/);
     expect((await s.api('GET', '/monitors')).some((m: any) => m.name === 'X')).toBe(false);
     // change the template → instances are outdated → re-sync applies it
     const t = await s.api('GET', `/monitors/${tpl.id}`);
@@ -887,7 +978,9 @@ describe('permissions, templates and lifecycle', () => {
 
   it('demo: machine 18 shows the gateway as root cause of the stale Insights Hub data', async () => {
     const list = await s.api('GET', '/monitors');
-    expect(list.map((m: any) => m.key)).toEqual(expect.arrayContaining(['machine-17-machine-data', 'machine-17-powermeter', 'plant-services', 'machine-18-powermeter']));
+    expect(list.map((m: any) => m.key)).toEqual(
+      expect.arrayContaining(['machine-17-machine-data', 'machine-17-powermeter', 'plant-services', 'machine-18-powermeter']),
+    );
     const m18 = list.find((m: any) => m.key === 'machine-18-powermeter');
     const { setMonitorClock } = eng;
     // the simulator's last PowerMeter report of machine 18 is 25 minutes old (it ran once at demo setup)

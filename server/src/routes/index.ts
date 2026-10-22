@@ -59,7 +59,12 @@ async function onUnlocked(): Promise<void> {
   flushPendingAudit();
   if (vault().migratedFromV1) {
     vault().migratedFromV1 = false;
-    audit({ actor: 'system', action: 'vault.upgraded', entityType: 'vault', summary: 'Vault converted to format 2 (wrapped keys, scrypt N=2^17); the audit key is unchanged' });
+    audit({
+      actor: 'system',
+      action: 'vault.upgraded',
+      entityType: 'vault',
+      summary: 'Vault converted to format 2 (wrapped keys, scrypt N=2^17); the audit key is unchanged',
+    });
   }
   // configuration integrity: seal platforms that have no seal yet (installations from before it existed)
   sealPlatformConfigs();
@@ -77,7 +82,12 @@ export async function unlockFromEnv(): Promise<void> {
       await vault().unlock(config.masterPassphrase);
     } catch (e) {
       if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
-        audit({ actor: 'system', action: 'vault.unlock_failed', entityType: 'vault', summary: 'Automatic unlock at startup failed: wrong master passphrase (SM_MASTER_PASSPHRASE[_FILE])' });
+        audit({
+          actor: 'system',
+          action: 'vault.unlock_failed',
+          entityType: 'vault',
+          summary: 'Automatic unlock at startup failed: wrong master passphrase (SM_MASTER_PASSPHRASE[_FILE])',
+        });
       }
       throw e;
     }
@@ -183,7 +193,10 @@ function visibleTasks(status?: string): TaskRecord[] {
 function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
   const visible = visibleProcessIds();
   const limit = f.limit ?? 100;
-  return store.listRuns({ ...f, limit: limit * 3 }).filter((r) => visible.has(r.processId)).slice(0, limit);
+  return store
+    .listRuns({ ...f, limit: limit * 3 })
+    .filter((r) => visible.has(r.processId))
+    .slice(0, limit);
 }
 
 function redact<T>(v: T, secrets: Record<string, string>): T {
@@ -222,7 +235,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/setup', async (req, reply) => {
     const b = z
-      .object({ passphrase: z.string().min(1).max(1024), username: z.string().min(2).max(64), displayName: z.string().max(100).optional(), password: z.string().max(1024) })
+      .object({
+        passphrase: z.string().min(1).max(1024),
+        username: z.string().min(2).max(64),
+        displayName: z.string().max(100).optional(),
+        password: z.string().max(1024),
+      })
       .parse(req.body);
     if (users.countUsers() > 0) throw new HttpError(409, 'Setup has already been completed');
     if (vault().initialized) await vault().unlock(b.passphrase);
@@ -258,8 +276,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/auth/me', async () => meInfo());
 
   // ---------- single sign-on (OpenID Connect) ----------
-  const ssoFail = (reply: import('fastify').FastifyReply, message: string) =>
-    reply.redirect(`/?sso_error=${encodeURIComponent(message.slice(0, 300))}`);
+  const ssoFail = (reply: import('fastify').FastifyReply, message: string) => reply.redirect(`/?sso_error=${encodeURIComponent(message.slice(0, 300))}`);
 
   app.get('/auth/oidc/:id/start', async (req, reply) => {
     try {
@@ -333,7 +350,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
         const n = unlockThrottle.failed();
-        audit({ action: 'vault.unlock_failed', entityType: 'vault', summary: `Wrong master passphrase entered by ${me().username} (attempt ${n})`, details: { ip: req.ip, attempt: n } });
+        audit({
+          action: 'vault.unlock_failed',
+          entityType: 'vault',
+          summary: `Wrong master passphrase entered by ${me().username} (attempt ${n})`,
+          details: { ip: req.ip, attempt: n },
+        });
       }
       throw e;
     }
@@ -356,7 +378,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) {
       if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
         const n = unlockThrottle.failed();
-        audit({ action: 'vault.passphrase_change_failed', entityType: 'vault', summary: `Master passphrase change by ${me().username} refused: wrong current passphrase (attempt ${n})`, details: { ip: req.ip } });
+        audit({
+          action: 'vault.passphrase_change_failed',
+          entityType: 'vault',
+          summary: `Master passphrase change by ${me().username} refused: wrong current passphrase (attempt ${n})`,
+          details: { ip: req.ip },
+        });
       }
       throw e;
     }
@@ -463,7 +490,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         outboundAllowList: z.array(z.string().trim().min(1).max(255)).max(200).optional(),
       })
       .parse(req.body);
-    if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
+    if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
+      throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
     const s = updateSettings(b);
     audit({ action: 'settings.updated', entityType: 'settings', summary: 'Settings updated', details: b });
     return s;
@@ -473,7 +501,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/platform-presets', async () => connectors.listPresets());
   app.post('/platform-types', async (req) => {
     requireCapability(me(), 'createPlatforms', 'create connector types');
-    const b = z.object({ fromPlatformId: z.string(), kind: z.string().optional(), label: z.string().optional(), description: z.string().optional() }).parse(req.body);
+    const b = z
+      .object({ fromPlatformId: z.string(), kind: z.string().optional(), label: z.string().optional(), description: z.string().optional() })
+      .parse(req.body);
     requirePlatform(b.fromPlatformId, 'manage', 'use this platform as a template');
     return connectors.createTypeFromPlatform(b.fromPlatformId, b);
   });
@@ -531,7 +561,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     try {
       const res = await platformRequest(p, secrets, { method: 'GET', url: testPath });
       const ok = res.status >= 200 && res.status < 400;
-      audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)` });
+      audit({
+        action: 'platform.tested',
+        entityType: 'platform',
+        entityId: id,
+        summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
+      });
       return { ok, status: res.status, durationMs: res.durationMs, message: ok ? 'Connection works' : `HTTP ${res.status}`, body: redact(res.body, secrets) };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
@@ -628,7 +663,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/processes', async () => processes.listProcesses());
   app.post('/processes', async (req) => {
     requireCapability(me(), 'createProcesses', 'create processes');
-    const b = z.object({ definition: z.any().optional(), templateId: z.string().optional(), text: z.string().optional(), comment: z.string().optional() }).parse(req.body);
+    const b = z
+      .object({ definition: z.any().optional(), templateId: z.string().optional(), text: z.string().optional(), comment: z.string().optional() })
+      .parse(req.body);
     if (b.templateId) return processes.createFromTemplate(b.templateId);
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
     return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created') });
@@ -755,7 +792,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found');
     if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task');
-    const b = z.object({ approved: z.boolean(), selectedKeys: z.array(z.string()).default([]), comment: z.string().optional() }).parse(req.body) as TaskDecision;
+    const b = z
+      .object({ approved: z.boolean(), selectedKeys: z.array(z.string()).default([]), comment: z.string().optional() })
+      .parse(req.body) as TaskDecision;
     await completeTask(id, b);
     return { ok: true };
   });
@@ -822,7 +861,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return verificationResult(r, checkpoint);
   };
   app.get('/audit/verify', async () => verifyRoute(undefined, ''));
-  app.post('/audit/verify', { bodyLimit: 256 * 1024 }, async (req) => verifyRoute(z.object({ anchor: z.string().max(200_000).optional() }).parse(req.body ?? {}).anchor, ' against an external checkpoint'));
+  app.post('/audit/verify', { bodyLimit: 256 * 1024 }, async (req) =>
+    verifyRoute(z.object({ anchor: z.string().max(200_000).optional() }).parse(req.body ?? {}).anchor, ' against an external checkpoint'),
+  );
 
   app.get('/audit/anchoring', async () => {
     requireCapability(me(), 'viewAudit', 'view the audit anchoring');
@@ -830,7 +871,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.put('/audit/anchoring', async (req) => {
     requireCapability(me(), 'manageSettings', 'change the audit anchoring');
-    const b = z.object({ emailRecipients: z.array(z.string().max(200)).max(20), emailIntervalHours: z.number().int().min(1).max(168).optional() }).parse(req.body);
+    const b = z
+      .object({ emailRecipients: z.array(z.string().max(200)).max(20), emailIntervalHours: z.number().int().min(1).max(168).optional() })
+      .parse(req.body);
     saveEmailSettings({ to: b.emailRecipients, intervalHours: b.emailIntervalHours });
     return anchoringStatus();
   });

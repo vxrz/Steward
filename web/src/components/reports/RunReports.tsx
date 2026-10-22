@@ -35,7 +35,17 @@ export const defaultReportLang = (): ReportLang => {
 /** Native name of a report language ("Deutsch"), from the one list of languages. */
 export const reportLangName = (code: string): string => LANGUAGES.find((l) => l.code === code)?.nativeName ?? code.toUpperCase();
 
-export function LangControl({ value, onChange, disabled, label }: { value: ReportLang; onChange: (v: ReportLang) => void; disabled?: boolean; label?: string }) {
+export function LangControl({
+  value,
+  onChange,
+  disabled,
+  label,
+}: {
+  value: ReportLang;
+  onChange: (v: ReportLang) => void;
+  disabled?: boolean;
+  label?: string;
+}) {
   const { t } = useTranslation('reports');
   return (
     <Stack gap={4}>
@@ -105,43 +115,43 @@ export function GenerateReportDialog({ runId, status, opened, onClose }: { runId
           </Group>
         </Stack>
       ) : (
-      <Stack>
-        <Text size="sm" c="dimmed">
-          {t('run.intro')}
-        </Text>
-        {interim && (
-          <Alert color="blue" variant="light" p="xs">
-            {t('run.interimHint')}
-          </Alert>
-        )}
-        <LangControl value={lang} onChange={setLang} />
-        <Textarea
-          label={t('comment')}
-          description={t('run.commentHint')}
-          autosize
-          minRows={3}
-          maxRows={10}
-          maxLength={4000}
-          value={comment}
-          onChange={(e) => setComment(e.currentTarget.value)}
-        />
-        <TextInput
-          label={t('run.classification')}
-          description={t('run.classificationHint')}
-          placeholder={t('run.classificationPlaceholder')}
-          maxLength={60}
-          value={classification}
-          onChange={(e) => setClassification(e.currentTarget.value)}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={close}>
-            {t('common:cancel')}
-          </Button>
-          <Button leftSection={<IconFileTypePdf size={16} />} loading={busy} onClick={generate}>
-            {t('generatePdf')}
-          </Button>
-        </Group>
-      </Stack>
+        <Stack>
+          <Text size="sm" c="dimmed">
+            {t('run.intro')}
+          </Text>
+          {interim && (
+            <Alert color="blue" variant="light" p="xs">
+              {t('run.interimHint')}
+            </Alert>
+          )}
+          <LangControl value={lang} onChange={setLang} />
+          <Textarea
+            label={t('comment')}
+            description={t('run.commentHint')}
+            autosize
+            minRows={3}
+            maxRows={10}
+            maxLength={4000}
+            value={comment}
+            onChange={(e) => setComment(e.currentTarget.value)}
+          />
+          <TextInput
+            label={t('run.classification')}
+            description={t('run.classificationHint')}
+            placeholder={t('run.classificationPlaceholder')}
+            maxLength={60}
+            value={classification}
+            onChange={(e) => setClassification(e.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={close}>
+              {t('common:cancel')}
+            </Button>
+            <Button leftSection={<IconFileTypePdf size={16} />} loading={busy} onClick={generate}>
+              {t('generatePdf')}
+            </Button>
+          </Group>
+        </Stack>
       )}
     </Modal>
   );
@@ -205,7 +215,13 @@ export function RunReportsPanel({ runId, status }: { runId: string; status: RunS
                   <Table.Td className="nowrap">{fmtDate(r.createdAt)}</Table.Td>
                   <Table.Td>{r.createdBy}</Table.Td>
                   <Table.Td>{r.lang.toUpperCase()}</Table.Td>
-                  <Table.Td style={{ maxWidth: 280, wordBreak: 'break-word' }}>{r.comment ?? <Text span c="dimmed" size="sm">–</Text>}</Table.Td>
+                  <Table.Td style={{ maxWidth: 280, wordBreak: 'break-word' }}>
+                    {r.comment ?? (
+                      <Text span c="dimmed" size="sm">
+                        –
+                      </Text>
+                    )}
+                  </Table.Td>
                   <Table.Td>
                     <Tooltip label={r.sha256} multiline w={300}>
                       <Text size="xs" className="mono">

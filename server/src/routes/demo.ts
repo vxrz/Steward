@@ -57,7 +57,11 @@ export async function setupDemo(): Promise<{
   monitors: number;
 }> {
   const base = `http://127.0.0.1:${config.port}/mock`;
-  const existing = new Set(db().all<{ name: string }>('SELECT name FROM platforms').map((r) => r.name));
+  const existing = new Set(
+    db()
+      .all<{ name: string }>('SELECT name FROM platforms')
+      .map((r) => r.name),
+  );
   let platforms = 0;
   if (!existing.has('Insights Hub (demo)')) {
     const ih = createPlatform({
@@ -130,13 +134,18 @@ export async function setupDemo(): Promise<{
       name: 'Web probe (demo)',
       kind: 'generic',
       environment: 'demo',
-      description: 'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Diagnose endpoint outage" to probe a failing URL.',
+      description:
+        'Plain HTTP access without credentials to the demo applications that Gatus watches. Used by "Diagnose endpoint outage" to probe a failing URL.',
       baseUrl: base,
       config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/gatus-apps/mes' },
     });
     platforms++;
   }
-  const have = new Set(db().all<{ id: string }>('SELECT id FROM processes WHERE archived = 0').map((r) => r.id));
+  const have = new Set(
+    db()
+      .all<{ id: string }>('SELECT id FROM processes WHERE archived = 0')
+      .map((r) => r.id),
+  );
   let processes = 0;
   for (const t of listTemplates()) {
     if (have.has(t.id.replace(/^\d+-/, ''))) continue;
@@ -177,7 +186,11 @@ export async function setupDemo(): Promise<{
     });
   }
   // ---- dashboards from examples/dashboards ----
-  const haveDash = new Set(db().all<{ id: string }>('SELECT id FROM dashboards').map((r) => r.id));
+  const haveDash = new Set(
+    db()
+      .all<{ id: string }>('SELECT id FROM dashboards')
+      .map((r) => r.id),
+  );
   let dashboards = 0;
   for (const t of listDashboardTemplates()) {
     const id = t.id.replace(/^\d+-/, '');

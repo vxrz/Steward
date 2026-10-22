@@ -18,7 +18,15 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS, ...REPORT_MIGRATIONS, ...TRIGGER_MIGRATIONS, ...MONITOR_MIGRATIONS, ...SECURITY_MIGRATIONS];
+const NAMED_MIGRATIONS: NamedMigration[] = [
+  ...OPS_MIGRATIONS,
+  ...ENGINE_MIGRATIONS,
+  ...PERF_MIGRATIONS,
+  ...REPORT_MIGRATIONS,
+  ...TRIGGER_MIGRATIONS,
+  ...MONITOR_MIGRATIONS,
+  ...SECURITY_MIGRATIONS,
+];
 
 const MIGRATIONS: string[] = [
   `

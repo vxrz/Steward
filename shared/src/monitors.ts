@@ -43,7 +43,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   tcp: { label: 'TCP port', help: 'Opens a TCP connection to host:port' },
   http: { label: 'HTTP(S)', help: 'Calls a URL: expected status, JSONata condition on the body, response time, TLS certificate expiry' },
   platform: { label: 'Platform API', help: 'Calls an operation through a configured platform (its authentication, base URL and retries)' },
-  freshness: { label: 'Data freshness', help: 'Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series preset)' },
+  freshness: {
+    label: 'Data freshness',
+    help: 'Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series preset)',
+  },
   heartbeat: { label: 'Heartbeat (push)', help: 'Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down' },
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
   monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
@@ -122,7 +125,10 @@ export const checkSchema = z.discriminatedUnion('type', [
   z.object({
     ...checkBase,
     type: z.literal('http'),
-    url: z.string().url().refine((u) => /^https?:\/\//i.test(u), 'http(s) URLs only'),
+    url: z
+      .string()
+      .url()
+      .refine((u) => /^https?:\/\//i.test(u), 'http(s) URLs only'),
     method: z.enum(['GET', 'HEAD', 'POST']).default('GET'),
     headers: z.record(z.string().max(2000)).optional(),
     body: z.string().max(65536).optional(),
@@ -352,9 +358,11 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
     if (outIds.has(o.id)) issues.push({ path: `outputs.${i}.id`, message: `duplicate output id "${o.id}"` });
     outIds.add(o.id);
     if (o.type === 'webhook' && !o.url && !o.platform) issues.push({ path: `outputs.${i}`, message: 'webhook needs a URL or a platform' });
-    if (o.type === 'webhook' && o.url && /\/\/[^/]*@/.test(o.url)) issues.push({ path: `outputs.${i}.url`, message: 'no credentials in the URL – use a platform instead' });
+    if (o.type === 'webhook' && o.url && /\/\/[^/]*@/.test(o.url))
+      issues.push({ path: `outputs.${i}.url`, message: 'no credentials in the URL – use a platform instead' });
   });
-  if (def.aggregate.rule === 'quorum' && !def.aggregate.quorum) issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
+  if (def.aggregate.rule === 'quorum' && !def.aggregate.quorum)
+    issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
   if (!opts.template && def.parameters?.length) issues.push({ path: 'parameters', message: 'only templates have parameters' });
   return issues;
 }

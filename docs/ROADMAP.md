@@ -4,29 +4,29 @@ This document collects what makes sense next: improvements to the tool, standard
 
 ## 1. Where it stands
 
-| Area | Today |
-| --- | --- |
-| Processes | Node-RED-style graph flows. Versioned, dry runs, approvals and selections, browser steps. Durable: resumes after a restart without repeating finished steps. |
-| Platforms | Any REST API. OpenAPI import (file, paste, URL), connector types (export/import), encrypted credentials. |
-| Access | Local accounts and OIDC/Entra ID SSO. Roles, teams, per-process and per-platform access lists, four-eyes approvals. |
-| Evidence | HMAC-chained audit log, run protocols (HTML/JSON) with a sealed fingerprint, screenshots, branded PDF/A reports (run and summary) recorded in the audit log, ready for signing. |
-| Dashboards | Fed by *Publish to dashboard* nodes: dataset snapshots and metric history, KPI/trend/status/table widgets. |
-| Import / export | Single process (YAML), dashboard (YAML), connector type (JSON), bundles of processes and dashboards (JSON), example library in `examples/`, `npm run validate` for CI. |
-| Observability | Structured JSON logs (pino) with request, run and trace correlation. Optional OpenTelemetry traces (runs → nodes → HTTP calls, W3C `traceparent` propagation). Prometheus metrics and readiness probe. |
-| Operations | Notifications (in-app, e-mail, Teams, webhook), API tokens, CSP/HSTS headers, retention of runs and notifications, contract checks. |
-| Distribution | Desktop executable (Windows/macOS/Linux), installable PWA, container image, release workflow with SBOM. See [INSTALL.md](INSTALL.md). |
+| Area            | Today                                                                                                                                                                                                  |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Processes       | Node-RED-style graph flows. Versioned, dry runs, approvals and selections, browser steps. Durable: resumes after a restart without repeating finished steps.                                           |
+| Platforms       | Any REST API. OpenAPI import (file, paste, URL), connector types (export/import), encrypted credentials.                                                                                               |
+| Access          | Local accounts and OIDC/Entra ID SSO. Roles, teams, per-process and per-platform access lists, four-eyes approvals.                                                                                    |
+| Evidence        | HMAC-chained audit log, run protocols (HTML/JSON) with a sealed fingerprint, screenshots, branded PDF/A reports (run and summary) recorded in the audit log, ready for signing.                        |
+| Dashboards      | Fed by _Publish to dashboard_ nodes: dataset snapshots and metric history, KPI/trend/status/table widgets.                                                                                             |
+| Import / export | Single process (YAML), dashboard (YAML), connector type (JSON), bundles of processes and dashboards (JSON), example library in `examples/`, `npm run validate` for CI.                                 |
+| Observability   | Structured JSON logs (pino) with request, run and trace correlation. Optional OpenTelemetry traces (runs → nodes → HTTP calls, W3C `traceparent` propagation). Prometheus metrics and readiness probe. |
+| Operations      | Notifications (in-app, e-mail, Teams, webhook), API tokens, CSP/HSTS headers, retention of runs and notifications, contract checks.                                                                    |
+| Distribution    | Desktop executable (Windows/macOS/Linux), installable PWA, container image, release workflow with SBOM. See [INSTALL.md](INSTALL.md).                                                                  |
 
 ## 2. Import and export – how to work "as code"
 
 Everything that defines behaviour can leave the tool as text:
 
-| What | Format | Where |
-| --- | --- | --- |
-| One process | YAML (graph or compact sequential format) | Process editor → *Export YAML*; *Processes → Import YAML* (several files at once) |
-| Several processes and dashboards | Bundle JSON | *Processes → Export bundle / Import bundle*. On conflict choose *new version*, *skip* or *copy*. |
-| Dashboard | YAML | Dashboard → *Export*; *Dashboards → Import* |
-| Connector type (platform template without credentials) | JSON | Platform → *Save as connector type*; *Platforms → Connector types → Export / Import* |
-| Library | YAML files in `examples/processes` and `examples/dashboards` | Shown in the *From template* galleries |
+| What                                                   | Format                                                       | Where                                                                                            |
+| ------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| One process                                            | YAML (graph or compact sequential format)                    | Process editor → _Export YAML_; _Processes → Import YAML_ (several files at once)                |
+| Several processes and dashboards                       | Bundle JSON                                                  | _Processes → Export bundle / Import bundle_. On conflict choose _new version_, _skip_ or _copy_. |
+| Dashboard                                              | YAML                                                         | Dashboard → _Export_; _Dashboards → Import_                                                      |
+| Connector type (platform template without credentials) | JSON                                                         | Platform → _Save as connector type_; _Platforms → Connector types → Export / Import_             |
+| Library                                                | YAML files in `examples/processes` and `examples/dashboards` | Shown in the _From template_ galleries                                                           |
 
 **Recommended workflow (GitOps-lite):**
 
@@ -39,12 +39,12 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 ## 3. Kestra, Temporal and friends – do they fit?
 
-| Tool | What it is | Fit for this project |
-| --- | --- | --- |
-| **Temporal** | Durable-execution engine. Workflows written in code (TS/Go/Java/…) survive crashes. Timers, signals (good for human approvals), retries, a history per workflow. Needs a Temporal server (cluster + database). | **Best candidate if the tool grows** into a hosted, multi-node service with many long-running runs. The usual pattern is an *interpreter workflow*: one generic Temporal workflow walks our graph, each node becomes an activity, and user tasks become signals. Our engine is isolated in `server/src/engine/runner.ts` and already journals node by node, so a swap would not change the process format, UI or permissions. Too heavy for a local tool today. |
-| **Kestra** | Declarative YAML orchestrator (Java; Postgres or Elasticsearch). Scheduling, event triggers, many plugins, "Pause" for approvals. RBAC, SSO and audit logs are largely Enterprise features. | Overlaps with what is built here, so it is not a base for the same reasons as Windmill. It could run heavy data/ETL jobs next to this tool. The *API call* node can trigger Kestra flows through its API. |
-| **Node-RED** | Low-code flows, strong in OT/edge (ships with Industrial Edge). | An interop partner, not a replacement. Edge-side flows can stay in Node-RED; this tool calls their HTTP endpoints or reads what they publish. |
-| **n8n / Windmill** | General automation platforms. | Already discussed. Good for generic glue work, weaker on dry runs, attestation-style decisions and sealed evidence. |
+| Tool               | What it is                                                                                                                                                                                                     | Fit for this project                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Temporal**       | Durable-execution engine. Workflows written in code (TS/Go/Java/…) survive crashes. Timers, signals (good for human approvals), retries, a history per workflow. Needs a Temporal server (cluster + database). | **Best candidate if the tool grows** into a hosted, multi-node service with many long-running runs. The usual pattern is an _interpreter workflow_: one generic Temporal workflow walks our graph, each node becomes an activity, and user tasks become signals. Our engine is isolated in `server/src/engine/runner.ts` and already journals node by node, so a swap would not change the process format, UI or permissions. Too heavy for a local tool today. |
+| **Kestra**         | Declarative YAML orchestrator (Java; Postgres or Elasticsearch). Scheduling, event triggers, many plugins, "Pause" for approvals. RBAC, SSO and audit logs are largely Enterprise features.                    | Overlaps with what is built here, so it is not a base for the same reasons as Windmill. It could run heavy data/ETL jobs next to this tool. The _API call_ node can trigger Kestra flows through its API.                                                                                                                                                                                                                                                       |
+| **Node-RED**       | Low-code flows, strong in OT/edge (ships with Industrial Edge).                                                                                                                                                | An interop partner, not a replacement. Edge-side flows can stay in Node-RED; this tool calls their HTTP endpoints or reads what they publish.                                                                                                                                                                                                                                                                                                                   |
+| **n8n / Windmill** | General automation platforms.                                                                                                                                                                                  | Already discussed. Good for generic glue work, weaker on dry runs, attestation-style decisions and sealed evidence.                                                                                                                                                                                                                                                                                                                                             |
 
 **Recommendation:** keep the engine. Make the engine boundary explicit, i.e. an interface for "start run / signal decision / cancel", so a Temporal backend could be added later without touching anything else.
 
@@ -52,14 +52,15 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 **Built in:**
 
-- **Logs.** JSON lines on stdout via pino. Levels follow `SM_LOG_LEVEL`. Every API request produces one line (debug for reads, info for changes, warn/error for problems). Runs log *started/finished* with `runId`, `processId` and duration. Failed steps are logged with their step key. Secrets, cookies and auth headers are redacted. When tracing is on, every line carries `trace_id`/`span_id`. Ship stdout with your usual agent (Fluent Bit, Vector, Splunk UF, Azure Monitor agent).
+- **Logs.** JSON lines on stdout via pino. Levels follow `SM_LOG_LEVEL`. Every API request produces one line (debug for reads, info for changes, warn/error for problems). Runs log _started/finished_ with `runId`, `processId` and duration. Failed steps are logged with their step key. Secrets, cookies and auth headers are redacted. When tracing is on, every line carries `trace_id`/`span_id`. Ship stdout with your usual agent (Fluent Bit, Vector, Splunk UF, Azure Monitor agent).
 - **Traces.** Set `OTEL_EXPORTER_OTLP_ENDPOINT` (plus the standard `OTEL_*` variables) to export spans:
   - one per run,
   - one per executed node,
   - one per platform HTTP call, with method, host, path (no query string) and status.
 
   Outgoing calls carry `traceparent`; `SM_OTEL_PROPAGATE=0` turns that off.
-- **Audit.** Kept deliberately separate from operational logs. It is tamper-evident and records *who did what*.
+
+- **Audit.** Kept deliberately separate from operational logs. It is tamper-evident and records _who did what_.
 
 **Next steps:**
 
@@ -71,6 +72,7 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
    - dataset staleness.
 
    Also offer a Prometheus `/metrics` endpoint for those who prefer it.
+
 2. **Alerting.** Failed checks, stale datasets and failed scheduled runs should notify e-mail, Teams or webhooks, with de-duplication and quiet hours.
 3. **Health probes.** `/api/health` exists. Add `/api/ready` (vault unlocked, scheduler running, database writable) for container orchestration.
 4. **Audit anchoring.** Periodically export the latest audit hash to WORM storage, or timestamp it (RFC 3161), so the chain can be proven against an external reference.
@@ -79,15 +81,16 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 **Governance and compliance**
 
-- **ITIL 4.** Treat every process as a *standard change* or *service request* model:
+- **ITIL 4.** Treat every process as a _standard change_ or _service request_ model:
   - approved once, run many times, with evidence;
-  - map the procedures to *access management*, *service request management*, *monitoring & event management* and *change enablement*.
+  - map the procedures to _access management_, _service request management_, _monitoring & event management_ and _change enablement_.
 - **ISO/IEC 27001:2022 Annex A.** Requirements this tool provides evidence for:
   - 5.15–5.18: access control, identity management, access rights and their periodic review;
   - 8.2: privileged access;
   - 8.15–8.16: logging and monitoring.
 
   The access-review, privileged-review and offboarding flows generate exactly the evidence auditors ask for.
+
 - **IEC 62443 (OT security).** For Industrial Edge:
   - asset inventory, firmware and patch compliance, least privilege, monitoring of device connectivity;
   - see the IEM inventory and compliance flows.
@@ -161,7 +164,7 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
   - Large step outputs: store compressed, show previews (done).
   - Metric history: downsampled on read and capped per series (done). Add roll-ups (hourly → daily) after 30 days.
 - **Throughput.**
-  - Parallel *for each* with a concurrency limit per platform.
+  - Parallel _for each_ with a concurrency limit per platform.
   - Respect `429 Retry-After` with exponential backoff and jitter.
   - Per-host rate limits.
 - **Efficient feeding.**
@@ -175,8 +178,8 @@ The tool keeps its own version history and audit trail. Git adds peer review bef
 
 ## 8. Prioritised roadmap
 
-| When | Item |
-| --- | --- |
-| **Done** | Notifications for decisions and failed checks (e-mail/Teams/webhook). CSP and HSTS headers. Retry-After/backoff and per-platform concurrency. API tokens. Retention policy. Expression assistant, node inspector, undo/redo, version diff. Subflows. Prometheus `/metrics`, `/ready`. Contract checks. Parallel for-each. PWA with browser notifications. Command palette, lazy-loaded UI. Desktop executable, container, release workflow. |
-| **Next** | Step-through debugging and "run this node with sample data". Quiet hours for notifications. Run comparison. First-run checklist. ESLint/Prettier. |
-| **Later** (bigger projects) | Hosted mode (Postgres, separate workers, KMS-backed vault). Optional Temporal backend. SCIM provisioning. ITSM integration (ServiceNow/Jira tickets per run). Process marketplace via Git repositories. Audit anchoring (RFC 3161). Signed releases and auto-update. |
+| When                        | Item                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Done**                    | Notifications for decisions and failed checks (e-mail/Teams/webhook). CSP and HSTS headers. Retry-After/backoff and per-platform concurrency. API tokens. Retention policy. Expression assistant, node inspector, undo/redo, version diff. Subflows. Prometheus `/metrics`, `/ready`. Contract checks. Parallel for-each. PWA with browser notifications. Command palette, lazy-loaded UI. Desktop executable, container, release workflow. |
+| **Next**                    | Step-through debugging and "run this node with sample data". Quiet hours for notifications. Run comparison. First-run checklist. ESLint/Prettier.                                                                                                                                                                                                                                                                                           |
+| **Later** (bigger projects) | Hosted mode (Postgres, separate workers, KMS-backed vault). Optional Temporal backend. SCIM provisioning. ITSM integration (ServiceNow/Jira tickets per run). Process marketplace via Git repositories. Audit anchoring (RFC 3161). Signed releases and auto-update.                                                                                                                                                                        |

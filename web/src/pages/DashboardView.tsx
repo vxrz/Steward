@@ -37,14 +37,13 @@ export function DashboardViewPage() {
   const refresh = async () => {
     setBusy(true);
     try {
-      const r = await post<{ started: { processId: string; runId: string }[]; skipped: { processId: string; reason: string }[] }>(`/dashboards/${d.id}/refresh`);
+      const r = await post<{ started: { processId: string; runId: string }[]; skipped: { processId: string; reason: string }[] }>(
+        `/dashboards/${d.id}/refresh`,
+      );
       notifications.show({
         color: r.started.length ? 'blue' : 'yellow',
         title: r.started.length ? t('view.refreshing', { count: r.started.length }) : t('view.nothingStarted'),
-        message: [
-          ...r.started.map((s) => `▶ ${s.processId}`),
-          ...r.skipped.map((s) => `– ${s.processId}: ${s.reason}`),
-        ].join('\n') || t('view.noSources'),
+        message: [...r.started.map((s) => `▶ ${s.processId}`), ...r.skipped.map((s) => `– ${s.processId}: ${s.reason}`)].join('\n') || t('view.noSources'),
         autoClose: 8000,
         style: { whiteSpace: 'pre-line' },
       });

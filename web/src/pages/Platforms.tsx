@@ -178,7 +178,12 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
         )}
         {custom.length === 0 ? (
           <Text size="sm" c="dimmed">
-            {t('types.none', { presets: (presets.data ?? []).filter((p) => !p.custom).map((p) => p.label).join(', ') })}
+            {t('types.none', {
+              presets: (presets.data ?? [])
+                .filter((p) => !p.custom)
+                .map((p) => p.label)
+                .join(', '),
+            })}
           </Text>
         ) : (
           <div className="table-scroll">
@@ -207,7 +212,12 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
                     <Table.Td>
                       <Group gap={2} wrap="nowrap" justify="flex-end">
                         <Tooltip label={t('types.exportFile')}>
-                          <ActionIcon component="a" href={apiUrl(`/platform-types/${encodeURIComponent(ct.kind)}/export`)} variant="subtle" aria-label={t('types.export')}>
+                          <ActionIcon
+                            component="a"
+                            href={apiUrl(`/platform-types/${encodeURIComponent(ct.kind)}/export`)}
+                            variant="subtle"
+                            aria-label={t('types.export')}
+                          >
                             <IconDownload size={16} />
                           </ActionIcon>
                         </Tooltip>
@@ -350,13 +360,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       )}
       {preset && (
         <Stack>
-          <TextInput
-            label={t('form.name')}
-            required
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            placeholder={t('form.namePlaceholder')}
-          />
+          <TextInput label={t('form.name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('form.namePlaceholder')} />
           <TextInput
             label={t('form.environment')}
             value={environment}

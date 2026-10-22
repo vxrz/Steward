@@ -125,7 +125,14 @@ const seaConfig = path.join(work, 'sea-config.json');
 fs.writeFileSync(
   seaConfig,
   JSON.stringify(
-    { main: path.join(work, 'app.cjs'), output: path.join(work, 'sea-prep.blob'), disableExperimentalSEAWarning: true, useCodeCache: true, useSnapshot: false, assets },
+    {
+      main: path.join(work, 'app.cjs'),
+      output: path.join(work, 'sea-prep.blob'),
+      disableExperimentalSEAWarning: true,
+      useCodeCache: true,
+      useSnapshot: false,
+      assets,
+    },
     null,
     2,
   ),

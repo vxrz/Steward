@@ -5,7 +5,18 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso, parseJson, slugify } from '../util.js';
 import { PRESETS, PRESET_SPECS } from './presets.js';
-import { addSpec, createPlatform, getPlatform, getSecrets, getSecretsUnchecked, listDocs, listSpecs, getSpecContent, listPlatforms, type PlatformInput } from './service.js';
+import {
+  addSpec,
+  createPlatform,
+  getPlatform,
+  getSecrets,
+  getSecretsUnchecked,
+  listDocs,
+  listSpecs,
+  getSpecContent,
+  listPlatforms,
+  type PlatformInput,
+} from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
 import { assertOutboundAllowed, guardedLookup } from './outbound.js';
 
@@ -97,7 +108,8 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
 
 export function importType(raw: unknown): PlatformPreset {
   const parsed = packageSchema.safeParse(raw);
-  if (!parsed.success) throw new HttpError(400, 'Not a valid connector file: ' + parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
+  if (!parsed.success)
+    throw new HttpError(400, 'Not a valid connector file: ' + parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
   const pkg = { ...parsed.data, kind: slugify(parsed.data.kind) } as ConnectorPackage;
   return store(pkg, 'connector.imported');
 }

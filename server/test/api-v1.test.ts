@@ -604,7 +604,8 @@ describe('OpenAPI document', () => {
       expect(target, r).toBeTruthy();
     }
     // every component schema compiles as JSON Schema 2020-12
-    for (const name of Object.keys(doc.components.schemas)) ajv.getSchema(`openapi#/components/schemas/${name}`) ?? ajv.compile({ $ref: `openapi#/components/schemas/${name}` });
+    for (const name of Object.keys(doc.components.schemas))
+      ajv.getSchema(`openapi#/components/schemas/${name}`) ?? ajv.compile({ $ref: `openapi#/components/schemas/${name}` });
   });
 
   it('is committed and up to date (npm run openapi -- --check)', () => {

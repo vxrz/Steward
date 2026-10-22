@@ -15,7 +15,15 @@ const dbEnv = freshDbEnv(); // both starts use the same database
 function startServer(): Promise<ChildProcess> {
   const child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: path.join(ROOT, 'server'),
-    env: { ...process.env, ...dbEnv, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'restart-test-pass' },
+    env: {
+      ...process.env,
+      ...dbEnv,
+      SM_LOG_LEVEL: 'info',
+      SM_DATA_DIR: dataDir,
+      SM_PORT: String(port),
+      SM_DEMO: '1',
+      SM_MASTER_PASSPHRASE: 'restart-test-pass',
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   return new Promise((resolve, reject) => {
@@ -36,7 +44,12 @@ let sessionKey = '';
 async function api(method: string, url: string, body?: unknown): Promise<any> {
   const res = await fetch(base + '/api' + url, {
     method,
-    headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+    headers: {
+      'x-sm-client': '1',
+      ...(cookie ? { cookie } : {}),
+      ...(sessionKey ? { 'x-sm-session': sessionKey } : {}),
+      ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const set = res.headers.get('set-cookie');

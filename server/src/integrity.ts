@@ -11,7 +11,10 @@ import { canonicalJson } from './util.js';
 export type IntegrityState = 'ok' | 'unsealed' | 'mismatch' | 'locked';
 
 export function configMac(kind: string, id: string, fields: unknown): string {
-  return crypto.createHmac('sha256', vault().integrityKey()).update(`${kind}\n${id}\n${canonicalJson(fields)}`).digest('hex');
+  return crypto
+    .createHmac('sha256', vault().integrityKey())
+    .update(`${kind}\n${id}\n${canonicalJson(fields)}`)
+    .digest('hex');
 }
 
 export function checkMac(kind: string, id: string, fields: unknown, stored: string | null | undefined): IntegrityState {

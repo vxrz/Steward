@@ -16,9 +16,22 @@ export function countEvaluation(type: string, result: string): void {
 }
 
 export function registerMonitorMetrics(registry: Registry): void {
-  evaluations = new Counter({ name: 'steward_monitor_evaluations_total', help: 'Monitor check evaluations by check type and raw result', labelNames: ['type', 'result'] as const, registers: [registry] });
+  evaluations = new Counter({
+    name: 'steward_monitor_evaluations_total',
+    help: 'Monitor check evaluations by check type and raw result',
+    labelNames: ['type', 'result'] as const,
+    registers: [registry],
+  });
   const rows = () =>
-    db().all<{ key: string; enabled: number; m_status: MonitorStatus | null; check_id: string | null; c_status: MonitorStatus | null; last_ok_at: string | null; definition: string }>(
+    db().all<{
+      key: string;
+      enabled: number;
+      m_status: MonitorStatus | null;
+      check_id: string | null;
+      c_status: MonitorStatus | null;
+      last_ok_at: string | null;
+      definition: string;
+    }>(
       `SELECT m.key, m.enabled, s.status AS m_status, c.check_id, c.status AS c_status, c.last_ok_at, m.definition
        FROM monitors m LEFT JOIN monitor_state s ON s.monitor_id = m.id LEFT JOIN monitor_checks c ON c.monitor_id = m.id
        WHERE m.is_template = 0`,
@@ -52,7 +65,8 @@ export function registerMonitorMetrics(registry: Registry): void {
     registers: [registry],
     collect() {
       this.reset();
-      for (const r of rows()) if (r.enabled && r.check_id) this.set({ monitor: r.key, check: r.check_id }, r.last_ok_at ? Math.floor(Date.parse(r.last_ok_at) / 1000) : 0);
+      for (const r of rows())
+        if (r.enabled && r.check_id) this.set({ monitor: r.key, check: r.check_id }, r.last_ok_at ? Math.floor(Date.parse(r.last_ok_at) / 1000) : 0);
     },
   });
 }

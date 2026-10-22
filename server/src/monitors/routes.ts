@@ -71,7 +71,15 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   app.get('/monitors/examples', async () => svc.listExamples());
   app.post('/monitors/examples/:file', async (req) => svc.importExample(params(req).file!));
   app.post('/monitors/import', async (req) => {
-    const b = z.object({ yaml: z.string().min(1).max(512 * 1024), key: z.string().max(64).optional() }).parse(req.body);
+    const b = z
+      .object({
+        yaml: z
+          .string()
+          .min(1)
+          .max(512 * 1024),
+        key: z.string().max(64).optional(),
+      })
+      .parse(req.body);
     return svc.importMonitor(b.yaml, { key: b.key });
   });
   app.post('/monitors/validate', async (req) => {
@@ -103,9 +111,15 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/monitors/:id/history', async (req) => {
     const q = req.query as { check?: string; limit?: string; before?: string };
-    return svc.listHistory(params(req).id!, { checkId: q.check, limit: q.limit ? Number(q.limit) : undefined, beforeId: q.before ? Number(q.before) : undefined });
+    return svc.listHistory(params(req).id!, {
+      checkId: q.check,
+      limit: q.limit ? Number(q.limit) : undefined,
+      beforeId: q.before ? Number(q.before) : undefined,
+    });
   });
-  app.get('/monitors/:id/checks/:checkId/results', async (req) => svc.listResults(params(req).id!, params(req).checkId!, Number((req.query as { limit?: string }).limit ?? 50)));
+  app.get('/monitors/:id/checks/:checkId/results', async (req) =>
+    svc.listResults(params(req).id!, params(req).checkId!, Number((req.query as { limit?: string }).limit ?? 50)),
+  );
   app.post('/monitors/:id/run', async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'acknowledge', 'run the checks of this monitor');
     if (!vault().unlocked) throw new HttpError(423, 'The vault is locked');
@@ -120,13 +134,19 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     const r = svc.requireMonitor(params(req).id!, 'edit');
     const row = db().get<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', r.id, params(req).checkId);
     if (!row?.hook_id || !row.secret_enc) throw new HttpError(404, 'This check has no heartbeat endpoint');
-    const report = z.object({ status: z.union([z.string(), z.boolean()]).optional(), value: z.unknown().optional(), data: z.unknown().optional() }).parse(req.body ?? {});
+    const report = z
+      .object({ status: z.union([z.string(), z.boolean()]).optional(), value: z.unknown().optional(), data: z.unknown().optional() })
+      .parse(req.body ?? {});
     const raw = JSON.stringify({ ...report, ts: new Date().toISOString() });
     const secret = vault().decrypt<string>(row.secret_enc);
     const res = await app.inject({
       method: 'POST',
       url: svc.heartbeatPath(row.hook_id),
-      headers: { 'content-type': 'application/json', 'x-steward-signature': 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex'), 'x-steward-token': secret },
+      headers: {
+        'content-type': 'application/json',
+        'x-steward-signature': 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex'),
+        'x-steward-token': secret,
+      },
       payload: raw,
       remoteAddress: req.ip,
     });
@@ -142,15 +162,29 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     svc.endMaintenance(params(req).id!, params(req).wid!);
     return { ok: true };
   });
-  app.post('/monitors/:id/acknowledge', async (req) => svc.acknowledge(params(req).id!, z.object({ comment: z.string().max(1000).default('') }).parse(req.body ?? {}).comment));
+  app.post('/monitors/:id/acknowledge', async (req) =>
+    svc.acknowledge(params(req).id!, z.object({ comment: z.string().max(1000).default('') }).parse(req.body ?? {}).comment),
+  );
   app.delete('/monitors/:id/acknowledge', async (req) => svc.unacknowledge(params(req).id!));
 
   // ---------- templates ----------
   app.post('/monitors/:id/instances', async (req) => {
     const b = z
       .object({
-        rows: z.array(z.object({ params: z.record(z.unknown()).default({}), name: z.string().max(160).optional(), key: z.string().max(64).optional(), enabled: z.boolean().optional() })).optional(),
-        csv: z.string().max(1024 * 1024).optional(),
+        rows: z
+          .array(
+            z.object({
+              params: z.record(z.unknown()).default({}),
+              name: z.string().max(160).optional(),
+              key: z.string().max(64).optional(),
+              enabled: z.boolean().optional(),
+            }),
+          )
+          .optional(),
+        csv: z
+          .string()
+          .max(1024 * 1024)
+          .optional(),
       })
       .parse(req.body);
     let rows = b.rows ?? [];

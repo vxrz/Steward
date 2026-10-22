@@ -96,15 +96,18 @@ export function Markdown({ text }: { text?: string }) {
   const out: string[] = [];
   let list = false;
   const inline = (s: string) =>
-    s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    s
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>');
   for (const l of lines) {
     const li = /^\s*[-*]\s+(.*)$/.exec(l);
     if (li) {
-      if (!list) out.push('<ul>'), (list = true);
+      if (!list) (out.push('<ul>'), (list = true));
       out.push(`<li>${inline(li[1]!)}</li>`);
       continue;
     }
-    if (list) out.push('</ul>'), (list = false);
+    if (list) (out.push('</ul>'), (list = false));
     const h = /^(#{1,4})\s+(.*)$/.exec(l);
     if (h) out.push(`<p><strong>${inline(h[2]!)}</strong></p>`);
     else if (l.trim()) out.push(`<p>${inline(l)}</p>`);

@@ -47,21 +47,21 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const makeFilter =
   (searchOnly: Set<string>): SpotlightFilterFunction =>
   (query, actions) => {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const groups = actions as SpotlightActionGroupData[];
-  if (!words.length) return groups.filter((g) => !searchOnly.has(g.group));
-  return groups
-    .map((g) => ({
-      ...g,
-      actions: g.actions
-        .filter((a) => {
-          const hay = [a.label, g.group, ...(Array.isArray(a.keywords) ? a.keywords : [a.keywords])].join(' ').toLowerCase();
-          return words.every((w) => hay.includes(w));
-        })
-        .slice(0, PER_GROUP),
-    }))
-    .filter((g) => g.actions.length > 0);
-};
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const groups = actions as SpotlightActionGroupData[];
+    if (!words.length) return groups.filter((g) => !searchOnly.has(g.group));
+    return groups
+      .map((g) => ({
+        ...g,
+        actions: g.actions
+          .filter((a) => {
+            const hay = [a.label, g.group, ...(Array.isArray(a.keywords) ? a.keywords : [a.keywords])].join(' ').toLowerCase();
+            return words.every((w) => hay.includes(w));
+          })
+          .slice(0, PER_GROUP),
+      }))
+      .filter((g) => g.actions.length > 0);
+  };
 
 /** Ctrl/Cmd+K command palette: pages, processes, dashboards, platforms, recent runs and quick actions. */
 export function CommandPalette({ pages }: { pages: PalettePage[] }) {
@@ -101,7 +101,14 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         onClick: async () => {
           try {
             const p = await post<ProcessDetail>('/processes', {
-              definition: { name: t('palette.newProcess'), description: '', connections: [], inputs: [], nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }], wires: [] },
+              definition: {
+                name: t('palette.newProcess'),
+                description: '',
+                connections: [],
+                inputs: [],
+                nodes: [{ id: 'start', type: 'start', name: 'Start', x: 0, y: 0 }],
+                wires: [],
+              },
             });
             navigate(`/processes/${p.id}`);
           } catch (e) {

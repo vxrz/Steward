@@ -1,7 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BROWSER_ACTIONS, CATEGORY_ORDER, CHECK_TYPE_INFO, COMMON_FIELDS, MONITOR_STATUS_INFO, NOTIFICATION_EVENT_INFO, ROLE_INFO, STEP_META, WIDGET_INFO, validateProcess } from '@sm/shared';
+import {
+  BROWSER_ACTIONS,
+  CATEGORY_ORDER,
+  CHECK_TYPE_INFO,
+  COMMON_FIELDS,
+  MONITOR_STATUS_INFO,
+  NOTIFICATION_EVENT_INFO,
+  ROLE_INFO,
+  STEP_META,
+  WIDGET_INFO,
+  validateProcess,
+} from '@sm/shared';
 
 // The shared package keeps English defaults for metadata shown in the UI; the web
 // translates it with keys derived from ids. These tests keep the English locale

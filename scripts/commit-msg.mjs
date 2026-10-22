@@ -17,7 +17,9 @@ const MAX_HEADER = 120;
 
 const args = process.argv.slice(2);
 if (args.includes('-h') || args.includes('--help')) {
-  process.stdout.write('Usage: node scripts/commit-msg.mjs <commit message file>\nChecks the message against Conventional Commits; see the comment at the top of the script.\n');
+  process.stdout.write(
+    'Usage: node scripts/commit-msg.mjs <commit message file>\nChecks the message against Conventional Commits; see the comment at the top of the script.\n',
+  );
   process.exit(0);
 }
 if (args.length !== 1) {

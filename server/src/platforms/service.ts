@@ -183,12 +183,7 @@ export function setSecrets(id: string, patch: Record<string, string | null>): Pl
     }
   }
   db().tx(() => {
-    db().run(
-      'UPDATE platforms SET secrets = ?, updated_at = ? WHERE id = ?',
-      Object.keys(current).length ? vault().encrypt(current) : null,
-      nowIso(),
-      id,
-    );
+    db().run('UPDATE platforms SET secrets = ?, updated_at = ? WHERE id = ?', Object.keys(current).length ? vault().encrypt(current) : null, nowIso(), id);
     audit({
       action: 'platform.secrets_changed',
       entityType: 'platform',
@@ -293,7 +288,6 @@ export function parseSpec(content: string): {
   }
   return { format: isOas3 ? `openapi ${doc.openapi}` : 'swagger 2.0', title: info.title, version: info.version, serverUrl, operations };
 }
-
 
 interface SpecRow {
   id: string;

@@ -13,7 +13,14 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   const base = `http://127.0.0.1:${port}`;
   const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_copy${process.pid}`;
   const env = (db: Record<string, string>) => {
-    const e: Record<string, string | undefined> = { ...process.env, SM_LOG_LEVEL: 'info', SM_DATA_DIR: dataDir, SM_PORT: String(port), SM_DEMO: '1', SM_MASTER_PASSPHRASE: 'copy-test-pass' };
+    const e: Record<string, string | undefined> = {
+      ...process.env,
+      SM_LOG_LEVEL: 'info',
+      SM_DATA_DIR: dataDir,
+      SM_PORT: String(port),
+      SM_DEMO: '1',
+      SM_MASTER_PASSPHRASE: 'copy-test-pass',
+    };
     delete e.SM_DATABASE_URL;
     delete e.SM_DATABASE_SCHEMA;
     return { ...e, ...db };
@@ -49,7 +56,12 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
   const api = async (method: string, url: string, body?: unknown): Promise<any> => {
     const res = await fetch(base + '/api' + url, {
       method,
-      headers: { 'x-sm-client': '1', ...(cookie ? { cookie } : {}), ...(sessionKey ? { 'x-sm-session': sessionKey } : {}), ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: {
+        'x-sm-client': '1',
+        ...(cookie ? { cookie } : {}),
+        ...(sessionKey ? { 'x-sm-session': sessionKey } : {}),
+        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+      },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const set = res.headers.get('set-cookie');
@@ -79,7 +91,11 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
     const { id } = await api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub } });
     const waiting = await waitFor(id, ['waiting', 'failed']);
     expect(waiting.status).toBe('waiting');
-    const before = { runs: (await api('GET', '/runs')).length, audit: (await api('GET', '/audit?limit=5000')).length, platforms: (await api('GET', '/platforms')).length };
+    const before = {
+      runs: (await api('GET', '/runs')).length,
+      audit: (await api('GET', '/audit?limit=5000')).length,
+      platforms: (await api('GET', '/platforms')).length,
+    };
     expect((await api('GET', '/audit/verify')).ok).toBe(true);
     await stop();
 

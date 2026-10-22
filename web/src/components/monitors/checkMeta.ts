@@ -1,4 +1,13 @@
-import { IconActivityHeartbeat, IconApi, IconBroadcast, IconClockHour4, IconHierarchy2, IconNetwork, IconPlugConnected, IconWorldWww } from '@tabler/icons-react';
+import {
+  IconActivityHeartbeat,
+  IconApi,
+  IconBroadcast,
+  IconClockHour4,
+  IconHierarchy2,
+  IconNetwork,
+  IconPlugConnected,
+  IconWorldWww,
+} from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
 
@@ -39,7 +48,18 @@ export function newCheck(type: CheckType, id: string): CheckDef {
     case 'platform':
       return { ...base, name, type, platform: '', method: 'GET', path: '/' } as CheckDef;
     case 'freshness':
-      return { ...base, name, type, source: 'insightsHub', platform: '', assetId: '', aspect: '', variables: [], mode: 'cadence', expectedIntervalSeconds: 60 } as CheckDef;
+      return {
+        ...base,
+        name,
+        type,
+        source: 'insightsHub',
+        platform: '',
+        assetId: '',
+        aspect: '',
+        variables: [],
+        mode: 'cadence',
+        expectedIntervalSeconds: 60,
+      } as CheckDef;
     case 'heartbeat':
       return { ...base, name, type, mode: 'cadence', expectedIntervalSeconds: 60, authMode: 'token' } as CheckDef;
     case 'gatus':

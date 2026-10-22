@@ -6,7 +6,11 @@ test.use({ storageState: authFile('dana') });
 
 /** A raw heartbeat report, like the IoT gateway sends it (no session). */
 async function report(path: string, secret: string, body: unknown) {
-  const res = await fetch(baseURL() + path, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` }, body: JSON.stringify(body) });
+  const res = await fetch(baseURL() + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${secret}` },
+    body: JSON.stringify(body),
+  });
   expect(res.status).toBe(202);
   return res.json();
 }
@@ -32,7 +36,9 @@ test('a heartbeat report turns the check up', async ({ page, apiAs }) => {
   const name = uniq('E2E heartbeat');
   const created = await json(
     await api.post('/api/monitors', {
-      data: { definition: { name, failuresBeforeDown: 1, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } },
+      data: {
+        definition: { name, failuresBeforeDown: 1, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] },
+      },
     }),
   );
   const { secret, path } = created.secrets[0];

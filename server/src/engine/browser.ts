@@ -62,7 +62,12 @@ type PwBrowser = {
   close(): Promise<void>;
 };
 
-export async function openBrowser(opts: { headless: boolean; timeoutMs: number; ignoreHttpsErrors?: boolean; requestGuard?: BrowserRequestGuard }): Promise<BrowserSession> {
+export async function openBrowser(opts: {
+  headless: boolean;
+  timeoutMs: number;
+  ignoreHttpsErrors?: boolean;
+  requestGuard?: BrowserRequestGuard;
+}): Promise<BrowserSession> {
   let pw: {
     chromium: {
       launch(o: unknown): Promise<{
@@ -74,9 +79,7 @@ export async function openBrowser(opts: { headless: boolean; timeoutMs: number; 
   try {
     pw = (await import('playwright')) as never;
   } catch {
-    throw new Error(
-      'Browser automation needs Playwright: run "npm install playwright -w server" and "npx playwright install chromium".',
-    );
+    throw new Error('Browser automation needs Playwright: run "npm install playwright -w server" and "npx playwright install chromium".');
   }
   const executablePath = EXECUTABLE_CANDIDATES.find((p) => fs.existsSync(p));
   const browser = await launchChromium(pw, { headless: opts.headless, ...(executablePath ? { executablePath } : {}) });
@@ -103,10 +106,13 @@ export async function openBrowser(opts: { headless: boolean; timeoutMs: number; 
 // ---------- launch hardening (review C, H5) ----------
 
 /** Variables the browser may see. Everything else – in particular SM_* settings and secrets – stays in the server process. */
-const BROWSER_ENV = /^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LANGUAGE|LC_[A-Z_]+|TZ|TMPDIR|TMP|TEMP|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_[A-Z_]+|DBUS_SESSION_BUS_ADDRESS|FONTCONFIG_[A-Z_]+|SYSTEMROOT|WINDIR|USERPROFILE|LOCALAPPDATA|APPDATA|PROGRAMDATA|PROGRAMFILES|PROGRAMFILES\(X86\)|COMMONPROGRAMFILES|COMPUTERNAME|HOMEDRIVE|HOMEPATH|NUMBER_OF_PROCESSORS|PROCESSOR_ARCHITECTURE|HTTPS?_PROXY|NO_PROXY|ALL_PROXY|PLAYWRIGHT_BROWSERS_PATH)$/i;
+const BROWSER_ENV =
+  /^(PATH|HOME|USER|LOGNAME|SHELL|LANG|LANGUAGE|LC_[A-Z_]+|TZ|TMPDIR|TMP|TEMP|DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_[A-Z_]+|DBUS_SESSION_BUS_ADDRESS|FONTCONFIG_[A-Z_]+|SYSTEMROOT|WINDIR|USERPROFILE|LOCALAPPDATA|APPDATA|PROGRAMDATA|PROGRAMFILES|PROGRAMFILES\(X86\)|COMMONPROGRAMFILES|COMPUTERNAME|HOMEDRIVE|HOMEPATH|NUMBER_OF_PROCESSORS|PROCESSOR_ARCHITECTURE|HTTPS?_PROXY|NO_PROXY|ALL_PROXY|PLAYWRIGHT_BROWSERS_PATH)$/i;
 
 export function browserEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
-  return Object.fromEntries(Object.entries(env).filter((e): e is [string, string] => typeof e[1] === 'string' && BROWSER_ENV.test(e[0]) && !/^SM_/i.test(e[0])));
+  return Object.fromEntries(
+    Object.entries(env).filter((e): e is [string, string] => typeof e[1] === 'string' && BROWSER_ENV.test(e[0]) && !/^SM_/i.test(e[0])),
+  );
 }
 
 /**
@@ -125,10 +131,7 @@ export function sandboxWanted(env: NodeJS.ProcessEnv = process.env): { sandbox: 
 
 let sandboxFallbackLogged = false;
 
-async function launchChromium(
-  pw: { chromium: { launch(o: unknown): Promise<PwBrowser> } },
-  o: Record<string, unknown>,
-) {
+async function launchChromium(pw: { chromium: { launch(o: unknown): Promise<PwBrowser> } }, o: Record<string, unknown>) {
   const { sandbox, forced } = sandboxWanted();
   const base = { ...o, env: browserEnv() };
   try {
@@ -138,7 +141,10 @@ async function launchChromium(
     if (!sandboxFallbackLogged) {
       sandboxFallbackLogged = true;
       const { logger } = await import('../log.js');
-      logger.warn({ err: (e as Error).message.slice(0, 300) }, 'Chromium could not start with its sandbox – browser steps run without it (set SM_CHROMIUM_SANDBOX=0 to accept, see docs/SECURITY-HARDENING.md)');
+      logger.warn(
+        { err: (e as Error).message.slice(0, 300) },
+        'Chromium could not start with its sandbox – browser steps run without it (set SM_CHROMIUM_SANDBOX=0 to accept, see docs/SECURITY-HARDENING.md)',
+      );
     }
     return pw.chromium.launch({ ...base, chromiumSandbox: false });
   }

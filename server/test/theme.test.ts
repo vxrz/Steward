@@ -119,7 +119,22 @@ describe('colour functions (shared/src/theme.ts)', () => {
   });
 
   it('reaches WCAG AA for text on filled elements and for text colours, for any colour', () => {
-    const colours = ['#ffff00', '#ffd400', '#00ff00', '#00ffff', '#ff00ff', '#ffffff', '#000000', '#777777', '#1c7ed6', '#7950f2', '#e30613', '#00a86b', '#6a0dad', '#ff8800'];
+    const colours = [
+      '#ffff00',
+      '#ffd400',
+      '#00ff00',
+      '#00ffff',
+      '#ff00ff',
+      '#ffffff',
+      '#000000',
+      '#777777',
+      '#1c7ed6',
+      '#7950f2',
+      '#e30613',
+      '#00a86b',
+      '#6a0dad',
+      '#ff8800',
+    ];
     let seed = 7;
     for (let i = 0; i < 300; i++) {
       seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -134,7 +149,9 @@ describe('colour functions (shared/src/theme.ts)', () => {
         for (const bg of SURFACES[scheme]) {
           expect(contrastRatio(x.text, bg), `${c} ${scheme} text on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT);
           // light-variant background (badges, alerts, active navigation)
-          expect(contrastRatio(x.text, composite(r.palette[6], scheme === 'light' ? 0.1 : 0.15, bg)), `${c} ${scheme} text on tint`).toBeGreaterThanOrEqual(AA_TEXT);
+          expect(contrastRatio(x.text, composite(r.palette[6], scheme === 'light' ? 0.1 : 0.15, bg)), `${c} ${scheme} text on tint`).toBeGreaterThanOrEqual(
+            AA_TEXT,
+          );
         }
       }
     }
@@ -146,7 +163,9 @@ describe('colour functions (shared/src/theme.ts)', () => {
     expect(yellow.light.filled).toBe('#ffd400');
     expect(contrastRatio(yellow.light.text, '#ffffff')).toBeGreaterThanOrEqual(AA_TEXT);
     const notes = themeContrastNotes({ primaryColor: '#ffd400', accentColor: THEME_DEFAULTS.accentColor });
-    expect(notes.map((n) => `${n.color}:${n.scheme}:${n.kind}`)).toEqual(expect.arrayContaining(['primary:both:darkTextOnFilled', 'primary:light:textAdjusted', 'primary:light:lowSurfaceContrast']));
+    expect(notes.map((n) => `${n.color}:${n.scheme}:${n.kind}`)).toEqual(
+      expect.arrayContaining(['primary:both:darkTextOnFilled', 'primary:light:textAdjusted', 'primary:light:lowSurfaceContrast']),
+    );
     // the defaults need no notes
     expect(themeContrastNotes(THEME_DEFAULTS)).toEqual([]);
     const vars = themeCssVariables({ primaryColor: '#ffd400', accentColor: '#7950f2' }, 'light');
@@ -186,17 +205,44 @@ describe('theme settings (administrators)', () => {
   it('rejects other users and invalid input', async () => {
     expect(await status(viewer('PUT', '/settings/theme', { primaryColor: '#ff0000' }))).toBe(403);
     expect(await status(auditor('GET', '/settings/theme'))).toBe(403);
-    const anonymous = await fetch(`${s.base}/api/settings/theme`, { method: 'PUT', headers: { 'x-sm-client': '1', 'content-type': 'application/json' }, body: '{}' });
+    const anonymous = await fetch(`${s.base}/api/settings/theme`, {
+      method: 'PUT',
+      headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
+      body: '{}',
+    });
     expect(anonymous.status).toBe(401);
-    for (const bad of [{ primaryColor: 'red' }, { accentColor: '#12345' }, { primaryColor: '#1234567' }, { radius: 'xl' }, { colorScheme: 'sepia' }, { appName: 'A\u0007B' }, { appName: '<b>x</b>' }, { appName: 'x'.repeat(61) }, { logo: 'x' }]) {
+    for (const bad of [
+      { primaryColor: 'red' },
+      { accentColor: '#12345' },
+      { primaryColor: '#1234567' },
+      { radius: 'xl' },
+      { colorScheme: 'sepia' },
+      { appName: 'A\u0007B' },
+      { appName: '<b>x</b>' },
+      { appName: 'x'.repeat(61) },
+      { logo: 'x' },
+    ]) {
       expect(await status(s.api('PUT', '/settings/theme', bad)), JSON.stringify(bad)).toBe(400);
     }
   });
 
   it('saves, normalises and serves the theme to everyone with a new ETag, and audits the change', async () => {
     const before = (await fetch(`${s.base}/api/theme`)).headers.get('etag');
-    const saved = await s.api('PUT', '/settings/theme', { primaryColor: '#FD0', accentColor: '#e30613', colorScheme: 'dark', radius: 'lg', appName: '  ACME Steward ' });
-    expect(saved).toMatchObject({ primaryColor: '#ffdd00', accentColor: '#e30613', colorScheme: 'dark', radius: 'lg', appName: 'ACME Steward', updatedBy: ADMIN.username });
+    const saved = await s.api('PUT', '/settings/theme', {
+      primaryColor: '#FD0',
+      accentColor: '#e30613',
+      colorScheme: 'dark',
+      radius: 'lg',
+      appName: '  ACME Steward ',
+    });
+    expect(saved).toMatchObject({
+      primaryColor: '#ffdd00',
+      accentColor: '#e30613',
+      colorScheme: 'dark',
+      radius: 'lg',
+      appName: 'ACME Steward',
+      updatedBy: ADMIN.username,
+    });
     const res = await fetch(`${s.base}/api/theme`);
     expect(res.headers.get('etag')).not.toBe(before);
     expect(await res.json()).toMatchObject({ primaryColor: '#ffdd00', appName: 'ACME Steward', custom: true });

@@ -326,7 +326,12 @@ const STATUS_WORDS: Record<string, MonitorStatus> = {
   stopped: 'down',
   unknown: 'unknown',
 };
-export const statusWord = (v: unknown): MonitorStatus | undefined => STATUS_WORDS[String(v ?? '').trim().toLowerCase()];
+export const statusWord = (v: unknown): MonitorStatus | undefined =>
+  STATUS_WORDS[
+    String(v ?? '')
+      .trim()
+      .toLowerCase()
+  ];
 
 async function evaluateHeartbeat(c: CheckOf<'heartbeat'>, row: CheckRow, now: number): Promise<RawResult> {
   const report = parseJson<{ status?: unknown; value?: unknown; ts?: unknown; data?: unknown } | null>(row.last_push, null);
@@ -347,7 +352,8 @@ async function evaluateHeartbeat(c: CheckOf<'heartbeat'>, row: CheckRow, now: nu
     if (c.statusExpression?.trim()) {
       const v = await evalExpr(c.statusExpression, report, {}, { timeoutMs: 1000, maxDepth: 200 });
       const s = typeof v === 'boolean' ? (v ? 'up' : 'down') : statusWord(v);
-      if (!s) return { status: 'unknown', message: `The status expression returned "${String(v)}" (expected up, degraded, down or true/false)`, value: report.value };
+      if (!s)
+        return { status: 'unknown', message: `The status expression returned "${String(v)}" (expected up, degraded, down or true/false)`, value: report.value };
       if (s !== 'up') {
         status = s;
         message = `Reported status: ${String(v)} – ${f.message}`;
@@ -361,7 +367,12 @@ async function evaluateHeartbeat(c: CheckOf<'heartbeat'>, row: CheckRow, now: nu
     }
     if (c.condition?.trim()) {
       const v = await evalExpr(c.condition, report, {}, { timeoutMs: 1000, maxDepth: 200 });
-      if (!(Array.isArray(v) ? v.length : v)) return { status: 'down', message: `The condition is false for the last report (value ${JSON.stringify(report.value ?? null)}) – ${f.message}`, value: report.value };
+      if (!(Array.isArray(v) ? v.length : v))
+        return {
+          status: 'down',
+          message: `The condition is false for the last report (value ${JSON.stringify(report.value ?? null)}) – ${f.message}`,
+          value: report.value,
+        };
     }
   } catch (e) {
     return { status: 'unknown', message: `Report could not be evaluated: ${(e as Error).message}`, value: report.value };
@@ -388,7 +399,11 @@ function bucketOf(ms: number): string {
 }
 
 function persistResult(m: LoadedMonitor, c: CheckDef, row: CheckRow, raw: RawResult, now: number): void {
-  const next = applyResult({ status: row.status, consecutiveFailures: row.consecutive_failures, consecutiveSuccesses: row.consecutive_successes }, raw.status, thresholds(m, c));
+  const next = applyResult(
+    { status: row.status, consecutiveFailures: row.consecutive_failures, consecutiveSuccesses: row.consecutive_successes },
+    raw.status,
+    thresholds(m, c),
+  );
   const changed = next.status !== row.status;
   const ts = iso(now);
   const ok = raw.status === 'up' || raw.status === 'degraded';
@@ -499,12 +514,18 @@ export function scheduleRecompute(mid: string): void {
 export async function recompute(mid: string, now = clock()): Promise<void> {
   const m = monitors.get(mid);
   if (!m) return;
-  const rows = new Map(db().all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', mid).map((r) => [r.check_id, r]));
+  const rows = new Map(
+    db()
+      .all<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ?', mid)
+      .map((r) => [r.check_id, r]),
+  );
   const enabledChecks = m.def.checks.filter(checkEnabled);
   const statuses = new Map<string, MonitorStatus>(enabledChecks.map((c) => [c.id, rows.get(c.id)?.status ?? 'unknown']));
   const maint = !!activeMaintenance(mid, now);
   const subRoots = (c: CheckDef): CauseRef[] =>
-    c.type === 'monitor' ? parseCauses(db().get<{ root_causes: string }>('SELECT root_causes FROM monitor_state WHERE monitor_id = ?', c.monitor)?.root_causes) : [];
+    c.type === 'monitor'
+      ? parseCauses(db().get<{ root_causes: string }>('SELECT root_causes FROM monitor_state WHERE monitor_id = ?', c.monitor)?.root_causes)
+      : [];
   const pendingDown = new Set(
     enabledChecks
       .filter((c) => statuses.get(c.id) !== 'down' && parseJson<{ status?: string } | null>(rows.get(c.id)?.last_result, null)?.status === 'down')

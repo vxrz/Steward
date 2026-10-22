@@ -37,8 +37,12 @@ async function upload(name: string, type: string, content: Buffer | string): Pro
   const sessionKey = login.headers.get('x-sm-session-key')!;
   const fd = new FormData();
   fd.set('title', name);
-  fd.set("file", new Blob([typeof content === "string" ? content : new Uint8Array(content)], { type }), name);
-  const res = await fetch(`${s.base}/api/platforms/${platformId}/docs`, { method: 'POST', headers: { 'x-sm-client': '1', cookie, 'x-sm-session': sessionKey }, body: fd });
+  fd.set('file', new Blob([typeof content === 'string' ? content : new Uint8Array(content)], { type }), name);
+  const res = await fetch(`${s.base}/api/platforms/${platformId}/docs`, {
+    method: 'POST',
+    headers: { 'x-sm-client': '1', cookie, 'x-sm-session': sessionKey },
+    body: fd,
+  });
   expect(res.ok).toBe(true);
   const doc = (await res.json()) as { id: string };
   return doc.id;
@@ -58,7 +62,11 @@ describe('request targets', () => {
 describe('uploaded platform documents', () => {
   const fileOf = async (id: string) => {
     const res = await fetch(`${s.base}/api/docs/${id}/file`, { headers: authHeaders(await adminCookie()) });
-    return { type: res.headers.get('content-type') ?? '', disposition: res.headers.get('content-disposition') ?? '', csp: res.headers.get('content-security-policy') ?? '' };
+    return {
+      type: res.headers.get('content-type') ?? '',
+      disposition: res.headers.get('content-disposition') ?? '',
+      csp: res.headers.get('content-security-policy') ?? '',
+    };
   };
   let cookie = '';
   const adminCookie = async () => {
@@ -83,7 +91,9 @@ describe('uploaded platform documents', () => {
     expect(f.disposition).toMatch(/^inline/);
   });
   it('accepts only http(s) links', async () => {
-    await expect(s.api('POST', `/platforms/${platformId}/docs`, { title: 'x', kind: 'link', url: 'javascript:alert(1)' })).rejects.toMatchObject({ status: 400 });
+    await expect(s.api('POST', `/platforms/${platformId}/docs`, { title: 'x', kind: 'link', url: 'javascript:alert(1)' })).rejects.toMatchObject({
+      status: 400,
+    });
     await s.api('POST', `/platforms/${platformId}/docs`, { title: 'ok', kind: 'link', url: 'https://example.com/docs' });
   });
 });

@@ -30,28 +30,28 @@ export function useNotifications() {
 export function useNotificationActions() {
   const qc = useQueryClient();
   return useMemo(() => {
-  const patchCache = (fn: (l: NotificationList) => NotificationList) => qc.setQueryData<NotificationList>(KEY, (old) => (old ? fn(old) : old));
-  return {
-    markRead: async (id: string) => {
-      patchCache((l) => {
-        const was = l.items.find((n) => n.id === id && !n.read);
-        return { ...l, unread: Math.max(0, l.unread - (was ? 1 : 0)), items: l.items.map((n) => (n.id === id ? { ...n, read: true } : n)) };
-      });
-      try {
-        await post(`/notifications/${encodeURIComponent(id)}/read`);
-      } catch {
-        /* next poll corrects the state */
-      }
-    },
-    markAllRead: async () => {
-      patchCache((l) => ({ ...l, unread: 0, items: l.items.map((n) => ({ ...n, read: true })) }));
-      try {
-        await post('/notifications/read-all');
-      } finally {
-        qc.invalidateQueries({ queryKey: KEY });
-      }
-    },
-  };
+    const patchCache = (fn: (l: NotificationList) => NotificationList) => qc.setQueryData<NotificationList>(KEY, (old) => (old ? fn(old) : old));
+    return {
+      markRead: async (id: string) => {
+        patchCache((l) => {
+          const was = l.items.find((n) => n.id === id && !n.read);
+          return { ...l, unread: Math.max(0, l.unread - (was ? 1 : 0)), items: l.items.map((n) => (n.id === id ? { ...n, read: true } : n)) };
+        });
+        try {
+          await post(`/notifications/${encodeURIComponent(id)}/read`);
+        } catch {
+          /* next poll corrects the state */
+        }
+      },
+      markAllRead: async () => {
+        patchCache((l) => ({ ...l, unread: 0, items: l.items.map((n) => ({ ...n, read: true })) }));
+        try {
+          await post('/notifications/read-all');
+        } finally {
+          qc.invalidateQueries({ queryKey: KEY });
+        }
+      },
+    };
   }, [qc]);
 }
 

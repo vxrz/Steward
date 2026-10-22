@@ -100,7 +100,11 @@ function* readBatches(src: Db, table: string, cols: string[]): Generator<Record<
   if (src.dialect === 'sqlite') {
     let last = Number.MIN_SAFE_INTEGER;
     for (;;) {
-      const rows = src.all<Record<string, unknown>>(`SELECT rowid AS "__rowid", * FROM ${quoteIdent(table)} WHERE rowid > ? ORDER BY rowid LIMIT ?`, last, FETCH);
+      const rows = src.all<Record<string, unknown>>(
+        `SELECT rowid AS "__rowid", * FROM ${quoteIdent(table)} WHERE rowid > ? ORDER BY rowid LIMIT ?`,
+        last,
+        FETCH,
+      );
       if (!rows.length) return;
       last = rows[rows.length - 1]!.__rowid as number;
       for (const r of rows) {

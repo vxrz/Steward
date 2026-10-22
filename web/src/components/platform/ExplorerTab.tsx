@@ -96,7 +96,14 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
         <Hint>{t('explorer.hint', { example: '{id}' })}</Hint>
         <Stack mt="sm">
           <Group align="flex-end" wrap="nowrap" gap="xs">
-            <Select data={canWrite ? METHODS : ['GET', 'HEAD']} value={method} onChange={(v) => setMethod(v ?? 'GET')} allowDeselect={false} w={110} label={t('explorer.method')} />
+            <Select
+              data={canWrite ? METHODS : ['GET', 'HEAD']}
+              value={method}
+              onChange={(v) => setMethod(v ?? 'GET')}
+              allowDeselect={false}
+              w={110}
+              label={t('explorer.method')}
+            />
             <TextInput
               label={t('explorer.path')}
               classNames={{ input: 'mono' }}
@@ -122,7 +129,15 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
           </div>
           {writes && (
             <>
-              <Textarea label={t('explorer.body')} classNames={{ input: 'mono' }} autosize minRows={3} maxRows={14} value={body} onChange={(e) => setBody(e.currentTarget.value)} />
+              <Textarea
+                label={t('explorer.body')}
+                classNames={{ input: 'mono' }}
+                autosize
+                minRows={3}
+                maxRows={14}
+                value={body}
+                onChange={(e) => setBody(e.currentTarget.value)}
+              />
               <Checkbox
                 color="orange"
                 checked={confirmed}
@@ -132,7 +147,13 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
             </>
           )}
           <Group justify="flex-end">
-            <Button leftSection={<IconSend size={16} />} onClick={send} loading={busy} disabled={!path.trim() || (writes && !confirmed)} color={writes ? 'orange' : 'blue'}>
+            <Button
+              leftSection={<IconSend size={16} />}
+              onClick={send}
+              loading={busy}
+              disabled={!path.trim() || (writes && !confirmed)}
+              color={writes ? 'orange' : 'blue'}
+            >
               {t('explorer.send')}
             </Button>
           </Group>

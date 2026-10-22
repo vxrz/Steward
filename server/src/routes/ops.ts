@@ -38,7 +38,10 @@ const notificationSettingsBody = z.object({
   }),
   teams: z.object({ enabled: z.boolean(), webhookUrl: z.string().max(2000).optional() }),
   webhook: z.object({ enabled: z.boolean(), url: z.string().max(2000).optional() }),
-  routes: z.object(Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, channelList.optional()]))).partial().default({}),
+  routes: z
+    .object(Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, channelList.optional()])))
+    .partial()
+    .default({}),
   baseUrl: z.string().max(500).optional(),
 });
 

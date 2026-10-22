@@ -229,9 +229,7 @@ function execInWorker(re: RegExp, lastIndex: number, str: string, timeoutMs: num
     throw new Error(`Regular expression /${truncate(re.source, 60)}/ took longer than ${timeoutMs} ms – simplify it (avoid nested quantifiers such as (a+)+)`);
   }
   const msg = receiveMessageOnPort(w.port)?.message as
-    | { match: { values: string[]; index: number } | null; lastIndex: number; error?: undefined }
-    | { error: string }
-    | undefined;
+    { match: { values: string[]; index: number } | null; lastIndex: number; error?: undefined } | { error: string } | undefined;
   if (!msg) throw new Error('Regular expression evaluation failed');
   if (msg.error !== undefined) throw new Error(msg.error);
   return { values: msg.match?.values ?? null, index: msg.match?.index ?? -1, lastIndex: msg.lastIndex };

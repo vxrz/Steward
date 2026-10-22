@@ -74,11 +74,20 @@ export const MonitorHistoryEntry = z.object({
 
 export const MonitorDiscovery = z
   .object({
-    data: z.array(z.record(z.string())).describe('One object per check (or monitor) with {#MONITOR}, {#MONITORNAME}, {#CHECK}, {#CHECKNAME}, {#CHECKTYPE}, {#CHECKKEY}'),
+    data: z
+      .array(z.record(z.string()))
+      .describe('One object per check (or monitor) with {#MONITOR}, {#MONITORNAME}, {#CHECK}, {#CHECKNAME}, {#CHECKTYPE}, {#CHECKKEY}'),
   })
   .describe('Zabbix low-level discovery (LLD) format');
 
-export const MONITOR_COMPONENTS: Record<string, ZodTypeAny> = { Monitor, MonitorDetail, MonitorCheckStatus, MonitorStatusReport, MonitorHistoryEntry, MonitorDiscovery };
+export const MONITOR_COMPONENTS: Record<string, ZodTypeAny> = {
+  Monitor,
+  MonitorDetail,
+  MonitorCheckStatus,
+  MonitorStatusReport,
+  MonitorHistoryEntry,
+  MonitorDiscovery,
+};
 
 const limit = z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)');
 const cursor = z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)');

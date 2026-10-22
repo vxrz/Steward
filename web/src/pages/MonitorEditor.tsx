@@ -1,11 +1,39 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Grid, Group, NumberInput, Paper, SegmentedControl, Select, Stack, Switch, Tabs, TagsInput, Text, TextInput, Textarea, Title, Tooltip } from '@mantine/core';
+import {
+  Alert,
+  Button,
+  Grid,
+  Group,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Select,
+  Stack,
+  Switch,
+  Tabs,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+  Title,
+  Tooltip,
+} from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import YAML from 'yaml';
 import { IconDeviceFloppy, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { CHECK_TYPES, type CheckDef, type CheckType, type MonitorDefinition, type MonitorDetail, type MonitorSaveResult, type MonitorSummary, type Platform, type ProcessSummary } from '@sm/shared';
+import {
+  CHECK_TYPES,
+  type CheckDef,
+  type CheckType,
+  type MonitorDefinition,
+  type MonitorDetail,
+  type MonitorSaveResult,
+  type MonitorSummary,
+  type Platform,
+  type ProcessSummary,
+} from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { PageHeader } from '../components/common';
 import { MonitorGraph, NODE_H } from '../components/monitors/MonitorGraph';
@@ -209,7 +237,13 @@ export function MonitorEditorPage() {
                     <Text size="xs" c="dimmed">
                       {t('editor.linkHint')}
                     </Text>
-                    <Button size="xs" color="red" variant="light" leftSection={<IconTrash size={14} />} onClick={() => (setDef({ ...def, links: def.links.filter((_, i) => i !== link) }), setLink(null))}>
+                    <Button
+                      size="xs"
+                      color="red"
+                      variant="light"
+                      leftSection={<IconTrash size={14} />}
+                      onClick={() => (setDef({ ...def, links: def.links.filter((_, i) => i !== link) }), setLink(null))}
+                    >
                       {t('editor.removeLink')}
                     </Button>
                   </Stack>
@@ -233,15 +267,45 @@ export function MonitorEditorPage() {
               onChange={(e) => setKey(e.currentTarget.value.toLowerCase())}
               classNames={{ input: 'mono' }}
             />
-            <Textarea label={t('form.description')} autosize minRows={2} value={def.description} onChange={(e) => setDef({ ...def, description: e.currentTarget.value })} />
+            <Textarea
+              label={t('form.description')}
+              autosize
+              minRows={2}
+              value={def.description}
+              onChange={(e) => setDef({ ...def, description: e.currentTarget.value })}
+            />
             <TagsInput label={t('editor.tags')} value={def.tags} onChange={(v) => setDef({ ...def, tags: v })} />
             <Group grow align="flex-start">
-              <NumberInput label={t('form.interval')} min={5} value={def.intervalSeconds} onChange={(v) => setDef({ ...def, intervalSeconds: Number(v) || 60 })} />
-              <NumberInput label={t('form.timeout')} min={1} max={300} value={def.timeoutSeconds} onChange={(v) => setDef({ ...def, timeoutSeconds: Number(v) || 10 })} />
+              <NumberInput
+                label={t('form.interval')}
+                min={5}
+                value={def.intervalSeconds}
+                onChange={(v) => setDef({ ...def, intervalSeconds: Number(v) || 60 })}
+              />
+              <NumberInput
+                label={t('form.timeout')}
+                min={1}
+                max={300}
+                value={def.timeoutSeconds}
+                onChange={(v) => setDef({ ...def, timeoutSeconds: Number(v) || 10 })}
+              />
             </Group>
             <Group grow align="flex-start">
-              <NumberInput label={t('form.failuresBeforeDown')} description={t('editor.failuresHint')} min={1} max={20} value={def.failuresBeforeDown} onChange={(v) => setDef({ ...def, failuresBeforeDown: Number(v) || 1 })} />
-              <NumberInput label={t('form.successesBeforeUp')} min={1} max={20} value={def.successesBeforeUp} onChange={(v) => setDef({ ...def, successesBeforeUp: Number(v) || 1 })} />
+              <NumberInput
+                label={t('form.failuresBeforeDown')}
+                description={t('editor.failuresHint')}
+                min={1}
+                max={20}
+                value={def.failuresBeforeDown}
+                onChange={(v) => setDef({ ...def, failuresBeforeDown: Number(v) || 1 })}
+              />
+              <NumberInput
+                label={t('form.successesBeforeUp')}
+                min={1}
+                max={20}
+                value={def.successesBeforeUp}
+                onChange={(v) => setDef({ ...def, successesBeforeUp: Number(v) || 1 })}
+              />
             </Group>
             <Group grow align="flex-start">
               <Select
@@ -255,7 +319,12 @@ export function MonitorEditorPage() {
                 ]}
               />
               {def.aggregate.rule === 'quorum' && (
-                <NumberInput label={t('editor.quorum')} min={1} value={def.aggregate.quorum ?? ''} onChange={(v) => setDef({ ...def, aggregate: { ...def.aggregate, quorum: Number(v) || undefined } })} />
+                <NumberInput
+                  label={t('editor.quorum')}
+                  min={1}
+                  value={def.aggregate.quorum ?? ''}
+                  onChange={(v) => setDef({ ...def, aggregate: { ...def.aggregate, quorum: Number(v) || undefined } })}
+                />
               )}
             </Group>
             {isNew && (
@@ -264,7 +333,8 @@ export function MonitorEditorPage() {
                 checked={isTemplate}
                 onChange={(e) => {
                   setIsTemplate(e.currentTarget.checked);
-                  if (e.currentTarget.checked) setDef({ ...def, parameters: def.parameters ?? [{ name: 'host', label: t('form.host'), type: 'string', required: true }] });
+                  if (e.currentTarget.checked)
+                    setDef({ ...def, parameters: def.parameters ?? [{ name: 'host', label: t('form.host'), type: 'string', required: true }] });
                 }}
               />
             )}
@@ -287,12 +357,17 @@ export function MonitorEditorPage() {
         </Tabs.Panel>
         <Tabs.Panel value="yaml">
           <Stack>
-            {isTemplate && (
-              <Alert color="blue">
-                {t('editor.templateYaml', { example: '{{ params.<name> }}' })}
-              </Alert>
-            )}
-            <Textarea autosize minRows={18} maxRows={40} value={yaml} onChange={(e) => setYaml(e.currentTarget.value)} classNames={{ input: 'mono' }} aria-label={t('editor.yamlSource')} error={yamlError} />
+            {isTemplate && <Alert color="blue">{t('editor.templateYaml', { example: '{{ params.<name> }}' })}</Alert>}
+            <Textarea
+              autosize
+              minRows={18}
+              maxRows={40}
+              value={yaml}
+              onChange={(e) => setYaml(e.currentTarget.value)}
+              classNames={{ input: 'mono' }}
+              aria-label={t('editor.yamlSource')}
+              error={yamlError}
+            />
             <Group>
               <Button size="xs" variant="light" onClick={() => applyYaml()}>
                 {t('editor.apply')}

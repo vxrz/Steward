@@ -117,7 +117,12 @@ function WidgetCard({
 
 function NoData({ dataset, error }: { dataset?: string; error?: unknown }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
-  if (!dataset) return <Text size="sm" c="dimmed">{t('w.chooseDataset')}</Text>;
+  if (!dataset)
+    return (
+      <Text size="sm" c="dimmed">
+        {t('w.chooseDataset')}
+      </Text>
+    );
   return (
     <Stack gap={4}>
       <Text size="sm" c="dimmed">
@@ -174,7 +179,7 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const value = isRows ? meta?.rowCount : (meta?.metrics[w.metric!] ?? points[points.length - 1]?.value);
   const first = points[0]?.value;
   const delta = value !== undefined && first !== undefined && points.length > 1 ? value - first : undefined;
-  const good = delta === undefined || delta === 0 || !w.goodWhen ? null : (delta > 0) === (w.goodWhen === 'up');
+  const good = delta === undefined || delta === 0 || !w.goodWhen ? null : delta > 0 === (w.goodWhen === 'up');
   const DeltaIcon = !delta ? IconArrowRight : delta > 0 ? IconArrowUpRight : IconArrowDownRight;
   const label = w.title || `${meta?.title ?? w.dataset} · ${isRows ? t('w.rows') : w.metric}`;
   if (!meta && !metas.isLoading) {
@@ -195,7 +200,12 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
             {delta !== undefined && (
               <Group gap={2} wrap="nowrap">
                 <DeltaIcon size={14} color={good === null ? 'var(--viz-muted)' : good ? 'var(--viz-delta-good)' : 'var(--viz-delta-bad)'} aria-hidden />
-                <Text size="xs" fw={600} c={good === null ? 'var(--viz-text-secondary)' : good ? 'var(--viz-delta-good)' : 'var(--viz-delta-bad)'} className="viz-num">
+                <Text
+                  size="xs"
+                  fw={600}
+                  c={good === null ? 'var(--viz-text-secondary)' : good ? 'var(--viz-delta-good)' : 'var(--viz-delta-bad)'}
+                  className="viz-num"
+                >
                   {delta > 0 ? '+' : ''}
                   {compact(delta)}
                 </Text>
@@ -263,7 +273,13 @@ function StatusWidget({ w }: { w: DashboardWidget }) {
   if (!meta) {
     return (
       <WidgetCard title={title}>
-        {metas.isLoading ? <Text size="sm" c="dimmed">{t('common:loading')}</Text> : <NoData dataset={w.dataset} />}
+        {metas.isLoading ? (
+          <Text size="sm" c="dimmed">
+            {t('common:loading')}
+          </Text>
+        ) : (
+          <NoData dataset={w.dataset} />
+        )}
       </WidgetCard>
     );
   }
@@ -328,7 +344,13 @@ function TableWidget({ w }: { w: DashboardWidget }) {
   if (!d) {
     return (
       <WidgetCard title={title}>
-        {ds.isLoading ? <Text size="sm" c="dimmed">{t('common:loading')}</Text> : <NoData dataset={w.dataset} error={ds.error} />}
+        {ds.isLoading ? (
+          <Text size="sm" c="dimmed">
+            {t('common:loading')}
+          </Text>
+        ) : (
+          <NoData dataset={w.dataset} error={ds.error} />
+        )}
       </WidgetCard>
     );
   }
@@ -418,7 +440,12 @@ function TableWidget({ w }: { w: DashboardWidget }) {
                   </Table.Td>
                 )}
                 {cols.map((c) => (
-                  <Table.Td key={c} ta={numeric(c) ? 'right' : undefined} className={numeric(c) ? 'viz-num' : undefined} style={{ maxWidth: 360, overflowWrap: 'break-word' }}>
+                  <Table.Td
+                    key={c}
+                    ta={numeric(c) ? 'right' : undefined}
+                    className={numeric(c) ? 'viz-num' : undefined}
+                    style={{ maxWidth: 360, overflowWrap: 'break-word' }}
+                  >
                     {typeof r[c] === 'boolean' ? (r[c] ? t('common:yes') : t('common:no')) : cellText(r[c])}
                   </Table.Td>
                 ))}
@@ -480,12 +507,20 @@ function ChecksWidget({ w }: { w: DashboardWidget }) {
       fetching={run.isFetching}
     >
       {!w.process ? (
-        <Text size="sm" c="dimmed">{t('w.chooseProcess')}</Text>
+        <Text size="sm" c="dimmed">
+          {t('w.chooseProcess')}
+        </Text>
       ) : last.data && !runId ? (
-        <Text size="sm" c="dimmed">{t('w.notRunYet')}</Text>
+        <Text size="sm" c="dimmed">
+          {t('w.notRunYet')}
+        </Text>
       ) : (
         <Stack gap={6}>
-          {checks.length === 0 && run.data && <Text size="sm" c="dimmed">{t('w.noChecks')}</Text>}
+          {checks.length === 0 && run.data && (
+            <Text size="sm" c="dimmed">
+              {t('w.noChecks')}
+            </Text>
+          )}
           {checks.map((c) => {
             const o = (c.output ?? {}) as { passed?: boolean; severity?: string; message?: string };
             const failedStatus: DatasetStatus = o.severity === 'warning' ? 'warning' : o.severity === 'info' ? 'unknown' : 'critical';

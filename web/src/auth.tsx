@@ -1,7 +1,14 @@
 import { createContext, useContext } from 'react';
 import type { Capabilities, Me, Role } from '@sm/shared';
 
-const NO_CAPS: Capabilities = { manageUsers: false, manageSettings: false, viewAudit: false, createProcesses: false, createPlatforms: false, createMonitors: false };
+const NO_CAPS: Capabilities = {
+  manageUsers: false,
+  manageSettings: false,
+  viewAudit: false,
+  createProcesses: false,
+  createPlatforms: false,
+  createMonitors: false,
+};
 
 export const MeContext = createContext<Me | null>(null);
 

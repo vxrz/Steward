@@ -246,7 +246,14 @@ export function PlatformDetailPage() {
 function SaveTypeModal({ platform, onClose }: { platform: Platform; onClose: () => void }) {
   const { t } = useTranslation(['platforms', 'common']);
   const qc = useQueryClient();
-  const [kind, setKind] = useState(platform.kind === 'generic' ? platform.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : platform.kind);
+  const [kind, setKind] = useState(
+    platform.kind === 'generic'
+      ? platform.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+      : platform.kind,
+  );
   const [label, setLabel] = useState(platform.name.replace(/\s*\((demo|prod|test|dev)\)\s*$/i, ''));
   const [description, setDescription] = useState(platform.description);
   const [busy, setBusy] = useState(false);

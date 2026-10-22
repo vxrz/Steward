@@ -68,7 +68,11 @@ export function SchedulesPage() {
           </Button>
         }
       />
-      {schedules.data?.length === 0 && <Text c="dimmed" size="sm">{t('empty')}</Text>}
+      {schedules.data?.length === 0 && (
+        <Text c="dimmed" size="sm">
+          {t('empty')}
+        </Text>
+      )}
       {!!schedules.data?.length && (
         <div className="table-scroll">
           <Table highlightOnHover fz="sm">
@@ -144,23 +148,23 @@ export function SchedulesPage() {
                         </ActionIcon>
                       </Tooltip>
                       {s.canEdit && (
-                      <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
-                        <IconEdit size={16} />
-                      </ActionIcon>
+                        <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
+                          <IconEdit size={16} />
+                        </ActionIcon>
                       )}
                       {s.canEdit && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        aria-label={t('common:delete')}
-                        onClick={async () => {
-                          if (!confirm(t('deleteConfirm', { name: s.name }))) return;
-                          await del(`/schedules/${s.id}`).catch(notifyError);
-                          qc.invalidateQueries({ queryKey: ['schedules'] });
-                        }}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
+                        <ActionIcon
+                          variant="subtle"
+                          color="red"
+                          aria-label={t('common:delete')}
+                          onClick={async () => {
+                            if (!confirm(t('deleteConfirm', { name: s.name }))) return;
+                            await del(`/schedules/${s.id}`).catch(notifyError);
+                            qc.invalidateQueries({ queryKey: ['schedules'] });
+                          }}
+                        >
+                          <IconTrash size={16} />
+                        </ActionIcon>
                       )}
                     </Group>
                   </Table.Td>
@@ -257,7 +261,12 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           </Group>
           {preview.data && (
             <Text size="xs" c="dimmed" mt={4}>
-              {t('form.next', { dates: preview.data.next.slice(0, 3).map((n) => fmtDate(n)).join(' · ') })}
+              {t('form.next', {
+                dates: preview.data.next
+                  .slice(0, 3)
+                  .map((n) => fmtDate(n))
+                  .join(' · '),
+              })}
             </Text>
           )}
         </div>
@@ -270,11 +279,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
         )}
         <Divider />
         <Text size="xs" c="dimmed">
-          {draft.owner ? (
-            <Trans t={t} i18nKey="form.rightsOwner" values={{ owner: draft.owner }} components={{ b: <b /> }} />
-          ) : (
-            t('form.rightsYou')
-          )}
+          {draft.owner ? <Trans t={t} i18nKey="form.rightsOwner" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsYou')}
         </Text>
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />

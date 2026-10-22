@@ -16,7 +16,11 @@ const PW = 'Demo-password-1';
 const SAMPLES = process.env.SM_REPORT_SAMPLES;
 
 const sha = (b: Buffer) => crypto.createHash('sha256').update(b).digest('hex');
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 const hasTool = (bin: string) => spawnSync(bin, ['-v'], { stdio: 'ignore' }).error === undefined;
 
 /** Signs in with fetch and returns a cookie, for binary downloads and multipart uploads. */
@@ -56,7 +60,11 @@ beforeAll(async () => {
   expect(waiting.status).toBe('waiting');
   const task = waiting.tasks[0];
   const adam = await s.as('adam', PW);
-  await adam('POST', `/tasks/${task.id}/complete`, { approved: true, selectedKeys: task.items.slice(0, 2).map((i: any) => i.key), comment: 'Checked with HR – both left the company' });
+  await adam('POST', `/tasks/${task.id}/complete`, {
+    approved: true,
+    selectedKeys: task.items.slice(0, 2).map((i: any) => i.key),
+    comment: 'Checked with HR – both left the company',
+  });
   reviewRun = await s.waitRun(id, ['succeeded', 'failed']);
 
   const dry = await s.api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub }, inputs: {}, dryRun: true });
@@ -75,7 +83,17 @@ describe('run report', () => {
   it('generates, stores and audits a PDF/A-2b run report', async () => {
     expect(reviewRun.status).toBe('succeeded');
     rec = await s.api('POST', `/runs/${reviewRun.id}/reports`, { lang: 'en', comment: 'Reviewed by internal audit, no findings.', timeZone: 'Europe/Berlin' });
-    expect(rec).toMatchObject({ kind: 'run', runId: reviewRun.id, version: 1, lang: 'en', interim: false, auto: false, createdBy: 'admin', comment: 'Reviewed by internal audit, no findings.', classification: 'Internal' });
+    expect(rec).toMatchObject({
+      kind: 'run',
+      runId: reviewRun.id,
+      version: 1,
+      lang: 'en',
+      interim: false,
+      auto: false,
+      createdBy: 'admin',
+      comment: 'Reviewed by internal audit, no findings.',
+      classification: 'Internal',
+    });
     expect(rec.filename).toMatch(new RegExp(`^Steward-insights-hub-access-review-1.*-${reviewRun.id}-\\d{4}-\\d{2}-\\d{2}\\.pdf$`));
 
     const dl = await download(`/reports/${rec.id}/download`);
@@ -235,7 +253,9 @@ describe('permissions', () => {
       const veraCookie = await cookieFor('vera', PW);
       expect((await download(`/reports/${id}/download`, veraCookie)).status).toBe(404);
       expect((await download(`/runs/${reviewRun.id}/report.pdf`, veraCookie)).status).toBe(404);
-      expect(await status(vera('POST', '/reports/summary', { processIds: ['ih-access-review-1-flag'], from: '2000-01-01T00:00:00Z', to: '2100-01-01T00:00:00Z' }))).toBe(404);
+      expect(
+        await status(vera('POST', '/reports/summary', { processIds: ['ih-access-review-1-flag'], from: '2000-01-01T00:00:00Z', to: '2100-01-01T00:00:00Z' })),
+      ).toBe(404);
       // still allowed for olivia (team Service Desk)
       expect((await olivia('GET', `/runs/${reviewRun.id}/reports`)).length).toBeGreaterThan(0);
     } finally {
@@ -253,7 +273,14 @@ describe('summary report', () => {
   it('summarizes runs of several processes in a period', async () => {
     const from = new Date(Date.now() - 86400000).toISOString();
     const to = new Date(Date.now() + 86400000).toISOString();
-    const rec = await s.api('POST', '/reports/summary', { processIds: ['ih-access-review-1-flag', 'ih-health-check'], from, to, lang: 'en', comment: 'Q3 access reviews', title: 'Access reviews Q3' });
+    const rec = await s.api('POST', '/reports/summary', {
+      processIds: ['ih-access-review-1-flag', 'ih-health-check'],
+      from,
+      to,
+      lang: 'en',
+      comment: 'Q3 access reviews',
+      title: 'Access reviews Q3',
+    });
     expect(rec).toMatchObject({ kind: 'summary', runId: null, processIds: ['ih-access-review-1-flag', 'ih-health-check'], title: 'Access reviews Q3' });
     const dl = await download(`/reports/${rec.id}/download`);
     expect(dl.status).toBe(200);
@@ -279,7 +306,12 @@ describe('summary report', () => {
 
 describe('branding', () => {
   it('stores settings, validates the colour and audits changes', async () => {
-    const b = await s.api('PUT', '/reports/branding', { companyName: 'ACME Industrial GmbH', accentColor: '#c2410c', classification: 'Confidential', footerNote: 'Confidential – for internal use only' });
+    const b = await s.api('PUT', '/reports/branding', {
+      companyName: 'ACME Industrial GmbH',
+      accentColor: '#c2410c',
+      classification: 'Confidential',
+      footerNote: 'Confidential – for internal use only',
+    });
     expect(b).toMatchObject({ companyName: 'ACME Industrial GmbH', accentColor: '#c2410c', customLogo: false });
     expect(await status(s.api('PUT', '/reports/branding', { accentColor: 'orange' }))).toBe(400);
     expect((await s.api('GET', '/audit?action=report.branding_updated'))[0].details.companyName.to).toBe('ACME Industrial GmbH');
@@ -292,7 +324,11 @@ describe('branding', () => {
     const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(1024 * 1024)]);
     const form = new FormData();
     form.append('file', new Blob([big]), 'big.jpg');
-    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' }, body: form });
+    const res = await fetch(s.base + '/api/reports/branding/logo', {
+      method: 'POST',
+      headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' },
+      body: form,
+    });
     expect(res.status).toBe(400);
     expect((await s.api('GET', '/reports/branding')).customLogo).toBe(false);
   });
@@ -300,7 +336,11 @@ describe('branding', () => {
     const png = fs.readFileSync(path.resolve(import.meta.dirname, '../../web/public/icon-192.png'));
     const form = new FormData();
     form.append('file', new Blob([png], { type: 'text/plain' }), 'logo.png'); // declared type is ignored; magic bytes count
-    const res = await fetch(s.base + '/api/reports/branding/logo', { method: 'POST', headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' }, body: form });
+    const res = await fetch(s.base + '/api/reports/branding/logo', {
+      method: 'POST',
+      headers: { ...authHeaders(adminCookie), 'x-sm-client': '1' },
+      body: form,
+    });
     expect(res.status).toBe(200);
     const b = await res.json();
     expect(b).toMatchObject({ customLogo: true, logoMime: 'image/png' });
@@ -334,7 +374,10 @@ describe('verification of archived copies', () => {
     const exact = await s.api('POST', '/reports/verify', { contentBase64: pdf.toString('base64') });
     expect(exact).toMatchObject({ match: 'exact', sha256: rec.sha256, report: { id: rec.id, runId: dryRun.id, stored: true }, auditChain: { ok: true } });
     // a signature is appended as an incremental update after the original %%EOF
-    const signed = Buffer.concat([pdf, Buffer.from('\n99 0 obj\n<< /Type /Sig >>\nendobj\nxref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 100 >>\nstartxref\n0\n%%EOF\n')]);
+    const signed = Buffer.concat([
+      pdf,
+      Buffer.from('\n99 0 obj\n<< /Type /Sig >>\nendobj\nxref\n0 1\n0000000000 65535 f \ntrailer\n<< /Size 100 >>\nstartxref\n0\n%%EOF\n'),
+    ]);
     expect((await s.api('POST', '/reports/verify', { contentBase64: signed.toString('base64') })).match).toBe('signed-copy');
     const modified = Buffer.from(pdf);
     modified[modified.length - 200] ^= 1;
@@ -385,7 +428,13 @@ describe('automatic reports and retention', () => {
     expect(entry.details.sha256).toBe(list[0].sha256);
   });
   it('rejects unknown report options in the process definition', async () => {
-    expect(await status(s.api('POST', '/processes/validate', { definition: { name: 'x', report: { auto: 'yes' }, nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } }).then((r: any) => (r.ok ? Promise.resolve() : Promise.reject({ status: 400 }))))).toBe(400);
+    expect(
+      await status(
+        s
+          .api('POST', '/processes/validate', { definition: { name: 'x', report: { auto: 'yes' }, nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } })
+          .then((r: any) => (r.ok ? Promise.resolve() : Promise.reject({ status: 400 }))),
+      ),
+    ).toBe(400);
   });
   it('retention cleanup removes the run’s report files and records', async () => {
     const dir = path.join(s.dataDir, 'reports', reviewRun.id);

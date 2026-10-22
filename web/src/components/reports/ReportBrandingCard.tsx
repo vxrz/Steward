@@ -19,7 +19,13 @@ export function ReportBrandingCard() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
-    if (branding.data) setDraft({ companyName: branding.data.companyName, accentColor: branding.data.accentColor, classification: branding.data.classification, footerNote: branding.data.footerNote });
+    if (branding.data)
+      setDraft({
+        companyName: branding.data.companyName,
+        accentColor: branding.data.accentColor,
+        classification: branding.data.classification,
+        footerNote: branding.data.footerNote,
+      });
   }, [branding.data]);
   if (!branding.data || !draft) return null;
   const b = branding.data;
@@ -168,7 +174,14 @@ export function ReportBrandingCard() {
             {t('branding.save')}
           </Button>
           {REPORT_LANGS.map((lang) => (
-            <Button key={lang} variant="default" leftSection={<IconEye size={16} />} loading={busy === `preview-${lang}`} disabled={!validColor} onClick={() => preview(lang)}>
+            <Button
+              key={lang}
+              variant="default"
+              leftSection={<IconEye size={16} />}
+              loading={busy === `preview-${lang}`}
+              disabled={!validColor}
+              onClick={() => preview(lang)}
+            >
               {t('branding.preview', { language: reportLangName(lang) })}
             </Button>
           ))}

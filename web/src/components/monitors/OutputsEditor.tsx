@@ -1,4 +1,20 @@
-import { ActionIcon, Badge, Button, Group, Menu, MultiSelect, NumberInput, Paper, SegmentedControl, Select, Stack, Switch, TagsInput, Text, TextInput } from '@mantine/core';
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  Menu,
+  MultiSelect,
+  NumberInput,
+  Paper,
+  SegmentedControl,
+  Select,
+  Stack,
+  Switch,
+  TagsInput,
+  Text,
+  TextInput,
+} from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { MONITOR_STATUSES, type CheckDef, type OutputDef, type OutputType, type Platform, type ProcessSummary } from '@sm/shared';
 import { useTranslation } from 'react-i18next';
@@ -19,7 +35,8 @@ const TYPE_HELP: Record<OutputType, string> = {
   notification: 'The owner and the subscribers are notified about root causes only; dependent failures are folded into one alert.',
   webhook: 'POSTs { source, monitor, events[] } with status, status code, root causes and the latest message.',
   gatus: 'Pushes success/error to POST /api/v1/endpoints/<key>/external with the platform credential "externalToken".',
-  zabbix: 'sender: trapper protocol to port 10051 (items of type Zabbix trapper); api: history.push (Zabbix 7.0+, API token). Values: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.',
+  zabbix:
+    'sender: trapper protocol to port 10051 (items of type Zabbix trapper); api: history.push (Zabbix 7.0+, API token). Values: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance.',
   process: 'Starts the runbook as the monitor owner; inputs are JSONata over { monitor, check, event }.',
 };
 
@@ -73,14 +90,28 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
           <Stack gap="xs">
             <Group justify="space-between" wrap="wrap" gap="xs">
               <Group gap="xs">
-                <Badge variant="light" style={{ minWidth: 'max-content' }}>{typeLabel(o.type)}</Badge>
+                <Badge variant="light" style={{ minWidth: 'max-content' }}>
+                  {typeLabel(o.type)}
+                </Badge>
                 <Text size="xs" c="dimmed" className="mono">
                   {o.id}
                 </Text>
               </Group>
               <Group gap={4}>
-                <Switch size="xs" label={t('form.enabled')} disabled={disabled} checked={o.enabled} onChange={(e) => update(i, { enabled: e.currentTarget.checked })} />
-                <ActionIcon variant="subtle" color="red" disabled={disabled} aria-label={t('outputs.remove', { id: o.id })} onClick={() => onChange(outputs.filter((_, j) => j !== i))}>
+                <Switch
+                  size="xs"
+                  label={t('form.enabled')}
+                  disabled={disabled}
+                  checked={o.enabled}
+                  onChange={(e) => update(i, { enabled: e.currentTarget.checked })}
+                />
+                <ActionIcon
+                  variant="subtle"
+                  color="red"
+                  disabled={disabled}
+                  aria-label={t('outputs.remove', { id: o.id })}
+                  onClick={() => onChange(outputs.filter((_, j) => j !== i))}
+                >
                   <IconTrash size={14} />
                 </ActionIcon>
               </Group>
@@ -108,24 +139,69 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
             )}
             {o.type === 'webhook' && (
               <>
-                <TextInput label={t('secrets.url')} description={t('outputs.urlHint')} disabled={disabled} value={o.url ?? ''} onChange={(e) => update(i, { url: e.currentTarget.value || undefined })} />
+                <TextInput
+                  label={t('secrets.url')}
+                  description={t('outputs.urlHint')}
+                  disabled={disabled}
+                  value={o.url ?? ''}
+                  onChange={(e) => update(i, { url: e.currentTarget.value || undefined })}
+                />
                 <Group grow>
-                  <Select label={t('outputs.orPlatform')} clearable disabled={disabled} data={platformData()} value={o.platform ?? null} onChange={(v) => update(i, { platform: v ?? undefined })} />
-                  <TextInput label={t('form.path')} disabled={disabled} value={o.path ?? ''} onChange={(e) => update(i, { path: e.currentTarget.value || undefined })} />
+                  <Select
+                    label={t('outputs.orPlatform')}
+                    clearable
+                    disabled={disabled}
+                    data={platformData()}
+                    value={o.platform ?? null}
+                    onChange={(v) => update(i, { platform: v ?? undefined })}
+                  />
+                  <TextInput
+                    label={t('form.path')}
+                    disabled={disabled}
+                    value={o.path ?? ''}
+                    onChange={(e) => update(i, { path: e.currentTarget.value || undefined })}
+                  />
                 </Group>
               </>
             )}
             {o.type === 'gatus' && (
               <Group grow align="flex-start">
-                <Select label={t('outputs.gatusPlatform')} required disabled={disabled} data={platformData('gatus')} value={o.platform || null} onChange={(v) => update(i, { platform: v ?? '' })} />
-                <TextInput label={t('outputs.externalKey')} required disabled={disabled} value={o.endpointKey} onChange={(e) => update(i, { endpointKey: e.currentTarget.value })} classNames={{ input: 'mono' }} />
-                <TextInput label={t('outputs.tokenCredential')} placeholder="externalToken" disabled={disabled} value={o.tokenSecret ?? ''} onChange={(e) => update(i, { tokenSecret: e.currentTarget.value || undefined })} />
+                <Select
+                  label={t('outputs.gatusPlatform')}
+                  required
+                  disabled={disabled}
+                  data={platformData('gatus')}
+                  value={o.platform || null}
+                  onChange={(v) => update(i, { platform: v ?? '' })}
+                />
+                <TextInput
+                  label={t('outputs.externalKey')}
+                  required
+                  disabled={disabled}
+                  value={o.endpointKey}
+                  onChange={(e) => update(i, { endpointKey: e.currentTarget.value })}
+                  classNames={{ input: 'mono' }}
+                />
+                <TextInput
+                  label={t('outputs.tokenCredential')}
+                  placeholder="externalToken"
+                  disabled={disabled}
+                  value={o.tokenSecret ?? ''}
+                  onChange={(e) => update(i, { tokenSecret: e.currentTarget.value || undefined })}
+                />
               </Group>
             )}
             {o.type === 'zabbix' && (
               <>
                 <Group grow align="flex-start">
-                  <Select label={t('outputs.zabbixPlatform')} required disabled={disabled} data={platformData('zabbix')} value={o.platform || null} onChange={(v) => update(i, { platform: v ?? '' })} />
+                  <Select
+                    label={t('outputs.zabbixPlatform')}
+                    required
+                    disabled={disabled}
+                    data={platformData('zabbix')}
+                    value={o.platform || null}
+                    onChange={(v) => update(i, { platform: v ?? '' })}
+                  />
                   <Select
                     label={t('outputs.protocol')}
                     disabled={disabled}
@@ -148,9 +224,29 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   />
                 </Group>
                 <Group grow align="flex-start">
-                  <TextInput label={t('outputs.zabbixHost')} placeholder={t('outputs.zabbixHostPlaceholder')} disabled={disabled} value={o.host ?? ''} onChange={(e) => update(i, { host: e.currentTarget.value || undefined })} />
-                  <TextInput label={t('outputs.itemKeyMonitor')} placeholder="steward.monitor.status[${monitor.key}]" disabled={disabled} value={o.itemKeyMonitor ?? ''} onChange={(e) => update(i, { itemKeyMonitor: e.currentTarget.value || undefined })} classNames={{ input: 'mono' }} />
-                  <TextInput label={t('outputs.itemKeyCheck')} placeholder="steward.check.status[${monitor.key},${check.id}]" disabled={disabled} value={o.itemKeyCheck ?? ''} onChange={(e) => update(i, { itemKeyCheck: e.currentTarget.value || undefined })} classNames={{ input: 'mono' }} />
+                  <TextInput
+                    label={t('outputs.zabbixHost')}
+                    placeholder={t('outputs.zabbixHostPlaceholder')}
+                    disabled={disabled}
+                    value={o.host ?? ''}
+                    onChange={(e) => update(i, { host: e.currentTarget.value || undefined })}
+                  />
+                  <TextInput
+                    label={t('outputs.itemKeyMonitor')}
+                    placeholder="steward.monitor.status[${monitor.key}]"
+                    disabled={disabled}
+                    value={o.itemKeyMonitor ?? ''}
+                    onChange={(e) => update(i, { itemKeyMonitor: e.currentTarget.value || undefined })}
+                    classNames={{ input: 'mono' }}
+                  />
+                  <TextInput
+                    label={t('outputs.itemKeyCheck')}
+                    placeholder="steward.check.status[${monitor.key},${check.id}]"
+                    disabled={disabled}
+                    value={o.itemKeyCheck ?? ''}
+                    onChange={(e) => update(i, { itemKeyCheck: e.currentTarget.value || undefined })}
+                    classNames={{ input: 'mono' }}
+                  />
                 </Group>
               </>
             )}
@@ -168,11 +264,20 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                 <Text size="sm" fw={500}>
                   {t('outputs.inputs')}
                 </Text>
-                <KeyValueEditor value={o.inputs} onChange={(v) => update(i, { inputs: (v ?? {}) as Record<string, string> })} keyLabel={t('outputs.input')} valuePlaceholder="monitor.name" />
+                <KeyValueEditor
+                  value={o.inputs}
+                  onChange={(v) => update(i, { inputs: (v ?? {}) as Record<string, string> })}
+                  keyLabel={t('outputs.input')}
+                  valuePlaceholder="monitor.name"
+                />
                 <Text size="sm" fw={500}>
                   {t('outputs.connections')}
                 </Text>
-                <KeyValueEditor value={o.bindings} onChange={(v) => update(i, { bindings: (v ?? {}) as Record<string, string> })} keyLabel={t('outputs.slot')} />
+                <KeyValueEditor
+                  value={o.bindings}
+                  onChange={(v) => update(i, { bindings: (v ?? {}) as Record<string, string> })}
+                  keyLabel={t('outputs.slot')}
+                />
                 <Switch label={t('outputs.dryRun')} disabled={disabled} checked={o.dryRun} onChange={(e) => update(i, { dryRun: e.currentTarget.checked })} />
               </>
             )}
@@ -193,7 +298,13 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                 />
               </div>
               {o.on === 'every' && (
-                <NumberInput label={t('outputs.atMostEvery')} min={10} disabled={disabled} value={o.minIntervalSeconds ?? ''} onChange={(v) => update(i, { minIntervalSeconds: num(v) })} />
+                <NumberInput
+                  label={t('outputs.atMostEvery')}
+                  min={10}
+                  disabled={disabled}
+                  value={o.minIntervalSeconds ?? ''}
+                  onChange={(v) => update(i, { minIntervalSeconds: num(v) })}
+                />
               )}
               <Select
                 label={t('outputs.subjects')}

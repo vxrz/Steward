@@ -1,5 +1,22 @@
 import { useState, type ReactNode } from 'react';
-import { Alert, Anchor, Badge, Box, Button, Center, Collapse, Divider, Group, Paper, PasswordInput, Stack, Text, TextInput, Title, UnstyledButton } from '@mantine/core';
+import {
+  Alert,
+  Anchor,
+  Badge,
+  Box,
+  Button,
+  Center,
+  Collapse,
+  Divider,
+  Group,
+  Paper,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+  Title,
+  UnstyledButton,
+} from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
@@ -114,7 +131,12 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             placeholder={t('setup.usernamePlaceholder')}
             autoComplete="username"
           />
-          <TextInput label={t('displayName')} value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} placeholder={t('setup.displayNamePlaceholder')} />
+          <TextInput
+            label={t('displayName')}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.currentTarget.value)}
+            placeholder={t('setup.displayNamePlaceholder')}
+          />
           <PasswordInput
             label={t('password')}
             description={t('policy')}
@@ -123,7 +145,13 @@ export function SetupPage({ status }: { status: AuthStatus }) {
             onChange={(e) => setPassword(e.currentTarget.value)}
             autoComplete="new-password"
           />
-          <PasswordInput label={t('repeatPassword')} required value={password2} onChange={(e) => setPassword2(e.currentTarget.value)} autoComplete="new-password" />
+          <PasswordInput
+            label={t('repeatPassword')}
+            required
+            value={password2}
+            onChange={(e) => setPassword2(e.currentTarget.value)}
+            autoComplete="new-password"
+          />
           {error && <Alert color="red">{error}</Alert>}
           <Button type="submit" loading={busy} disabled={passphrase.length < (existingVault ? 1 : 12) || !username.trim() || !password}>
             {existingVault ? t('setup.createAdmin') : t('setup.submit')}
@@ -301,7 +329,13 @@ export function ChangePasswordForm({ forced, onDone }: { forced?: boolean; onDon
           onChange={(e) => setNext(e.currentTarget.value)}
           autoComplete="new-password"
         />
-        <PasswordInput label={t('changePassword.repeatNew')} required value={next2} onChange={(e) => setNext2(e.currentTarget.value)} autoComplete="new-password" />
+        <PasswordInput
+          label={t('changePassword.repeatNew')}
+          required
+          value={next2}
+          onChange={(e) => setNext2(e.currentTarget.value)}
+          autoComplete="new-password"
+        />
         {error && <Alert color="red">{error}</Alert>}
         <Button type="submit" loading={busy} disabled={!current || !next}>
           {t('changePassword.submit')}

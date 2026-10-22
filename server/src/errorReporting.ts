@@ -164,7 +164,9 @@ export async function initErrorReporting(opts: InitOptions = {}): Promise<boolea
         S.contextLinesIntegration(),
         S.nodeContextIntegration({ cloudResource: false }),
         S.systemErrorIntegration(),
-        ...(sentryTracing ? [S.httpIntegration({ breadcrumbs: false }), S.nativeNodeFetchIntegration({ breadcrumbs: false }), ...S.getAutoPerformanceIntegrations()] : []),
+        ...(sentryTracing
+          ? [S.httpIntegration({ breadcrumbs: false }), S.nativeNodeFetchIntegration({ breadcrumbs: false }), ...S.getAutoPerformanceIntegrations()]
+          : []),
       ],
       ...(sentryTracing ? { tracesSampleRate: traces } : { skipOpenTelemetrySetup: true }),
       registerEsmLoaderHooks: false,

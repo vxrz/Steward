@@ -69,9 +69,19 @@ export function DashboardPage({ demo }: { demo: boolean }) {
       {data && (
         <Stack>
           <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="xs">
-            <Count label={t('counts.openTasks')} value={data.openTasks.length} color={data.openTasks.length ? 'violet' : undefined} onClick={() => navigate('/tasks')} />
+            <Count
+              label={t('counts.openTasks')}
+              value={data.openTasks.length}
+              color={data.openTasks.length ? 'violet' : undefined}
+              onClick={() => navigate('/tasks')}
+            />
             <Count label={t('counts.runs24h')} value={data.counts.runs24h} onClick={() => navigate('/runs')} />
-            <Count label={t('counts.failed24h')} value={data.counts.failed24h} color={data.counts.failed24h ? 'red' : undefined} onClick={() => navigate('/runs')} />
+            <Count
+              label={t('counts.failed24h')}
+              value={data.counts.failed24h}
+              color={data.counts.failed24h ? 'red' : undefined}
+              onClick={() => navigate('/runs')}
+            />
             <Count label={t('counts.schedules')} value={data.counts.schedules} onClick={() => navigate('/schedules')} />
             <Count label={t('counts.platforms')} value={data.counts.platforms} onClick={() => navigate('/platforms')} />
           </SimpleGrid>
@@ -151,7 +161,11 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                       {s.name}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      {t(s.dryRun ? 'upcomingLineDryRun' : 'upcomingLine', { process: s.processName, date: fmtDate(s.nextRunAt), relative: fmtRelative(s.nextRunAt) })}
+                      {t(s.dryRun ? 'upcomingLineDryRun' : 'upcomingLine', {
+                        process: s.processName,
+                        date: fmtDate(s.nextRunAt),
+                        relative: fmtRelative(s.nextRunAt),
+                      })}
                     </Text>
                   </Paper>
                 ))}

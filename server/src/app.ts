@@ -23,7 +23,18 @@ import { themeRoutes } from './theme/routes.js';
 import { systemRoutes } from './system/routes.js';
 
 /** Reachable without signing in. */
-const PUBLIC_PATHS = ['/api/health', '/api/instance', '/api/auth/status', '/api/auth/login', '/api/auth/setup', '/api/vault/status', '/api/ready', '/api/client-config', '/api/theme', '/api/theme/logo'];
+const PUBLIC_PATHS = [
+  '/api/health',
+  '/api/instance',
+  '/api/auth/status',
+  '/api/auth/login',
+  '/api/auth/setup',
+  '/api/vault/status',
+  '/api/ready',
+  '/api/client-config',
+  '/api/theme',
+  '/api/theme/logo',
+];
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';
 /** Reachable while the vault is locked (for signed-in users). */
@@ -64,8 +75,20 @@ export const TLS_CIPHERS =
 /** Loopback and private networks (RFC 1918, RFC 4193, link-local): where a reverse proxy in front of Steward lives. */
 const PRIVATE_PEERS = (() => {
   const b = new BlockList();
-  for (const [net, prefix] of [['127.0.0.0', 8], ['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['169.254.0.0', 16]] as const) b.addSubnet(net, prefix, 'ipv4');
-  for (const [net, prefix] of [['::1', 128], ['fc00::', 7], ['fe80::', 10]] as const) b.addSubnet(net, prefix, 'ipv6');
+  for (const [net, prefix] of [
+    ['127.0.0.0', 8],
+    ['10.0.0.0', 8],
+    ['172.16.0.0', 12],
+    ['192.168.0.0', 16],
+    ['169.254.0.0', 16],
+  ] as const)
+    b.addSubnet(net, prefix, 'ipv4');
+  for (const [net, prefix] of [
+    ['::1', 128],
+    ['fc00::', 7],
+    ['fe80::', 10],
+  ] as const)
+    b.addSubnet(net, prefix, 'ipv6');
   return b;
 })();
 
@@ -127,7 +150,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const allowedHosts = ['localhost', '127.0.0.1', '[::1]', ...(process.env.SM_ALLOWED_HOSTS?.split(',') ?? [])];
     if (!allowedHosts.includes(host)) {
       if (isPublicApiPath(url)) {
-        return reply.code(403).type('application/problem+json').send(JSON.stringify({ type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Host not allowed' }));
+        return reply
+          .code(403)
+          .type('application/problem+json')
+          .send(JSON.stringify({ type: 'about:blank', title: 'Forbidden', status: 403, detail: 'Host not allowed' }));
       }
       return reply.code(403).send({ error: 'Host not allowed' });
     }

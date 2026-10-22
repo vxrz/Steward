@@ -11,7 +11,11 @@ const PW = 'Demo-password-1';
 const secrets: string[] = [];
 const logged: string[] = [];
 
-const status = (p: Promise<unknown>) => p.then(() => 200, (e: { status: number }) => e.status);
+const status = (p: Promise<unknown>) =>
+  p.then(
+    () => 200,
+    (e: { status: number }) => e.status,
+  );
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A raw call to the inbound endpoint, like Gatus or curl would send it (no session, no x-sm-client header). */
@@ -93,7 +97,14 @@ describe('webhook triggers', () => {
     expect(r.body.runId).toMatch(/^run_/);
     expect(JSON.stringify(r.body)).not.toContain(t.secret);
     const run = await s.waitRun(r.body.runId);
-    expect(run).toMatchObject({ status: 'succeeded', trigger: 'webhook', actor: 'olivia', triggerId: t.trigger.id, triggerName: 'Gatus alerts', dryRun: false });
+    expect(run).toMatchObject({
+      status: 'succeeded',
+      trigger: 'webhook',
+      actor: 'olivia',
+      triggerId: t.trigger.id,
+      triggerName: 'Gatus alerts',
+      dryRun: false,
+    });
     expect(run.inputs).toEqual({ endpoint: 'Historian API', severity: 'high', count: 3 });
     const tr = await olivia('GET', `/triggers/${t.trigger.id}`);
     expect(tr).toMatchObject({ fireCount: 1, lastRunId: r.body.runId, lastResult: 'started' });
@@ -123,7 +134,11 @@ describe('webhook triggers', () => {
   });
 
   it('rejects non-JSON (415), invalid JSON (400) and bodies over 64 KB (413)', async () => {
-    const res = await fetch(`${s.base}/api/hooks/${t.trigger.id}`, { method: 'POST', headers: { 'content-type': 'text/plain', ...bearer(t.secret) }, body: 'hello' });
+    const res = await fetch(`${s.base}/api/hooks/${t.trigger.id}`, {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain', ...bearer(t.secret) },
+      body: 'hello',
+    });
     expect(res.status).toBe(415);
     const noType = await fetch(`${s.base}/api/hooks/${t.trigger.id}`, { method: 'POST', headers: bearer(t.secret), body: '{}' });
     expect(noType.status).toBe(415);
@@ -143,7 +158,13 @@ describe('webhook triggers', () => {
   });
 
   it('rate-limits accepted calls per trigger (429 with Retry-After)', async () => {
-    const rl = await create(olivia, { name: 'Limited', rateLimitPerMinute: 3, dedupeSeconds: 0, skipIfRunning: false, inputMapping: { endpoint: 'body.name' } });
+    const rl = await create(olivia, {
+      name: 'Limited',
+      rateLimitPerMinute: 3,
+      dedupeSeconds: 0,
+      skipIfRunning: false,
+      inputMapping: { endpoint: 'body.name' },
+    });
     const codes: number[] = [];
     for (let i = 0; i < 5; i++) codes.push((await hook(rl.trigger.id, { name: `n${i}` }, bearer(rl.secret))).status);
     expect(codes).toEqual([202, 202, 202, 429, 429]);
@@ -166,7 +187,13 @@ describe('webhook triggers', () => {
   });
 
   it('skips while the previous run of the trigger is still waiting', async () => {
-    const w = await create(olivia, { name: 'Waiting', processId: 'hook-target-with-approval', bindings: {}, dedupeSeconds: 0, inputMapping: { endpoint: 'body.name' } });
+    const w = await create(olivia, {
+      name: 'Waiting',
+      processId: 'hook-target-with-approval',
+      bindings: {},
+      dedupeSeconds: 0,
+      inputMapping: { endpoint: 'body.name' },
+    });
     const a = await hook(w.trigger.id, { name: 'one' }, bearer(w.secret));
     await s.waitRun(a.body.runId, ['waiting']);
     const b = await hook(w.trigger.id, { name: 'two' }, bearer(w.secret));
@@ -217,7 +244,10 @@ describe('webhook triggers', () => {
     expect(run).toMatchObject({ dryRun: true, trigger: 'webhook' });
     const fires = await olivia('GET', `/triggers/${t.trigger.id}/fires`);
     expect(fires[0]).toMatchObject({ test: true, outcome: 'started', runId: r.response.runId });
-    const preview = await olivia('POST', '/triggers/preview-mapping', { inputMapping: { endpoint: '$uppercase(body.name)', broken: 'body.(' }, payload: { name: 'x' } });
+    const preview = await olivia('POST', '/triggers/preview-mapping', {
+      inputMapping: { endpoint: '$uppercase(body.name)', broken: 'body.(' },
+      payload: { name: 'x' },
+    });
     expect(preview.inputs).toEqual({ endpoint: 'X' });
     expect(preview.errors.broken).toBeTruthy();
   });
@@ -246,7 +276,11 @@ describe('webhook triggers', () => {
     const actions = new Set(all.map((a: any) => a.action));
     for (const a of ['trigger.created', 'trigger.secret_rotated', 'trigger.fired', 'trigger.skipped', 'trigger.rejected']) expect(actions).toContain(a);
     const fired = all.find((a: any) => a.action === 'trigger.fired');
-    expect(fired.details).toMatchObject({ sourceIp: expect.any(String), payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/), runId: expect.stringMatching(/^run_/) });
+    expect(fired.details).toMatchObject({
+      sourceIp: expect.any(String),
+      payloadHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+      runId: expect.stringMatching(/^run_/),
+    });
     await olivia('DELETE', `/triggers/${f.trigger.id}`);
     expect(await status(olivia('GET', `/triggers/${f.trigger.id}`))).toBe(404);
   });

@@ -72,13 +72,19 @@ export function freshnessWindowSeconds(c: FreshnessConfig): number {
 }
 
 /** Status for the newest timestamp of a source (null = no data at all). */
-export function freshnessStatus(latestMs: number | null, now: number, c: FreshnessConfig, what = 'data'): { status: MonitorStatus; message: string; ageSeconds: number | null } {
+export function freshnessStatus(
+  latestMs: number | null,
+  now: number,
+  c: FreshnessConfig,
+  what = 'data',
+): { status: MonitorStatus; message: string; ageSeconds: number | null } {
   if (latestMs === null) return { status: 'down', message: `No ${what} within the last ${fmtAge(freshnessWindowSeconds(c))}`, ageSeconds: null };
   const age = Math.max(0, (now - latestMs) / 1000);
   if (c.mode === 'maxAge') {
     const max = c.maxAgeSeconds ?? 3600;
     if (age > max) return { status: 'down', message: `Newest ${what} is ${fmtAge(age)} old (maximum ${fmtAge(max)})`, ageSeconds: age };
-    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds) return { status: 'degraded', message: `Newest ${what} is ${fmtAge(age)} old (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
+    if (c.degradedAgeSeconds && age > c.degradedAgeSeconds)
+      return { status: 'degraded', message: `Newest ${what} is ${fmtAge(age)} old (warning after ${fmtAge(c.degradedAgeSeconds)})`, ageSeconds: age };
     return { status: 'up', message: `Newest ${what} is ${fmtAge(age)} old`, ageSeconds: age };
   }
   const every = c.expectedIntervalSeconds ?? 60;
@@ -193,9 +199,7 @@ export function analyze(
   }
   // every failing check is explained by its causes, or is a root cause itself
   const rootCauses = dedupe(
-    checks
-      .filter((c) => views.get(c.id)!.status === 'down')
-      .flatMap((c) => (views.get(c.id)!.causedBy.length ? views.get(c.id)!.causedBy : ref(c))),
+    checks.filter((c) => views.get(c.id)!.status === 'down').flatMap((c) => (views.get(c.id)!.causedBy.length ? views.get(c.id)!.causedBy : ref(c))),
   );
   if (opts.maintenance) status = 'maintenance';
   return { checks: views, status, rootCauses };
@@ -213,7 +217,10 @@ function dedupe(list: CauseRef[]): CauseRef[] {
 
 /** "200", "200-299", "200,204,301-308" → predicate. */
 export function statusMatcher(spec: string | undefined): (status: number) => boolean {
-  const parts = (spec?.trim() || '200-399').split(',').map((p) => p.trim()).filter(Boolean);
+  const parts = (spec?.trim() || '200-399')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
   const ranges = parts.map((p) => {
     const m = /^(\d{3})(?:\s*-\s*(\d{3}))?$/.exec(p);
     if (!m) throw new Error(`Invalid expected status "${p}" – use e.g. 200, 200-299 or 200,204`);

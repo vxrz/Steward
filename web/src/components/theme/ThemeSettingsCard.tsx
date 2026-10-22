@@ -69,7 +69,13 @@ const SCHEME_BASE: Record<ColorSchemeName, Record<string, string>> = {
 };
 
 type Draft = ThemeInput;
-const draftOf = (s: ThemeSettings): Draft => ({ primaryColor: s.primaryColor, accentColor: s.accentColor, colorScheme: s.colorScheme, radius: s.radius, appName: s.appName });
+const draftOf = (s: ThemeSettings): Draft => ({
+  primaryColor: s.primaryColor,
+  accentColor: s.accentColor,
+  colorScheme: s.colorScheme,
+  radius: s.radius,
+  appName: s.appName,
+});
 const same = (a: Draft, b: Draft) => (Object.keys(a) as (keyof Draft)[]).every((k) => a[k] === b[k]);
 
 /** Settings → Appearance (administrators): colours, default colour scheme, corner radius, display name and logo. */
@@ -106,7 +112,12 @@ export function ThemeSettingsCard() {
       setBusy(null);
     }
   };
-  const save = () => run('save', () => put<ThemeSettings>('/settings/theme', { ...draft, primaryColor: primary, accentColor: accent, appName: draft.appName.trim() }), t('theme.saved'));
+  const save = () =>
+    run(
+      'save',
+      () => put<ThemeSettings>('/settings/theme', { ...draft, primaryColor: primary, accentColor: accent, appName: draft.appName.trim() }),
+      t('theme.saved'),
+    );
   const reset = () => {
     if (!confirm(t('theme.resetConfirm', { brand: BRAND.name }))) return;
     void run('reset', () => post<ThemeSettings>('/settings/theme/reset'), t('theme.resetDone', { brand: BRAND.name }));
@@ -202,10 +213,16 @@ export function ThemeSettingsCard() {
         />
         <Group align="flex-start" wrap="nowrap" gap="md">
           <Paper withBorder p="xs" w={132} h={64} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            {logoUrl ? <Image src={logoUrl} alt={t('theme.logoAlt')} fit="contain" mah={44} maw={112} /> : <Logo size={40} title={t('theme.defaultLogo', { brand: BRAND.name })} />}
+            {logoUrl ? (
+              <Image src={logoUrl} alt={t('theme.logoAlt')} fit="contain" mah={44} maw={112} />
+            ) : (
+              <Logo size={40} title={t('theme.defaultLogo', { brand: BRAND.name })} />
+            )}
           </Paper>
           <Stack gap={6} style={{ minWidth: 0 }}>
-            <Text size="sm">{s.logo ? t('theme.customLogo', { width: s.logo.width, height: s.logo.height }) : t('theme.defaultLogo', { brand: BRAND.name })}</Text>
+            <Text size="sm">
+              {s.logo ? t('theme.customLogo', { width: s.logo.width, height: s.logo.height }) : t('theme.defaultLogo', { brand: BRAND.name })}
+            </Text>
             <Text size="xs" c="dimmed">
               {t('theme.logoHint', { kb: THEME_LOGO_MAX_BYTES / 1024 })}
             </Text>
@@ -285,7 +302,12 @@ function ContrastNotes({ notes }: { notes: ThemeContrastNote[] }) {
       <Stack gap={2}>
         {notes.map((n, i) => (
           <Text size="xs" key={i}>
-            {t(`theme.contrast.${n.kind}`, { color: t(`theme.colors.${n.color}`), scheme: t(`theme.schemes.${n.scheme}`), used: n.used, ratio: n.ratio.toFixed(2) })}
+            {t(`theme.contrast.${n.kind}`, {
+              color: t(`theme.colors.${n.color}`),
+              scheme: t(`theme.schemes.${n.scheme}`),
+              used: n.used,
+              ratio: n.ratio.toFixed(2),
+            })}
           </Text>
         ))}
       </Stack>
@@ -318,8 +340,19 @@ function ThemePreview({ scheme, theme, logoUrl }: { scheme: ColorSchemeName; the
       </Group>
       <Stack gap={6}>
         <Box>
-          <NavLink component="div" label={t('theme.sample.navActive')} leftSection={<IconLayoutDashboard size={16} />} active style={{ borderRadius: 'var(--mantine-radius-default)' }} />
-          <NavLink component="div" label={t('theme.sample.nav')} leftSection={<IconServer size={16} />} style={{ borderRadius: 'var(--mantine-radius-default)' }} />
+          <NavLink
+            component="div"
+            label={t('theme.sample.navActive')}
+            leftSection={<IconLayoutDashboard size={16} />}
+            active
+            style={{ borderRadius: 'var(--mantine-radius-default)' }}
+          />
+          <NavLink
+            component="div"
+            label={t('theme.sample.nav')}
+            leftSection={<IconServer size={16} />}
+            style={{ borderRadius: 'var(--mantine-radius-default)' }}
+          />
         </Box>
         <Group gap={6}>
           <Button size="xs" tabIndex={-1}>
