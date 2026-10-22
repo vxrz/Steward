@@ -30,6 +30,7 @@ import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { McpClientConfig, useMcpServer } from '../components/mcp/McpClientConfig';
 import { ChangePasswordForm } from './Auth';
 import { LanguageSelect } from '../components/LanguageSelect';
+import { DailySummaryCard } from '../components/notifications/DailySummaryCard';
 import {
   browserNotificationsSupported,
   getBrowserNotifyOptIn,
@@ -50,6 +51,7 @@ export function ProfilePage() {
         <AccountCard user={u} local={local} />
         <LanguageCard user={u} />
         <NotificationsCard user={u} />
+        <DailySummaryCard />
         {local && <PasswordCard />}
         <TokensCard />
       </Stack>

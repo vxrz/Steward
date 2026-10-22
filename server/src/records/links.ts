@@ -21,7 +21,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
  * other way round too (their "used by" links): those show up as backlinks.
  */
 
-export type LinkSource = 'record' | 'service';
+/** Items that hold links: records, services and ticket references (tickets/service.ts: the items a ticket affects). */
+export type LinkSource = 'record' | 'service' | 'ticket';
 
 export interface LinkResolver {
   /** Name and UI path of a visible target, or null (missing or not visible) */
@@ -190,7 +191,13 @@ export const httpUrl = z
   .trim()
   .max(2000)
   .url()
-  .refine((u) => /^https?:$/.test(new URL(u).protocol), 'Only http and https links are allowed');
+  .refine((u) => {
+    try {
+      return /^https?:$/.test(new URL(u).protocol);
+    } catch {
+      return false; // not a URL at all (reported by .url() as well)
+    }
+  }, 'Only http and https links are allowed');
 
 export const linkInput = z.union([
   z.object({ kind: z.enum(LINK_KINDS), id: z.string().trim().min(1).max(200), note: z.string().trim().max(200).default('') }).strict(),

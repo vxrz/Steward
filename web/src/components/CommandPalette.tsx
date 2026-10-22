@@ -25,10 +25,22 @@ import {
   IconServer,
   IconSitemap,
   IconSun,
+  IconTicket,
   IconUser,
   type Icon,
 } from '@tabler/icons-react';
-import type { Credential, Dashboard, MonitorSummary, Platform, ProcessDetail, ProcessSummary, RecordSummary, RunSummary, ServiceSummary } from '@sm/shared';
+import type {
+  Credential,
+  Dashboard,
+  MonitorSummary,
+  Platform,
+  ProcessDetail,
+  ProcessSummary,
+  RecordSummary,
+  RunSummary,
+  ServiceSummary,
+  TicketList,
+} from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { fmtRelative } from '../format';
@@ -102,6 +114,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     queryFn: () => get<{ items: Credential[]; canCreate: boolean }>('/credentials'),
     ...opts,
   });
+  const tickets = useQuery({ queryKey: ['ticket-references', 'palette'], queryFn: () => get<TicketList>('/ticket-references?state=open'), ...opts });
 
   const actions = useMemo<SpotlightActionGroupData[]>(() => {
     const icon = (I: Icon) => <I size={18} stroke={1.6} />;
@@ -154,6 +167,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     if (caps.createMonitors) create('new-monitor', t('palette.create.monitor'), '/monitors/new', IconHeartRateMonitor);
     create('new-record', t('palette.create.record'), '/records?new=1', IconFileCertificate);
     if (credentials.data?.canCreate) create('new-credential', t('palette.create.credential'), '/credentials?new=1', IconKey);
+    if (tickets.data?.canCreate) create('new-ticket', t('palette.create.ticket'), '/tickets?new=1', IconTicket);
     if (canEditServices) create('new-service', t('palette.create.service'), '/services?new=1', IconStack2);
     create('new-schedule', t('palette.create.schedule'), '/schedules?new=1', IconCalendarPlus);
     quick.push({
@@ -260,6 +274,17 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
         })),
       },
       {
+        group: t('palette.groups.tickets'),
+        actions: (tickets.data?.items ?? []).map((x) => ({
+          id: `ticket:${x.id}`,
+          label: `${x.externalNumber} ${x.title}`,
+          description: x.vendor || undefined,
+          leftSection: icon(IconTicket),
+          keywords: ['ticket', 'incident', x.externalNumber, x.vendor, x.source],
+          onClick: go(`/tickets/${x.id}`),
+        })),
+      },
+      {
         group: t('palette.groups.platforms'),
         actions: (platforms.data ?? []).map((p) => ({
           id: `platform:${p.id}`,
@@ -289,12 +314,13 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     services.data,
     records.data,
     credentials.data,
+    tickets.data,
   ]);
   const filter = useMemo(
     () =>
       makeFilter(
         new Set(
-          (['processes', 'startRun', 'dashboards', 'platforms', 'monitors', 'services', 'records', 'credentials'] as const).map((g) =>
+          (['processes', 'startRun', 'dashboards', 'platforms', 'monitors', 'services', 'records', 'credentials', 'tickets'] as const).map((g) =>
             t(`palette.groups.${g}`),
           ),
         ),

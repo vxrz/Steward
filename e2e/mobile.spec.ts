@@ -60,6 +60,7 @@ test.describe('phone @mobile', () => {
     '/monitors',
     '/monitors/wall',
     '/credentials',
+    '/tickets',
     '/reports',
     '/records',
     '/services',

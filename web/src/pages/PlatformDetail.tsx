@@ -12,6 +12,7 @@ import {
   IconPlug,
   IconPlugConnected,
   IconRobot,
+  IconTicket,
   IconSettings,
   IconTerminal2,
   IconTrash,
@@ -33,6 +34,7 @@ import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
+import { TicketsPanel } from '../components/tickets/TicketsPanel';
 
 interface TestResult {
   ok: boolean;
@@ -43,7 +45,7 @@ interface TestResult {
 }
 
 export function PlatformDetailPage() {
-  const { t } = useTranslation(['platforms', 'common']);
+  const { t } = useTranslation(['platforms', 'tickets', 'common']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -214,6 +216,9 @@ export function PlatformDetailPage() {
           <Tabs.Tab value="mcp" leftSection={<IconRobot size={16} />}>
             {t('detail.tabs.mcp')}
           </Tabs.Tab>
+          <Tabs.Tab value="tickets" leftSection={<IconTicket size={16} />}>
+            {t('tickets:panel.title')}
+          </Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="settings">
           <SettingsTab platform={p} readOnly={!canManage} />
@@ -248,6 +253,9 @@ export function PlatformDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="mcp">
           <McpGatewayTab platform={p} readOnly={!canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="tickets">
+          <TicketsPanel kind="platform" id={p.id} label={p.name} />
         </Tabs.Panel>
       </Tabs>
 

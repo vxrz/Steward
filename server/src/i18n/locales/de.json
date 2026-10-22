@@ -94,5 +94,80 @@
     "ADR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "DR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "SDR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n"
+  },
+  "ticketStatus": {
+    "open": "offen",
+    "waitingVendor": "wartet auf den Hersteller",
+    "waitingUs": "wartet auf uns",
+    "resolved": "gelöst",
+    "closed": "geschlossen"
+  },
+  "ticketUnchecked": {
+    "title_one": "Ticket {{number}} seit {{count}} Tag nicht geprüft",
+    "title_other": "Ticket {{number}} seit {{count}} Tagen nicht geprüft",
+    "body_one": "Niemand hat das Ticket {{number}} „{{title}}“ ({{status}}) seit {{count}} Tag geprüft. Bitte sehen Sie es im anderen System nach und markieren Sie es in der Ticket-Referenz als geprüft (oder ändern Sie den Status).",
+    "body_other": "Niemand hat das Ticket {{number}} „{{title}}“ ({{status}}) seit {{count}} Tagen geprüft. Bitte sehen Sie es im anderen System nach und markieren Sie es in der Ticket-Referenz als geprüft (oder ändern Sie den Status).",
+    "since": "Zuletzt geprüft (oder angelegt): {{date}}",
+    "vendor": "Hersteller: {{vendor}}"
+  },
+  "dailySummary": {
+    "title": "Tageszusammenfassung für {{date}}",
+    "intro": "Was seit {{since}} passiert ist.",
+    "nothing": "Nichts zu berichten.",
+    "open": "{{brand}} öffnen",
+    "footer": "Sie erhalten diese Zusammenfassung, weil Sie sie in Ihrem Profil eingeschaltet haben. Dort können Sie sie ändern oder abbestellen: {{link}}",
+    "sections": {
+      "runs": "Ausführungen",
+      "tasks": "Wartet auf Ihre Entscheidung",
+      "monitors": "Statuswechsel von Monitoren",
+      "credentials": "Fällige Zugangsdaten",
+      "tickets": "Offene Tickets in Ihrer Verantwortung",
+      "records": "Dokumente",
+      "reports": "Berichte für Sie"
+    },
+    "count": "{{section}}: {{count}}",
+    "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
+    "runsTotal_other": "{{count}} Ausführungen, {{failed}} fehlgeschlagen",
+    "runFailed": "{{process}} fehlgeschlagen",
+    "dryRun": "Probelauf",
+    "task": "{{title}}",
+    "taskDetail": "Ausführung von „{{process}}“, wartet seit {{date}}",
+    "monitorChange": "{{name}}: {{from}} → {{to}}",
+    "monitorStatus": {
+      "up": "ok",
+      "degraded": "beeinträchtigt",
+      "down": "ausgefallen",
+      "unknown": "unbekannt",
+      "blocked": "blockiert",
+      "maintenance": "in Wartung",
+      "none": "neu"
+    },
+    "credentialStatus": {
+      "ok": "OK",
+      "dueSoon": "bald fällig",
+      "overdue": "überfällig",
+      "expired": "abgelaufen"
+    },
+    "credentialDetail": "{{status}} · {{date}}",
+    "ticketDetail_one": "{{status}} · seit {{count}} Tag offen{{vendor}}",
+    "ticketDetail_other": "{{status}} · seit {{count}} Tagen offen{{vendor}}",
+    "recordApproval": "{{number}} {{title}} – wartet auf Ihre Freigabe",
+    "recordChanged": "{{number}} {{title}}: {{from}} → {{to}}",
+    "recordStatus": {
+      "draft": "Entwurf",
+      "submitted": "Eingereicht",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "implemented": "Umgesetzt",
+      "closed": "Abgeschlossen",
+      "cancelled": "Zurückgezogen",
+      "proposed": "Vorgeschlagen",
+      "accepted": "Angenommen",
+      "superseded": "Ersetzt",
+      "deprecated": "Veraltet"
+    },
+    "reportDetail": "Erstellt am {{date}}",
+    "more_one": "… und {{count}} weiterer",
+    "more_other": "… und {{count}} weitere"
   }
 }

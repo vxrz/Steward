@@ -25,6 +25,7 @@ test.describe('navigation (admin)', () => {
       'Services',
       'Platforms',
       'Credentials',
+      'Tickets',
       'Records',
       'Reports',
     ]);

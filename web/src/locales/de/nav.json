@@ -17,7 +17,8 @@
     "reports": "Berichte",
     "records": "Dokumente",
     "services": "Services",
-    "gitUpdates": "Änderungen aus Git"
+    "gitUpdates": "Änderungen aus Git",
+    "tickets": "Ticket-Referenzen"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",
@@ -54,7 +55,8 @@
       "monitors": "Monitore",
       "services": "Services",
       "records": "Dokumente",
-      "credentials": "Zugangsdaten"
+      "credentials": "Zugangsdaten",
+      "tickets": "Ticket-Referenzen"
     },
     "runBy": "Ausführung von {{actor}} · {{when}}",
     "dryRunBy": "Probelauf von {{actor}} · {{when}}",
@@ -80,7 +82,8 @@
       "record": "Neues Dokument",
       "credential": "Neuer Zugangsdaten-Eintrag",
       "service": "Neuer Service",
-      "schedule": "Neuer Zeitplan"
+      "schedule": "Neuer Zeitplan",
+      "ticket": "Neue Ticket-Referenz"
     }
   },
   "groups": {

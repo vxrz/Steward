@@ -33,6 +33,8 @@ import { NotificationSettingsCard } from '../components/notifications/Notificati
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
 import { CredentialReminderSettingsCard } from '../components/credentials/CredentialReminderSettingsCard';
+import { DailySummaryAdminCard } from '../components/notifications/DailySummaryAdminCard';
+import { TicketSettingsCard } from '../components/tickets/TicketSettingsCard';
 import { VaultPassphraseCard } from '../components/security/VaultPassphraseCard';
 import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
@@ -283,7 +285,9 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}
+        {!readOnly && <DailySummaryAdminCard />}
         {!readOnly && <CredentialReminderSettingsCard />}
+        {!readOnly && <TicketSettingsCard />}
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
         {!readOnly && <GitSyncSettingsCard />}

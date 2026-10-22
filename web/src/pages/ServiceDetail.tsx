@@ -12,6 +12,7 @@ import { Field, LinksPanel } from '../components/records/common';
 import { fmtDate } from '../format';
 import { errorText } from '../i18n/errors';
 import { CriticalityBadge, ServiceFormModal } from './Services';
+import { TicketsPanel } from '../components/tickets/TicketsPanel';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -82,6 +83,7 @@ export function ServiceDetailPage() {
                 refresh();
               }}
             />
+            <TicketsPanel kind="service" id={s.id} label={s.name} />
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 4 }}>

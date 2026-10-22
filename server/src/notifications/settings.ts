@@ -26,7 +26,7 @@ const CONFIG_KEY = 'notifications.config';
 const SECRETS_KEY = 'notifications.secrets';
 
 export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]> {
-  const withEmail: NotificationEvent[] = ['task.assigned', 'run.failed', 'check.failed', 'credential.due', 'report.ready'];
+  const withEmail: NotificationEvent[] = ['task.assigned', 'run.failed', 'check.failed', 'credential.due', 'report.ready', 'ticket.unchecked', 'summary.daily'];
   return Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, withEmail.includes(e) ? ['inApp', 'email'] : ['inApp']])) as Record<
     NotificationEvent,
     NotificationChannel[]

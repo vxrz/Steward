@@ -13,6 +13,8 @@ import { GATUS_MIGRATIONS } from './migrations/gatus.js';
 import { REPORT_SCHEDULE_MIGRATIONS } from './migrations/report-schedules.js';
 import { RECORD_MIGRATIONS } from './migrations/records.js';
 import { GITSYNC_MIGRATIONS } from './migrations/gitsync.js';
+import { TICKET_MIGRATIONS } from './migrations/tickets.js';
+import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -36,6 +38,8 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...REPORT_SCHEDULE_MIGRATIONS,
   ...RECORD_MIGRATIONS,
   ...GITSYNC_MIGRATIONS,
+  ...TICKET_MIGRATIONS,
+  ...DAILY_SUMMARY_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

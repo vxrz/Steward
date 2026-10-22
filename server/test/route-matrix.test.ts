@@ -415,6 +415,28 @@ const EXPECT: Record<string, Access> = {
   'POST /api/sync-updates/:id/reject': DESIGN,
   'GET /api/sync-origins': ALL,
   'POST /api/hooks/sync/:id': HOOK,
+  'GET /api/v1/ticket-references': ALL,
+  'GET /api/v1/ticket-references/:ticketId': ALL,
+
+  // ---- ticket references (edit: editor roles plus the responsible people; none in the fixture) ----
+  'GET /api/ticket-references': ALL,
+  'POST /api/ticket-references': RUN,
+  'GET /api/ticket-references/settings': ALL,
+  'PUT /api/ticket-references/settings': ADMIN,
+  'GET /api/ticket-references/vendors': ALL,
+  'GET /api/ticket-references/open-counts': ALL,
+  'GET /api/ticket-references/:id': ALL,
+  'PUT /api/ticket-references/:id': RUN,
+  'POST /api/ticket-references/:id/status': RUN,
+  'POST /api/ticket-references/:id/checked': RUN,
+  'DELETE /api/ticket-references/:id': ADMIN,
+
+  // ---- daily summary ----
+  'GET /api/me/daily-summary': ALL,
+  'PUT /api/me/daily-summary': ALL,
+  'GET /api/me/daily-summary/preview': ALL,
+  'GET /api/settings/daily-summary': ADMIN,
+  'PUT /api/settings/daily-summary': ADMIN,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -483,6 +505,7 @@ function fill(url: string): string {
     .replace(/:dashboardId/g, fx.dashboard!)
     .replace(/:userId/g, fx.user!)
     .replace(/:credentialId/g, fx.credential!)
+    .replace(/:ticketId/g, fx.ticket!)
     .replace(/:monitorId/g, fx.monitor!)
     .replace(/:recordId/g, fx.record!)
     .replace(/:version/g, '1')
@@ -508,6 +531,7 @@ function fill(url: string): string {
         records: 'record',
         'record-types': 'recordType',
         credentials: 'credential',
+        'ticket-references': 'ticket',
         services: 'service',
         'report-schedules': 'reportSchedule',
         reports: 'report',
@@ -529,6 +553,7 @@ function fill(url: string): string {
 const QUERY: Record<string, string> = {
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
+  'GET /api/ticket-references/open-counts': '?kind=service',
 };
 
 /** Valid bodies for changing routes, so a refusal is a permission decision and not a validation error. */
@@ -566,6 +591,13 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/credentials/:id': CREDENTIAL,
   'POST /api/credentials/:id/rotated': { comment: 'x' },
   'POST /api/credentials/:id/reviewed': { comment: 'x' },
+  'POST /api/ticket-references': { ...TICKET, externalNumber: 'INC-MATRIX-2' },
+  'PUT /api/ticket-references/:id': TICKET,
+  'POST /api/ticket-references/:id/status': { status: 'waitingVendor' },
+  'POST /api/ticket-references/:id/checked': {},
+  'PUT /api/ticket-references/settings': { sources: [{ key: 'vendor', label: 'Vendor ticket', vendor: true }], reminderDays: null },
+  'PUT /api/me/daily-summary': { enabled: false, time: '07:30', timeZone: 'UTC', days: 'weekdays', channel: 'inApp', sections: ['runs'], skipEmpty: true },
+  'PUT /api/settings/daily-summary': { allowed: true },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
   'POST /api/dashboards': { text: 'name: Matrix\nwidgets: []\n' },
@@ -613,6 +645,7 @@ const CREDENTIAL = {
   owners: [{ email: 'it@example.com', role: 'IT' }],
   location: { text: 'KeePass' },
 };
+const TICKET = { source: 'vendor', externalNumber: 'INC-MATRIX-1', title: 'Matrix ticket', vendor: 'Vendor A' };
 const REPORT_SCHEDULE = {
   name: 'Matrix',
   preset: 'custom',
@@ -703,6 +736,7 @@ beforeAll(async () => {
     recordLink: recLink.id,
     recordType: (await a('GET', '/record-types'))[0].id,
     credential: (await a('POST', '/credentials', CREDENTIAL)).id,
+    ticket: (await a('POST', '/ticket-references', TICKET)).id,
     service: svc.id,
     serviceLink: svcLink.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,

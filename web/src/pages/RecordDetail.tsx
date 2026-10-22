@@ -6,6 +6,7 @@ import {
   Badge,
   Button,
   Checkbox,
+  Divider,
   FileButton,
   Grid,
   Group,
@@ -60,6 +61,7 @@ import { PageHeader } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
+import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { fmtBytes, fmtDate, fmtDay } from '../format';
 import { currentLanguage } from '../i18n';
 import { codeText, errorText } from '../i18n/errors';
@@ -217,6 +219,8 @@ export function RecordDetailPage() {
               refresh();
             }}
           />
+          <Divider my="lg" />
+          <TicketsPanel kind="record" id={rec.id} label={`${rec.number} ${rec.title}`} />
         </Tabs.Panel>
         <Tabs.Panel value="attachments">
           <AttachmentsTab rec={rec} onChange={refresh} />

@@ -4705,6 +4705,409 @@
           "createdAt"
         ],
         "additionalProperties": false
+      },
+      "TicketReferenceEntry": {
+        "title": "TicketReferenceEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "Key of the ticket source, e.g. servicenow-incident or vendor"
+          },
+          "sourceLabel": {
+            "type": "string"
+          },
+          "vendorSource": {
+            "type": "boolean",
+            "description": "The source is a vendor source (tickets with the vendor of a platform or service)"
+          },
+          "externalNumber": {
+            "type": "string",
+            "description": "Number of the ticket in the other system, e.g. INC0012345"
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "http(s) link to the ticket in the other system"
+          },
+          "title": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "Short note (Markdown)"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Responsible people on our side: user:<name>, team:<name>"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "waitingVendor",
+              "waitingUs",
+              "resolved",
+              "closed"
+            ]
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When somebody last checked the ticket in the other system (or changed its status)"
+          },
+          "ageDays": {
+            "type": "integer",
+            "description": "Whole days since it was opened (until it was resolved)"
+          },
+          "affected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "description": "service, platform, credential, record, monitor or process"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the item – null when the token owner may not see it"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "label",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected Steward items"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "sourceLabel",
+          "vendorSource",
+          "externalNumber",
+          "externalUrl",
+          "title",
+          "note",
+          "vendor",
+          "responsible",
+          "status",
+          "openedAt",
+          "resolvedAt",
+          "lastCheckedAt",
+          "ageDays",
+          "affected",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "TicketReferenceDetail": {
+        "title": "TicketReferenceDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "Key of the ticket source, e.g. servicenow-incident or vendor"
+          },
+          "sourceLabel": {
+            "type": "string"
+          },
+          "vendorSource": {
+            "type": "boolean",
+            "description": "The source is a vendor source (tickets with the vendor of a platform or service)"
+          },
+          "externalNumber": {
+            "type": "string",
+            "description": "Number of the ticket in the other system, e.g. INC0012345"
+          },
+          "externalUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "http(s) link to the ticket in the other system"
+          },
+          "title": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "Short note (Markdown)"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "responsible": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Responsible people on our side: user:<name>, team:<name>"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "waitingVendor",
+              "waitingUs",
+              "resolved",
+              "closed"
+            ]
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "lastCheckedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When somebody last checked the ticket in the other system (or changed its status)"
+          },
+          "ageDays": {
+            "type": "integer",
+            "description": "Whole days since it was opened (until it was resolved)"
+          },
+          "affected": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "description": "service, platform, credential, record, monitor or process"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the item – null when the token owner may not see it"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "label",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Affected Steward items"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ts": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "created",
+                    "updated",
+                    "status",
+                    "checked",
+                    "reminded"
+                  ]
+                },
+                "fromStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "waitingVendor",
+                        "waitingUs",
+                        "resolved",
+                        "closed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "toStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "open",
+                        "waitingVendor",
+                        "waitingUs",
+                        "resolved",
+                        "closed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "comment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "ts",
+                "actor",
+                "kind",
+                "fromStatus",
+                "toStatus",
+                "comment"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "sourceLabel",
+          "vendorSource",
+          "externalNumber",
+          "externalUrl",
+          "title",
+          "note",
+          "vendor",
+          "responsible",
+          "status",
+          "openedAt",
+          "resolvedAt",
+          "lastCheckedAt",
+          "ageDays",
+          "affected",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy",
+          "history"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -8912,6 +9315,244 @@
           }
         }
       }
+    },
+    "/ticket-references": {
+      "get": {
+        "operationId": "listTicketReferences",
+        "summary": "List ticket references",
+        "tags": [
+          "Ticket references"
+        ],
+        "description": "Tickets in other systems that Steward documents: ServiceNow incidents users reported and tickets with vendors – source, number, link, status, responsible people and the affected services, platforms, credentials and records. Newest first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "waitingVendor",
+                  "waitingUs",
+                  "resolved",
+                  "closed"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Only entries with these statuses (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed",
+                "all"
+              ],
+              "default": "all"
+            },
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "description": "open: open, waitingVendor, waitingUs; closed: resolved, closed"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 40
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only these sources (repeat the parameter)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            },
+            "in": "query",
+            "name": "vendor",
+            "required": false,
+            "description": "Vendor (case-insensitive, exact)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 240
+            },
+            "in": "query",
+            "name": "affected",
+            "required": false,
+            "description": "Only entries that name this item as affected: kind:id, e.g. service:svc_123"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "description": "Case-insensitive search in number, title, vendor and note"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TicketReferenceEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/ticket-references/{ticketId}": {
+      "get": {
+        "operationId": "getTicketReference",
+        "summary": "Get a ticket reference with its history",
+        "tags": [
+          "Ticket references"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "ticketId",
+            "required": true,
+            "description": "Entry id (tkt_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketReferenceDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
     }
   },
   "servers": [
@@ -8976,6 +9617,10 @@
     {
       "name": "Records",
       "description": "Change requests and decision records: content, versions, approvals and attachments"
+    },
+    {
+      "name": "Ticket references",
+      "description": "Tickets in other systems (ServiceNow incidents, vendor tickets) that Steward documents: status, responsible people, affected items"
     }
   ],
   "externalDocs": {

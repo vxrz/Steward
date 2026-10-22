@@ -3,7 +3,7 @@ import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, 
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconExternalLink, IconPlus, IconStack2, IconTrash } from '@tabler/icons-react';
+import { IconExternalLink, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
@@ -23,12 +23,38 @@ export function CriticalityBadge({ value }: { value: string | null }) {
   );
 }
 
+/** "2 open vendor tickets" – links to the ticket list of the service. */
+function VendorTicketsBadge({ count, serviceId, ml }: { count: number | undefined; serviceId: string; ml?: number }) {
+  const { t } = useTranslation('tickets');
+  if (!count) return null;
+  return (
+    <Badge
+      component={Link}
+      to={`/tickets?link=${encodeURIComponent(`service:${serviceId}`)}`}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      size="xs"
+      color="yellow"
+      variant="light"
+      tt="none"
+      ml={ml}
+      leftSection={<IconTicket size={11} aria-hidden />}
+      style={{ cursor: 'pointer' }}
+    >
+      {t('vendorBadge', { count })}
+    </Badge>
+  );
+}
+
 export function ServicesPage() {
   const { t } = useTranslation(['services', 'common']);
   const navigate = useNavigate();
   const [archived, setArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const services = useQuery({ queryKey: ['services', archived], queryFn: () => get<ServiceSummary[]>(`/services${archived ? '?archived=1' : ''}`) });
+  const vendorTickets = useQuery({
+    queryKey: ['ticket-references', 'open-counts', 'service'],
+    queryFn: () => get<Record<string, number>>('/ticket-references/open-counts?kind=service&vendorOnly=1'),
+  });
   const { hasRole } = useMe();
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
@@ -71,9 +97,12 @@ export function ServicesPage() {
             {list.map((s) => (
               <Paper key={s.id} withBorder p="sm" role="listitem">
                 <Group justify="space-between" wrap="nowrap">
-                  <Anchor component={Link} to={`/services/${s.id}`} fw={600} size="sm">
-                    {s.name}
-                  </Anchor>
+                  <Group gap={6} wrap="wrap">
+                    <Anchor component={Link} to={`/services/${s.id}`} fw={600} size="sm">
+                      {s.name}
+                    </Anchor>
+                    <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} />
+                  </Group>
                   <CriticalityBadge value={s.criticality} />
                 </Group>
                 <Text size="xs" c="dimmed">
@@ -107,6 +136,7 @@ export function ServicesPage() {
                           {t('archived')}
                         </Badge>
                       )}
+                      <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} ml={6} />
                       {s.tags.length > 0 && (
                         <Group gap={4} mt={2}>
                           {s.tags.map((tag) => (

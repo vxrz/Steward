@@ -21,6 +21,7 @@ import {
   IconShieldCheck,
   IconSitemap,
   IconStack2,
+  IconTicket,
   IconUsers,
   IconWebhook,
   type Icon,
@@ -41,6 +42,7 @@ export type NavKey =
   | 'records'
   | 'services'
   | 'credentials'
+  | 'tickets'
   | 'reports'
   | 'audit'
   | 'users'
@@ -90,6 +92,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/services', key: 'services', icon: IconStack2 },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/credentials', key: 'credentials', icon: IconKey },
+      { to: '/tickets', key: 'tickets', icon: IconTicket },
       { to: '/records', key: 'records', icon: IconFileCertificate },
       { to: '/reports', key: 'reports', icon: IconReportAnalytics },
     ],

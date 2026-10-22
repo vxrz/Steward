@@ -84,5 +84,49 @@
     "hint": "Das Passwort für die Anmeldung ändern.",
     "change": "Passwort ändern",
     "changed": "Passwort geändert"
+  },
+  "dailySummary": {
+    "title": "Tageszusammenfassung",
+    "intro": "Einmal am Tag eine kurze Zusammenfassung dessen, was Sie betrifft: fehlgeschlagene Ausführungen, Entscheidungen, die auf Sie warten, Statuswechsel von Monitoren, fällige Zugangsdaten, Ihre offenen Tickets, Dokumente und Berichte. Nur, was Sie sehen dürfen.",
+    "enabled": "Mir eine Tageszusammenfassung senden",
+    "notAllowed": "Ein Administrator hat die Tageszusammenfassungen ausgeschaltet.",
+    "time": "Uhrzeit",
+    "timeZone": "Zeitzone",
+    "days": "Tage",
+    "daysOptions": {
+      "weekdays": "Montag bis Freitag",
+      "everyday": "Jeden Tag"
+    },
+    "channel": "Wohin",
+    "channelOptions": {
+      "inApp": "In der App",
+      "inAppEmail": "In der App und per E-Mail"
+    },
+    "emailBlocked": {
+      "smtpOff": "E-Mail ist auf diesem Server nicht eingerichtet – die Zusammenfassung erscheint nur in der App.",
+      "routeOff": "Ein Administrator versendet Tageszusammenfassungen nicht per E-Mail – sie erscheint nur in der App.",
+      "noAddress": "Hinterlegen Sie eine E-Mail-Adresse in Ihrem Konto, um sie per E-Mail zu erhalten.",
+      "optedOut": "Schalten Sie oben die E-Mail-Benachrichtigungen ein, um sie per E-Mail zu erhalten.",
+      "domainNotAllowed": "Ihre E-Mail-Adresse liegt außerhalb der erlaubten Domains – die Zusammenfassung erscheint nur in der App."
+    },
+    "sections": "Enthalten",
+    "sectionNames": {
+      "runs": "Ausführungen und Fehlschläge",
+      "tasks": "Entscheidungen, die auf mich warten",
+      "monitors": "Statuswechsel von Monitoren",
+      "credentials": "Fällige Zugangsdaten",
+      "tickets": "Offene Tickets in meiner Verantwortung",
+      "records": "Dokumente, die auf mich warten oder sich geändert haben",
+      "reports": "Berichte für mich"
+    },
+    "skipEmpty": "An Tagen ohne Neuigkeiten nichts senden",
+    "save": "Speichern",
+    "saved": "Einstellungen der Tageszusammenfassung gespeichert",
+    "lastSent": "Letzte Zusammenfassung: {{when}}",
+    "preview": "Vorschau",
+    "previewTitle": "Vorschau: {{title}}",
+    "previewEmpty": "Gerade gibt es nichts zu berichten.",
+    "more_one": "… und {{count}} weiterer",
+    "more_other": "… und {{count}} weitere"
   }
 }
