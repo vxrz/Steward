@@ -76,66 +76,66 @@ export function MonitorDetailPage() {
             {!m.isTemplate && m.since && ` · since ${fmtDate(m.since)}`}
           </>
         }
-        actions={
-          <>
-            {!m.isTemplate && can('acknowledge') && (
-              <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
-                Check now
-              </Button>
-            )}
-            {m.isTemplate && (
-              <Button size="xs" onClick={() => setInstances(true)}>
-                New monitors from template
-              </Button>
-            )}
-            {can('edit') && (
-              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
-                Edit
-              </Button>
-            )}
-            <Menu position="bottom-end">
-              <Menu.Target>
-                <Button size="xs" variant="default" aria-label="More actions" px={8}>
-                  <IconDots size={16} />
-                </Button>
-              </Menu.Target>
-              <Menu.Dropdown>
-                {!m.isTemplate && can('acknowledge') && (
-                  <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
-                    Plan maintenance
-                  </Menu.Item>
-                )}
-                {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
-                  <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
-                    Acknowledge problem
-                  </Menu.Item>
-                )}
-                <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/monitors/${m.id}/export`}>
-                  Export YAML
-                </Menu.Item>
-                {can('manage') && (
-                  <Menu.Item
-                    color="red"
-                    leftSection={<IconTrash size={14} />}
-                    onClick={async () => {
-                      if (!confirm(`Delete "${m.name}" with its history? Heartbeat URLs stop working.`)) return;
-                      try {
-                        await del(`/monitors/${m.id}`);
-                        qc.invalidateQueries({ queryKey: ['monitors'] });
-                        navigate('/monitors');
-                      } catch (e) {
-                        notifyError(e);
-                      }
-                    }}
-                  >
-                    Delete
-                  </Menu.Item>
-                )}
-              </Menu.Dropdown>
-            </Menu>
-          </>
-        }
       />
+      <Group gap="xs" mb="sm" mt={-8}>
+        <>
+          {!m.isTemplate && can('acknowledge') && (
+            <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
+              Check now
+            </Button>
+          )}
+          {m.isTemplate && (
+            <Button size="xs" onClick={() => setInstances(true)}>
+              New monitors from template
+            </Button>
+          )}
+          {can('edit') && (
+            <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
+              Edit
+            </Button>
+          )}
+          <Menu position="bottom-end">
+            <Menu.Target>
+              <Button size="xs" variant="default" aria-label="More actions" px={8}>
+                <IconDots size={16} />
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              {!m.isTemplate && can('acknowledge') && (
+                <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
+                  Plan maintenance
+                </Menu.Item>
+              )}
+              {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
+                <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
+                  Acknowledge problem
+                </Menu.Item>
+              )}
+              <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={`/api/monitors/${m.id}/export`}>
+                Export YAML
+              </Menu.Item>
+              {can('manage') && (
+                <Menu.Item
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={async () => {
+                    if (!confirm(`Delete "${m.name}" with its history? Heartbeat URLs stop working.`)) return;
+                    try {
+                      await del(`/monitors/${m.id}`);
+                      qc.invalidateQueries({ queryKey: ['monitors'] });
+                      navigate('/monitors');
+                    } catch (e) {
+                      notifyError(e);
+                    }
+                  }}
+                >
+                  Delete
+                </Menu.Item>
+              )}
+            </Menu.Dropdown>
+          </Menu>
+        </>
+      </Group>
       <Stack gap="sm" mb="md">
         {!m.isTemplate && (
           <Text size="sm" c="dimmed">

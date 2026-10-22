@@ -224,7 +224,7 @@ export const outputSchema = z.discriminatedUnion('type', [
     type: z.literal('notification'),
     /** user:<name>, team:<name> or role:<role>; the monitor owner is always notified */
     subscribers: z.array(z.string().max(200)).max(100).default([]),
-    /** Wait this long before alerting a dependent check, so a parent failing a little later still suppresses it (default 60) */
+    /** Wait this long before alerting, so a parent failing a little later still explains the failure (default 0) */
     holdSeconds: seconds(0, 3600).optional(),
   }),
   z.object({

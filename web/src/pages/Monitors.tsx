@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, SegmentedControl, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea, Tooltip } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconFileImport, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -34,34 +35,35 @@ export function MonitorsPage() {
         title="Monitors"
         description="Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet."
         actions={
-          <>
-            <Button size="xs" variant="default" leftSection={<IconLayoutGrid size={14} />} component={Link} to="/monitors/wall">
-              Status wall
+          canCreate && (
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
+              New monitor
             </Button>
-            {canCreate && (
-              <>
-                <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
-                  Import
-                </Button>
-                <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => navigate('/monitors/new')}>
-                  New monitor
-                </Button>
-              </>
-            )}
-          </>
+          )
         }
       />
-      <SegmentedControl
-        mb="md"
-        size="xs"
-        value={tab}
-        onChange={(v) => setParams(v === 'monitors' ? {} : { tab: v })}
-        data={[
-          { value: 'monitors', label: 'Monitors' },
-          { value: 'templates', label: 'Templates' },
-          ...(canCreate ? [{ value: 'gateways', label: 'Gateways' }] : []),
-        ]}
-      />
+      <Group justify="space-between" mb="md" gap="xs">
+        <SegmentedControl
+          size="xs"
+          value={tab}
+          onChange={(v) => setParams(v === 'monitors' ? {} : { tab: v })}
+          data={[
+            { value: 'monitors', label: 'Monitors' },
+            { value: 'templates', label: 'Templates' },
+            ...(canCreate ? [{ value: 'gateways', label: 'Gateways' }] : []),
+          ]}
+        />
+        <Group gap="xs">
+          <Button size="xs" variant="default" leftSection={<IconLayoutGrid size={14} />} component={Link} to="/monitors/wall">
+            Status wall
+          </Button>
+          {canCreate && (
+            <Button size="xs" variant="default" leftSection={<IconFileImport size={14} />} onClick={() => setImporting(true)}>
+              Import
+            </Button>
+          )}
+        </Group>
+      </Group>
       {tab === 'monitors' && (
         <>
           <Group gap="xs" mb="sm">
@@ -98,6 +100,31 @@ export function MonitorsPage() {
 
 function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
   const navigate = useNavigate();
+  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
+  if (narrow) {
+    return (
+      <Stack gap="xs" role="list" aria-label="Monitors">
+        {monitors.map((m) => (
+          <Paper key={m.id} withBorder p="sm" role="listitem" style={{ borderLeft: `6px solid var(--mantine-color-${MONITOR_COLORS[m.status]}-filled)` }}>
+            <Group justify="space-between" wrap="nowrap" align="flex-start">
+              <Anchor component={Link} to={`/monitors/${m.id}`} fw={600} size="sm">
+                {m.name}
+              </Anchor>
+              <MonitorStatusBadge status={m.status} size="xs" />
+            </Group>
+            {m.rootCauses.length > 0 && (
+              <Text size="xs" c="red">
+                Root cause: {m.rootCauses.map((c) => causeText(c, m.id)).join(', ')}
+              </Text>
+            )}
+            <Text size="xs" c="dimmed">
+              Uptime 24 h {fmtUptime(m.uptime.h24)} · 7 d {fmtUptime(m.uptime.d7)} · {fmtRelative(m.since)}
+            </Text>
+          </Paper>
+        ))}
+      </Stack>
+    );
+  }
   return (
     <div className="table-scroll">
       <Table highlightOnHover fz="sm" aria-label="Monitors">
@@ -115,7 +142,7 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
         <Table.Tbody>
           {monitors.map((m) => (
             <Table.Tr key={m.id} className="clickable" onClick={() => navigate(`/monitors/${m.id}`)}>
-              <Table.Td>
+              <Table.Td className="nowrap">
                 <MonitorStatusBadge status={m.status} />
                 {m.acknowledged && (
                   <Badge ml={4} size="xs" variant="outline">
