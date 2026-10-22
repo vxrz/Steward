@@ -28,6 +28,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
       security-events: write # SARIF upload
       id-token: write # tags: keyless signing of the provenance attestation (Sigstore)
       attestations: write

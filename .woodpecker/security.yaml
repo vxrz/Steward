@@ -79,11 +79,11 @@ steps:
         --config p/default --config p/typescript --config p/nodejs --config p/secrets
         --config p/github-actions --config p/dockerfile
         --json-output=semgrep.json
-      # warnings are reported only; findings with severity ERROR fail the step
-      - jq -r '.results[] | select(.extra.severity == "ERROR") | "ERROR \(.path):\(.start.line) \(.check_id)"' semgrep.json
-      - count="$$(jq '[.results[] | select(.extra.severity == "ERROR")] | length' semgrep.json)"
+      # warnings are reported only; findings with severity ERROR (HIGH/CRITICAL in newer rules) fail the step
+      - jq -r '.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL")) | "\(.extra.severity) \(.path):\(.start.line) \(.check_id)"' semgrep.json
+      - count="$$(jq '[.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL"))] | length' semgrep.json)"
       - >-
-        echo "Semgrep: $$(jq '.results | length' semgrep.json) finding(s), $${count} blocking (ERROR)"
+        echo "Semgrep: $$(jq '.results | length' semgrep.json) finding(s), $${count} blocking"
       - test "$${count}" -eq 0
 
   - name: trivy
