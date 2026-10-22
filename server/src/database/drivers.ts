@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import type { DatabaseSync as DatabaseSyncType } from 'node:sqlite';
+import type { DatabaseSync as DatabaseSyncType, StatementSync } from 'node:sqlite';
 import { PgBridge, type PgBridgeOptions } from './pg-bridge.js';
 import { describeTarget, toPgPlaceholders, type DatabaseTarget } from './sql.js';
 
@@ -42,14 +42,25 @@ export class SqliteDriver implements Driver {
     this.raw.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
     this.label = describeTarget({ kind: 'sqlite', file });
   }
+  private readonly stmts = new Map<string, StatementSync>();
+  /** Prepared statements are reused: most SQL strings are constants (IN-lists vary, hence the cap). */
+  private stmt(sql: string): StatementSync {
+    let s = this.stmts.get(sql);
+    if (!s) {
+      s = this.raw.prepare(sql);
+      if (this.stmts.size > 500) this.stmts.clear();
+      this.stmts.set(sql, s);
+    }
+    return s;
+  }
   all(sql: string, params: unknown[]): Row[] {
-    return this.raw.prepare(sql).all(...(params as never[])) as Row[];
+    return this.stmt(sql).all(...(params as never[])) as Row[];
   }
   get(sql: string, params: unknown[]): Row | undefined {
-    return this.raw.prepare(sql).get(...(params as never[])) as Row | undefined;
+    return this.stmt(sql).get(...(params as never[])) as Row | undefined;
   }
   run(sql: string, params: unknown[]): { changes: number } {
-    return { changes: Number(this.raw.prepare(sql).run(...(params as never[])).changes) };
+    return { changes: Number(this.stmt(sql).run(...(params as never[])).changes) };
   }
   exec(sql: string): void {
     this.raw.exec(sql);
@@ -70,6 +81,7 @@ export class SqliteDriver implements Driver {
     this.raw.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   }
   close(): void {
+    this.stmts.clear();
     try {
       this.raw.close();
     } catch {

@@ -16,9 +16,9 @@ import {
 } from '@sm/shared';
 import { config } from '../config.js';
 import { vault } from '../vault.js';
-import { audit, queryAudit, verifyAudit, allAuditAscending, flushPendingAudit } from '../audit.js';
+import { audit, queryAudit, verifyAudit, verifyAuditAsync, allAuditAscending, flushPendingAudit } from '../audit.js';
 import { getSettings, updateSettings } from '../settings.js';
-import { HttpError } from '../util.js';
+import { HttpError, parseJson } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -36,7 +36,7 @@ import { engineExtrasRoutes } from './engine-extras.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
-import { capabilities, decisionCheck, isAdmin, require, requireCapability } from '../auth/permissions.js';
+import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { readCookie, sessionCookie, SESSION_COOKIE } from '../auth/cookies.js';
 import { BRAND } from '@sm/shared';
 
@@ -107,13 +107,21 @@ function requireBindingsUsable(bindings: Record<string, string> | undefined) {
   for (const pid of Object.values(bindings ?? {})) requirePlatform(pid, 'use', `use platform ${pid}`);
 }
 
-const visibleProcessIds = (): Set<string> =>
-  new Set(db().all<{ id: string }>('SELECT id FROM processes').map((r) => r.id).filter((id) => processes.permissionsFor(id).includes('view')));
+/** Processes the current user may view (one query, permissions evaluated in memory). */
+const visibleProcessIds = (): Set<string> => {
+  const user = currentUser();
+  return new Set(
+    db()
+      .all<{ id: string; owner: string | null; acl: string }>('SELECT id, owner, acl FROM processes')
+      .filter((r) => processPermissions(user, { owner: r.owner, acl: parseJson(r.acl, []) }).includes('view'))
+      .map((r) => r.id),
+  );
+};
 
 function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
   const permCache = new Map<string, ReturnType<typeof processes.permissionsFor>>();
   return tasks.map((t) => {
-    const pid = store.taskProcessId(t.id);
+    const pid = t.processId ?? store.taskProcessId(t.id);
     if (!permCache.has(pid)) permCache.set(pid, processes.permissionsFor(pid));
     const check = decisionCheck(currentUser(), t, { actor: t.startedBy ?? '' }, permCache.get(pid)!);
     return { ...t, canDecide: check.ok, cannotDecideReason: check.reason };
@@ -122,7 +130,7 @@ function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
 
 function visibleTasks(status?: string): TaskRecord[] {
   const visible = visibleProcessIds();
-  return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(store.taskProcessId(t.id))));
+  return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(t.processId ?? store.taskProcessId(t.id))));
 }
 
 function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
@@ -681,7 +689,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/audit/verify', async () => {
     requireCapability(me(), 'viewAudit', 'verify the audit log');
-    const r = verifyAudit();
+    const r = await verifyAuditAsync();
     audit({ action: 'audit.verified', entityType: 'audit', summary: `Audit chain verified: ${r.message}`, details: r });
     return r;
   });
@@ -718,19 +726,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         const o = JSON.parse(r.output ?? '{}') as { message?: string; severity?: string };
         return { runId: r.run_id, processName: r.process_name, name: r.name, message: o.message ?? '', severity: o.severity ?? 'error', ts: r.finished_at };
       });
-    const recent = visibleRuns({ limit: 200 });
+    // 24 h counters from a range query (not capped by the recent-runs list)
+    const last24 = db()
+      .all<{ process_id: string; status: string }>('SELECT process_id, status FROM runs WHERE started_at > ?', since)
+      .filter((r) => visible.has(r.process_id));
     return {
       openTasks: visibleTasks('open').filter((t) => t.canDecide),
       activeRuns: visibleRuns({ status: 'running,waiting,interrupted', limit: 20 }),
-      recentRuns: recent.slice(0, 12),
+      recentRuns: visibleRuns({ limit: 12 }),
       failedChecks,
       upcoming: scheduler.upcoming().filter((s) => visible.has(s.processId)),
       counts: {
         platforms: platforms.listPlatforms().length,
         processes: processes.listProcesses().length,
         schedules: scheduler.listSchedules().filter((s) => s.enabled).length,
-        runs24h: recent.filter((r) => r.startedAt > since).length,
-        failed24h: recent.filter((r) => r.startedAt > since && r.status === 'failed').length,
+        runs24h: last24.length,
+        failed24h: last24.filter((r) => r.status === 'failed').length,
       },
     };
   });

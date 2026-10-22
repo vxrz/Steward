@@ -95,9 +95,9 @@ export function runRow(id: string): RunRow {
   return r;
 }
 
-function toSummary(r: RunRow): RunSummary {
+function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
   const stats = { ...emptyStats(), ...parseJson<Partial<RunStats>>(r.stats, {}) };
-  stats.openTasks = db().get<{ n: number }>("SELECT COUNT(*) AS n FROM run_tasks WHERE run_id = ? AND status = 'open'", r.id)!.n;
+  stats.openTasks = r.open_tasks ?? db().get<{ n: number }>("SELECT COUNT(*) AS n FROM run_tasks WHERE run_id = ? AND status = 'open'", r.id)!.n;
   return {
     id: r.id,
     processId: r.process_id,
@@ -126,7 +126,11 @@ export function listRuns(f: { processId?: string; status?: string; scheduleId?: 
   if (f.before) (where.push('started_at < ?'), params.push(f.before));
   params.push(Math.min(f.limit ?? 100, 1000));
   return db()
-    .all<RunRow>(`SELECT * FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`, ...params)
+    .all<RunRow & { open_tasks: number }>(
+      `SELECT runs.*, (SELECT COUNT(*) FROM run_tasks t WHERE t.run_id = runs.id AND t.status = 'open') AS open_tasks
+       FROM runs ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY started_at DESC LIMIT ?`,
+      ...params,
+    )
     .map(toSummary);
 }
 
@@ -337,6 +341,7 @@ function toTask(r: TaskRow): TaskRecord {
     id: r.id,
     runId: r.run_id,
     processName: r.process_name,
+    processId: r.process_id,
     stepKey: r.step_key,
     mode: r.mode,
     title: r.title,

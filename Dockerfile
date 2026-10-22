@@ -16,7 +16,7 @@ RUN npm run build
 
 # Runtime dependencies of the server only: the web UI's packages (React, Mantine, icons, …)
 # are only needed to build web/dist and would otherwise add ~170 MB to the image.
-FROM node:22-bookworm-slim AS deps
+FROM node:24-bookworm-slim AS deps
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./

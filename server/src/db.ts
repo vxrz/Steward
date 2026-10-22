@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { OPS_MIGRATIONS } from './migrations/ops.js';
 import { ENGINE_MIGRATIONS } from './migrations/engine.js';
+import { PERF_MIGRATIONS } from './migrations/perf.js';
 import { openDriver, type Driver, type Row } from './database/drivers.js';
 import { describeTarget, pgDdl, PG_CREATE_NOCASE, type DatabaseTarget } from './database/sql.js';
 
@@ -13,7 +14,7 @@ export interface NamedMigration {
   /** PostgreSQL DDL; default: `sql` translated by pgDdl() (database/sql.ts). */
   pg?: string;
 }
-const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS];
+const NAMED_MIGRATIONS: NamedMigration[] = [...OPS_MIGRATIONS, ...ENGINE_MIGRATIONS, ...PERF_MIGRATIONS];
 
 const MIGRATIONS: string[] = [
   `

@@ -151,22 +151,48 @@ export function allAuditAscending(runId?: string): AuditEntry[] {
     : db().all<AuditRow>('SELECT * FROM audit_log ORDER BY seq').map(toEntry);
 }
 
-export function verifyAudit(): AuditVerifyResult {
+/**
+ * Verifies the chain in pages of 5000 rows. The generator yields after each page,
+ * so the async variant can let the server breathe on large logs.
+ */
+function* verifySteps(): Generator<void, AuditVerifyResult> {
   const key = vault().auditKey();
-  const rows = db().all<AuditRow>('SELECT * FROM audit_log ORDER BY seq');
   let prev = GENESIS;
   let expectedSeq = 1;
-  for (const r of rows) {
-    if (r.seq !== expectedSeq) {
-      return { ok: false, checked: expectedSeq - 1, firstBadSeq: expectedSeq, message: `Entry #${expectedSeq} is missing` };
+  for (;;) {
+    const rows = db().all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT 5000', expectedSeq);
+    if (!rows.length) break;
+    for (const r of rows) {
+      if (r.seq !== expectedSeq) {
+        return { ok: false, checked: expectedSeq - 1, firstBadSeq: expectedSeq, message: `Entry #${expectedSeq} is missing` };
+      }
+      const hash = computeHash(key, prev, toEntry(r));
+      if (r.prev_hash !== prev || hash !== r.hash) {
+        return { ok: false, checked: expectedSeq - 1, firstBadSeq: r.seq, message: `Entry #${r.seq} was modified or re-ordered` };
+      }
+      prev = r.hash;
+      expectedSeq++;
     }
-    const entry = toEntry(r);
-    const hash = computeHash(key, prev, entry);
-    if (r.prev_hash !== prev || hash !== r.hash) {
-      return { ok: false, checked: expectedSeq - 1, firstBadSeq: r.seq, message: `Entry #${r.seq} was modified or re-ordered` };
-    }
-    prev = r.hash;
-    expectedSeq++;
+    yield;
   }
-  return { ok: true, checked: rows.length, message: `All ${rows.length} entries are intact` };
+  const checked = expectedSeq - 1;
+  return { ok: true, checked, message: `All ${checked} entries are intact` };
+}
+
+export function verifyAudit(): AuditVerifyResult {
+  const it = verifySteps();
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** Same as verifyAudit, but yields to the event loop between pages. */
+export async function verifyAuditAsync(): Promise<AuditVerifyResult> {
+  const it = verifySteps();
+  for (;;) {
+    const r = it.next();
+    if (r.done) return r.value;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
 }

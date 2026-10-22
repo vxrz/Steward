@@ -146,7 +146,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(registerRoutes, { prefix: '/api' });
 
   if (fs.existsSync(config.webDist)) {
-    await app.register(fastifyStatic, { root: config.webDist });
+    await app.register(fastifyStatic, {
+      root: config.webDist,
+      preCompressed: true, // serves the .br/.gz files written by the web build
+      setHeaders: (res, file) => {
+        // hashed build assets never change
+        if (/[\\/]assets[\\/]/.test(file)) res.header('cache-control', 'public, max-age=31536000, immutable');
+      },
+    });
     app.setNotFoundHandler((req, reply) => {
       const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(req.url) && !/\.[a-z0-9]+(\?|$)/i.test(req.url);
       if (!isPage) return reply.code(404).send({ error: 'Not found' });

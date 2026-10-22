@@ -491,6 +491,7 @@ export interface TaskRecord {
   id: string;
   runId: string;
   processName?: string;
+  processId?: string;
   stepKey: string;
   mode: 'select' | 'approve';
   title: string;

@@ -697,10 +697,13 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
       const res = await execLeaf(node, ctx, key, attempt);
       const status = res.status ?? 'succeeded';
       const output = ctx.redactor.apply(res.output);
-      finishStep(ctx, key, node.type, { status, output, summary: res.summary ? ctx.redactor.apply(res.summary) : undefined, startedMs: started });
-      ctx.stats.steps++;
-      if (status === 'failed') ctx.stats.failedSteps++;
-      store.saveStats(ctx.runId, ctx.stats);
+      // one commit for step result + run stats
+      db().tx(() => {
+        finishStep(ctx, key, node.type, { status, output, summary: res.summary ? ctx.redactor.apply(res.summary) : undefined, startedMs: started });
+        ctx.stats.steps++;
+        if (status === 'failed') ctx.stats.failedSteps++;
+        store.saveStats(ctx.runId, ctx.stats);
+      });
       applyOutput(node, ctx, output, status);
       return status === 'failed' ? (failurePorts(node, ctx) ?? ['out']) : successPorts(node, output);
     } catch (e) {
@@ -716,10 +719,12 @@ async function execNode(node: FlowNode, ctx: RunContext, scope: string | null, k
     }
   }
   const message = ctx.redactor.apply((lastErr as Error)?.message ?? String(lastErr));
-  finishStep(ctx, key, node.type, { status: 'failed', error: message, output: { error: message }, startedMs: started });
-  ctx.stats.steps++;
-  ctx.stats.failedSteps++;
-  store.saveStats(ctx.runId, ctx.stats);
+  db().tx(() => {
+    finishStep(ctx, key, node.type, { status: 'failed', error: message, output: { error: message }, startedMs: started });
+    ctx.stats.steps++;
+    ctx.stats.failedSteps++;
+    store.saveStats(ctx.runId, ctx.stats);
+  });
   const ports = failurePorts(node, ctx);
   if (ports) {
     ctx.log('warn', `"${name}" failed, continuing${ports.includes('error') ? ' on its error output' : ''}: ${message}`, key);

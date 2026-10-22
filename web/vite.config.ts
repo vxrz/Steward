@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { BRAND } from '../shared/src/brand';
@@ -43,8 +46,25 @@ function brand(): Plugin {
   };
 }
 
+/** Writes .br and .gz next to larger build files; the server serves them pre-compressed. */
+function precompress(): Plugin {
+  return {
+    name: 'sm-precompress',
+    apply: 'build',
+    writeBundle(opts, bundle) {
+      for (const f of Object.keys(bundle).filter((n) => /\.(js|css|svg|webmanifest)$/.test(n))) {
+        const file = path.join(opts.dir!, f);
+        const buf = fs.readFileSync(file);
+        if (buf.length < 1024) continue;
+        fs.writeFileSync(file + '.br', zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } }));
+        fs.writeFileSync(file + '.gz', zlib.gzipSync(buf, { level: 9 }));
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), brand()],
+  plugins: [react(), brand(), precompress()],
   server: {
     port: 5173,
     host: '127.0.0.1',
