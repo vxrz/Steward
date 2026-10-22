@@ -93,6 +93,11 @@
     "CR": "## Description\n\n\n## Implementation plan\n\n1. \n\n## Test and verification\n\n\n## Communication\n\n",
     "ADR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n",
     "DR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n",
-    "SDR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n\n## Risk assessment\n\n\n## Review date\n\n"
+    "SDR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n\n## Risk assessment\n\n\n## Review date\n\n",
+    "AC": "## Details\n\n\n## Evidence\n\n- \n"
+  },
+  "accessUndocumented": {
+    "title": "Undocumented access changes: \"{{name}}\"",
+    "body": "The access reconciliation “{{name}}” found {{n}} access change(s) on {{platform}} without an access change entry:\n{{list}}\n\nDocument them under Compliance → Access reconciliation."
   }
 }

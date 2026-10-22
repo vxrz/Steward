@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ACCESS_RECORD_TYPE,
   DEFAULT_RECORD_TYPES,
   RECORD_WORKFLOWS,
   type RecordActionInfo,
@@ -35,6 +36,7 @@ import {
 import { attachmentRows, contentHash, recordRow, requireRecordRow, toAttachment, versionHash, type Content, type RecordRow } from './model.js';
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
 import { addLink, listBacklinks, listLinks } from './links.js';
+import { emit } from '../events.js';
 
 /**
  * Records: numbered, versioned documents with a workflow (change requests,
@@ -187,6 +189,9 @@ function contentAuthors(r: RecordRow): string[] {
     r.id,
   ))
     names.add(a.actor);
+  // access change entries: whoever performed the change does not verify it
+  const performer = parseJson<Record<string, string>>(r.fields, {}).performedBy?.trim();
+  if (performer && db().get('SELECT 1 FROM record_types WHERE id = ? AND workflow = ?', r.type_id, 'access')) names.add(performer);
   return [...names];
 }
 
@@ -457,7 +462,7 @@ export interface CreateInput {
  * default language). The web UI sends the template in its own language.
  */
 function templateFor(t: TypeRow, u: AuthUser): string {
-  const def = DEFAULT_RECORD_TYPES.find((d) => d.key === t.key);
+  const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE].find((d) => d.key === t.key);
   if (!t.builtin || !def || def.template !== t.template) return t.template;
   let locale: string | null | undefined;
   try {
@@ -703,6 +708,7 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
       addLink('record', r.id, { kind: 'record', id: superseding.id, note: 'superseded by' }, r.number);
     }
   });
+  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: def.action, to: def.to });
   return getRecord(r.id);
 }
 
@@ -749,6 +755,7 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
       details: { number: r.number, from: r.status, revision, version, previousContentHash: previousHash, versionHash: hash },
     });
   });
+  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: 'revise', to: wf.initial });
   return getRecord(r.id);
 }
 

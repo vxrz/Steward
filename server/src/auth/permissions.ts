@@ -83,6 +83,7 @@ export function capabilities(u: AuthUser | null): Capabilities {
     createProcesses: has('admin', 'designer'),
     createPlatforms: has('admin'),
     createMonitors: has('admin', 'designer'),
+    exportEvidence: has('admin', 'designer', 'operator', 'approver', 'auditor'),
   };
 }
 

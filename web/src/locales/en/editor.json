@@ -269,6 +269,47 @@
           "label": "Message"
         }
       }
+    },
+    "accessChange": {
+      "label": "Document access change",
+      "description": "Records which access rights this run changed (one entry per user or technical user). When the run ends, Steward creates a documented access change entry per subject, linked to the run and its PDF protocol – no manual documentation needed. Place it after the steps that change access. Nothing is recorded in dry runs.",
+      "fields": {
+        "connection": {
+          "label": "Platform connection"
+        },
+        "kind": {
+          "label": "Change"
+        },
+        "items": {
+          "label": "Subjects (expression → list, optional)",
+          "help": "With a list, the expressions below are evaluated per item; without, once in the run scope (e.g. inside a loop)"
+        },
+        "subjectId": {
+          "label": "Subject id (expression)"
+        },
+        "subjectName": {
+          "label": "Subject name (expression)"
+        },
+        "rights": {
+          "label": "Changed rights (expression → list)",
+          "help": "Granted for grant/onboarding, removed for revoke/offboarding"
+        },
+        "rightsBefore": {
+          "label": "All rights before (expression → list)"
+        },
+        "rightsAfter": {
+          "label": "All rights after (expression → list)"
+        },
+        "reason": {
+          "label": "Reason"
+        },
+        "requestRef": {
+          "label": "Request reference (ticket)"
+        },
+        "approvedBy": {
+          "label": "Approved by"
+        }
+      }
     }
   },
   "commonFields": {
@@ -345,7 +386,12 @@
     "continue": "continue",
     "json": "json",
     "form": "form",
-    "text": "text"
+    "text": "text",
+    "grant": "grant",
+    "revoke": "revoke",
+    "modify": "modify",
+    "onboarding": "onboarding",
+    "offboarding": "offboarding"
   },
   "palette": {
     "search": "Search nodes",

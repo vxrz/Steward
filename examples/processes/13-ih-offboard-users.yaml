@@ -106,6 +106,18 @@ steps:
         method: DELETE
         path: "{{ vars.idm }}/Users/{{ vars.u.id }}"
         expectStatus: [200, 204, 404]
+  - id: documentOffboarding
+    type: accessChange
+    name: Document offboarding
+    when: "vars.approval.approved = true"
+    connection: hub
+    kind: offboarding
+    items: vars.known
+    subjectId: id
+    subjectName: userName
+    rights: "[groups[$not(type = 'INDIRECT')].display]"
+    reason: "Leaver offboarded ({{ inputs.mode }})"
+    approvedBy: "{{ vars.approval.decidedBy }}"
   - id: report
     type: report
     name: Offboarding report

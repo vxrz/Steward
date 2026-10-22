@@ -41,12 +41,15 @@ export const adminArgv: string[] | undefined = userArgv()[0] === 'admin' ? userA
 /** `steward mcp …`: the MCP stdio bridge (mcp/bridge.ts) instead of the server – it never opens the database. */
 export const mcpArgv: string[] | undefined = userArgv()[0] === 'mcp' ? userArgv().slice(1) : undefined;
 
+/** `steward evidence …`: offline checks of audit evidence packs (cli/evidence-verify.ts) – never opens the database. */
+export const evidenceArgv: string[] | undefined = userArgv()[0] === 'evidence' ? userArgv().slice(1) : undefined;
+
 /** Set when the arguments are invalid; the launcher prints it and exits with status 2. */
 export let usageError: UsageError | undefined;
 
 function parse(): DesktopArgs {
   const fallback: DesktopArgs = { open: true, help: false, version: false, sendTestError: false, demo: false };
-  if (adminArgv || mcpArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
+  if (adminArgv || mcpArgv || evidenceArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
   try {
     const { values } = parseCli(userArgv(), {
       port: { type: 'string' },

@@ -1,0 +1,59 @@
+name: "Insights Hub – Access snapshot (for the access reconciliation)"
+description: |
+  Publishes who has which role and group in the tenant as the dataset
+  `ih.access-snapshot`, in the access snapshot shape the access reconciliation
+  reads (one row per assignment: subjectId, subjectName, subjectType, right).
+  Users without any group get one row without a right.
+
+  Use it as the template for other platforms: any process that publishes rows
+  in this shape can feed an access reconciliation check with the source
+  "dataset" (Compliance → Access reconciliation). For Insights Hub itself the
+  check can also read the identity management API directly.
+
+  Recommended schedule: daily, shortly before the reconciliation check.
+  Required rights: read users (identity management).
+tags: [governance, users, insights-hub, compliance]
+connections:
+  - slot: hub
+    kind: insights-hub
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: listUsers
+    type: http
+    name: List users with their groups
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: users
+  - id: assignments
+    type: set
+    name: One row per assignment
+    values:
+      rows: >-
+        {{ [vars.users.body.(
+          $u := $;
+          $count(groups) > 0
+            ? groups.{ "subjectId": $u.id, "subjectName": $u.userName, "subjectType": "user", "right": display }
+            : { "subjectId": $u.id, "subjectName": $u.userName, "subjectType": "user", "right": null }
+        )] }}
+  - id: publish
+    type: publish
+    name: Publish access snapshot
+    dataset: ih.access-snapshot
+    title: Access snapshot (Insights Hub)
+    rows: vars.rows
+    columns:
+      - { label: subjectId, value: subjectId }
+      - { label: subjectName, value: subjectName }
+      - { label: subjectType, value: subjectType }
+      - { label: right, value: right }
+    metrics:
+      users: "$count($distinct(vars.rows.subjectId))"
+      assignments: "$count(vars.rows[$exists(right) and right != null])"
+    maxRows: 50000
+    staleAfterMinutes: 2880

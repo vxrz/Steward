@@ -350,6 +350,16 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     return reply.code(200).send({ type: 'USER', value: mid });
   });
 
+  // Demo of the access reconciliation: someone grants the tenant administrator role directly in the
+  // Insights Hub UI (outside Steward) – to the first user that does not have it yet.
+  app.post('/ih/demo/grant-admin', async (_req, reply) => {
+    const admin = [...state.groups.values()].find((g) => g.displayName === 'mdsp:core:TenantAdmin');
+    const user = [...state.users.values()].find((u) => !admin?.members.has(u.id));
+    if (!admin || !user) return reply.code(409).send({ error: 'every user is a tenant administrator already' });
+    admin.members.add(user.id);
+    return { userId: user.id, userName: user.userName, role: admin.displayName };
+  });
+
   const AM = '/ih/api/assetmanagement/v3';
   const pageOf = <T>(key: string, all: T[], q: Record<string, string>) => {
     const size = Math.max(1, Number(q.size ?? 10));

@@ -139,6 +139,17 @@ steps:
               type: USER
               value: "{{ vars.userId }}"
             expectStatus: [200, 201, 409]
+      - id: documentOnboarding
+        type: accessChange
+        name: Document onboarding
+        when: "vars.userId != null"
+        connection: hub
+        kind: onboarding
+        subjectId: vars.userId
+        subjectName: vars.p.email
+        rights: vars.p.groups
+        rightsBefore: "[vars.currentGroups]"
+        reason: "Onboarding with the bundle {{ vars.p.bundle }}"
   - id: summary
     type: report
     name: Summary

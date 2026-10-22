@@ -442,6 +442,11 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/records/{recordId}', `/records/${x.id}`);
     await listAll('/records/{recordId}/versions', `/records/${x.number}/versions`);
   }
+  await listAll('/access-changes', '/access-changes');
+  await listAll('/access-findings', '/access-findings');
+  await get('/control-catalogues', '/control-catalogues');
+  await listAll('/controls', '/controls');
+  await listAll('/control-coverage', `/control-coverage?catalogue=ISO27001&from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date().toISOString())}`);
   return out;
 }
 

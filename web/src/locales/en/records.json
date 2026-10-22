@@ -7,7 +7,8 @@
     "CR": "Change request",
     "ADR": "Architecture decision record",
     "DR": "Decision record",
-    "SDR": "Security decision record"
+    "SDR": "Security decision record",
+    "AC": "Access change"
   },
   "builtin": {
     "types": {
@@ -26,6 +27,10 @@
       "SDR": {
         "description": "A security decision, e.g. an accepted risk, an exception or a hardening measure. If your team uses SDR for something else, change the name and description (the key cannot change once records exist) or archive the type.",
         "template": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n\n## Risk assessment\n\n\n## Review date\n\n"
+      },
+      "AC": {
+        "description": "Documentation of a grant, revocation or change of access rights on a platform, including changes made outside Steward. Documenting freezes the entry; another person can verify it.",
+        "template": "## Details\n\n\n## Evidence\n\n- \n"
       }
     },
     "fields": {
@@ -59,6 +64,59 @@
       },
       "informed": {
         "label": "Informed"
+      },
+      "platform": {
+        "label": "Platform",
+        "help": "Id of the Steward platform whose access changed"
+      },
+      "subjectId": {
+        "label": "Subject id",
+        "help": "User name, user id or technical user id on the platform"
+      },
+      "subjectName": {
+        "label": "Subject name",
+        "help": "Display name"
+      },
+      "subjectType": {
+        "label": "Subject type"
+      },
+      "changeKind": {
+        "label": "Change"
+      },
+      "rightsBefore": {
+        "label": "Rights before",
+        "help": "Roles, groups or scopes before the change, one per line"
+      },
+      "rightsAfter": {
+        "label": "Rights after",
+        "help": "Roles, groups or scopes after the change, one per line"
+      },
+      "requestedBy": {
+        "label": "Requested by"
+      },
+      "requestRef": {
+        "label": "Request reference",
+        "help": "Ticket number or link, e.g. a ServiceNow request"
+      },
+      "approvedBy": {
+        "label": "Approved by"
+      },
+      "performedBy": {
+        "label": "Performed by"
+      },
+      "performedAt": {
+        "label": "Performed at"
+      },
+      "origin": {
+        "label": "Origin"
+      },
+      "runId": {
+        "label": "Run",
+        "help": "Run that made the change (automatic entries)"
+      },
+      "findingId": {
+        "label": "Reconciliation finding",
+        "help": "Undocumented change this entry documents after the fact"
       }
     },
     "options": {
@@ -66,6 +124,22 @@
         "low": "low",
         "medium": "medium",
         "high": "high"
+      },
+      "subjectType": {
+        "user": "user",
+        "technical": "technical user"
+      },
+      "changeKind": {
+        "grant": "grant",
+        "revoke": "revoke",
+        "modify": "change",
+        "onboarding": "onboarding",
+        "offboarding": "offboarding"
+      },
+      "origin": {
+        "manual": "manual",
+        "run": "run",
+        "reconciliation": "after the fact (reconciliation)"
       }
     }
   },
@@ -80,7 +154,9 @@
     "proposed": "Proposed",
     "accepted": "Accepted",
     "superseded": "Superseded",
-    "deprecated": "Deprecated"
+    "deprecated": "Deprecated",
+    "documented": "Documented",
+    "verified": "Verified"
   },
   "actions": {
     "submit": "Submit",
@@ -92,7 +168,9 @@
     "propose": "Propose",
     "accept": "Accept",
     "supersede": "Mark as superseded",
-    "deprecate": "Deprecate"
+    "deprecate": "Deprecate",
+    "document": "Document",
+    "verify": "Verify"
   },
   "list": {
     "search": "Search",
@@ -343,11 +421,13 @@
     "workflow": "Workflow",
     "workflows": {
       "change": "Change",
-      "decision": "Decision"
+      "decision": "Decision",
+      "access": "Access"
     },
     "workflowHelp": {
       "change": "Draft → Submitted → Approved or Rejected → Implemented → Closed; Cancelled from Draft or Submitted.",
-      "decision": "Draft → Proposed → Accepted or Rejected; Accepted → Superseded or Deprecated."
+      "decision": "Draft → Proposed → Accepted or Rejected; Accepted → Superseded or Deprecated.",
+      "access": "Draft → Documented (frozen) → Verified by a second person; Cancelled from Draft."
     },
     "workflowLocked": "The workflow cannot change while records of this type exist.",
     "template": "Template (Markdown)",

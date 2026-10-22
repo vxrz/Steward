@@ -7,7 +7,8 @@
     "CR": "Änderungsantrag",
     "ADR": "Architekturentscheidung",
     "DR": "Entscheidungsprotokoll",
-    "SDR": "Sicherheitsentscheidung"
+    "SDR": "Sicherheitsentscheidung",
+    "AC": "Zugriffsänderung"
   },
   "builtin": {
     "types": {
@@ -26,6 +27,10 @@
       "SDR": {
         "description": "Eine Sicherheitsentscheidung, z. B. ein akzeptiertes Risiko, eine Ausnahme oder eine Härtungsmaßnahme. Wenn Ihr Team SDR für etwas anderes verwendet, ändern Sie Name und Beschreibung (das Kürzel lässt sich nicht mehr ändern, sobald es Dokumente gibt) oder archivieren Sie die Dokumentart.",
         "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n"
+      },
+      "AC": {
+        "description": "Dokumentation einer Erteilung, eines Entzugs oder einer Änderung von Zugriffsrechten auf einer Plattform, auch außerhalb von Steward. Das Dokumentieren friert den Eintrag ein; eine zweite Person kann ihn prüfen.",
+        "template": "## Details\n\n\n## Nachweise\n\n- \n"
       }
     },
     "fields": {
@@ -59,6 +64,59 @@
       },
       "informed": {
         "label": "Informiert"
+      },
+      "platform": {
+        "label": "Plattform",
+        "help": "ID der Steward-Plattform, deren Zugriff sich geändert hat"
+      },
+      "subjectId": {
+        "label": "Subjekt-ID",
+        "help": "Benutzername, Benutzer-ID oder ID des technischen Benutzers auf der Plattform"
+      },
+      "subjectName": {
+        "label": "Name des Subjekts",
+        "help": "Anzeigename"
+      },
+      "subjectType": {
+        "label": "Art des Subjekts"
+      },
+      "changeKind": {
+        "label": "Änderung"
+      },
+      "rightsBefore": {
+        "label": "Rechte vorher",
+        "help": "Rollen, Gruppen oder Scopes vor der Änderung, eine pro Zeile"
+      },
+      "rightsAfter": {
+        "label": "Rechte nachher",
+        "help": "Rollen, Gruppen oder Scopes nach der Änderung, eine pro Zeile"
+      },
+      "requestedBy": {
+        "label": "Angefordert von"
+      },
+      "requestRef": {
+        "label": "Antragsreferenz",
+        "help": "Ticketnummer oder Link, z. B. ein ServiceNow-Antrag"
+      },
+      "approvedBy": {
+        "label": "Freigegeben von"
+      },
+      "performedBy": {
+        "label": "Durchgeführt von"
+      },
+      "performedAt": {
+        "label": "Durchgeführt am"
+      },
+      "origin": {
+        "label": "Herkunft"
+      },
+      "runId": {
+        "label": "Ausführung",
+        "help": "Ausführung, die die Änderung vorgenommen hat (automatische Einträge)"
+      },
+      "findingId": {
+        "label": "Abgleich-Befund",
+        "help": "Undokumentierte Änderung, die dieser Eintrag nachträglich dokumentiert"
       }
     },
     "options": {
@@ -66,6 +124,22 @@
         "low": "niedrig",
         "medium": "mittel",
         "high": "hoch"
+      },
+      "subjectType": {
+        "user": "Benutzer",
+        "technical": "technischer Benutzer"
+      },
+      "changeKind": {
+        "grant": "Erteilung",
+        "revoke": "Entzug",
+        "modify": "Änderung",
+        "onboarding": "Onboarding",
+        "offboarding": "Offboarding"
+      },
+      "origin": {
+        "manual": "manuell",
+        "run": "Ausführung",
+        "reconciliation": "nachträglich (Abgleich)"
       }
     }
   },
@@ -80,7 +154,9 @@
     "proposed": "Vorgeschlagen",
     "accepted": "Angenommen",
     "superseded": "Ersetzt",
-    "deprecated": "Veraltet"
+    "deprecated": "Veraltet",
+    "documented": "Dokumentiert",
+    "verified": "Geprüft"
   },
   "actions": {
     "submit": "Einreichen",
@@ -92,7 +168,9 @@
     "propose": "Vorschlagen",
     "accept": "Annehmen",
     "supersede": "Als ersetzt markieren",
-    "deprecate": "Als veraltet markieren"
+    "deprecate": "Als veraltet markieren",
+    "document": "Dokumentieren",
+    "verify": "Prüfen"
   },
   "list": {
     "search": "Suche",
@@ -343,11 +421,13 @@
     "workflow": "Ablauf",
     "workflows": {
       "change": "Änderung",
-      "decision": "Entscheidung"
+      "decision": "Entscheidung",
+      "access": "Zugriff"
     },
     "workflowHelp": {
       "change": "Entwurf → Eingereicht → Freigegeben oder Abgelehnt → Umgesetzt → Abgeschlossen; Zurückgezogen aus Entwurf oder Eingereicht.",
-      "decision": "Entwurf → Vorgeschlagen → Angenommen oder Abgelehnt; Angenommen → Ersetzt oder Veraltet."
+      "decision": "Entwurf → Vorgeschlagen → Angenommen oder Abgelehnt; Angenommen → Ersetzt oder Veraltet.",
+      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf."
     },
     "workflowLocked": "Der Ablauf lässt sich nicht ändern, solange es Dokumente dieser Art gibt.",
     "template": "Vorlage (Markdown)",

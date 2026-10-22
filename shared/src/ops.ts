@@ -9,6 +9,7 @@ export const NOTIFICATION_EVENTS = [
   'monitor.status',
   'credential.due',
   'report.ready',
+  'access.undocumented',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -21,6 +22,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'monitor.status': 'A monitor you own or subscribed to changed its status (root causes only)',
   'credential.due': 'A credential you own expires or needs rotating or a review soon (or is overdue)',
   'report.ready': 'A scheduled report you receive was generated',
+  'access.undocumented': 'The access reconciliation found access changes without an access change entry',
 };
 
 export interface AppNotification {

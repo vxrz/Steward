@@ -93,6 +93,11 @@
     "CR": "## Beschreibung\n\n\n## Umsetzungsplan\n\n1. \n\n## Test und Verifikation\n\n\n## Kommunikation\n\n",
     "ADR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "DR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
-    "SDR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n"
+    "SDR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n",
+    "AC": "## Details\n\n\n## Nachweise\n\n- \n"
+  },
+  "accessUndocumented": {
+    "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
+    "body": "Der Zugriffsabgleich „{{name}}“ hat auf {{platform}} {{n}} Zugriffsänderung(en) ohne Eintrag gefunden:\n{{list}}\n\nDokumentieren Sie sie unter Compliance → Zugriffsabgleich."
   }
 }

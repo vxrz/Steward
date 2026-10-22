@@ -59,6 +59,12 @@
         "label": "Report ready",
         "info": "A scheduled report you receive was generated"
       }
+    },
+    "access": {
+      "undocumented": {
+        "label": "Undocumented access",
+        "info": "The access reconciliation found access changes without an access change entry"
+      }
     }
   }
 }

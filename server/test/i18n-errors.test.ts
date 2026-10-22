@@ -12,7 +12,18 @@ const errorsJson = (lang: string) =>
   JSON.parse(fs.readFileSync(path.join(root, 'web/src/locales', lang, 'errors.json'), 'utf8')).codes as Record<string, string>;
 
 /** Areas whose errors are shown on the pages a person works with; every HttpError there needs a code. */
-const CODED_AREAS = ['records/', 'catalogue/', 'credentials/', 'reports/', 'gatus/', 'mcp/', 'monitors/', 'routes/reports.ts', 'routes/report-schedules.ts'];
+const CODED_AREAS = [
+  'records/',
+  'compliance/',
+  'catalogue/',
+  'credentials/',
+  'reports/',
+  'gatus/',
+  'mcp/',
+  'monitors/',
+  'routes/reports.ts',
+  'routes/report-schedules.ts',
+];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

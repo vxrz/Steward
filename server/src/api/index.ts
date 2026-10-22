@@ -49,6 +49,10 @@ const TAGS = [
   { name: 'Credentials', description: 'Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values' },
   { name: 'Semantic model', description: 'The data model of this API as an Apache Ossie semantic model' },
   { name: 'Records', description: 'Change requests and decision records: content, versions, approvals and attachments' },
+  {
+    name: 'Compliance',
+    description: 'Access governance evidence: access change entries, access reconciliation findings, control catalogues and evidence coverage',
+  },
 ];
 
 const problemContent = { 'application/problem+json': { schema: { $ref: '#/components/schemas/Problem' } } };

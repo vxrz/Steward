@@ -59,6 +59,12 @@
         "label": "Bericht erstellt",
         "info": "Ein geplanter Bericht, den Sie erhalten, wurde erstellt"
       }
+    },
+    "access": {
+      "undocumented": {
+        "label": "Undokumentierter Zugriff",
+        "info": "Der Zugriffsabgleich hat Zugriffsänderungen ohne Eintrag gefunden"
+      }
     }
   }
 }

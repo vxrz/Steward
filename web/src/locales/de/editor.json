@@ -269,6 +269,47 @@
           "label": "Meldung"
         }
       }
+    },
+    "accessChange": {
+      "label": "Zugriffsänderung dokumentieren",
+      "description": "Hält fest, welche Zugriffsrechte diese Ausführung geändert hat (ein Eintrag pro Benutzer oder technischem Benutzer). Wenn die Ausführung endet, legt Steward pro Subjekt einen dokumentierten Zugriffsänderungs-Eintrag an, verknüpft mit der Ausführung und ihrem PDF-Protokoll – ohne manuelle Dokumentation. Platzieren Sie den Schritt hinter den Schritten, die den Zugriff ändern. In Probeläufen wird nichts festgehalten.",
+      "fields": {
+        "connection": {
+          "label": "Plattform-Verbindung"
+        },
+        "kind": {
+          "label": "Änderung"
+        },
+        "items": {
+          "label": "Subjekte (Ausdruck → Liste, optional)",
+          "help": "Mit einer Liste werden die Ausdrücke unten pro Element ausgewertet; ohne einmal im Ausführungskontext (z. B. in einer Schleife)"
+        },
+        "subjectId": {
+          "label": "Subjekt-ID (Ausdruck)"
+        },
+        "subjectName": {
+          "label": "Subjektname (Ausdruck)"
+        },
+        "rights": {
+          "label": "Geänderte Rechte (Ausdruck → Liste)",
+          "help": "Erteilt bei Erteilung/Onboarding, entzogen bei Entzug/Offboarding"
+        },
+        "rightsBefore": {
+          "label": "Alle Rechte vorher (Ausdruck → Liste)"
+        },
+        "rightsAfter": {
+          "label": "Alle Rechte nachher (Ausdruck → Liste)"
+        },
+        "reason": {
+          "label": "Begründung"
+        },
+        "requestRef": {
+          "label": "Antragsreferenz (Ticket)"
+        },
+        "approvedBy": {
+          "label": "Freigegeben von"
+        }
+      }
     }
   },
   "commonFields": {
@@ -345,7 +386,12 @@
     "continue": "fortfahren",
     "json": "JSON",
     "form": "Formular",
-    "text": "Text"
+    "text": "Text",
+    "grant": "Erteilung",
+    "revoke": "Entzug",
+    "modify": "Änderung",
+    "onboarding": "Onboarding",
+    "offboarding": "Offboarding"
   },
   "palette": {
     "search": "Knoten suchen",

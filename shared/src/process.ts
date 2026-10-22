@@ -31,6 +31,7 @@ export const NODE_TYPES = [
   'report',
   'browser',
   'publish',
+  'accessChange',
   'subprocess',
   'wait',
   'fail',
@@ -51,6 +52,7 @@ export const STEP_TYPES = [
   'report',
   'browser',
   'publish',
+  'accessChange',
   'subprocess',
   'wait',
   'fail',
@@ -223,6 +225,33 @@ export interface PublishConfig {
   maxRows?: number;
 }
 /**
+ * Document access changes this run made (compliance): one entry per subject. When the run ends,
+ * Steward creates a documented access change entry per subject, linked to the run and its PDF
+ * protocol. Not recorded in dry runs.
+ */
+export interface AccessChangeConfig {
+  type: 'accessChange';
+  /** Connection slot of the platform whose access changed */
+  connection: string;
+  kind: 'grant' | 'revoke' | 'modify' | 'onboarding' | 'offboarding';
+  /** Expression → list of changed subjects (optional: one subject from the other expressions) */
+  items?: string;
+  /** Expression (per item when `items` is set) → user name, user id or technical user id */
+  subjectId: string;
+  subjectName?: string;
+  /** Expression → the changed rights (granted for grant/onboarding, removed for revoke/offboarding) */
+  rights?: string;
+  /** Expressions → all rights before / after the change (instead of or in addition to `rights`) */
+  rightsBefore?: string;
+  rightsAfter?: string;
+  /** Template: why (e.g. "Quarterly access review – not attested") */
+  reason?: string;
+  /** Template: ticket number or link */
+  requestRef?: string;
+  /** Template: who approved (e.g. {{ vars.removal.decidedBy }}) */
+  approvedBy?: string;
+}
+/**
  * Run another process as a step (sub-flow). The child run is a normal run
  * (own protocol, linked to the parent); its `outputs` become this node's result.
  */
@@ -335,6 +364,20 @@ const shapes = {
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
   },
+  accessChange: {
+    type: z.literal('accessChange'),
+    connection: z.string().min(1),
+    kind: z.enum(['grant', 'revoke', 'modify', 'onboarding', 'offboarding']),
+    items: z.string().optional(),
+    subjectId: z.string().min(1),
+    subjectName: z.string().optional(),
+    rights: z.string().optional(),
+    rightsBefore: z.string().optional(),
+    rightsAfter: z.string().optional(),
+    reason: z.string().max(2000).optional(),
+    requestRef: z.string().max(500).optional(),
+    approvedBy: z.string().max(500).optional(),
+  },
   subprocess: {
     type: z.literal('subprocess'),
     process: z.string().min(1),
@@ -363,6 +406,7 @@ export type LogStep = Base & LogConfig;
 export type ReportStep = Base & ReportConfig;
 export type BrowserStep = Base & BrowserConfig;
 export type PublishStep = Base & PublishConfig;
+export type AccessChangeStep = Base & AccessChangeConfig;
 export type SubprocessStep = Base & SubprocessConfig;
 export type WaitStep = Base & WaitConfig;
 export type FailStep = Base & FailConfig;
@@ -378,6 +422,7 @@ export type Step =
   | ReportStep
   | BrowserStep
   | PublishStep
+  | AccessChangeStep
   | SubprocessStep
   | WaitStep
   | FailStep;
@@ -395,6 +440,7 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
     z.object({ ...baseFields, ...shapes.report }),
     z.object({ ...baseFields, ...shapes.browser }),
     z.object({ ...baseFields, ...shapes.publish }),
+    z.object({ ...baseFields, ...shapes.accessChange }),
     z.object({ ...baseFields, ...shapes.subprocess }),
     z.object({ ...baseFields, ...shapes.wait }),
     z.object({ ...baseFields, ...shapes.fail }),
@@ -417,6 +463,7 @@ export type NodeConfig =
   | ReportConfig
   | BrowserConfig
   | PublishConfig
+  | AccessChangeConfig
   | SubprocessConfig
   | WaitConfig
   | FailConfig
@@ -438,6 +485,7 @@ export const nodeSchema = z.discriminatedUnion('type', [
   z.object({ ...baseFields, ...pos, ...shapes.report }),
   z.object({ ...baseFields, ...pos, ...shapes.browser }),
   z.object({ ...baseFields, ...pos, ...shapes.publish }),
+  z.object({ ...baseFields, ...pos, ...shapes.accessChange }),
   z.object({ ...baseFields, ...pos, ...shapes.subprocess }),
   z.object({ ...baseFields, ...pos, ...shapes.wait }),
   z.object({ ...baseFields, ...pos, ...shapes.fail }),
@@ -640,7 +688,7 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     if (byId.has(n.id))
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'duplicateNodeId', params: { id: n.id }, message: `Duplicate node id "${n.id}"` });
     byId.set(n.id, n);
-    if ((n.type === 'http' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
+    if ((n.type === 'http' || n.type === 'accessChange' || (n.type === 'browser' && n.connection)) && !slots.has(n.connection!)) {
       issues.push({
         path: `nodes[${i}]`,
         nodeId: n.id,

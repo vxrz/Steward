@@ -101,6 +101,18 @@ steps:
         method: DELETE
         path: "{{ vars.idm }}/Groups/{{ vars.entry.groupId }}/members/{{ vars.entry.id }}"
         expectStatus: [200, 204, 404]
+  - id: documentRemoval
+    type: accessChange
+    name: Document removed privileged access
+    when: "vars.removal.approved = true"
+    connection: hub
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: id
+    subjectName: userName
+    rights: "[role]"
+    reason: "Privileged access review: assignment not attested"
+    approvedBy: "{{ vars.removal.decidedBy }}"
   - id: publish
     type: publish
     name: Publish review result
