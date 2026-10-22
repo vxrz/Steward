@@ -3,6 +3,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
 import { mockGatus } from './mockGatus.js';
+import { iotTimeseries, mockIotRoutes } from './mockIot.js';
+import { mockZabbix } from './mockZabbix.js';
 
 /**
  * In-memory simulation of the parts of Insights Hub, Industrial Edge Management
@@ -171,6 +173,8 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
 
   await mockOidc(app);
   await mockGatus(app);
+  await mockIotRoutes(app);
+  await mockZabbix(app);
 
   app.post('/reset', async () => {
     state = seed();
@@ -312,6 +316,8 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   app.get(`${AM}/assettypes`, { preHandler: ihAuth }, async (req) => pageOf('assetTypes', state.assetTypes, req.query as Record<string, string>));
   app.get('/ih/api/iottimeseries/v3/timeseries/:entity/:aspect', { preHandler: ihAuth }, async (req) => {
     const { entity, aspect } = req.params as { entity: string; aspect: string };
+    const iot = iotTimeseries(entity, aspect, req.query as Record<string, string>);
+    if (iot) return iot;
     const rec = state.ts.get(`${entity}/${aspect}`);
     return rec ? [rec] : [];
   });

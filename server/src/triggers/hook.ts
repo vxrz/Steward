@@ -119,13 +119,21 @@ function timingSafeHexEqual(aHex: string, bHex: string): boolean {
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
 }
 
-function tokenOk(r: TriggerRow, req: HookRequest): boolean {
+/** What a caller must prove (shared with the monitor heartbeat endpoints). */
+export interface HookSecret {
+  auth_mode: string;
+  secret_hash: string;
+  secret_enc: string;
+}
+type HookCall = Pick<HookRequest, 'headers' | 'raw'>;
+
+function tokenOk(r: HookSecret, req: HookCall): boolean {
   const presented = header(req.headers, 'x-steward-token') ?? /^Bearer\s+(\S+)\s*$/i.exec(header(req.headers, 'authorization') ?? '')?.[1];
   if (!presented || presented.length > 512) return false;
   return timingSafeHexEqual(sha256(presented.trim()), r.secret_hash);
 }
 
-function hmacOk(r: TriggerRow, req: HookRequest): boolean {
+function hmacOk(r: HookSecret, req: HookCall): boolean {
   const m = /^sha256=([0-9a-f]{64})$/i.exec(header(req.headers, 'x-steward-signature')?.trim() ?? '');
   if (!m) return false;
   const secret = vault().decrypt<string>(r.secret_enc);
@@ -133,7 +141,8 @@ function hmacOk(r: TriggerRow, req: HookRequest): boolean {
   return timingSafeHexEqual(m[1]!.toLowerCase(), expected);
 }
 
-function authenticated(r: TriggerRow, req: HookRequest): boolean {
+/** Static token (constant-time hash comparison) and/or HMAC-SHA256 signature of the raw body, per auth mode. */
+export function authenticated(r: HookSecret, req: HookCall): boolean {
   switch (r.auth_mode) {
     case 'token':
       return tokenOk(r, req);
@@ -144,7 +153,7 @@ function authenticated(r: TriggerRow, req: HookRequest): boolean {
   }
 }
 
-const isJson = (ct: string | undefined) => !!ct && /^application\/([a-z0-9.+-]*\+)?json\s*(;|$)/i.test(ct.trim());
+export const isJson = (ct: string | undefined) => !!ct && /^application\/([a-z0-9.+-]*\+)?json\s*(;|$)/i.test(ct.trim());
 
 function overRateLimit(r: TriggerRow): number | null {
   const now = Date.now();

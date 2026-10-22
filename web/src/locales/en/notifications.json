@@ -41,6 +41,12 @@
         "label": "Schedule skipped",
         "info": "A schedule you own was skipped (missing rights, still running …)"
       }
+    },
+    "monitor": {
+      "status": {
+        "label": "Monitor status",
+        "info": "A monitor you own or subscribed to changed its status (root causes only)"
+      }
     }
   }
 }

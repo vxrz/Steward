@@ -47,5 +47,14 @@
   "test": {
     "title": "Testbenachrichtigung",
     "body": "Wenn Sie diese Nachricht lesen können, erreichen Benachrichtigungen von {{brand}} diesen Kanal."
+  },
+  "monitor": {
+    "up": "Wieder in Ordnung: {{where}}",
+    "degraded": "Warnung: {{where}}",
+    "down": "Ausgefallen: {{where}}",
+    "unknown": "Status unbekannt: {{where}}",
+    "blocked": "Blockiert: {{where}}",
+    "maintenance": "Wartung: {{where}}",
+    "rootCause": "Ursache: {{causes}}."
   }
 }

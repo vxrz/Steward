@@ -1,0 +1,61 @@
+# Machine 17 with its PowerMeter: is the PowerMeter reachable → does it deliver data
+# (reported by the IoT gateway) → does the data reach Insights Hub; plus the machine
+# data branch as a sub-monitor. Links are "soft": every check still runs, but when a
+# parent fails too, a child is reported as "likely caused by" it and only the root
+# cause is alerted. Import "Machine 17 – machine data" first.
+kind: monitor
+key: machine-17-powermeter
+name: Machine 17 – PowerMeter
+description: PowerMeter with a static IP (10.20.17.5, Modbus TCP 502). If it is on and delivers data, the machine should be on and deliver data too.
+tags: [machine-17, iot]
+intervalSeconds: 60
+failuresBeforeDown: 2
+successesBeforeUp: 1
+checks:
+  - id: pm-reachable
+    name: PowerMeter reachable
+    type: ping
+    host: 10.20.17.5
+    # used when ICMP is not available to Steward: TCP connect to the Modbus port
+    fallbackPort: 502
+    x: 0
+    y: 0
+  - id: pm-reports
+    name: PowerMeter data reported by the gateway
+    type: heartbeat
+    key: m17.powermeter
+    mode: cadence
+    expectedIntervalSeconds: 60
+    degradedAfterMissed: 2
+    downAfterMissed: 4
+    condition: "value > 0"
+    x: -160
+    y: 160
+  - id: pm-ih
+    name: PowerMeter data in Insights Hub
+    type: freshness
+    source: insightsHub
+    platform: Insights Hub
+    assetId: d14a711a339072c7c435777d22e4327b
+    aspect: Energy
+    variables: [activePower, energy]
+    mode: cadence
+    expectedIntervalSeconds: 60
+    degradedAfterMissed: 3
+    downAfterMissed: 6
+    x: -160
+    y: 320
+  - id: machine
+    name: Machine data flow
+    type: monitor
+    monitor: machine-17-machine-data
+    x: 160
+    y: 160
+links:
+  - { from: pm-reachable, to: pm-reports }
+  - { from: pm-reports, to: pm-ih }
+  - { from: pm-reachable, to: machine }
+outputs:
+  - id: notify
+    type: notification
+    subscribers: [role:operator]

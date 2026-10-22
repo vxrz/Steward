@@ -3,11 +3,11 @@ import { ActionIcon, Alert, Autocomplete, Badge, Button, Checkbox, Group, Paper,
 import { useQuery } from '@tanstack/react-query';
 import { IconDeviceFloppy, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
+import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type AclEntry, type Subject } from '@sm/shared';
 import { get } from '../api';
 import i18n from '../i18n';
 
-type Perm = 'view' | 'run' | 'edit' | 'approve' | 'manage' | 'use';
+type Perm = 'view' | 'run' | 'edit' | 'approve' | 'manage' | 'use' | 'acknowledge';
 
 /** Translated label of a subject from /subjects (users keep the server label "Name (login)"). */
 export function subjectOptionLabel(s: Subject): string {
@@ -20,7 +20,7 @@ export function subjectOptionLabel(s: Subject): string {
 }
 
 export interface AccessEditorProps {
-  kind: 'process' | 'platform';
+  kind: 'process' | 'platform' | 'monitor';
   acl: AclEntry[];
   /** Process owner (user name) – the owner always has all rights. */
   owner?: string | null;
@@ -32,7 +32,8 @@ export interface AccessEditorProps {
 export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEditorProps) {
   const { t } = useTranslation(['access', 'common']);
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => get<Subject[]>('/subjects') });
-  const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : PLATFORM_PERMISSIONS;
+  const perms: readonly string[] = kind === 'process' ? PROCESS_PERMISSIONS : kind === 'monitor' ? MONITOR_PERMISSIONS : PLATFORM_PERMISSIONS;
+  const owned = kind !== 'platform';
   const [rows, setRows] = useState<AclEntry[]>(acl);
   const [own, setOwn] = useState<string | null>(owner ?? null);
   const [draft, setDraft] = useState('');
@@ -50,7 +51,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
   const add = () => {
     const v = draft.trim().toLowerCase();
     if (!/^(user|team|role):.+/.test(v) || rows.some((r) => r.subject === v)) return;
-    setRows([...rows, { subject: v, permissions: kind === 'process' ? ['view'] : ['use'] }]);
+    setRows([...rows, { subject: v, permissions: kind === 'platform' ? ['use'] : ['view'] }]);
     setDraft('');
   };
 
@@ -66,17 +67,17 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
       <Alert variant="light" color={rows.length ? 'orange' : 'blue'} p="sm">
         <Text size="sm">
           {rows.length ? (
-            <Trans t={t} i18nKey={kind === 'process' ? 'restrictedProcess' : 'restrictedPlatform'} components={{ b: <b /> }} />
+            <Trans t={t} i18nKey={kind === 'process' ? 'restrictedProcess' : kind === 'monitor' ? 'restrictedMonitor' : 'restrictedPlatform'} components={{ b: <b /> }} />
           ) : (
-            <Trans t={t} i18nKey={kind === 'process' ? 'defaultsProcess' : 'defaultsPlatform'} components={{ b: <b /> }} />
+            <Trans t={t} i18nKey={kind === 'process' ? 'defaultsProcess' : kind === 'monitor' ? 'defaultsMonitor' : 'defaultsPlatform'} components={{ b: <b /> }} />
           )}
         </Text>
       </Alert>
 
-      {kind === 'process' && (
+      {owned && (
         <Select
           label={t('owner')}
-          description={t('ownerHint')}
+          description={kind === 'monitor' ? t('ownerHintMonitor') : t('ownerHint')}
           data={users}
           value={own}
           onChange={setOwn}
@@ -189,7 +190,7 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
             onClick={async () => {
               setBusy(true);
               try {
-                await onSave(rows, kind === 'process' ? own : undefined);
+                await onSave(rows, owned ? own : undefined);
               } finally {
                 setBusy(false);
               }

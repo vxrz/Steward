@@ -12,11 +12,12 @@ import * as dashboards from '../dashboards/service.js';
 import { startRun } from '../engine/runner.js';
 import { getPlatform } from '../platforms/service.js';
 import { parseJson } from '../util.js';
+import { monitorDatasetVisible } from '../monitors/datasets.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
-/** A dataset is visible to whoever may view the process that publishes it. */
-const canSee = (d: Pick<DatasetMeta, 'processId'>) => processes.permissionsFor(d.processId).includes('view');
+/** A dataset is visible to whoever may view the process (or monitor) that publishes it. */
+const canSee = (d: Pick<DatasetMeta, 'processId'>) => monitorDatasetVisible(d.processId) ?? processes.permissionsFor(d.processId).includes('view');
 
 function visibleDataset(key: string): DatasetMeta {
   const meta = datasets.getDatasetMeta(key);

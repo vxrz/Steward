@@ -11,7 +11,8 @@
     "users": "Benutzer & Teams",
     "settings": "Einstellungen",
     "profile": "Profil & API-Token",
-    "triggers": "Auslöser"
+    "triggers": "Auslöser",
+    "monitors": "Monitore"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

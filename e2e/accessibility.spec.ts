@@ -39,6 +39,8 @@ test.describe('accessibility (axe, WCAG 2.1 AA)', () => {
     ['process editor', `/processes/${PROCESS.healthCheck}`],
     ['runs', '/runs'],
     ['schedules', '/schedules'],
+    ['monitors', '/monitors'],
+    ['monitor status wall', '/monitors/wall'],
     ['platforms', '/platforms'],
     ['settings', '/settings'],
     ['users & teams', '/users'],
