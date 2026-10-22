@@ -103,7 +103,7 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
       </Box>
       <Box style={{ flex: 1, minWidth: 0, padding: '6px 8px', paddingRight: ports.length > 1 ? 44 : 10 }}>
         <Group gap={4} wrap="nowrap">
-          <Text size="10px" tt="uppercase" fw={700} c={`${color}.7`} style={{ letterSpacing: 0.3 }} truncate>
+          <Text size="10px" tt="uppercase" fw={700} c={`var(--mantine-color-${color}-text)`} style={{ letterSpacing: 0.3 }} truncate>
             {meta.label}
           </Text>
           {node.when && <IconFilter size={11} color="var(--mantine-color-dimmed)" />}
@@ -147,7 +147,7 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
             {p.label && (
               <Text
                 size="9px"
-                c={isError ? 'red.7' : 'dimmed'}
+                c={isError ? 'red' : 'dimmed'}
                 fw={600}
                 style={{ position: 'absolute', right: 8, top: top - 7, pointerEvents: 'none', whiteSpace: 'nowrap' }}
               >

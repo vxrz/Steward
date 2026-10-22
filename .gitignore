@@ -5,3 +5,6 @@ data/
 .env
 test-results/
 dist-exe/
+playwright-report/
+blob-report/
+e2e/.auth/

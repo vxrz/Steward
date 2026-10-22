@@ -54,7 +54,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
   };
 
   return (
-    <Paper withBorder p="md">
+    <Paper withBorder p="md" component="section" aria-label={`Task: ${task.title}`}>
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start" wrap="wrap">
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -151,7 +151,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
                     >
                       <Table.Td>
                         {open ? (
-                          <Checkbox size="xs" checked={selected.has(i.key)} readOnly aria-label="Select" />
+                          <Checkbox size="xs" checked={selected.has(i.key)} readOnly aria-label={`Select ${i.cells[0] ?? i.key}`} />
                         ) : decided.has(i.key) ? (
                           <IconCheck size={14} color="var(--mantine-color-green-6)" />
                         ) : (

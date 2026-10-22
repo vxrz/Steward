@@ -106,14 +106,14 @@ export function ProcessesPage() {
               <Group gap={4} wrap="nowrap" onClick={(e) => e.stopPropagation()}>
                 {p.permissions.includes('run') && (
                   <Tooltip label="Run">
-                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label="Run">
+                    <ActionIcon variant="light" onClick={() => setRunId(p.id)} aria-label={`Run ${p.name}`}>
                       <IconPlayerPlay size={16} />
                     </ActionIcon>
                   </Tooltip>
                 )}
                 <Menu position="bottom-end">
                   <Menu.Target>
-                    <ActionIcon variant="subtle" aria-label="More">
+                    <ActionIcon variant="subtle" aria-label={`More actions for ${p.name}`}>
                       <IconDots size={16} />
                     </ActionIcon>
                   </Menu.Target>
@@ -207,6 +207,7 @@ function TemplatesModal({ opened, onClose }: { opened: boolean; onClose: () => v
               </div>
               <Button
                 size="xs"
+                aria-label={`Use template ${t.name}`}
                 loading={busy === t.id}
                 onClick={async () => {
                   setBusy(t.id);

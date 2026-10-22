@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, type ComponentType } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -160,6 +160,8 @@ function Shell({ status }: { status: AuthStatus }) {
           {navItems.map((n) => (
             <NavLink
               key={n.to}
+              component={Link}
+              to={n.to}
               label={n.label}
               leftSection={<n.icon size={18} stroke={1.6} />}
               active={isActive(n.to)}
@@ -170,10 +172,7 @@ function Shell({ status }: { status: AuthStatus }) {
                   </Badge>
                 ) : undefined
               }
-              onClick={() => {
-                navigate(n.to);
-                close();
-              }}
+              onClick={close}
               style={{ borderRadius: 6 }}
             />
           ))}

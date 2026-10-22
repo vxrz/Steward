@@ -149,7 +149,7 @@ export function UsersPage() {
               </Table.Thead>
               <Table.Tbody>
                 {users.data?.map((u) => (
-                  <Table.Tr key={u.id} style={{ opacity: u.active ? 1 : 0.55 }}>
+                  <Table.Tr key={u.id} data-inactive={!u.active || undefined}>
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
                         <Text size="sm" fw={500}>
@@ -232,13 +232,13 @@ export function UsersPage() {
                   )}
                 </div>
                 <Group gap={2} wrap="nowrap">
-                  <ActionIcon variant="subtle" onClick={() => setTeamEdit(t)} aria-label="Edit team">
+                  <ActionIcon variant="subtle" onClick={() => setTeamEdit(t)} aria-label={`Edit team ${t.name}`}>
                     <IconEdit size={16} />
                   </ActionIcon>
                   <ActionIcon
                     variant="subtle"
                     color="red"
-                    aria-label="Delete team"
+                    aria-label={`Delete team ${t.name}`}
                     onClick={async () => {
                       if (!confirm(`Delete team "${t.name}"? Access entries that name it stop matching anyone.`)) return;
                       await del(`/teams/${t.id}`).catch(notifyError);
