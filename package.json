@@ -26,6 +26,8 @@
     "contract": "tsx server/src/cli/contract.ts"
   },
   "devDependencies": {
+    "@axe-core/playwright": "~4.10.2",
+    "@playwright/test": "^1.56.1",
     "cross-env": "^7.0.3",
     "esbuild": "^0.28.2",
     "postject": "^1.0.0-alpha.6",
