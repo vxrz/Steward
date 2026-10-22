@@ -16,6 +16,18 @@ Git sync keeps processes, dashboards, monitors and record types in a Git reposit
 
 A rejected change stays rejected until the file changes again in Git.
 
+Reviewers only see updates of items they may see. When a file in Git maps to a process or monitor that the reviewer has no view right on, the update is not listed for them, and opening, accepting or rejecting it answers _not found_. Administrators see every update.
+
+### Signed commits
+
+With _Require signed commits_ a fetch checks the signature of **every commit that is new since the last fetched commit**, not only the newest one. Steward asks the Git host which commits are new (Forgejo/Gitea and GitHub: the compare API; GitLab: the commits API and one signature request per commit) and whether the host verified each signature.
+
+- If one commit is not signed with a key the host verified, the **whole fetch is refused**: nothing is staged, the source shows the error with the commit, and the audit log has a `sync.fetch_failed` entry. A newer signed commit on top does not help, and neither does a signed revert: the unsigned commit stays in the history. To go on, reset the branch to the last fetched commit (the source shows it) and push the changes again as signed commits.
+- **The first fetch** (a new source, or after the repository, branch or folder changed) has no last commit. It checks the newest commit only and **trusts the history up to it**. The same applies to commits fetched while the setting was off: turning it on later trusts everything fetched before.
+- **Allowed signers** (optional): logins on the Git host or e-mail addresses. With a list, every checked commit must also be signed by one of them. Forgejo/Gitea report the signer. GitHub and GitLab verify a signature only when the key belongs to the committer, so their committer login and committer e-mail are compared. Commits made in GitHub's web interface are signed by GitHub (committer `web-flow`).
+- At most 250 new commits are checked per fetch. More fail with _too many new commits_: fetch more often (webhook or schedule).
+- If the Git host cannot list the commits since the last fetched commit (the history was rewritten and the old commit is gone, or Forgejo older than 7 / Gitea older than 1.22, which have no compare API), the fetch is refused. Check the branch on the Git host. If you trust it, turn _Require signed commits_ off, fetch once, review the staged updates and turn it on again. Both changes are in the audit log.
+
 ### Conflicts
 
 Steward remembers what it applied. When an item was edited in Steward after the last sync, or an item with the same id exists but never came from Git, the update is marked as a **conflict**. It is not applied by accident: the reviewer has to choose _Accept anyway_. For processes the local version stays in the version history.
@@ -67,7 +79,8 @@ _Settings → Git sync → Manage Git sync → New source._
 | Access token           | A read-only token (see below). Empty for public repositories.                                                                 |
 | Fetch every (minutes)  | 0 = no schedule. At least 5.                                                                                                  |
 | Accept webhook calls   | On: the Git host calls Steward after every push                                                                               |
-| Require signed commits | On: a fetch fails unless the Git host verified the signature of the branch's newest commit                                    |
+| Require signed commits | On: a fetch fails and stages nothing unless the Git host verified every new commit (see [Signed commits](#signed-commits))    |
+| Allowed signers        | Optional, with signed commits: Git host logins or e-mail addresses whose signatures are accepted. Empty = any verified one.   |
 
 **The repository host must be allowed by the outbound policy** (_Settings → Outbound access_): add its host to the allow-list, e.g. `git.example.com` or, for GitHub, `api.github.com`. Otherwise the fetch fails with _Blocked by the outbound policy_.
 
@@ -107,13 +120,14 @@ Git sync uses the Git hosts' HTTP APIs, not the Git protocol. This needs no `git
 - **Outbound policy.** Every request goes to the API of the configured host and is checked like a process request: the host must be a platform origin or on the allow-list, cloud-metadata addresses and Steward's own API are never reachable, the address is pinned against DNS rebinding.
 - **Token.** Stored encrypted in the vault (re-encrypted when the data key rotates), never shown again, never logged, sent only to the API base of the source. Redirects are refused, so the token cannot be forwarded to another host.
 - **Limits.** At most 200 definition files per fetch, 256 KB per file, 4 MB together; answers of the Git host are size-capped while they are read.
-- **Integrity.** Every file is checked against its Git object id from the commit's tree. With _Require signed commits_ the newest commit must carry a signature the host verified.
+- **Integrity.** Every file is checked against its Git object id from the commit's tree: SHA-1, or SHA-256 for repositories in the SHA-256 object format. With _Require signed commits_ every new commit since the last fetch must carry a signature the host verified, optionally by an allowed signer.
+- **Retention.** Updates replaced by a newer version of the file (_superseded_) are deleted after 30 days. Rejected updates keep their decision (so the file is not staged again until it changes), but their content is removed after 30 days. Open and accepted updates are kept; an accepted process change is also in the process's version history.
 - **Path confinement.** Only regular files below the folder are read: no `..`, no symbolic links, no submodules.
 - **No code from the repository.** Files are parsed as data only (YAML core schema, no custom tags, bounded aliases). Nothing in them is run while fetching or reviewing.
 - **No secrets in Git.** A file that looks like it contains a key, token or password (the credentials register's checks: private keys, GitHub/GitLab/AWS/Slack tokens, passwords in URLs, …) is refused as a whole. Platforms are referenced by name or id; credentials stay in Steward's vault.
-- **Rights.** Sources are managed by administrators in a signed-in session (API tokens cannot create, change or delete them). Reviewing needs the designer role; accepting needs the same right as the change by hand (create processes, edit this process, manage record types, …).
+- **Rights.** Sources are managed by administrators in a signed-in session (API tokens cannot create, change or delete them). Reviewing needs the designer role; accepting needs the same right as the change by hand (create processes, edit this process, manage record types, …). Updates of processes and monitors the reviewer cannot see are hidden.
 - **Webhook.** Authenticated by the source's secret (HMAC-SHA256 of the body for Forgejo/Gitea/GitHub, the secret token for GitLab), at most 12 calls per minute per source, unknown or disabled sources answer 404. The payload only says _something changed_: Steward reads the repository through the API like any other fetch.
-- **Audit.** Every source change, fetch (with the commit), staged update, acceptance (with the resulting version), rejection and refused webhook call is in the audit log.
+- **Audit.** Every source change, fetch, acceptance (with the resulting version), rejection and refused webhook call is in the audit log. A fetch writes one `sync.fetched` entry with the commit and the staged and invalid files (the first 100 listed by path, all counted); a refused fetch writes `sync.fetch_failed` with the reason.
 
 ## API
 
@@ -135,4 +149,4 @@ The demo server includes a small Git host (`server/src/mock/mockGit.ts`) that sp
 - GitHub: `…/mock/github/steward/library`.
 - GitLab: `…/mock/gitlab/steward/library` with the API URL `…/mock/gitlab/api/v4`.
 
-The repository holds one process, dashboard, monitor and record type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit`.
+The repository holds one process, dashboard, monitor and record type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository) and serve wrong file content with `POST /mock/git/_tamper`.

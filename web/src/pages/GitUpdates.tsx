@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconBrandGit, IconCheck, IconExternalLink, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ProcessDefinition, SyncKind, SyncUpdate, SyncUpdateDetail, SyncUpdateStatus } from '@sm/shared';
+import { SYNC_RETENTION_DAYS, type ProcessDefinition, type SyncKind, type SyncUpdate, type SyncUpdateDetail, type SyncUpdateStatus } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
@@ -245,20 +245,26 @@ export function GitUpdateDetailPage() {
                 <SummaryView s={summary} />
               </Paper>
             )}
-            {u.currentText === null ? (
+            {u.contentRemoved ? (
+              <Text size="sm" c="dimmed">
+                {t('detail.contentRemoved', { days: SYNC_RETENTION_DAYS })}
+              </Text>
+            ) : u.currentText === null ? (
               <Text size="sm">{t('detail.newItem')}</Text>
             ) : u.currentText === u.incomingText ? (
               <Text size="sm">{t('detail.noChanges')}</Text>
             ) : (
               <Switch size="xs" label={t('detail.contextOnly')} checked={context} onChange={(e) => setContext(e.currentTarget.checked)} />
             )}
-            <UnifiedDiff
-              oldText={u.currentText ?? ''}
-              newText={u.incomingText}
-              oldName={t('detail.local')}
-              newName={t('detail.incoming')}
-              context={u.currentText === null || !context ? 100000 : 3}
-            />
+            {!u.contentRemoved && (
+              <UnifiedDiff
+                oldText={u.currentText ?? ''}
+                newText={u.incomingText}
+                oldName={t('detail.local')}
+                newName={t('detail.incoming')}
+                context={u.currentText === null || !context ? 100000 : 3}
+              />
+            )}
           </>
         )}
         {(u.status === 'pending' || u.status === 'invalid') && (

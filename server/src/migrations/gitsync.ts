@@ -80,4 +80,9 @@ export const GITSYNC_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX sync_items_source ON sync_items(source_id, path);
     `,
   },
+  {
+    // "require signed commits": optional list of accepted signers (logins / e-mail addresses, JSON array)
+    name: 'gitsync-002-allowed-signers',
+    sql: `ALTER TABLE sync_sources ADD COLUMN allowed_signers TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];

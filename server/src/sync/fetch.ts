@@ -1,12 +1,12 @@
 import path from 'node:path';
-import { SYNC_LIMITS, type SyncFetchResult, type SyncKind } from '@sm/shared';
+import { SYNC_LIMITS, SYNC_RETENTION_DAYS, type SyncFetchResult, type SyncKind } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
-import { gitApi, gitBlobSha, resolveRepo, type TreeEntry } from './providers.js';
+import { gitApi, gitBlobSha, objectFormatOf, resolveRepo, type CommitCheck, type GitApi, type TreeEntry } from './providers.js';
 import { requireSource, sourceToken, type SourceRow } from './service.js';
 import { findLocal, localById, localHash, parseFile, sameAsLocal, type ParsedItem } from './items.js';
 
@@ -41,6 +41,22 @@ export function confined(p: string, folder: string): boolean {
   if (p.split('/').some((s) => s === '' || s === '.' || s === '..')) return false;
   if (path.posix.normalize(p) !== p) return false;
   return !folder || p.startsWith(`${folder}/`);
+}
+
+/** Paths listed in the audit entry of one fetch (the counts are always complete). */
+const AUDIT_MAX_PATHS = 100;
+
+/**
+ * Retention of the inbox: superseded updates (never needed again) are deleted, and the content of
+ * rejected updates is removed after SYNC_RETENTION_DAYS. A rejected row itself stays, so the same
+ * file is not staged again until it changes. Pending and accepted updates are kept.
+ */
+export function pruneUpdates(now = Date.now()): { deleted: number; blanked: number } {
+  const before = new Date(now - SYNC_RETENTION_DAYS * 86400_000).toISOString();
+  return db().tx(() => ({
+    deleted: db().run("DELETE FROM sync_updates WHERE status = 'superseded' AND created_at < ?", before).changes,
+    blanked: db().run("UPDATE sync_updates SET content = NULL WHERE status = 'rejected' AND content IS NOT NULL AND decided_at < ?", before).changes,
+  }));
 }
 
 const running = new Map<string, Promise<SyncFetchResult>>();
@@ -89,20 +105,16 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     autoAccepted: 0,
   };
   const via = trigger === 'manual' ? '' : ` (${trigger})`;
+  const pruned = pruneUpdates();
+  if (pruned.deleted || pruned.blanked) logger.info({ ...pruned }, 'git sync: old superseded/rejected updates pruned');
   try {
     const ref = resolveRepo(r.provider, r.repo_url, r.api_url);
     const api = gitApi(ref, sourceToken(r));
     const head = await api.head(r.branch);
     result.commit = head.sha;
     result.verified = head.verified;
-    if (r.require_signed && head.verified !== true) {
-      throw new HttpError(
-        409,
-        `The head commit ${head.sha.slice(0, 10)} of ${r.branch} is not signed with a key the Git host verified – this source requires signed commits`,
-        'GIT_COMMIT_UNSIGNED',
-        { commit: head.sha.slice(0, 10), branch: r.branch },
-      );
-    }
+    // before anything is downloaded or staged: a refused fetch stages nothing
+    if (r.require_signed) await checkSignatures(r, api, head);
     if (head.sha === r.last_commit && trigger !== 'manual') {
       result.upToDate = true;
       finish(r, { status: 'ok', commit: head.sha, verified: head.verified });
@@ -130,7 +142,7 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     result.files = files.length;
     const kinds = parseJson<SyncKind[]>(r.kinds, []);
     let total = 0;
-    const staged: { path: string; kind: SyncKind | null; action: string; status: string }[] = [];
+    const staged: { path: string; kind: SyncKind | null; action: string; status: string; conflict?: boolean }[] = [];
     const autoAccept: string[] = [];
     for (const f of files.sort((a, b) => a.path.localeCompare(b.path))) {
       const item = db().get<ItemRow>('SELECT * FROM sync_items WHERE source_id = ? AND path = ?', id, f.path);
@@ -163,7 +175,7 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
           'GIT_TOO_LARGE',
           { limit: SYNC_LIMITS.maxTotalBytes },
         );
-      if (gitBlobSha(content) !== f.sha && f.sha.length === 40)
+      if (gitBlobSha(content, objectFormatOf(f.sha)) !== f.sha)
         throw new HttpError(502, `File ${f.path}: the content does not match its Git object id`, 'GIT_BAD_RESPONSE');
       const parsed = await parseFile(f.path, content.toString('utf8'), kinds);
       if (!parsed.ok) {
@@ -181,7 +193,7 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
       else if (outcome === 'error') result.invalid++;
       else {
         result.staged++;
-        staged.push({ path: f.path, kind: parsed.item.kind, action: outcome.action, status: 'pending' });
+        staged.push({ path: f.path, kind: parsed.item.kind, action: outcome.action, status: 'pending', ...(outcome.conflict ? { conflict: true } : {}) });
         if (r.auto_accept_new && outcome.action === 'create' && !outcome.conflict) autoAccept.push(outcome.id);
       }
     }
@@ -194,7 +206,17 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
       summary:
         `Git sync "${r.name}"${via}: fetched ${r.branch}@${head.sha.slice(0, 10)}${head.verified ? ' (signed)' : ''} – ` +
         `${result.files} file(s), ${result.staged} staged for review, ${result.invalid} invalid, ${result.unchanged} unchanged`,
-      details: { trigger, commit: head.sha, verified: head.verified, files: result.files, staged, unchanged: result.unchanged },
+      details: {
+        trigger,
+        commit: head.sha,
+        verified: head.verified,
+        files: result.files,
+        // one entry per fetch instead of one per file: the staged and invalid files, capped
+        staged: staged.slice(0, AUDIT_MAX_PATHS),
+        ...(staged.length > AUDIT_MAX_PATHS ? { stagedNotListed: staged.length - AUDIT_MAX_PATHS } : {}),
+        unchanged: result.unchanged,
+        ...(pruned.deleted || pruned.blanked ? { pruned } : {}),
+      },
     });
     if (autoAccept.length) result.autoAccepted = await autoAcceptNew(r, autoAccept);
     return result;
@@ -214,6 +236,41 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
     if (trigger === 'manual') throw e;
     return result;
   }
+}
+
+/**
+ * "Require signed commits": every commit that is new since the last fetched commit must carry a
+ * signature the Git host verified (and, with an allowed-signer list, by one of those accounts).
+ * The first fetch (no last commit) checks the head commit only – the history up to it is trusted.
+ */
+async function checkSignatures(r: SourceRow, api: GitApi, head: CommitCheck): Promise<void> {
+  const allowed = parseJson<string[]>(r.allowed_signers, []);
+  const branch = r.branch;
+  const check = (c: CommitCheck, history: boolean) => {
+    const commit = c.sha.slice(0, 10);
+    if (c.verified !== true) {
+      throw new HttpError(
+        409,
+        history
+          ? `Commit ${commit} on ${branch} (new since the last fetched commit ${r.last_commit!.slice(0, 10)}) is not signed with a key the Git host verified – this source requires signed commits, nothing was staged`
+          : `The head commit ${commit} of ${branch} is not signed with a key the Git host verified – this source requires signed commits`,
+        'GIT_COMMIT_UNSIGNED',
+        { commit, branch, ...(history ? { context: 'history', since: r.last_commit!.slice(0, 10) } : {}) },
+      );
+    }
+    if (allowed.length && !c.signers.some((s) => allowed.includes(s))) {
+      const signer = c.signers.join(', ') || 'unknown';
+      throw new HttpError(
+        409,
+        `Commit ${commit} on ${branch} is signed by ${signer}, who is not on the source's list of allowed signers – nothing was staged`,
+        'GIT_SIGNER_NOT_ALLOWED',
+        { commit, branch, signer },
+      );
+    }
+  };
+  check(head, false);
+  if (!r.last_commit || r.last_commit === head.sha) return;
+  for (const c of await api.newCommits(r.last_commit, head.sha)) check(c, c.sha !== head.sha);
 }
 
 function stageInvalid(
@@ -347,9 +404,10 @@ function stage(
   }
   const conflict = local ? conflictOf(it.kind, local.id, item) : null;
   const action = local ? 'update' : 'create';
+  // recorded in the fetch's sync.fetched audit entry (one entry per fetch, not per file)
   const id = db().tx(() => {
     supersede(r.id, f.path);
-    const uid = insertUpdate(r, f, head, {
+    return insertUpdate(r, f, head, {
       kind: it.kind,
       identity: it.identity,
       entityId: local?.id ?? null,
@@ -360,15 +418,6 @@ function stage(
       content: it.content,
       hash: it.hash,
     });
-    audit({
-      actor: 'git-sync',
-      action: 'sync.update_staged',
-      entityType: 'sync_update',
-      entityId: uid,
-      summary: `Git sync "${r.name}": ${f.path} staged for review (${action === 'create' ? `new ${it.kind}` : `change to ${it.kind} "${local!.name}"`}${conflict ? `, conflict: ${CONFLICT_TEXT[conflict]}` : ''})`,
-      details: { sourceId: r.id, path: f.path, commit: head.sha, kind: it.kind, entityId: local?.id ?? null, action, conflict },
-    });
-    return uid;
   });
   return { id, action, conflict: !!conflict };
 }

@@ -65,7 +65,9 @@
     "webhook": "Accept webhook calls (push events)",
     "webhookHint": "The Git host calls Steward on every push. Needs Steward to be reachable from the Git host.",
     "requireSigned": "Require signed commits",
-    "requireSignedHint": "Fetches fail unless the Git host verified the signature of the branch's head commit.",
+    "requireSignedHint": "A fetch fails and stages nothing unless the Git host verified the signature of every new commit since the last fetch. The first fetch checks the newest commit and trusts the history before it.",
+    "allowedSigners": "Allowed signers (optional)",
+    "allowedSignersHint": "Git host logins or e-mail addresses. Only commits signed by these accounts are accepted. Empty = any signature the Git host verified.",
     "autoAccept": "Accept new items automatically",
     "autoAcceptHint": "Items that do not exist in Steward yet are created right away (monitors disabled). Changes to existing items still need a review.",
     "enabled": "Enabled"
@@ -124,6 +126,7 @@
     "incoming": "From Git",
     "noChanges": "The incoming file is the same as the item in Steward.",
     "newItem": "This item does not exist in Steward yet. Accepting creates it.",
+    "contentRemoved": "The file's content was removed {{days}} days after the decision. The update stays rejected until the file changes in Git.",
     "conflictTitle": "Conflict with the item in Steward",
     "conflictText": "{{reason}}. Accepting overwrites it with the version from Git (for processes as a new version – the old one stays in the history).",
     "errorsTitle": "This file cannot be applied",

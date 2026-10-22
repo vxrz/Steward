@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { GIT_PROVIDERS, SYNC_KINDS, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
+import { GIT_PROVIDERS, SYNC_KINDS, SYNC_LIMITS, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
@@ -33,6 +33,7 @@ export interface SourceRow {
   webhook_secret_hash: string | null;
   webhook_secret_prefix: string | null;
   require_signed: number;
+  allowed_signers: string;
   auto_accept_new: number;
   enabled: number;
   created_by: string;
@@ -75,6 +76,20 @@ export const sourceSchema = z.object({
     .default(0),
   webhookEnabled: z.boolean().default(false),
   requireSignedCommits: z.boolean().default(false),
+  /** Git host logins or e-mail addresses (compared case-insensitively) */
+  allowedSigners: z
+    .array(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .min(1)
+        .max(200)
+        .regex(/^[^\s,;<>"']+$/, 'A login or an e-mail address, without spaces'),
+    )
+    .max(SYNC_LIMITS.maxAllowedSigners)
+    .default([])
+    .transform((a) => [...new Set(a)]),
   autoAcceptNew: z.boolean().default(false),
   enabled: z.boolean().default(true),
   /** Write-only. Omitted = keep, '' = remove. */
@@ -101,6 +116,7 @@ export function toSource(r: SourceRow & { pending_count?: number }): SyncSource 
     intervalMinutes: r.interval_minutes,
     webhookEnabled: !!r.webhook_enabled,
     requireSignedCommits: !!r.require_signed,
+    allowedSigners: parseJson<string[]>(r.allowed_signers, []),
     autoAcceptNew: !!r.auto_accept_new,
     enabled: !!r.enabled,
     hasToken: !!r.token_enc,
@@ -168,6 +184,7 @@ const auditable = (s: SourceInput) => ({
   intervalMinutes: s.intervalMinutes,
   webhookEnabled: s.webhookEnabled,
   requireSignedCommits: s.requireSignedCommits,
+  allowedSigners: s.allowedSigners,
   autoAcceptNew: s.autoAcceptNew,
   enabled: s.enabled,
 });
@@ -182,8 +199,8 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
   db().tx(() => {
     db().run(
       `INSERT INTO sync_sources (id, name, provider, repo_url, api_url, branch, folder, kinds, token_enc, interval_minutes, webhook_enabled,
-         webhook_secret_enc, webhook_secret_hash, webhook_secret_prefix, require_signed, auto_accept_new, enabled, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         webhook_secret_enc, webhook_secret_hash, webhook_secret_prefix, require_signed, allowed_signers, auto_accept_new, enabled, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       s.name,
       s.provider,
@@ -199,6 +216,7 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
       sec.hash,
       sec.prefix,
       s.requireSignedCommits ? 1 : 0,
+      JSON.stringify(s.allowedSigners),
       s.autoAcceptNew ? 1 : 0,
       s.enabled ? 1 : 0,
       currentUser()!.username,
@@ -230,7 +248,7 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
   db().tx(() => {
     db().run(
       `UPDATE sync_sources SET name = ?, provider = ?, repo_url = ?, api_url = ?, branch = ?, folder = ?, kinds = ?, token_enc = ?, interval_minutes = ?,
-         webhook_enabled = ?, require_signed = ?, auto_accept_new = ?, enabled = ?, updated_at = ?${moved ? ', last_commit = NULL' : ''} WHERE id = ?`,
+         webhook_enabled = ?, require_signed = ?, allowed_signers = ?, auto_accept_new = ?, enabled = ?, updated_at = ?${moved ? ', last_commit = NULL' : ''} WHERE id = ?`,
       s.name,
       s.provider,
       s.repoUrl,
@@ -242,6 +260,7 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
       s.intervalMinutes,
       s.webhookEnabled ? 1 : 0,
       s.requireSignedCommits ? 1 : 0,
+      JSON.stringify(s.allowedSigners),
       s.autoAcceptNew ? 1 : 0,
       s.enabled ? 1 : 0,
       nowIso(),

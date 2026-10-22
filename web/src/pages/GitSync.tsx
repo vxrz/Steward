@@ -17,6 +17,7 @@ import {
   SimpleGrid,
   Stack,
   Switch,
+  TagsInput,
   Text,
   TextInput,
   Tooltip,
@@ -25,7 +26,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconBrandGit, IconCheck, IconCopy, IconDownload, IconEdit, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { GIT_PROVIDERS, SYNC_KINDS, type SyncFetchResult, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
+import { GIT_PROVIDERS, SYNC_KINDS, SYNC_LIMITS, type SyncFetchResult, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
@@ -44,6 +45,7 @@ const emptyDraft = (): Draft => ({
   intervalMinutes: 0,
   webhookEnabled: false,
   requireSignedCommits: false,
+  allowedSigners: [],
   autoAcceptNew: false,
   enabled: true,
 });
@@ -243,6 +245,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
       intervalMinutes: d.intervalMinutes,
       webhookEnabled: d.webhookEnabled,
       requireSignedCommits: d.requireSignedCommits,
+      allowedSigners: d.allowedSigners,
       autoAcceptNew: d.autoAcceptNew,
       enabled: d.enabled,
       // write-only: omitted = keep, '' = remove
@@ -325,6 +328,17 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           checked={d.requireSignedCommits}
           onChange={(e) => set('requireSignedCommits', e.currentTarget.checked)}
         />
+        {d.requireSignedCommits && (
+          <TagsInput
+            label={t('form.allowedSigners')}
+            description={t('form.allowedSignersHint')}
+            value={d.allowedSigners}
+            onChange={(v) => set('allowedSigners', v)}
+            maxTags={SYNC_LIMITS.maxAllowedSigners}
+            splitChars={[',', ' ', ';']}
+            clearable
+          />
+        )}
         <Switch
           label={t('form.autoAccept')}
           description={t('form.autoAcceptHint')}

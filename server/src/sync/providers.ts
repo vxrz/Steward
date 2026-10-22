@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { EnvHttpProxyAgent } from 'undici';
-import { BRAND, type GitProvider } from '@sm/shared';
+import { BRAND, SYNC_LIMITS, type GitProvider } from '@sm/shared';
 import { assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { HttpError } from '../util.js';
@@ -18,7 +18,8 @@ import { HttpError } from '../util.js';
  *   - the token goes to the configured API base only – URLs are always built from it, never taken
  *     from a response, and redirects are refused instead of followed;
  *   - every response is size-capped while it is read, and every blob is checked against its Git
- *     object id (SHA-1 of "blob <size>\0<content>"), so the content is the one the tree names.
+ *     object id (SHA-1 or, in SHA-256 repositories, SHA-256 of "blob <size>\0<content>"), so the
+ *     content is the one the tree names.
  */
 
 export interface RepoRef {
@@ -38,9 +39,26 @@ export interface TreeEntry {
   size?: number;
 }
 
+/**
+ * A commit and whether the host verified its signature (null: unknown). `signers`: who the host
+ * vouches for, lower case – Forgejo/Gitea name the signer; GitHub and GitLab only verify a
+ * signature whose key belongs to the committer, so their committer login and e-mail are used.
+ */
+export interface CommitCheck {
+  sha: string;
+  verified: boolean | null;
+  signers: string[];
+}
+
 export interface GitApi {
-  /** Head commit of the branch and whether the host verified its signature (null: unknown). */
-  head(branch: string): Promise<{ sha: string; verified: boolean | null }>;
+  /** Head commit of the branch. */
+  head(branch: string): Promise<CommitCheck>;
+  /**
+   * The commits reachable from `head` but not from `base` (git log base..head), at most
+   * SYNC_LIMITS.maxCheckedCommits – more fail with GIT_TOO_MANY_COMMITS; an unknown base fails
+   * with GIT_HISTORY_UNKNOWN.
+   */
+  newCommits(base: string, head: string): Promise<CommitCheck[]>;
   /** All entries of the commit's tree (recursive) below `folder` ('' = everything). */
   tree(sha: string, folder: string): Promise<TreeEntry[]>;
   blob(sha: string, maxBytes: number): Promise<Buffer>;
@@ -109,10 +127,13 @@ export function fileWebUrl(provider: GitProvider, repoUrl: string, sha: string, 
   return `${repoUrl}/src/commit/${sha}/${p}`;
 }
 
-/** Git object id of a blob (SHA-1 of the loose object header + content). */
-export function gitBlobSha(content: Buffer): string {
-  return crypto.createHash('sha1').update(`blob ${content.length}\0`).update(content).digest('hex');
+/** Git object id of a blob: hash of the loose object header + content (SHA-1, or SHA-256 for repositories in the SHA-256 object format). */
+export function gitBlobSha(content: Buffer, format: 'sha1' | 'sha256' = 'sha1'): string {
+  return crypto.createHash(format).update(`blob ${content.length}\0`).update(content).digest('hex');
 }
+
+/** The object format an object id belongs to (40 hex digits: SHA-1, 64: SHA-256). */
+export const objectFormatOf = (id: string): 'sha1' | 'sha256' => (id.length === 64 ? 'sha256' : 'sha1');
 
 const dispatcher = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, requestTls: { lookup: guardedLookup } } as never);
 const TIMEOUT_MS = 20_000;
@@ -224,6 +245,30 @@ function checkSha(sha: unknown, what: string): string {
   return sha;
 }
 
+const signerList = (...ids: unknown[]): string[] => [
+  ...new Set(ids.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map((x) => x.trim().toLowerCase())),
+];
+const verifiedOf = (v: unknown): boolean | null => (typeof v === 'boolean' ? v : null);
+
+function historyUnknown(base: string): HttpError {
+  return new HttpError(
+    409,
+    `The Git host cannot list the commits since the last fetched commit ${base.slice(0, 10)} (rewritten history, or a host without the compare API) – their signatures cannot be checked`,
+    'GIT_HISTORY_UNKNOWN',
+    { commit: base.slice(0, 10) },
+  );
+}
+
+function tooManyCommits(count: number): HttpError {
+  const limit = SYNC_LIMITS.maxCheckedCommits;
+  return new HttpError(
+    409,
+    `${count} new commits since the last fetch – more than the ${limit} whose signatures Steward checks in one fetch`,
+    'GIT_TOO_MANY_COMMITS',
+    { count, limit },
+  );
+}
+
 function decodeBlob(j: { content?: string; encoding?: string }, max: number): Buffer {
   if (typeof j.content !== 'string') throw new HttpError(502, 'Blob: no content in the answer', 'GIT_BAD_RESPONSE');
   const buf = j.encoding === 'base64' ? Buffer.from(j.content.replace(/\s/g, ''), 'base64') : Buffer.from(j.content, 'utf8');
@@ -233,16 +278,43 @@ function decodeBlob(j: { content?: string; encoding?: string }, max: number): Bu
 
 const inFolder = (path: string, folder: string) => !folder || path.startsWith(`${folder}/`);
 
+interface GiteaVerification {
+  verified?: boolean;
+  signer?: { username?: string; email?: string } | null;
+}
+const giteaCheck = (sha: string, v: GiteaVerification | undefined): CommitCheck => ({
+  sha,
+  verified: verifiedOf(v?.verified),
+  signers: signerList(v?.signer?.username, v?.signer?.email),
+});
+
+function parseJsonBody<T>(body: Buffer, what: string): T {
+  try {
+    return JSON.parse(body.toString('utf8')) as T;
+  } catch {
+    throw new HttpError(502, `${what}: the Git host did not answer with JSON`, 'GIT_BAD_RESPONSE');
+  }
+}
+
 /** Forgejo and Gitea (/api/v1). */
 function forgejo(ref: RepoRef, token?: string): GitApi {
   const c = new Client(ref, token ? { authorization: `token ${token}` } : {});
   const repo = `/repos/${ref.project.split('/').map(enc).join('/')}`;
   return {
     async head(branch) {
-      const j = await c.json<{ commit?: { id?: string; verification?: { verified?: boolean } } }>(`${repo}/branches/${enc(branch)}`, 'Branch');
-      const sha = checkSha(j.commit?.id, 'Branch');
-      const v = j.commit?.verification?.verified;
-      return { sha, verified: typeof v === 'boolean' ? v : null };
+      const j = await c.json<{ commit?: { id?: string; verification?: GiteaVerification } }>(`${repo}/branches/${enc(branch)}`, 'Branch');
+      return giteaCheck(checkSha(j.commit?.id, 'Branch'), j.commit?.verification);
+    },
+    async newCommits(base, head) {
+      // Gitea ≥ 1.22 / Forgejo ≥ 7; without file lists, with the signature verification
+      const r = await c.get(`${repo}/compare/${base}...${head}?verification=true&files=false`, 'Commits', { allow404: true });
+      if (r.status === 404) throw historyUnknown(base);
+      const j = parseJsonBody<{ total_commits?: number; commits?: { sha?: string; commit?: { verification?: GiteaVerification } }[] }>(r.body, 'Commits');
+      const list = j.commits ?? [];
+      const total = Math.max(j.total_commits ?? 0, list.length);
+      if (total > SYNC_LIMITS.maxCheckedCommits) throw tooManyCommits(total);
+      if (total > list.length) throw new HttpError(502, `Commits: the Git host listed only ${list.length} of ${total} new commits`, 'GIT_BAD_RESPONSE');
+      return list.map((x) => giteaCheck(checkSha(x.sha, 'Commits'), x.commit?.verification));
     },
     async tree(sha, folder) {
       const out: TreeEntry[] = [];
@@ -266,16 +338,41 @@ function forgejo(ref: RepoRef, token?: string): GitApi {
   };
 }
 
+interface GithubCommit {
+  sha?: string;
+  commit?: { committer?: { email?: string }; verification?: { verified?: boolean } };
+  committer?: { login?: string } | null;
+}
+const githubCheck = (x: GithubCommit | undefined, what: string): CommitCheck => ({
+  sha: checkSha(x?.sha, what),
+  verified: verifiedOf(x?.commit?.verification?.verified),
+  // GitHub verifies a signature only for a key of the committer's account
+  signers: signerList(x?.committer?.login, x?.commit?.committer?.email),
+});
+
 function github(ref: RepoRef, token?: string): GitApi {
   const c = new Client(ref, { 'x-github-api-version': '2022-11-28', ...(token ? { authorization: `Bearer ${token}` } : {}) });
   const repo = `/repos/${ref.project.split('/').map(enc).join('/')}`;
   return {
     async head(branch) {
       // the branch endpoint carries the commit without its file list (small, unlike /commits/{ref})
-      const j = await c.json<{ commit?: { sha?: string; commit?: { verification?: { verified?: boolean } } } }>(`${repo}/branches/${enc(branch)}`, 'Branch');
-      const sha = checkSha(j.commit?.sha, 'Branch');
-      const v = j.commit?.commit?.verification?.verified;
-      return { sha, verified: typeof v === 'boolean' ? v : null };
+      const j = await c.json<{ commit?: GithubCommit }>(`${repo}/branches/${enc(branch)}`, 'Branch');
+      return githubCheck(j.commit, 'Branch');
+    },
+    async newCommits(base, head) {
+      const out: CommitCheck[] = [];
+      const per = 100;
+      for (let page = 1; ; page++) {
+        const r = await c.get(`${repo}/compare/${base}...${head}?per_page=${per}&page=${page}`, 'Commits', { allow404: true });
+        if (r.status === 404) throw historyUnknown(base);
+        const j = parseJsonBody<{ total_commits?: number; commits?: GithubCommit[] }>(r.body, 'Commits');
+        const total = j.total_commits ?? 0;
+        if (total > SYNC_LIMITS.maxCheckedCommits) throw tooManyCommits(total);
+        const list = j.commits ?? [];
+        out.push(...list.map((x) => githubCheck(x, 'Commits')));
+        if (out.length >= total || !list.length) break;
+      }
+      return out;
     },
     async tree(sha, folder) {
       const j = await c.json<{ tree?: TreeEntry[]; truncated?: boolean }>(`${repo}/git/trees/${sha}?recursive=1`, 'Tree');
@@ -289,22 +386,48 @@ function github(ref: RepoRef, token?: string): GitApi {
   };
 }
 
+interface GitlabCommit {
+  id?: string;
+  committer_email?: string;
+}
+
 function gitlab(ref: RepoRef, token?: string): GitApi {
   const c = new Client(ref, token ? { 'private-token': token } : {});
   const project = `/projects/${enc(ref.project)}`;
+  /** GitLab verifies a signature only when its key belongs to a user with the committer's e-mail address. */
+  const check = async (sha: string, x: GitlabCommit | undefined): Promise<CommitCheck> => {
+    // 404 = the commit is not signed
+    const sig = await c.get(`${project}/repository/commits/${sha}/signature`, 'Commit signature', { allow404: true });
+    if (sig.status === 404) return { sha, verified: false, signers: [] };
+    let s: { verification_status?: string; gpg_key_user_email?: string; x509_certificate?: { email?: string } };
+    try {
+      s = JSON.parse(sig.body.toString('utf8'));
+    } catch {
+      return { sha, verified: null, signers: [] };
+    }
+    return { sha, verified: s.verification_status === 'verified', signers: signerList(x?.committer_email, s.gpg_key_user_email, s.x509_certificate?.email) };
+  };
   return {
     async head(branch) {
-      const j = await c.json<{ commit?: { id?: string } }>(`${project}/repository/branches/${enc(branch)}`, 'Branch');
-      const sha = checkSha(j.commit?.id, 'Branch');
-      // 404 = the commit is not signed
-      const sig = await c.get(`${project}/repository/commits/${sha}/signature`, 'Commit signature', { allow404: true });
-      if (sig.status === 404) return { sha, verified: false };
-      try {
-        const s = JSON.parse(sig.body.toString('utf8')) as { verification_status?: string };
-        return { sha, verified: s.verification_status === 'verified' };
-      } catch {
-        return { sha, verified: null };
+      const j = await c.json<{ commit?: GitlabCommit }>(`${project}/repository/branches/${enc(branch)}`, 'Branch');
+      return check(checkSha(j.commit?.id, 'Branch'), j.commit);
+    },
+    async newCommits(base, head) {
+      const known = await c.get(`${project}/repository/commits/${base}?stats=false`, 'Commit', { allow404: true });
+      if (known.status === 404) throw historyUnknown(base);
+      const list: GitlabCommit[] = [];
+      for (let page = 1; ; page++) {
+        const r = await c.get(`${project}/repository/commits?ref_name=${enc(`${base}..${head}`)}&per_page=100&page=${page}`, 'Commits');
+        const items = parseJsonBody<GitlabCommit[]>(r.body, 'Commits');
+        if (!Array.isArray(items)) throw new HttpError(502, 'Commits: unexpected answer of the Git host', 'GIT_BAD_RESPONSE');
+        list.push(...items);
+        if (list.length > SYNC_LIMITS.maxCheckedCommits) throw tooManyCommits(list.length);
+        if (!r.headers.get('x-next-page') || !items.length) break;
       }
+      // GitLab lists commits without their signatures: one request per commit
+      const out: CommitCheck[] = [];
+      for (const x of list) out.push(await check(checkSha(x.id, 'Commits'), x));
+      return out;
     },
     async tree(sha, folder) {
       const out: TreeEntry[] = [];

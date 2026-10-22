@@ -22,7 +22,14 @@ export const SYNC_LIMITS = {
   maxFileBytes: 256 * 1024,
   /** All definition files together */
   maxTotalBytes: 4 * 1024 * 1024,
+  /** New commits whose signatures one fetch checks (require signed commits); more fail the fetch */
+  maxCheckedCommits: 250,
+  /** Entries of a source's allowed-signer list */
+  maxAllowedSigners: 50,
 } as const;
+
+/** Days after which superseded updates are deleted and the content of rejected updates is removed. */
+export const SYNC_RETENTION_DAYS = 30;
 
 /** Inbound webhook bodies (push events) are small; larger ones are refused. */
 export const SYNC_WEBHOOK_MAX_BODY_BYTES = 512 * 1024;
@@ -41,8 +48,16 @@ export interface SyncSourceSettings {
   /** Minutes between scheduled fetches; 0 = no schedule (manual and webhook only) */
   intervalMinutes: number;
   webhookEnabled: boolean;
-  /** Fetches fail unless the branch head commit is signed and verified by the Git host */
+  /**
+   * Fetches fail unless every new commit since the last fetched commit (the first fetch: the head
+   * commit) carries a signature the Git host verified
+   */
   requireSignedCommits: boolean;
+  /**
+   * With requireSignedCommits: only commits signed by these accounts are accepted – Git host logins
+   * or e-mail addresses, lower case. Empty = any verified signature.
+   */
+  allowedSigners: string[];
   /** New items (not yet in Steward) are created right away – monitors disabled; changes to existing items still need a review */
   autoAcceptNew: boolean;
   enabled: boolean;
@@ -124,6 +139,8 @@ export interface SyncUpdate {
   /** Process version / monitor version created by the acceptance */
   resultVersion: number | null;
   canDecide: boolean;
+  /** The file's content was removed by the retention (rejected updates after SYNC_RETENTION_DAYS) */
+  contentRemoved: boolean;
 }
 
 export interface SyncUpdateDetail extends SyncUpdate {
