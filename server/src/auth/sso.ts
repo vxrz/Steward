@@ -235,10 +235,14 @@ interface Pending {
 }
 const pending = new Map<string, Pending>();
 const STATE_TTL_MS = 10 * 60 * 1000;
+/** Sign-ins in progress are started without signing in: bounded, the oldest is dropped (no memory exhaustion by a flood). */
+export const MAX_PENDING_SIGN_INS = 5000;
+const MAX_RETURN_TO = 1024;
+export const pendingSignIns = (): number => pending.size;
 
-function safeReturnTo(path: string | undefined): string {
+function safeReturnTo(path: unknown): string {
   // only same-site relative paths (no protocol-relative //host)
-  return path && /^\/(?!\/)[\w\-./?=&%#]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
+  return typeof path === 'string' && path.length <= MAX_RETURN_TO && /^\/(?!\/)[\w\-./?=&%#]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
 }
 
 export async function startSignIn(providerId: string, redirectUri: string, returnTo?: string): Promise<string> {
@@ -247,6 +251,7 @@ export async function startSignIn(providerId: string, redirectUri: string, retur
   const config = await clientConfig(p);
   const now = Date.now();
   for (const [k, v] of pending) if (v.expires < now) pending.delete(k);
+  while (pending.size >= MAX_PENDING_SIGN_INS) pending.delete(pending.keys().next().value!);
   const state = oidc.randomState();
   const nonce = oidc.randomNonce();
   const verifier = oidc.randomPKCECodeVerifier();

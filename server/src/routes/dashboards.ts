@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { BUNDLE_FORMATS, type DatasetMeta, type ExportBundle } from '@sm/shared';
-import { HttpError, nowIso, sha256 } from '../util.js';
+import { HttpError, nowIso, sha256, MAX_DEFINITION_TEXT } from '../util.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser } from '../auth/context.js';
@@ -39,13 +39,14 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/datasets/:key/metrics', async (req) => {
     const meta = visibleDataset(params(req).key!);
-    const q = req.query as { names?: string; days?: string; points?: string };
-    return datasets.metricSeries(
-      meta.key,
-      q.names ? q.names.split(',') : undefined,
-      Math.min(Number(q.days ?? 30), 400),
-      Math.min(Number(q.points ?? 200), 2000),
-    );
+    const q = z
+      .object({
+        names: z.string().max(2000).optional(),
+        days: z.coerce.number().int().min(1).max(400).default(30),
+        points: z.coerce.number().int().min(1).max(2000).default(200),
+      })
+      .parse(req.query ?? {});
+    return datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, q.days, q.points);
   });
 
   app.delete('/datasets/:key', async (req) => {
@@ -60,7 +61,9 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dashboard-templates', async () => dashboards.listDashboardTemplates());
   app.get('/dashboards/:id', async (req) => dashboards.getDashboard(params(req).id!));
   app.post('/dashboards', async (req) => {
-    const b = z.object({ definition: z.any().optional(), text: z.string().optional(), templateId: z.string().optional() }).parse(req.body);
+    const b = z
+      .object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional(), templateId: z.string().optional() })
+      .parse(req.body);
     if (b.templateId) {
       const t = dashboards.listDashboardTemplates().find((x) => x.id === b.templateId);
       if (!t) throw new HttpError(404, 'Dashboard template not found');
@@ -69,7 +72,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     return dashboards.createDashboard(b.text ? dashboards.parseDashboardText(b.text) : b.definition);
   });
   app.put('/dashboards/:id', async (req) => {
-    const b = z.object({ definition: z.any().optional(), text: z.string().optional() }).parse(req.body);
+    const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
     return dashboards.saveDashboard(params(req).id!, b.text ? dashboards.parseDashboardText(b.text) : b.definition);
   });
   app.delete('/dashboards/:id', async (req) => {
@@ -138,7 +141,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- bundles (export / import several processes and dashboards at once) ----------
   app.get('/bundle/export', async (req, reply) => {
-    const q = req.query as { processes?: string; dashboards?: string };
+    const q = z.object({ processes: z.string().max(20000).optional(), dashboards: z.string().max(20000).optional() }).parse(req.query ?? {});
     const wantP = q.processes ? new Set(q.processes.split(',')) : null;
     const wantD = q.dashboards ? new Set(q.dashboards.split(',')) : null;
     const bundle: ExportBundle = {

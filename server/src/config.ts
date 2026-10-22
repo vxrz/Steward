@@ -16,9 +16,12 @@ const dataDir = path.resolve(process.env.SM_DATA_DIR ?? path.join(ROOT_DIR, 'dat
  * browser steps, the user's browser started by the desktop launcher) never inherit the passphrase
  * and it does not show up in /proc/<pid>/environ of later processes.
  */
+/** Whether the passphrase came from SM_MASTER_PASSPHRASE itself (visible in the process environment of the start). */
+let passphraseInEnvironment = false;
 function readMasterPassphrase(): string | undefined {
   const file = process.env.SM_MASTER_PASSPHRASE_FILE?.trim();
   const direct = process.env.SM_MASTER_PASSPHRASE;
+  passphraseInEnvironment = !file && !!direct;
   delete process.env.SM_MASTER_PASSPHRASE;
   delete process.env.SM_MASTER_PASSPHRASE_FILE;
   if (file) {
@@ -67,6 +70,15 @@ export function parseTrustProxy(v: string | undefined): number | string[] | unde
   return list;
 }
 
+/** A whole number from the environment within [min, max]; the default when unset, an error when invalid. */
+function envInt(name: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < min || n > max) throw new Error(`${name}: "${raw}" is not a whole number from ${min} to ${max}`);
+  return n;
+}
+
 const publicUrl = process.env.SM_PUBLIC_URL?.trim().replace(/\/+$/, '') || undefined;
 
 export const config = {
@@ -96,11 +108,56 @@ export const config = {
   publicUrl,
   /** Reverse proxy addresses / hop count whose X-Forwarded-* headers are believed (SM_TRUST_PROXY). */
   trustProxy: parseTrustProxy(process.env.SM_TRUST_PROXY),
+  /**
+   * Session lifetime (OWASP ASVS 4.0.3 V3.3.2, level 2): a session ends after SM_SESSION_IDLE_MINUTES without a
+   * request (default 30; an open Steward tab keeps it alive) and SM_SESSION_MAX_HOURS after sign-in (default 12).
+   */
+  session: {
+    idleMs: envInt('SM_SESSION_IDLE_MINUTES', 30, 5, 7 * 24 * 60) * 60_000,
+    maxMs: envInt('SM_SESSION_MAX_HOURS', 12, 1, 30 * 24) * 3_600_000,
+  },
   /** Session cookie with Secure and HSTS: built-in TLS, or an https public URL (TLS terminated by a proxy). */
   get secureCookies(): boolean {
     return !!this.tls || !!publicUrl?.startsWith('https://');
   },
 };
+
+const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'];
+
+/**
+ * Settings that are fine on a laptop but weaken a shared server: logged as warnings at startup
+ * (OWASP ASVS V14.1). `env` and `c` are parameters for tests.
+ */
+export function securityWarnings(
+  env: NodeJS.ProcessEnv = process.env,
+  c: { host: string; demo: boolean; secureCookies: boolean } = config,
+  passphraseFromEnvironment = passphraseInEnvironment,
+): string[] {
+  const out: string[] = [];
+  const hosts = (env.SM_ALLOWED_HOSTS ?? '')
+    .split(',')
+    .map((h) => h.trim())
+    .filter((h) => h && !LOOPBACK.includes(h));
+  const remote = hosts.length > 0;
+  if (remote && !c.secureCookies) {
+    out.push(
+      `Reachable as ${hosts.join(', ')} without HTTPS: passwords and session cookies cross the network in clear text – set SM_TLS_CERT/SM_TLS_KEY, or SM_PUBLIC_URL=https://… behind a TLS reverse proxy`,
+    );
+  }
+  if (c.demo && (remote || !LOOPBACK.includes(c.host))) {
+    out.push(
+      'Demo mode (SM_DEMO) on a server reachable from the network: it serves mock platforms and lets administrators load demo users with a known password',
+    );
+  }
+  if (passphraseFromEnvironment) {
+    out.push('The master passphrase comes from SM_MASTER_PASSPHRASE – prefer SM_MASTER_PASSPHRASE_FILE (a secret file only the service account can read)');
+  }
+  if (env.SM_METRICS_PUBLIC === '1') out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
+  if (config.session.maxMs > 12 * 3_600_000 || config.session.idleMs > 30 * 60_000) {
+    out.push('Sessions last longer than OWASP ASVS level 2 allows (12 h after sign-in, 30 min idle) – see SM_SESSION_MAX_HOURS / SM_SESSION_IDLE_MINUTES');
+  }
+  return out;
+}
 
 /**
  * Creates the data folders. On Linux/macOS the data directory is private to the service account

@@ -53,8 +53,8 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- in-app notifications ----------
   app.get('/notifications', async (req) => {
-    const limit = Number((req.query as { limit?: string }).limit ?? 50);
-    return listInApp(me().id, Number.isFinite(limit) ? limit : 50);
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(50) }).parse(req.query ?? {});
+    return listInApp(me().id, limit);
   });
   app.post('/notifications/read-all', async () => {
     markAllRead(me().id);

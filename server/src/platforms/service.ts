@@ -379,6 +379,11 @@ export function listSpecs(platformId: string): PlatformSpec[] {
   return db().all<SpecRow>('SELECT * FROM platform_specs WHERE platform_id = ? ORDER BY created_at', platformId).map(toSpec);
 }
 
+/** The platform a specification belongs to (undefined: no such specification). */
+export function specPlatformId(specId: string): string | undefined {
+  return db().get<{ platform_id: string }>('SELECT platform_id FROM platform_specs WHERE id = ?', specId)?.platform_id;
+}
+
 export function getSpecContent(specId: string): string {
   const r = db().get<{ content: string }>('SELECT content FROM platform_specs WHERE id = ?', specId);
   if (!r) throw new HttpError(404, 'Spec not found');

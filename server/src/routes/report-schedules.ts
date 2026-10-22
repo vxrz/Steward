@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as schedules from '../reports/schedules.js';
@@ -34,7 +35,7 @@ export async function reportScheduleRoutes(app: FastifyInstance): Promise<void> 
 
   app.get('/report-schedules/reports', async (req) => {
     const u = me();
-    const limit = Math.min(Number((req.query as { limit?: string }).limit) || 200, 1000);
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(1000).default(200) }).parse(req.query ?? {});
     return listScheduledReports(undefined, limit * 2)
       .filter((r) => schedules.canViewScheduledReport(r, u))
       .slice(0, limit);

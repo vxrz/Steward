@@ -1,7 +1,7 @@
 import './bootstrap.js';
 import { initTelemetry, shutdownTelemetry } from './telemetry.js';
 import { logger } from './log.js';
-import { config, ensureDataDirs } from './config.js';
+import { config, ensureDataDirs, securityWarnings } from './config.js';
 import { buildApp } from './app.js';
 import { unlockFromEnv } from './routes/index.js';
 import { vault } from './vault.js';
@@ -43,6 +43,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   if (process.platform !== 'win32') process.umask(0o077);
   const permissionProblems = ensureDataDirs();
   for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
+  for (const w of securityWarnings()) logger.warn({ security: true }, w);
   const tracing = initTelemetry();
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });

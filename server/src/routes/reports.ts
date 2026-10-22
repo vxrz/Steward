@@ -129,7 +129,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   app.get('/runs/:id/report.pdf', async (req, reply) => {
     const id = params(req).id!;
     requireRunView(id);
-    const q = req.query as { lang?: string; timeZone?: string };
+    const q = z.object({ lang: z.string().max(10).optional(), timeZone: z.string().max(64).optional() }).parse(req.query ?? {});
     const rec = await reports.generateRunReport(id, { lang: reports.resolveLang(q.lang, userLocale()), timeZone: q.timeZone, actor: me().username });
     const r = reports.getReport(rec.id);
     return sendPdf(reply, fs.readFileSync(r.file), r.filename);
@@ -146,11 +146,11 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get('/reports', async (req) => {
-    const q = req.query as { kind?: string; limit?: string };
+    const q = z.object({ kind: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(1000).optional() }).parse(req.query ?? {});
     if (q.kind && q.kind !== 'summary') throw new HttpError(400, 'Use /runs/:id/reports for run reports');
     const caps = capabilities(me());
     return reports
-      .listSummaryReports(Math.min(Number(q.limit) || 200, 1000))
+      .listSummaryReports(q.limit ?? 200)
       .filter((r) => canViewAll(r.processIds) || (caps.viewAudit && r.processIds.some((p) => !processes.permissionsFor(p).length)));
   });
 

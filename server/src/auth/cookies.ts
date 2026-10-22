@@ -2,7 +2,11 @@ import type { FastifyReply } from 'fastify';
 import { config } from '../config.js';
 import type { SessionKeys } from './users.js';
 
-export const SESSION_COOKIE = 'sm_session';
+/**
+ * Over HTTPS the cookie has the __Host- prefix: the browser then only accepts it with Secure, Path=/ and
+ * without Domain, so a neighbouring (sub)domain cannot plant or overwrite it (OWASP ASVS V3.4.4).
+ */
+export const SESSION_COOKIE = config.secureCookies ? '__Host-sm_session' : 'sm_session';
 /** Header with the per-session key (see users.ts SessionBinding). */
 export const SESSION_HEADER = 'x-sm-session';
 /** Query parameter with the link key on download links and images (GET only). */
@@ -33,7 +37,7 @@ export function readCookie(header: string | undefined, name: string): string | u
 export function sessionCookie(token: string | null): string {
   const secure = config.secureCookies ? '; Secure' : '';
   return token
-    ? `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=${7 * 86400}`
+    ? `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=${Math.round(config.session.maxMs / 1000)}`
     : `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=0`;
 }
 

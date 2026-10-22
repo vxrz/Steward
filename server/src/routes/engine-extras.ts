@@ -55,7 +55,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   app.get('/processes/:id/scope', async (req): Promise<ScopeHints> => {
     const id = params(req).id!;
     requireProcess(id, ['view'], 'view this process');
-    const q = req.query as { runId?: string };
+    const q = z.object({ runId: z.string().max(200).optional() }).parse(req.query ?? {});
     const current = processes.getProcess(id).definition;
     let runId: string | null = null;
     let vars: ScopeHints['vars'] = [];

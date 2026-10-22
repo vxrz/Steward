@@ -7,6 +7,7 @@ import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verify
 import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser } from './context.js';
 import { getSettings } from '../settings.js';
+import { config } from '../config.js';
 
 interface UserRow {
   id: string;
@@ -241,7 +242,22 @@ export async function changePassword(id: string, current: string, next: string, 
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
   if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
-  if (!(await verifyPasswordAsync(current, r.password_hash))) throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
+  // Someone holding a session must not be able to guess the password behind it (same limits as sign-in).
+  const tries = recent(passwordChangeFailures, id);
+  if (tries.length >= PASSWORD_CHANGE_MAX_FAILURES) {
+    throw new HttpError(429, 'Too many wrong passwords – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  }
+  if (!(await verifyPasswordAsync(current, r.password_hash))) {
+    remember(passwordChangeFailures, id, tries);
+    audit({
+      action: 'user.password_change_failed',
+      entityType: 'user',
+      entityId: id,
+      summary: `Password change by "${r.username}" refused: wrong current password (attempt ${tries.length + 1})`,
+    });
+    throw new HttpError(400, 'Current password is wrong', 'WRONG_CURRENT_PASSWORD');
+  }
+  passwordChangeFailures.delete(id);
   const err = checkPasswordPolicy(next);
   if (err) throw new HttpError(400, err, 'PASSWORD_POLICY');
   if (current === next) throw new HttpError(400, 'Choose a new password', 'SAME_PASSWORD');
@@ -316,8 +332,6 @@ export function deleteTeam(id: string): void {
 
 // ---------- Login & sessions ----------
 
-const SESSION_IDLE_MS = 12 * 3600 * 1000;
-const SESSION_MAX_MS = 7 * 86400 * 1000;
 const failures = new Map<string, { count: number; until: number }>();
 /** Failed sign-ins per account across all source addresses (sliding 15-minute window). */
 const accountFailures = new Map<string, number[]>();
@@ -326,6 +340,9 @@ const addressFailures = new Map<string, number[]>();
 const WINDOW_MS = 15 * 60000;
 const ACCOUNT_MAX_FAILURES = 20;
 const ADDRESS_MAX_FAILURES = 50;
+/** Wrong current passwords when changing the own password, per account (sliding 15-minute window). */
+const passwordChangeFailures = new Map<string, number[]>();
+const PASSWORD_CHANGE_MAX_FAILURES = 5;
 const MAX_TRACKED = 10000;
 
 const hashToken = (t: string) => crypto.createHash('sha256').update(t).digest('hex');
@@ -399,7 +416,7 @@ export function createSession(userId: string, username: string, meta: { ip?: str
       hashToken(token),
       userId,
       ts,
-      new Date(Date.now() + SESSION_IDLE_MS).toISOString(),
+      new Date(Date.now() + Math.min(config.session.idleMs, config.session.maxMs)).toISOString(),
       ts,
       meta.ip ?? null,
       meta.userAgent?.slice(0, 200) ?? null,
@@ -451,7 +468,7 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
   );
   if (!s) return null;
   const now = Date.now();
-  if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + SESSION_MAX_MS < now) {
+  if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + config.session.maxMs < now) {
     db().run('DELETE FROM sessions WHERE id = ?', id);
     return null;
   }
@@ -462,7 +479,7 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     db().run(
       'UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?',
       new Date(now).toISOString(),
-      new Date(now + SESSION_IDLE_MS).toISOString(),
+      new Date(Math.min(now + config.session.idleMs, Date.parse(s.created_at) + config.session.maxMs)).toISOString(),
       id,
     );
   }
