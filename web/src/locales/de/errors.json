@@ -43,7 +43,9 @@
     "TICKET_EDIT_FORBIDDEN": "Sie dürfen diese Ticket-Referenz nicht ändern.",
     "TICKET_DELETE_ADMIN_ONLY": "Nur Administratoren können Ticket-Referenzen löschen.",
     "TICKET_CHANGED": "Jemand hat diese Ticket-Referenz inzwischen geändert. Laden Sie die Seite neu und übernehmen Sie Ihre Änderungen erneut.",
-    "TICKET_RESPONSIBLE_REQUIRED": "Sie bearbeiten diesen Eintrag als verantwortliche Person: Lassen Sie sich selbst oder Ihr Team in der Liste."
+    "TICKET_RESPONSIBLE_REQUIRED": "Sie bearbeiten diesen Eintrag als verantwortliche Person: Lassen Sie sich selbst oder Ihr Team in der Liste.",
+    "DAILY_SUMMARY_NOT_ALLOWED": "Ein Administrator hat die Tageszusammenfassungen ausgeschaltet.",
+    "DAILY_SUMMARY_ADMIN_ONLY": "Nur Administratoren können die Einstellungen der Tageszusammenfassung sehen und ändern."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

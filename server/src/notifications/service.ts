@@ -370,8 +370,9 @@ export function startNotificationJobs(): void {
     }
     // credentials register: expiry / rotation / review reminders (idempotent, see credentials/reminders.ts)
     import('../credentials/reminders.js').then((m) => m.checkCredentialReminders()).catch((err) => logger.warn({ err }, 'credential reminder check failed'));
-    // ticket references: "not checked for N days" reminders (idempotent, see tickets/reminders.ts)
+    // ticket references: "not checked for N days" reminders (tickets/reminders.ts); daily summaries (summary.ts) – both idempotent
     import('../tickets/reminders.js').then((m) => m.checkTicketReminders()).catch((err) => logger.warn({ err }, 'ticket reminder check failed'));
+    import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
   }, STALE_CHECK_MS);
   staleTimer.unref();
 }

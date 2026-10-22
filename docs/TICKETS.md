@@ -67,6 +67,7 @@ Each reminder is sent once – also across restarts. While the vault is locked n
 
 - **Service, platform and record pages**: _Open tickets_ lists the entries that name the item as affected (resolved and closed ones on request).
 - **Service catalogue**: a badge with the number of open tickets from vendor sources.
+- **Daily summary**: open tickets you are responsible for (see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 - **Scheduled reports**: the section _Ticket references_ shows the tickets open at the end of the period per service and per vendor with their age, the tickets opened and resolved in the period, and the mean time to resolution per vendor. The figures follow from the opening and resolution dates and the status history, so a report generated later for the same period shows the same numbers.
 
 ## Settings

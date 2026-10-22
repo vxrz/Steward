@@ -43,7 +43,9 @@
     "TICKET_EDIT_FORBIDDEN": "You are not allowed to change this ticket reference.",
     "TICKET_DELETE_ADMIN_ONLY": "Only administrators can delete ticket references.",
     "TICKET_CHANGED": "Someone changed this ticket reference in the meantime. Reload the page and apply your changes again.",
-    "TICKET_RESPONSIBLE_REQUIRED": "You edit this entry as one of the responsible people: keep yourself or your team in the list."
+    "TICKET_RESPONSIBLE_REQUIRED": "You edit this entry as one of the responsible people: keep yourself or your team in the list.",
+    "DAILY_SUMMARY_NOT_ALLOWED": "An administrator switched daily summaries off.",
+    "DAILY_SUMMARY_ADMIN_ONLY": "Only administrators can see and change the daily summary settings."
   },
   "boundary": {
     "title": "Something went wrong on this page",

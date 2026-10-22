@@ -10,6 +10,7 @@ export const NOTIFICATION_EVENTS = [
   'credential.due',
   'report.ready',
   'ticket.unchecked',
+  'summary.daily',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -23,6 +24,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'credential.due': 'A credential you own expires or needs rotating or a review soon (or is overdue)',
   'report.ready': 'A scheduled report you receive was generated',
   'ticket.unchecked': 'An open ticket reference you are responsible for was not checked for a while',
+  'summary.daily': 'The daily summary of people who turned it on in their profile (in-app and e-mail only)',
 };
 
 export interface AppNotification {

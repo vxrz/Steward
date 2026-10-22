@@ -103,5 +103,65 @@
     "body_other": "Nobody checked the ticket {{number}} “{{title}}” ({{status}}) for {{count}} days. Please look at it in the other system and mark it as checked (or change its status) in the ticket reference.",
     "since": "Last checked (or added): {{date}}",
     "vendor": "Vendor: {{vendor}}"
+  },
+  "dailySummary": {
+    "title": "Daily summary for {{date}}",
+    "intro": "What happened since {{since}}.",
+    "nothing": "Nothing to report.",
+    "open": "Open {{brand}}",
+    "footer": "You get this summary because you turned it on in your profile. Change or stop it there: {{link}}",
+    "sections": {
+      "runs": "Runs",
+      "tasks": "Waiting for your decision",
+      "monitors": "Monitor status changes",
+      "credentials": "Credentials due",
+      "tickets": "Open tickets you are responsible for",
+      "records": "Records",
+      "reports": "Reports for you"
+    },
+    "count": "{{section}}: {{count}}",
+    "runsTotal_one": "{{count}} run, {{failed}} failed",
+    "runsTotal_other": "{{count}} runs, {{failed}} failed",
+    "runFailed": "{{process}} failed",
+    "dryRun": "dry run",
+    "task": "{{title}}",
+    "taskDetail": "Run of “{{process}}”, waiting since {{date}}",
+    "monitorChange": "{{name}}: {{from}} → {{to}}",
+    "monitorStatus": {
+      "up": "up",
+      "degraded": "degraded",
+      "down": "down",
+      "unknown": "unknown",
+      "blocked": "blocked",
+      "maintenance": "maintenance",
+      "none": "new"
+    },
+    "credentialStatus": {
+      "ok": "ok",
+      "dueSoon": "due soon",
+      "overdue": "overdue",
+      "expired": "expired"
+    },
+    "credentialDetail": "{{status}} · {{date}}",
+    "ticketDetail_one": "{{status}} · open for {{count}} day{{vendor}}",
+    "ticketDetail_other": "{{status}} · open for {{count}} days{{vendor}}",
+    "recordApproval": "{{number}} {{title}} – waits for your approval",
+    "recordChanged": "{{number}} {{title}}: {{from}} → {{to}}",
+    "recordStatus": {
+      "draft": "draft",
+      "submitted": "submitted",
+      "approved": "approved",
+      "rejected": "rejected",
+      "implemented": "implemented",
+      "closed": "closed",
+      "cancelled": "cancelled",
+      "proposed": "proposed",
+      "accepted": "accepted",
+      "superseded": "superseded",
+      "deprecated": "deprecated"
+    },
+    "reportDetail": "Generated {{date}}",
+    "more_one": "… and {{count}} more",
+    "more_other": "… and {{count}} more"
   }
 }

@@ -65,6 +65,12 @@
         "label": "Ticket nicht geprüft",
         "info": "Eine offene Ticket-Referenz in Ihrer Verantwortung wurde länger nicht geprüft"
       }
+    },
+    "summary": {
+      "daily": {
+        "label": "Tageszusammenfassung",
+        "info": "Die Tageszusammenfassung für Personen, die sie in ihrem Profil eingeschaltet haben (nur in der App und per E-Mail)"
+      }
     }
   }
 }

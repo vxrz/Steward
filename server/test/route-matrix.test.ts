@@ -415,6 +415,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/ticket-references/:id/status': RUN,
   'POST /api/ticket-references/:id/checked': RUN,
   'DELETE /api/ticket-references/:id': ADMIN,
+
+  // ---- daily summary ----
+  'GET /api/me/daily-summary': ALL,
+  'PUT /api/me/daily-summary': ALL,
+  'GET /api/me/daily-summary/preview': ALL,
+  'GET /api/settings/daily-summary': ADMIN,
+  'PUT /api/settings/daily-summary': ADMIN,
 };
 
 /** Routes that only work with an interactive session: an API token must not manage identities, the vault or sign-in. */
@@ -568,6 +575,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/ticket-references/:id/status': { status: 'waitingVendor' },
   'POST /api/ticket-references/:id/checked': {},
   'PUT /api/ticket-references/settings': { sources: [{ key: 'vendor', label: 'Vendor ticket', vendor: true }], reminderDays: null },
+  'PUT /api/me/daily-summary': { enabled: false, time: '07:30', timeZone: 'UTC', days: 'weekdays', channel: 'inApp', sections: ['runs'], skipEmpty: true },
+  'PUT /api/settings/daily-summary': { allowed: true },
   'POST /api/report-schedules': REPORT_SCHEDULE,
   'PUT /api/report-schedules/:id': REPORT_SCHEDULE,
   'POST /api/dashboards': { text: 'name: Matrix\nwidgets: []\n' },

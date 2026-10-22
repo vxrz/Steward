@@ -48,6 +48,7 @@ import { triggerRoutes } from './triggers.js';
 import { monitorRoutes } from '../monitors/routes.js';
 import { recordRoutes } from '../records/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
+import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
@@ -1034,6 +1035,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await reportScheduleRoutes(app);
   await recordRoutes(app);
   await ticketRoutes(app);
+  await dailySummaryRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', async () => {

@@ -161,5 +161,20 @@
     "tooShort": "Die Passphrase braucht mindestens {{count}} Zeichen",
     "differ": "Die neuen Passphrasen stimmen nicht überein",
     "backupHint": "Sichern Sie die neue vault.json zusammen mit der Datenbank. Passen Sie auch SM_MASTER_PASSPHRASE_FILE (unbeaufsichtigter Start) an."
+  },
+  "dailySummary": {
+    "title": "Tageszusammenfassungen",
+    "description": "Benutzer schalten die Tageszusammenfassung in ihrem Profil ein. Hier können Sie sie für alle abschalten und sehen, wer eine erhält (nicht, was sie enthält). E-Mails gehen nur an Adressen in den erlaubten Domains und nur, solange das Ereignis „Tageszusammenfassung“ oben an E-Mail geleitet wird.",
+    "allowed": "Tageszusammenfassungen erlauben",
+    "saved": "Gespeichert",
+    "subscribers_one": "{{count}} Person erhält eine Tageszusammenfassung",
+    "subscribers_other": "{{count}} Personen erhalten eine Tageszusammenfassung",
+    "none": "Noch erhält niemand eine Tageszusammenfassung.",
+    "user": "Benutzer",
+    "when": "Wann",
+    "channel": "Wohin",
+    "lastSent": "Zuletzt gesendet",
+    "never": "noch nicht",
+    "whenValue": "{{time}} Uhr ({{timeZone}}), {{days}}"
   }
 }

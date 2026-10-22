@@ -161,5 +161,20 @@
     "tooShort": "The passphrase needs at least {{count}} characters",
     "differ": "The new passphrases differ",
     "backupHint": "Back up the new vault.json together with the database. Update SM_MASTER_PASSPHRASE_FILE (unattended start) as well."
+  },
+  "dailySummary": {
+    "title": "Daily summaries",
+    "description": "People turn the daily summary on in their profile. Here you can stop it for everyone and see who receives one (not what it contains). E-mail goes only to addresses in the allowed domains, and only while the event \"Daily summary\" is routed to e-mail above.",
+    "allowed": "Allow daily summaries",
+    "saved": "Saved",
+    "subscribers_one": "{{count}} person receives a daily summary",
+    "subscribers_other": "{{count}} people receive a daily summary",
+    "none": "Nobody receives a daily summary yet.",
+    "user": "User",
+    "when": "When",
+    "channel": "Where",
+    "lastSent": "Last sent",
+    "never": "not yet",
+    "whenValue": "{{time}} {{timeZone}}, {{days}}"
   }
 }
