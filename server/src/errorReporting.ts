@@ -257,8 +257,27 @@ export function reportError(err: unknown, ctx: ReportContext = {}): string | und
   }
 }
 
-export async function flushErrorReporting(timeoutMs = 2000): Promise<void> {
-  await sentry?.flush(timeoutMs).catch(() => undefined);
+/**
+ * Sends a test event and waits for the error tracker's answer (for --send-test-error).
+ * Resolves to the event id and the HTTP status (undefined: not delivered in time / network error).
+ */
+export async function sendTestEvent(timeoutMs = 10000): Promise<{ id?: string; status?: number }> {
+  const client = sentry?.getClient();
+  if (!sentry || !client) return {};
+  let id: string | undefined;
+  const answered = new Promise<number | undefined>((resolve) => {
+    client.on('afterSendEvent', (event, response) => {
+      if (event.event_id === id) resolve(response?.statusCode);
+    });
+    setTimeout(() => resolve(undefined), timeoutMs).unref();
+  });
+  id = reportError(new Error(`${BRAND.name} test error – error reporting works`), { level: 'warning', tags: { phase: 'test' } });
+  return { id, status: id ? await answered : undefined };
+}
+
+/** Waits until queued events are sent; false when that did not finish in time (or reporting is off). */
+export async function flushErrorReporting(timeoutMs = 2000): Promise<boolean> {
+  return (await sentry?.flush(timeoutMs).catch(() => false)) ?? false;
 }
 
 export async function closeErrorReporting(timeoutMs = 2000): Promise<void> {

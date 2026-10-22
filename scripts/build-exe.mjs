@@ -3,11 +3,44 @@
 // into a copy of the node binary. Run on each target OS (see release workflow).
 //
 //   npm run build && npm run build:exe   →   dist-exe/<name>[.exe]
+//
+// Progress goes to stderr, the result line to stdout. Exit status: 0 = built,
+// 1 = build failed, 2 = usage error.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import { build } from 'esbuild';
+
+const HELP = `Build the single-file desktop executable for this OS and architecture.
+
+Usage:
+  npm run build:exe [-- options]
+  node scripts/build-exe.mjs [options]
+
+Run "npm run build" first (the built web UI is embedded). The result is
+dist-exe/<name>[.exe]; Playwright (browser steps) is not embedded.
+
+Options:
+  -h, --help   Show this help
+
+Exit status: 0 = built, 1 = build failed, 2 = usage error.
+`;
+
+try {
+  const { values } = parseArgs({ options: { help: { type: 'boolean', short: 'h' } }, strict: true });
+  if (values.help) {
+    process.stdout.write(HELP);
+    process.exit(0);
+  }
+} catch (e) {
+  process.stderr.write(`error: ${e.message.replace(/\. To specify a positional argument.*$/s, '')}\nRun 'node scripts/build-exe.mjs --help' for usage.\n`);
+  process.exit(2);
+}
+
+const step = (msg) => process.stderr.write(`• ${msg}\n`);
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'dist-exe');
@@ -29,6 +62,7 @@ fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(work, { recursive: true });
 
 // 1. Bundle the server into one CommonJS file (SEA runs CommonJS).
+step('Bundling the server');
 await build({
   entryPoints: [path.join(root, 'server/src/desktop/launcher.ts')],
   outfile: path.join(work, 'app.cjs'),
@@ -62,6 +96,7 @@ const manifestFile = path.join(work, 'manifest.json');
 fs.writeFileSync(manifestFile, JSON.stringify({ version, files: Object.keys(assets) }));
 assets['manifest.json'] = manifestFile;
 
+step(`Embedding ${Object.keys(assets).length} files`);
 const seaConfig = path.join(work, 'sea-config.json');
 fs.writeFileSync(
   seaConfig,
@@ -71,19 +106,19 @@ fs.writeFileSync(
     2,
   ),
 );
-execFileSync(process.execPath, ['--experimental-sea-config', seaConfig], { stdio: 'inherit' });
+execFileSync(process.execPath, ['--experimental-sea-config', seaConfig], { stdio: ['ignore', 2, 2] });
 
 // 3. Copy the node binary and inject the blob.
+step(`Injecting into a copy of ${path.basename(process.execPath)} ${process.version}`);
 fs.copyFileSync(process.execPath, exe);
-if (isMac) execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' });
-const postject = path.join(root, 'node_modules', 'postject', 'dist', 'cli.js');
-execFileSync(
-  process.execPath,
-  [postject, exe, 'NODE_SEA_BLOB', path.join(work, 'sea-prep.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(isMac ? ['--macho-segment-name', 'NODE_SEA'] : [])],
-  { stdio: 'inherit' },
-);
-if (isMac) execFileSync('codesign', ['--sign', '-', exe], { stdio: 'inherit' });
+if (isMac) execFileSync('codesign', ['--remove-signature', exe], { stdio: ['ignore', 2, 2] });
+const { inject } = createRequire(import.meta.url)(path.join(root, 'node_modules', 'postject'));
+await inject(exe, 'NODE_SEA_BLOB', fs.readFileSync(path.join(work, 'sea-prep.blob')), {
+  sentinelFuse: 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+  ...(isMac ? { machoSegmentName: 'NODE_SEA' } : {}),
+});
+if (isMac) execFileSync('codesign', ['--sign', '-', exe], { stdio: ['ignore', 2, 2] });
 fs.rmSync(work, { recursive: true, force: true });
 
 const mb = (fs.statSync(exe).size / 1024 / 1024).toFixed(0);
-console.log(`\nBuilt ${path.relative(root, exe)} (${mb} MB, ${Object.keys(assets).length} embedded files)`);
+console.log(`Built ${path.relative(root, exe)} (${mb} MB, ${Object.keys(assets).length} embedded files)`);
