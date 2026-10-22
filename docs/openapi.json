@@ -6611,7 +6611,7 @@
         "tags": [
           "Platforms"
         ],
-        "description": "Credentials, variables and authentication settings are never returned.",
+        "description": "Only platforms the token owner has some permission on. Credentials, variables and authentication settings are never returned.",
         "parameters": [
           {
             "schema": {

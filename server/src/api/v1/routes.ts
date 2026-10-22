@@ -829,15 +829,17 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       operationId: 'listPlatforms',
       tag: 'Platforms',
       summary: 'List platforms (metadata only)',
-      description: 'Credentials, variables and authentication settings are never returned.',
+      description: 'Only platforms the token owner has some permission on. Credentials, variables and authentication settings are never returned.',
       query: S.PlatformListQuery,
       paginated: true,
       response: S.pageOf('Platform', 'A page of platforms'),
     },
     async (req, reply) => {
       const q = query<{ kind?: string; environment?: string; cursor?: string; limit: number }>(req);
+      // Like the web UI: only platforms the token owner has some permission on.
       const list = platforms
         .listPlatforms()
+        .filter((p) => p.permissions.length > 0)
         .filter((p) => !q.kind || p.kind === q.kind)
         .filter((p) => !q.environment || p.environment === q.environment)
         .map(mapPlatform);
@@ -860,7 +862,10 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async (req) => {
       try {
-        return mapPlatform(platforms.getPlatform(params(req).platformId!));
+        const p = platforms.getPlatform(params(req).platformId!);
+        // 404 (not 403) without any permission, so platform ids can't be probed.
+        if (!p.permissions.length) throw notFound(`Platform ${params(req).platformId}`);
+        return mapPlatform(p);
       } catch (e) {
         if (e instanceof HttpError && e.statusCode === 404) throw notFound(`Platform ${params(req).platformId}`);
         throw e;

@@ -252,6 +252,27 @@ describe('permissions mirror the web UI', () => {
     expect((await v1(tokens.vera, `/runs/${runId}`)).status).toBe(404);
   });
 
+  it('hides platforms the token owner has no rights on', async () => {
+    const pf = await s.api('POST', '/platforms', { name: 'API hidden platform', kind: 'rest', baseUrl: 'https://hidden.example.com' });
+    try {
+      await s.api('PUT', `/platforms/${pf.id}/access`, { acl: [{ subject: 'user:dana', permissions: ['use'] }] });
+      const list = await v1(tokens.vera, '/platforms?limit=200');
+      expect(list.status).toBe(200);
+      expect(list.body.items.map((p: any) => p.id)).not.toContain(pf.id);
+      expect(list.text).not.toContain('hidden.example.com');
+      const one = await v1(tokens.vera, `/platforms/${pf.id}`);
+      expect(one.status).toBe(404);
+      validate('/platforms/{platformId}', one);
+      expect(one.text).not.toContain('API hidden platform');
+      // dana is on the access list, administrators see everything
+      expect((await v1(tokens.dana, '/platforms?limit=200')).body.items.map((p: any) => p.id)).toContain(pf.id);
+      expect((await v1(tokens.dana, `/platforms/${pf.id}`)).body.permissions).toEqual(['use']);
+      expect((await v1(tokens.admin, `/platforms/${pf.id}`)).status).toBe(200);
+    } finally {
+      await s.api('DELETE', `/platforms/${pf.id}`);
+    }
+  });
+
   it('limits the audit log to auditors and administrators', async () => {
     const denied = await v1(tokens.vera, '/audit');
     expect(denied.status).toBe(403);
