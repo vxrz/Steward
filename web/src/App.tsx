@@ -1,31 +1,13 @@
 import { lazy, Suspense, useEffect, type ComponentType } from 'react';
 import { Link, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { AppShell, Badge, Burger, Center, Group, Loader, NavLink, ScrollArea, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { AppShell, Badge, Burger, Button, Center, Group, Loader, Text, ActionIcon, Tooltip, useMantineColorScheme } from '@mantine/core';
+import { useDisclosure, useLocalStorage, useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import {
-  IconLayoutDashboard,
-  IconChartBar,
-  IconInbox,
-  IconPlayerPlay,
-  IconSitemap,
-  IconCalendarTime,
-  IconWebhook,
-  IconHeartRateMonitor,
-  IconKey,
-  IconReportAnalytics,
-  IconFileCertificate,
-  IconStack2,
-  IconServer,
-  IconShieldCheck,
-  IconSettings,
-  IconUsers,
-  IconMoon,
-  IconSun,
-} from '@tabler/icons-react';
-import type { AuthStatus, Capabilities, TaskRecord } from '@sm/shared';
+import { IconMapPinOff, IconMoon, IconSun } from '@tabler/icons-react';
+import { EmptyState } from './components/common';
+import type { AuthStatus, TaskRecord } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../shared/src/brand';
 import { AppLogo } from './components/brand/AppLogo';
@@ -35,6 +17,7 @@ import { MeContext } from './auth';
 import { ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
+import { AppNav, useNavGroups } from './components/AppNav';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
@@ -82,42 +65,6 @@ function PageLoader() {
     </Center>
   );
 }
-
-type NavKey =
-  | 'dashboard'
-  | 'dashboards'
-  | 'tasks'
-  | 'runs'
-  | 'processes'
-  | 'schedules'
-  | 'triggers'
-  | 'monitors'
-  | 'platforms'
-  | 'records'
-  | 'services'
-  | 'credentials'
-  | 'reports'
-  | 'audit'
-  | 'users'
-  | 'settings';
-const NAV: { to: string; key: NavKey; icon: typeof IconLayoutDashboard; cap?: keyof Capabilities }[] = [
-  { to: '/', key: 'dashboard', icon: IconLayoutDashboard },
-  { to: '/dashboards', key: 'dashboards', icon: IconChartBar },
-  { to: '/tasks', key: 'tasks', icon: IconInbox },
-  { to: '/runs', key: 'runs', icon: IconPlayerPlay },
-  { to: '/processes', key: 'processes', icon: IconSitemap },
-  { to: '/schedules', key: 'schedules', icon: IconCalendarTime },
-  { to: '/triggers', key: 'triggers', icon: IconWebhook },
-  { to: '/monitors', key: 'monitors', icon: IconHeartRateMonitor },
-  { to: '/platforms', key: 'platforms', icon: IconServer },
-  { to: '/records', key: 'records', icon: IconFileCertificate },
-  { to: '/services', key: 'services', icon: IconStack2 },
-  { to: '/credentials', key: 'credentials', icon: IconKey },
-  { to: '/reports', key: 'reports', icon: IconReportAnalytics },
-  { to: '/audit', key: 'audit', icon: IconShieldCheck, cap: 'viewAudit' },
-  { to: '/users', key: 'users', icon: IconUsers, cap: 'manageUsers' },
-  { to: '/settings', key: 'settings', icon: IconSettings },
-];
 
 export function App() {
   const { t } = useTranslation('nav');
@@ -168,11 +115,15 @@ function Shell({ status }: { status: AuthStatus }) {
   const tasks = useQuery({ queryKey: ['tasks', 'mine-count'], queryFn: () => get<TaskRecord[]>('/tasks?status=open&mine=1'), refetchInterval: 5000 });
   const openTasks = tasks.data?.length ?? 0;
 
-  const navItems = NAV.filter((n) => !n.cap || caps[n.cap]).map((n) => ({ ...n, label: t(`items.${n.key}`) }));
-  const isActive = (to: string) => (to === '/' ? location.pathname === '/' : location.pathname.startsWith(to));
+  const navItems = useNavGroups(caps).flatMap((g) => g.items);
+  // Narrow icon-only sidebar on wide screens (remembered per browser)
+  const [rail, setRail] = useLocalStorage({ key: 'sm.nav.rail', defaultValue: false, getInitialValueInEffect: false });
+  // The burger drawer on phones always shows the full sidebar.
+  const isDesktop = useMediaQuery('(min-width: 48em)') ?? false;
+  const railActive = rail && isDesktop;
 
   return (
-    <AppShell header={{ height: 52 }} navbar={{ width: 220, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="md">
+    <AppShell header={{ height: 52 }} navbar={{ width: railActive ? 64 : 232, breakpoint: 'sm', collapsed: { mobile: !opened } }} padding="md">
       <AppShell.Header>
         <Group h="100%" px={{ base: 'xs', xs: 'md' }} justify="space-between" wrap="nowrap" gap="xs">
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
@@ -211,28 +162,15 @@ function Shell({ status }: { status: AuthStatus }) {
         </Group>
         <CommandPalette pages={navItems} />
       </AppShell.Header>
-      <AppShell.Navbar p="xs">
-        <ScrollArea>
-          {navItems.map((n) => (
-            <NavLink
-              key={n.to}
-              component={Link}
-              to={n.to}
-              label={n.label}
-              leftSection={<n.icon size={18} stroke={1.6} />}
-              active={isActive(n.to)}
-              rightSection={
-                n.to === '/tasks' && openTasks > 0 ? (
-                  <Badge size="sm" color="accent" circle>
-                    {openTasks}
-                  </Badge>
-                ) : undefined
-              }
-              onClick={close}
-              style={{ borderRadius: 'var(--mantine-radius-default)' }}
-            />
-          ))}
-        </ScrollArea>
+      <AppShell.Navbar p="xs" aria-label={t('mainNavigation')}>
+        <AppNav
+          caps={caps}
+          pathname={location.pathname}
+          openTasks={openTasks}
+          rail={railActive}
+          onToggleRail={isDesktop ? () => setRail(!rail) : undefined}
+          onNavigate={close}
+        />
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -270,7 +208,20 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}
-                <Route path="*" element={<Text>{t('pageNotFound')}</Text>} />
+                <Route
+                  path="*"
+                  element={
+                    <EmptyState
+                      icon={IconMapPinOff}
+                      title={t('pageNotFound')}
+                      action={
+                        <Button component={Link} to="/">
+                          {t('backToDashboard')}
+                        </Button>
+                      }
+                    />
+                  }
+                />
               </Routes>
             </Suspense>
           </ErrorBoundary>

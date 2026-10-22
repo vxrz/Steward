@@ -3,11 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ActionIcon, Anchor, Badge, Button, Card, Group, Modal, SimpleGrid, Stack, Table, Text, Textarea, Title, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconAlertTriangle, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconAlertTriangle, IconChartBar, IconFlask, IconPlus, IconTemplate, IconTrash, IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetMeta } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
-import { PageHeader } from '../components/common';
+import { EmptyState, PageHeader, QueryState } from '../components/common';
 import { fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
@@ -61,18 +61,28 @@ export function DashboardsPage() {
           )
         }
       />
+      <QueryState query={dashboards} rows={2} />
       {dashboards.data?.length === 0 && (
-        <Card withBorder p="lg" mb="md">
-          <Text fw={600}>{t('list.emptyTitle')}</Text>
-          <Text size="sm" c="dimmed">
-            {t('list.emptyText')}
-          </Text>
-        </Card>
+        <EmptyState
+          icon={IconChartBar}
+          title={t('list.emptyTitle')}
+          action={
+            caps.createProcesses && (
+              <Button leftSection={<IconTemplate size={16} />} onClick={templates.open}>
+                {t('list.fromTemplate')}
+              </Button>
+            )
+          }
+        >
+          {t('list.emptyText')}
+        </EmptyState>
       )}
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="xl">
         {dashboards.data?.map((d) => (
           <Card key={d.id} withBorder className="clickable" onClick={() => navigate(`/dashboards/${d.id}`)}>
-            <Text fw={600}>{d.name}</Text>
+            <Anchor component={Link} to={`/dashboards/${d.id}`} fw={600} c="var(--mantine-color-text)" underline="hover" onClick={(e) => e.stopPropagation()}>
+              {d.name}
+            </Anchor>
             <Text size="sm" c="dimmed" lineClamp={3}>
               {d.description || ' '}
             </Text>

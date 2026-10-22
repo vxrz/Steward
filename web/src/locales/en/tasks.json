@@ -43,5 +43,6 @@
     "quoted": "“{{text}}”",
     "cancelled": "Cancelled",
     "selectItem": "Select {{name}}"
-  }
+  },
+  "emptyMineText": "When a running process needs your approval or decision, it shows up here and in the notification bell."
 }

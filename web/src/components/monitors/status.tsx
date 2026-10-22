@@ -3,14 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { CHECK_TYPE_INFO, MONITOR_STATUS_INFO, type CauseRef, type CheckType, type MonitorStatus, type UptimeSet } from '@sm/shared';
 import i18n from '../../i18n';
 import { numberFormat } from '../../format';
+import { TONE } from '../common';
 
 export const MONITOR_COLORS: Record<MonitorStatus, string> = {
-  up: 'green',
-  degraded: 'yellow',
-  down: 'red',
-  unknown: 'gray',
-  blocked: 'orange',
-  maintenance: 'blue',
+  up: TONE.ok,
+  degraded: TONE.soon,
+  down: TONE.bad,
+  unknown: TONE.neutral,
+  blocked: TONE.attention,
+  maintenance: TONE.active,
 };
 
 /** English defaults; the UI shows monitors:status.<status>. */

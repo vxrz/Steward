@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActionIcon, Badge, Button, Chip, Divider, Group, Modal, Select, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Chip, Divider, Group, Modal, Select, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ProcessDetail, ProcessSummary, Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { PageHeader, StatusBadge } from '../components/common';
+import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam } from '../components/common';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
@@ -43,6 +43,7 @@ export function SchedulesPage() {
   const navigate = useNavigate();
   const schedules = useQuery({ queryKey: ['schedules'], queryFn: () => get<Schedule[]>('/schedules'), refetchInterval: 10000 });
   const [draft, setDraft] = useState<Draft | null>(null);
+  useCreateParam(true, () => setDraft(emptyDraft()));
 
   const save = async (s: Draft) => {
     const { id, ...body } = s;
@@ -68,10 +69,19 @@ export function SchedulesPage() {
           </Button>
         }
       />
+      <QueryState query={schedules} />
       {schedules.data?.length === 0 && (
-        <Text c="dimmed" size="sm">
-          {t('empty')}
-        </Text>
+        <EmptyState
+          icon={IconCalendarTime}
+          title={t('emptyState.title')}
+          action={
+            <Button leftSection={<IconPlus size={16} />} onClick={() => setDraft(emptyDraft())}>
+              {t('new')}
+            </Button>
+          }
+        >
+          {t('emptyState.text')}
+        </EmptyState>
       )}
       {!!schedules.data?.length && (
         <div className="table-scroll">
@@ -121,10 +131,12 @@ export function SchedulesPage() {
                   <Table.Td className="nowrap">{s.enabled && s.nextRunAt ? `${fmtDate(s.nextRunAt)} (${fmtRelative(s.nextRunAt)})` : '–'}</Table.Td>
                   <Table.Td>
                     {s.lastRunId ? (
-                      <Group gap={4} className="clickable" onClick={() => navigate(`/runs/${s.lastRunId}`)} wrap="nowrap">
-                        {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
-                        <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>
-                      </Group>
+                      <Anchor component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+                        <Group gap={4} wrap="nowrap">
+                          {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
+                          <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>
+                        </Group>
+                      </Anchor>
                     ) : (
                       '–'
                     )}

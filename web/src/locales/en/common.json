@@ -71,5 +71,11 @@
     "manage": "manage",
     "use": "use",
     "acknowledge": "acknowledge"
-  }
+  },
+  "breadcrumb": "Breadcrumb",
+  "loadFailed": "Could not load this page",
+  "retry": "Try again",
+  "filters": "Filters",
+  "filtersActive_one": "Filters ({{count}} active)",
+  "filtersActive_other": "Filters ({{count}} active)"
 }

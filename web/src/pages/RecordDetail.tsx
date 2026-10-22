@@ -95,6 +95,7 @@ export function RecordDetailPage() {
   return (
     <>
       <PageHeader
+        back="records"
         title={
           <Group gap="sm" wrap="wrap">
             <span>{rec.title}</span>

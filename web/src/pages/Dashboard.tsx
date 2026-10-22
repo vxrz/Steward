@@ -1,13 +1,14 @@
-import { Alert, Anchor, Badge, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { IconAlertTriangle, IconInbox, IconRocket } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { DashboardData } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
-import { PageHeader, severityLabel } from '../components/common';
+import { PageHeader, SeverityBadge } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { CredentialsDueCard } from '../components/credentials/CredentialsDueCard';
+import { GettingStarted } from '../components/dashboard/GettingStarted';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { useState } from 'react';
@@ -15,11 +16,29 @@ import { useState } from 'react';
 export function DashboardPage({ demo }: { demo: boolean }) {
   const { t } = useTranslation('dashboard');
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const d = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
   const { isAdmin } = useMe();
   const [demoAccounts, setDemoAccounts] = useState<{ users: string[]; password: string } | null>(null);
   const data = d.data;
+  const loadDemoButton = isAdmin && (
+    <Group mb="sm">
+      <Button
+        size="xs"
+        onClick={async () => {
+          try {
+            const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup');
+            notifyOk(t('getStarted.demoLoaded', { platforms: r.platforms, processes: r.processes }));
+            setDemoAccounts({ users: r.users, password: r.password });
+            qc.invalidateQueries();
+          } catch (e) {
+            notifyError(e);
+          }
+        }}
+      >
+        {t('getStarted.loadDemo')}
+      </Button>
+    </Group>
+  );
   return (
     <>
       <PageHeader title={t('title')} description={t('description')} />
@@ -35,56 +54,26 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           </Text>
         </Alert>
       )}
-      {data && data.counts.platforms === 0 && (
+      {data?.setup && <GettingStarted setup={data.setup} demoAction={data.counts.platforms === 0 && demo ? loadDemoButton : undefined} />}
+      {data && !data.setup && data.counts.platforms === 0 && (
         <Alert icon={<IconRocket />} title={t('getStarted.title')} mb="md">
-          <Stack gap="xs">
-            <Text size="sm">
-              <Trans t={t} i18nKey="getStarted.step1" components={{ a: <Anchor component={Link} to="/platforms" /> }} />
-              <br />
-              <Trans t={t} i18nKey="getStarted.step2" components={{ a: <Anchor component={Link} to="/processes" /> }} />
-              <br />
-              <Trans t={t} i18nKey="getStarted.step3" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
-            </Text>
-            {demo && isAdmin && (
-              <Group>
-                <Button
-                  size="xs"
-                  onClick={async () => {
-                    try {
-                      const r = await post<{ platforms: number; processes: number; users: string[]; password: string }>('/demo/setup');
-                      notifyOk(t('getStarted.demoLoaded', { platforms: r.platforms, processes: r.processes }));
-                      setDemoAccounts({ users: r.users, password: r.password });
-                      qc.invalidateQueries();
-                    } catch (e) {
-                      notifyError(e);
-                    }
-                  }}
-                >
-                  {t('getStarted.loadDemo')}
-                </Button>
-              </Group>
-            )}
-          </Stack>
+          <Text size="sm">
+            <Trans t={t} i18nKey="getStarted.step1" components={{ a: <Anchor component={Link} to="/platforms" /> }} />
+            <br />
+            <Trans t={t} i18nKey="getStarted.step2" components={{ a: <Anchor component={Link} to="/processes" /> }} />
+            <br />
+            <Trans t={t} i18nKey="getStarted.step3" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
+          </Text>
         </Alert>
       )}
       {data && (
         <Stack>
           <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="xs">
-            <Count
-              label={t('counts.openTasks')}
-              value={data.openTasks.length}
-              color={data.openTasks.length ? 'violet' : undefined}
-              onClick={() => navigate('/tasks')}
-            />
-            <Count label={t('counts.runs24h')} value={data.counts.runs24h} onClick={() => navigate('/runs')} />
-            <Count
-              label={t('counts.failed24h')}
-              value={data.counts.failed24h}
-              color={data.counts.failed24h ? 'red' : undefined}
-              onClick={() => navigate('/runs')}
-            />
-            <Count label={t('counts.schedules')} value={data.counts.schedules} onClick={() => navigate('/schedules')} />
-            <Count label={t('counts.platforms')} value={data.counts.platforms} onClick={() => navigate('/platforms')} />
+            <Count label={t('counts.openTasks')} value={data.openTasks.length} color={data.openTasks.length ? 'violet' : undefined} to="/tasks" />
+            <Count label={t('counts.runs24h')} value={data.counts.runs24h} to="/runs" />
+            <Count label={t('counts.failed24h')} value={data.counts.failed24h} color={data.counts.failed24h ? 'red' : undefined} to="/runs" />
+            <Count label={t('counts.schedules')} value={data.counts.schedules} to="/schedules" />
+            <Count label={t('counts.platforms')} value={data.counts.platforms} to="/platforms" />
           </SimpleGrid>
 
           {data.openTasks.length > 0 && (
@@ -119,9 +108,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
                   <Group key={i} justify="space-between" gap={4} wrap="wrap" align="flex-start">
                     <div style={{ minWidth: 0 }}>
                       <Group gap={6}>
-                        <Badge size="xs" color={c.severity === 'error' ? 'red' : c.severity === 'warning' ? 'orange' : 'gray'}>
-                          {severityLabel(c.severity)}
-                        </Badge>
+                        <SeverityBadge severity={c.severity} />
                         <Anchor component={Link} to={`/runs/${c.runId}`} size="sm">
                           {c.name}
                         </Anchor>
@@ -181,9 +168,9 @@ export function DashboardPage({ demo }: { demo: boolean }) {
   );
 }
 
-function Count({ label, value, color, onClick }: { label: string; value: number; color?: string; onClick?: () => void }) {
+function Count({ label, value, color, to }: { label: string; value: number; color?: string; to: string }) {
   return (
-    <Paper withBorder p="sm" className="clickable" onClick={onClick}>
+    <Paper withBorder p="sm" className="clickable" component={Link} to={to} style={{ color: 'inherit', textDecoration: 'none', display: 'block' }}>
       <Text size="xs" c="dimmed">
         {label}
       </Text>

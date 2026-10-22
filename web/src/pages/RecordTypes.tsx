@@ -36,6 +36,7 @@ export function RecordTypesPage() {
   return (
     <>
       <PageHeader
+        back="records"
         title={t('types.title')}
         description={t('types.description')}
         actions={

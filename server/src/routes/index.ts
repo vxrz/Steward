@@ -9,6 +9,7 @@ import {
   validateProcess,
   type AuthStatus,
   type DashboardData,
+  type DashboardSetup,
   type Me,
   type RunSummary,
   type StartRunRequest,
@@ -121,6 +122,21 @@ const me = (): AuthUser => {
   if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
   return u;
 };
+
+/** Instance-wide counts for the getting-started checklist (administrators only). */
+function setupProgress(): DashboardSetup {
+  const count = (sql: string) => db().get<{ n: number }>(sql)?.n ?? 0;
+  return {
+    platforms: count('SELECT COUNT(*) AS n FROM platforms'),
+    processes: count('SELECT COUNT(*) AS n FROM processes'),
+    runs: count('SELECT COUNT(*) AS n FROM runs'),
+    schedules: count('SELECT COUNT(*) AS n FROM schedules'),
+    monitors: count('SELECT COUNT(*) AS n FROM monitors WHERE is_template = 0'),
+    credentials: count('SELECT COUNT(*) AS n FROM credentials WHERE archived = 0'),
+    users: users.countUsers(),
+    reportSchedules: count('SELECT COUNT(*) AS n FROM report_schedules'),
+  };
+}
 
 function meInfo(): Me | null {
   const u = currentUser();
@@ -958,6 +974,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         runs24h: last24.length,
         failed24h: last24.filter((r) => r.status === 'failed').length,
       },
+      ...(isAdmin(me()) ? { setup: setupProgress() } : {}),
     };
   });
 

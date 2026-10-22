@@ -95,6 +95,7 @@ export function SystemStatusPage() {
   return (
     <>
       <PageHeader
+        back="settings"
         title={t('status.title')}
         description={t('status.intro', { brand: BRAND.name })}
         actions={

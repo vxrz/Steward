@@ -2,7 +2,6 @@
   "title": "Triggers",
   "description": "Webhook triggers start a process when another system calls a URL, e.g. a Gatus alert starts a diagnosis runbook. Each trigger has its own secret; runs use the rights of the trigger's owner and are skipped and logged if the owner loses access.",
   "new": "New webhook trigger",
-  "none": "No webhook triggers yet.",
   "notSaved": "Trigger not saved",
   "saved": "Trigger saved",
   "rotateConfirm": "Rotate the secret of \"{{name}}\"? The current secret stops working immediately – update the caller (e.g. Gatus) right away.",
@@ -117,5 +116,9 @@
       "failed": "failed"
     },
     "test": "test"
+  },
+  "emptyState": {
+    "title": "No webhook triggers yet",
+    "text": "Let another system start a process by calling a URL, e.g. a Gatus alert that starts a diagnosis runbook. Each trigger gets its own secret."
   }
 }

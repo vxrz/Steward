@@ -43,5 +43,6 @@
     "quoted": "„{{text}}“",
     "cancelled": "Abgebrochen",
     "selectItem": "{{name}} auswählen"
-  }
+  },
+  "emptyMineText": "Braucht ein laufender Prozess Ihre Freigabe oder Entscheidung, erscheint sie hier und in der Benachrichtigungsglocke."
 }

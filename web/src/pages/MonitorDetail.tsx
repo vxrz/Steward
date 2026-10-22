@@ -93,6 +93,7 @@ export function MonitorDetailPage() {
   return (
     <>
       <PageHeader
+        back="monitors"
         title={
           <Group gap="sm" wrap="wrap">
             <span>{m.name}</span>

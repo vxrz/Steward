@@ -116,6 +116,7 @@ export function RecordEditorPage() {
   return (
     <>
       <PageHeader
+        back={['records', { to: `/records/${rec.id}`, label: rec.number }]}
         title={t('editor.title', { number: rec.number })}
         description={`${typeName(rec.type, rec.typeName)} · ${t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}`}
       />

@@ -3,7 +3,6 @@
   "description": "Prozesse automatisch ausführen lassen (z. B. wöchentliche Health Checks, vierteljährliche Zugriffsprüfungen). Geplante Ausführungen laufen mit den Rechten des Zeitplan-Eigentümers; Ausführungen, die eine Entscheidung brauchen, warten unter „Meine Aufgaben“.",
   "new": "Neuer Zeitplan",
   "edit": "Zeitplan bearbeiten",
-  "empty": "Noch keine Zeitpläne.",
   "notSaved": "Zeitplan nicht gespeichert",
   "saved": "Zeitplan gespeichert",
   "enabled": "Aktiv",
@@ -40,5 +39,9 @@
     "dryRun": "Probelauf (Änderungen simulieren)",
     "overlap": "Überlappende Ausführungen erlauben",
     "overlapHint": "Aus: Eine neue Ausführung wird übersprungen, solange die vorherige noch läuft oder auf eine Entscheidung wartet."
+  },
+  "emptyState": {
+    "title": "Noch keine Zeitpläne",
+    "text": "Lassen Sie einen Prozess automatisch ausführen, z. B. einen wöchentlichen Health Check oder eine vierteljährliche Zugriffsprüfung. Geplante Ausführungen laufen mit den Rechten des Zeitplan-Eigentümers."
   }
 }

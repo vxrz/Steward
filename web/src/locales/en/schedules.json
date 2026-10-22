@@ -3,7 +3,6 @@
   "description": "Plan processes to run automatically (e.g. weekly health checks, quarterly access reviews). Scheduled runs use the rights of the schedule's owner; runs that need a decision wait in My tasks.",
   "new": "New schedule",
   "edit": "Edit schedule",
-  "empty": "No schedules yet.",
   "notSaved": "Schedule not saved",
   "saved": "Schedule saved",
   "enabled": "Enabled",
@@ -40,5 +39,9 @@
     "dryRun": "Dry run (simulate changes)",
     "overlap": "Allow overlapping runs",
     "overlapHint": "Off: a new run is skipped while the previous one is still running or waiting for a decision."
+  },
+  "emptyState": {
+    "title": "No schedules yet",
+    "text": "Run a process automatically, e.g. a weekly health check or a quarterly access review. Scheduled runs use the rights of the schedule's owner."
   }
 }

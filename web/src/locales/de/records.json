@@ -41,15 +41,16 @@
     "status": "Status",
     "allStatuses": "Alle Status",
     "clearTag": "Filter für Schlagwort {{tag}} entfernen",
-    "empty": "Noch keine Dokumente.",
-    "emptyCreate": "Noch keine Dokumente. Legen Sie eines an oder importieren Sie Ihre bestehenden Entscheidungsprotokolle aus Markdown-Dateien.",
     "noMatch": "Kein Dokument passt zum Filter.",
     "number": "Nummer",
     "record": "Dokument",
     "owner": "Eigentümer",
     "updated": "Geändert",
     "revision": "Revision {{n}}",
-    "ownerLine": "{{owner}} · geändert {{when}}"
+    "ownerLine": "{{owner}} · geändert {{when}}",
+    "emptyTitle": "Noch keine Dokumente",
+    "emptyText": "Änderungsanträge und Entscheidungsprotokolle, die Sie sehen dürfen, erscheinen hier.",
+    "emptyCreateText": "Schreiben Sie einen Änderungsantrag oder ein Entscheidungsprotokoll, oder importieren Sie vorhandene Entscheidungsprotokolle aus Markdown-Dateien."
   },
   "create": {
     "title": "Neues Dokument",

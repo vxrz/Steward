@@ -5,8 +5,6 @@
   "newTitle": "New service",
   "editTitle": "Edit {{name}}",
   "showArchived": "Show archived services",
-  "empty": "No services yet.",
-  "emptyCreate": "No services yet. Add the services your team runs and link their platforms, monitors and records.",
   "name": "Name",
   "descriptionLabel": "Description",
   "descriptionHelp": "Markdown",
@@ -46,5 +44,11 @@
   "restore": "Restore",
   "archiveConfirm": "Archive {{name}}? It disappears from the list and the link picker; links and history stay.",
   "detailLine": "Changed by {{user}} on {{date}}",
-  "created": "Created by {{user}} on {{date}}"
+  "created": "Created by {{user}} on {{date}}",
+  "emptyState": {
+    "title": "No services yet",
+    "titleArchived": "No archived services",
+    "text": "Your administrators or designers add the services your team runs.",
+    "textCreate": "Add the services your team runs and link their platforms, monitors and records."
+  }
 }

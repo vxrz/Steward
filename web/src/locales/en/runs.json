@@ -151,5 +151,11 @@
       "more_other": "Show {{count}} more",
       "all": "Show all"
     }
+  },
+  "emptyState": {
+    "title": "No runs yet",
+    "text": "A run is one execution of a process, with its full protocol. Start one from a process – a dry run simulates every change first.",
+    "action": "Open processes",
+    "noMatch": "No runs match the filter."
   }
 }

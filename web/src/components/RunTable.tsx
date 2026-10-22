@@ -1,5 +1,5 @@
-import { Badge, Table, Text } from '@mantine/core';
-import { useNavigate } from 'react-router-dom';
+import { Anchor, Badge, Table, Text } from '@mantine/core';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { RunSummary } from '@sm/shared';
 import { fmtDate, runDuration } from '../format';
@@ -39,9 +39,18 @@ export function RunTable({ runs, compact = false }: { runs: RunSummary[]; compac
                 )}
               </Table.Td>
               <Table.Td>
-                <Text size="sm" fw={500}>
+                {/* a real link, so the row is reachable with the keyboard */}
+                <Anchor
+                  component={Link}
+                  to={`/runs/${r.id}`}
+                  size="sm"
+                  fw={500}
+                  c="var(--mantine-color-text)"
+                  underline="hover"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {r.processName}
-                </Text>
+                </Anchor>
               </Table.Td>
               <Table.Td className="nowrap">{fmtDate(r.startedAt)}</Table.Td>
               {!compact && <Table.Td className="nowrap">{runDuration(r.startedAt, r.finishedAt)}</Table.Td>}

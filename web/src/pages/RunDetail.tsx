@@ -18,7 +18,7 @@ import {
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
-import { JsonView, Markdown, PageHeader, StatusBadge, severityLabel, statusLabel } from '../components/common';
+import { JsonView, Markdown, PageHeader, SeverityBadge, StatusBadge, statusLabel } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
@@ -71,6 +71,7 @@ export function RunDetailPage() {
   return (
     <>
       <PageHeader
+        back="runs"
         title={
           <Group gap="xs">
             <span>{r.processName}</span>
@@ -282,7 +283,7 @@ export function RunDetailPage() {
                           )}
                         </Table.Td>
                         <Table.Td>{c.name}</Table.Td>
-                        <Table.Td>{o.severity ? severityLabel(o.severity) : ''}</Table.Td>
+                        <Table.Td>{o.severity ? <SeverityBadge severity={o.severity} /> : ''}</Table.Td>
                         <Table.Td>{o.message ?? c.error}</Table.Td>
                       </Table.Tr>
                     );
