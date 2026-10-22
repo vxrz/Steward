@@ -278,7 +278,8 @@
     "SECRET_KIND_url-password": "ein Passwort in einer URL",
     "SECRET_KIND_steward-token": "ein API-Token oder Secret von Steward",
     "SECRET_KIND_assigned": "ein Passwort oder einen Schlüssel",
-    "SECRET_KIND_random": "ein langes zufälliges Token (es sieht nach einem Schlüssel oder Passwort aus)"
+    "SECRET_KIND_random": "ein langes zufälliges Token (es sieht nach einem Schlüssel oder Passwort aus)",
+    "SESSION_REQUIRED": "Diese Aktion erfordert eine Anmeldung im Browser – mit API-Tokens ist sie nicht möglich."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

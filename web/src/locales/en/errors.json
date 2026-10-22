@@ -278,7 +278,8 @@
     "SECRET_KIND_url-password": "a password in a URL",
     "SECRET_KIND_steward-token": "a Steward API token or secret",
     "SECRET_KIND_assigned": "a password or key value",
-    "SECRET_KIND_random": "a long random token (it looks like a key or password)"
+    "SECRET_KIND_random": "a long random token (it looks like a key or password)",
+    "SESSION_REQUIRED": "This action needs a signed-in session in the browser – API tokens cannot do it."
   },
   "boundary": {
     "title": "Something went wrong on this page",
