@@ -1,0 +1,30 @@
+{
+  "title": "Übersicht",
+  "description": "Was Ihre Aufmerksamkeit braucht, was gerade läuft und was geplant ist.",
+  "demoAccounts": {
+    "title": "Demo-Konten angelegt",
+    "text": "Als <b>{{users}}</b> mit dem Passwort <code>{{password}}</code> anmelden, um die Rollen in Aktion zu sehen (dana = Designer, olivia = Operator, adam = Freigeber, audrey = Prüfer, vera = Betrachter; olivia und adam bilden das Team „Service Desk“)."
+  },
+  "getStarted": {
+    "title": "Erste Schritte",
+    "step1": "1. Eine <a>Plattform</a> hinzufügen (Insights-Hub-Tenant, Industrial Edge Management, beliebige REST-API) – mit Zugangsdaten und API-Spezifikation.",
+    "step2": "2. Einen <a>Prozess</a> aus einer Vorlage oder von Grund auf anlegen.",
+    "step3": "3. Ausführen (zuerst als Probelauf) oder einen <a>Zeitplan</a> anlegen.",
+    "loadDemo": "Demo-Plattformen & -Prozesse laden",
+    "demoLoaded": "{{platforms}} Demo-Plattformen und {{processes}} Prozesse geladen"
+  },
+  "counts": {
+    "openTasks": "Offene Aufgaben",
+    "runs24h": "Ausführungen (24 h)",
+    "failed24h": "Fehlgeschlagen (24 h)",
+    "schedules": "Aktive Zeitpläne",
+    "platforms": "Plattformen"
+  },
+  "waiting": "Wartet auf Ihre Entscheidung",
+  "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",
+  "recentRuns": "Letzte Ausführungen",
+  "upcoming": "Demnächst",
+  "nothingScheduled": "Nichts geplant. <a>Prozess planen</a>.",
+  "upcomingLine": "{{process}} · {{date}} ({{relative}})",
+  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · Probelauf"
+}

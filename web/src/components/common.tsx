@@ -23,6 +23,22 @@ export function statusLabel(status: string): string {
   return i18n.t(`common:status.${status}` as 'common:status.running', { defaultValue: status });
 }
 
+/** "user:jdoe" → "jdoe", "team:service desk" → "Team service desk", "role:operator" → "Role: Operator" */
+export function subjectLabel(subject: string): string {
+  const i = subject.indexOf(':');
+  const kind = subject.slice(0, i);
+  const name = subject.slice(i + 1);
+  if (kind === 'user') return name;
+  if (kind === 'team') return i18n.t('common:subjects.team', { name });
+  if (kind === 'role') return i18n.t('common:subjects.role', { role: i18n.t(`common:roles.${name}` as 'common:roles.admin', { defaultValue: name }) });
+  return subject;
+}
+
+/** Check severity (error / warning / info) for display. */
+export function severityLabel(severity: string): string {
+  return i18n.t(`common:severity.${severity}` as 'common:severity.error', { defaultValue: severity });
+}
+
 export function StatusBadge({ status, size = 'sm' }: { status: string; size?: 'xs' | 'sm' | 'md' }) {
   useTranslation();
   return (

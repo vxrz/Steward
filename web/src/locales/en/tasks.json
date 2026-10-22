@@ -1,1 +1,46 @@
-{}
+{
+  "title": "My tasks",
+  "description": "Decisions and approvals requested by running processes. “Mine” shows what you may decide; every decision is recorded in the run protocol and the audit log.",
+  "filter": {
+    "mine": "Mine",
+    "open": "All open",
+    "completed": "Done"
+  },
+  "emptyMine": "Nothing for you to decide right now.",
+  "empty": "No tasks.",
+  "panel": {
+    "submitted_one": "Submitted: {{count}} selected",
+    "submitted_other": "Submitted: {{count}} selected",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "submitFailed": "Could not submit decision",
+    "fourEyes": "four-eyes",
+    "fourEyesHint": "The person who started the run may not decide",
+    "openRun": "open run",
+    "created": "created {{date}}",
+    "startedBy": "run started by {{user}}",
+    "assignedTo": "Assigned to",
+    "filter": "Filter…",
+    "selectedOf_one": "{{count}} of {{total}} selected",
+    "selectedOf_other": "{{count}} of {{total}} selected",
+    "wereSelectedOf_one": "{{count}} of {{total}} was selected",
+    "wereSelectedOf_other": "{{count}} of {{total}} were selected",
+    "selectAll": "Select all",
+    "select": "Select",
+    "truncated": "Showing the first {{max}} of {{total}} rows – use the filter to narrow down.",
+    "waitingForOthers": "Waiting for someone else: {{reason}}.",
+    "reasonFourEyes": "four-eyes principle – someone other than the person who started the run must decide",
+    "reasonAssigned": "assigned to {{subjects}}",
+    "reasonRights": "you need run or approve rights on this process",
+    "comment": "Comment (stored in the protocol)",
+    "reject": "Reject",
+    "approve": "Approve",
+    "submitSelection": "Submit selection ({{count}})",
+    "decidedApproved": "Approved by <b>{{user}}</b> on {{date}}",
+    "decidedRejected": "Rejected by <b>{{user}}</b> on {{date}}",
+    "decidedSelected_one": "{{count}} item selected by <b>{{user}}</b> on {{date}}",
+    "decidedSelected_other": "{{count}} items selected by <b>{{user}}</b> on {{date}}",
+    "quoted": "“{{text}}”",
+    "cancelled": "Cancelled"
+  }
+}

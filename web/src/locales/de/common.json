@@ -43,5 +43,22 @@
     "auditor": "Lesezugriff auf alle Prozesse, Ausführungen, Protokolle und das Audit-Log",
     "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)"
   },
-  "loading": "Wird geladen…"
+  "loading": "Wird geladen…",
+  "severity": {
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Rolle: {{role}}"
+  },
+  "cancel": "Abbrechen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "close": "Schließen",
+  "edit": "Bearbeiten",
+  "back": "Zurück",
+  "yes": "Ja",
+  "no": "Nein"
 }

@@ -43,5 +43,22 @@
     "auditor": "Read-only access to all processes, runs, protocols and the audit log",
     "viewer": "Read-only access to processes and their runs (unless restricted)"
   },
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "severity": {
+    "error": "error",
+    "warning": "warning",
+    "info": "info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Role: {{role}}"
+  },
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "close": "Close",
+  "edit": "Edit",
+  "back": "Back",
+  "yes": "Yes",
+  "no": "No"
 }

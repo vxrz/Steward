@@ -1,1 +1,30 @@
-{}
+{
+  "title": "Dashboard",
+  "description": "What needs your attention, what is running and what is planned.",
+  "demoAccounts": {
+    "title": "Demo accounts created",
+    "text": "Sign in as <b>{{users}}</b> with the password <code>{{password}}</code> to see the roles in action (dana = designer, olivia = operator, adam = approver, audrey = auditor, vera = viewer; olivia and adam form the team “Service Desk”)."
+  },
+  "getStarted": {
+    "title": "Get started",
+    "step1": "1. Add a <a>platform</a> (Insights Hub tenant, Industrial Edge Management, any REST API) with its credentials and API spec.",
+    "step2": "2. Create a <a>process</a> from a template or from scratch.",
+    "step3": "3. Run it (start with a dry run) or <a>schedule</a> it.",
+    "loadDemo": "Load demo platforms & processes",
+    "demoLoaded": "Loaded {{platforms}} demo platforms and {{processes}} processes"
+  },
+  "counts": {
+    "openTasks": "Open tasks",
+    "runs24h": "Runs (24 h)",
+    "failed24h": "Failed (24 h)",
+    "schedules": "Active schedules",
+    "platforms": "Platforms"
+  },
+  "waiting": "Waiting for your decision",
+  "failedChecks": "Failed checks (last 7 days)",
+  "recentRuns": "Recent runs",
+  "upcoming": "Upcoming",
+  "nothingScheduled": "Nothing scheduled. <a>Plan a process</a>.",
+  "upcomingLine": "{{process}} · {{date}} ({{relative}})",
+  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · dry run"
+}
