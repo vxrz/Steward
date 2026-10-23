@@ -44,6 +44,28 @@ afterAll(async () => {
 const CR_FIELDS = { reason: 'r', risk: 'low', rollbackPlan: 'p', plannedStart: '2026-11-03T18:00', plannedEnd: '2026-11-03T19:00' };
 const newCr = (title = 'A change') => dana('POST', '/records', { type: 'CR', title, fields: CR_FIELDS });
 
+/**
+ * Changes rows of the immutable tables (record_editions, record_reviews) directly in the database, as someone
+ * with write access to it could: the triggers that refuse it are lifted for this one statement.
+ */
+async function forge(table: string, sql: string, ...params: unknown[]) {
+  const { db } = await import('../src/db.js');
+  const { immutableRowTriggers } = await import('../src/migrations/records.js');
+  const triggers = immutableRowTriggers(db().dialect, table);
+  db().exec(triggers.drop);
+  try {
+    db().run(sql, ...params);
+  } finally {
+    db().exec(triggers.create);
+  }
+}
+
+/** Makes the review of a document overdue (an earlier review date in the past; editions stay untouched). */
+async function makeOverdue(recordId: string) {
+  const { db } = await import('../src/db.js');
+  db().run('UPDATE record_documents SET next_review_override = ? WHERE record_id = ?', new Date(Date.now() - DAY).toISOString(), recordId);
+}
+
 /** A DOC approved as edition 1.0 (dana writes, adam approves). */
 async function publishedDoc(title = 'Authorization concept', body = '## Purpose and scope\n\nWho may do what on the plant gateway.\n') {
   const rec = await dana('POST', '/records', { type: 'DOC', title, body });
@@ -193,8 +215,7 @@ describe('editions', () => {
 
   it('frozen editions are immutable: a change in the database shows as not intact', async () => {
     const pub = await publishedDoc('Tamper target');
-    const { db } = await import('../src/db.js');
-    db().run("UPDATE record_editions SET body = 'forged' WHERE record_id = ?", pub.id);
+    await forge('record_editions', "UPDATE record_editions SET body = 'forged' WHERE record_id = ?", pub.id);
     const e = await vera('GET', `/records/${pub.id}/editions/1.0`);
     expect(e.intact).toBe(false);
     expect((await vera('GET', `/records/${pub.id}`)).document.editions[0].intact).toBe(false);
@@ -262,10 +283,7 @@ describe('periodic reviews', () => {
 
   it('"needs update" starts the next edition; the review stays due until it is approved', async () => {
     const pub = await publishedDoc('Needs work');
-    const { db } = await import('../src/db.js');
-    // make the review overdue: approved 13 months ago
-    const past = new Date(Date.now() - 400 * DAY).toISOString();
-    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', past, pub.id);
+    await makeOverdue(pub.id);
     expect((await vera('GET', `/records/${pub.id}`)).document.review.status).toBe('overdue');
     expect(await status(dana('POST', `/records/${pub.id}/review`, { outcome: 'needs_update' }))).toBe(400);
     const r = await dana('POST', `/records/${pub.id}/review`, { outcome: 'needs_update', comment: 'New contact persons' });
@@ -468,12 +486,11 @@ describe('PDF', () => {
 
 describe('start page tile', () => {
   it('"Reviews due": editors, approvers and auditors see all documents; others only those they own or review', async () => {
-    const { db } = await import('../src/db.js');
     const attention = async (c: Client) => (await c('GET', '/dashboard')).attention;
     const before = await attention(audrey);
     expect(await attention(vera)).not.toHaveProperty('reviews');
     const pub = await publishedDoc('Tile target');
-    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), pub.id);
+    await makeOverdue(pub.id);
     const soon = await publishedDoc('Tile target soon');
     await dana('PUT', `/records/${soon.id}/review-settings`, { nextReviewAt: new Date(Date.now() + 5 * DAY).toISOString().slice(0, 10) });
     const after = await attention(audrey);
@@ -491,9 +508,8 @@ describe('daily summary', () => {
   it('lists the reviews due for the review owner, and documents waiting for approval', async () => {
     const sum = await import('../src/notifications/summary.js');
     const users = await import('../src/auth/users.js');
-    const { db } = await import('../src/db.js');
     const pub = await publishedDoc('Summary concept');
-    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), pub.id);
+    await makeOverdue(pub.id);
     await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
     const waiting = await dana('POST', '/records', { type: 'DOC', title: 'Summary waiting' });
     await dana('POST', `/records/${waiting.id}/transition`, { action: 'submit', changeSummary: 'First' });
@@ -524,11 +540,11 @@ describe('scheduled report section', () => {
     await import('../src/reports/schedules.js');
     const { runAs } = await import('../src/auth/context.js');
     const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
-    const { db } = await import('../src/db.js');
     const pub = await publishedDoc('Report concept');
     await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'ok' });
     const late = await publishedDoc('Report concept overdue');
-    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), late.id);
+    // approved 13 months ago (the report replays the reviews, so an earlier date would not count)
+    await forge('record_editions', 'UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), late.id);
     const def = reportSection('records')!;
     const now = Date.now();
     const build = (config: Record<string, unknown>, from: number, to: number) =>
@@ -571,9 +587,8 @@ describe('compliance evidence', () => {
     const c537 = iso.find((c: any) => c.ref === '5.37');
     expect((await dana('GET', '/compliance/tag-targets?kind=recordType&q=DOC')).map((x: any) => x.id)).toContain(DOCUMENT_TYPE_ID);
     await dana('POST', `/compliance/controls/${c537.id}/tags`, { kind: 'recordType', targetId: DOCUMENT_TYPE_ID });
-    // approved long ago, reviewed since, then a new edition is being drafted: the valid edition is the evidence
+    // approved, reviewed since, then a new edition is being drafted: the valid edition is the evidence
     const old = await publishedDoc('Evidence manual', '## Content\n\nEdition one.\n');
-    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 200 * DAY).toISOString(), old.id);
     await adam('POST', `/records/${old.id}/review`, { outcome: 'no_change', comment: 'ok' });
     await dana('POST', `/records/${old.id}/revise`, { comment: 'next' });
     await dana('PUT', `/records/${old.id}`, { body: '## Content\n\nDraft of edition two.\n' });
@@ -825,5 +840,48 @@ describe('security review fixes', () => {
     const adr = await dana('POST', '/records', { type: 'ADR', title: 'Accept what you saw' });
     const proposed = await dana('POST', `/records/${adr.id}/transition`, { action: 'propose' });
     expect((await adam('POST', `/records/${adr.id}/transition`, { action: 'accept', contentHash: proposed.frozenHash })).status).toBe('accepted');
+  });
+
+  it('editions and reviews cannot be changed or deleted in the database; forged metadata shows as not intact', async () => {
+    const { db } = await import('../src/db.js');
+    const pub = await publishedDoc('Forgery target');
+    await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'Checked' });
+    // the triggers refuse changes and deletes (SQLite and PostgreSQL)
+    expect(() => db().run("UPDATE record_editions SET approved_by = 'olivia' WHERE record_id = ?", pub.id)).toThrow(/immutable/);
+    expect(() => db().run('DELETE FROM record_editions WHERE record_id = ?', pub.id)).toThrow(/immutable|cannot be deleted/);
+    expect(() => db().run("UPDATE record_reviews SET comment = 'x' WHERE record_id = ?", pub.id)).toThrow(/immutable/);
+    expect(() => db().run('DELETE FROM record_reviews WHERE record_id = ?', pub.id)).toThrow(/immutable|cannot be deleted/);
+    const fresh = await vera('GET', `/records/${pub.id}`);
+    expect(fresh.document.editions[0].intact).toBe(true);
+    expect(fresh.document.reviews[0].intact).toBe(true);
+    expect((await vera('GET', `/records/${pub.id}/changelog`)).every((r: any) => r.intact)).toBe(true);
+    // the content still has its hash, but the approver, the authors or the change summary were changed
+    for (const [column, value] of [
+      ['approved_by', 'olivia'],
+      ['authors', '["adam"]'],
+      ['change_summary', 'Approved by the plant manager'],
+    ] as const) {
+      const doc = await publishedDoc(`Forged ${column}`);
+      await forge('record_editions', `UPDATE record_editions SET ${column} = ? WHERE record_id = ?`, value, doc.id);
+      const after = await vera('GET', `/records/${doc.id}`);
+      expect(after.document.editions[0].intact, column).toBe(false);
+      expect((await vera('GET', `/records/${doc.id}/editions/1.0`)).intact, column).toBe(false);
+      expect((await vera('GET', `/records/${doc.id}/changelog`)).find((r: any) => r.kind === 'edition').intact, column).toBe(false);
+    }
+    // a forged review: changed reviewer and comment, and one inserted without an audit entry
+    await forge('record_reviews', "UPDATE record_reviews SET reviewer = 'audrey', comment = 'All fine' WHERE record_id = ?", pub.id);
+    db().run(
+      "INSERT INTO record_reviews (id, record_id, outcome, edition, reviewer, comment, next_review_at, created_at) VALUES ('rrv_forged', ?, 'no_change', '1.0', 'adam', 'Forged', NULL, ?)",
+      pub.id,
+      new Date().toISOString(),
+    );
+    const reviews = await vera('GET', `/records/${pub.id}/reviews`);
+    expect(reviews.map((r: any) => r.intact)).toEqual([false, false]);
+    expect((await vera('GET', `/records/${pub.id}`)).document.reviews.every((r: any) => !r.intact)).toBe(true);
+    expect((await vera('GET', `/records/${pub.id}/changelog`)).filter((r: any) => r.kind === 'review' && !r.intact)).toHaveLength(2);
+    // the approval and the review seal the metadata in the audit log
+    const audit = await s.api('GET', `/audit?entityType=record&entityId=${pub.id}`);
+    expect(audit.find((a: any) => a.action === 'record.edition_approved').details).toMatchObject({ approvedBy: 'adam', metaHash: expect.any(String) });
+    expect(audit.find((a: any) => a.action === 'record.reviewed').details).toMatchObject({ metaHash: expect.any(String) });
   });
 });

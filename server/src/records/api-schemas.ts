@@ -93,7 +93,11 @@ export const RecordEditionSummary = z.object({
   approvedBy: z.string(),
   approvedAt: ts(),
   current: z.boolean().describe('The edition valid now'),
-  intact: z.boolean().describe('The stored content still has its hash, and the hash is the one in the authentic audit entry of the approval'),
+  intact: z
+    .boolean()
+    .describe(
+      'The stored content still has its hash, and the hash and the metadata (change summary, authors, submitter, approver, dates) are those in the authentic audit entry of the approval',
+    ),
 });
 
 export const RecordEdition = RecordEditionSummary.extend({
@@ -110,6 +114,7 @@ export const RecordReview = z.object({
   comment: z.string(),
   createdAt: ts(),
   nextReviewAt: ts().nullable().describe('Next review planned after this one'),
+  intact: z.boolean().describe('The stored review matches the authentic audit entry that recorded it (false: changed outside Steward)'),
 });
 
 export const DocumentReview = z.object({

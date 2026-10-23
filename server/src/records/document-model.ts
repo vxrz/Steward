@@ -13,7 +13,7 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { authenticRows } from '../audit.js';
-import { HttpError, nowIso, parseJson } from '../util.js';
+import { HttpError, canonicalJson, nowIso, parseJson, sha256 } from '../util.js';
 import { daysUntil, reminderSettings } from '../credentials/service.js';
 import { contentHash, type RecordRow } from './model.js';
 import { typeReviewInterval, type TypeRow } from './types.js';
@@ -24,7 +24,8 @@ import { typeReviewInterval, type TypeRow } from './types.js';
  * - An **edition** (1.0, 1.1, 2.0) is an approved state of a document. Approving copies the frozen content
  *   (title, text, fields, their definitions, the attached files) into record_editions together with its
  *   content hash, so it stays readable – and provable – while the next edition is drafted. Editions are
- *   never changed: there is no code path that updates a row of record_editions.
+ *   never changed: there is no code path that updates or deletes a row of record_editions, and triggers
+ *   refuse it (migration records-003-documents). The same holds for record_reviews.
  * - A **review** confirms the current edition at a planned interval ("Reviewed – no change") or finds
  *   that it needs an update. The next review is due `interval` months after the approval of the current
  *   edition or the last review, whichever is later – or earlier, when someone set an earlier date.
@@ -148,22 +149,84 @@ export function editionHash(r: Pick<RecordRow, 'id' | 'number'>, typeKey: string
 }
 
 /**
- * Whether the stored editions are what was approved: the stored content still has its hash, and the hash is
- * the one in the authentic (HMAC-chained) audit entry of the approval. Returns the editions that pass.
+ * Hash of the metadata of an edition – kind, revision and version, change summary, authors, who submitted and
+ * approved it and when. It is sealed in the audit entry of the approval (`metaHash`), so a changed approver,
+ * author list or summary shows as well as changed content.
+ */
+export function editionMetaHash(e: EditionRow): string {
+  return sha256(
+    canonicalJson({
+      edition: e.edition,
+      kind: e.kind,
+      revision: Number(e.revision),
+      version: Number(e.version),
+      changeSummary: e.change_summary,
+      authors: parseJson<string[]>(e.authors, []),
+      submittedBy: e.submitted_by ?? null,
+      submittedAt: e.submitted_at ?? null,
+      approvedBy: e.approved_by,
+      approvedAt: e.approved_at,
+    }),
+  );
+}
+
+/** Hash of a stored review (outcome, edition, reviewer, comment, dates), sealed in its audit entry (`metaHash`). */
+export function reviewMetaHash(v: ReviewRow): string {
+  return sha256(
+    canonicalJson({
+      id: v.id,
+      outcome: v.outcome,
+      edition: v.edition ?? null,
+      reviewer: v.reviewer,
+      comment: v.comment,
+      nextReviewAt: v.next_review_at ?? null,
+      createdAt: v.created_at,
+    }),
+  );
+}
+
+/**
+ * Whether the stored editions are what was approved: the stored content still has its hash, and the hash and
+ * the edition's metadata (editionMetaHash) are the ones in the authentic (HMAC-chained) audit entry of the
+ * approval. Returns the editions that pass.
  */
 export function intactEditions(r: Pick<RecordRow, 'id' | 'number'>, typeKey: string, rows: EditionRow[]): Set<string> {
   const ok = new Set<string>();
   if (!rows.length) return ok;
   const { rows: audited } = authenticRows("entity_type = 'record' AND entity_id = ? AND action = 'record.edition_approved'", [r.id], { limit: 1000 });
-  const approved = new Map<string, string>();
+  const approved = new Map<string, { hash: string; meta: string | undefined }>();
   for (const a of audited) {
-    const d = parseJson<{ edition?: string; contentHash?: string }>(a.details, {});
-    if (d.edition && d.contentHash && !approved.has(d.edition)) approved.set(d.edition, d.contentHash);
+    const d = parseJson<{ edition?: string; contentHash?: string; metaHash?: string }>(a.details, {});
+    if (d.edition && d.contentHash && !approved.has(d.edition)) approved.set(d.edition, { hash: d.contentHash, meta: d.metaHash });
   }
   for (const e of rows) {
-    if (approved.get(e.edition) === e.content_hash && editionHash(r, typeKey, e) === e.content_hash) ok.add(e.edition);
+    const a = approved.get(e.edition);
+    if (a && a.hash === e.content_hash && a.meta === editionMetaHash(e) && editionHash(r, typeKey, e) === e.content_hash) ok.add(e.edition);
   }
   return ok;
+}
+
+/** The ids of the stored reviews that match the authentic audit entry that recorded them (reviewMetaHash). */
+export function intactReviews(recordId: string, rows: ReviewRow[]): Set<string> {
+  const ok = new Set<string>();
+  if (!rows.length) return ok;
+  const { rows: audited } = authenticRows("entity_type = 'record' AND entity_id = ? AND action = 'record.reviewed'", [recordId], {
+    limit: Math.max(1000, rows.length * 2),
+  });
+  const sealed = new Map<string, string | undefined>();
+  for (const a of audited) {
+    const d = parseJson<{ reviewId?: string; metaHash?: string }>(a.details, {});
+    if (d.reviewId && !sealed.has(d.reviewId)) sealed.set(d.reviewId, d.metaHash);
+  }
+  for (const v of rows) if (sealed.get(v.id) === reviewMetaHash(v)) ok.add(v.id);
+  return ok;
+}
+
+/** The reviews of a document, newest first, each checked against its audit entry. */
+export function reviewsOf(recordId: string): RecordReview[] {
+  const rows = reviewRows(recordId);
+  const intact = intactReviews(recordId, rows);
+  return rows.map((v) => toReview(v, intact.has(v.id)));
 }
 
 export function toEditionSummary(e: EditionRow, current: string | null, intact: boolean): RecordEditionSummary {
@@ -200,7 +263,7 @@ export function toEdition(e: EditionRow, current: string | null, intact: boolean
 export const reviewRows = (recordId: string): ReviewRow[] =>
   db().all<ReviewRow>('SELECT * FROM record_reviews WHERE record_id = ? ORDER BY created_at DESC, id DESC', recordId);
 
-export const toReview = (r: ReviewRow): RecordReview => ({
+export const toReview = (r: ReviewRow, intact: boolean): RecordReview => ({
   id: r.id,
   outcome: r.outcome,
   edition: r.edition,
@@ -208,6 +271,7 @@ export const toReview = (r: ReviewRow): RecordReview => ({
   comment: r.comment,
   createdAt: r.created_at,
   nextReviewAt: r.next_review_at,
+  intact,
 });
 
 const DAY = 86400000;

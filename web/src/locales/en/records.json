@@ -551,6 +551,8 @@
     "pdfNamed": "PDF of edition {{edition}}",
     "pdfCreated": "{{file}} generated – find it under PDF & signatures",
     "notIntact": "The stored content of this edition does not match the hash recorded when it was approved – check the audit log.",
+    "notIntactShort": "Changed outside Steward",
+    "changelogNotIntact": "An edition or review in this changelog no longer matches the audit entry that recorded it: it was changed outside Steward. Check the audit log.",
     "approvedLine": "Approved {{date}} by {{approver}} ({{kind}})",
     "current": "current edition",
     "settingsTitle": "Review settings of {{number}}",

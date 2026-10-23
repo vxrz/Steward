@@ -52,15 +52,15 @@ import {
   documentStates,
   editionRow,
   editionRows,
+  editionMetaHash,
   ensureDocRow,
   intactEditions,
   isDocument,
   nextEditions,
   parseEdition,
-  reviewRows,
   reviewState,
+  reviewsOf,
   toEditionSummary,
-  toReview,
   updateDocRow,
   type DocRow,
   type EditionRow,
@@ -531,7 +531,7 @@ export function documentInfo(u: AuthUser | null, r: RecordRow, t: TypeRow): Docu
     pending,
     nextEdition: nextEditions(current),
     editions: rows.map((e) => toEditionSummary(e, current, intact.has(e.edition))),
-    reviews: reviewRows(r.id).map(toReview),
+    reviews: reviewsOf(r.id),
     review: reviewState(r, t, d, cur?.approved_at ?? null),
     permissions: {
       review: !!current && ['published', 'revising'].includes(r.status) && canReviewDocument(u, r, d),
@@ -971,7 +971,15 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
           ? { editionKind: edition.kind, edition: nextEditions(doc?.current_edition ?? null)[edition.kind], changeSummary: edition.summary.slice(0, 500) }
           : {}),
         ...(approved
-          ? { edition: approved.edition, kind: approved.kind, previousEdition: doc?.current_edition ?? null, authors: JSON.parse(approved.authors) as string[] }
+          ? {
+              edition: approved.edition,
+              kind: approved.kind,
+              previousEdition: doc?.current_edition ?? null,
+              authors: JSON.parse(approved.authors) as string[],
+              approvedBy: approved.approved_by,
+              // seals the edition's metadata (summary, authors, submitter, approver, dates): see intactEditions
+              metaHash: editionMetaHash(approved),
+            }
           : {}),
         ...(isDoc && to === 'withdrawn' ? { edition: doc?.current_edition ?? null } : {}),
       },

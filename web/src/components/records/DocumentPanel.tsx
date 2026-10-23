@@ -180,6 +180,11 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
       )}
       <Stack gap="xs">
         <Text fw={600}>{t('document.changelog')}</Text>
+        {(log.data ?? []).some((row) => !row.intact) && (
+          <Alert color="red" icon={<IconAlertTriangle size={16} />} data-testid="changelog-not-intact">
+            {t('document.changelogNotIntact')}
+          </Alert>
+        )}
         {(log.data ?? []).length === 0 ? (
           <Text size="sm" c="dimmed">
             {t('document.noEditions')}
@@ -213,6 +218,11 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
                       ) : (
                         <Badge size="xs" variant="light" color={row.outcome === 'no_change' ? 'green' : 'orange'}>
                           {t(`document.outcomes.${row.outcome ?? 'no_change'}`)}
+                        </Badge>
+                      )}
+                      {!row.intact && (
+                        <Badge size="xs" color="red" variant="filled" mt={4} leftSection={<IconAlertTriangle size={10} />}>
+                          {t('document.notIntactShort')}
                         </Badge>
                       )}
                     </Table.Td>

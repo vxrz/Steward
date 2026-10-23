@@ -5035,7 +5035,7 @@
           },
           "intact": {
             "type": "boolean",
-            "description": "The stored content still has its hash, and the hash is the one in the authentic audit entry of the approval"
+            "description": "The stored content still has its hash, and the hash and the metadata (change summary, authors, submitter, approver, dates) are those in the authentic audit entry of the approval"
           }
         },
         "required": [
@@ -5131,7 +5131,7 @@
           },
           "intact": {
             "type": "boolean",
-            "description": "The stored content still has its hash, and the hash is the one in the authentic audit entry of the approval"
+            "description": "The stored content still has its hash, and the hash and the metadata (change summary, authors, submitter, approver, dates) are those in the authentic audit entry of the approval"
           },
           "body": {
             "type": "string",
@@ -5239,6 +5239,10 @@
               }
             ],
             "description": "Next review planned after this one"
+          },
+          "intact": {
+            "type": "boolean",
+            "description": "The stored review matches the authentic audit entry that recorded it (false: changed outside Steward)"
           }
         },
         "required": [
@@ -5248,7 +5252,8 @@
           "reviewer",
           "comment",
           "createdAt",
-          "nextReviewAt"
+          "nextReviewAt",
+          "intact"
         ],
         "additionalProperties": false
       },

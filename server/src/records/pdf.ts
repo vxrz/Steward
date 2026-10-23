@@ -191,7 +191,7 @@ function documentControl(w: ReportWriter, rec: RecordDetail, R: Texts, tr: Trans
       e.authors.map(personLabel).join(', ') || '–',
       personLabel(e.approvedBy),
       e.changeSummary || '–',
-      e.contentHash.slice(0, 16) + '…',
+      e.intact ? e.contentHash.slice(0, 16) + '…' : `${e.contentHash.slice(0, 16)}… (${t('notIntact')})`,
     ]),
     { empty: t('editionNone'), size: 7.4 },
   );
@@ -201,8 +201,9 @@ function documentControl(w: ReportWriter, rec: RecordDetail, R: Texts, tr: Trans
     {
       label: t('lastReview'),
       value: last
-        ? `${tr.dateTime(last.createdAt)} · ${personLabel(last.reviewer)} · ${t(last.outcome === 'no_change' ? 'review_no_change' : 'review_needs_update')}${last.edition ? ` (${t('editionNo', { edition: last.edition })})` : ''}`
+        ? `${tr.dateTime(last.createdAt)} · ${personLabel(last.reviewer)} · ${t(last.outcome === 'no_change' ? 'review_no_change' : 'review_needs_update')}${last.edition ? ` (${t('editionNo', { edition: last.edition })})` : ''}${last.intact ? '' : ` · ${t('notIntact')}`}`
         : '–',
+      tone: last && !last.intact ? ('danger' as const) : ('default' as const),
       span: 2,
     },
     ...(last?.comment ? [{ label: t('comment'), value: last.comment, span: 2 as const }] : []),

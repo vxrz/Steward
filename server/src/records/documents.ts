@@ -37,12 +37,15 @@ import {
   intactEditions,
   isDocument,
   regularNextReview,
+  intactReviews,
+  reviewMetaHash,
   reviewRows,
   reviewState,
+  reviewsOf,
   toEdition,
   toEditionSummary,
-  toReview,
   updateDocRow,
+  type ReviewRow,
 } from './document-model.js';
 
 /**
@@ -143,16 +146,21 @@ export function listReviews(idOrNumber: string): RecordReview[] {
   me();
   const r = requireRecordRow(idOrNumber);
   if (!isDocument(requireType(r.type_id))) return [];
-  return reviewRows(r.id).map(toReview);
+  return reviewsOf(r.id);
 }
 
 /** Editions and reviews of a document, newest first: the document changelog. */
 export function changelog(idOrNumber: string): DocumentChangelogRow[] {
   me();
   const r = requireRecordRow(idOrNumber);
-  if (!isDocument(requireType(r.type_id))) return [];
+  const t = requireType(r.type_id);
+  if (!isDocument(t)) return [];
+  const editions = editionRows(r.id);
+  const reviews = reviewRows(r.id);
+  const okEditions = intactEditions(r, t.key, editions);
+  const okReviews = intactReviews(r.id, reviews);
   const rows: DocumentChangelogRow[] = [
-    ...editionRows(r.id).map((e): DocumentChangelogRow => ({
+    ...editions.map((e): DocumentChangelogRow => ({
       kind: 'edition',
       at: e.approved_at,
       edition: e.edition,
@@ -162,8 +170,9 @@ export function changelog(idOrNumber: string): DocumentChangelogRow[] {
       outcome: null,
       editionKind: e.kind,
       contentHash: e.content_hash,
+      intact: okEditions.has(e.edition),
     })),
-    ...reviewRows(r.id).map((v): DocumentChangelogRow => ({
+    ...reviews.map((v): DocumentChangelogRow => ({
       kind: 'review',
       at: v.created_at,
       edition: v.edition,
@@ -173,6 +182,7 @@ export function changelog(idOrNumber: string): DocumentChangelogRow[] {
       outcome: v.outcome,
       editionKind: null,
       contentHash: null,
+      intact: okReviews.has(v.id),
     })),
   ];
   return rows.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : a.kind === 'review' ? -1 : 1));
@@ -228,16 +238,26 @@ export function reviewDocument(idOrNumber: string, input: z.infer<typeof reviewI
       next = reviewState(r, t, docRow(r.id), approvedAt).nextReviewAt;
     }
     const id = newId('rrv_');
+    const row: ReviewRow = {
+      id,
+      record_id: r.id,
+      outcome: input.outcome,
+      edition: d.current_edition,
+      reviewer: u.username,
+      comment,
+      next_review_at: next,
+      created_at: now,
+    };
     db().run(
       'INSERT INTO record_reviews (id, record_id, outcome, edition, reviewer, comment, next_review_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      id,
-      r.id,
-      input.outcome,
-      d.current_edition,
-      u.username,
-      comment,
-      next,
-      now,
+      row.id,
+      row.record_id,
+      row.outcome,
+      row.edition,
+      row.reviewer,
+      row.comment,
+      row.next_review_at,
+      row.created_at,
     );
     const edition = editionRow(r.id, d.current_edition!);
     audit({
@@ -252,6 +272,8 @@ export function reviewDocument(idOrNumber: string, input: z.infer<typeof reviewI
         outcome: input.outcome,
         contentHash: edition?.content_hash ?? null,
         nextReviewAt: next,
+        // seals the stored review (outcome, reviewer, comment, dates): see intactReviews
+        metaHash: reviewMetaHash(row),
       },
     });
     if (input.outcome === 'needs_update' && r.status === 'published') startRevision(r, t, wf, `Review: ${comment}`);

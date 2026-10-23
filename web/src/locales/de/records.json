@@ -551,6 +551,8 @@
     "pdfNamed": "PDF der Fassung {{edition}}",
     "pdfCreated": "{{file}} erzeugt – Sie finden es unter PDF & Unterschriften",
     "notIntact": "Der gespeicherte Inhalt dieser Fassung passt nicht zum Hash, der bei der Freigabe festgehalten wurde – prüfen Sie das Audit-Log.",
+    "notIntactShort": "Außerhalb von Steward geändert",
+    "changelogNotIntact": "Eine Fassung oder Überprüfung in diesem Änderungsverlauf passt nicht mehr zu dem Audit-Eintrag, der sie festgehalten hat: Sie wurde außerhalb von Steward geändert. Prüfen Sie das Audit-Log.",
     "approvedLine": "Freigegeben am {{date}} von {{approver}} ({{kind}})",
     "current": "aktuelle Fassung",
     "settingsTitle": "Einstellungen der Überprüfung von {{number}}",

@@ -306,6 +306,8 @@ export interface RecordReview {
   createdAt: string;
   /** Next review planned after this one (null: none) */
   nextReviewAt: string | null;
+  /** The stored review matches the authentic audit entry that recorded it (false: changed outside Steward) */
+  intact: boolean;
 }
 
 export interface DocumentReviewState {
@@ -365,6 +367,8 @@ export interface DocumentChangelogRow {
   outcome: ReviewOutcome | null;
   editionKind: EditionKind | null;
   contentHash: string | null;
+  /** The stored edition or review matches its authentic audit entry (false: changed outside Steward) */
+  intact: boolean;
 }
 
 // ---------- links ----------
