@@ -45,6 +45,9 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   const permissionProblems = ensureDataDirs();
   for (const p of permissionProblems) logger.warn({ problem: p }, 'could not restrict permissions in the data directory');
   for (const w of securityWarnings()) logger.warn({ security: true }, w);
+  // Open (and migrate) the database before anything listens: a failed upgrade stops the start here,
+  // with the path of the automatic backup in the message.
+  db();
   const tracing = initTelemetry();
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });

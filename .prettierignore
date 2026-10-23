@@ -16,3 +16,6 @@ package-lock.json
 
 # Binary or third-party assets (fonts, licences, logo)
 server/assets/
+
+# Upgrade test fixtures: files exactly as a released version wrote them
+server/test/fixtures/upgrade/*/datadir/

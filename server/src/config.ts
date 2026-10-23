@@ -95,6 +95,8 @@ export const config = {
     ? parseDatabaseTarget(process.env.SM_DATABASE_URL, { schema: process.env.SM_DATABASE_SCHEMA, ca: process.env.SM_DATABASE_CA })
     : { kind: 'sqlite', file: path.join(dataDir, 'service-manager.db') }) as DatabaseTarget,
   demo: process.env.SM_DEMO === '1' || process.env.SM_DEMO === 'true',
+  /** SQLite: automatic copies of the database made before migrations, kept in <data dir>/backups (0 = none). */
+  upgradeBackups: envInt('SM_UPGRADE_BACKUPS', 3, 0, 100),
   webDist: process.env.SM_WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'),
   templatesDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'processes'),
   dashboardsDir: path.join(process.env.SM_EXAMPLES_DIR ?? path.join(ROOT_DIR, 'examples'), 'dashboards'),

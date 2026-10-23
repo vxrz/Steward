@@ -31,6 +31,7 @@ const INTERNAL = [
   'gatus.',
   'mcp.',
   'tickets.',
+  'system.',
 ];
 
 export function getSettings(): Settings {

@@ -23,8 +23,9 @@ export interface TestServer {
   dataDir: string;
 }
 
-export async function startTestServer(): Promise<TestServer> {
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
+/** `dataDir`: start on an existing data folder (e.g. a copy of an upgrade fixture) instead of a new one. */
+export async function startTestServer(opts: { dataDir?: string } = {}): Promise<TestServer> {
+  const dataDir = opts.dataDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'sm-test-'));
   process.env.SM_DATA_DIR = dataDir;
   // Port 0: the system assigns a free port, so parallel test runs (and outgoing connections, whose
   // local ports come from the same range) can never take it between choosing and binding.

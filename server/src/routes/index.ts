@@ -70,11 +70,13 @@ import { capabilities, decisionCheck, isAdmin, processPermissions, require, requ
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { BRAND } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { auditPendingUpgrades } from '../upgrades.js';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
 async function onUnlocked(): Promise<void> {
   flushPendingAudit();
+  auditPendingUpgrades();
   if (vault().migratedFromV1) {
     vault().migratedFromV1 = false;
     audit({
