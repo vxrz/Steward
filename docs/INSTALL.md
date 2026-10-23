@@ -4,7 +4,7 @@
 | -------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------- |
 | **1. Desktop executable**        | One person on a Windows/Mac/Linux laptop                                               | Nothing (Node.js is built in) | Download, double-click                      |
 | **2. Installed web app (PWA)**   | Getting an app window, taskbar/dock icon and Start-menu entry for any running instance | Edge or Chrome                | One click in the browser                    |
-| **3. Node.js** (`npm start`)     | Developers, customising                                                                | Node.js 24 (LTS)              | `npm install && npm run build && npm start` |
+| **3. Node.js** (`npm start`)     | Developers, customising                                                                | Node.js 24 (LTS) or 26        | `npm install && npm run build && npm start` |
 | **4. Container** (Docker/Podman) | A shared team instance on a VM or server                                               | Docker                        | `docker compose up -d`                      |
 
 All options run the same server and keep everything in one data folder. You can move between them by copying that folder.

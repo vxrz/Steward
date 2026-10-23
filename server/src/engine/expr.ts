@@ -144,43 +144,96 @@ function safePad(str: unknown, width: unknown, char?: unknown): unknown {
 // ---------------------------------------------------------------------------
 // Regular expressions that cannot block the server
 // ---------------------------------------------------------------------------
+//
+// User regexes (JSONata /…/ literals: always global, flags i and m) run natively only when they
+// are "fixed-length": no quantifier, alternation, back reference or lookaround. Such a pattern has
+// no choice points, so one match attempt costs at most one step per atom and exec() at most
+// subject × pattern steps – capped below. Every other pattern runs in a worker thread that is
+// terminated after a time limit.
+//
+// No V8 flags are changed at runtime: Node documents changing them after start-up (v8.setFlagsFromString) as
+// undefined behaviour, and the experimental regexp engine flags this guard used to set crashed
+// Node 26 when a worker thread started (CHANGELOG, Node 26 support).
 
-// Patterns the linear-time engine can run switch to it after excessive backtracking
-// (catastrophic backtracking such as /(a+)+$/ becomes linear). The second flag only
-// enables the "l" flag, used below to find out whether a pattern is linear-capable.
-v8.setFlagsFromString('--enable-experimental-regexp-engine-on-excessive-backtracks');
-v8.setFlagsFromString('--enable-experimental-regexp-engine');
+/** Longest pattern that may run natively. */
+const NATIVE_MAX_PATTERN = 200;
+/** Largest subject length × pattern length that runs natively (a few milliseconds at most). */
+const NATIVE_MAX_STEPS = 10_000_000;
 
-const linearCapable = new Map<string, boolean>();
-function isLinearCapable(re: RegExp): boolean {
-  const k = `${re.flags}/${re.source}`;
-  let v = linearCapable.get(k);
-  if (v === undefined) {
-    try {
-      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- recompiles an already compiled pattern only to test the linear-time engine (no match is run)
-      new RegExp(re.source, re.flags + 'l');
-      v = true;
-    } catch {
-      v = false;
+/** True when the pattern has no quantifier, alternation, back reference or lookaround (and no v-flag class syntax). */
+export function isFixedLengthPattern(re: RegExp): boolean {
+  if (re.flags.includes('v')) return false;
+  const s = re.source;
+  if (s.length > NATIVE_MAX_PATTERN) return false;
+  let inClass = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]!;
+    if (c === '\\') {
+      const n = s[i + 1];
+      // back references (\1…\9, \k<name>); inside a class \1 would be an octal escape – refused as well
+      if (n === undefined || (n >= '1' && n <= '9') || n === 'k') return false;
+      // \u{…} and \p{…} contain braces: skip the escape as a whole
+      if ((n === 'u' || n === 'p' || n === 'P') && s[i + 2] === '{') {
+        const end = s.indexOf('}', i + 3);
+        if (end < 0) return false;
+        i = end;
+      } else i++;
+      continue;
     }
-    if (linearCapable.size > 5000) linearCapable.clear();
-    linearCapable.set(k, v);
+    if (inClass) {
+      if (c === ']') inClass = false;
+      continue;
+    }
+    if (c === '[') inClass = true;
+    else if (c === '*' || c === '+' || c === '?' || c === '{' || c === '|') return false;
+    else if (c === '(' && s[i + 1] === '?') {
+      // (?:…) and named groups (?<name>…) only – no lookahead/lookbehind, no modifiers
+      if (s[i + 2] === ':') i += 2;
+      else if (s[i + 2] === '<' && s[i + 3] !== '=' && s[i + 3] !== '!') i += 2;
+      else return false;
+    }
   }
-  return v;
+  return !inClass;
 }
 
 const REGEX_WORKER_SRC = `
 const { workerData } = require('node:worker_threads');
 const flag = new Int32Array(workerData.sab);
+const compiled = new Map();
+let subject = '';
 Atomics.store(flag, 1, 1);
 Atomics.notify(flag, 1);
-workerData.port.on('message', ({ source, flags, str, lastIndex }) => {
+workerData.port.on('message', ({ source, flags, str, lastIndex, maxMatches, maxChars, budgetMs }) => {
+  if (str !== null) subject = str;
   let out;
   try {
-    const re = new RegExp(source, flags);
-    re.lastIndex = lastIndex;
-    const m = re.exec(str);
-    out = { match: m ? { values: Array.from(m), index: m.index } : null, lastIndex: re.lastIndex };
+    const key = flags + '/' + source;
+    let re = compiled.get(key);
+    if (!re) {
+      re = new RegExp(source, flags);
+      if (compiled.size > 100) compiled.clear();
+      compiled.set(key, re);
+    }
+    // a batch of consecutive matches: JSONata walks a global regex match by match
+    const matches = [];
+    const t0 = Date.now();
+    let li = lastIndex;
+    let chars = 0;
+    for (;;) {
+      re.lastIndex = li;
+      const m = re.exec(subject);
+      if (!m) {
+        matches.push(null);
+        break;
+      }
+      const values = Array.from(m);
+      matches.push({ values, index: m.index, lastIndex: re.lastIndex });
+      for (const v of values) chars += v ? v.length : 0;
+      li = re.lastIndex;
+      if (!re.global && !re.sticky) break;
+      if (m[0] === '' || li >= subject.length || matches.length >= maxMatches || chars >= maxChars || Date.now() - t0 >= budgetMs) break;
+    }
+    out = { matches };
   } catch (e) {
     out = { error: String((e && e.message) || e) };
   }
@@ -193,6 +246,8 @@ interface RegexWorker {
   worker: Worker;
   port: MessagePort;
   flag: Int32Array;
+  /** The subject the worker holds (sent once, not with every match) */
+  subject?: string;
 }
 let regexWorker: RegexWorker | undefined;
 
@@ -210,18 +265,23 @@ function startRegexWorker(): RegexWorker {
 }
 
 interface WorkerMatch {
-  values: string[] | null;
+  values: string[];
   index: number;
   lastIndex: number;
 }
 
-/** Run one exec() of a backtracking-only pattern in a worker thread with a hard time limit. */
-function execInWorker(re: RegExp, lastIndex: number, str: string, timeoutMs: number): WorkerMatch {
+/** Matches per worker round trip, the characters they may carry and the worker's time for extra matches. */
+const BATCH = { maxMatches: 256, maxChars: 1_000_000, budgetMs: 5 };
+
+/** Runs exec() of a pattern in the worker thread with a hard time limit; returns the next matches (null = no further match). */
+function execInWorker(re: RegExp, lastIndex: number, str: string, timeoutMs: number): (WorkerMatch | null)[] {
   const w = (regexWorker ??= startRegexWorker());
   // a fresh worker needs a moment to boot (not counted against the match)
   if (Atomics.load(w.flag, 1) === 0) Atomics.wait(w.flag, 1, 0, 5000);
   Atomics.store(w.flag, 0, 0);
-  w.port.postMessage({ source: re.source, flags: re.flags, str, lastIndex });
+  const same = w.subject === str;
+  w.subject = str;
+  w.port.postMessage({ source: re.source, flags: re.flags, str: same ? null : str, lastIndex, ...BATCH });
   const wait = Atomics.wait(w.flag, 0, 0, timeoutMs);
   if (wait === 'timed-out') {
     void w.worker.terminate();
@@ -229,37 +289,57 @@ function execInWorker(re: RegExp, lastIndex: number, str: string, timeoutMs: num
     regexWorker = startRegexWorker();
     throw new Error(`Regular expression /${truncate(re.source, 60)}/ took longer than ${timeoutMs} ms – simplify it (avoid nested quantifiers such as (a+)+)`);
   }
-  const msg = receiveMessageOnPort(w.port)?.message as
-    { match: { values: string[]; index: number } | null; lastIndex: number; error?: undefined } | { error: string } | undefined;
+  const msg = receiveMessageOnPort(w.port)?.message as { matches: (WorkerMatch | null)[]; error?: undefined } | { error: string } | undefined;
   if (!msg) throw new Error('Regular expression evaluation failed');
-  if (msg.error !== undefined) throw new Error(msg.error);
-  return { values: msg.match?.values ?? null, index: msg.match?.index ?? -1, lastIndex: msg.lastIndex };
+  if (msg.error !== undefined) {
+    w.subject = undefined;
+    throw new Error(msg.error);
+  }
+  return msg.matches;
 }
 
 /** Time limit of one regular expression match in the worker. */
 const REGEX_TIMEOUT_MS = 500;
 
 /**
- * RegexEngine for JSONata: patterns the linear-time engine supports run natively
- * (with the V8 fallback above); all others (case-insensitive, unicode, lookaround,
- * back references) run in a worker thread that is terminated after a time limit.
+ * RegexEngine for JSONata: fixed-length patterns run natively (bounded work, see above); all
+ * others run in a worker thread that is terminated after a time limit. The worker returns a
+ * batch of consecutive matches, so a global $replace/$match/$split costs one round trip per batch.
  */
 class GuardedRegExp {
   lastIndex = 0;
-  private re!: RegExp;
+  private readonly re: RegExp;
+  private readonly fixed: boolean;
+  /** Prefetched matches: items[pos] is the result of exec(str) at lastIndex `from` */
+  private batch?: { str: string; items: (WorkerMatch | null)[]; pos: number; from: number };
   constructor(pattern: RegExp | string, flags?: string) {
-    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- this is the ReDoS guard: linear-time engine or a time-limited worker (expr-guard.test.ts)
-    const re = pattern instanceof RegExp ? new RegExp(pattern) : new RegExp(pattern, flags);
-    if (isLinearCapable(re)) return re as unknown as GuardedRegExp;
-    this.re = re;
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- this is the ReDoS guard: fixed-length patterns natively, all others in a time-limited worker (expr-guard.test.ts)
+    this.re = pattern instanceof RegExp ? new RegExp(pattern) : new RegExp(pattern, flags);
+    this.fixed = isFixedLengthPattern(this.re);
   }
-  exec(str: string): RegExpExecArray | null {
-    const g = guardStore.getStore();
-    const left = g ? Math.max(50, Math.min(REGEX_TIMEOUT_MS, g.deadline - performance.now())) : REGEX_TIMEOUT_MS;
-    const r = execInWorker(this.re, this.lastIndex, String(str), left);
-    this.lastIndex = r.lastIndex;
-    if (!r.values) return null;
-    return Object.assign(r.values, { index: r.index, input: String(str) }) as unknown as RegExpExecArray;
+  exec(input: string): RegExpExecArray | null {
+    const str = String(input);
+    if (this.fixed && str.length * this.re.source.length <= NATIVE_MAX_STEPS) {
+      this.re.lastIndex = this.lastIndex;
+      const m = this.re.exec(str);
+      this.lastIndex = this.re.lastIndex;
+      return m;
+    }
+    const b = this.batch;
+    let r: WorkerMatch | null;
+    if (b && b.pos < b.items.length && b.from === this.lastIndex && b.str === str) {
+      r = b.items[b.pos++]!;
+    } else {
+      const g = guardStore.getStore();
+      const left = g ? Math.max(50, Math.min(REGEX_TIMEOUT_MS, g.deadline - performance.now())) : REGEX_TIMEOUT_MS;
+      const items = execInWorker(this.re, this.lastIndex, str, left);
+      this.batch = { str, items, pos: 1, from: 0 };
+      r = items[0]!;
+    }
+    this.lastIndex = r ? r.lastIndex : 0;
+    if (this.batch) this.batch.from = this.lastIndex;
+    if (!r) return null;
+    return Object.assign(r.values, { index: r.index, input: str }) as unknown as RegExpExecArray;
   }
 }
 

@@ -64,6 +64,23 @@ afterAll(async () => {
 });
 
 describe('Prometheus text parser', () => {
+  it('parses sample values in linear time', async () => {
+    const { parsePromValue } = await import('../src/gatus/prometheus.js');
+    for (const [v, n] of [
+      ['12', 12],
+      ['12.', 12],
+      ['-1.5e3', -1500],
+      ['.5', 0.5],
+      ['+Inf', Infinity],
+    ] as const)
+      expect(parsePromValue(v)).toBe(n);
+    for (const v of ['', '.', '1.2.3', 'e5', '1e', '0x10']) expect(parsePromValue(v)).toBeNull();
+    // \d+\.?\d* backtracked quadratically on a long digit run that does not parse (about 10 s for 100 000 digits)
+    const t0 = performance.now();
+    expect(parsePromValue('1'.repeat(100_000) + 'x')).toBeNull();
+    expect(performance.now() - t0).toBeLessThan(500);
+  });
+
   it('parses the Gatus metrics: names, labels, values in exponent notation, HELP/TYPE', async () => {
     const { parsePrometheus } = await import('../src/gatus/prometheus.js');
     const r = parsePrometheus(FIXTURE);

@@ -10,7 +10,7 @@ Security issues: **do not open a public issue**. Report them privately as descri
 
 Requirements:
 
-- Node.js 24 (LTS). `.nvmrc` pins the major version.
+- Node.js 24 (LTS), the primary version: `.nvmrc`, the container image and the desktop executable use it. Node.js 26 (Current) is supported and tested in CI too (`engines`: `^24.0.0 || ^26.0.0`). Never change V8 flags at runtime (`v8.setFlagsFromString` – undefined behaviour, ESLint refuses it).
 - Git.
 - For browser automation and the UI tests: Chromium via Playwright (`npx playwright install chromium`).
 - Optional: PostgreSQL 16 or newer, to run the test suite on PostgreSQL.

@@ -3,9 +3,9 @@
  * title): inputs that made the Markdown parser, the PDF engine, the signed-PDF
  * scan or the Markdown import take seconds to minutes on the main thread.
  *
- * No test server here on purpose: the server sets V8's fallback to the linear
- * regexp engine (engine/expr.ts), which would hide backtracking patterns. The
- * browser has no such fallback.
+ * No test server here: these functions run on their own, as in the browser.
+ * (The server used to switch V8's linear regexp engine fallback on at runtime,
+ * which hid backtracking patterns; it no longer changes V8 flags.)
  */
 import { describe, expect, it } from 'vitest';
 import { inlineText, MD_MAX_TABLE_CELLS, parseInline, parseMarkdown, type MdBlock } from '@sm/shared';

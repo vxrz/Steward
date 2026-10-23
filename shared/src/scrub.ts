@@ -40,8 +40,8 @@ const PATTERNS: Pattern[] = [
   { re: /\b(Basic)\s+[A-Za-z0-9+/]{8,}={0,2}/g, to: `$1 ${SCRUBBED}` },
   // Steward API tokens
   { re: /\bsmt_[A-Za-z0-9_-]{6,}/g, to: `smt_${SCRUBBED}` },
-  // JSON Web Tokens
-  { re: /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, to: SCRUBBED },
+  // JSON Web Tokens (eyJ….….…), found in runs of token characters without a backtracking regular expression
+  { re: /[\w.-]+/g, to: (run) => scrubJwts(run) },
   // well-known provider token formats (GitHub, Slack, AWS access keys, Google API keys)
   {
     re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,})\b/g,
@@ -66,6 +66,37 @@ const PATTERNS: Pattern[] = [
   // long random-looking strings (keys, hashes, opaque tokens); at least one digit and one letter
   { re: /\b(?=[A-Za-z0-9+_-]*\d)(?=[A-Za-z0-9+_-]*[A-Za-z])[A-Za-z0-9+_-]{32,}={0,2}/g, to: SCRUBBED },
 ];
+
+/**
+ * Replaces JSON Web Tokens in a run of [A-Za-z0-9_.-] characters – what
+ * /\beyJ[\w-]{4,}\.[\w-]{4,}\.[\w-]*\/g matches, in linear time: that regular expression tries every
+ * "eyJ" of a long run like "-eyJ-eyJ-eyJ…" again up to the run's end (quadratic, seconds for 70 KB).
+ * The segments contain no dots, so each one is a whole dot-separated part of the run, and of several
+ * "eyJ" in one part only the first can start a token (a later one has a shorter first segment).
+ */
+function scrubJwts(run: string): string {
+  if (!run.includes('eyJ')) return run;
+  const parts = run.split('.');
+  const out: string[] = [];
+  for (let k = 0; k < parts.length; k++) {
+    const p = parts[k]!;
+    let start = -1;
+    // "eyJ" at a word boundary: at the start of the part (after a dot or a non-token character) or after "-"
+    for (let i = p.indexOf('eyJ'); i >= 0; i = p.indexOf('eyJ', i + 1)) {
+      if (i === 0 || p[i - 1] === '-') {
+        start = i;
+        break;
+      }
+    }
+    if (start >= 0 && p.length - start - 3 >= 4 && k + 2 < parts.length && parts[k + 1]!.length >= 4) {
+      out.push(p.slice(0, start) + SCRUBBED);
+      k += 2; // the token ends with the third segment; out.join adds no dots for the parts it replaced
+      continue;
+    }
+    out.push(p);
+  }
+  return out.join('.');
+}
 
 /** Random identifiers that are useful for correlation and safe to keep. */
 const KEEP_KEY = /^(trace_id|span_id|parent_span_id|event_id|release|dist|environment|run_id|request_id)$/;
@@ -104,9 +135,26 @@ function secretList(opts: ScrubOptions): string[] {
   return [...out].sort((a, b) => b.length - a.length);
 }
 
+/**
+ * Longest string the patterns run on (Sentry keeps 8192 characters of a message anyway). Several
+ * patterns backtrack quadratically on long runs of token characters; capped, a string takes at
+ * most about a second in the worst case instead of minutes.
+ */
+export const MAX_SCRUB_CHARS = 8192;
+
+/** The first MAX_SCRUB_CHARS characters, without the (possibly cut) word at the end. */
+function capLength(s: string): string {
+  if (s.length <= MAX_SCRUB_CHARS) return s;
+  let end = MAX_SCRUB_CHARS;
+  while (end > 0 && !/\s/.test(s[end - 1]!)) end--;
+  return `${s.slice(0, end)}…`;
+}
+
 function scrubWith(s: string, secrets: string[], patterns = true): string {
   let out = s;
+  // known secrets first, on the whole string: cutting first could leave half a secret behind
   for (const secret of secrets) if (out.includes(secret)) out = out.split(secret).join(SCRUBBED);
+  if (patterns) out = capLength(out);
   for (const p of HOME_PATHS) out = out.replace(p.re, p.to as string);
   if (patterns) for (const p of PATTERNS) out = out.replace(p.re, p.to as never);
   return out;
