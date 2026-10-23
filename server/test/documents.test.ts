@@ -771,4 +771,28 @@ describe('security review fixes', () => {
       edition: '1.1',
     });
   });
+
+  it('the owner cannot be handed over while an approval is pending (all workflows)', async () => {
+    // a change request waiting for its approval
+    const cr = await newCr('Hand-over target');
+    await dana('POST', `/records/${cr.id}/transition`, { action: 'submit' });
+    const refused = await errorOf(dana('PUT', `/records/${cr.id}`, { owner: 'olivia' }));
+    expect(refused.status).toBe(409);
+    expect(refused.text).toContain('RECORD_OWNER_LOCKED');
+    expect(await status(s.api('PUT', `/records/${cr.id}`, { owner: 'olivia' }))).toBe(409);
+    // tags still change
+    expect((await dana('PUT', `/records/${cr.id}`, { tags: ['net'] })).tags).toEqual(['net']);
+    // a decision (proposed) and a document (in review)
+    const adr = await dana('POST', '/records', { type: 'ADR', title: 'Hand-over decision' });
+    await dana('POST', `/records/${adr.id}/transition`, { action: 'propose' });
+    expect(await status(dana('PUT', `/records/${adr.id}`, { owner: 'olivia' }))).toBe(409);
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'Hand-over document' });
+    await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First' });
+    expect(await status(dana('PUT', `/records/${doc.id}`, { owner: 'olivia' }))).toBe(409);
+    // after the decision (and before submitting) the owner may hand it over
+    await adam('POST', `/records/${doc.id}/transition`, { action: 'approve' });
+    expect((await dana('PUT', `/records/${doc.id}`, { owner: 'olivia' })).owner).toBe('olivia');
+    const draft = await newCr('Draft hand-over');
+    expect((await dana('PUT', `/records/${draft.id}`, { owner: 'olivia' })).owner).toBe('olivia');
+  });
 });

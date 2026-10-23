@@ -767,6 +767,17 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   let owner = r.owner;
   if (input.owner !== undefined && input.owner.trim().toLowerCase() !== r.owner.toLowerCase()) {
     if (!isAdmin(u) && r.owner.toLowerCase() !== u.username.toLowerCase()) forbid('hand this record over to someone else', 'handOverRecord');
+    // four-eyes is checked against the owner when deciding: a hand-over while the approval is pending would let the submitting owner pass it to someone else and approve
+    if (awaitsApproval(wf, r.status))
+      throw new HttpError(
+        409,
+        `${r.number} is ${r.status} and waits for an approval: hand it over before submitting it or after the decision`,
+        'RECORD_OWNER_LOCKED',
+        {
+          number: r.number,
+          status: statusParam(r.status),
+        },
+      );
     const target = findUserByName(input.owner.trim());
     if (!target || !target.active) throw new HttpError(400, `User ${input.owner} not found`, 'USER_NOT_FOUND', { name: input.owner });
     owner = target.username;
@@ -807,6 +818,9 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   });
   return getRecord(r.id);
 }
+
+/** Statuses in which a record waits for an approval (submitted, proposed, documented, in review). */
+export const awaitsApproval = (wf: RecordWorkflow, status: string): boolean => wf.transitions.some((t) => t.approval && t.from.includes(status));
 
 export interface TransitionInput {
   action: string;

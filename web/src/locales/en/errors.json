@@ -126,6 +126,7 @@
     "RECORD_STATUS_UNKNOWN": "Unknown status – use {{allowed}}.",
     "INVALID_TRANSITION": "{{number}} is {{status}}: this step is not possible now. Reload the page.",
     "RECORD_FROZEN": "{{number}} is {{status}}: its content is frozen. Start a new revision to change it.",
+    "RECORD_OWNER_LOCKED": "{{number}} is {{status}} and waits for an approval. Hand it over to another owner before submitting it or after the decision.",
     "RECORD_CLOSED": "{{number}} is {{status}}: it cannot change any more.",
     "RECORD_TAMPERED": "The content of {{number}} does not match the hash recorded when it was frozen – check the audit log.",
     "RECORD_TOO_LARGE": "{{number}} is too large for a PDF – shorten its text or fields.",

@@ -126,6 +126,7 @@
     "RECORD_STATUS_UNKNOWN": "Unbekannter Status – verwenden Sie {{allowed}}.",
     "INVALID_TRANSITION": "{{number}} ist {{status}}: Dieser Schritt ist jetzt nicht möglich. Laden Sie die Seite neu.",
     "RECORD_FROZEN": "{{number}} ist {{status}}: Der Inhalt ist eingefroren. Beginnen Sie eine neue Revision, um ihn zu ändern.",
+    "RECORD_OWNER_LOCKED": "{{number}} ist {{status}} und wartet auf eine Freigabe. Übergeben Sie es vor dem Einreichen oder nach der Entscheidung an einen anderen Eigentümer.",
     "RECORD_CLOSED": "{{number}} ist {{status}}: Es kann nicht mehr geändert werden.",
     "RECORD_TAMPERED": "Der Inhalt von {{number}} passt nicht zum Hash, der beim Einfrieren gespeichert wurde – prüfen Sie das Audit-Log.",
     "RECORD_TOO_LARGE": "{{number}} ist zu groß für ein PDF – kürzen Sie Text oder Felder.",
