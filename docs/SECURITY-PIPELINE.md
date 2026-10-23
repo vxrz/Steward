@@ -24,7 +24,7 @@ what to do with a finding. The vulnerability disclosure policy is in
 |                 |              | Trivy `image`, `--ignore-unfixed`                                                                                                      |                                                 | high/critical with a fix available, secrets in the image                         |
 | `scorecard.yml` | analysis     | [OpenSSF Scorecard](https://scorecard.dev)                                                                                             | push to main, weekly, branch protection changes | – (score and findings in code scanning)                                          |
 | `release.yml`   | sbom         | CycloneDX npm SBOM of the production dependencies                                                                                      | tags, `[build-exe]`                             | – (attached to the release)                                                      |
-| Dependabot      | –            | `.github/dependabot.yml`: npm (minor/patch grouped), GitHub Actions, Docker base image                                                 | weekly, plus security updates                   | – (opens pull requests)                                                          |
+| Dependabot      | –            | `.github/dependabot.yml`: npm (minor/patch grouped; Mantine and Vite as one PR each), GitHub Actions, Docker base image                | weekly, plus security updates                   | – (opens pull requests)                                                          |
 
 The weekly runs matter: new advisories are published for code that has not
 changed.
@@ -124,8 +124,9 @@ with a notice; the full-history scan in CI still runs.
   jobs only read public data.
 - **Concurrency groups** cancel superseded PR runs (never releases), and every
   job has a `timeout-minutes`.
-- **Dependabot cooldown**: new versions are proposed after 7 days (majors 14),
-  so a malicious release that is pulled quickly never reaches a PR.
+- **Dependabot cooldown**: new versions are proposed after 14 days (majors 21),
+  so a malicious release that is pulled quickly never reaches a PR. The cooldown
+  does not delay security updates.
 - **Install scripts are enforced, not just listed**: npm 11 only _warns_ about
   packages missing from `allowScripts`. CI, the release builds and the
   `Dockerfile` therefore run `npm ci --ignore-scripts` and then
@@ -190,7 +191,7 @@ No rule is disabled for the whole repository.
 | Rule (short id)               | Where                                                                                          | Decision    | Reason                                                                                                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `spawn-shell-true` (ERROR)    | `scripts/dev.mjs`, `scripts/test-pg.mjs` (and the same pattern in `install-scripts.mjs`)       | fixed       | npm runs without a shell on every platform: on Windows `scripts/npm-command.mjs` starts `npm-cli.js` with `node` (Node refuses `.cmd` files without a shell) |
-| `dependabot-missing-cooldown` | `.github/dependabot.yml` (Docker: 3 days)                                                      | fixed       | 7 days like the other ecosystems                                                                                                                             |
+| `dependabot-missing-cooldown` | `.github/dependabot.yml` (Docker: 3 days)                                                      | fixed       | 14 days like the other ecosystems                                                                                                                            |
 | `detect-non-literal-regexp`   | `server/src/monitors/gateways.ts` (gateway key patterns)                                       | fixed       | glob matcher without a regular expression (`globMatch`, at most pattern × key steps)                                                                         |
 |                               | `web/src/components/editor/ApiOperation.tsx` (path parameters)                                 | fixed       | plain string search instead of a regular expression built from the imported OpenAPI path                                                                     |
 |                               | `server/src/monitors/zabbix.ts`, `server/src/records/markdown-io.ts`, `shared/src/markdown.ts` | fixed       | constant inputs: literal regular expressions or a small loop instead                                                                                         |

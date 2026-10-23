@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { PROCESS, authFile } from './support/env';
 import { startRunApi, waitForRun } from './support/helpers';
+import { animationsDone } from './support/axe';
 
 /**
  * axe-core checks for WCAG 2.1 A/AA. A test fails on "serious" or "critical" violations.
@@ -13,6 +14,7 @@ const KNOWN_ISSUES: { rule: string; reason: string }[] = [
 ];
 
 async function expectAccessible(page: Page, name: string) {
+  await animationsDone(page);
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .disableRules(KNOWN_ISSUES.map((k) => k.rule))

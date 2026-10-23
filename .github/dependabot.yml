@@ -1,7 +1,9 @@
 # Dependabot: weekly update pull requests. Security updates (for known
 # vulnerabilities) are opened right away when "Dependabot security updates" is
-# enabled in the repository settings. Versions are taken only after a cooldown,
-# so a compromised release that is pulled within days does not reach us.
+# enabled in the repository settings. Versions are taken only after a cooldown
+# of two weeks (the cooldown applies to version updates only, not to security
+# updates), so a compromised release that is pulled within days does not reach us.
+# Major upgrades that need real migration work are tracked as roadmap issues.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -13,10 +15,21 @@ updates:
       timezone: Europe/Berlin
     open-pull-requests-limit: 10
     cooldown:
-      default-days: 7
-      semver-major-days: 14
+      default-days: 14
+      semver-major-days: 21
+    # @types/node follows the oldest supported Node.js version (engines: ^24), so code
+    # cannot use APIs that only exist in newer versions. Types only – nothing that ships.
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
     groups:
-      # one PR for all minor and patch updates, majors stay separate (they need a closer look)
+      # a package goes into the first group it matches: packages that must move
+      # together come first, as one PR each (including major versions)
+      mantine:
+        patterns: ['@mantine/*']
+      vite:
+        patterns: ['vite', '@vitejs/*']
+      # one PR for all other minor and patch updates, majors stay separate (they need a closer look)
       npm-minor-and-patch:
         update-types: [minor, patch]
     commit-message:
@@ -31,7 +44,7 @@ updates:
       time: '05:00'
       timezone: Europe/Berlin
     cooldown:
-      default-days: 7
+      default-days: 14
     groups:
       github-actions:
         patterns: ['*']
@@ -46,7 +59,7 @@ updates:
       time: '05:00'
       timezone: Europe/Berlin
     cooldown:
-      default-days: 7
+      default-days: 14
     # the node major version is pinned on purpose (follows .nvmrc / engines)
     ignore:
       - dependency-name: node

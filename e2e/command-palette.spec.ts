@@ -26,7 +26,8 @@ test('Ctrl+K finds and opens a process; "start run" opens the run dialog', async
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
 
-  // pages are searchable as well
+  // pages are searchable as well (Ctrl+K toggles, so the palette must have finished closing)
+  await expect(search).toBeHidden();
   await page.keyboard.press('Control+K');
   await search.fill('my tasks');
   await page.keyboard.press('Enter');
