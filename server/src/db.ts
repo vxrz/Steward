@@ -500,11 +500,28 @@ export class Db {
       .replace(/:/g, '-');
     try {
       fs.mkdirSync(b.dir, { recursive: true, mode: 0o700 });
+      // VACUUM INTO accepts an empty file: created first – exclusively ('wx', so an existing file or link is never
+      // reused) and narrowed to 0600 on the open handle (not by name, umask aside) – so it never has wider permissions
+      const create = (name: string): number | null => {
+        try {
+          return fs.openSync(name, 'wx', 0o600);
+        } catch (e) {
+          if ((e as NodeJS.ErrnoException).code === 'EEXIST') return null;
+          throw e;
+        }
+      };
       let file = path.join(b.dir, `pre-${version}-${stamp}.db`);
-      for (let n = 2; fs.existsSync(file); n++) file = path.join(b.dir, `pre-${version}-${stamp}-${n}.db`);
-      // VACUUM INTO accepts an empty file: created first, so it never exists with wider permissions
-      fs.writeFileSync(file, '', { mode: 0o600, flag: 'wx' });
-      if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
+      let fd = create(file);
+      for (let n = 2; fd === null && n < 1000; n++) {
+        file = path.join(b.dir, `pre-${version}-${stamp}-${n}.db`);
+        fd = create(file);
+      }
+      if (fd === null) throw new Error(`no free file name for the copy in ${b.dir}`);
+      try {
+        if (process.platform !== 'win32') fs.fchmodSync(fd, 0o600);
+      } finally {
+        fs.closeSync(fd);
+      }
       try {
         this.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
       } catch (e) {
