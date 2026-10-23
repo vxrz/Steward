@@ -61,6 +61,7 @@
     "FORBIDDEN_createMonitors": "Monitore können nur Designer und Administratoren anlegen.",
     "FORBIDDEN_monitorOutputs": "Um die Ausgaben dieses Monitors zu ändern, brauchen Sie das Recht „Verwalten“ (Eigentümer, Administratoren oder Zugriffsliste).",
     "FORBIDDEN_createReportSchedule": "Sie dürfen keine Berichtszeitpläne anlegen.",
+    "BODY_TOO_COMPLEX": "Die Anfrage hat zu viele Einträge oder Ebenen (Grenze {{limit}}). Teilen Sie sie in kleinere Teile auf.",
     "BAD_REQUEST": "Die Anfrage ist ungültig.",
     "NAME_REQUIRED": "Bitte geben Sie einen Namen ein.",
     "NO_FILE": "Es wurde keine Datei gesendet.",

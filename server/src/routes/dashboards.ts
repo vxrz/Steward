@@ -14,6 +14,7 @@ import { getPlatform } from '../platforms/service.js';
 import { parseJson } from '../util.js';
 import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -167,7 +168,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     return bundle;
   });
 
-  app.post('/bundle/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+  app.post('/bundle/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
     const b = z
       .object({
         bundle: z.object({

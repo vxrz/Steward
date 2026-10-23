@@ -25,6 +25,7 @@ import { systemRoutes } from './system/routes.js';
 import { mcpRoutes } from './mcp/http.js';
 import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
+import { checkBodyShape } from './bodyShape.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
@@ -210,6 +211,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // Rate limits for every route registered below (per user, else per client address; see rateLimits.ts)
   await app.register(rateLimit, rateLimitOptions({ exempt: rateLimitExempt, webUi: webUiRequest }));
   const limitRefused = app.rateLimit();
+  // Bounded work for every route's validation: no body with millions of list items or fields (see bodyShape.ts)
+  app.addHook('preValidation', checkBodyShape);
   const CSP = contentSecurityPolicy(cspConnectSources());
   /** The single sign-on callback page finishes with a small inline script. */
   const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
@@ -244,8 +247,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // API responses are never cached (they carry personal data and secrets' metadata); routes may set their own.
     reply.header('cache-control', 'no-store');
     const anonymous = !req.headers.cookie && !req.headers.authorization;
-    if (anonymous && !url.startsWith(HOOKS_PREFIX) && Number(req.headers['content-length'] ?? 0) > ANONYMOUS_BODY_LIMIT) {
-      return reply.code(413).send({ error: 'Request body too large – sign in first' });
+    if (anonymous && !url.startsWith(HOOKS_PREFIX)) {
+      if (Number(req.headers['content-length'] ?? 0) > ANONYMOUS_BODY_LIMIT) return reply.code(413).send({ error: 'Request body too large – sign in first' });
+      // A body without a length (chunked) could skip the check above
+      if (req.headers['transfer-encoding'] && req.headers['content-length'] === undefined)
+        return reply.code(411).send({ error: 'Content-Length required – sign in first' });
     }
     // CSRF protection: browsers cannot add custom headers cross-origin without CORS (which we never allow).
     // Requests with a bearer token and no cookie are exempt: browsers never attach bearer tokens on their own.
