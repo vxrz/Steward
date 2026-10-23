@@ -18,6 +18,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - Regular-expression denial of service: an administrator uploading a header logo that starts with `<!--` followed by a few hundred `--><!--` blocked the server for minutes (the SVG detection regex backtracked exponentially), and a Markdown link like `[a](` followed by many spaces or tabs took seconds to minutes to render (records, notes, report text – on the server and in the browser). Both are now linear scans. (CodeQL `js/redos`, `js/polynomial-redos`)
 - Files in the data folder (run screenshots, PDF reports, platform documents) and the monitor examples are opened through one helper that only accepts plain names and refuses any path outside its folder. The ids were already looked up in the database first, so this is defence in depth.
+- CodeQL no longer scans test code (`server/test`, `e2e`), which is not shipped; everything else, including the demo mock servers, still runs with the `security-extended` queries.
 
 ## [0.1.0] - 2026-10-23
 
