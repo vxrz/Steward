@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Dependabot proposes new versions after 14 days (major versions after 21) instead of 7 and 14, matching the rule that dependencies are at least two weeks old. The Mantine packages and Vite with its React plugin come as one pull request each, since they must be upgraded together. Major versions of `@types/node` are ignored: the types follow the oldest supported Node.js version (24). Security updates are not delayed.
+
 ## [0.1.0] - 2026-10-23
 
 The first public version.
