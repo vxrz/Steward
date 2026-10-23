@@ -22,12 +22,30 @@ const { Db, listUpgradeBackups, openAppDb, setDb, APP_VERSION_KEY, PENDING_UPGRA
 const { config } = await import('../src/config.js');
 type DbT = InstanceType<typeof Db>;
 
+/**
+ * Brings a copied fixture database to the current schema without a copy, and forgets that start (app
+ * version, pending upgrade record) – so each test sees "real data at today's schema" and only its own
+ * extra migrations are pending, however many migrations later releases add (upgrade.test.ts covers the
+ * migration from the release itself).
+ */
+function toCurrentSchema(file: string): void {
+  new Db({ kind: 'sqlite', file }, { backup: { dir: path.join(path.dirname(file), 'unused-backups'), keep: 0 } }).close();
+  const raw = new DatabaseSync(file);
+  try {
+    raw.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(APP_VERSION_KEY, PENDING_UPGRADES_KEY);
+  } finally {
+    raw.close();
+  }
+}
+
 let n = 0;
-/** A copy of the v0.1.0 fixture's data folder (at the schema of its release). */
+/** A copy of the v0.1.0 fixture's data folder, its database at the current schema (see toCurrentSchema). */
 function fixtureCopy(): { dir: string; file: string; backups: string } {
   const dir = path.join(root, `copy${n++}`);
   fs.cpSync(path.join(FIXTURE, 'datadir'), dir, { recursive: true });
-  return { dir, file: path.join(dir, 'service-manager.db'), backups: path.join(dir, 'backups') };
+  const file = path.join(dir, 'service-manager.db');
+  toCurrentSchema(file);
+  return { dir, file, backups: path.join(dir, 'backups') };
 }
 const extra = (name: string, sql = `CREATE TABLE ${name} (id TEXT PRIMARY KEY)`) => ({ name, sql });
 const opened: DbT[] = [];
@@ -183,7 +201,8 @@ describe('system.upgraded audit entry', () => {
   it('is written once the vault is unlocked, after the migrations', async () => {
     fs.cpSync(path.join(FIXTURE, 'datadir'), serverDir, { recursive: true });
     const file = path.join(serverDir, 'service-manager.db');
-    // the app's own start-up path, with one more migration than the fixture has
+    toCurrentSchema(file);
+    // the app's own start-up path, with one more migration than the current schema
     setDb(openAppDb({ kind: 'sqlite', file }, { extraMigrations: [extra('upgrade_test_audit')] }));
     const { startTestServer } = await import('./helpers.js');
     const s = await startTestServer({ dataDir: serverDir });
