@@ -34,7 +34,7 @@ export interface RecordRow {
 export interface AttachmentRow {
   id: string;
   record_id: string;
-  kind: 'file' | 'generated' | 'signed';
+  kind: 'file' | 'generated' | 'signed' | 'retired';
   filename: string;
   mime: string;
   size: number;

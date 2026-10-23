@@ -8,7 +8,8 @@
     "ADR": "Architecture decision record",
     "DR": "Decision record",
     "SDR": "Security decision record",
-    "AC": "Access change"
+    "AC": "Access change",
+    "DOC": "Service documentation"
   },
   "builtin": {
     "types": {
@@ -31,6 +32,10 @@
       "AC": {
         "description": "Documentation of a grant, revocation or change of access rights on a platform, including changes made outside Steward. Documenting freezes the entry; another person can verify it.",
         "template": "## Details\n\n\n## Evidence\n\n- \n"
+      },
+      "DOC": {
+        "description": "A living document, e.g. an operations manual, an identity and access management concept or an authorization concept. Each approved edition (1.0, 1.1, 2.0) is frozen; the document is reviewed at planned intervals.",
+        "template": "## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n"
       }
     },
     "fields": {
@@ -156,7 +161,11 @@
     "superseded": "Superseded",
     "deprecated": "Deprecated",
     "documented": "Documented",
-    "verified": "Verified"
+    "verified": "Verified",
+    "in_review": "In review",
+    "published": "Published",
+    "revising": "Revising",
+    "withdrawn": "Withdrawn"
   },
   "actions": {
     "submit": "Submit",
@@ -170,7 +179,8 @@
     "supersede": "Mark as superseded",
     "deprecate": "Deprecate",
     "document": "Document",
-    "verify": "Verify"
+    "verify": "Verify",
+    "withdraw": "Withdraw"
   },
   "list": {
     "search": "Search",
@@ -422,12 +432,14 @@
     "workflows": {
       "change": "Change",
       "decision": "Decision",
-      "access": "Access"
+      "access": "Access",
+      "document": "Document"
     },
     "workflowHelp": {
       "change": "Draft → Submitted → Approved or Rejected → Implemented → Closed; Cancelled from Draft or Submitted.",
       "decision": "Draft → Proposed → Accepted or Rejected; Accepted → Superseded or Deprecated.",
-      "access": "Draft → Documented (frozen) → Verified by a second person; Cancelled from Draft."
+      "access": "Draft → Documented (frozen) → Verified by a second person; Cancelled from Draft.",
+      "document": "Draft → In review → Published (edition 1.0) → New edition (Revising) → In review → Published (1.1 or 2.0) …; Withdrawn from Draft, Published or Revising. The current edition stays valid while the next one is drafted, and the document is reviewed at planned intervals."
     },
     "workflowLocked": "The workflow cannot change while records of this type exist.",
     "template": "Template (Markdown)",

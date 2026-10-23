@@ -4,6 +4,9 @@ import {
   ACCESS_RECORD_TYPE,
   ACCESS_TYPE_ID,
   DEFAULT_RECORD_TYPES,
+  DEFAULT_REVIEW_INTERVAL_MONTHS,
+  DOCUMENT_RECORD_TYPE,
+  DOCUMENT_TYPE_ID,
   RECORD_FIELD_KEY_RE,
   RECORD_FIELD_KINDS,
   RECORD_TYPE_KEY_RE,
@@ -32,6 +35,8 @@ export interface TypeRow {
   workflow: RecordWorkflowKey;
   template: string;
   fields: string;
+  /** Living documents: months between reviews (null: the default, 12) */
+  review_interval_months: number | null;
   builtin: number;
   archived: number;
   created_at: string;
@@ -62,6 +67,8 @@ export const typeInput = z
     workflow: z.enum(RECORD_WORKFLOW_KEYS),
     template: z.string().max(20000).default(''),
     fields: z.array(fieldDef).max(30).default([]),
+    /** Living documents: months between periodic reviews (0 = none); left out: unchanged (default 12) */
+    reviewIntervalMonths: z.number().int().min(0).max(120).optional(),
     archived: z.boolean().optional(),
   })
   .strict()
@@ -80,6 +87,7 @@ let seeded = false;
 export function ensureDefaultTypes(): void {
   if (seeded) return;
   ensureAccessType();
+  ensureDocumentType();
   if (db().get("SELECT 1 FROM settings WHERE key = 'records.defaultTypesSeeded'")) {
     seeded = true;
     return;
@@ -134,6 +142,40 @@ function ensureAccessType(): void {
   });
 }
 
+/**
+ * The built-in type for living documents (DOC – Service documentation), also in installations created
+ * before it existed. Its id is fixed (rty_doc); the key is DOC unless an installation already uses it.
+ */
+function ensureDocumentType(): void {
+  if (db().get('SELECT 1 FROM record_types WHERE id = ?', DOCUMENT_TYPE_ID)) return;
+  db().tx(() => {
+    if (db().get('SELECT 1 FROM record_types WHERE id = ?', DOCUMENT_TYPE_ID)) return;
+    const key = ['DOC', 'SDOC', 'DOCS', 'SVCDOC'].find((k) => !db().get('SELECT 1 FROM record_types WHERE key = ?', k)) ?? 'DOCX';
+    const now = nowIso();
+    const t = DOCUMENT_RECORD_TYPE;
+    db().run(
+      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, review_interval_months, builtin, archived, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, 'system') ON CONFLICT (id) DO NOTHING`,
+      DOCUMENT_TYPE_ID,
+      key,
+      t.name,
+      t.description,
+      t.workflow,
+      t.template,
+      JSON.stringify(t.fields),
+      t.reviewIntervalMonths ?? DEFAULT_REVIEW_INTERVAL_MONTHS,
+      now,
+      now,
+    );
+  });
+}
+
+/** Months between reviews of a type: its own value, else the default for documents; null for other workflows. */
+export function typeReviewInterval(r: Pick<TypeRow, 'workflow' | 'review_interval_months'>): number | null {
+  if (r.workflow !== 'document') return null;
+  return r.review_interval_months === null || r.review_interval_months === undefined ? DEFAULT_REVIEW_INTERVAL_MONTHS : Number(r.review_interval_months);
+}
+
 /** For tests that swap the database. */
 export function resetTypeSeed(): void {
   seeded = false;
@@ -148,6 +190,7 @@ export function toType(r: TypeRow, recordCount?: number): RecordType {
     workflow: r.workflow,
     template: r.template,
     fields: parseJson<RecordFieldDef[]>(r.fields, []),
+    reviewIntervalMonths: typeReviewInterval(r),
     builtin: !!r.builtin,
     archived: !!r.archived,
     recordCount: recordCount ?? Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM records WHERE type_id = ?', r.id)?.n ?? 0),
@@ -190,8 +233,8 @@ export function createType(input: TypeInput): RecordType {
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, builtin, archived, created_at, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+      `INSERT INTO record_types (id, key, name, description, workflow, template, fields, review_interval_months, builtin, archived, created_at, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
       id,
       input.key,
       input.name,
@@ -199,6 +242,7 @@ export function createType(input: TypeInput): RecordType {
       input.workflow,
       input.template,
       JSON.stringify(input.fields),
+      input.workflow === 'document' ? (input.reviewIntervalMonths ?? DEFAULT_REVIEW_INTERVAL_MONTHS) : null,
       input.archived ? 1 : 0,
       now,
       now,
@@ -209,7 +253,11 @@ export function createType(input: TypeInput): RecordType {
       entityType: 'record_type',
       entityId: id,
       summary: `Record type ${input.key} "${input.name}" created`,
-      details: { key: input.key, workflow: input.workflow },
+      details: {
+        key: input.key,
+        workflow: input.workflow,
+        ...(input.workflow === 'document' ? { reviewIntervalMonths: input.reviewIntervalMonths ?? DEFAULT_REVIEW_INTERVAL_MONTHS } : {}),
+      },
     });
   });
   return toType(requireType(id));
@@ -254,15 +302,23 @@ export function updateType(id: string, input: TypeInput): RecordType {
   if (JSON.stringify(input.fields) !== cur.fields) changes.push('fields' as never);
   const archived = input.archived ?? !!cur.archived;
   if (archived !== !!cur.archived) changes.push('archived' as never);
+  // documents: the review interval (left out: unchanged); other workflows have none
+  const interval =
+    input.workflow !== 'document'
+      ? null
+      : (input.reviewIntervalMonths ?? (cur.workflow === 'document' ? typeReviewInterval(cur) : DEFAULT_REVIEW_INTERVAL_MONTHS));
+  const curInterval = typeReviewInterval(cur);
+  if (interval !== curInterval) changes.push('reviewIntervalMonths' as never);
   db().tx(() => {
     db().run(
-      'UPDATE record_types SET key = ?, name = ?, description = ?, workflow = ?, template = ?, fields = ?, archived = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE record_types SET key = ?, name = ?, description = ?, workflow = ?, template = ?, fields = ?, review_interval_months = ?, archived = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       input.key,
       input.name,
       input.description,
       input.workflow,
       input.template,
       JSON.stringify(input.fields),
+      interval,
       archived ? 1 : 0,
       nowIso(),
       currentActor(),
@@ -273,7 +329,11 @@ export function updateType(id: string, input: TypeInput): RecordType {
       entityType: 'record_type',
       entityId: cur.id,
       summary: `Record type ${input.key} "${input.name}" changed (${changes.join(', ') || 'no changes'})`,
-      details: { changes, previousKey: cur.key },
+      details: {
+        changes,
+        previousKey: cur.key,
+        ...(interval !== curInterval ? { reviewIntervalMonths: interval, previousReviewIntervalMonths: curInterval } : {}),
+      },
     });
   });
   return toType(requireType(cur.id));

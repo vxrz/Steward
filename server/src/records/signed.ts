@@ -1,4 +1,4 @@
-import type { ErrorParams, RecordAttachment, SignatureInfo, SignedPdfDetails } from '@sm/shared';
+import { isEditableStatus, type ErrorParams, type RecordAttachment, type SignatureInfo, type SignedPdfDetails } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows } from '../audit.js';
 import { isAdmin } from '../auth/permissions.js';
@@ -222,12 +222,12 @@ function derivedFrom(recordId: string, data: Buffer): AttachmentRow | null {
 function notSignable(r: RecordRow, g: AttachmentRow): { message: string; params: ErrorParams } | null {
   const wf = workflowOf(requireType(r.type_id));
   const d = parseJson<{ revision?: number; status?: string; contentHash?: string } | null>(g.details, null);
-  if (!d || d.status === undefined || d.status === wf.initial)
+  if (!d || d.status === undefined || isEditableStatus(wf, d.status))
     return {
       message: `${g.filename} was generated from a draft: generate the PDF again once the content is frozen and sign that one`,
       params: { context: 'draft', file: g.filename },
     };
-  if (Number(d.revision) !== Number(r.revision) || r.status === wf.initial || !r.frozen_hash || d.contentHash !== r.frozen_hash)
+  if (Number(d.revision) !== Number(r.revision) || isEditableStatus(wf, r.status) || !r.frozen_hash || d.contentHash !== r.frozen_hash)
     return {
       message: `${g.filename} shows an older revision of ${r.number}: generate the PDF of the current revision and sign that one`,
       params: { context: 'olderRevision', file: g.filename, number: r.number },

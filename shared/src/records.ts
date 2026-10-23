@@ -8,7 +8,7 @@ import type { ErrorParams } from './errors.js';
 
 // ---------- workflows ----------
 
-export const RECORD_WORKFLOW_KEYS = ['change', 'decision', 'access'] as const;
+export const RECORD_WORKFLOW_KEYS = ['change', 'decision', 'access', 'document'] as const;
 export type RecordWorkflowKey = (typeof RECORD_WORKFLOW_KEYS)[number];
 
 export interface RecordTransitionDef {
@@ -21,6 +21,10 @@ export interface RecordTransitionDef {
   commentRequired?: boolean;
   /** The superseding record must be named (decision records) */
   needsRecord?: boolean;
+  /** A replacing record may be named (withdrawing a document) */
+  optionalRecord?: boolean;
+  /** Living documents: the target when the document already has an approved edition (reject → revising instead of draft) */
+  toWithEdition?: string;
 }
 
 export interface RecordWorkflow {
@@ -32,6 +36,10 @@ export interface RecordWorkflow {
   terminal: string[];
   /** "New revision": back to the initial status for rework (audited) */
   revisable: string[];
+  /** Statuses in which the content can change (default: only the initial status) */
+  editable?: string[];
+  /** Status a new revision starts in (default: the initial status) */
+  reviseTo?: string;
   transitions: RecordTransitionDef[];
 }
 
@@ -78,7 +86,28 @@ export const RECORD_WORKFLOWS: Record<RecordWorkflowKey, RecordWorkflow> = {
       { action: 'cancel', from: ['draft'], to: 'cancelled' },
     ],
   },
+  // Living documents (service documentation, concepts, manuals): approving freezes the content as an edition
+  // (1.0, 1.1, 2.0); "new edition" drafts the next one while the current edition stays valid.
+  document: {
+    key: 'document',
+    initial: 'draft',
+    statuses: ['draft', 'in_review', 'published', 'revising', 'withdrawn'],
+    terminal: ['withdrawn'],
+    revisable: ['published'],
+    editable: ['draft', 'revising'],
+    reviseTo: 'revising',
+    transitions: [
+      { action: 'submit', from: ['draft', 'revising'], to: 'in_review' },
+      { action: 'approve', from: ['in_review'], to: 'published', approval: true },
+      { action: 'reject', from: ['in_review'], to: 'draft', toWithEdition: 'revising', approval: true, commentRequired: true },
+      { action: 'withdraw', from: ['draft', 'published', 'revising'], to: 'withdrawn', commentRequired: true, optionalRecord: true },
+    ],
+  },
 };
+
+/** Statuses in which a record's content can change. */
+export const editableStatuses = (wf: RecordWorkflow): string[] => wf.editable ?? [wf.initial];
+export const isEditableStatus = (wf: RecordWorkflow, status: string): boolean => editableStatuses(wf).includes(status);
 
 /** Every status of every workflow (for filters and the API schema). */
 export const RECORD_STATUSES = [...new Set(Object.values(RECORD_WORKFLOWS).flatMap((w) => w.statuses))];
@@ -99,6 +128,10 @@ export const RECORD_STATUS_COLORS: Record<string, string> = {
   deprecated: 'yellow',
   documented: 'blue',
   verified: 'green',
+  in_review: 'blue',
+  published: 'green',
+  revising: 'cyan',
+  withdrawn: 'dark',
 };
 
 // ---------- record types ----------
@@ -127,6 +160,8 @@ export interface RecordType {
   /** Markdown body of a new record (section headings) */
   template: string;
   fields: RecordFieldDef[];
+  /** Living documents: months between periodic reviews (0 = no reviews); null for other workflows */
+  reviewIntervalMonths: number | null;
   builtin: boolean;
   archived: boolean;
   recordCount: number;
@@ -149,7 +184,12 @@ const decisionTemplate = (extra = '') =>
   `## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n${extra}`;
 
 /** The record types created on first start (admins can edit or archive them, and add more). */
-export const DEFAULT_RECORD_TYPES: Omit<RecordType, 'id' | 'builtin' | 'archived' | 'recordCount' | 'createdAt' | 'updatedAt'>[] = [
+/** A record type as defined in code (the built-in ones). */
+export type RecordTypeDefinition = Omit<RecordType, 'id' | 'builtin' | 'archived' | 'recordCount' | 'createdAt' | 'updatedAt' | 'reviewIntervalMonths'> & {
+  reviewIntervalMonths?: number;
+};
+
+export const DEFAULT_RECORD_TYPES: RecordTypeDefinition[] = [
   {
     key: 'CR',
     name: 'Change request',
@@ -192,6 +232,132 @@ export const DEFAULT_RECORD_TYPES: Omit<RecordType, 'id' | 'builtin' | 'archived
   },
 ];
 
+/** Fixed id of the built-in type for living documents (created in every installation, also existing ones). */
+export const DOCUMENT_TYPE_ID = 'rty_doc';
+export const DOCUMENT_TYPE_KEY = 'DOC';
+/** Months between reviews of a document type that names none. */
+export const DEFAULT_REVIEW_INTERVAL_MONTHS = 12;
+
+/** The built-in type for living documents: service documentation, concepts, manuals. */
+export const DOCUMENT_RECORD_TYPE: RecordTypeDefinition = {
+  key: DOCUMENT_TYPE_KEY,
+  name: 'Service documentation',
+  description:
+    'A living document, e.g. an operations manual, an identity and access management concept or an authorization concept. Each approved edition (1.0, 1.1, 2.0) is frozen; the document is reviewed at planned intervals.',
+  workflow: 'document',
+  template: '## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n',
+  fields: [],
+  reviewIntervalMonths: DEFAULT_REVIEW_INTERVAL_MONTHS,
+};
+
+// ---------- living documents: editions and reviews ----------
+
+export const EDITION_KINDS = ['minor', 'major'] as const;
+/** minor: editorial (1.0 → 1.1); major: substantive (1.x → 2.0) */
+export type EditionKind = (typeof EDITION_KINDS)[number];
+export const EDITION_RE = /^\d{1,4}\.\d{1,4}$/;
+
+/** "current" → "dueSoon" → "overdue"; "none": no review planned (no edition yet, no interval, withdrawn). */
+export const REVIEW_STATUSES = ['current', 'dueSoon', 'overdue', 'none'] as const;
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
+export const REVIEW_OUTCOMES = ['no_change', 'needs_update'] as const;
+export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number];
+
+/** An approved, frozen state of a living document (without its text: see RecordEdition). */
+export interface RecordEditionSummary {
+  /** "1.0", "1.1", "2.0" */
+  edition: string;
+  major: number;
+  minor: number;
+  kind: EditionKind;
+  revision: number;
+  version: number;
+  title: string;
+  /** Content hash of the frozen edition (as approved) */
+  contentHash: string;
+  changeSummary: string;
+  /** Who wrote content of this edition */
+  authors: string[];
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string;
+  approvedAt: string;
+  /** The edition valid now */
+  current: boolean;
+  /** The stored content still matches its hash and the authentic audit entry of its approval */
+  intact: boolean;
+}
+
+/** A frozen edition with its content. */
+export interface RecordEdition extends RecordEditionSummary {
+  body: string;
+  fields: Record<string, string>;
+  fieldDefs: RecordFieldDef[];
+  attachments: { id: string; filename: string; size: number; sha256: string }[];
+}
+
+export interface RecordReview {
+  id: string;
+  outcome: ReviewOutcome;
+  /** The edition that was reviewed */
+  edition: string | null;
+  reviewer: string;
+  comment: string;
+  createdAt: string;
+  /** Next review planned after this one (null: none) */
+  nextReviewAt: string | null;
+}
+
+export interface DocumentReviewState {
+  status: ReviewStatus;
+  /** Effective interval in months (document override, else the type's) */
+  intervalMonths: number;
+  /** The document's own interval (null: the type's) */
+  intervalOverride: number | null;
+  typeIntervalMonths: number;
+  /** Who is reminded and reviews (default: the owner) */
+  owner: string;
+  ownerOverride: string | null;
+  lastReviewedAt: string | null;
+  lastReviewedBy: string | null;
+  nextReviewAt: string | null;
+  /** An earlier date set for the next review (cleared by the next review or edition) */
+  nextReviewOverride: string | null;
+  /** Whole days until the next review (negative when overdue) */
+  daysLeft: number | null;
+  /** A review found that the document needs an update ("Needs update"); cleared when the next edition is approved */
+  updateRequestedAt: string | null;
+}
+
+export interface DocumentInfo {
+  /** The edition valid now (null before the first approval) */
+  currentEdition: string | null;
+  /** Chosen when submitting: what the next edition will be */
+  pending: { kind: EditionKind; changeSummary: string; edition: string } | null;
+  /** The number the next edition gets as minor and as major */
+  nextEdition: { minor: string; major: string };
+  editions: RecordEditionSummary[];
+  reviews: RecordReview[];
+  review: DocumentReviewState;
+  permissions: { review: boolean; settings: boolean };
+}
+
+/** One row of a document's changelog: an approved edition or a review. */
+export interface DocumentChangelogRow {
+  kind: 'edition' | 'review';
+  at: string;
+  edition: string | null;
+  /** edition: its authors; review: the reviewer */
+  people: string[];
+  /** edition: the approver */
+  approvedBy: string | null;
+  /** edition: change summary; review: comment */
+  text: string;
+  outcome: ReviewOutcome | null;
+  editionKind: EditionKind | null;
+  contentHash: string | null;
+}
+
 // ---------- links ----------
 
 /**
@@ -216,6 +382,8 @@ export interface ItemLink {
   visible: boolean;
   /** Web UI path of the target */
   path: string | null;
+  /** A living document: its current edition */
+  edition?: string | null;
   createdAt: string;
   createdBy: string;
 }
@@ -238,8 +406,8 @@ export interface Backlink {
 
 export interface RecordAttachment {
   id: string;
-  /** file: part of the content; generated: a PDF Steward made; signed: a signed copy uploaded back */
-  kind: 'file' | 'generated' | 'signed';
+  /** file: part of the content; generated: a PDF Steward made; signed: a signed copy uploaded back; retired: a file of an earlier edition of a living document, no longer part of the content */
+  kind: 'file' | 'generated' | 'signed' | 'retired';
   filename: string;
   mime: string;
   size: number;
@@ -336,6 +504,10 @@ export interface RecordSummary {
   createdBy: string;
   updatedAt: string;
   updatedBy: string;
+  /** Living documents: the current edition, the review status and the next review */
+  edition?: string | null;
+  reviewStatus?: ReviewStatus | null;
+  nextReviewAt?: string | null;
 }
 
 export interface RecordActionInfo {
@@ -349,6 +521,10 @@ export interface RecordActionInfo {
   approval: boolean;
   commentRequired: boolean;
   needsRecord: boolean;
+  /** A replacing record may be named */
+  optionalRecord: boolean;
+  /** Submitting a living document: say whether the edition is minor or major and summarise the change */
+  needsEdition: boolean;
 }
 
 export interface RecordPermissions {
@@ -386,6 +562,8 @@ export interface RecordDetail extends RecordSummary {
   links: ItemLink[];
   backlinks: Backlink[];
   events: RecordEvent[];
+  /** Living documents (workflow "document"): editions, reviews and the review status; null for other records */
+  document: DocumentInfo | null;
 }
 
 export interface RecordsMeta {

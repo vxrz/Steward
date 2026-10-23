@@ -27,7 +27,7 @@ export type LinkSource = 'record' | 'service' | 'ticket';
 
 export interface LinkResolver {
   /** Name and UI path of a visible target, or null (missing or not visible) */
-  resolve(id: string): { label: string; path: string; detail?: string } | null;
+  resolve(id: string): { label: string; path: string; detail?: string; edition?: string | null } | null;
   /** Visible targets matching a search text (for the link picker) */
   search(q: string, limit: number): LinkTarget[];
 }
@@ -133,7 +133,15 @@ const recordVisible = (r: RecordLinkRow) => r.type_id !== ACCESS_TYPE_ID || canR
 registerLinkKind('record', {
   resolve(id) {
     const r = db().get<RecordLinkRow>('SELECT id, number, title, status, type_id, fields, owner FROM records WHERE id = ?', id);
-    return r && recordVisible(r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}`, detail: r.status } : null;
+    if (!r || !recordVisible(r)) return null;
+    // living documents: the edition valid now
+    const edition = db().get<{ current_edition: string | null }>('SELECT current_edition FROM record_documents WHERE record_id = ?', id)?.current_edition;
+    return {
+      label: `${r.number} ${r.title}`,
+      path: `/records/${id}`,
+      detail: edition ? `${r.status} · ${edition}` : r.status,
+      ...(edition ? { edition } : {}),
+    };
   },
   search(q, limit) {
     return db()
@@ -251,6 +259,7 @@ function toLink(r: LinkRow): ItemLink {
     note: r.note,
     visible: !!target,
     path: target?.path ?? null,
+    ...(target?.edition ? { edition: target.edition } : {}),
     createdAt: r.created_at,
     createdBy: r.created_by,
   };

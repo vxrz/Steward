@@ -8,7 +8,8 @@
     "ADR": "Architekturentscheidung",
     "DR": "Entscheidungsprotokoll",
     "SDR": "Sicherheitsentscheidung",
-    "AC": "Zugriffsänderung"
+    "AC": "Zugriffsänderung",
+    "DOC": "Servicedokumentation"
   },
   "builtin": {
     "types": {
@@ -31,6 +32,10 @@
       "AC": {
         "description": "Dokumentation einer Erteilung, eines Entzugs oder einer Änderung von Zugriffsrechten auf einer Plattform, auch außerhalb von Steward. Das Dokumentieren friert den Eintrag ein; eine zweite Person kann ihn prüfen.",
         "template": "## Details\n\n\n## Nachweise\n\n- \n"
+      },
+      "DOC": {
+        "description": "Ein lebendes Dokument, z. B. ein Betriebshandbuch, ein Identitäts- und Zugriffsmanagementkonzept oder ein Berechtigungskonzept. Jede freigegebene Fassung (1.0, 1.1, 2.0) wird eingefroren; das Dokument wird in geplanten Abständen überprüft.",
+        "template": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n"
       }
     },
     "fields": {
@@ -156,7 +161,11 @@
     "superseded": "Ersetzt",
     "deprecated": "Veraltet",
     "documented": "Dokumentiert",
-    "verified": "Geprüft"
+    "verified": "Geprüft",
+    "in_review": "In Prüfung",
+    "published": "Veröffentlicht",
+    "revising": "In Überarbeitung",
+    "withdrawn": "Außer Kraft"
   },
   "actions": {
     "submit": "Einreichen",
@@ -170,7 +179,8 @@
     "supersede": "Als ersetzt markieren",
     "deprecate": "Als veraltet markieren",
     "document": "Dokumentieren",
-    "verify": "Prüfen"
+    "verify": "Prüfen",
+    "withdraw": "Außer Kraft setzen"
   },
   "list": {
     "search": "Suche",
@@ -422,12 +432,14 @@
     "workflows": {
       "change": "Änderung",
       "decision": "Entscheidung",
-      "access": "Zugriff"
+      "access": "Zugriff",
+      "document": "Dokument"
     },
     "workflowHelp": {
       "change": "Entwurf → Eingereicht → Freigegeben oder Abgelehnt → Umgesetzt → Abgeschlossen; Zurückgezogen aus Entwurf oder Eingereicht.",
       "decision": "Entwurf → Vorgeschlagen → Angenommen oder Abgelehnt; Angenommen → Ersetzt oder Veraltet.",
-      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf."
+      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf.",
+      "document": "Entwurf → In Prüfung → Veröffentlicht (Fassung 1.0) → Neue Fassung (In Überarbeitung) → In Prüfung → Veröffentlicht (1.1 oder 2.0) …; Außer Kraft aus Entwurf, Veröffentlicht oder In Überarbeitung. Die aktuelle Fassung bleibt gültig, während die nächste entsteht, und das Dokument wird in geplanten Abständen überprüft."
     },
     "workflowLocked": "Der Ablauf lässt sich nicht ändern, solange es Dokumente dieser Art gibt.",
     "template": "Vorlage (Markdown)",
