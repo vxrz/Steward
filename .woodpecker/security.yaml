@@ -12,7 +12,7 @@
 variables:
   # buildpack-deps:bookworm-scm (Debian 12 with bash, curl, git) – runs install-tools.sh
   - &tools_image buildpack-deps:bookworm-scm@sha256:1314fd2a9c83b257b37132883b3c8e326d3909211bdcb419c9757399ebc34bf3
-  - &node_image node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+  - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
   # semgrep/semgrep:1.181.1 (same pin as security.yml and scripts/security/scan.sh)
   - &semgrep_image semgrep/semgrep@sha256:3db5c7af55eb1f512eac0abf0ab69a97b52c74b5e9a27314c221aee1a78d7ab2
   # python:3.13-slim-bookworm (zizmor)

@@ -293,7 +293,7 @@ trace with `npx playwright show-trace <url or file>`.
 ## Pipeline security
 
 - **Pinned images**: every image and plugin is pinned by digest, with the tag as a comment
-  (`node:24-bookworm-slim` uses the same digest as the `Dockerfile`). Tools come from
+  (`node:24-trixie-slim` uses the same digest as the `Dockerfile`). Tools come from
   `scripts/security/install-tools.sh` (SHA-256 per release asset), cosign from
   `scripts/ci/cosign-sign.sh` (same), zizmor with `--require-hashes`, Semgrep from its image
   digest. `npx @cyclonedx/cyclonedx-npm@4.2.1` is pinned by version (npm verifies the
@@ -344,13 +344,13 @@ run on their own too (e.g. `scripts/ci/image-scan.sh archive steward.tar` after
 Resolve the current digest of a tag and replace the digest _and_ the tag comment:
 
 ```bash
-docker buildx imagetools inspect node:24-bookworm-slim --format '{{json .Manifest.Digest}}'
-# or: crane digest node:24-bookworm-slim / regctl image digest node:24-bookworm-slim
+docker buildx imagetools inspect node:24-trixie-slim --format '{{json .Manifest.Digest}}'
+# or: crane digest node:24-trixie-slim / regctl image digest node:24-trixie-slim
 ```
 
 | Pin                                          | Where                                             | Keep in sync with                                      |
 | -------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------ |
-| `node:24-bookworm-slim`                      | all workflows except `security.yaml`'s tool steps | `Dockerfile` (Dependabot updates it there)             |
+| `node:24-trixie-slim`                        | all workflows except `security.yaml`'s tool steps | `Dockerfile` (Dependabot updates it there)             |
 | `postgres:16.15-bookworm`                    | `postgres.yaml`                                   | –                                                      |
 | `buildpack-deps:bookworm-scm`                | `security.yaml`, `container.yaml`                 | –                                                      |
 | `python:3.13-slim-bookworm`                  | `security.yaml` (zizmor)                          | –                                                      |

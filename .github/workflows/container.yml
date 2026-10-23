@@ -131,3 +131,32 @@ jobs:
             reports/sbom.syft.json
           if-no-files-found: ignore
           retention-days: 30
+
+  browser-variant:
+    name: Browser variant builds (WITH_BROWSER=1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image with Chromium (not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: steward:ci-browser
+          provenance: false
+          pull: true
+          build-args: |
+            WITH_BROWSER=1
+      - name: Chromium starts in the image
+        run: |
+          docker run --rm --entrypoint node steward:ci-browser -e "
+            const { chromium } = require('playwright');
+            chromium.launch({ args: ['--no-sandbox'] }).then(async (b) => { console.log('Chromium', b.version()); await b.close(); });
+          "

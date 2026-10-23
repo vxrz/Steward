@@ -148,6 +148,8 @@ The first public version.
 
 ### Changed
 
+- Container image: based on Debian 13 "trixie" (`node:24-trixie-slim`, pinned by digest) instead of Debian 12 "bookworm" – the current Debian release with longer security support. CI also builds the image with Chromium (`WITH_BROWSER=1`) and starts the browser once.
+
 - **Start page tiles show what needs attention** instead of an inventory: _Waiting for you_ (decisions), _Failed runs (24 h)_ (of N runs), _Monitors down_ (and degraded), _Credentials due_ (overdue · due soon), _Undocumented access changes_ (open reconciliation findings) and _Waiting on vendors_ (with the age of the oldest ticket). Counted on the server with the user's rights (`attention` in `GET /api/dashboard`); a tile the user has no right for is left out, a zero is a calm green _All quiet_. Each tile opens a filtered list: new _Started_ filter on Runs (`?within=24h`, API `since`), several statuses on Monitors (`?status=down,degraded`), `?waiting=vendor` on Tickets (API `waitingOn=vendor`), `?findings=open` on Access reconciliation. The _Platforms_ and _Active schedules_ tiles are gone. See [docs/UX-REVIEW.md](docs/UX-REVIEW.md#start-page-tiles-finding-21).
 
 ### Fixed

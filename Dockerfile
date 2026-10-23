@@ -10,7 +10,7 @@
 # as the unprivileged "node" user (uid 1000), its files belong to root (read-only
 # for the app) and it only writes to /data (and /tmp for browser steps), so it
 # works with a read-only root file system – see docker-compose.yml.
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS build
+FROM node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS build
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
@@ -27,7 +27,7 @@ ARG SM_BUILD_DATE=""
 RUN npm run build
 
 # The server with its production dependencies only (the web UI's libraries are bundled into web/dist)
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS app
+FROM node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea AS app
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
@@ -44,7 +44,7 @@ COPY server/assets ./server/assets
 COPY examples ./examples
 COPY --from=build /app/web/dist ./web/dist
 
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
+FROM node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
 ARG WITH_BROWSER=0
 LABEL org.opencontainers.image.title="Steward" \
       org.opencontainers.image.description="Repeatable, auditable service procedures for Siemens Insights Hub, Industrial Edge and any REST platform" \
