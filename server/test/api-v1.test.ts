@@ -452,6 +452,13 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/records/{recordId}', `/records/${x.id}`);
     await listAll('/records/{recordId}/versions', `/records/${x.number}/versions`);
   }
+  // living documents: editions and reviews
+  for (const x of (await listAll('/records', '/records?workflow=document&reviewStatus=current')).slice(0, 3)) {
+    await get('/records/{recordId}', `/records/${x.id}`);
+    for (const e of await listAll('/records/{recordId}/editions', `/records/${x.number}/editions`))
+      await get('/records/{recordId}/editions/{edition}', `/records/${x.id}/editions/${e.edition}`);
+    await listAll('/records/{recordId}/reviews', `/records/${x.id}/reviews`);
+  }
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
   await get('/control-catalogues', '/control-catalogues');
@@ -507,6 +514,11 @@ describe('every endpoint', () => {
     await s.api('PUT', `/records/${rec.id}`, { body: 'Changed\n', tags: ['api'] });
     await s.api('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
     await s.api('POST', `/records/${rec.id}/transition`, { action: 'submit', comment: 'ready' });
+    // a living document with an approved edition and a review
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'API concept' });
+    await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
+    await s.api('POST', `/records/${doc.id}/transition`, { action: 'approve' });
+    await s.api('POST', `/records/${doc.id}/review`, { outcome: 'no_change', comment: 'ok' });
     adminCrawl = await crawl(tokens.admin);
   });
 

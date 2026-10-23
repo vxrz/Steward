@@ -35,6 +35,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'ticket.unchecked',
     'summary.daily',
     'access.undocumented',
+    'document.review',
   ];
   return Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, withEmail.includes(e) ? ['inApp', 'email'] : ['inApp']])) as Record<
     NotificationEvent,

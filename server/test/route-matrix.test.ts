@@ -308,6 +308,15 @@ const EXPECT: Record<string, Access> = {
   'GET /api/records/:id/attachments/:attId/download': ALL,
   'POST /api/records/:id/pdf': ACTIVE,
   'POST /api/records/:id/signed': ACTIVE,
+  // living documents: editions and reviews are read by everyone; reviewing: approvers, administrators and the document's (review) owner
+  'GET /api/records/:id/editions': ALL,
+  'GET /api/records/:id/editions/:edition': ALL,
+  'POST /api/records/:id/editions/:edition/pdf': ACTIVE,
+  'GET /api/records/:id/changelog': ALL,
+  'GET /api/records/:id/reviews': ALL,
+  'POST /api/records/:id/review': ['admin', 'approver'],
+  // the interval needs an approver (an earlier date: editors and the owner too)
+  'PUT /api/records/:id/review-settings': ['admin', 'approver'],
   'GET /api/record-types': ALL,
   // ---- compliance: access changes, reconciliation, controls, evidence packs ----
   'GET /api/compliance/access-changes': ALL,
@@ -442,6 +451,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records': ALL,
   'GET /api/v1/records/:recordId': ALL,
   'GET /api/v1/records/:recordId/versions': ALL,
+  'GET /api/v1/records/:recordId/editions': ALL,
+  'GET /api/v1/records/:recordId/editions/:edition': ALL,
+  'GET /api/v1/records/:recordId/reviews': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -515,6 +527,8 @@ const NO_POSITIVE = new Set([
   'GET /api/tasks/:id', // no open approval
   'GET /api/v1/tasks/:taskId',
   'GET /api/records/:id/attachments/:attId/download',
+  'GET /api/records/:id/editions/:edition', // the fixture record is a change request: no editions
+  'GET /api/v1/records/:recordId/editions/:edition',
   'GET /api/auth/oidc/callback', // redirects
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet
@@ -565,6 +579,7 @@ function fill(url: string): string {
     .replace(/:controlId/g, fx.control!)
     .replace(/:packId/g, fx.pack!)
     .replace(/:version/g, '1')
+    .replace(/:edition/g, '1.0')
     .replace(/:checkId/g, fx.check!)
     .replace(/:wid/g, fx.maintenance!)
     .replace(/:file/g, fx.monitorExample!)
@@ -642,6 +657,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/records/:id/transition': { action: 'submit' },
   'POST /api/records/:id/revise': { comment: 'x' },
   'POST /api/records/:id/comments': { text: 'x' },
+  'POST /api/records/:id/review': { outcome: 'no_change', comment: 'x' },
+  'PUT /api/records/:id/review-settings': { intervalMonths: 6 },
   'POST /api/records/:id/links': { url: 'https://cmdb.example.com/9', label: 'x' },
   'POST /api/services': { name: 'svc x', owners: [] },
   'PUT /api/services/:id': { name: 'svc x', owners: [] },

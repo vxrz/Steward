@@ -197,6 +197,7 @@ const typeShape = (r: recordTypes.TypeRow) => ({
   workflow: r.workflow,
   template: r.template,
   fields: parseJson(r.fields, []),
+  ...(r.workflow === 'document' ? { reviewIntervalMonths: recordTypes.typeReviewInterval(r) } : {}),
   ...(r.archived ? { archived: true } : {}),
 });
 

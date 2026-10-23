@@ -22,6 +22,8 @@ import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import type { RecordRow } from '../records/model.js';
 import { canReadRecordRow } from '../records/access.js';
+import { documentEvidence } from '../records/document-model.js';
+import { ensureDefaultTypes } from '../records/types.js';
 import { parseYamlDocument } from '../yaml-safe.js';
 
 /**
@@ -507,6 +509,7 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
       return p && permissionsFor(id).includes('view') ? { label: p.name, path: `/processes/${id}` } : null;
     }
     case 'recordType': {
+      ensureDefaultTypes();
       const t = db().get<{ key: string; name: string }>('SELECT key, name FROM record_types WHERE id = ?', id);
       return t ? { label: `${t.key} – ${t.name}`, path: `/records?type=${encodeURIComponent(t.key)}` } : null;
     }
@@ -642,17 +645,44 @@ export function evidenceOf(tag: Pick<TagRow, 'kind' | 'target_id'>, p: Period, u
     }
     case 'recordType':
     case 'record': {
+      // living documents are evidence while an edition is valid, also without changes in the period
+      const documents =
+        tag.kind === 'recordType'
+          ? !!db().get("SELECT 1 FROM record_types WHERE id = ? AND workflow = 'document'", tag.target_id)
+          : !!db().get("SELECT 1 FROM records r JOIN record_types t ON t.id = r.type_id WHERE r.id = ? AND t.workflow = 'document'", tag.target_id);
       const rows =
         tag.kind === 'record'
           ? db().all<RecordRow>('SELECT * FROM records WHERE id = ?', tag.target_id)
-          : db().all<RecordRow>(
-              `SELECT * FROM records r WHERE r.type_id = ? AND EXISTS (SELECT 1 FROM record_events e WHERE e.record_id = r.id AND ${inPeriodSql('e.created_at')}) ORDER BY r.updated_at DESC LIMIT 2000`,
-              tag.target_id,
-              p.from,
-              p.to,
-            );
+          : documents
+            ? db().all<RecordRow>(
+                'SELECT * FROM records r WHERE r.type_id = ? AND EXISTS (SELECT 1 FROM record_editions e WHERE e.record_id = r.id AND e.approved_at <= ?) ORDER BY r.number LIMIT 2000',
+                tag.target_id,
+                p.to,
+              )
+            : db().all<RecordRow>(
+                `SELECT * FROM records r WHERE r.type_id = ? AND EXISTS (SELECT 1 FROM record_events e WHERE e.record_id = r.id AND ${inPeriodSql('e.created_at')}) ORDER BY r.updated_at DESC LIMIT 2000`,
+                tag.target_id,
+                p.from,
+                p.to,
+              );
       for (const r of rows) {
         if (!canReadRecordRow(u, r)) continue;
+        if (documents) {
+          const doc = documentEvidence(r.id, p.from, p.to);
+          if (!doc) continue;
+          items.push({
+            kind: 'record',
+            id: r.id,
+            label: `${r.number} ${r.title}`,
+            at: doc.lastReviewedAt && doc.lastReviewedAt > doc.approvedAt ? doc.lastReviewedAt : doc.approvedAt,
+            path: `/records/${r.id}`,
+            status: r.status,
+            detail: '',
+            via,
+            document: doc,
+          });
+          continue;
+        }
         if (tag.kind === 'record' && !db().get(`SELECT 1 FROM record_events WHERE record_id = ? AND ${inPeriodSql('created_at')}`, r.id, p.from, p.to))
           continue;
         if (r.type_id === ACCESS_TYPE_ID) {

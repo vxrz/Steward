@@ -4,7 +4,7 @@ import type { RecordAttachment } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor } from '../auth/context.js';
-import { HttpError, newId, nowIso, sha256 } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { me } from './access.js';
 import { attachmentFile, attachmentRows, recordsDir, requireRecordRow, toAttachment, type AttachmentRow } from './model.js';
 import { requireEditable, touch } from './service.js';
@@ -210,18 +210,23 @@ export function removeAttachment(recordId: string, attId: string): void {
   const a = db().get<AttachmentRow>('SELECT * FROM record_attachments WHERE id = ? AND record_id = ?', attId, r.id);
   if (!a) throw new HttpError(404, 'Attachment not found', 'ATTACHMENT_NOT_FOUND');
   if (a.kind !== 'file') throw new HttpError(409, 'Generated and signed PDFs are kept for the record and cannot be removed', 'ATTACHMENT_KEPT');
+  // a file of an approved edition of a living document stays readable with that edition: retired, not deleted
+  const retire = db()
+    .all<{ attachments: string }>('SELECT attachments FROM record_editions WHERE record_id = ?', r.id)
+    .some((e) => parseJson<{ id: string }[]>(e.attachments, []).some((x) => x.id === a.id));
   db().tx(() => {
-    db().run('DELETE FROM record_attachments WHERE id = ?', a.id);
+    if (retire) db().run("UPDATE record_attachments SET kind = 'retired' WHERE id = ?", a.id);
+    else db().run('DELETE FROM record_attachments WHERE id = ?', a.id);
     touch(r.id);
     audit({
       action: 'record.attachment_removed',
       entityType: 'record',
       entityId: r.id,
-      summary: `${a.filename} removed from ${r.number}`,
-      details: { number: r.number, attachmentId: a.id, filename: a.filename, sha256: a.sha256 },
+      summary: `${a.filename} removed from ${r.number}${retire ? ' (kept with the earlier editions)' : ''}`,
+      details: { number: r.number, attachmentId: a.id, filename: a.filename, sha256: a.sha256, ...(retire ? { retired: true } : {}) },
     });
   });
-  removeFile(a.path);
+  if (!retire) removeFile(a.path);
 }
 
 /** File of an attachment for download (any signed-in user may read records). */

@@ -8,7 +8,8 @@
     "ADR": "Architekturentscheidung",
     "DR": "Entscheidungsprotokoll",
     "SDR": "Sicherheitsentscheidung",
-    "AC": "Zugriffsänderung"
+    "AC": "Zugriffsänderung",
+    "DOC": "Servicedokumentation"
   },
   "builtin": {
     "types": {
@@ -31,6 +32,10 @@
       "AC": {
         "description": "Dokumentation einer Erteilung, eines Entzugs oder einer Änderung von Zugriffsrechten auf einer Plattform, auch außerhalb von Steward. Das Dokumentieren friert den Eintrag ein; eine zweite Person kann ihn prüfen.",
         "template": "## Details\n\n\n## Nachweise\n\n- \n"
+      },
+      "DOC": {
+        "description": "Ein lebendes Dokument, z. B. ein Betriebshandbuch, ein Identitäts- und Zugriffsmanagementkonzept oder ein Berechtigungskonzept. Jede freigegebene Fassung (1.0, 1.1, 2.0) wird eingefroren; das Dokument wird in geplanten Abständen überprüft.",
+        "template": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n"
       }
     },
     "fields": {
@@ -156,7 +161,11 @@
     "superseded": "Ersetzt",
     "deprecated": "Veraltet",
     "documented": "Dokumentiert",
-    "verified": "Geprüft"
+    "verified": "Geprüft",
+    "in_review": "In Prüfung",
+    "published": "Veröffentlicht",
+    "revising": "In Überarbeitung",
+    "withdrawn": "Außer Kraft"
   },
   "actions": {
     "submit": "Einreichen",
@@ -170,7 +179,8 @@
     "supersede": "Als ersetzt markieren",
     "deprecate": "Als veraltet markieren",
     "document": "Dokumentieren",
-    "verify": "Prüfen"
+    "verify": "Prüfen",
+    "withdraw": "Außer Kraft setzen"
   },
   "list": {
     "search": "Suche",
@@ -190,7 +200,12 @@
     "emptyText": "Änderungsanträge und Entscheidungsprotokolle, die Sie sehen dürfen, erscheinen hier.",
     "emptyCreateText": "Schreiben Sie einen Änderungsantrag oder ein Entscheidungsprotokoll, oder importieren Sie vorhandene Entscheidungsprotokolle aus Markdown-Dateien.",
     "emptyAction": "Erstes Dokument schreiben",
-    "emptyImport": "Vorhandene Dokumente importieren"
+    "emptyImport": "Vorhandene Dokumente importieren",
+    "workflow": "Ablauf",
+    "allWorkflows": "Alle Abläufe",
+    "review": "Überprüfung",
+    "anyReview": "Jeder Überprüfungsstatus",
+    "reviewDue": "Bald fällig oder überfällig"
   },
   "create": {
     "title": "Neues Dokument",
@@ -204,7 +219,8 @@
     "links": "Verweise ({{count}})",
     "attachments": "Anhänge ({{count}})",
     "discussion": "Freigaben & Kommentare ({{count}})",
-    "pdfs": "PDF & Unterschriften ({{count}})"
+    "pdfs": "PDF & Unterschriften ({{count}})",
+    "changelog": "Änderungsverlauf ({{count}})"
   },
   "detail": {
     "owner": "Eigentümer {{owner}}",
@@ -221,6 +237,7 @@
     "tamperedTitle": "Der Inhalt passt nicht zu seinem festgehaltenen Hash",
     "tampered": "Das Dokument wurde nach dem Einfrieren außerhalb von Steward geändert. Es kann weder freigegeben noch weitergeführt werden. Prüfen Sie das Audit-Log.",
     "supersededBy": "Diese Entscheidung wurde ersetzt durch",
+    "replacedBy": "Dieses lebende Dokument wurde ersetzt durch",
     "importedStatus": "Aus {{file}} mit dem Status „{{status}}“ importiert. Importierte Dokumente beginnen als Entwurf und brauchen eine Freigabe in Steward.",
     "noBody": "Noch kein Text."
   },
@@ -311,7 +328,8 @@
     "supersededBy": "Ersetzt durch",
     "comment": "Kommentar",
     "commentRequired": "Pflichtfeld: Bitte nennen Sie einen Grund.",
-    "commentOptional": "Optional."
+    "commentOptional": "Optional.",
+    "replacedBy": "Ersetzt durch (optional)"
   },
   "revise": {
     "title": "Neue Revision von {{number}}",
@@ -422,12 +440,14 @@
     "workflows": {
       "change": "Änderung",
       "decision": "Entscheidung",
-      "access": "Zugriff"
+      "access": "Zugriff",
+      "document": "Dokument"
     },
     "workflowHelp": {
       "change": "Entwurf → Eingereicht → Freigegeben oder Abgelehnt → Umgesetzt → Abgeschlossen; Zurückgezogen aus Entwurf oder Eingereicht.",
       "decision": "Entwurf → Vorgeschlagen → Angenommen oder Abgelehnt; Angenommen → Ersetzt oder Veraltet.",
-      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf."
+      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf.",
+      "document": "Entwurf → In Prüfung → Veröffentlicht (Fassung 1.0) → Neue Fassung (In Überarbeitung) → In Prüfung → Veröffentlicht (1.1 oder 2.0) …; Außer Kraft aus Entwurf, Veröffentlicht oder In Überarbeitung. Die aktuelle Fassung bleibt gültig, während die nächste entsteht, und das Dokument wird in geplanten Abständen überprüft."
     },
     "workflowLocked": "Der Ablauf lässt sich nicht ändern, solange es Dokumente dieser Art gibt.",
     "template": "Vorlage (Markdown)",
@@ -454,6 +474,101 @@
       "datetime": "Datum und Uhrzeit",
       "select": "Auswahl"
     },
-    "builtinHint": "Eingebaute Dokumentarten werden in der Sprache der jeweiligen Person angezeigt, solange ihre Texte unverändert sind. Texte, die Sie hier ändern, sehen alle so, wie Sie sie eingeben."
+    "builtinHint": "Eingebaute Dokumentarten werden in der Sprache der jeweiligen Person angezeigt, solange ihre Texte unverändert sind. Texte, die Sie hier ändern, sehen alle so, wie Sie sie eingeben.",
+    "reviewInterval": "Überprüfungsintervall (Monate)",
+    "reviewIntervalHelp": "Dokumente dieser Art werden so viele Monate nach jeder Freigabe oder Überprüfung überprüft. 0: keine regelmäßige Überprüfung.",
+    "reviewEvery_one": "Überprüfung jeden Monat",
+    "reviewEvery_other": "Überprüfung alle {{count}} Monate",
+    "reviewNone": "keine regelmäßige Überprüfung"
+  },
+  "document": {
+    "edition": "Fassung",
+    "editionShort": "Fassung {{edition}}",
+    "editionTitle": "{{number}} – Fassung {{edition}}",
+    "newEdition": "Neue Fassung",
+    "newEditionTitle": "Neue Fassung von {{number}}",
+    "newEditionHelp": "Beginnt den Entwurf der nächsten Fassung auf Basis von Fassung {{edition}}. Fassung {{edition}} bleibt gültig und lesbar, bis die nächste freigegeben ist.",
+    "revisingNote": "Die nächste Fassung wird erstellt. Fassung {{edition}} bleibt gültig, bis sie freigegeben ist.",
+    "frozenPublished": "Fassung {{edition}} ist veröffentlicht. Ihr Inhalt ist eingefroren.",
+    "frozenPublishedRevisable": "Fassung {{edition}} ist veröffentlicht. Ihr Inhalt ist eingefroren – beginnen Sie eine neue Fassung, um ihn zu ändern.",
+    "frozenInReview": "Fassung {{edition}} ist in Prüfung. Ihr Inhalt ist eingefroren, bis sie freigegeben oder abgelehnt wird.",
+    "frozenWithdrawn": "Dieses Dokument ist außer Kraft. Alle seine Fassungen bleiben lesbar.",
+    "kind": "Art der Fassung",
+    "kindMinor": "Klein – redaktionelle Änderung (wird {{edition}})",
+    "kindMajor": "Groß – inhaltliche Änderung (wird {{edition}})",
+    "firstEdition": "Dies wird Fassung 1.0.",
+    "changeSummary": "Was hat sich in dieser Fassung geändert?",
+    "changeSummaryHelp": "Pflichtangabe. Sie erscheint im Änderungsverlauf und im PDF.",
+    "kinds": {
+      "minor": "klein",
+      "major": "groß"
+    },
+    "outcomes": {
+      "no_change": "Geprüft – keine Änderung",
+      "needs_update": "Änderung nötig"
+    },
+    "reviewStatus": {
+      "current": "Überprüfung aktuell",
+      "dueSoon": "Überprüfung bald fällig",
+      "overdue": "Überprüfung überfällig",
+      "none": "Keine Überprüfung geplant"
+    },
+    "reviewTitle": "Regelmäßige Überprüfung",
+    "reviewTitleNamed": "{{number}} überprüfen (Fassung {{edition}})",
+    "needsUpdateTitle": "{{number}} muss geändert werden",
+    "nextReview": "Nächste Überprüfung: {{date}}",
+    "noReviewPlanned": "Keine regelmäßige Überprüfung geplant.",
+    "noEditionYet": "Überprüfungen beginnen mit der ersten freigegebenen Fassung.",
+    "reviewOwner": "Überprüft von {{owner}}",
+    "interval_one": "jeden Monat",
+    "interval_other": "alle {{count}} Monate",
+    "noInterval": "keine regelmäßige Überprüfung",
+    "lastReview": "zuletzt überprüft am {{date}} von {{reviewer}}",
+    "updateRequested": "Eine Überprüfung am {{date}} hat ergeben, dass das Dokument geändert werden muss. Die Überprüfung bleibt fällig, bis die nächste Fassung freigegeben ist.",
+    "reviewedNoChange": "Geprüft – keine Änderung",
+    "needsUpdate": "Änderung nötig",
+    "reviewSettings": "Einstellungen der Überprüfung",
+    "noChangeHelp": "Die aktuelle Fassung bleibt gültig. Die nächste Überprüfung wird ab heute geplant.",
+    "needsUpdateHelp": "Beginnt den Entwurf der nächsten Fassung. Die aktuelle Fassung bleibt gültig, und die Überprüfung bleibt fällig, bis die neue Fassung freigegeben ist.",
+    "reviewComment": "Kommentar",
+    "reviewedDone": "Überprüfung erfasst",
+    "reviewedNeedsUpdate": "Überprüfung erfasst – die nächste Fassung wird erstellt",
+    "pendingTitle": "Fassung {{edition}} in Prüfung",
+    "changelog": "Änderungsverlauf des Dokuments",
+    "noEditions": "Noch keine freigegebene Fassung. Reichen Sie den Entwurf zur Prüfung ein, um Fassung 1.0 zu veröffentlichen.",
+    "date": "Datum",
+    "people": "Autoren / Prüfer",
+    "approvedBy": "Freigegeben von",
+    "summary": "Änderungen / Kommentar",
+    "actions": "Aktionen",
+    "reviewOf": "Überprüfung der Fassung {{edition}}",
+    "open": "Öffnen",
+    "openNamed": "Fassung {{edition}} öffnen",
+    "diff": "Vergleich",
+    "diffNamed": "Änderungen von Fassung {{from}} zu {{to}}",
+    "diffTitle": "Änderungen von Fassung {{from}} zu {{to}}",
+    "pdf": "PDF",
+    "pdfNamed": "PDF der Fassung {{edition}}",
+    "pdfCreated": "{{file}} erzeugt – Sie finden es unter PDF & Unterschriften",
+    "notIntact": "Der gespeicherte Inhalt dieser Fassung passt nicht zum Hash, der bei der Freigabe festgehalten wurde – prüfen Sie das Audit-Log.",
+    "notIntactShort": "Außerhalb von Steward geändert",
+    "changelogNotIntact": "Eine Fassung oder Überprüfung in diesem Änderungsverlauf passt nicht mehr zu dem Audit-Eintrag, der sie festgehalten hat: Sie wurde außerhalb von Steward geändert. Prüfen Sie das Audit-Log.",
+    "approvedLine": "Freigegeben am {{date}} von {{approver}} ({{kind}})",
+    "current": "aktuelle Fassung",
+    "settingsTitle": "Einstellungen der Überprüfung von {{number}}",
+    "settingsOwner": "Verantwortlich für die Überprüfung",
+    "settingsOwnerHelp": "Wer das Dokument überprüft und erinnert wird. Leer: der Eigentümer ({{owner}}).",
+    "settingsInterval": "Überprüfungsintervall (Monate)",
+    "settingsIntervalHelp_one": "Leer: das Intervall der Art (jeden Monat). 0: keine regelmäßige Überprüfung.",
+    "settingsIntervalHelp_other": "Leer: das Intervall der Art (alle {{count}} Monate). 0: keine regelmäßige Überprüfung.",
+    "settingsIntervalLimited_one": "Leer: das Intervall der Art (jeden Monat). Ein kürzeres Intervall ist möglich; keine regelmäßige Überprüfung oder ein längeres Intervall legt ein Administrator fest.",
+    "settingsIntervalLimited_other": "Leer: das Intervall der Art (alle {{count}} Monate). Ein kürzeres Intervall ist möglich; keine regelmäßige Überprüfung oder ein längeres Intervall legt ein Administrator fest.",
+    "settingsApproversOnly": "Die verantwortliche Person und das Intervall legen Freigebende und Administratoren fest.",
+    "settingsNextLimited": "Optional: ein früheres Datum für die nächste Überprüfung. Die nächste Überprüfung oder Fassung hebt es auf. Nur Freigebende und Administratoren entfernen es oder verschieben es nach hinten.",
+    "settingsNext": "Früher überprüfen am",
+    "settingsNextHelp": "Optional: ein früheres Datum für die nächste Überprüfung. Die nächste Überprüfung oder Fassung hebt es auf.",
+    "newEditionReason": "Warum ist eine neue Fassung nötig?",
+    "newEditionSubmit": "Neue Fassung beginnen",
+    "freezeNote": "Der Inhalt ist ab jetzt eingefroren. Eine spätere Änderung braucht eine neue Fassung."
   }
 }

@@ -4054,7 +4054,8 @@
             "enum": [
               "change",
               "decision",
-              "access"
+              "access",
+              "document"
             ]
           },
           "title": {
@@ -4062,7 +4063,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
           },
           "tags": {
             "type": "array",
@@ -4097,6 +4098,43 @@
           },
           "updatedBy": {
             "type": "string"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Living documents (workflow \"document\"): the edition valid now, e.g. 1.1; null before the first approval and for other records"
+          },
+          "reviewStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "dueSoon",
+                  "overdue",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Living documents: periodic review status (current, dueSoon, overdue; none: no review planned); null for other records"
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Living documents: when the next periodic review is due"
           }
         },
         "required": [
@@ -4114,7 +4152,10 @@
           "createdAt",
           "createdBy",
           "updatedAt",
-          "updatedBy"
+          "updatedBy",
+          "edition",
+          "reviewStatus",
+          "nextReviewAt"
         ],
         "additionalProperties": false
       },
@@ -4141,7 +4182,8 @@
             "enum": [
               "change",
               "decision",
-              "access"
+              "access",
+              "document"
             ]
           },
           "title": {
@@ -4149,7 +4191,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified"
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
           },
           "tags": {
             "type": "array",
@@ -4184,6 +4226,43 @@
           },
           "updatedBy": {
             "type": "string"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Living documents (workflow \"document\"): the edition valid now, e.g. 1.1; null before the first approval and for other records"
+          },
+          "reviewStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "dueSoon",
+                  "overdue",
+                  "none"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Living documents: periodic review status (current, dueSoon, overdue; none: no review planned); null for other records"
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Living documents: when the next periodic review is due"
           },
           "body": {
             "type": "string",
@@ -4242,17 +4321,31 @@
               {
                 "type": "object",
                 "properties": {
+                  "visible": {
+                    "type": "boolean",
+                    "description": "false: the reader may not read the superseding record (id, number and title are null)"
+                  },
                   "id": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "number": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "title": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
+                  "visible",
                   "id",
                   "number",
                   "title"
@@ -4262,7 +4355,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The record that superseded (decisions) or replaced (documents) this one"
           },
           "attachments": {
             "type": "array",
@@ -4277,9 +4371,10 @@
                   "enum": [
                     "file",
                     "generated",
-                    "signed"
+                    "signed",
+                    "retired"
                   ],
-                  "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF"
+                  "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF; retired: a file of an earlier edition of a living document"
                 },
                 "filename": {
                   "type": "string"
@@ -4450,6 +4545,152 @@
               "additionalProperties": false
             },
             "description": "Transitions, approvals, revisions and comments, oldest first"
+          },
+          "document": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "currentEdition": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "pending": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "minor",
+                              "major"
+                            ]
+                          },
+                          "changeSummary": {
+                            "type": "string"
+                          },
+                          "edition": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "changeSummary",
+                          "edition"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The edition in review: its kind, change summary and the number it will get"
+                  },
+                  "review": {
+                    "type": "object",
+                    "properties": {
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "current",
+                          "dueSoon",
+                          "overdue",
+                          "none"
+                        ]
+                      },
+                      "intervalMonths": {
+                        "type": "integer",
+                        "description": "Months between reviews (0: none): the document's own interval, else its type's"
+                      },
+                      "owner": {
+                        "type": "string",
+                        "description": "Who reviews the document and is reminded (default: the owner)"
+                      },
+                      "lastReviewedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "lastReviewedBy": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "nextReviewAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "daysLeft": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Whole days until the next review (negative when overdue)"
+                      },
+                      "updateRequestedAt": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "A review found that the document needs an update; cleared when the next edition is approved"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "intervalMonths",
+                      "owner",
+                      "lastReviewedAt",
+                      "lastReviewedBy",
+                      "nextReviewAt",
+                      "daysLeft",
+                      "updateRequestedAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "currentEdition",
+                  "pending",
+                  "review"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Living documents: current edition and review status (editions: /editions, reviews: /reviews); null for other records"
           }
         },
         "required": [
@@ -4468,6 +4709,9 @@
           "createdBy",
           "updatedAt",
           "updatedBy",
+          "edition",
+          "reviewStatus",
+          "nextReviewAt",
           "body",
           "fields",
           "contentHash",
@@ -4478,7 +4722,8 @@
           "supersededBy",
           "attachments",
           "links",
-          "events"
+          "events",
+          "document"
         ],
         "additionalProperties": false
       },
@@ -4494,9 +4739,10 @@
             "enum": [
               "file",
               "generated",
-              "signed"
+              "signed",
+              "retired"
             ],
-            "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF"
+            "description": "file: part of the content; generated: a PDF Steward made; signed: a signed copy of a generated PDF; retired: a file of an earlier edition of a living document"
           },
           "filename": {
             "type": "string"
@@ -4711,6 +4957,442 @@
           "author",
           "comment",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "RecordEditionSummary": {
+        "title": "RecordEditionSummary",
+        "type": "object",
+        "properties": {
+          "edition": {
+            "type": "string",
+            "description": "major.minor, e.g. 1.0, 1.1, 2.0"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "minor",
+              "major"
+            ],
+            "description": "minor: editorial change; major: substantive change"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The record version frozen as this edition (see /versions)"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the frozen content of this edition (title, text, fields, attached files)"
+          },
+          "changeSummary": {
+            "type": "string",
+            "description": "What changed in this edition"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who wrote content of this edition"
+          },
+          "submittedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submittedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The edition valid now"
+          },
+          "intact": {
+            "type": "boolean",
+            "description": "The stored content still has its hash, and the hash and the metadata (change summary, authors, submitter, approver, dates) are those in the authentic audit entry of the approval"
+          }
+        },
+        "required": [
+          "edition",
+          "kind",
+          "revision",
+          "version",
+          "title",
+          "contentHash",
+          "changeSummary",
+          "authors",
+          "submittedBy",
+          "submittedAt",
+          "approvedBy",
+          "approvedAt",
+          "current",
+          "intact"
+        ],
+        "additionalProperties": false
+      },
+      "RecordEdition": {
+        "title": "RecordEdition",
+        "type": "object",
+        "properties": {
+          "edition": {
+            "type": "string",
+            "description": "major.minor, e.g. 1.0, 1.1, 2.0"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "minor",
+              "major"
+            ],
+            "description": "minor: editorial change; major: substantive change"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The record version frozen as this edition (see /versions)"
+          },
+          "title": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the frozen content of this edition (title, text, fields, attached files)"
+          },
+          "changeSummary": {
+            "type": "string",
+            "description": "What changed in this edition"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who wrote content of this edition"
+          },
+          "submittedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "submittedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The edition valid now"
+          },
+          "intact": {
+            "type": "boolean",
+            "description": "The stored content still has its hash, and the hash and the metadata (change summary, authors, submitter, approver, dates) are those in the authentic audit entry of the approval"
+          },
+          "body": {
+            "type": "string",
+            "description": "Markdown text of the edition"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "SHA-256 of the file"
+                }
+              },
+              "required": [
+                "id",
+                "filename",
+                "size",
+                "sha256"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "edition",
+          "kind",
+          "revision",
+          "version",
+          "title",
+          "contentHash",
+          "changeSummary",
+          "authors",
+          "submittedBy",
+          "submittedAt",
+          "approvedBy",
+          "approvedAt",
+          "current",
+          "intact",
+          "body",
+          "fields",
+          "attachments"
+        ],
+        "additionalProperties": false
+      },
+      "RecordReview": {
+        "title": "RecordReview",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "no_change",
+              "needs_update"
+            ],
+            "description": "no_change: the edition stays valid; needs_update: a new edition was started"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The edition that was reviewed"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Next review planned after this one"
+          },
+          "intact": {
+            "type": "boolean",
+            "description": "The stored review matches the authentic audit entry that recorded it (false: changed outside Steward)"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "edition",
+          "reviewer",
+          "comment",
+          "createdAt",
+          "nextReviewAt",
+          "intact"
+        ],
+        "additionalProperties": false
+      },
+      "RecordDocument": {
+        "title": "RecordDocument",
+        "type": "object",
+        "properties": {
+          "currentEdition": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "minor",
+                      "major"
+                    ]
+                  },
+                  "changeSummary": {
+                    "type": "string"
+                  },
+                  "edition": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "changeSummary",
+                  "edition"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The edition in review: its kind, change summary and the number it will get"
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "dueSoon",
+                  "overdue",
+                  "none"
+                ]
+              },
+              "intervalMonths": {
+                "type": "integer",
+                "description": "Months between reviews (0: none): the document's own interval, else its type's"
+              },
+              "owner": {
+                "type": "string",
+                "description": "Who reviews the document and is reminded (default: the owner)"
+              },
+              "lastReviewedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "lastReviewedBy": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "nextReviewAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              "daysLeft": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Whole days until the next review (negative when overdue)"
+              },
+              "updateRequestedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A review found that the document needs an update; cleared when the next edition is approved"
+              }
+            },
+            "required": [
+              "status",
+              "intervalMonths",
+              "owner",
+              "lastReviewedAt",
+              "lastReviewedBy",
+              "nextReviewAt",
+              "daysLeft",
+              "updateRequestedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "currentEdition",
+          "pending",
+          "review"
         ],
         "additionalProperties": false
       },
@@ -9586,7 +10268,7 @@
         "tags": [
           "Records"
         ],
-        "description": "Change requests and decision records, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.",
+        "description": "Change requests, decision records and living documents, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.",
         "parameters": [
           {
             "schema": {
@@ -9651,6 +10333,39 @@
             "name": "q",
             "required": false,
             "description": "Case-insensitive search in number, title and text"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "change",
+                "decision",
+                "access",
+                "document"
+              ]
+            },
+            "in": "query",
+            "name": "workflow",
+            "required": false,
+            "description": "Only records of types with this workflow, e.g. document"
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "dueSoon",
+                  "overdue",
+                  "none"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "reviewStatus",
+            "required": false,
+            "description": "Living documents: only these review statuses (repeat the parameter)"
           }
         ],
         "responses": {
@@ -9843,6 +10558,310 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/RecordVersion"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/records/{recordId}/editions": {
+      "get": {
+        "operationId": "listRecordEditions",
+        "summary": "Editions of a living document",
+        "tags": [
+          "Records"
+        ],
+        "description": "Approved editions (1.0, 1.1, 2.0) of a record of the workflow \"document\", newest first, each with its content hash and approval. Empty for other records.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "recordId",
+            "required": true,
+            "description": "Record id or number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of editions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of editions",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordEditionSummary"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/records/{recordId}/editions/{edition}": {
+      "get": {
+        "operationId": "getRecordEdition",
+        "summary": "One frozen edition of a living document",
+        "tags": [
+          "Records"
+        ],
+        "description": "Title, text, fields and files of the edition as approved, with its content hash.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "recordId",
+            "required": true,
+            "description": "Record id or number"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "edition",
+            "required": true,
+            "description": "Edition, e.g. 1.0"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordEdition"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/records/{recordId}/reviews": {
+      "get": {
+        "operationId": "listRecordReviews",
+        "summary": "Periodic reviews of a living document",
+        "tags": [
+          "Records"
+        ],
+        "description": "Reviews (\"Reviewed – no change\", \"Needs update\"), newest first. The review status is part of the record (document.review).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "recordId",
+            "required": true,
+            "description": "Record id or number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of reviews",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of reviews",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RecordReview"
                       }
                     },
                     "nextCursor": {

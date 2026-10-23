@@ -6,6 +6,7 @@ import {
   type MdBlock,
   type RecordAttachment,
   type RecordDetail,
+  type RecordEditionSummary,
   type RecordPdfDetails,
   type RecordSigner,
   type ReportLang,
@@ -13,7 +14,7 @@ import {
 import { db } from '../db.js';
 import { audit, queryAudit } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
-import { COLORS, ReportWriter } from '../reports/pdf/engine.js';
+import { COLORS, ReportWriter, type Tone } from '../reports/pdf/engine.js';
 import { getBranding, logo } from '../reports/branding.js';
 import { requestLang } from '../reports/service.js';
 import { translator, type Translator } from '../reports/i18n.js';
@@ -25,6 +26,7 @@ import { getRecord, touch } from './service.js';
 import { insertAttachment, writeAttachmentFile } from './attachments.js';
 import { recordTexts } from './pdf-i18n.js';
 import { checkPdfLimits } from './signed.js';
+import { editionAsRecord } from './documents.js';
 
 /**
  * The record as an archival PDF/A-2b document for signing: header with logo,
@@ -158,6 +160,61 @@ export interface RenderInput {
   generatedBy: string;
   generatedAt: string;
   compress?: boolean;
+  /** Living documents: the PDF shows this frozen edition (rec is the edition, see editionAsRecord) */
+  edition?: string;
+}
+
+/**
+ * Living documents: the "Document control" section – every approved edition up to the one shown (with kind,
+ * approval, authors and change summary) and the review status (last review, next review, owner, interval).
+ */
+function documentControl(w: ReportWriter, rec: RecordDetail, R: Texts, tr: Translator, section: (title: string) => void): void {
+  const doc = rec.document;
+  if (!doc) return;
+  const { t } = R;
+  section(t('documentControl'));
+  w.paragraph(t('documentControlIntro'), { tone: 'muted', size: 8 });
+  w.table(
+    [
+      { header: t('edition'), width: 0.9 },
+      { header: t('kind'), width: 0.9 },
+      { header: t('approvedAt'), width: 1.9 },
+      { header: t('authors'), width: 1.9 },
+      { header: t('approvedBy'), width: 1.6 },
+      { header: t('changeSummary'), width: 3.6 },
+      { header: t('hash'), width: 1.5, mono: true },
+    ],
+    doc.editions.map((e: RecordEditionSummary) => [
+      { text: e.edition, bold: e.current },
+      t(e.kind === 'minor' ? 'kind_minor' : 'kind_major'),
+      tr.dateTime(e.approvedAt),
+      e.authors.map(personLabel).join(', ') || '–',
+      personLabel(e.approvedBy),
+      e.changeSummary || '–',
+      e.intact ? e.contentHash.slice(0, 16) + '…' : `${e.contentHash.slice(0, 16)}… (${t('notIntact')})`,
+    ]),
+    { empty: t('editionNone'), size: 7.4 },
+  );
+  const last = doc.reviews[0];
+  const r = doc.review;
+  w.keyValues([
+    {
+      label: t('lastReview'),
+      value: last
+        ? `${tr.dateTime(last.createdAt)} · ${personLabel(last.reviewer)} · ${t(last.outcome === 'no_change' ? 'review_no_change' : 'review_needs_update')}${last.edition ? ` (${t('editionNo', { edition: last.edition })})` : ''}${last.intact ? '' : ` · ${t('notIntact')}`}`
+        : '–',
+      tone: last && !last.intact ? ('danger' as const) : ('default' as const),
+      span: 2,
+    },
+    ...(last?.comment ? [{ label: t('comment'), value: last.comment, span: 2 as const }] : []),
+    {
+      label: t('nextReview'),
+      value: r.nextReviewAt ? `${tr.date(r.nextReviewAt)} (${t(`reviewStatus_${r.status}`)})` : '–',
+      tone: r.status === 'overdue' ? 'danger' : r.status === 'dueSoon' ? 'warning' : 'default',
+    },
+    { label: t('reviewInterval'), value: r.intervalMonths > 0 ? t('reviewIntervalMonths', { n: r.intervalMonths }) : t('reviewNone') },
+    { label: t('reviewOwner'), value: personLabel(r.owner) },
+  ]);
 }
 
 export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; texts: string[] }> {
@@ -171,18 +228,31 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
   const hash = rec.frozenHash ?? rec.contentHash;
   const tampered = rec.tampered;
   const draft = !rec.frozen;
-  const tags = draft
+  const tags: { text: string; tone: Tone }[] = draft
     ? [{ text: R.t('draftTag'), tone: 'warning' as const }]
     : [
         {
           text: R.status(rec.status),
-          tone: (['approved', 'accepted', 'implemented', 'closed'].includes(rec.status)
+          tone: (['approved', 'accepted', 'implemented', 'closed', 'published'].includes(rec.status)
             ? 'success'
             : rec.status === 'rejected'
               ? 'danger'
               : 'info') as 'success',
         },
       ];
+  // living documents: the edition shown (the frozen one, or the draft of the next one)
+  const doc = rec.document;
+  const shownEdition = o.edition ?? (doc && !draft && rec.status !== 'in_review' ? doc.currentEdition : null);
+  const editionLabel = !doc
+    ? ''
+    : shownEdition
+      ? t('editionNo', { edition: shownEdition })
+      : doc.pending
+        ? t('editionDraft', { edition: doc.pending.edition })
+        : draft || rec.status === 'in_review'
+          ? t('editionDraft', { edition: doc.currentEdition ? doc.nextEdition.minor : '1.0' })
+          : t('editionNone');
+  if (shownEdition) tags.unshift({ text: t('editionNo', { edition: shownEdition }), tone: 'info' });
   const footerVars = {
     number: rec.number,
     revision: rec.revision,
@@ -233,12 +303,15 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     meta: [
       tr.t('generatedWith', { product: PRODUCT }),
       t('recordNo', { number: rec.number }),
+      ...(doc ? [editionLabel] : []),
       t('revisionVersion', { revision: rec.revision, version: rec.version }),
       tr.dateTime(o.generatedAt),
     ],
   });
   if (tampered) w.banner(t('tamperedTitle'), t('tamperedBody'), 'danger');
   if (draft) w.banner(t('draftTitle'), t('draftBody'), 'warning');
+  if (o.edition && doc && doc.currentEdition !== o.edition)
+    w.banner(t('editionOldTitle', { edition: o.edition }), t('editionOldBody', { current: doc.currentEdition ?? '–' }), 'info');
 
   let n = 0;
   const section = (title: string) => w.section(`${++n}. ${title}`);
@@ -249,14 +322,25 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     { label: t('type'), value: `${typeName} (${rec.typeKey})` },
     { label: t('status'), value: R.status(rec.status), tone: draft ? 'warning' : 'default' },
     { label: t('revision') + ' / ' + t('version'), value: `${rec.revision} / ${rec.version}` },
+    ...(rec.document ? [{ label: t('edition'), value: editionLabel, tone: draft ? ('warning' as const) : ('default' as const) }] : []),
     { label: t('owner'), value: personLabel(rec.owner) },
     { label: t('created'), value: `${tr.dateTime(rec.createdAt)} · ${personLabel(rec.createdBy)}` },
     { label: t('updated'), value: `${tr.dateTime(rec.updatedAt)} · ${personLabel(rec.updatedBy)}` },
     { label: t('submitted'), value: rec.submittedAt ? `${tr.dateTime(rec.submittedAt)} · ${personLabel(rec.submittedBy ?? '')}` : '–' },
-    ...(rec.supersededBy ? [{ label: t('supersededBy'), value: `${rec.supersededBy.number} ${rec.supersededBy.title}`, span: 2 as const }] : []),
+    ...(rec.supersededBy
+      ? [
+          {
+            label: t('supersededBy'),
+            value: rec.supersededBy.visible ? `${rec.supersededBy.number} ${rec.supersededBy.title}` : t('notVisible'),
+            span: 2 as const,
+          },
+        ]
+      : []),
     { label: t('contentHash'), value: hash, mono: true, span: 2, tone: tampered ? 'danger' : 'default' },
   ]);
   w.paragraph(draft ? t('draftHashNote') : t('frozenHashNote'), { tone: 'muted', size: 7.8 });
+
+  documentControl(w, rec, R, tr, section);
 
   // the definitions frozen with the content: labels and options as they were approved
   if (rec.fieldDefs.length) {
@@ -394,12 +478,16 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
 }
 
 /** Generates, stores and audits the PDF of a record. */
-export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { compress?: boolean }): Promise<RecordAttachment & { texts: string[] }> {
+export async function generateRecordPdf(
+  idOrNumber: string,
+  input: PdfInput & { compress?: boolean; edition?: string },
+): Promise<RecordAttachment & { texts: string[] }> {
   const u = me();
   const row = requireRecordRow(idOrNumber);
   if (!canEditRecord(u, row) && !canApproveRecords(u)) forbid('generate PDFs of records', 'generatePdf');
   checkPdfLimits(row.id, 'generated', 0);
-  const rec = getRecord(row.id);
+  // living documents: a frozen edition instead of the current content
+  const rec = input.edition ? editionAsRecord(getRecord(row.id), input.edition) : getRecord(row.id);
   // without a language in the request: the requester's profile language (as for run reports)
   const lang: ReportLang = requestLang(input.lang);
   const pdfId = newId('rpdf_');
@@ -413,10 +501,13 @@ export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { 
     generatedBy: u.username,
     generatedAt,
     compress: input.compress,
+    edition: input.edition,
   });
   const hash = sha256(pdf);
   const date = generatedAt.slice(0, 10);
-  const filename = `${rec.number}-r${rec.revision}v${rec.version}-${date}-${pdfId.slice(5, 11)}.pdf`;
+  const filename = input.edition
+    ? `${rec.number}-e${input.edition}-${date}-${pdfId.slice(5, 11)}.pdf`
+    : `${rec.number}-r${rec.revision}v${rec.version}-${date}-${pdfId.slice(5, 11)}.pdf`;
   const details: RecordPdfDetails = {
     lang,
     version: rec.version,
@@ -424,6 +515,7 @@ export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { 
     status: rec.status,
     contentHash: rec.frozenHash ?? rec.contentHash,
     signers: input.signers,
+    ...(input.edition ? { edition: input.edition } : {}),
   };
   const rel = writeAttachmentFile(rec.id, pdfId, filename, pdf);
   let stored!: AttachmentRow;
@@ -445,7 +537,7 @@ export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { 
       action: 'record.pdf_generated',
       entityType: 'record',
       entityId: rec.id,
-      summary: `PDF of ${rec.number} (${lang}, ${input.signers.length} signature field(s)) generated – sha256 ${hash.slice(0, 16)}…`,
+      summary: `PDF of ${rec.number}${input.edition ? ` edition ${input.edition}` : ''} (${lang}, ${input.signers.length} signature field(s)) generated – sha256 ${hash.slice(0, 16)}…`,
       details: {
         number: rec.number,
         pdfId,
@@ -457,6 +549,7 @@ export async function generateRecordPdf(idOrNumber: string, input: PdfInput & { 
         version: rec.version,
         status: rec.status,
         contentHash: details.contentHash,
+        ...(input.edition ? { edition: input.edition } : {}),
         signers: input.signers.map((s) => ({ name: s.name, role: s.role })),
       },
     });

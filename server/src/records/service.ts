@@ -3,7 +3,13 @@ import {
   ACCESS_RECORD_TYPE,
   ACCESS_TYPE_ID,
   DEFAULT_RECORD_TYPES,
+  DOCUMENT_RECORD_TYPE,
+  EDITION_KINDS,
   RECORD_WORKFLOWS,
+  isEditableStatus,
+  type DocumentInfo,
+  type EditionKind,
+  type ReviewStatus,
   type RecordActionInfo,
   type RecordDetail,
   type RecordEvent,
@@ -40,6 +46,25 @@ import { attachmentRows, contentHash, recordRow, requireRecordRow, toAttachment,
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
 import { addLink, listBacklinks, listLinks } from './links.js';
 import { emit } from '../events.js';
+import {
+  DOC_LIMITS,
+  docRow,
+  documentStates,
+  editionRow,
+  editionRows,
+  editionMetaHash,
+  ensureDocRow,
+  intactEditions,
+  isDocument,
+  nextEditions,
+  parseEdition,
+  reviewState,
+  reviewsOf,
+  toEditionSummary,
+  updateDocRow,
+  type DocRow,
+  type EditionRow,
+} from './document-model.js';
 
 /**
  * Records: numbered, versioned documents with a workflow (change requests,
@@ -110,7 +135,7 @@ interface Listed extends RecordRow {
   workflow: RecordSummary['workflow'];
 }
 
-const toSummary = (r: Listed): RecordSummary => ({
+const toSummary = (r: Listed, doc?: { edition: string | null; reviewStatus: ReviewStatus; nextReviewAt: string | null }): RecordSummary => ({
   id: r.id,
   number: r.number,
   typeId: r.type_id,
@@ -127,6 +152,7 @@ const toSummary = (r: Listed): RecordSummary => ({
   createdBy: r.created_by,
   updatedAt: r.updated_at,
   updatedBy: r.updated_by,
+  ...(r.workflow === 'document' ? { edition: doc?.edition ?? null, reviewStatus: doc?.reviewStatus ?? 'none', nextReviewAt: doc?.nextReviewAt ?? null } : {}),
 });
 
 const SELECT = 'SELECT r.*, t.key AS type_key, t.name AS type_name, t.workflow AS workflow FROM records r JOIN record_types t ON t.id = r.type_id';
@@ -137,6 +163,10 @@ export interface ListFilter {
   tag?: string;
   q?: string;
   owner?: string;
+  /** Only records of types with this workflow */
+  workflow?: string;
+  /** Living documents: only these review statuses */
+  review?: ReviewStatus[];
   limit?: number;
 }
 
@@ -156,6 +186,10 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
     params.push(...f.status);
   }
   if (f.owner) (where.push('lower(r.owner) = lower(?)'), params.push(f.owner));
+  if (f.workflow) (where.push('t.workflow = ?'), params.push(f.workflow));
+  // the review status is computed: only documents have one
+  if (f.review?.length) where.push("t.workflow = 'document'");
+  const docs = documentStates();
   if (f.q?.trim()) {
     const q = `%${likeEscape(f.q.trim().toLowerCase())}%`;
     where.push("(lower(r.number) LIKE ? ESCAPE '\\' OR lower(r.title) LIKE ? ESCAPE '\\' OR lower(r.body) LIKE ? ESCAPE '\\')");
@@ -180,8 +214,10 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
     );
     for (const r of rows) {
       if (!canReadRecordRow(u, r)) continue;
-      const sum = toSummary(r);
+      const d = docs.get(r.id);
+      const sum = toSummary(r, d && { edition: d.edition, reviewStatus: d.review.status, nextReviewAt: d.review.nextReviewAt });
       if (tag && !sum.tags.includes(tag)) continue;
+      if (f.review?.length && !f.review.includes(sum.reviewStatus ?? 'none')) continue;
       out.push(sum);
       if (out.length >= limit) break;
     }
@@ -198,6 +234,7 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
  */
 function contentAuthors(r: RecordRow): string[] {
   const names = new Set<string>();
+  if (db().get('SELECT 1 FROM record_types WHERE id = ? AND workflow = ?', r.type_id, 'document')) return editionAuthors(r);
   for (const a of db().all<{ author: string }>('SELECT DISTINCT author FROM record_versions WHERE record_id = ?', r.id)) names.add(a.author);
   for (const a of db().all<{ created_by: string }>("SELECT DISTINCT created_by FROM record_attachments WHERE record_id = ? AND kind = 'file'", r.id))
     names.add(a.created_by);
@@ -220,6 +257,39 @@ function contentAuthors(r: RecordRow): string[] {
     }
   }
   return [...names];
+}
+
+/**
+ * Living documents: everyone who wrote content of the edition being drafted – the authors of the versions of
+ * this revision (a new edition starts with a copy of the current one: whoever started it did not write it)
+ * and whoever attached or removed files since the revision started. Owner, creator and submitter are
+ * excluded by fourEyesReason anyway.
+ */
+export function editionAuthors(r: Pick<RecordRow, 'id' | 'revision'>): string[] {
+  const names = new Set<string>();
+  const versions = db().all<{ version: number; author: string; created_at: string }>(
+    'SELECT version, author, created_at FROM record_versions WHERE record_id = ? AND revision = ? ORDER BY version',
+    r.id,
+    r.revision,
+  );
+  versions.forEach((v, i) => {
+    if (i === 0 && Number(r.revision) > 1) return; // the copy of the current edition
+    names.add(v.author);
+  });
+  const since = versions[0]?.created_at ?? '';
+  for (const a of db().all<{ created_by: string }>(
+    "SELECT DISTINCT created_by FROM record_attachments WHERE record_id = ? AND kind = 'file' AND revision = ?",
+    r.id,
+    r.revision,
+  ))
+    names.add(a.created_by);
+  for (const a of db().all<{ actor: string }>(
+    "SELECT DISTINCT actor FROM audit_log WHERE entity_type = 'record' AND entity_id = ? AND action IN ('record.attachment_added', 'record.attachment_removed') AND ts >= ?",
+    r.id,
+    since,
+  ))
+    names.add(a.actor);
+  return [...names].sort();
 }
 
 const isAccessEntry = (r: Pick<RecordRow, 'type_id'>) => r.type_id === ACCESS_TYPE_ID;
@@ -253,7 +323,9 @@ function runEntryLocked(r: RecordRow): never {
 
 /** Audit actions of the transitions that leave the initial status (they freeze the content). */
 const FREEZE_ACTIONS = [
-  ...new Set(Object.values(RECORD_WORKFLOWS).flatMap((w) => w.transitions.filter((t) => t.from.includes(w.initial)).map((t) => `record.${t.action}`))),
+  ...new Set(
+    Object.values(RECORD_WORKFLOWS).flatMap((w) => w.transitions.filter((t) => t.from.some((f) => isEditableStatus(w, f))).map((t) => `record.${t.action}`)),
+  ),
 ];
 
 /**
@@ -304,7 +376,7 @@ export function withStoredFields(defs: RecordFieldDef[], fields: Record<string, 
 }
 
 export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): RecordPermissions {
-  const draft = r.status === wf.initial;
+  const draft = isEditableStatus(wf, r.status);
   const accessLocked = isAccessEntry(r) && (!canDocumentAccessOn(u, accessFields(r).platform ?? '') || (isRunEntry(r) && !isSystem(u)));
   const edit = canEditRecord(u, r) && !accessLocked;
   return {
@@ -321,6 +393,7 @@ export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkfl
 
 function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): RecordActionInfo[] {
   const out: RecordActionInfo[] = [];
+  const edition = wf.key === 'document' ? (docRow(r.id)?.current_edition ?? null) : null;
   for (const t of wf.transitions) {
     if (!t.from.includes(r.status)) continue;
     let reason: ActionReason | undefined;
@@ -336,13 +409,15 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
       reason = { code: 'ACCESS_PLATFORM_REQUIRED', message: 'Only people who may use the platform document its access changes' };
     out.push({
       action: t.action,
-      to: t.to,
+      to: t.toWithEdition && edition ? t.toWithEdition : t.to,
       allowed: !reason,
       reason: reason?.message,
       reasonCode: reason?.code,
       approval: !!t.approval,
       commentRequired: !!t.commentRequired,
       needsRecord: !!t.needsRecord,
+      optionalRecord: !!t.optionalRecord,
+      needsEdition: wf.key === 'document' && t.action === 'submit',
     });
   }
   return out;
@@ -388,11 +463,14 @@ export function getRecord(idOrNumber: string): RecordDetail {
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
-  const sup = r.superseded_by ? recordRow(r.superseded_by) : undefined;
-  const frozen = r.status !== wf.initial;
+  const frozen = !isEditableStatus(wf, r.status);
   const hash = currentContentHash(r, t);
+  const document = isDocument(t) ? documentInfo(u, r, t) : null;
+  const docState = document
+    ? { edition: document.currentEdition, reviewStatus: document.review.status, nextReviewAt: document.review.nextReviewAt }
+    : undefined;
   return {
-    ...toSummary({ ...r, type_key: t.key, type_name: t.name, workflow: t.workflow }),
+    ...toSummary({ ...r, type_key: t.key, type_name: t.name, workflow: t.workflow }, docState),
     body: r.body,
     fields: parseJson<Record<string, string>>(r.fields, {}),
     fieldDefs: fieldDefsOf(r, t, frozen),
@@ -402,7 +480,7 @@ export function getRecord(idOrNumber: string): RecordDetail {
     tampered: frozen && !frozenIntact(r, hash),
     submittedBy: r.submitted_by,
     submittedAt: r.submitted_at,
-    supersededBy: sup ? { id: sup.id, number: sup.number, title: sup.title } : null,
+    supersededBy: supersededInfo(u, r),
     importMeta: parseJson<Record<string, unknown> | null>(r.import_meta, null),
     type: toType(t),
     actions: actionsOf(u, r, wf),
@@ -411,6 +489,57 @@ export function getRecord(idOrNumber: string): RecordDetail {
     links: listLinks('record', r.id),
     backlinks: listBacklinks('record', r.id),
     events: listEvents(r.id),
+    document,
+  };
+}
+
+/**
+ * The record that superseded or replaced this one – named only when the reader may read it (an access change
+ * entry, say), else like a link to a hidden item: not visible, without its id, number or title.
+ */
+export function supersededInfo(u: AuthUser | null, r: Pick<RecordRow, 'superseded_by'>): RecordDetail['supersededBy'] {
+  if (!r.superseded_by) return null;
+  const sup = recordRow(r.superseded_by);
+  if (!sup || !canReadRecordRow(u, sup)) return { visible: false, id: null, number: null, title: null };
+  return { visible: true, id: sup.id, number: sup.number, title: sup.title };
+}
+
+/** May review the current edition of a document: its owner, its review owner, approvers and administrators. */
+export function canReviewDocument(u: AuthUser | null, r: RecordRow, d: DocRow | undefined): boolean {
+  if (!u) return false;
+  const same = (a: string | null | undefined) => !!a && a.toLowerCase() === u.username.toLowerCase();
+  return same(r.owner) || same(d?.review_owner) || canApproveRecords(u) || isAdmin(u);
+}
+
+/** Editions, reviews and the review status of a living document. */
+export function documentInfo(u: AuthUser | null, r: RecordRow, t: TypeRow): DocumentInfo {
+  const d = docRow(r.id);
+  const rows = editionRows(r.id);
+  const current = d?.current_edition ?? null;
+  const intact = intactEditions(r, t.key, rows);
+  const cur = rows.find((e) => e.edition === current);
+  const pending =
+    d?.pending_kind && r.status === 'in_review'
+      ? {
+          kind: d.pending_kind,
+          changeSummary: d.pending_summary ?? '',
+          edition: current ? nextEditions(current)[d.pending_kind] : '1.0',
+        }
+      : null;
+  return {
+    currentEdition: current,
+    pending,
+    nextEdition: nextEditions(current),
+    editions: rows.map((e) => toEditionSummary(e, current, intact.has(e.edition))),
+    reviews: reviewsOf(r.id),
+    review: reviewState(r, t, d, cur?.approved_at ?? null),
+    permissions: {
+      review: !!current && ['published', 'revising'].includes(r.status) && canReviewDocument(u, r, d),
+      settings: (canEditRecord(u, r) || canApproveRecords(u)) && r.status !== 'withdrawn',
+      reviewOwner: canApproveRecords(u) && r.status !== 'withdrawn',
+      reviewInterval: canApproveRecords(u) && r.status !== 'withdrawn',
+      anyInterval: isAdmin(u) && r.status !== 'withdrawn',
+    },
   };
 }
 
@@ -526,7 +655,7 @@ export interface CreateInput {
  * default language). The web UI sends the template in its own language.
  */
 function templateFor(t: TypeRow, u: AuthUser): string {
-  const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE].find((d) => d.key === t.key);
+  const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE].find((d) => d.key === t.key);
   if (!t.builtin || !def || def.template !== t.template) return t.template;
   let locale: string | null | undefined;
   try {
@@ -575,6 +704,7 @@ export function createRecord(input: CreateInput): RecordDetail {
       u.username,
     );
     const hash = insertVersion(id, 1, 1, { title, body, fields }, input.importMeta ? 'Imported' : 'Created');
+    if (isDocument(t)) ensureDocRow(id);
     insertEvent(
       { id, revision: 1 },
       { kind: input.importMeta ? 'imported' : 'created', action: null, from_status: null, to_status: wf.initial, comment: '', content_hash: hash, version: 1 },
@@ -626,7 +756,7 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
     throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`, 'TEXT_TOO_LONG', { maxKib: LIMITS.body / 1024 });
   if (isAccessEntry(r)) checkAccessEntry(u, next.fields, cur.fields, false);
   const contentChanged = versionHash(next) !== versionHash(cur);
-  if (contentChanged && r.status !== wf.initial) {
+  if (contentChanged && !isEditableStatus(wf, r.status)) {
     throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
       number: r.number,
       status: statusParam(r.status),
@@ -637,6 +767,17 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   let owner = r.owner;
   if (input.owner !== undefined && input.owner.trim().toLowerCase() !== r.owner.toLowerCase()) {
     if (!isAdmin(u) && r.owner.toLowerCase() !== u.username.toLowerCase()) forbid('hand this record over to someone else', 'handOverRecord');
+    // four-eyes is checked against the owner when deciding: a hand-over while the approval is pending would let the submitting owner pass it to someone else and approve
+    if (awaitsApproval(wf, r.status))
+      throw new HttpError(
+        409,
+        `${r.number} is ${r.status} and waits for an approval: hand it over before submitting it or after the decision`,
+        'RECORD_OWNER_LOCKED',
+        {
+          number: r.number,
+          status: statusParam(r.status),
+        },
+      );
     const target = findUserByName(input.owner.trim());
     if (!target || !target.active) throw new HttpError(400, `User ${input.owner} not found`, 'USER_NOT_FOUND', { name: input.owner });
     owner = target.username;
@@ -678,11 +819,20 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   return getRecord(r.id);
 }
 
+/** Statuses in which a record waits for an approval (submitted, proposed, documented, in review). */
+export const awaitsApproval = (wf: RecordWorkflow, status: string): boolean => wf.transitions.some((t) => t.approval && t.from.includes(status));
+
 export interface TransitionInput {
   action: string;
   comment?: string;
-  /** Id or number of the superseding record */
+  /** Id or number of the superseding record (decisions) or of the replacing document (withdrawing a document) */
   supersededBy?: string;
+  /** Submitting a living document: minor (editorial, 1.0 → 1.1) or major (substantive, 1.x → 2.0) */
+  editionKind?: EditionKind;
+  /** Submitting a living document: what changed in this edition (required) */
+  changeSummary?: string;
+  /** Optional: the content hash the person saw (approvals); a different current hash is refused, so nobody decides on content they did not see */
+  contentHash?: string;
 }
 
 export function transition(idOrNumber: string, input: TransitionInput): RecordDetail {
@@ -703,80 +853,233 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
   if (comment.length > LIMITS.comment)
     throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
   if (def.commentRequired && !comment) throw new HttpError(400, 'Please give a reason in the comment', 'COMMENT_REQUIRED');
-  const leavingDraft = r.status === wf.initial;
+  const leavingDraft = isEditableStatus(wf, r.status);
   if (leavingDraft) {
     const fields = parseJson<Record<string, string>>(r.fields, {});
     const missing = toType(t, 0).fields.filter((f) => f.required && !fields[f.key]?.trim());
-    if (missing.length && def.to !== 'cancelled')
+    if (missing.length && def.to !== 'cancelled' && def.to !== 'withdrawn')
       throw new HttpError(400, `Fill in the required fields first: ${missing.map((f) => f.label).join(', ')}`, 'RECORD_INCOMPLETE', {
         fields: missing.map((f) => fieldParam(t.key, f)),
       });
   }
+  const isDoc = isDocument(t);
+  const doc = isDoc ? ensureDocRow(r.id) : undefined;
+  const to = def.toWithEdition && doc?.current_edition ? def.toWithEdition : def.to;
+  // back into an editable status (a rejected document): the content can change again
+  const unfreezing = !leavingDraft && isEditableStatus(wf, to);
+  // living documents: submitting names the kind of the edition and what changed
+  let edition: { kind: EditionKind; summary: string } | undefined;
+  if (isDoc && def.action === 'submit') {
+    const summary = (input.changeSummary ?? '').trim();
+    if (!summary) throw new HttpError(400, 'Summarise what changed in this edition', 'CHANGE_SUMMARY_REQUIRED');
+    if (summary.length > DOC_LIMITS.changeSummary)
+      throw new HttpError(400, `The change summary is too long (at most ${DOC_LIMITS.changeSummary} characters)`, 'CHANGE_SUMMARY_TOO_LONG', {
+        max: DOC_LIMITS.changeSummary,
+      });
+    if (input.editionKind !== undefined && !EDITION_KINDS.includes(input.editionKind))
+      throw new HttpError(400, 'The edition is minor or major', 'EDITION_KIND_REQUIRED');
+    if (doc?.current_edition && !input.editionKind)
+      throw new HttpError(400, 'Say whether this is a minor (editorial) or a major (substantive) edition', 'EDITION_KIND_REQUIRED');
+    // the first edition is always 1.0
+    edition = { kind: doc?.current_edition ? input.editionKind! : 'major', summary };
+  }
   let superseding: RecordRow | undefined;
-  if (def.needsRecord) {
+  if (def.needsRecord || (def.optionalRecord && input.supersededBy)) {
     if (!input.supersededBy) throw new HttpError(400, 'Name the record that supersedes this one', 'SUPERSEDED_BY_REQUIRED');
     superseding = recordRow(input.supersededBy);
-    if (!superseding) throw new HttpError(404, `Record ${input.supersededBy} not found`, 'RECORD_NOT_FOUND', { id: input.supersededBy });
+    if (!superseding || !canReadRecordRow(u, superseding))
+      throw new HttpError(404, `Record ${input.supersededBy} not found`, 'RECORD_NOT_FOUND', { id: input.supersededBy });
     if (superseding.id === r.id) throw new HttpError(400, 'A record cannot supersede itself', 'SUPERSEDE_SELF');
+    // a document is replaced by a document, a decision superseded by a decision
+    if (requireType(superseding.type_id).workflow !== t.workflow)
+      throw new HttpError(
+        400,
+        `${superseding.number} cannot ${isDocument(t) ? 'replace' : 'supersede'} ${r.number}: it must have the same workflow (${t.workflow})`,
+        'SUPERSEDED_BY_WORKFLOW',
+        { number: superseding.number, workflow: t.workflow },
+      );
   }
-  const hash = currentContentHash(r, t);
+  let hash = currentContentHash(r, t);
   if (!leavingDraft && !frozenIntact(r, hash)) {
     // The frozen content no longer matches the hash recorded (and audited) when it was frozen: changed outside Steward. Stop rather than approve it.
     throw new HttpError(409, `The content of ${r.number} does not match the hash recorded when it was frozen – check the audit log`, 'RECORD_TAMPERED', {
       number: r.number,
     });
   }
+  if (input.contentHash !== undefined && input.contentHash !== hash)
+    throw new HttpError(409, `${r.number} was changed in the meantime – reload it and check the content before you decide`, 'RECORD_CHANGED', {
+      number: r.number,
+      version: Number(r.version),
+    });
   const now = nowIso();
+  let approved: EditionRow | undefined;
+  let row = r;
   db().tx(() => {
+    // withdrawing a document while its next edition is drafted: the draft is dropped, the document keeps the current edition
+    if (isDoc && to === 'withdrawn' && r.status === 'revising' && doc?.current_edition) {
+      const cur = editionRow(r.id, doc.current_edition);
+      if (cur) {
+        row = restoreEdition(r, cur, `Draft of the next edition discarded: ${comment}`.slice(0, LIMITS.comment));
+        hash = currentContentHash(row, t);
+      }
+    }
     db().run(
       `UPDATE records SET status = ?, frozen_hash = ?, submitted_by = ?, submitted_at = ?, superseded_by = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
-      def.to,
-      leavingDraft ? hash : r.frozen_hash,
-      leavingDraft && def.to !== 'cancelled' ? u.username : r.submitted_by,
-      leavingDraft && def.to !== 'cancelled' ? now : r.submitted_at,
-      superseding ? superseding.id : r.superseded_by,
+      to,
+      unfreezing ? null : leavingDraft ? hash : row.frozen_hash,
+      unfreezing ? null : leavingDraft && def.to !== 'cancelled' && def.to !== 'withdrawn' ? u.username : row.submitted_by,
+      unfreezing ? null : leavingDraft && def.to !== 'cancelled' && def.to !== 'withdrawn' ? now : row.submitted_at,
+      superseding ? superseding.id : row.superseded_by,
       now,
       u.username,
       r.id,
     );
     // the field definitions as they are now belong to the frozen content (labels and options may change later)
     if (leavingDraft)
-      db().run('UPDATE record_versions SET field_defs = ? WHERE record_id = ? AND version = ?', JSON.stringify(toType(t, 0).fields), r.id, r.version);
-    insertEvent(r, {
+      db().run('UPDATE record_versions SET field_defs = ? WHERE record_id = ? AND version = ?', JSON.stringify(toType(t, 0).fields), r.id, row.version);
+    if (edition) updateDocRow(r.id, { pending_kind: edition.kind, pending_summary: edition.summary });
+    if (isDoc && unfreezing) updateDocRow(r.id, { pending_kind: null, pending_summary: null });
+    if (isDoc && def.action === 'approve') approved = approveEdition(row, t, doc!, hash, now, u.username);
+    insertEvent(row, {
       kind: 'transition',
       action: def.action,
       from_status: r.status,
-      to_status: def.to,
+      to_status: to,
       comment,
       content_hash: hash,
-      version: Number(r.version),
+      version: Number(row.version),
     });
     audit({
-      action: `record.${def.action}`,
+      action: approved ? 'record.edition_approved' : `record.${def.action}`,
       entityType: 'record',
       entityId: r.id,
-      summary: `${r.number} ${r.status} → ${def.to}${comment ? `: ${comment}` : ''}`,
+      summary: approved
+        ? `${r.number} edition ${approved.edition} (${approved.kind}) approved – ${r.status} → ${to}${comment ? `: ${comment}` : ''}`
+        : `${r.number} ${r.status} → ${to}${edition ? ` (${edition.kind} edition ${nextEditions(doc?.current_edition ?? null)[edition.kind]})` : ''}${comment ? `: ${comment}` : ''}`,
       details: {
         number: r.number,
         from: r.status,
-        to: def.to,
-        revision: Number(r.revision),
-        version: Number(r.version),
+        to,
+        revision: Number(row.revision),
+        version: Number(row.version),
         contentHash: hash,
         ...(leavingDraft ? { frozen: true } : {}),
+        ...(unfreezing ? { unfrozen: true } : {}),
         ...(def.approval ? { fourEyes: true } : {}),
         ...(superseding ? { supersededBy: superseding.number } : {}),
+        ...(edition
+          ? { editionKind: edition.kind, edition: nextEditions(doc?.current_edition ?? null)[edition.kind], changeSummary: edition.summary.slice(0, 500) }
+          : {}),
+        ...(approved
+          ? {
+              edition: approved.edition,
+              kind: approved.kind,
+              previousEdition: doc?.current_edition ?? null,
+              authors: JSON.parse(approved.authors) as string[],
+              approvedBy: approved.approved_by,
+              // seals the edition's metadata (summary, authors, submitter, approver, dates): see intactEditions
+              metaHash: editionMetaHash(approved),
+            }
+          : {}),
+        ...(isDoc && to === 'withdrawn' ? { edition: doc?.current_edition ?? null } : {}),
       },
     });
     if (
       superseding &&
       !db().get("SELECT 1 FROM item_links WHERE from_kind = 'record' AND from_id = ? AND to_kind = 'record' AND to_id = ?", r.id, superseding.id)
     ) {
-      addLink('record', r.id, { kind: 'record', id: superseding.id, note: 'superseded by' }, r.number);
+      addLink('record', r.id, { kind: 'record', id: superseding.id, note: isDoc ? 'replaced by' : 'superseded by' }, r.number);
     }
   });
-  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: def.action, to: def.to });
+  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: def.action, to });
   return getRecord(r.id);
+}
+
+/**
+ * Freezes the approved content of a document as its next edition (in the caller's transaction): the number
+ * follows the kind chosen at submit, the edition becomes the current one, and the next review is counted
+ * from now (an earlier date and an open "needs update" are cleared).
+ */
+function approveEdition(r: RecordRow, t: TypeRow, doc: DocRow, hash: string, at: string, approver: string): EditionRow {
+  const kind: EditionKind = doc.current_edition ? (doc.pending_kind ?? 'major') : 'major';
+  const number = doc.current_edition ? nextEditions(doc.current_edition)[kind] : '1.0';
+  const { major, minor } = parseEdition(number);
+  const files = attachmentRows(r.id, 'file').map((a) => ({ id: a.id, filename: a.filename, size: Number(a.size), sha256: a.sha256 }));
+  const defs =
+    db().get<{ field_defs: string | null }>('SELECT field_defs FROM record_versions WHERE record_id = ? AND version = ?', r.id, r.version)?.field_defs ??
+    JSON.stringify(toType(t, 0).fields);
+  const e: EditionRow = {
+    record_id: r.id,
+    major,
+    minor,
+    edition: number,
+    kind,
+    revision: Number(r.revision),
+    version: Number(r.version),
+    title: r.title,
+    body: r.body,
+    fields: r.fields,
+    field_defs: defs,
+    attachments: JSON.stringify(files),
+    content_hash: hash,
+    change_summary: doc.pending_summary ?? '',
+    authors: JSON.stringify(editionAuthors(r)),
+    submitted_by: r.submitted_by,
+    submitted_at: r.submitted_at,
+    approved_by: approver,
+    approved_at: at,
+  };
+  db().run(
+    `INSERT INTO record_editions (record_id, major, minor, edition, kind, revision, version, title, body, fields, field_defs, attachments, content_hash,
+       change_summary, authors, submitted_by, submitted_at, approved_by, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    e.record_id,
+    e.major,
+    e.minor,
+    e.edition,
+    e.kind,
+    e.revision,
+    e.version,
+    e.title,
+    e.body,
+    e.fields,
+    e.field_defs,
+    e.attachments,
+    e.content_hash,
+    e.change_summary,
+    e.authors,
+    e.submitted_by,
+    e.submitted_at,
+    e.approved_by,
+    e.approved_at,
+  );
+  updateDocRow(r.id, { current_edition: number, pending_kind: null, pending_summary: null, next_review_override: null, update_requested_at: null });
+  return e;
+}
+
+/**
+ * A document's content back to an edition (withdrawing while the next edition is drafted): title, text,
+ * fields and files of the edition, at its revision – so the content hash is the edition's again. Files
+ * added for the dropped draft are retired (kept, no longer content); files of the edition come back.
+ */
+function restoreEdition(r: RecordRow, e: EditionRow, comment: string): RecordRow {
+  const keep = new Set(parseJson<{ id: string }[]>(e.attachments, []).map((a) => a.id));
+  for (const a of db().all<{ id: string; kind: string }>("SELECT id, kind FROM record_attachments WHERE record_id = ? AND kind IN ('file', 'retired')", r.id)) {
+    const kind = keep.has(a.id) ? 'file' : 'retired';
+    if (kind !== a.kind) db().run('UPDATE record_attachments SET kind = ? WHERE id = ?', kind, a.id);
+  }
+  const version = Number(r.version) + 1;
+  insertVersion(r.id, version, Number(e.revision), { title: e.title, body: e.body, fields: parseJson(e.fields, {}) }, comment);
+  db().run(
+    'UPDATE records SET title = ?, body = ?, fields = ?, revision = ?, version = ? WHERE id = ?',
+    e.title,
+    e.body,
+    e.fields,
+    Number(e.revision),
+    version,
+    r.id,
+  );
+  db().run('UPDATE record_versions SET field_defs = ? WHERE record_id = ? AND version = ?', e.field_defs, r.id, version);
+  return db().get<RecordRow>('SELECT * FROM records WHERE id = ?', r.id)!;
 }
 
 /** Back to draft for rework: a new revision; the frozen content stays in the version history and the audit log. */
@@ -788,6 +1091,17 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
   if (!canEditRecord(u, r)) forbid('start a new revision of this record', 'reviseRecord');
   if (isRunEntry(r) && !isSystem(u)) runEntryLocked(r);
   if (isAccessEntry(r) && !canDocumentAccessOn(u, accessFields(r).platform ?? '')) forbid('document access changes of this platform', 'documentAccess');
+  startRevision(r, t, wf, comment);
+  return getRecord(r.id);
+}
+
+/**
+ * Starts a new revision (the caller checked the permissions): a copy of the frozen content as a new version
+ * in the editable status. For a living document this is the draft of its next edition; the current edition
+ * stays valid until the next one is approved.
+ */
+export function startRevision(r: RecordRow, t: TypeRow, wf: RecordWorkflow, comment: string): void {
+  const u = me();
   if (!wf.revisable.includes(r.status))
     throw new HttpError(409, `${r.number} is ${r.status}: a new revision is only possible when it is ${wf.revisable.join(' or ')}`, 'INVALID_TRANSITION', {
       number: r.number,
@@ -799,13 +1113,16 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
     throw new HttpError(400, `The comment is too long (at most ${LIMITS.comment} characters)`, 'COMMENT_TOO_LONG', { max: LIMITS.comment });
   const revision = Number(r.revision) + 1;
   const previousHash = r.frozen_hash;
+  const to = wf.reviseTo ?? wf.initial;
+  const edition = isDocument(t) ? (docRow(r.id)?.current_edition ?? null) : null;
   db().tx(() => {
     const version = Number(r.version) + 1;
     // The new revision starts with a copy of the frozen content (a version of its own, so authorship per revision is clear).
-    const hash = insertVersion(r.id, version, revision, { title: r.title, body: r.body, fields: parseJson(r.fields, {}) }, `Revision ${revision}: ${why}`);
+    const label = edition ? `Draft of the next edition (from ${edition})` : `Revision ${revision}`;
+    const hash = insertVersion(r.id, version, revision, { title: r.title, body: r.body, fields: parseJson(r.fields, {}) }, `${label}: ${why}`);
     db().run(
       'UPDATE records SET status = ?, revision = ?, version = ?, frozen_hash = NULL, submitted_by = NULL, submitted_at = NULL, updated_at = ?, updated_by = ? WHERE id = ?',
-      wf.initial,
+      to,
       revision,
       version,
       nowIso(),
@@ -814,18 +1131,28 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
     );
     insertEvent(
       { id: r.id, revision },
-      { kind: 'revision', action: 'revise', from_status: r.status, to_status: wf.initial, comment: why, content_hash: previousHash, version },
+      { kind: 'revision', action: 'revise', from_status: r.status, to_status: to, comment: why, content_hash: previousHash, version },
     );
     audit({
       action: 'record.revised',
       entityType: 'record',
       entityId: r.id,
-      summary: `${r.number} back to ${wf.initial} as revision ${revision}: ${why}`,
-      details: { number: r.number, from: r.status, revision, version, previousContentHash: previousHash, versionHash: hash },
+      summary: edition
+        ? `${r.number}: next edition drafted from edition ${edition} (${to}): ${why}`
+        : `${r.number} back to ${to} as revision ${revision}: ${why}`,
+      details: {
+        number: r.number,
+        from: r.status,
+        to,
+        revision,
+        version,
+        previousContentHash: previousHash,
+        versionHash: hash,
+        ...(edition ? { edition } : {}),
+      },
     });
   });
-  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: 'revise', to: wf.initial });
-  return getRecord(r.id);
+  emit('record.transitioned', { recordId: r.id, typeId: r.type_id, action: 'revise', to });
 }
 
 export function addComment(idOrNumber: string, text: string): RecordDetail {
@@ -864,7 +1191,7 @@ export function requireEditable(
     if (isRunEntry(r) && !isSystem(u)) runEntryLocked(r);
     if (!canDocumentAccessOn(u, accessFields(r).platform ?? '')) forbid('document access changes of this platform', 'documentAccess');
   }
-  if (o.draftOnly && r.status !== wf.initial)
+  if (o.draftOnly && !isEditableStatus(wf, r.status))
     throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
       number: r.number,
       status: statusParam(r.status),

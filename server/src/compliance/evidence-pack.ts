@@ -28,6 +28,7 @@ import { generateRunReport, getReport, listRunReports } from '../reports/service
 import { canViewScheduledReport } from '../reports/schedules.js';
 import { getRecord } from '../records/service.js';
 import { renderRecordPdf } from '../records/pdf.js';
+import { editionAsRecord } from '../records/documents.js';
 import { attachmentFile, attachmentRows, type RecordRow } from '../records/model.js';
 import { canReadRecordRow } from '../records/access.js';
 import { getService } from '../catalogue/service.js';
@@ -511,10 +512,13 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
         const p = await b.file(`runs/${it.id}/${safe(r.filename)}`, r.file, r.sha256);
         if (p) it.files.push(p);
       } else if (it.kind === 'record' || it.kind === 'accessChange') {
-        const rec = getRecord(it.id);
+        const current = getRecord(it.id);
+        // a living document: the edition valid at the end of the period, as approved (its PDF cites its hash)
+        const edition = it.document?.edition;
+        const rec = edition ? editionAsRecord(current, edition) : current;
         const dir = `records/${safe(rec.number)}`;
-        const { pdf } = await renderRecordPdf({ rec, pdfId: newId('rpdf_'), lang, signers: [], generatedBy: u.username, generatedAt: nowIso() });
-        it.files.push(await b.buffer(`${dir}/${safe(rec.number)}.pdf`, pdf));
+        const { pdf } = await renderRecordPdf({ rec, pdfId: newId('rpdf_'), lang, signers: [], generatedBy: u.username, generatedAt: nowIso(), edition });
+        it.files.push(await b.buffer(`${dir}/${safe(rec.number)}${edition ? `-edition-${safe(edition)}` : ''}.pdf`, pdf));
         const { attachments, actions: _a, permissions: _p, ...rest } = rec;
         it.files.push(await b.json(`${dir}/record.json`, { ...rest, attachments: attachments.map(({ details: _d, ...x }) => x) }));
         for (const a of attachmentRows(rec.id)) {
@@ -648,7 +652,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       lang,
       filtered: !complete,
       controls,
-      items: list.map((i) => ({ kind: i.kind, label: i.label, at: i.at, files: i.files.length })),
+      items: list.map((i) => ({ kind: i.kind, label: i.document ? `${i.label} · ${i.document.edition}` : i.label, at: i.at, files: i.files.length })),
       omitted: b.omitted,
     });
     await b.buffer('index.pdf', pdf);

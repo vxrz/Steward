@@ -48,10 +48,10 @@ afterAll(async () => {
 });
 
 describe('start page tiles', () => {
-  it('administrators and auditors get all six tiles; viewers only what they may read', async () => {
+  it('administrators and auditors get all seven tiles; viewers only what they may read', async () => {
     const admin = await attention(s.api);
-    expect(Object.keys(admin).sort()).toEqual(['credentials', 'findings', 'monitors', 'runs', 'tasks', 'vendorTickets']);
-    expect(Object.keys(await attention(audrey)).sort()).toEqual(['credentials', 'findings', 'monitors', 'runs', 'tasks', 'vendorTickets']);
+    expect(Object.keys(admin).sort()).toEqual(['credentials', 'findings', 'monitors', 'reviews', 'runs', 'tasks', 'vendorTickets']);
+    expect(Object.keys(await attention(audrey)).sort()).toEqual(['credentials', 'findings', 'monitors', 'reviews', 'runs', 'tasks', 'vendorTickets']);
     // the operator may use the reconciled platform, so they read its check
     expect(await attention(olivia)).toHaveProperty('findings');
     // vera (viewer) reads no access check and owns no credential: no tile, not a 0
@@ -59,6 +59,8 @@ describe('start page tiles', () => {
     expect(await vera('GET', '/compliance/access-checks')).toEqual([]);
     expect(v).not.toHaveProperty('findings');
     expect(v).not.toHaveProperty('credentials');
+    // and reviews no living document
+    expect(v).not.toHaveProperty('reviews');
     expect(v).toHaveProperty('monitors');
     expect(v.vendorTickets).toEqual({ open: 0, oldestDays: null });
     // the old fields stay for the getting-started checklist

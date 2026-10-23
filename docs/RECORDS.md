@@ -1,6 +1,6 @@
 # Records and services
 
-Records are documents the service team writes, reviews and approves in Steward: **change requests** and **decision records**. A record has a number, a workflow, versions, comments, links, attachments and an audit trail. When the content is final, Steward generates a PDF/A document with empty signature fields, so people outside Steward (business owners, requesters) can sign it. The signed PDF goes back to the record.
+Records are documents the service team writes, reviews and approves in Steward: **change requests**, **decision records** and **living documents** (service documentation, concepts, manuals). A record has a number, a workflow, versions, comments, links, attachments and an audit trail. When the content is final, Steward generates a PDF/A document with empty signature fields, so people outside Steward (business owners, requesters) can sign it. The signed PDF goes back to the record.
 
 The **service catalogue** is a deliberately small list of the services the team runs: owners, criticality, a link to the entry in your real CMDB, and links to platforms, monitors, processes, dashboards and records. It is not a CMDB.
 
@@ -12,6 +12,7 @@ The **service catalogue** is a deliberately small list of the services the team 
 - [Writing a record](#writing-a-record)
 - [Links](#links)
 - [Attachments](#attachments)
+- [Living documents](#living-documents)
 - [Import and export (Markdown)](#import-and-export-markdown)
 - [PDF and signatures](#pdf-and-signatures)
 - [Audit log](#audit-log)
@@ -20,15 +21,16 @@ The **service catalogue** is a deliberately small list of the services the team 
 
 ## Record types
 
-Steward creates five types on first start. Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
+Steward creates six types on first start (`DOC` is added to existing installations on the first start after the update). Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
 
-| Key   | Name                         | Workflow | Fields                                                                                                            |
-| ----- | ---------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                           |
-| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                      |
-| `DR`  | Decision record              | decision | as ADR                                                                                                            |
-| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                         |
-| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\* |
+| Key   | Name                         | Workflow | Fields                                                                                                              |
+| ----- | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                             |
+| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                        |
+| `DR`  | Decision record              | decision | as ADR                                                                                                              |
+| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                           |
+| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\*   |
+| `DOC` | Service documentation        | document | none; template with _Purpose and scope_, _Responsibilities_, _Content_, _Related documents_; review every 12 months |
 
 \* required before the record can be submitted.
 
@@ -40,6 +42,7 @@ Notes:
 - The key and the workflow of a type cannot change once it has records: the key is part of their numbers and of the content hash they were approved with. Change the name instead, or create a new type.
 - Fields can change at any time. Frozen records keep the field labels, kinds and choices they had when they were frozen (the PDF and the record page show those); values without a definition are shown by their key.
 - Archived types keep their records but accept no new ones.
+- Types with the workflow _document_ have a **review interval** in months (default 12; 0 = no periodic reviews). If an installation already used the key `DOC` for its own type, the built-in type gets the key `SDOC`.
 - The context, decision, consequences and alternatives of a decision record are sections of the Markdown text (the template has the headings), not fields.
 
 ## Numbers
@@ -68,9 +71,20 @@ Draft ──propose──▶ Proposed ──accept──▶ Accepted ──super
 ```
 
 - **Approve, accept and reject** are approvals: only approvers and administrators, and never someone who wrote the record (four-eyes, see below). Rejecting needs a comment.
-- **Supersede** names the record that replaces the decision. Steward adds a link "superseded by", so the new record shows the old one under _Linked from_.
+- **Supersede** names the record that replaces the decision – another decision record. Steward adds a link "superseded by", so the new record shows the old one under _Linked from_.
 - **New revision** (_Rework_ on a rejected record): from _Submitted_, _Rejected_ (change) or _Proposed_, _Rejected_ (decision) the record goes back to _Draft_ as revision 2, 3, …. It needs a reason. Approved, accepted and closed records cannot be revised: approved content is immutable. Write a new record instead (and supersede the old decision).
 - Closed, cancelled, superseded and deprecated are final.
+
+**Document** (living documents, e.g. `DOC`; see [Living documents](#living-documents)):
+
+```
+Draft ──submit──▶ In review ──approve──▶ Published (edition n) ──new edition──▶ Revising ──submit──▶ In review ──approve──▶ Published (edition n+1) …
+                     └──reject──▶ Draft / Revising                                               any of Draft, Published, Revising ──withdraw──▶ Withdrawn
+```
+
+- **Approve** freezes the content as an **edition** (1.0, 1.1, 2.0). Rejecting needs a comment and goes back to _Draft_ (no edition yet) or _Revising_.
+- **Withdraw** needs a reason and may name the replacing document – another living document (link "replaced by"). Withdrawing while the next edition is drafted drops the draft; every approved edition stays readable.
+- The content can change in _Draft_ and _Revising_. A new edition starts from the current one, which stays valid until the next one is approved.
 
 ## Content, versions and the content hash
 
@@ -78,7 +92,7 @@ The **content** of a record is its title, Markdown text, fields and attached fil
 
 - Every save that changes title, text or fields creates a **version** (v1, v2, …) with author, change note and a hash. _Versions_ shows the history and a line diff between any two versions.
 - **Leaving the draft status freezes the content.** Steward computes the **content hash** – SHA-256 over the canonical JSON of record id, number, type key, revision, title, text, fields and the name, size and SHA-256 of every attached file – and stores it as the record's _frozen hash_. The transition, and every later one, is audited with this hash.
-- An approval always approves exactly the frozen content. Before every transition Steward recomputes the hash and compares it with the frozen hash **and** with the hash in the authentic (HMAC-chained) audit entry that froze the revision. If the content no longer matches (changed in the database, outside Steward – even with the frozen hash recomputed), the record is marked as tampered and cannot move on.
+- An approval always approves exactly the frozen content – the content the approver saw: the web app sends the hash it shows in the approval dialog (`contentHash`), and if the content changed in the meantime (reworked and submitted again), Steward refuses the decision (`RECORD_CHANGED`, reload and check again). The field is optional in the API; clients that decide should send it. Before every transition Steward recomputes the hash and compares it with the frozen hash **and** with the hash in the authentic (HMAC-chained) audit entry that froze the revision. If the content no longer matches (changed in the database, outside Steward – even with the frozen hash recomputed), the record is marked as tampered and cannot move on.
 - Tags, the owner and links are not content. They can change after approval; every change is in the audit log.
 
 ## Who may do what
@@ -90,10 +104,14 @@ Everyone who can sign in reads records and services (auditors included) – exce
 | Create records, import Markdown                                                                                | designer, operator, admin                                                                                                                                                                                                                   |
 | Edit a draft, attachments, links, submit/propose, implement, close, cancel, supersede, deprecate, new revision | designer, operator, admin, and the record's owner                                                                                                                                                                                           |
 | Approve, accept, reject                                                                                        | approver, admin – **four-eyes**: not the owner, not the creator, not the person who submitted it, not anyone who wrote content (a version of any revision – a new revision starts with the earlier content – or attached or removed a file) |
+| Review a living document (_Reviewed – no change_, _Needs update_)                                              | the document's owner and review owner, approver, admin                                                                                                                                                                                      |
+| Review settings of a living document: an earlier next review date                                              | designer, operator, approver, admin, and the document's owner                                                                                                                                                                               |
+| Review settings: review owner, the document's own interval, dropping or postponing an earlier date             | approver, admin – an approver who owns or wrote the document cannot make themselves its review owner                                                                                                                                        |
+| Review settings: no periodic reviews (0) or an interval longer than the type's                                 | admin                                                                                                                                                                                                                                       |
 | Comment                                                                                                        | everyone who may edit or approve                                                                                                                                                                                                            |
 | Generate PDFs, upload signed PDFs                                                                              | everyone who may edit or approve                                                                                                                                                                                                            |
 | Attach a PDF without the signature check                                                                       | admin                                                                                                                                                                                                                                       |
-| Hand a record over to another owner                                                                            | the owner, admin                                                                                                                                                                                                                            |
+| Hand a record over to another owner                                                                            | the owner, admin – not while the record waits for an approval (submitted, proposed, documented, in review): four-eyes is checked against the owner                                                                                          |
 | Manage record types                                                                                            | admin                                                                                                                                                                                                                                       |
 | Create services                                                                                                | designer, admin                                                                                                                                                                                                                             |
 | Edit and archive a service, change its links                                                                   | designer, admin, and the users and teams named as responsible on the service                                                                                                                                                                |
@@ -116,7 +134,7 @@ A record or service links to:
 
 Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
-You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
+You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. The same holds for _superseded by_ and _replaced by_: if the reader may not read that record (an access change entry, say), the record page, the PDF and the API only say that it is not visible (`supersededBy: { visible: false, id: null, number: null, title: null }`). Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
 
 Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
 
@@ -135,6 +153,51 @@ Drafts take documents and e-mails, up to 20 MB each and 50 per record:
 Steward checks that the content matches the extension (PDF header, image signatures, OLE and ZIP containers, e-mail headers, UTF-8 text without NUL bytes) and rejects everything else. File names are cleaned. Files are written once, read-only, to `data/records/<record id>/`, and their SHA-256 is recorded and checked on every download. Downloads are always attachments with a sandbox content security policy, never shown inline.
 
 Attached files are part of the content hash. Once the record is frozen they cannot change. Back up `data/records/` together with the database.
+
+## Living documents
+
+Service documentation – an operations manual, an identity and access management concept, an authorization concept – keeps its identity and changes over time. Use a type with the workflow _document_ (the built-in `DOC – Service documentation`, or your own). This follows ISO/IEC 27001 clause 7.5.3 (versions, approval, old versions kept) and A.5.1 (review at planned intervals).
+
+**Edition, not version.** A _version_ is every save inside a draft (as for all records). An _edition_ (Fassung) is an approved state: 1.0, 1.1, 2.0. Each edition is frozen with its own content hash, like approved records.
+
+### Publish the first edition
+
+1. _Records → New record_, type `DOC`. Write the text from the template and save.
+2. _Submit_. Summarise what the edition contains (required). The first edition is always 1.0.
+3. An approver opens the document and chooses _Approve_ (four-eyes, see below). The document is _Published_, edition 1.0.
+
+### Change a published document
+
+1. _New edition_ (with a reason). The document goes to _Revising_ with a copy of the current edition. **The current edition stays valid** – links, the list and evidence show it – until the next one is approved.
+2. Edit and save as often as needed, then _Submit_ and choose:
+   - **Minor** – editorial (1.0 → 1.1),
+   - **Major** – substantive (1.x → 2.0),
+     and write the change summary (required).
+3. An approver approves it. It becomes the current edition; the old one stays readable.
+
+Four-eyes for editions: approvers and administrators approve; never the owner, the creator, the person who submitted the edition or anyone who wrote content **of this edition** (a save of its draft, an attached or removed file). The copy a new edition starts with does not count, so a living document can still be approved after years of changes by many people. Every approval is audited as `record.edition_approved` with the edition, its kind and content hash.
+
+### Document changelog
+
+The tab _Changelog_ lists every edition (edition, kind, date, authors, approver, change summary) and every review. Per edition: _Open_ shows the frozen edition, _Diff_ shows the changes from the previous edition, _PDF_ generates the PDF of exactly that edition. The record PDF of a document has a _Document control_ section with the same table, the last review and the next review (English and German, PDF/A, your branding). Steward also checks each stored edition against its hash and the authentic audit entry of its approval – the content and the metadata (change summary, authors, submitter, approver, dates) – and each review against the audit entry that recorded it. A changed edition or review is marked in the changelog, the API (`intact: false`) and the PDF. The database itself refuses to change or delete stored editions and reviews (triggers on SQLite and PostgreSQL; `db:copy --force` lifts them only while it replaces the data).
+
+### Periodic reviews
+
+- **Next review** = approval of the current edition, or the last review, plus the interval (the document's own, else its type's). It can be set earlier.
+- Status: **current**, **due soon** or **overdue**. _Due soon_ uses the same setting as the credentials register (Settings → Credentials: due soon within N days).
+- **Reviewed – no change**: the owner, the review owner, approvers and administrators record it with a comment. The edition stays, and the next review is planned from today.
+- **Needs update** (comment required): starts the next edition (_Revising_). The review stays due until that edition is approved: _Reviewed – no change_ is refused until then, also when the new edition is rejected.
+- _Review settings_: review owner (default: the owner), interval (0 = none), an earlier date for the next review. Reviews are a control, so the people who write a document cannot weaken them: editors and the owner may only set an earlier date (or move it earlier). Approvers and administrators choose the review owner and a shorter interval, and may drop or postpone an earlier date; an approver who owns or wrote the document cannot make themselves its review owner. Only administrators turn the reviews off or make the interval longer than the type's. Changes are audited (`record.review_settings_changed`).
+- **Reminders** go to the review owner (in-app, and e-mail or Teams as routed for the event _Document review due_ under Settings → Notifications) with the schedule of the credentials reminders: the reminder of the smallest threshold reached before the date (e.g. 30, 14, 7, 1 days), then every N days while overdue. Each reminder is sent once (also across restarts). E-mail goes only to Steward users and follows the allowed e-mail domains.
+
+### Where documents show up
+
+- **Records list**: filters _Workflow_ and _Review_ (e.g. "Due soon or overdue"); documents show their edition and a due review.
+- **Start page**: the tile _Reviews due_ (editors, approvers and auditors see all documents; others the documents they own or review; zero: "All quiet").
+- **Daily summary**: the section _Document reviews due_ for the reviews you own. Documents in review count as waiting for your approval.
+- **Scheduled reports**: the records section lists living documents with the edition and the review status at the end of the period, and the editions and reviews in it.
+- **Links** to a document show its current edition.
+- **Compliance**: map a document type or a document to a control (e.g. ISO 27001 5.1, 5.37). A document counts as evidence while an edition is valid in the period, even without changes; the evidence shows the edition, its content hash, its approval and the last review. Evidence packs hold the PDF of that edition and its `record.json`.
 
 ## Import and export (Markdown)
 
@@ -274,32 +337,36 @@ Administrators can attach such a file anyway – for example a scan of a paper s
 
 Every change is in the tamper-evident audit log (entity type `record`, `record_type` or `service`):
 
-`record.created`, `record.imported`, `record.updated` (with the version hash), `record.submit`, `record.approve`, `record.reject`, `record.implement`, `record.close`, `record.cancel`, `record.propose`, `record.accept`, `record.supersede`, `record.deprecate` (all with from/to status and the content hash), `record.revised` (with the previous frozen hash), `record.commented`, `record.link_added`, `record.link_removed`, `record.attachment_added`, `record.attachment_removed`, `record.pdf_generated`, `record.signed_pdf_uploaded`, `record.unverified_pdf_attached`, `record_type.created`, `record_type.updated`, `service.created`, `service.updated`, `service.archived`, `service.restored`, `service.link_added`, `service.link_removed`.
+`record.created`, `record.imported`, `record.updated` (with the version hash), `record.submit` (documents: with edition kind and change summary), `record.approve`, `record.edition_approved` (documents: edition, kind, content hash, authors, approver and a hash of the edition's metadata), `record.withdraw`, `record.reviewed` (edition, outcome, content hash, next review and a hash of the stored review), `record.review_settings_changed`, `record.review_reminder_sent`, `record.reject`, `record.implement`, `record.close`, `record.cancel`, `record.propose`, `record.accept`, `record.supersede`, `record.deprecate` (all with from/to status and the content hash), `record.revised` (with the previous frozen hash), `record.commented`, `record.link_added`, `record.link_removed`, `record.attachment_added`, `record.attachment_removed`, `record.pdf_generated`, `record.signed_pdf_uploaded`, `record.unverified_pdf_attached`, `record_type.created`, `record_type.updated`, `service.created`, `service.updated`, `service.archived`, `service.restored`, `service.link_added`, `service.link_removed`.
 
 ## API
 
 Web UI API (session; changes need the `x-sm-client` header like every other route):
 
-| Route                                                                                                                                                   | What                                                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `GET /api/records?type=&status=&tag=&q=&owner=`                                                                                                         | list (status: comma-separated)                                            |
-| `POST /api/records` `{ type, title, body?, fields?, tags? }`                                                                                            | create a draft (body defaults to the template)                            |
-| `GET/PUT /api/records/:idOrNumber`                                                                                                                      | read; change `{ title, body, fields, tags, owner, comment, baseVersion }` |
-| `GET /api/records/:id/versions[/:version]`                                                                                                              | versions                                                                  |
-| `POST /api/records/:id/transition` `{ action, comment?, supersededBy? }`                                                                                | workflow                                                                  |
-| `POST /api/records/:id/revise` `{ comment }`                                                                                                            | new revision                                                              |
-| `POST /api/records/:id/comments` `{ text }`                                                                                                             | comment                                                                   |
-| `POST/DELETE /api/records/:id/links[/:linkId]` `{ kind, id, note }` or `{ url, label, note }`                                                           | links                                                                     |
-| `POST /api/records/:id/attachments` (multipart `file`), `DELETE …/:attId`, `GET …/:attId/download`                                                      | attachments                                                               |
-| `POST /api/records/:id/pdf` `{ lang, timeZone, signers: [{ name, role, email? }] }`                                                                     | generate a PDF                                                            |
-| `POST /api/records/:id/signed[?plain=1]` (multipart `file`)                                                                                             | upload a signed PDF                                                       |
-| `GET /api/records/:id/export`                                                                                                                           | Markdown                                                                  |
-| `POST /api/records/import` `{ files: [{ filename, content }], type?, dryRun? }`                                                                         | import (preview with `dryRun`)                                            |
-| `GET /api/record-types`, `POST`, `PUT /api/record-types/:id`                                                                                            | types (admin for changes)                                                 |
-| `GET /api/link-targets?kind=&q=`, `GET /api/backlinks?kind=&id=`                                                                                        | link picker, backlinks                                                    |
-| `GET/POST /api/services`, `GET/PUT /api/services/:id`, `POST /api/services/:id/archive` `{ archived }`, `POST/DELETE /api/services/:id/links[/:linkId]` | service catalogue                                                         |
+| Route                                                                                                                                                   | What                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `GET /api/records?type=&status=&tag=&q=&owner=&workflow=&review=`                                                                                       | list (status, review: comma-separated)                                                                          |
+| `POST /api/records` `{ type, title, body?, fields?, tags? }`                                                                                            | create a draft (body defaults to the template)                                                                  |
+| `GET/PUT /api/records/:idOrNumber`                                                                                                                      | read; change `{ title, body, fields, tags, owner, comment, baseVersion }`                                       |
+| `GET /api/records/:id/versions[/:version]`                                                                                                              | versions                                                                                                        |
+| `POST /api/records/:id/transition` `{ action, comment?, supersededBy?, editionKind?, changeSummary?, contentHash? }`                                    | workflow (documents: kind and summary on submit; `contentHash`: refused if the content no longer has this hash) |
+| `GET /api/records/:id/editions[/:edition]`, `POST …/editions/:edition/pdf`                                                                              | editions of a document, PDF of an edition                                                                       |
+| `GET /api/records/:id/changelog`, `GET /api/records/:id/reviews`                                                                                        | document changelog, reviews                                                                                     |
+| `POST /api/records/:id/review` `{ outcome: no_change \| needs_update, comment }`                                                                        | periodic review                                                                                                 |
+| `PUT /api/records/:id/review-settings` `{ reviewOwner?, intervalMonths?, nextReviewAt? }`                                                               | review owner, interval, earlier date                                                                            |
+| `POST /api/records/:id/revise` `{ comment }`                                                                                                            | new revision                                                                                                    |
+| `POST /api/records/:id/comments` `{ text }`                                                                                                             | comment                                                                                                         |
+| `POST/DELETE /api/records/:id/links[/:linkId]` `{ kind, id, note }` or `{ url, label, note }`                                                           | links                                                                                                           |
+| `POST /api/records/:id/attachments` (multipart `file`), `DELETE …/:attId`, `GET …/:attId/download`                                                      | attachments                                                                                                     |
+| `POST /api/records/:id/pdf` `{ lang, timeZone, signers: [{ name, role, email? }] }`                                                                     | generate a PDF                                                                                                  |
+| `POST /api/records/:id/signed[?plain=1]` (multipart `file`)                                                                                             | upload a signed PDF                                                                                             |
+| `GET /api/records/:id/export`                                                                                                                           | Markdown                                                                                                        |
+| `POST /api/records/import` `{ files: [{ filename, content }], type?, dryRun? }`                                                                         | import (preview with `dryRun`)                                                                                  |
+| `GET /api/record-types`, `POST`, `PUT /api/record-types/:id`                                                                                            | types (admin for changes)                                                                                       |
+| `GET /api/link-targets?kind=&q=`, `GET /api/backlinks?kind=&id=`                                                                                        | link picker, backlinks                                                                                          |
+| `GET/POST /api/services`, `GET/PUT /api/services/:id`, `POST /api/services/:id/archive` `{ archived }`, `POST/DELETE /api/services/:id/links[/:linkId]` | service catalogue                                                                                               |
 
-Public read-only API (`/api/v1`, API token, see [API.md](API.md)): `GET /records` (filters `type`, `status`, `tag`, `q`), `GET /records/{recordId}` (id or number; content, fields, hashes, attachments, links, history), `GET /records/{recordId}/versions`.
+Public read-only API (`/api/v1`, API token, see [API.md](API.md)): `GET /records` (filters `type`, `status`, `tag`, `q`, `workflow`, `reviewStatus`; documents carry `edition`, `reviewStatus`, `nextReviewAt`), `GET /records/{recordId}` (id or number; content, fields, hashes, attachments, links, history; documents: `document` with the current edition and the review status), `GET /records/{recordId}/versions`, `GET /records/{recordId}/editions`, `GET /records/{recordId}/editions/{edition}`, `GET /records/{recordId}/reviews`.
 
 ## Service catalogue
 

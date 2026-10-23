@@ -46,6 +46,7 @@ import { useTranslation } from 'react-i18next';
 import {
   REPORT_LANGS,
   type LinkTarget,
+  type EditionKind,
   type RecordActionInfo,
   type RecordAttachment,
   type RecordDetail,
@@ -67,8 +68,9 @@ import { currentLanguage } from '../i18n';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabel, optionLabel } from '../components/records/builtin';
 import { confirmDanger } from '../components/confirm';
+import { DocumentChangelog, EditionBadge, EditionFields, ReviewStatusBadge } from '../components/records/DocumentPanel';
 
-const TABS = ['content', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
+const TABS = ['content', 'changelog', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
 type Tab = (typeof TABS)[number];
 
 export function RecordDetailPage() {
@@ -77,7 +79,7 @@ export function RecordDetailPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
-  const tab = (TABS.includes(search.get('tab') as Tab) ? search.get('tab') : 'content') as Tab;
+  const wanted = (TABS.includes(search.get('tab') as Tab) ? search.get('tab') : 'content') as Tab;
   const q = useQuery({ queryKey: ['record', id], queryFn: () => get<RecordDetail>(`/records/${id}`) });
   const meta = useQuery({ queryKey: ['records-meta'], queryFn: () => get<RecordsMeta>('/records/meta') });
   const typeName = useTypeName();
@@ -89,11 +91,15 @@ export function RecordDetailPage() {
     else void qc.invalidateQueries({ queryKey: ['record', id] });
     void qc.invalidateQueries({ queryKey: ['records'] });
     void qc.invalidateQueries({ queryKey: ['record-versions', id] });
+    void qc.invalidateQueries({ queryKey: ['record-changelog', id] });
   };
 
   const rec = q.data;
   if (!rec) return <DetailState query={q} back="records" />;
   const tampered = rec.tampered;
+  const doc = rec.document;
+  // the changelog tab exists for living documents only
+  const tab: Tab = wanted === 'changelog' && !doc ? 'content' : wanted;
   const visibleActions = rec.actions.filter((a) => a.allowed || (a.approval && meta.data?.canApprove));
 
   return (
@@ -104,6 +110,8 @@ export function RecordDetailPage() {
           <Group gap="sm" wrap="wrap">
             <span>{rec.title}</span>
             <RecordStatusBadge status={rec.status} size="lg" />
+            {doc?.currentEdition && <EditionBadge edition={doc.currentEdition} size="lg" />}
+            {doc && (doc.review.status === 'dueSoon' || doc.review.status === 'overdue') && <ReviewStatusBadge status={doc.review.status} size="lg" />}
           </Group>
         }
         description={
@@ -142,7 +150,7 @@ export function RecordDetailPage() {
             })}
             {rec.permissions.revise && (
               <Button size="xs" variant="default" leftSection={<IconGitBranch size={14} />} onClick={() => setRevising(true)}>
-                {rec.status === 'rejected' ? t('detail.rework') : t('detail.revise')}
+                {doc ? t('document.newEdition') : rec.status === 'rejected' ? t('detail.rework') : t('detail.revise')}
               </Button>
             )}
             <Menu position="bottom-end">
@@ -170,9 +178,24 @@ export function RecordDetailPage() {
           {t('detail.tampered')}
         </Alert>
       )}
+      {doc && rec.status === 'revising' && doc.currentEdition && (
+        <Alert color="cyan" variant="light" mb="sm">
+          {t('document.revisingNote', { edition: doc.currentEdition })}
+        </Alert>
+      )}
       {rec.frozen && !tampered && (
         <Alert color="gray" variant="light" icon={<IconLock size={16} />} mb="sm">
-          <Text size="sm">{rec.permissions.revise ? t('detail.frozenRevisable') : t('detail.frozen')}</Text>
+          <Text size="sm">
+            {doc
+              ? rec.status === 'published'
+                ? t(rec.permissions.revise ? 'document.frozenPublishedRevisable' : 'document.frozenPublished', { edition: doc.currentEdition ?? '' })
+                : rec.status === 'withdrawn'
+                  ? t('document.frozenWithdrawn')
+                  : t('document.frozenInReview', { edition: doc.pending?.edition ?? '' })
+              : rec.permissions.revise
+                ? t('detail.frozenRevisable')
+                : t('detail.frozen')}
+          </Text>
           <Text size="xs" c="dimmed" className="mono" style={{ overflowWrap: 'anywhere' }}>
             {t('detail.frozenHash', { hash: rec.frozenHash })}
           </Text>
@@ -180,10 +203,16 @@ export function RecordDetailPage() {
       )}
       {rec.supersededBy && (
         <Alert color="orange" mb="sm">
-          {t('detail.supersededBy')}{' '}
-          <Anchor component={Link} to={`/records/${rec.supersededBy.id}`}>
-            {rec.supersededBy.number} {rec.supersededBy.title}
-          </Anchor>
+          {rec.document ? t('detail.replacedBy') : t('detail.supersededBy')}{' '}
+          {rec.supersededBy.visible && rec.supersededBy.id ? (
+            <Anchor component={Link} to={`/records/${rec.supersededBy.id}`}>
+              {rec.supersededBy.number} {rec.supersededBy.title}
+            </Anchor>
+          ) : (
+            <Text span c="dimmed" fs="italic">
+              {t('links.notVisible')}
+            </Text>
+          )}
         </Alert>
       )}
       {typeof rec.importMeta?.originalStatus === 'string' && rec.status === 'draft' && (
@@ -194,6 +223,7 @@ export function RecordDetailPage() {
       <Tabs value={tab} onChange={(v) => setSearch(v && v !== 'content' ? { tab: v } : {}, { replace: true })} keepMounted={false}>
         <Tabs.List mb="md" style={{ flexWrap: 'wrap' }}>
           <Tabs.Tab value="content">{t('tabs.content')}</Tabs.Tab>
+          {doc && <Tabs.Tab value="changelog">{t('tabs.changelog', { count: doc.editions.length + doc.reviews.length })}</Tabs.Tab>}
           <Tabs.Tab value="versions">{t('tabs.versions', { count: rec.version })}</Tabs.Tab>
           <Tabs.Tab value="links">{t('tabs.links', { count: rec.links.length + rec.backlinks.length })}</Tabs.Tab>
           <Tabs.Tab value="attachments">{t('tabs.attachments', { count: rec.attachments.filter((a) => a.kind === 'file').length })}</Tabs.Tab>
@@ -203,6 +233,11 @@ export function RecordDetailPage() {
         <Tabs.Panel value="content">
           <ContentTab rec={rec} />
         </Tabs.Panel>
+        {doc && (
+          <Tabs.Panel value="changelog">
+            <DocumentChangelog rec={rec} onChange={refresh} />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="versions">
           <VersionsTab rec={rec} />
         </Tabs.Panel>
@@ -625,7 +660,11 @@ function PdfTab({ rec, onGenerate, onChange }: { rec: RecordDetail; onGenerate: 
                           {a.filename}
                         </Anchor>
                       </Table.Td>
-                      <Table.Td className="nowrap">{d ? `${t(`status.${d.status as 'draft'}`)} · r${d.revision} v${d.version} · ${d.lang}` : ''}</Table.Td>
+                      <Table.Td className="nowrap">
+                        {d
+                          ? `${d.edition ? `${t('document.editionShort', { edition: d.edition })} · ` : ''}${t(`status.${d.status as 'draft'}`)} · r${d.revision} v${d.version} · ${d.lang}`
+                          : ''}
+                      </Table.Td>
                       <Table.Td>{d?.signers.map((s) => (s.role ? `${s.name} (${s.role})` : s.name)).join(', ') || '–'}</Table.Td>
                       <Table.Td className="mono" title={a.sha256}>
                         {a.sha256.slice(0, 16)}…
@@ -739,13 +778,18 @@ function TransitionModal({
   const [q, setQ] = useState('');
   const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
+  // living documents: the kind of the edition and what changed (submit)
+  const [kind, setKind] = useState<EditionKind | null>(null);
+  const [summary, setSummary] = useState('');
   const targets = useQuery({
     queryKey: ['link-targets', 'record', debounced],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=record&q=${encodeURIComponent(debounced)}`),
-    enabled: action.needsRecord,
+    enabled: action.needsRecord || action.optionalRecord,
   });
   const label = t(`actions.${action.action as 'submit'}`, { defaultValue: action.action });
-  const valid = (!action.commentRequired || comment.trim()) && (!action.needsRecord || target);
+  const edition = action.needsEdition && !!rec.document;
+  const valid =
+    (!action.commentRequired || comment.trim()) && (!action.needsRecord || target) && (!edition || (summary.trim() && (kind || !rec.document?.currentEdition)));
   const submit = async () => {
     setBusy(true);
     try {
@@ -754,6 +798,9 @@ function TransitionModal({
           action: action.action,
           comment: comment.trim() || undefined,
           supersededBy: target ?? undefined,
+          // approvals decide on the content shown here: the server refuses if it changed in the meantime
+          ...(action.approval ? { contentHash: rec.frozenHash ?? rec.contentHash } : {}),
+          ...(edition ? { changeSummary: summary.trim(), ...(kind ? { editionKind: kind } : {}) } : {}),
         }),
       );
       onClose();
@@ -771,14 +818,16 @@ function TransitionModal({
             {t('transition.approvalNote', { hash: rec.frozenHash ?? rec.contentHash })}
           </Text>
         )}
-        {rec.status === 'draft' && (
+        {!rec.frozen && (
           <Text size="xs" c="dimmed">
-            {t('transition.freezeNote')}
+            {rec.document ? t('document.freezeNote') : t('transition.freezeNote')}
           </Text>
         )}
-        {action.needsRecord && (
+        {edition && <EditionFields rec={rec} kind={kind} onKind={setKind} summary={summary} onSummary={setSummary} />}
+        {(action.needsRecord || action.optionalRecord) && (
           <Select
-            label={t('transition.supersededBy')}
+            label={action.optionalRecord ? t('transition.replacedBy') : t('transition.supersededBy')}
+            clearable={action.optionalRecord}
             placeholder={t('links.search')}
             searchable
             searchValue={q}
@@ -787,7 +836,7 @@ function TransitionModal({
             value={target}
             onChange={setTarget}
             filter={({ options }) => options}
-            required
+            required={action.needsRecord}
           />
         )}
         <Textarea
@@ -829,11 +878,13 @@ function ReviseModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () 
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('revise.title', { number: rec.number })}>
+    <Modal opened onClose={onClose} title={rec.document ? t('document.newEditionTitle', { number: rec.number }) : t('revise.title', { number: rec.number })}>
       <Stack gap="sm">
-        <Text size="sm">{t('revise.help', { revision: rec.revision + 1 })}</Text>
+        <Text size="sm">
+          {rec.document ? t('document.newEditionHelp', { edition: rec.document.currentEdition ?? '' }) : t('revise.help', { revision: rec.revision + 1 })}
+        </Text>
         <Textarea
-          label={t('revise.reason')}
+          label={rec.document ? t('document.newEditionReason') : t('revise.reason')}
           autosize
           minRows={2}
           value={comment}
@@ -847,7 +898,7 @@ function ReviseModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () 
             {t('common:cancel')}
           </Button>
           <Button onClick={submit} loading={busy} disabled={!comment.trim()}>
-            {t('revise.submit')}
+            {rec.document ? t('document.newEditionSubmit') : t('revise.submit')}
           </Button>
         </Group>
       </Stack>

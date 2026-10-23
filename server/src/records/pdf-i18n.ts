@@ -1,4 +1,4 @@
-import { DEFAULT_RECORD_TYPES, type RecordFieldDef, type ReportLang } from '@sm/shared';
+import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, type RecordFieldDef, type ReportLang } from '@sm/shared';
 
 /**
  * Texts of the record PDF (English and German). Like the run reports, the
@@ -80,6 +80,12 @@ const en = {
   st_accepted: 'Accepted',
   st_superseded: 'Superseded',
   st_deprecated: 'Deprecated',
+  st_documented: 'Documented',
+  st_verified: 'Verified',
+  st_in_review: 'In review',
+  st_published: 'Published',
+  st_revising: 'Revising',
+  st_withdrawn: 'Withdrawn',
   act_submit: 'Submitted',
   act_approve: 'Approved',
   act_reject: 'Rejected',
@@ -90,6 +96,36 @@ const en = {
   act_accept: 'Accepted',
   act_supersede: 'Superseded',
   act_deprecate: 'Deprecated',
+  act_withdraw: 'Withdrawn',
+  // living documents
+  edition: 'Edition',
+  editionNo: 'Edition {edition}',
+  editionDraft: 'Draft of edition {edition}',
+  editionNone: 'No approved edition yet',
+  notIntact: 'changed outside Steward – check the audit log',
+  editionOldTitle: 'Edition {edition} – not the current edition',
+  editionOldBody: 'This PDF shows an earlier edition as it was approved. The current edition is {current}.',
+  documentControl: 'Document control',
+  documentControlIntro: 'Every approved edition of this document with its change summary. Each edition is frozen with its content hash.',
+  kind: 'Kind',
+  kind_minor: 'minor',
+  kind_major: 'major',
+  approvedAt: 'Approved',
+  authors: 'Authors',
+  approvedBy: 'Approved by',
+  changeSummary: 'Change summary',
+  lastReview: 'Last review',
+  nextReview: 'Next review',
+  reviewOwner: 'Review owner',
+  reviewInterval: 'Review interval',
+  reviewIntervalMonths: 'every {n} months',
+  reviewNone: 'no periodic review',
+  review_no_change: 'reviewed – no change',
+  review_needs_update: 'needs update',
+  reviewStatus_current: 'current',
+  reviewStatus_dueSoon: 'due soon',
+  reviewStatus_overdue: 'overdue',
+  reviewStatus_none: '–',
 };
 
 export type RecordMsgKey = keyof typeof en;
@@ -171,6 +207,12 @@ const de: Record<RecordMsgKey, string> = {
   st_accepted: 'Angenommen',
   st_superseded: 'Ersetzt',
   st_deprecated: 'Veraltet',
+  st_documented: 'Dokumentiert',
+  st_verified: 'Geprüft',
+  st_in_review: 'In Prüfung',
+  st_published: 'Veröffentlicht',
+  st_revising: 'In Überarbeitung',
+  st_withdrawn: 'Außer Kraft',
   act_submit: 'Eingereicht',
   act_approve: 'Freigegeben',
   act_reject: 'Abgelehnt',
@@ -181,6 +223,35 @@ const de: Record<RecordMsgKey, string> = {
   act_accept: 'Angenommen',
   act_supersede: 'Ersetzt',
   act_deprecate: 'Als veraltet markiert',
+  act_withdraw: 'Außer Kraft gesetzt',
+  edition: 'Fassung',
+  editionNo: 'Fassung {edition}',
+  editionDraft: 'Entwurf der Fassung {edition}',
+  editionNone: 'Noch keine freigegebene Fassung',
+  notIntact: 'außerhalb von Steward geändert – prüfen Sie das Audit-Log',
+  editionOldTitle: 'Fassung {edition} – nicht die aktuelle Fassung',
+  editionOldBody: 'Dieses PDF zeigt eine frühere Fassung, wie sie freigegeben wurde. Die aktuelle Fassung ist {current}.',
+  documentControl: 'Dokumentenlenkung',
+  documentControlIntro: 'Jede freigegebene Fassung dieses Dokuments mit ihrer Änderungszusammenfassung. Jede Fassung ist mit ihrem Inhalts-Hash eingefroren.',
+  kind: 'Art',
+  kind_minor: 'klein',
+  kind_major: 'groß',
+  approvedAt: 'Freigegeben',
+  authors: 'Autoren',
+  approvedBy: 'Freigegeben von',
+  changeSummary: 'Änderungen',
+  lastReview: 'Letzte Überprüfung',
+  nextReview: 'Nächste Überprüfung',
+  reviewOwner: 'Verantwortlich für die Überprüfung',
+  reviewInterval: 'Überprüfungsintervall',
+  reviewIntervalMonths: 'alle {n} Monate',
+  reviewNone: 'keine regelmäßige Überprüfung',
+  review_no_change: 'geprüft – keine Änderung',
+  review_needs_update: 'Änderung nötig',
+  reviewStatus_current: 'aktuell',
+  reviewStatus_dueSoon: 'bald fällig',
+  reviewStatus_overdue: 'überfällig',
+  reviewStatus_none: '–',
 };
 
 const CATALOG: Record<ReportLang, Record<RecordMsgKey, string>> = { en, de };
@@ -195,7 +266,7 @@ export const BUILTIN_TEXTS: Partial<
   Record<ReportLang, { types: Record<string, string>; fields: Record<string, string>; options: Record<string, Record<string, string>> }>
 > = {
   de: {
-    types: { CR: 'Änderungsantrag', ADR: 'Architekturentscheidung', DR: 'Entscheidungsprotokoll', SDR: 'Sicherheitsentscheidung' },
+    types: { CR: 'Änderungsantrag', ADR: 'Architekturentscheidung', DR: 'Entscheidungsprotokoll', SDR: 'Sicherheitsentscheidung', DOC: 'Servicedokumentation' },
     fields: {
       reason: 'Begründung',
       risk: 'Risiko',
@@ -212,7 +283,7 @@ export const BUILTIN_TEXTS: Partial<
   },
 };
 
-const defaultType = (key: string) => DEFAULT_RECORD_TYPES.find((d) => d.key === key);
+const defaultType = (key: string) => [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE].find((d) => d.key === key);
 
 export function recordTexts(lang: ReportLang) {
   const cat = CATALOG[lang] ?? en;

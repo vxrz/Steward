@@ -4,7 +4,7 @@
  * catalogues with evidence coverage, and evidence packs. Shared by server
  * and web: field definitions, API shapes and the access snapshot format.
  */
-import type { RecordFieldDef, RecordType } from './records.js';
+import type { RecordFieldDef, RecordTypeDefinition } from './records.js';
 
 // ---------- access change entries (a built-in record type) ----------
 
@@ -46,7 +46,7 @@ export const ACCESS_CHANGE_FIELDS: RecordFieldDef[] = [
 /** Field keys the compliance features depend on. */
 export const ACCESS_CHANGE_FIELD_KEYS = ACCESS_CHANGE_FIELDS.map((f) => f.key);
 
-export const ACCESS_RECORD_TYPE: Omit<RecordType, 'id' | 'builtin' | 'archived' | 'recordCount' | 'createdAt' | 'updatedAt'> = {
+export const ACCESS_RECORD_TYPE: RecordTypeDefinition = {
   key: ACCESS_TYPE_KEY,
   name: 'Access change',
   description:
@@ -266,6 +266,17 @@ export interface EvidenceItem {
   detail: string;
   /** Item the evidence comes from (the tagged process, record type …) */
   via: { kind: ControlTagKind; id: string; label: string };
+  /** Living documents: the edition valid at the end of the period (with its content hash and approval) and the last review up to then */
+  document?: EvidenceDocument;
+}
+
+export interface EvidenceDocument {
+  edition: string;
+  contentHash: string;
+  approvedAt: string;
+  approvedBy: string;
+  lastReviewedAt: string | null;
+  lastReviewedBy: string | null;
 }
 
 export type CoverageStatus = 'covered' | 'gap' | 'unmapped';

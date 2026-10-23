@@ -98,6 +98,20 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
     const { id } = await api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub } });
     const waiting = await waitFor(id, ['waiting', 'failed']);
     expect(waiting.status).toBe('waiting');
+    // a living document with an edition and a review: their rows refuse UPDATE and DELETE (triggers), so
+    // --force must lift the triggers while it replaces the data
+    const signIn = async (username: string, password = 'Demo-password-1') => {
+      cookie = '';
+      sessionKey = '';
+      await api('POST', '/auth/login', { username, password });
+    };
+    await signIn('dana');
+    const doc = await api('POST', '/records', { type: 'DOC', title: 'Copied document' });
+    await api('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
+    await signIn('adam');
+    await api('POST', `/records/${doc.id}/transition`, { action: 'approve' });
+    await api('POST', `/records/${doc.id}/review`, { outcome: 'no_change', comment: 'Still right' });
+    await signIn('admin', 'Admin-password-1');
     const before = {
       runs: (await api('GET', '/runs')).length,
       audit: (await api('GET', '/audit?limit=5000')).length,
@@ -122,6 +136,9 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
     expect((await api('GET', '/runs')).length).toBe(before.runs);
     expect((await api('GET', '/platforms')).length).toBe(before.platforms);
     expect((await api('GET', '/audit?limit=5000')).length).toBeGreaterThanOrEqual(before.audit);
+    const copied = (await api('GET', `/records/${doc.id}`)).document;
+    expect(copied.editions.map((e: any) => [e.edition, e.intact])).toEqual([['1.0', true]]);
+    expect(copied.reviews.map((r: any) => [r.outcome, r.intact])).toEqual([['no_change', true]]);
     expect((await api('GET', '/audit/verify')).ok).toBe(true);
     const ready = await api('GET', '/ready');
     expect(ready.checks.database.ok).toBe(true);

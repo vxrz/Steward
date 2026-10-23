@@ -8,7 +8,8 @@
     "ADR": "Architecture decision record",
     "DR": "Decision record",
     "SDR": "Security decision record",
-    "AC": "Access change"
+    "AC": "Access change",
+    "DOC": "Service documentation"
   },
   "builtin": {
     "types": {
@@ -31,6 +32,10 @@
       "AC": {
         "description": "Documentation of a grant, revocation or change of access rights on a platform, including changes made outside Steward. Documenting freezes the entry; another person can verify it.",
         "template": "## Details\n\n\n## Evidence\n\n- \n"
+      },
+      "DOC": {
+        "description": "A living document, e.g. an operations manual, an identity and access management concept or an authorization concept. Each approved edition (1.0, 1.1, 2.0) is frozen; the document is reviewed at planned intervals.",
+        "template": "## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n"
       }
     },
     "fields": {
@@ -156,7 +161,11 @@
     "superseded": "Superseded",
     "deprecated": "Deprecated",
     "documented": "Documented",
-    "verified": "Verified"
+    "verified": "Verified",
+    "in_review": "In review",
+    "published": "Published",
+    "revising": "Revising",
+    "withdrawn": "Withdrawn"
   },
   "actions": {
     "submit": "Submit",
@@ -170,7 +179,8 @@
     "supersede": "Mark as superseded",
     "deprecate": "Deprecate",
     "document": "Document",
-    "verify": "Verify"
+    "verify": "Verify",
+    "withdraw": "Withdraw"
   },
   "list": {
     "search": "Search",
@@ -190,7 +200,12 @@
     "emptyText": "Change requests and decision records you may see will show up here.",
     "emptyCreateText": "Write a change request or a decision record, or import your existing decision records from Markdown files.",
     "emptyAction": "Write your first record",
-    "emptyImport": "Import existing records"
+    "emptyImport": "Import existing records",
+    "workflow": "Workflow",
+    "allWorkflows": "All workflows",
+    "review": "Review",
+    "anyReview": "Any review status",
+    "reviewDue": "Due soon or overdue"
   },
   "create": {
     "title": "New record",
@@ -204,7 +219,8 @@
     "links": "Links ({{count}})",
     "attachments": "Attachments ({{count}})",
     "discussion": "Approvals & comments ({{count}})",
-    "pdfs": "PDF & signatures ({{count}})"
+    "pdfs": "PDF & signatures ({{count}})",
+    "changelog": "Changelog ({{count}})"
   },
   "detail": {
     "owner": "Owner {{owner}}",
@@ -221,6 +237,7 @@
     "tamperedTitle": "The content does not match its recorded hash",
     "tampered": "The record was changed outside Steward after it was frozen. It cannot be approved or moved on. Check the audit log.",
     "supersededBy": "This decision was superseded by",
+    "replacedBy": "This document was replaced by",
     "importedStatus": "Imported from {{file}} with the status \"{{status}}\". Imported records start as drafts and need an approval in Steward.",
     "noBody": "No text yet."
   },
@@ -311,7 +328,8 @@
     "supersededBy": "Superseded by",
     "comment": "Comment",
     "commentRequired": "Required: please give a reason.",
-    "commentOptional": "Optional."
+    "commentOptional": "Optional.",
+    "replacedBy": "Replaced by (optional)"
   },
   "revise": {
     "title": "New revision of {{number}}",
@@ -422,12 +440,14 @@
     "workflows": {
       "change": "Change",
       "decision": "Decision",
-      "access": "Access"
+      "access": "Access",
+      "document": "Document"
     },
     "workflowHelp": {
       "change": "Draft → Submitted → Approved or Rejected → Implemented → Closed; Cancelled from Draft or Submitted.",
       "decision": "Draft → Proposed → Accepted or Rejected; Accepted → Superseded or Deprecated.",
-      "access": "Draft → Documented (frozen) → Verified by a second person; Cancelled from Draft."
+      "access": "Draft → Documented (frozen) → Verified by a second person; Cancelled from Draft.",
+      "document": "Draft → In review → Published (edition 1.0) → New edition (Revising) → In review → Published (1.1 or 2.0) …; Withdrawn from Draft, Published or Revising. The current edition stays valid while the next one is drafted, and the document is reviewed at planned intervals."
     },
     "workflowLocked": "The workflow cannot change while records of this type exist.",
     "template": "Template (Markdown)",
@@ -454,6 +474,101 @@
       "datetime": "Date and time",
       "select": "Choice"
     },
-    "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered."
+    "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered.",
+    "reviewInterval": "Review interval (months)",
+    "reviewIntervalHelp": "Documents of this type are reviewed this many months after each approval or review. 0: no periodic reviews.",
+    "reviewEvery_one": "review every month",
+    "reviewEvery_other": "review every {{count}} months",
+    "reviewNone": "no periodic review"
+  },
+  "document": {
+    "edition": "Edition",
+    "editionShort": "Edition {{edition}}",
+    "editionTitle": "{{number}} – edition {{edition}}",
+    "newEdition": "New edition",
+    "newEditionTitle": "New edition of {{number}}",
+    "newEditionHelp": "Starts the draft of the next edition from edition {{edition}}. Edition {{edition}} stays valid and readable until the next one is approved.",
+    "revisingNote": "The next edition is being drafted. Edition {{edition}} stays valid until it is approved.",
+    "frozenPublished": "Edition {{edition}} is published. Its content is frozen.",
+    "frozenPublishedRevisable": "Edition {{edition}} is published. Its content is frozen – start a new edition to change it.",
+    "frozenInReview": "Edition {{edition}} is in review. Its content is frozen until it is approved or rejected.",
+    "frozenWithdrawn": "This document is withdrawn. All its editions stay readable.",
+    "kind": "Kind of edition",
+    "kindMinor": "Minor – editorial change (becomes {{edition}})",
+    "kindMajor": "Major – substantive change (becomes {{edition}})",
+    "firstEdition": "This becomes edition 1.0.",
+    "changeSummary": "What changed in this edition?",
+    "changeSummaryHelp": "Required. It appears in the document changelog and the PDF.",
+    "kinds": {
+      "minor": "minor",
+      "major": "major"
+    },
+    "outcomes": {
+      "no_change": "Reviewed – no change",
+      "needs_update": "Needs update"
+    },
+    "reviewStatus": {
+      "current": "Review current",
+      "dueSoon": "Review due soon",
+      "overdue": "Review overdue",
+      "none": "No review planned"
+    },
+    "reviewTitle": "Periodic review",
+    "reviewTitleNamed": "Review {{number}} (edition {{edition}})",
+    "needsUpdateTitle": "{{number}} needs an update",
+    "nextReview": "Next review: {{date}}",
+    "noReviewPlanned": "No periodic review planned.",
+    "noEditionYet": "Reviews start with the first approved edition.",
+    "reviewOwner": "Reviewed by {{owner}}",
+    "interval_one": "every month",
+    "interval_other": "every {{count}} months",
+    "noInterval": "no periodic review",
+    "lastReview": "last reviewed {{date}} by {{reviewer}}",
+    "updateRequested": "A review on {{date}} found that the document needs an update. The review stays due until the next edition is approved.",
+    "reviewedNoChange": "Reviewed – no change",
+    "needsUpdate": "Needs update",
+    "reviewSettings": "Review settings",
+    "noChangeHelp": "The current edition stays valid. The next review is planned from today.",
+    "needsUpdateHelp": "Starts the draft of the next edition. The current edition stays valid, and the review stays due until the new edition is approved.",
+    "reviewComment": "Comment",
+    "reviewedDone": "Review recorded",
+    "reviewedNeedsUpdate": "Review recorded – the next edition is drafted",
+    "pendingTitle": "Edition {{edition}} in review",
+    "changelog": "Document changelog",
+    "noEditions": "No approved edition yet. Submit the draft for review to publish edition 1.0.",
+    "date": "Date",
+    "people": "Authors / reviewer",
+    "approvedBy": "Approved by",
+    "summary": "Change summary / comment",
+    "actions": "Actions",
+    "reviewOf": "Review of edition {{edition}}",
+    "open": "Open",
+    "openNamed": "Open edition {{edition}}",
+    "diff": "Diff",
+    "diffNamed": "Changes from edition {{from}} to {{to}}",
+    "diffTitle": "Changes from edition {{from}} to {{to}}",
+    "pdf": "PDF",
+    "pdfNamed": "PDF of edition {{edition}}",
+    "pdfCreated": "{{file}} generated – find it under PDF & signatures",
+    "notIntact": "The stored content of this edition does not match the hash recorded when it was approved – check the audit log.",
+    "notIntactShort": "Changed outside Steward",
+    "changelogNotIntact": "An edition or review in this changelog no longer matches the audit entry that recorded it: it was changed outside Steward. Check the audit log.",
+    "approvedLine": "Approved {{date}} by {{approver}} ({{kind}})",
+    "current": "current edition",
+    "settingsTitle": "Review settings of {{number}}",
+    "settingsOwner": "Review owner",
+    "settingsOwnerHelp": "Who reviews the document and gets the reminders. Empty: the owner ({{owner}}).",
+    "settingsInterval": "Review interval (months)",
+    "settingsIntervalHelp_one": "Empty: the type's interval (every month). 0: no periodic reviews.",
+    "settingsIntervalHelp_other": "Empty: the type's interval (every {{count}} months). 0: no periodic reviews.",
+    "settingsIntervalLimited_one": "Empty: the type's interval (every month). A shorter interval is possible; no periodic reviews or a longer interval need an administrator.",
+    "settingsIntervalLimited_other": "Empty: the type's interval (every {{count}} months). A shorter interval is possible; no periodic reviews or a longer interval need an administrator.",
+    "settingsApproversOnly": "Approvers and administrators choose the review owner and the interval.",
+    "settingsNextLimited": "Optional: an earlier date for the next review. The next review or edition clears it. Only approvers and administrators remove it or move it later.",
+    "settingsNext": "Review earlier on",
+    "settingsNextHelp": "Optional: an earlier date for the next review. The next review or edition clears it.",
+    "newEditionReason": "Why is a new edition needed?",
+    "newEditionSubmit": "Start new edition",
+    "freezeNote": "The content is frozen from now on. Changing it later needs a new edition."
   }
 }

@@ -68,7 +68,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(page.getByRole('textbox', { name: 'Status' })).toHaveValue('failed');
   });
 
-  test('start page: six tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
+  test('start page: seven tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
     // a ticket waiting for a vendor since 12 days, so that tile needs attention
     const number = uniq('VEND');
     const openedAt = new Date(Date.now() - 12 * 86400000).toISOString();
@@ -83,7 +83,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await settle(page);
     const tiles = page.getByTestId('start-tiles');
     const links = tiles.getByRole('link');
-    await expect(links).toHaveCount(6);
+    await expect(links).toHaveCount(7);
     // the approved order; every link names its label and number
     const names = await links.evaluateAll((l) => l.map((a) => a.getAttribute('aria-label') ?? ''));
     expect(names.map((n) => n.replace(/: .*/, ''))).toEqual([
@@ -92,6 +92,7 @@ test.describe('lists, dialogs and help (admin)', () => {
       'Monitors down',
       'Credentials due',
       'Undocumented access changes',
+      'Reviews due',
       'Waiting on vendors',
     ]);
     for (const n of names) expect(n).toMatch(/^[^:]+: \d+ – .+/);
@@ -101,12 +102,13 @@ test.describe('lists, dialogs and help (admin)', () => {
       '/monitors?status=down,degraded',
       '/credentials?status=expired,overdue,dueSoon',
       '/compliance/reconciliation?findings=open',
+      '/records?workflow=document&review=overdue,dueSoon',
       '/tickets?waiting=vendor',
     ]);
     const vendor = tiles.getByRole('link', { name: /^Waiting on vendors: [1-9]\d* – oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order
-    await links.nth(4).focus();
+    await links.nth(5).focus();
     await page.keyboard.press('Tab');
     await expect(vendor).toBeFocused();
     await expectAccessible(page, 'start page tiles');
@@ -244,11 +246,13 @@ test.describe('phone @mobile', () => {
     await page.goto('/');
     await settle(page);
     const links = page.getByTestId('start-tiles').getByRole('link');
-    await expect(links).toHaveCount(6);
-    const boxes = await Promise.all([0, 1, 2, 5].map(async (i) => (await links.nth(i).boundingBox())!));
+    await expect(links).toHaveCount(7);
+    const boxes = await Promise.all([0, 1, 2, 5, 6].map(async (i) => (await links.nth(i).boundingBox())!));
     expect(Math.round(boxes[0]!.y)).toBe(Math.round(boxes[1]!.y));
     expect(boxes[2]!.y).toBeGreaterThan(boxes[0]!.y);
     expect(Math.round(boxes[3]!.width)).toBe(Math.round(boxes[0]!.width));
+    // seven tiles: the last one takes the whole row
+    expect(boxes[4]!.width).toBeGreaterThan(boxes[0]!.width * 1.5);
     await expectNoHorizontalScroll(page);
   });
 

@@ -94,7 +94,8 @@
     "ADR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "DR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "SDR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n",
-    "AC": "## Details\n\n\n## Nachweise\n\n- \n"
+    "AC": "## Details\n\n\n## Nachweise\n\n- \n",
+    "DOC": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n"
   },
   "ticketStatus": {
     "open": "offen",
@@ -124,7 +125,8 @@
       "credentials": "Fällige Zugangsdaten",
       "tickets": "Offene Tickets in Ihrer Verantwortung",
       "records": "Dokumente",
-      "reports": "Berichte für Sie"
+      "reports": "Berichte für Sie",
+      "reviews": "Fällige Überprüfungen von Dokumenten"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
@@ -165,14 +167,29 @@
       "proposed": "Vorgeschlagen",
       "accepted": "Angenommen",
       "superseded": "Ersetzt",
-      "deprecated": "Veraltet"
+      "deprecated": "Veraltet",
+      "documented": "Dokumentiert",
+      "verified": "Geprüft",
+      "in_review": "In Prüfung",
+      "published": "Veröffentlicht",
+      "revising": "In Überarbeitung",
+      "withdrawn": "Außer Kraft"
     },
     "reportDetail": "Erstellt am {{date}}",
     "more_one": "… und {{count}} weiterer",
-    "more_other": "… und {{count}} weitere"
+    "more_other": "… und {{count}} weitere",
+    "reviewTitle": "{{number}} {{title}} (Fassung {{edition}})"
   },
   "accessUndocumented": {
     "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
     "body": "Der Zugriffsabgleich „{{name}}“ hat auf {{platform}} {{n}} Zugriffsänderung(en) ohne Eintrag gefunden:\n{{list}}\n\nDokumentieren Sie sie unter Compliance → Zugriffsabgleich."
+  },
+  "documentReview": {
+    "titleBefore_one": "Erinnerung Überprüfung: {{number}} „{{title}}“ – Überprüfung in {{count}} Tag fällig",
+    "titleBefore_other": "Erinnerung Überprüfung: {{number}} „{{title}}“ – Überprüfung in {{count}} Tagen fällig",
+    "titleOverdue": "Erinnerung Überprüfung: {{number}} „{{title}}“ – Überprüfung ist überfällig",
+    "bodyBefore": "Die regelmäßige Überprüfung von {{number}} „{{title}}“ (Fassung {{edition}}) ist am {{date}} fällig.",
+    "bodyOverdue": "Die regelmäßige Überprüfung von {{number}} „{{title}}“ (Fassung {{edition}}) war am {{date}} fällig.",
+    "howTo": "Öffnen Sie das Dokument, prüfen Sie, ob die aktuelle Fassung noch stimmt, und wählen Sie „Geprüft – keine Änderung“ oder „Änderung nötig“."
   }
 }

@@ -7,6 +7,7 @@ import {
   Checkbox,
   Group,
   Modal,
+  NumberInput,
   Paper,
   Select,
   Stack,
@@ -74,7 +75,14 @@ export function RecordTypesPage() {
                     {typeDescription(x)}
                   </Text>
                 </Table.Td>
-                <Table.Td>{t(`types.workflows.${x.workflow}`)}</Table.Td>
+                <Table.Td>
+                  {t(`types.workflows.${x.workflow}`)}
+                  {x.workflow === 'document' && (
+                    <Text size="xs" c="dimmed">
+                      {x.reviewIntervalMonths ? t('types.reviewEvery', { count: x.reviewIntervalMonths }) : t('types.reviewNone')}
+                    </Text>
+                  )}
+                </Table.Td>
                 <Table.Td>{x.fields.map((f) => fieldLabel(x.key, f)).join(', ') || '–'}</Table.Td>
                 <Table.Td>{x.recordCount}</Table.Td>
                 <Table.Td>
@@ -104,6 +112,7 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
   const [template, setTemplate] = useState(type?.template ?? '');
   const [fields, setFields] = useState<RecordFieldDef[]>(type?.fields ?? []);
   const [archived, setArchived] = useState(type?.archived ?? false);
+  const [reviewMonths, setReviewMonths] = useState<number | ''>(type?.reviewIntervalMonths ?? 12);
   const [busy, setBusy] = useState(false);
   const locked = !!type && type.recordCount > 0;
   const updateField = (i: number, patch: Partial<RecordFieldDef>) => setFields((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
@@ -125,6 +134,7 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
           ...(f.help?.trim() ? { help: f.help.trim() } : {}),
         })),
         archived,
+        ...(workflow === 'document' ? { reviewIntervalMonths: reviewMonths === '' ? 12 : reviewMonths } : {}),
       };
       if (type) await put(`/record-types/${type.id}`, body);
       else await post('/record-types', body);
@@ -182,6 +192,18 @@ function TypeModal({ type, onClose }: { type: RecordType | null; onClose: () => 
             disabled={locked}
             allowDeselect={false}
           />
+          {workflow === 'document' && (
+            <NumberInput
+              label={t('types.reviewInterval')}
+              description={t('types.reviewIntervalHelp')}
+              min={0}
+              max={120}
+              allowDecimal={false}
+              value={reviewMonths}
+              onChange={(v) => setReviewMonths(typeof v === 'number' ? v : '')}
+              w={{ base: '100%', xs: 260 }}
+            />
+          )}
           <Textarea
             label={t('types.template')}
             description={t('types.templateHelp')}

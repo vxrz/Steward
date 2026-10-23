@@ -268,6 +268,7 @@ _Records_ holds the team's **change requests** and **decision records** (ADR, DR
 - Markdown text (rendered without HTML), structured fields, comments, attachments (documents and e-mails, content-checked) and links to processes, runs, monitors, platforms, dashboards, services and external pages, shown on both sides;
 - import of existing ADRs from Markdown (MADR, Nygard, YAML frontmatter) and export back to Markdown;
 - a PDF/A-2b document with signature blocks and empty digital signature fields for people outside Steward; the signed PDF is uploaded back and checked to be derived from the generated one (structure only, not a cryptographic validation).
+- **living documents** (type `DOC – Service documentation`: operations manuals, access and authorization concepts): approved **editions** (1.0, 1.1, 2.0, minor or major) with a document changelog and diff, the current edition valid while the next one is drafted, and **periodic reviews** with reminders, a start page tile and evidence for the compliance controls ([docs/RECORDS.md](docs/RECORDS.md#living-documents));
 
 _Services_ is a minimal service catalogue: contacts, criticality, the entry in your CMDB and links. See [docs/RECORDS.md](docs/RECORDS.md).
 

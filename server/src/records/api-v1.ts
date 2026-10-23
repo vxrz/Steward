@@ -1,10 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { RecordDetail, RecordSummary } from '@sm/shared';
+import { EDITION_RE, type RecordDetail, type RecordEdition, type RecordEditionSummary, type RecordSummary, type ReviewStatus } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
+import * as docs from './documents.js';
 import * as A from './api-schemas.js';
 
 /** Records in the public, read-only API (list, get, versions). Every token owner may read records, as in the UI – access change entries only who may read them there. */
@@ -37,6 +38,26 @@ const mapRecord = (r: RecordSummary) => ({
   createdBy: r.createdBy,
   updatedAt: r.updatedAt,
   updatedBy: r.updatedBy,
+  edition: r.edition ?? null,
+  reviewStatus: r.reviewStatus ?? null,
+  nextReviewAt: r.nextReviewAt ?? null,
+});
+
+const mapEdition = (e: RecordEditionSummary) => ({
+  edition: e.edition,
+  kind: e.kind,
+  revision: e.revision,
+  version: e.version,
+  title: e.title,
+  contentHash: e.contentHash,
+  changeSummary: e.changeSummary,
+  authors: e.authors,
+  submittedBy: e.submittedBy,
+  submittedAt: e.submittedAt,
+  approvedBy: e.approvedBy,
+  approvedAt: e.approvedAt,
+  current: e.current,
+  intact: e.intact,
 });
 
 const mapDetail = (r: RecordDetail) => ({
@@ -52,6 +73,22 @@ const mapDetail = (r: RecordDetail) => ({
   attachments: r.attachments.map(({ details: _d, ...a }) => a),
   links: r.links.map((l) => ({ kind: l.kind, targetId: l.targetId, url: l.url, label: l.label, note: l.note, visible: l.visible })),
   events: r.events.map(({ id: _id, ...e }) => e),
+  document: r.document
+    ? {
+        currentEdition: r.document.currentEdition,
+        pending: r.document.pending,
+        review: {
+          status: r.document.review.status,
+          intervalMonths: r.document.review.intervalMonths,
+          owner: r.document.review.owner,
+          lastReviewedAt: r.document.review.lastReviewedAt,
+          lastReviewedBy: r.document.review.lastReviewedBy,
+          nextReviewAt: r.document.review.nextReviewAt,
+          daysLeft: r.document.review.daysLeft,
+          updateRequestedAt: r.document.review.updateRequestedAt,
+        },
+      }
+    : null,
 });
 
 const ref = (name: keyof typeof A.RECORD_COMPONENTS & string) => ({ $ref: `${name}#` });
@@ -74,14 +111,25 @@ export async function recordApiRoutes(_app: FastifyInstance, get: Get): Promise<
       tag: 'Records',
       summary: 'List records',
       description:
-        'Change requests and decision records, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.',
+        'Change requests, decision records and living documents, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.',
       query: A.RecordListQuery,
       paginated: true,
       response: pageOf('Record', 'A page of records'),
     },
     async (req, reply) => {
-      const q = req.query as { type?: string; status?: string[]; tag?: string; q?: string; cursor?: string; limit: number };
-      const list = svc.listRecords({ type: q.type, status: q.status, tag: q.tag, q: q.q, limit: 10000 }).map(mapRecord);
+      const q = req.query as {
+        type?: string;
+        status?: string[];
+        tag?: string;
+        q?: string;
+        workflow?: string;
+        reviewStatus?: ReviewStatus[];
+        cursor?: string;
+        limit: number;
+      };
+      const list = svc
+        .listRecords({ type: q.type, status: q.status, tag: q.tag, q: q.q, workflow: q.workflow, review: q.reviewStatus, limit: 10000 })
+        .map(mapRecord);
       const page = pageArray(list, (r) => [r.number, r.id], q, q);
       linkNext(req, reply, page.nextCursor);
       return page;
@@ -117,6 +165,70 @@ export async function recordApiRoutes(_app: FastifyInstance, get: Get): Promise<
       const q = req.query as { cursor?: string; limit: number };
       const versions = found(() => svc.listVersions(id), `Record ${id}`);
       const page = pageArray(versions, (v) => [-v.version], q, { ...q, id });
+      linkNext(req, reply, page.nextCursor);
+      return page;
+    },
+  );
+
+  get(
+    '/records/:recordId/editions',
+    {
+      operationId: 'listRecordEditions',
+      tag: 'Records',
+      summary: 'Editions of a living document',
+      description:
+        'Approved editions (1.0, 1.1, 2.0) of a record of the workflow "document", newest first, each with its content hash and approval. Empty for other records.',
+      params: { recordId: 'Record id or number' },
+      query: A.RecordEditionsQuery,
+      paginated: true,
+      response: pageOf('RecordEditionSummary', 'A page of editions'),
+    },
+    async (req, reply) => {
+      const id = params(req).recordId!;
+      const q = req.query as { cursor?: string; limit: number };
+      const list = found(() => docs.listEditions(id), `Record ${id}`).map(mapEdition);
+      const page = pageArray(list, (e) => [-(Number(e.edition.split('.')[0]) * 100000 + Number(e.edition.split('.')[1]))], q, { ...q, id });
+      linkNext(req, reply, page.nextCursor);
+      return page;
+    },
+  );
+
+  get(
+    '/records/:recordId/editions/:edition',
+    {
+      operationId: 'getRecordEdition',
+      tag: 'Records',
+      summary: 'One frozen edition of a living document',
+      description: 'Title, text, fields and files of the edition as approved, with its content hash.',
+      params: { recordId: 'Record id or number', edition: 'Edition, e.g. 1.0' },
+      response: ref('RecordEdition'),
+      errors: [409],
+    },
+    async (req) => {
+      const { recordId, edition } = params(req) as { recordId: string; edition: string };
+      if (!EDITION_RE.test(edition)) throw new ProblemError(404, { type: 'not-found', title: 'Not found', detail: `Edition ${edition} not found` });
+      const e: RecordEdition = found(() => docs.getEdition(recordId, edition), `Edition ${edition} of ${recordId}`);
+      return { ...mapEdition(e), body: e.body, fields: e.fields, attachments: e.attachments };
+    },
+  );
+
+  get(
+    '/records/:recordId/reviews',
+    {
+      operationId: 'listRecordReviews',
+      tag: 'Records',
+      summary: 'Periodic reviews of a living document',
+      description: 'Reviews ("Reviewed – no change", "Needs update"), newest first. The review status is part of the record (document.review).',
+      params: { recordId: 'Record id or number' },
+      query: A.RecordReviewsQuery,
+      paginated: true,
+      response: pageOf('RecordReview', 'A page of reviews'),
+    },
+    async (req, reply) => {
+      const id = params(req).recordId!;
+      const q = req.query as { cursor?: string; limit: number };
+      const list = found(() => docs.listReviews(id), `Record ${id}`);
+      const page = pageArray(list, (v) => [-Date.parse(v.createdAt), v.id], q, { ...q, id });
       linkNext(req, reply, page.nextCursor);
       return page;
     },

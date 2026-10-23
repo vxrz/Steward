@@ -8,6 +8,7 @@ import { IconExternalLink, IconLink, IconPlus, IconTrash } from '@tabler/icons-r
 import { useTranslation } from 'react-i18next';
 import {
   ACCESS_RECORD_TYPE,
+  DOCUMENT_RECORD_TYPE,
   DEFAULT_RECORD_TYPES,
   LINK_KINDS,
   RECORD_STATUS_COLORS,
@@ -28,7 +29,7 @@ export function useTypeName() {
   const { t } = useTranslation('records');
   return (type: Pick<RecordType, 'key' | 'name' | 'builtin'> | undefined | null, fallback = ''): string => {
     if (!type) return fallback;
-    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE].find((d) => d.key === type.key);
+    const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE].find((d) => d.key === type.key);
     if (type.builtin && def && def.name === type.name) return t(`builtinTypes.${type.key as 'CR'}`, { defaultValue: type.name });
     return type.name;
   };
@@ -98,9 +99,16 @@ export function LinksPanel({
                         {l.label || l.url} <IconExternalLink size={12} aria-hidden />
                       </Anchor>
                     ) : l.visible && l.path ? (
-                      <Anchor component={Link} to={l.path} size="sm">
-                        {l.label}
-                      </Anchor>
+                      <>
+                        <Anchor component={Link} to={l.path} size="sm">
+                          {l.label}
+                        </Anchor>
+                        {l.edition && (
+                          <Badge size="xs" variant="light" color="green" ml={6}>
+                            {t('document.editionShort', { edition: l.edition })}
+                          </Badge>
+                        )}
+                      </>
                     ) : (
                       <Text size="sm" c="dimmed">
                         {t('links.notVisible')}

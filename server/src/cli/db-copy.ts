@@ -20,6 +20,7 @@ import { config } from '../config.js';
 import { Db } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
+import { IMMUTABLE_RECORD_TABLES, immutableRowTriggers } from '../migrations/records.js';
 
 export interface CopyOptions {
   from: DatabaseTarget;
@@ -160,9 +161,12 @@ export function copyDatabase(opts: CopyOptions): CopyResult {
       target.tx(() => {
         // evidence tables refuse deletes (trigger): lifted only while their old rows are replaced
         const guarded = EVIDENCE_TABLES.filter((t) => filled.includes(t));
+        const frozen = IMMUTABLE_RECORD_TABLES.filter((t) => filled.includes(t));
         for (const t of guarded) target.exec(noDeleteTrigger(target.dialect, t).drop);
+        for (const t of frozen) target.exec(immutableRowTriggers(target.dialect, t).drop);
         for (const t of [...order].reverse()) if (filled.includes(t)) target.run(`DELETE FROM ${quoteIdent(t)}`);
         for (const t of guarded) target.exec(noDeleteTrigger(target.dialect, t).create);
+        for (const t of frozen) target.exec(immutableRowTriggers(target.dialect, t).create);
         for (const t of order) {
           if (!srcTables.includes(t)) {
             result.tables.push({ name: t, rows: 0 });

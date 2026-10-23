@@ -475,6 +475,18 @@ function EvidenceList({ items }: { items: EvidenceItem[] }) {
                     {t('accessChanges.afterTheFact')}
                   </Badge>
                 )}
+                {e.document && (
+                  <Badge size="xs" color="green" variant="light" ml={4} title={e.document.contentHash}>
+                    {t('controls.documentEdition', { edition: e.document.edition })}
+                  </Badge>
+                )}
+                {e.document && (
+                  <Text span size="xs" c="dimmed" ml={4}>
+                    {e.document.lastReviewedAt
+                      ? t('controls.documentReviewed', { date: fmtDate(e.document.lastReviewedAt), reviewer: e.document.lastReviewedBy ?? '' })
+                      : t('controls.documentApproved', { date: fmtDate(e.document.approvedAt), approver: e.document.approvedBy })}
+                  </Text>
+                )}
               </Table.Td>
               <Table.Td>{fmtDate(e.at)}</Table.Td>
             </Table.Tr>

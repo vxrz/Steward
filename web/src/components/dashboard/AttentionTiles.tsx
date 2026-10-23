@@ -4,6 +4,7 @@ import {
   IconAlertTriangle,
   IconArrowsDiff,
   IconCircleCheck,
+  IconFileTime,
   IconHeartRateMonitor,
   IconInbox,
   IconKey,
@@ -35,6 +36,7 @@ const COLS: Record<number, SimpleGridProps['cols']> = {
   4: { base: 2, lg: 4 },
   5: { base: 2, lg: 5 },
   6: { base: 2, md: 3 },
+  7: { base: 2, lg: 4 },
 };
 
 /** The start page's tiles: what needs the user's attention. Tiles the server left out (no right) are not shown. */
@@ -94,6 +96,17 @@ export function AttentionTiles({ a }: { a: DashboardAttention }) {
       detail: a.findings.open ? t('counts.findingsDetail') : quiet,
       to: '/compliance/reconciliation?findings=open',
       icon: IconArrowsDiff,
+    });
+  const r = a.reviews;
+  if (r)
+    tiles.push({
+      key: 'reviews',
+      label: t('counts.reviewsDue'),
+      value: r.overdue + r.dueSoon,
+      tone: r.overdue ? TONE.attention : r.dueSoon ? TONE.soon : null,
+      detail: r.overdue + r.dueSoon ? t('counts.reviewsSplit', { overdue: fmtNumber(r.overdue), dueSoon: fmtNumber(r.dueSoon) }) : quiet,
+      to: '/records?workflow=document&review=overdue,dueSoon',
+      icon: IconFileTime,
     });
   const v = a.vendorTickets;
   if (v)

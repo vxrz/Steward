@@ -29,6 +29,7 @@ import * as rec from './reconciliation.js';
 import * as ctl from './controls.js';
 import * as packs from './evidence-pack.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { ensureDefaultTypes } from '../records/types.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const iso = z.string().datetime({ offset: true });
@@ -253,6 +254,7 @@ function tagTargets(kind: ControlTagKind, text: string): { id: string; label: st
         .slice(0, LIMIT)
         .map((p) => ({ id: p.id, label: p.name }));
     case 'recordType':
+      ensureDefaultTypes(); // the built-in types exist before anyone opened the records pages
       return db()
         .all<{ id: string; key: string; name: string }>(
           "SELECT id, key, name FROM record_types WHERE lower(key) LIKE ? ESCAPE '\\' OR lower(name) LIKE ? ESCAPE '\\' ORDER BY key LIMIT ?",

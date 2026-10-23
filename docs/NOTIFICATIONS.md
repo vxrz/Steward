@@ -8,18 +8,19 @@ Steward notifies people in the app (the bell in the header) and – depending on
 
 ## Events
 
-| Event              | Who gets it                                                                       |
-| ------------------ | --------------------------------------------------------------------------------- |
-| Decision           | People who may decide a task that waits                                           |
-| Run failed         | Who started the run, the owner of the schedule                                    |
-| Check failed       | Who started the run, the schedule owner, the process owner                        |
-| Stale data         | The process owner and administrators                                              |
-| Schedule skipped   | The schedule owner and administrators                                             |
-| Monitor status     | Owners and subscribers of the monitor (root causes only)                          |
-| Credential due     | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                        |
-| Report ready       | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                  |
-| Ticket not checked | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders)) |
-| Daily summary      | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks |
+| Event               | Who gets it                                                                       |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Decision            | People who may decide a task that waits                                           |
+| Run failed          | Who started the run, the owner of the schedule                                    |
+| Check failed        | Who started the run, the schedule owner, the process owner                        |
+| Stale data          | The process owner and administrators                                              |
+| Schedule skipped    | The schedule owner and administrators                                             |
+| Monitor status      | Owners and subscribers of the monitor (root causes only)                          |
+| Credential due      | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                        |
+| Report ready        | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                  |
+| Ticket not checked  | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders)) |
+| Document review due | The review owner of a living document ([RECORDS.md](RECORDS.md#periodic-reviews)) |
+| Daily summary       | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks |
 
 ## E-mail addresses outside Steward
 
@@ -37,6 +38,7 @@ Once a day, a short summary of what concerns you. It is **off by default**; turn
 - credentials due soon, overdue or expired that you may see;
 - open ticket references you are responsible for (directly or through a team);
 - records waiting for your approval, and records you own that changed their status;
+- reviews of living documents you review that are due soon or overdue;
 - scheduled reports you receive that were generated since the last summary.
 
 You choose the sections, the time of day and your time zone, the days (Monday to Friday, or every day), and whether it comes in the app only or also by e-mail. With _Send nothing on days without anything to report_ you get nothing on quiet days. **Preview** shows what it would contain right now, without sending anything.
