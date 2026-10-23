@@ -413,7 +413,12 @@
     "REVIEW_DATE_PAST": "The next review cannot be in the past.",
     "REVIEW_STATUS_UNKNOWN": "Unknown review status – use {{allowed}}.",
     "FORBIDDEN_reviewDocument": "You are not allowed to review this document (its owner and review owner, approvers and administrators are).",
-    "FORBIDDEN_reviewSettings": "You are not allowed to change the review settings of this document."
+    "FORBIDDEN_reviewSettings": "You are not allowed to change the review settings of this document.",
+    "FORBIDDEN_reviewOwner": "Only approvers and administrators choose the review owner of a document.",
+    "FORBIDDEN_reviewOwnerSelf": "Four-eyes principle: you own or wrote this document, so you cannot make yourself its review owner. An administrator can.",
+    "FORBIDDEN_reviewInterval": "Only approvers and administrators change the review interval of a document.",
+    "FORBIDDEN_reviewIntervalAdmin": "Only administrators turn off the periodic reviews of a document or plan them less often than its type does.",
+    "FORBIDDEN_reviewDateLater": "Only approvers and administrators remove a planned review date or move it later."
   },
   "boundary": {
     "title": "Something went wrong on this page",

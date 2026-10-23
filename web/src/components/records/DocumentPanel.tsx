@@ -425,7 +425,14 @@ function ReviewModal({ rec, outcome, onClose, onDone }: { rec: RecordDetail; out
 function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () => void; onDone: (r: RecordDetail) => void }) {
   const { t } = useTranslation(['records', 'common']);
   const r = rec.document!.review;
-  const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false, staleTime: 60000 });
+  const may = rec.document!.permissions;
+  const subjects = useQuery({
+    queryKey: ['subjects'],
+    queryFn: () => getOptional<Subject[]>('/subjects', []),
+    retry: false,
+    staleTime: 60000,
+    enabled: may.reviewOwner,
+  });
   const [owner, setOwner] = useState<string | null>(r.ownerOverride);
   const [months, setMonths] = useState<number | ''>(r.intervalOverride ?? '');
   const [next, setNext] = useState(r.nextReviewOverride ? r.nextReviewOverride.slice(0, 10) : '');
@@ -437,9 +444,10 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
     setBusy(true);
     try {
       onDone(
+        // only what this user may change (the server checks it again)
         await put<RecordDetail>(`/records/${rec.id}/review-settings`, {
-          reviewOwner: owner || null,
-          intervalMonths: months === '' ? null : months,
+          ...(may.reviewOwner ? { reviewOwner: owner || null } : {}),
+          ...(may.reviewInterval ? { intervalMonths: months === '' ? null : months } : {}),
           nextReviewAt: next || null,
         }),
       );
@@ -452,6 +460,11 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
   return (
     <Modal opened onClose={onClose} title={t('document.settingsTitle', { number: rec.number })}>
       <Stack gap="sm">
+        {!may.reviewOwner && (
+          <Text size="sm" c="dimmed">
+            {t('document.settingsApproversOnly')}
+          </Text>
+        )}
         <Select
           label={t('document.settingsOwner')}
           description={t('document.settingsOwnerHelp', { owner: rec.owner })}
@@ -461,13 +474,19 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
           onChange={setOwner}
           searchable
           clearable
+          disabled={!may.reviewOwner}
         />
         <NumberInput
           label={t('document.settingsInterval')}
-          description={t('document.settingsIntervalHelp', { count: r.typeIntervalMonths })}
+          description={
+            may.anyInterval
+              ? t('document.settingsIntervalHelp', { count: r.typeIntervalMonths })
+              : t('document.settingsIntervalLimited', { count: r.typeIntervalMonths })
+          }
           placeholder={String(r.typeIntervalMonths)}
-          min={0}
-          max={120}
+          min={may.anyInterval ? 0 : 1}
+          max={may.anyInterval || r.typeIntervalMonths <= 0 ? 120 : r.typeIntervalMonths}
+          disabled={!may.reviewInterval}
           allowDecimal={false}
           value={months}
           onChange={(v) => setMonths(typeof v === 'number' ? v : '')}
@@ -475,7 +494,7 @@ function ReviewSettingsModal({ rec, onClose, onDone }: { rec: RecordDetail; onCl
         <TextInput
           type="date"
           label={t('document.settingsNext')}
-          description={t('document.settingsNextHelp')}
+          description={may.reviewInterval ? t('document.settingsNextHelp') : t('document.settingsNextLimited')}
           min={today}
           value={next}
           onChange={(e) => setNext(e.currentTarget.value)}

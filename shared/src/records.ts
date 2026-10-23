@@ -339,7 +339,16 @@ export interface DocumentInfo {
   editions: RecordEditionSummary[];
   reviews: RecordReview[];
   review: DocumentReviewState;
-  permissions: { review: boolean; settings: boolean };
+  permissions: {
+    review: boolean;
+    /** May open the review settings: an earlier next review (editors, the owner), or more (below) */
+    settings: boolean;
+    /** May choose the review owner and the document's own interval (approvers, administrators) */
+    reviewOwner: boolean;
+    reviewInterval: boolean;
+    /** May set no reviews (0) or an interval longer than the type's (administrators) */
+    anyInterval: boolean;
+  };
 }
 
 /** One row of a document's changelog: an approved edition or a review. */

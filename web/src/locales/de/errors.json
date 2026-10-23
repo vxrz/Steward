@@ -413,7 +413,12 @@
     "REVIEW_DATE_PAST": "Die nächste Überprüfung kann nicht in der Vergangenheit liegen.",
     "REVIEW_STATUS_UNKNOWN": "Unbekannter Überprüfungsstatus – erlaubt sind {{allowed}}.",
     "FORBIDDEN_reviewDocument": "Sie dürfen dieses Dokument nicht überprüfen (das dürfen der Eigentümer, die für die Überprüfung verantwortliche Person, Freigebende und Administratoren).",
-    "FORBIDDEN_reviewSettings": "Sie dürfen die Einstellungen der Überprüfung dieses Dokuments nicht ändern."
+    "FORBIDDEN_reviewSettings": "Sie dürfen die Einstellungen der Überprüfung dieses Dokuments nicht ändern.",
+    "FORBIDDEN_reviewOwner": "Nur Freigebende und Administratoren legen fest, wer ein Dokument überprüft.",
+    "FORBIDDEN_reviewOwnerSelf": "Vier-Augen-Prinzip: Sie sind Eigentümer oder Autor dieses Dokuments und können sich nicht selbst für die Überprüfung verantwortlich machen. Ein Administrator kann das.",
+    "FORBIDDEN_reviewInterval": "Nur Freigebende und Administratoren ändern das Überprüfungsintervall eines Dokuments.",
+    "FORBIDDEN_reviewIntervalAdmin": "Nur Administratoren schalten die regelmäßige Überprüfung eines Dokuments ab oder planen sie seltener als seine Art.",
+    "FORBIDDEN_reviewDateLater": "Nur Freigebende und Administratoren entfernen ein geplantes Überprüfungsdatum oder verschieben es nach hinten."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

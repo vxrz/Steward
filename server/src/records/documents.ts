@@ -21,7 +21,8 @@ import { formatDateTime, t } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { reminderSettings } from '../credentials/service.js';
 import { plannedReminder } from '../credentials/reminders.js';
-import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canEditRecord, forbid, me, statusParam } from './access.js';
+import { isAdmin } from '../auth/permissions.js';
+import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canApproveRecords, canEditRecord, forbid, me, statusParam } from './access.js';
 import { requireRecordRow, type RecordRow } from './model.js';
 import { requireType, type TypeRow } from './types.js';
 import { canReviewDocument, getRecord, startRevision, withStoredFields, workflowOf } from './service.js';
@@ -265,11 +266,31 @@ export const reviewSettingsInput = z
   })
   .strict();
 
-/** Review owner, interval and an earlier next review date of a document (editors and the owner). */
+/** Whoever wrote the document: its owner, its creator, the authors and submitters of its editions and every author of a saved version. */
+function wroteDocument(username: string, r: RecordRow): boolean {
+  const same = (a: string | null | undefined) => !!a && a.toLowerCase() === username.toLowerCase();
+  if (same(r.owner) || same(r.created_by) || same(r.submitted_by)) return true;
+  if (
+    db()
+      .all<{ author: string }>('SELECT DISTINCT author FROM record_versions WHERE record_id = ?', r.id)
+      .some((v) => same(v.author))
+  )
+    return true;
+  return editionRows(r.id).some((e) => same(e.submitted_by) || parseJson<string[]>(e.authors, []).some(same));
+}
+
+/**
+ * Review owner, interval and an earlier next review date of a document. Reviews are a control, so whoever
+ * looks after the document cannot silence them: an earlier date (stricter) may be set by editors, the owner
+ * and approvers; clearing it or moving it later, the review owner and the document's own interval need an
+ * approver or administrator; no reviews (0) or an interval longer than the type's need an administrator. An
+ * approver who owns or wrote the document cannot make themselves its review owner (four-eyes).
+ */
 export function updateReviewSettings(idOrNumber: string, input: z.infer<typeof reviewSettingsInput>): RecordDetail {
   const u = me();
   const { r, t } = requireDocument(idOrNumber);
-  if (!canEditRecord(u, r)) forbid('change the review settings of this document', 'reviewSettings');
+  const approver = canApproveRecords(u);
+  if (!canEditRecord(u, r) && !approver) forbid('change the review settings of this document', 'reviewSettings');
   if (r.status === 'withdrawn')
     throw new HttpError(409, `${r.number} is withdrawn: it is not reviewed any more`, 'RECORD_CLOSED', { number: r.number, status: statusParam(r.status) });
   const d = ensureDocRow(r.id);
@@ -282,10 +303,21 @@ export function updateReviewSettings(idOrNumber: string, input: z.infer<typeof r
       if (!target || !target.active) throw new HttpError(400, `User ${input.reviewOwner} not found`, 'USER_NOT_FOUND', { name: input.reviewOwner });
       owner = target.username.toLowerCase() === r.owner.toLowerCase() ? null : target.username;
     }
-    if (owner !== d.review_owner) ((patch.review_owner = owner), (changes.reviewOwner = owner ?? r.owner));
+    if (owner !== d.review_owner) {
+      if (!approver) forbid('choose the review owner of this document', 'reviewOwner');
+      if (owner && owner.toLowerCase() === u.username.toLowerCase() && !isAdmin(u) && wroteDocument(u.username, r))
+        forbid('make yourself the review owner of a document you own or wrote', 'reviewOwnerSelf');
+      ((patch.review_owner = owner), (changes.reviewOwner = owner ?? r.owner));
+    }
   }
-  if (input.intervalMonths !== undefined && input.intervalMonths !== (d.review_interval_months === null ? null : Number(d.review_interval_months)))
-    ((patch.review_interval_months = input.intervalMonths), (changes.intervalMonths = input.intervalMonths));
+  if (input.intervalMonths !== undefined && input.intervalMonths !== (d.review_interval_months === null ? null : Number(d.review_interval_months))) {
+    if (!approver) forbid('change the review interval of this document', 'reviewInterval');
+    const typeInterval = reviewState(r, t, d, null).typeIntervalMonths;
+    const months = input.intervalMonths;
+    if (months !== null && !isAdmin(u) && (months === 0 || (typeInterval > 0 && months > typeInterval)))
+      forbid('turn off the reviews of this document or plan them less often than its type', 'reviewIntervalAdmin');
+    ((patch.review_interval_months = months), (changes.intervalMonths = months));
+  }
   if (input.nextReviewAt !== undefined) {
     let at: string | null = null;
     if (input.nextReviewAt) {
@@ -301,7 +333,12 @@ export function updateReviewSettings(idOrNumber: string, input: z.infer<typeof r
           date: regular.slice(0, 10),
         });
     }
-    if (at !== d.next_review_override) ((patch.next_review_override = at), (changes.nextReviewAt = at));
+    if (at !== d.next_review_override) {
+      // an earlier date makes the review stricter; dropping one or moving it later does not
+      if (d.next_review_override && (!at || at > d.next_review_override) && !approver)
+        forbid('drop or postpone the planned review date of this document', 'reviewDateLater');
+      ((patch.next_review_override = at), (changes.nextReviewAt = at));
+    }
   }
   if (!Object.keys(patch).length) return getRecord(r.id);
   db().tx(() => {

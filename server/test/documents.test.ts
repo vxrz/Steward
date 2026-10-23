@@ -233,8 +233,16 @@ describe('periodic reviews', () => {
     const pub = await publishedDoc('Reviewed concept');
     const first = pub.document.review.nextReviewAt;
     expect((await vera('GET', `/records/${pub.id}`)).document.permissions).toMatchObject({ review: false, settings: false });
-    expect((await dana('GET', `/records/${pub.id}`)).document.permissions).toMatchObject({ review: true, settings: true });
-    expect(pub.document.permissions).toMatchObject({ review: true, settings: false }); // adam: an approver
+    expect((await dana('GET', `/records/${pub.id}`)).document.permissions).toMatchObject({
+      review: true,
+      settings: true,
+      reviewOwner: false,
+      reviewInterval: false,
+      anyInterval: false,
+    });
+    // adam: an approver
+    expect(pub.document.permissions).toMatchObject({ review: true, settings: true, reviewOwner: true, reviewInterval: true, anyInterval: false });
+    expect((await s.api('GET', `/records/${pub.id}`)).document.permissions).toMatchObject({ reviewOwner: true, anyInterval: true });
     expect(await status(vera('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(403);
     expect(await status(olivia('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(403);
     expect(await status(audrey('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(403);
@@ -273,12 +281,14 @@ describe('periodic reviews', () => {
     expect(ok.document.currentEdition).toBe('1.1');
   });
 
-  it('review settings: owner, interval override and an earlier date (editors only)', async () => {
+  it('review settings: owner and interval (approvers), an earlier date (editors and the owner too)', async () => {
     const pub = await publishedDoc('Settings target');
     const approvedAt = pub.document.editions[0].approvedAt;
     expect(await status(vera('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 }))).toBe(403);
-    expect(await status(adam('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 }))).toBe(403);
-    const six = await dana('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 });
+    // the owner and editors do not choose the interval or the review owner
+    expect((await errorOf(dana('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 }))).text).toContain('reviewInterval');
+    expect((await errorOf(olivia('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' }))).text).toContain('reviewOwner');
+    const six = await adam('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 6 });
     const d = new Date(approvedAt);
     d.setUTCMonth(d.getUTCMonth() + 6);
     expect(six.document.review).toMatchObject({ intervalMonths: 6, intervalOverride: 6, typeIntervalMonths: 12 });
@@ -291,14 +301,14 @@ describe('periodic reviews', () => {
     expect((await errorOf(dana('PUT', `/records/${pub.id}/review-settings`, { nextReviewAt: '2001-01-01' }))).text).toContain('REVIEW_DATE_PAST');
     expect(await status(dana('PUT', `/records/${pub.id}/review-settings`, { nextReviewAt: 'soon' }))).toBe(400);
     // the review owner may review (and is reminded)
-    expect(await status(dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'nobody-here' }))).toBe(400);
-    const owned = await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
+    expect(await status(adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'nobody-here' }))).toBe(400);
+    const owned = await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
     expect(owned.document.review).toMatchObject({ owner: 'olivia', ownerOverride: 'olivia' });
     const reviewed = await olivia('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'ok' });
     // a review clears the earlier date
     expect(reviewed.document.review).toMatchObject({ nextReviewOverride: null, status: 'current' });
-    // no interval: no review planned
-    const none = await dana('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 0 });
+    // no interval: no review planned (administrators only)
+    const none = await s.api('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 0 });
     expect(none.document.review).toMatchObject({ status: 'none', nextReviewAt: null });
     const audit = await s.api('GET', `/audit?entityType=record&entityId=${pub.id}&action=record.review_settings_changed`);
     expect(audit.length).toBe(4);
@@ -333,7 +343,7 @@ describe('periodic reviews', () => {
     const { flushNotifications } = await import('../src/notifications/service.js');
     const { db } = await import('../src/db.js');
     const pub = await publishedDoc('Reminder target');
-    await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
+    await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
     const due = Date.parse(pub.document.review.nextReviewAt);
     const claims = () => db().get<{ n: number }>('SELECT COUNT(*) AS n FROM record_review_reminders WHERE record_id = ?', pub.id)!.n;
     const sentFor = (now: number) => {
@@ -470,7 +480,7 @@ describe('start page tile', () => {
     expect(after.reviews.overdue - before.reviews.overdue).toBe(1);
     expect(after.reviews.dueSoon - before.reviews.dueSoon).toBe(1);
     // vera reviews one document: her tile counts only that one
-    await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'vera' });
+    await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'vera' });
     expect((await attention(vera)).reviews).toEqual({ overdue: 1, dueSoon: 0 });
     expect(await status(vera('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(200);
     expect((await attention(vera)).reviews).toEqual({ overdue: 0, dueSoon: 0 });
@@ -484,7 +494,7 @@ describe('daily summary', () => {
     const { db } = await import('../src/db.js');
     const pub = await publishedDoc('Summary concept');
     db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), pub.id);
-    await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
+    await adam('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
     const waiting = await dana('POST', '/records', { type: 'DOC', title: 'Summary waiting' });
     await dana('POST', `/records/${waiting.id}/transition`, { action: 'submit', changeSummary: 'First' });
     const prefs = {
@@ -699,5 +709,43 @@ describe('security review fixes', () => {
     // the export
     const md = await dana('GET', `/records/${adr.id}/export`);
     expect(String(md)).not.toContain('Secret grant');
+  });
+
+  it('review roles cannot be bypassed: owner and interval need an approver, no reviews or a longer interval an administrator', async () => {
+    const pub = await publishedDoc('Review roles target');
+    const put = (c: Client, body: Record<string, unknown>) => errorOf(c('PUT', `/records/${pub.id}/review-settings`, body));
+    // an operator cannot make herself the review owner (and then sign the review off)
+    expect((await put(olivia, { reviewOwner: 'olivia' })).status).toBe(403);
+    expect(await status(olivia('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(403);
+    // editors and the owner cannot silence the reviews
+    for (const c of [dana, olivia]) for (const months of [0, 120, 6]) expect((await put(c, { intervalMonths: months })).status).toBe(403);
+    // approvers may shorten the interval, not turn it off or make it longer than the type's (12)
+    expect((await put(adam, { intervalMonths: 0 })).text).toContain('reviewIntervalAdmin');
+    expect((await put(adam, { intervalMonths: 13 })).text).toContain('reviewIntervalAdmin');
+    expect((await adam('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 12 })).document.review.intervalOverride).toBe(12);
+    expect((await s.api('PUT', `/records/${pub.id}/review-settings`, { intervalMonths: 120 })).document.review.intervalMonths).toBe(120);
+    // an earlier date: editors and the owner may set it or move it earlier, not drop it or move it later
+    const day = (n: number) => new Date(Date.now() + n * DAY).toISOString().slice(0, 10);
+    await dana('PUT', `/records/${pub.id}/review-settings`, { nextReviewAt: day(20) });
+    expect((await olivia('PUT', `/records/${pub.id}/review-settings`, { nextReviewAt: day(10) })).document.review.nextReviewOverride).toContain(day(10));
+    expect((await put(dana, { nextReviewAt: day(15) })).text).toContain('reviewDateLater');
+    expect((await put(dana, { nextReviewAt: null })).text).toContain('reviewDateLater');
+    expect((await adam('PUT', `/records/${pub.id}/review-settings`, { nextReviewAt: null })).document.review.nextReviewOverride).toBeNull();
+    // sending the unchanged values is fine for everyone who may open the settings
+    const cur = (await dana('GET', `/records/${pub.id}`)).document.review;
+    expect(await status(dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: cur.ownerOverride, intervalMonths: cur.intervalOverride }))).toBe(200);
+    // an approver who wrote a document cannot make themselves its review owner; an administrator can
+    await s.api('POST', '/users', { username: 'otto', roles: ['operator', 'approver'], password: 'Otto-password-123' });
+    const otto = await s.as('otto', 'Otto-password-123');
+    await otto('POST', '/auth/password', { current: 'Otto-password-123', next: 'Otto-password-456' });
+    const own = await otto('POST', '/records', { type: 'DOC', title: 'Written by an approver' });
+    await otto('POST', `/records/${own.id}/transition`, { action: 'submit', changeSummary: 'First' });
+    await adam('POST', `/records/${own.id}/transition`, { action: 'approve' });
+    await s.api('PUT', `/records/${own.id}`, { owner: 'dana' });
+    expect((await errorOf(otto('PUT', `/records/${own.id}/review-settings`, { reviewOwner: 'otto' }))).text).toContain('reviewOwnerSelf');
+    expect((await adam('PUT', `/records/${own.id}/review-settings`, { reviewOwner: 'adam' })).document.review.owner).toBe('adam');
+    expect((await s.api('PUT', `/records/${own.id}/review-settings`, { reviewOwner: 'otto' })).document.review.owner).toBe('otto');
+    const audit = await s.api('GET', `/audit?entityType=record&entityId=${pub.id}&action=record.review_settings_changed`);
+    expect(audit.length).toBe(5);
   });
 });

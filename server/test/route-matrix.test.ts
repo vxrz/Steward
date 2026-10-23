@@ -315,7 +315,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/records/:id/changelog': ALL,
   'GET /api/records/:id/reviews': ALL,
   'POST /api/records/:id/review': ['admin', 'approver'],
-  'PUT /api/records/:id/review-settings': RUN,
+  // the interval needs an approver (an earlier date: editors and the owner too)
+  'PUT /api/records/:id/review-settings': ['admin', 'approver'],
   'GET /api/record-types': ALL,
   // ---- compliance: access changes, reconciliation, controls, evidence packs ----
   'GET /api/compliance/access-changes': ALL,

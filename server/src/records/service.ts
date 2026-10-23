@@ -535,7 +535,10 @@ export function documentInfo(u: AuthUser | null, r: RecordRow, t: TypeRow): Docu
     review: reviewState(r, t, d, cur?.approved_at ?? null),
     permissions: {
       review: !!current && ['published', 'revising'].includes(r.status) && canReviewDocument(u, r, d),
-      settings: canEditRecord(u, r) && r.status !== 'withdrawn',
+      settings: (canEditRecord(u, r) || canApproveRecords(u)) && r.status !== 'withdrawn',
+      reviewOwner: canApproveRecords(u) && r.status !== 'withdrawn',
+      reviewInterval: canApproveRecords(u) && r.status !== 'withdrawn',
+      anyInterval: isAdmin(u) && r.status !== 'withdrawn',
     },
   };
 }
