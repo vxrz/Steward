@@ -400,7 +400,19 @@
     "CHECK_HAS_SNAPSHOTS": "This check has snapshots: they are evidence of who had access when. Disable the check instead.",
     "DEMO_DISABLED": "Demo mode is not enabled.",
     "DEMO_CHECK_ONLY": "The simulation works with Insights Hub checks of the demo platform only.",
-    "DEMO_ALL_ADMINS": "Every demo user is a tenant administrator already – restart the demo to try again."
+    "DEMO_ALL_ADMINS": "Every demo user is a tenant administrator already – restart the demo to try again.",
+    "CHANGE_SUMMARY_REQUIRED": "Summarise what changed in this edition.",
+    "CHANGE_SUMMARY_TOO_LONG": "The change summary is too long (at most {{max}} characters).",
+    "DOCUMENT_NO_EDITION": "{{number}} has no approved edition yet: there is nothing to review.",
+    "EDITION_INVALID": "\"{{edition}}\" is not an edition (e.g. 1.0 or 2.1).",
+    "EDITION_KIND_REQUIRED": "Choose whether this is a minor (editorial) or a major (substantive) edition.",
+    "EDITION_NOT_FOUND": "Edition {{edition}} of {{number}} was not found.",
+    "NOT_A_DOCUMENT": "{{number}} is not a living document.",
+    "REVIEW_DATE_LATER": "The next review can only be set earlier than planned ({{date}}).",
+    "REVIEW_DATE_PAST": "The next review cannot be in the past.",
+    "REVIEW_STATUS_UNKNOWN": "Unknown review status – use {{allowed}}.",
+    "FORBIDDEN_reviewDocument": "You are not allowed to review this document (its owner and review owner, approvers and administrators are).",
+    "FORBIDDEN_reviewSettings": "You are not allowed to change the review settings of this document."
   },
   "boundary": {
     "title": "Something went wrong on this page",

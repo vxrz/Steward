@@ -943,9 +943,12 @@ describe('public API v1', () => {
     expect(Object.keys(found.body.items[0]).sort()).toEqual([
       'createdAt',
       'createdBy',
+      'edition',
       'id',
+      'nextReviewAt',
       'number',
       'owner',
+      'reviewStatus',
       'revision',
       'status',
       'tags',

@@ -67,8 +67,8 @@ export const typeInput = z
     workflow: z.enum(RECORD_WORKFLOW_KEYS),
     template: z.string().max(20000).default(''),
     fields: z.array(fieldDef).max(30).default([]),
-    /** Living documents: months between periodic reviews (0 = none); left out: unchanged (default 12) */
-    reviewIntervalMonths: z.number().int().min(0).max(120).optional(),
+    /** Living documents: months between periodic reviews (0 = none); left out or null: unchanged (default 12); ignored for other workflows */
+    reviewIntervalMonths: z.number().int().min(0).max(120).nullable().optional(),
     archived: z.boolean().optional(),
   })
   .strict()

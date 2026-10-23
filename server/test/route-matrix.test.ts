@@ -450,6 +450,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records': ALL,
   'GET /api/v1/records/:recordId': ALL,
   'GET /api/v1/records/:recordId/versions': ALL,
+  'GET /api/v1/records/:recordId/editions': ALL,
+  'GET /api/v1/records/:recordId/editions/:edition': ALL,
+  'GET /api/v1/records/:recordId/reviews': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -524,6 +527,7 @@ const NO_POSITIVE = new Set([
   'GET /api/v1/tasks/:taskId',
   'GET /api/records/:id/attachments/:attId/download',
   'GET /api/records/:id/editions/:edition', // the fixture record is a change request: no editions
+  'GET /api/v1/records/:recordId/editions/:edition',
   'GET /api/auth/oidc/callback', // redirects
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet

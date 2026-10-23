@@ -400,7 +400,19 @@
     "CHECK_HAS_SNAPSHOTS": "Dieser Abgleich hat Snapshots: Sie belegen, wer wann Zugriff hatte. Deaktivieren Sie den Abgleich stattdessen.",
     "DEMO_DISABLED": "Der Demomodus ist nicht aktiviert.",
     "DEMO_CHECK_ONLY": "Die Simulation funktioniert nur mit Insights-Hub-Abgleichen der Demo-Plattform.",
-    "DEMO_ALL_ADMINS": "Alle Demo-Benutzer sind bereits Mandanten-Administratoren – starten Sie die Demo neu, um es noch einmal zu versuchen."
+    "DEMO_ALL_ADMINS": "Alle Demo-Benutzer sind bereits Mandanten-Administratoren – starten Sie die Demo neu, um es noch einmal zu versuchen.",
+    "CHANGE_SUMMARY_REQUIRED": "Fassen Sie zusammen, was sich in dieser Fassung geändert hat.",
+    "CHANGE_SUMMARY_TOO_LONG": "Die Zusammenfassung der Änderungen ist zu lang (höchstens {{max}} Zeichen).",
+    "DOCUMENT_NO_EDITION": "{{number}} hat noch keine freigegebene Fassung: Es gibt nichts zu überprüfen.",
+    "EDITION_INVALID": "„{{edition}}“ ist keine Fassung (z. B. 1.0 oder 2.1).",
+    "EDITION_KIND_REQUIRED": "Wählen Sie, ob dies eine kleine (redaktionelle) oder eine große (inhaltliche) Fassung ist.",
+    "EDITION_NOT_FOUND": "Fassung {{edition}} von {{number}} wurde nicht gefunden.",
+    "NOT_A_DOCUMENT": "{{number}} ist kein lebendes Dokument.",
+    "REVIEW_DATE_LATER": "Die nächste Überprüfung kann nur früher als geplant ({{date}}) gesetzt werden.",
+    "REVIEW_DATE_PAST": "Die nächste Überprüfung kann nicht in der Vergangenheit liegen.",
+    "REVIEW_STATUS_UNKNOWN": "Unbekannter Überprüfungsstatus – erlaubt sind {{allowed}}.",
+    "FORBIDDEN_reviewDocument": "Sie dürfen dieses Dokument nicht überprüfen (das dürfen der Eigentümer, die für die Überprüfung verantwortliche Person, Freigebende und Administratoren).",
+    "FORBIDDEN_reviewSettings": "Sie dürfen die Einstellungen der Überprüfung dieses Dokuments nicht ändern."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
