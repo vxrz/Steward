@@ -467,7 +467,7 @@ const EXAMPLES: Record<string, unknown> = {
     updatedAt: '2026-10-01T10:00:00.000Z',
   },
   Problem: {
-    type: 'https://github.com/vxrz/service-manager/blob/main/docs/API.md#invalid-token',
+    type: 'https://github.com/vxrz/steward/blob/main/docs/API.md#invalid-token',
     title: 'Unauthorized',
     status: 401,
     detail: 'Invalid, expired or revoked API token',

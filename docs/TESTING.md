@@ -166,7 +166,7 @@ Do this on a **test tenant / test IEM** before any production use.
 
 ## 7. Packaging
 
-- **Desktop executable on a locked-down laptop.** Build or download the binary and run `service-manager --version`, then `--no-open --port 4399 --data-dir <tmp>` and `curl http://127.0.0.1:4399/api/health`. The release workflow does this automatically. Then check by hand on a corporate device:
+- **Desktop executable on a locked-down laptop.** Build or download the binary and run `steward --version`, then `--no-open --port 4399 --data-dir <tmp>` and `curl http://127.0.0.1:4399/api/health`. The release workflow does this automatically. Then check by hand on a corporate device:
   - the SmartScreen / Gatekeeper prompt, or none when signed;
   - start without admin rights and the data folder location;
   - the corporate proxy (`HTTPS_PROXY`/`NO_PROXY`) and the corporate CA;

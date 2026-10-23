@@ -16,7 +16,7 @@ Requirements:
 - Optional: PostgreSQL 16 or newer, to run the test suite on PostgreSQL.
 
 ```bash
-git clone https://github.com/vxrz/service-manager.git steward && cd steward
+git clone https://github.com/vxrz/steward.git && cd steward
 npm install
 npm run dev:demo      # API with auto-reload + UI with hot reload on http://127.0.0.1:5173, simulated platforms
 ```

@@ -11,7 +11,7 @@ export const BRAND = {
   /** Theme colour (PWA, app window) */
   color: '#1c7ed6',
   /** Source code. GitHub redirects automatically after the repository is renamed. */
-  repoUrl: 'https://github.com/vxrz/service-manager',
+  repoUrl: 'https://github.com/vxrz/steward',
   author: 'uebelacker.io',
   authorUrl: 'https://uebelacker.io',
   license: 'Apache-2.0',

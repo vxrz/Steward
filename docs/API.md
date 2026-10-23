@@ -210,7 +210,7 @@ Errors are _problem details_ ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
 
 ```json
 {
-  "type": "https://github.com/vxrz/service-manager/blob/main/docs/API.md#invalid-token",
+  "type": "https://github.com/vxrz/steward/blob/main/docs/API.md#invalid-token",
   "title": "Unauthorized",
   "status": 401,
   "detail": "Invalid, expired or revoked API token",
