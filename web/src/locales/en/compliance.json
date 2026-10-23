@@ -115,7 +115,10 @@
     "keyHelp": "Letters, digits, . _ -, e.g. ISMS",
     "name": "Name",
     "chooseFile": "Choose file",
-    "importAction": "Import"
+    "importAction": "Import",
+    "documentEdition": "Edition {{edition}}",
+    "documentReviewed": "reviewed {{date}} by {{reviewer}}",
+    "documentApproved": "approved {{date}} by {{approver}}"
   },
   "accessChanges": {
     "title": "Access changes",

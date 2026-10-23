@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, IconSettings, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { RECORD_STATUSES, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
+import { RECORD_STATUSES, RECORD_WORKFLOW_KEYS, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
@@ -13,6 +13,7 @@ import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/re
 import { fmtDate, fmtRelative } from '../format';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
+import { EditionBadge, ReviewStatusBadge } from '../components/records/DocumentPanel';
 
 /** Records per request; "Load more" raises the limit by this much. */
 const RECORDS_PAGE = 500;
@@ -24,6 +25,8 @@ export function RecordsPage() {
   const type = params.get('type');
   const status = params.get('status');
   const tag = params.get('tag');
+  const workflow = params.get('workflow');
+  const review = params.get('review');
   const [text, setText] = useState(params.get('q') ?? '');
   const [q] = useDebouncedValue(text, 300);
   const [creating, setCreating] = useState(false);
@@ -35,6 +38,8 @@ export function RecordsPage() {
   if (type) query.set('type', type);
   if (status) query.set('status', status);
   if (tag) query.set('tag', tag);
+  if (workflow) query.set('workflow', workflow);
+  if (review) query.set('review', review);
   if (q.trim()) query.set('q', q.trim());
   // one more than shown tells whether there are more ("Load more" raises the limit)
   const [limit, setLimit] = useState(RECORDS_PAGE);
@@ -79,7 +84,7 @@ export function RecordsPage() {
           </>
         }
       />
-      <FilterPanel active={[type, status, tag, q.trim()].filter(Boolean).length}>
+      <FilterPanel active={[type, status, tag, workflow, review, q.trim()].filter(Boolean).length}>
         <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
           <TextInput
             size="xs"
@@ -107,6 +112,29 @@ export function RecordsPage() {
             data={RECORD_STATUSES.map((s) => ({ value: s, label: t(`status.${s as 'draft'}`) }))}
             value={status}
             onChange={(v) => set('status', v)}
+            w={{ base: '100%', xs: 180 }}
+          />
+          <Select
+            size="xs"
+            label={t('list.workflow')}
+            placeholder={t('list.allWorkflows')}
+            clearable
+            data={RECORD_WORKFLOW_KEYS.map((w) => ({ value: w, label: t(`types.workflows.${w}`) }))}
+            value={workflow}
+            onChange={(v) => set('workflow', v)}
+            w={{ base: '100%', xs: 160 }}
+          />
+          <Select
+            size="xs"
+            label={t('list.review')}
+            placeholder={t('list.anyReview')}
+            clearable
+            data={[
+              { value: 'overdue,dueSoon', label: t('list.reviewDue') },
+              ...(['overdue', 'dueSoon', 'current', 'none'] as const).map((r) => ({ value: r, label: t(`document.reviewStatus.${r}`) })),
+            ]}
+            value={review}
+            onChange={(v) => set('review', v)}
             w={{ base: '100%', xs: 180 }}
           />
           {tag && (
@@ -215,7 +243,17 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
       cell: (r) => (
         <>
           <RecordStatusBadge status={r.status} />
-          {r.revision > 1 && (
+          {r.edition && (
+            <Text span ml={6}>
+              <EditionBadge edition={r.edition} size="xs" />
+            </Text>
+          )}
+          {(r.reviewStatus === 'dueSoon' || r.reviewStatus === 'overdue') && (
+            <Text span ml={6}>
+              <ReviewStatusBadge status={r.reviewStatus} size="xs" />
+            </Text>
+          )}
+          {r.revision > 1 && !r.edition && (
             <Text span size="xs" c="dimmed" ml={6}>
               {t('list.revision', { n: r.revision })}
             </Text>
@@ -253,7 +291,11 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
                 {r.title}
               </Anchor>
             </Box>
-            <RecordStatusBadge status={r.status} size="xs" />
+            <Group gap={4} wrap="nowrap">
+              <RecordStatusBadge status={r.status} size="xs" />
+              {r.edition && <EditionBadge edition={r.edition} size="xs" />}
+              {(r.reviewStatus === 'dueSoon' || r.reviewStatus === 'overdue') && <ReviewStatusBadge status={r.reviewStatus} size="xs" />}
+            </Group>
           </Group>
           <Text size="xs" c="dimmed">
             {t('list.ownerLine', { owner: r.owner, when: fmtRelative(r.updatedAt) })}

@@ -200,7 +200,12 @@
     "emptyText": "Change requests and decision records you may see will show up here.",
     "emptyCreateText": "Write a change request or a decision record, or import your existing decision records from Markdown files.",
     "emptyAction": "Write your first record",
-    "emptyImport": "Import existing records"
+    "emptyImport": "Import existing records",
+    "workflow": "Workflow",
+    "allWorkflows": "All workflows",
+    "review": "Review",
+    "anyReview": "Any review status",
+    "reviewDue": "Due soon or overdue"
   },
   "create": {
     "title": "New record",
@@ -214,7 +219,8 @@
     "links": "Links ({{count}})",
     "attachments": "Attachments ({{count}})",
     "discussion": "Approvals & comments ({{count}})",
-    "pdfs": "PDF & signatures ({{count}})"
+    "pdfs": "PDF & signatures ({{count}})",
+    "changelog": "Changelog ({{count}})"
   },
   "detail": {
     "owner": "Owner {{owner}}",
@@ -321,7 +327,8 @@
     "supersededBy": "Superseded by",
     "comment": "Comment",
     "commentRequired": "Required: please give a reason.",
-    "commentOptional": "Optional."
+    "commentOptional": "Optional.",
+    "replacedBy": "Replaced by (optional)"
   },
   "revise": {
     "title": "New revision of {{number}}",
@@ -466,6 +473,92 @@
       "datetime": "Date and time",
       "select": "Choice"
     },
-    "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered."
+    "builtinHint": "Built-in types are shown in each person's language as long as their texts are unchanged. Texts you change here are shown to everyone as entered.",
+    "reviewInterval": "Review interval (months)",
+    "reviewIntervalHelp": "Documents of this type are reviewed this many months after each approval or review. 0: no periodic reviews.",
+    "reviewEvery_one": "review every month",
+    "reviewEvery_other": "review every {{count}} months",
+    "reviewNone": "no periodic review"
+  },
+  "document": {
+    "edition": "Edition",
+    "editionShort": "Edition {{edition}}",
+    "editionTitle": "{{number}} – edition {{edition}}",
+    "newEdition": "New edition",
+    "newEditionTitle": "New edition of {{number}}",
+    "newEditionHelp": "Starts the draft of the next edition from edition {{edition}}. Edition {{edition}} stays valid and readable until the next one is approved.",
+    "revisingNote": "The next edition is being drafted. Edition {{edition}} stays valid until it is approved.",
+    "frozenPublished": "Edition {{edition}} is published. Its content is frozen.",
+    "frozenPublishedRevisable": "Edition {{edition}} is published. Its content is frozen – start a new edition to change it.",
+    "frozenInReview": "Edition {{edition}} is in review. Its content is frozen until it is approved or rejected.",
+    "frozenWithdrawn": "This document is withdrawn. All its editions stay readable.",
+    "kind": "Kind of edition",
+    "kindMinor": "Minor – editorial change (becomes {{edition}})",
+    "kindMajor": "Major – substantive change (becomes {{edition}})",
+    "firstEdition": "This becomes edition 1.0.",
+    "changeSummary": "What changed in this edition?",
+    "changeSummaryHelp": "Required. It appears in the document changelog and the PDF.",
+    "kinds": {
+      "minor": "minor",
+      "major": "major"
+    },
+    "outcomes": {
+      "no_change": "Reviewed – no change",
+      "needs_update": "Needs update"
+    },
+    "reviewStatus": {
+      "current": "Review current",
+      "dueSoon": "Review due soon",
+      "overdue": "Review overdue",
+      "none": "No review planned"
+    },
+    "reviewTitle": "Periodic review",
+    "reviewTitleNamed": "Review {{number}} (edition {{edition}})",
+    "needsUpdateTitle": "{{number}} needs an update",
+    "nextReview": "Next review: {{date}}",
+    "noReviewPlanned": "No periodic review planned.",
+    "noEditionYet": "Reviews start with the first approved edition.",
+    "reviewOwner": "Reviewed by {{owner}}",
+    "interval_one": "every month",
+    "interval_other": "every {{count}} months",
+    "noInterval": "no periodic review",
+    "lastReview": "last reviewed {{date}} by {{reviewer}}",
+    "updateRequested": "A review on {{date}} found that the document needs an update. The review stays due until the next edition is approved.",
+    "reviewedNoChange": "Reviewed – no change",
+    "needsUpdate": "Needs update",
+    "reviewSettings": "Review settings",
+    "noChangeHelp": "The current edition stays valid. The next review is planned from today.",
+    "needsUpdateHelp": "Starts the draft of the next edition. The current edition stays valid, and the review stays due until the new edition is approved.",
+    "reviewComment": "Comment",
+    "reviewedDone": "Review recorded",
+    "reviewedNeedsUpdate": "Review recorded – the next edition is drafted",
+    "pendingTitle": "Edition {{edition}} in review",
+    "changelog": "Document changelog",
+    "noEditions": "No approved edition yet. Submit the draft for review to publish edition 1.0.",
+    "date": "Date",
+    "people": "Authors / reviewer",
+    "approvedBy": "Approved by",
+    "summary": "Change summary / comment",
+    "actions": "Actions",
+    "reviewOf": "Review of edition {{edition}}",
+    "open": "Open",
+    "openNamed": "Open edition {{edition}}",
+    "diff": "Diff",
+    "diffNamed": "Changes from edition {{from}} to {{to}}",
+    "diffTitle": "Changes from edition {{from}} to {{to}}",
+    "pdf": "PDF",
+    "pdfNamed": "PDF of edition {{edition}}",
+    "pdfCreated": "{{file}} generated – find it under PDF & signatures",
+    "notIntact": "The stored content of this edition does not match the hash recorded when it was approved – check the audit log.",
+    "approvedLine": "Approved {{date}} by {{approver}} ({{kind}})",
+    "current": "current edition",
+    "settingsTitle": "Review settings of {{number}}",
+    "settingsOwner": "Review owner",
+    "settingsOwnerHelp": "Who reviews the document and gets the reminders. Empty: the owner ({{owner}}).",
+    "settingsInterval": "Review interval (months)",
+    "settingsIntervalHelp_one": "Empty: the type's interval (every month). 0: no periodic reviews.",
+    "settingsIntervalHelp_other": "Empty: the type's interval (every {{count}} months). 0: no periodic reviews.",
+    "settingsNext": "Review earlier on",
+    "settingsNextHelp": "Optional: an earlier date for the next review. The next review or edition clears it."
   }
 }

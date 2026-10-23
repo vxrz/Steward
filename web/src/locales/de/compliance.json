@@ -115,7 +115,10 @@
     "keyHelp": "Buchstaben, Ziffern, . _ -, z. B. ISMS",
     "name": "Name",
     "chooseFile": "Datei wählen",
-    "importAction": "Importieren"
+    "importAction": "Importieren",
+    "documentEdition": "Fassung {{edition}}",
+    "documentReviewed": "überprüft am {{date}} von {{reviewer}}",
+    "documentApproved": "freigegeben am {{date}} von {{approver}}"
   },
   "accessChanges": {
     "title": "Zugriffsänderungen",
