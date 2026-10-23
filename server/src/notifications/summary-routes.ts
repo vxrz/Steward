@@ -5,6 +5,7 @@ import { getUser } from '../auth/users.js';
 import { isAdmin } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as summary from './summary.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 /**
  * Daily summary (mounted under /api).
@@ -23,7 +24,7 @@ const me = () => {
 export async function dailySummaryRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me/daily-summary', async () => summary.summaryState(me()));
   app.put('/me/daily-summary', async (req) => summary.savePrefs(me(), summary.prefsSchema.parse(req.body ?? {})));
-  app.get('/me/daily-summary/preview', async () => summary.previewSummary(me()));
+  app.get('/me/daily-summary/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => summary.previewSummary(me()));
 
   app.get('/settings/daily-summary', async () => {
     if (!isAdmin(currentUser())) throw new HttpError(403, 'Only administrators can see the daily summary subscriptions', 'DAILY_SUMMARY_ADMIN_ONLY');

@@ -13,6 +13,7 @@ import { startRun } from '../engine/runner.js';
 import { getPlatform } from '../platforms/service.js';
 import { parseJson } from '../util.js';
 import { monitorDatasetVisible } from '../monitors/datasets.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -89,7 +90,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
    * Refresh: re-run the processes that publish this dashboard's datasets, with
    * the inputs and connections of their latest run (requires run rights).
    */
-  app.post('/dashboards/:id/refresh', async (req) => {
+  app.post('/dashboards/:id/refresh', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const d = dashboards.getDashboard(params(req).id!);
     const started: { processId: string; runId: string }[] = [];
     const skipped: { processId: string; reason: string }[] = [];
@@ -140,7 +141,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- bundles (export / import several processes and dashboards at once) ----------
-  app.get('/bundle/export', async (req, reply) => {
+  app.get('/bundle/export', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     const q = z.object({ processes: z.string().max(20000).optional(), dashboards: z.string().max(20000).optional() }).parse(req.query ?? {});
     const wantP = q.processes ? new Set(q.processes.split(',')) : null;
     const wantD = q.dashboards ? new Set(q.dashboards.split(',')) : null;
@@ -166,7 +167,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     return bundle;
   });
 
-  app.post('/bundle/import', async (req) => {
+  app.post('/bundle/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const b = z
       .object({
         bundle: z.object({

@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
+import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { vault } from './vault.js';
@@ -23,6 +24,7 @@ import { themeRoutes } from './theme/routes.js';
 import { systemRoutes } from './system/routes.js';
 import { mcpRoutes } from './mcp/http.js';
 import { MCP_PATH } from './mcp/config.js';
+import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
@@ -99,6 +101,33 @@ const isRead = (method: string) => method === 'GET' || method === 'HEAD';
 const isPublicApiPath = (url: string) => url === '/api/v1' || url.startsWith('/api/v1/') || url.startsWith('/api/v1?');
 /** The MCP endpoint: bearer tokens only, own Origin check, size limit and errors (see mcp/http.ts). */
 const isMcpEndpoint = (url: string) => url === MCP_PATH;
+/** Liveness and readiness probes: a probe refused for someone else's traffic from its address would restart a healthy server. */
+const PROBE_PATHS = ['/api/health', '/api/ready'];
+/**
+ * Requests the general rate limits (rateLimits.ts) never count: the public API and the MCP endpoint
+ * (own per-token limiters), the probes and the demo's mock platforms.
+ */
+function rateLimitExempt(req: FastifyRequest): boolean {
+  const url = req.routeOptions.url ?? req.url.split('?')[0]!;
+  return (
+    PROBE_PATHS.includes(url) ||
+    !!req.routeOptions.config?.smPublicApi ||
+    isPublicApiPath(url) ||
+    isMcpEndpoint(url) ||
+    (config.demo && url.startsWith('/mock/'))
+  );
+}
+/** Public reads of the web UI before sign-in: page, theme, error reporting set-up. */
+const WEB_UI_API = ['/api/theme', '/api/theme/logo', '/api/client-config'];
+/**
+ * The web UI's files (built assets, the page itself, the manifest) and its public start-up reads: counted
+ * per address with a higher limit (rateLimits.ts) – a browser with an empty cache fetches dozens per page.
+ */
+function webUiRequest(req: FastifyRequest): boolean {
+  if (!isRead(req.method)) return false;
+  const url = req.routeOptions.url ?? req.url.split('?')[0]!;
+  return WEB_UI_API.includes(url) || !url.startsWith('/api/');
+}
 
 /**
  * TLS settings for the built-in HTTPS server: TLS 1.2 or newer, forward-secret AEAD cipher suites
@@ -178,6 +207,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     for (const method of [r.method].flat()) if (method !== 'HEAD') routeTable.push({ method, url: r.url });
   });
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
+  // Rate limits for every route registered below (per user, else per client address; see rateLimits.ts)
+  await app.register(rateLimit, rateLimitOptions({ exempt: rateLimitExempt, webUi: webUiRequest }));
+  const limitRefused = app.rateLimit();
   const CSP = contentSecurityPolicy(cspConnectSources());
   /** The single sign-on callback page finishes with a small inline script. */
   const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
@@ -248,7 +280,9 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     const bearer = info ? undefined : bearerToken(req.headers.authorization);
     if (bearer) {
       const t = tokenUser(bearer);
-      if (!t && !isPublic) return void reply.code(401).send({ error: 'Invalid, expired or revoked API token' });
+      if (!t && !isPublic) {
+        return countRefused(limitRefused, req, reply, done, () => void reply.code(401).send({ error: 'Invalid, expired or revoked API token' }));
+      }
       if (t && t.scope === 'read' && !isRead(req.method)) return void reply.code(403).send({ error: 'This API token is read-only' });
       // MCP tokens work on the MCP endpoint only (its own scope, see mcp/http.ts)
       if (t && t.scope === 'mcp' && !isPublic) return void reply.code(403).send({ error: 'This API token is for MCP clients only (/api/mcp)' });
@@ -261,8 +295,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       }
     }
     const user = info ? toAuthUser(info) : null;
+    setRateLimitUser(req, user?.id);
     if (!isPublic) {
-      if (!user) return void reply.code(401).send({ error: 'Please sign in', code: 'NOT_SIGNED_IN' });
+      // made-up cookies or tokens count against the client address (see rateLimits.ts)
+      if (!user) return countRefused(limitRefused, req, reply, done, () => void reply.code(401).send({ error: 'Please sign in', code: 'NOT_SIGNED_IN' }));
       if (info!.mustChangePassword && !url.startsWith('/api/auth/')) {
         return void reply.code(403).send({ error: 'Please change your password first', code: 'PASSWORD_CHANGE_REQUIRED' });
       }
@@ -291,7 +327,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     };
     // 503 = temporarily unavailable (e.g. /api/v1 while the vault is locked), not a server failure
     if (status >= 500 && status !== 503) logger.error(entry, 'request failed');
-    else if (status >= 400 && ![401, 404, 423, 503].includes(status)) logger.warn(entry, 'request rejected');
+    // rate-limited requests: one 'rate limit reached' line per key and minute instead (rateLimits.ts)
+    else if (status >= 400 && ![401, 404, 423, 503].includes(status) && !wasRateLimited(req)) logger.warn(entry, 'request rejected');
     else if (ms > 2000) logger.warn(entry, 'slow request');
     else if (req.method !== 'GET') logger.info(entry, 'request');
     else logger.debug(entry, 'request');
@@ -345,7 +382,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         if (/[\\/]assets[\\/]/.test(file)) res.header('cache-control', 'public, max-age=31536000, immutable');
       },
     });
-    app.setNotFoundHandler((req, reply) => {
+    // the page fallback reads index.html: limited like the routes (the plugin only hooks routes)
+    app.setNotFoundHandler({ preHandler: app.rateLimit() }, (req, reply) => {
       // the file-extension check looks at the path only: /records?subject=a@example.com is a page, /missing.js is not
       const pathname = req.url.split('?')[0]!;
       const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(pathname) && !/\.[a-z0-9]+$/i.test(pathname);

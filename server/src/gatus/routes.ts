@@ -5,6 +5,7 @@ import { currentUser } from '../auth/context.js';
 import { HttpError } from '../util.js';
 import * as platforms from '../platforms/service.js';
 import * as gatus from './metrics.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 /**
  * Gatus metrics mode (mounted under /api):
@@ -95,7 +96,7 @@ export async function gatusRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.post('/gatus/sources/:platformId/scrape', async (req) => {
+  app.post('/gatus/sources/:platformId/scrape', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const p = gatusPlatform(params(req).platformId!, 'use');
     return gatus.manualScrape(p.id);
   });

@@ -69,6 +69,7 @@ import * as sso from '../auth/sso.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { BRAND } from '@sm/shared';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 let started = false;
 /** Things that need the decrypted vault: pending audit entries, scheduler, recovery of waiting runs. */
@@ -310,7 +311,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ...s, operator: s.me?.user.displayName };
   });
 
-  app.post('/auth/setup', async (req, reply) => {
+  app.post('/auth/setup', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
     const b = z
       .object({
         passphrase: z.string().min(1).max(1024),
@@ -400,19 +401,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     sso.deleteProvider(params(req).id!);
     return { ok: true };
   });
-  app.post('/sso/discover', async (req) => {
+  app.post('/sso/discover', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.discover(z.object({ issuer: z.string().url() }).parse(req.body).issuer);
   });
   app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
 
-  app.post('/auth/password', async (req) => {
+  app.post('/auth/password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     const b = z.object({ current: z.string().max(1024), next: z.string().max(1024) }).parse(req.body);
     await users.changePassword(me().id, b.current, b.next, readCookie(req.headers.cookie, SESSION_COOKIE));
     return { ok: true };
   });
 
-  app.post('/vault/unlock', async (req, reply) => {
+  app.post('/vault/unlock', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can unlock the vault');
     const b = z.object({ passphrase: z.string().max(1024) }).parse(req.body);
     // Failed attempts are audited (written once the vault is open) and slow down further attempts.
@@ -442,7 +443,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Master passphrase change (administrators; needs the current passphrase). rotateDataKey re-encrypts every secret.
-  app.post('/vault/passphrase', async (req) => {
+  app.post('/vault/passphrase', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can change the master passphrase');
     const b = z.object({ current: z.string().max(1024), next: z.string().max(1024), rotateDataKey: z.boolean().default(true) }).parse(req.body);
     const wait = unlockThrottle.waitSeconds();
@@ -514,7 +515,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.body);
     return users.updateUser(params(req).id!, b);
   });
-  app.post('/users/:id/reset-password', async (req) => {
+  app.post('/users/:id/reset-password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     return { temporaryPassword: users.resetPassword(params(req).id!) };
   });
@@ -598,7 +599,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(b.fromPlatformId, 'manage', 'use this platform as a template');
     return connectors.createTypeFromPlatform(b.fromPlatformId, b);
   });
-  app.post('/platform-types/import', async (req) => {
+  app.post('/platform-types/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'import connector types');
     return connectors.importType(z.object({ package: z.any() }).parse(req.body).package);
   });
@@ -644,7 +645,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return platforms.setSecrets(params(req).id!, z.record(z.string().nullable()).parse(req.body));
   });
 
-  app.post('/platforms/:id/test', async (req) => {
+  app.post('/platforms/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     const p = requirePlatform(id, 'use', 'use this platform');
     const secrets = platforms.getSecrets(id);
@@ -666,7 +667,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  app.post('/platforms/:id/request', async (req) => {
+  app.post('/platforms/:id/request', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     const b = z
       .object({
@@ -820,7 +821,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- runs ----------
-  app.post('/runs', async (req) => {
+  app.post('/runs', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const b = z
       .object({
         processId: z.string().max(200),
@@ -929,7 +930,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     scheduler.deleteSchedule(params(req).id!);
     return { ok: true };
   });
-  app.post('/schedules/:id/run', async (req) => {
+  app.post('/schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const s = scheduler.getSchedule(params(req).id!);
     requireProcess(s.processId, 'run', 'run this process');
     requireBindingsUsable(s.bindings);
@@ -959,8 +960,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const checkpoint = r.ok ? await createCheckpoint('verify') : null;
     return verificationResult(r, checkpoint);
   };
-  app.get('/audit/verify', async () => verifyRoute(undefined, ''));
-  app.post('/audit/verify', { bodyLimit: 256 * 1024 }, async (req) =>
+  app.get('/audit/verify', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => verifyRoute(undefined, ''));
+  app.post('/audit/verify', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: 256 * 1024 }, async (req) =>
     verifyRoute(z.object({ anchor: z.string().max(200_000).optional() }).parse(req.body ?? {}).anchor, ' against an external checkpoint'),
   );
 
@@ -976,7 +977,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     saveEmailSettings({ to: b.emailRecipients, intervalHours: b.emailIntervalHours });
     return anchoringStatus();
   });
-  app.post('/audit/checkpoint', async () => {
+  app.post('/audit/checkpoint', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     requireCapability(me(), 'viewAudit', 'create an audit checkpoint');
     const cp = await createCheckpoint('manual');
     if (!cp) throw new HttpError(409, 'No checkpoint written – the audit chain did not verify (see the server log) or the log is empty');
@@ -996,7 +997,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('application/json').send(fs.readFileSync(anchorFile(), 'utf8'));
   });
 
-  app.get('/audit/export', async (req, reply) => {
+  app.get('/audit/export', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     requireCapability(me(), 'viewAudit', 'export the audit log');
     const format = (req.query as { format?: string }).format ?? 'jsonl';
     if (!['jsonl', 'csv', 'json'].includes(format)) throw new HttpError(400, 'format: jsonl, csv or json');
@@ -1084,7 +1085,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await complianceRoutes(app);
 
   // ---------- demo ----------
-  app.post('/demo/setup', async () => {
+  app.post('/demo/setup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     if (!config.demo) throw new HttpError(404, 'Demo mode is not enabled (start with npm run demo)');
     if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can load demo data');
     return setupDemo();

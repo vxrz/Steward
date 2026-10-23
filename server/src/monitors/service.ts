@@ -27,7 +27,7 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
-import { errorParam, HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { errorParam, HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
 import { parseYaml } from '../yaml-safe.js';
 
 /** Largest monitor file (the import route accepts 512 KB). */
@@ -1027,7 +1027,7 @@ export function listExamples(): { file: string; kind: string; key: string | null
 
 export async function importExample(file: string): Promise<MonitorSaveResult> {
   if (!/^[\w.-]+\.ya?ml$/i.test(file)) throw new HttpError(400, 'Invalid example name', 'EXAMPLE_NOT_FOUND');
-  const p = path.join(examplesDir(), file);
+  const p = pathInside(examplesDir(), file);
   if (!fs.existsSync(p)) throw new HttpError(404, 'Example not found', 'EXAMPLE_NOT_FOUND');
   return importMonitor(fs.readFileSync(p, 'utf8'));
 }

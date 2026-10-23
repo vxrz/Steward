@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+
+- **Request rate limits** for the web app's API, the inbound webhooks and the web UI's files ([@fastify/rate-limit](https://github.com/fastify/fastify-rate-limit)): 600 requests per minute and signed-in user, or per client address without a valid sign-in (`SM_RATE_LIMIT_PER_MINUTE`, `0` = off). Counted after the session check, so made-up session cookies or tokens count against the address, including refused (401) requests. Lower limits of their own for expensive actions: 30 per minute for PDF reports, evidence packs, exports, imports and audit verification, 120 for starting runs, checks and platform tests, 10 for password and passphrase changes; webhooks and the web UI's files get a bucket of 10 times the general limit per address. Above a limit: `429` with `Retry-After`, `RateLimit-*` headers and the error code `RATE_LIMITED` (translated in the web app), and one log line per user or address and minute. Health and readiness probes, `/api/v1` and `/api/mcp` (own limiters) are not counted. Counters are in memory, per server process. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits).
+- Regular-expression denial of service: an administrator uploading a header logo that starts with `<!--` followed by a few hundred `--><!--` blocked the server for minutes (the SVG detection regex backtracked exponentially), and a Markdown link like `[a](` followed by many spaces or tabs took seconds to minutes to render (records, notes, report text – on the server and in the browser). Both are now linear scans. (CodeQL `js/redos`, `js/polynomial-redos`)
+- Files in the data folder (run screenshots, PDF reports, platform documents) and the monitor examples are opened through one helper that only accepts plain names and refuses any path outside its folder. The ids were already looked up in the database first, so this is defence in depth.
+- Traces (OpenTelemetry, off by default) carry the user as a keyed hash with a per-installation key instead of a plain SHA-256 of the user name, so whoever holds the traces cannot re-identify users by hashing known names.
+- CodeQL no longer scans test code (`server/test`, `e2e`), which is not shipped; everything else, including the demo mock servers, still runs with the `security-extended` queries.
+
 ### Changed
 
 - Dependabot proposes new versions after 14 days (major versions after 21) instead of 7 and 14, matching the rule that dependencies are at least two weeks old. The Mantine packages and Vite with its React plugin come as one pull request each, since they must be upgraded together. Major versions of `@types/node` are ignored: the types follow the oldest supported Node.js version (24). Security updates are not delayed.

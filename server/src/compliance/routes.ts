@@ -28,6 +28,7 @@ import { createRunEntries } from './run-entries.js';
 import * as rec from './reconciliation.js';
 import * as ctl from './controls.js';
 import * as packs from './evidence-pack.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const iso = z.string().datetime({ offset: true });
@@ -99,7 +100,7 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
     rec.deleteCheck(params(req).accessCheckId!);
     return reply.code(204).send();
   });
-  app.post('/compliance/access-checks/:accessCheckId/run', async (req) => {
+  app.post('/compliance/access-checks/:accessCheckId/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const u = me();
     const c = rec.getCheck(params(req).accessCheckId!);
     if (!c.canRun) throw new HttpError(403, 'You are not allowed to run this access check', 'FORBIDDEN', { context: 'changeAccessCheck' });
@@ -112,7 +113,9 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   app.get('/compliance/access-checks/:accessCheckId/snapshots/:snapshotId', async (req) =>
     rec.getSnapshot(params(req).accessCheckId!, params(req).snapshotId!),
   );
-  app.get('/compliance/access-checks/:accessCheckId/verify', async (req) => rec.verifyCheck(params(req).accessCheckId!));
+  app.get('/compliance/access-checks/:accessCheckId/verify', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) =>
+    rec.verifyCheck(params(req).accessCheckId!),
+  );
   app.get('/compliance/findings', async (req) => {
     const q = z
       .object({ checkId: z.string().max(100).optional(), platformId: z.string().max(100).optional(), status: z.enum(ACCESS_FINDING_STATUSES).optional() })
@@ -168,7 +171,7 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
     ctl.deleteCatalogue(params(req).catalogueId!);
     return reply.code(204).send();
   });
-  app.post('/compliance/catalogues/import', { bodyLimit: ctl.LIMITS.importBytes * 2 + 16 * 1024 }, async (req) => {
+  app.post('/compliance/catalogues/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: ctl.LIMITS.importBytes * 2 + 16 * 1024 }, async (req) => {
     const b = z
       .object({
         catalogueId: z.string().max(100).optional(),
@@ -223,13 +226,13 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   // ---------- evidence packs ----------
   app.get('/compliance/evidence-packs/meta', async () => packs.packsMeta());
   app.get('/compliance/evidence-packs', async () => packs.listPacks());
-  app.post('/compliance/evidence-packs', async (req) => packs.createPack(packs.packInput.parse(req.body)));
+  app.post('/compliance/evidence-packs', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => packs.createPack(packs.packInput.parse(req.body)));
   app.get('/compliance/evidence-packs/:packId', async (req) => packs.getPack(params(req).packId!));
   app.delete('/compliance/evidence-packs/:packId', async (req, reply) => {
     packs.deletePack(params(req).packId!);
     return reply.code(204).send();
   });
-  app.get('/compliance/evidence-packs/:packId/download', async (req, reply) => {
+  app.get('/compliance/evidence-packs/:packId/download', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     const f = packs.packForDownload(params(req).packId!);
     reply.header('content-disposition', contentDisposition(f.filename));
     reply.header('content-length', String(f.size));

@@ -1,0 +1,11 @@
+# CodeQL configuration (referenced from .github/workflows/codeql.yml; the query suite,
+# security-extended, is set there).
+name: Steward CodeQL config
+
+# Test code is not shipped: the server tests (server/test) and the Playwright UI tests
+# (e2e) download files from the test server, write fixtures and use Math.random() for
+# unique names – findings there are noise. Everything that ships stays scanned,
+# including the demo-mode mock servers in server/src/mock.
+paths-ignore:
+  - '**/test/**'
+  - 'e2e/**'

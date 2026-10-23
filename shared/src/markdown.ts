@@ -123,7 +123,7 @@ function atxHeading(line: string): { level: number; text: string } | null {
 export function safeHref(raw: string): string | null {
   const href = raw.trim();
   if (/^https?:\/\/[^\s]+$/i.test(href)) return href;
-  if (/^mailto:[^\s]+@[^\s]+$/i.test(href)) return href;
+  if (/^mailto:[^\s@]+@[^\s]+$/i.test(href)) return href; // [^\s@]: one way to split, no backtracking
   return null;
 }
 
@@ -374,12 +374,59 @@ function parseLink(scan: Scan, start: number): { label: string; href: string; en
   const { src } = scan;
   const i = closingBracket(scan, start);
   if (i < 0 || src[i + 1] !== '(') return null;
-  const label = src.slice(start + 1, i);
-  const rest = src.slice(i + 2);
-  // the target may contain balanced parentheses (Wikipedia URLs)
-  const m = /^\s*<?((?:[^\s()<>]|\([^\s()<>]*\))*)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/.exec(rest);
-  if (!m) return null;
-  return { label, href: m[1]!, end: i + 2 + m[0].length };
+  const target = linkTarget(src, i + 2);
+  if (!target) return null;
+  return { label: src.slice(start + 1, i), href: target.href, end: target.end };
+}
+
+const isWhite = (c: string | undefined) => c !== undefined && /\s/.test(c);
+const isTargetChar = (c: string | undefined) => c !== undefined && !/[\s()<>]/.test(c);
+
+/**
+ * The `(target "title")` part of a link from position `from` (behind the `(`), up to and including the
+ * closing `)`. The target may be in `<…>` and may contain balanced parentheses one level deep
+ * (Wikipedia URLs). Same matches as the regex
+ * /^\s*<?((?:[^\s()<>]|\([^\s()<>]*\))*)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/ in one pass: the regex
+ * backtracked over whitespace runs (quadratic: 16 K tabs took seconds).
+ */
+function linkTarget(src: string, from: number): { href: string; end: number } | null {
+  /** Optional title at i (only after whitespace), then whitespace and `)`: the end, or -1. */
+  const close = (i: number, spaced: boolean): number => {
+    const q = src[i];
+    if (spaced && (q === '"' || q === "'")) {
+      const j = src.indexOf(q, i + 1);
+      if (j < 0) return -1;
+      i = j + 1;
+      while (isWhite(src[i])) i++;
+    }
+    return src[i] === ')' ? i + 1 : -1;
+  };
+  let i = from;
+  while (isWhite(src[i])) i++;
+  const lead = i;
+  if (src[i] === '<') i++;
+  const hrefStart = i;
+  for (;;) {
+    if (isTargetChar(src[i])) i++;
+    else if (src[i] === '(') {
+      let j = i + 1;
+      while (isTargetChar(src[j])) j++;
+      if (src[j] !== ')') break;
+      i = j + 1;
+    } else break;
+  }
+  const href = src.slice(hrefStart, i);
+  if (src[i] === '>') i++;
+  const afterTarget = i;
+  while (isWhite(src[i])) i++;
+  const end = close(i, i > afterTarget || (i === lead && lead > from));
+  if (end >= 0) return { href, end };
+  // otherwise only an empty target whose leading whitespace separates a title can match: ( "title")
+  if (lead > from && lead !== afterTarget) {
+    const e = close(lead, true);
+    if (e >= 0) return { href: '', end: e };
+  }
+  return null;
 }
 
 // ---------- blocks ----------

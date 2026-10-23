@@ -5,7 +5,7 @@ import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
-import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, pathInside, sha256 } from '../util.js';
 import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { invalidatePlatformCaches } from './http.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
@@ -434,7 +434,7 @@ const toDoc = (r: DocRow): PlatformDoc => ({
 });
 
 export function docPath(id: string, filename: string): string {
-  return path.join(config.dataDir, 'docs', `${id}-${filename.replace(/[^A-Za-z0-9._-]/g, '_')}`);
+  return pathInside(path.join(config.dataDir, 'docs'), `${id}-${filename.replace(/[^A-Za-z0-9._-]/g, '_')}`);
 }
 
 export function listDocs(platformId: string): PlatformDoc[] {
@@ -489,5 +489,5 @@ export function deleteDoc(platformId: string, id: string): void {
     db().run('DELETE FROM platform_docs WHERE id = ?', id);
     audit({ action: 'platform.doc_deleted', entityType: 'platform', entityId: platformId, summary: `Documentation "${d.title}" removed` });
   });
-  if (d.filename) fs.rmSync(docPath(id, d.filename), { force: true });
+  if (d.filename) fs.rmSync(docPath(d.id, d.filename), { force: true });
 }

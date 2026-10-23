@@ -12,6 +12,7 @@ import { FUNCTIONS, expressionContext, inspectNode, limitSize, pickRun, sample }
 import { contractCheck } from '../engine/contract.js';
 import { initMetrics, metricsText } from '../metrics.js';
 import { readinessChecks } from '../system/readiness.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -115,7 +116,7 @@ export async function engineExtrasRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- sandbox contract tests ----------
-  app.post('/platforms/:id/contract-check', async (req) => {
+  app.post('/platforms/:id/contract-check', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     require(platforms.getPlatform(id).permissions, 'manage', 'run contract checks against this platform');
     return contractCheck(id);

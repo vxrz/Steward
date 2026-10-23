@@ -13,6 +13,7 @@ import * as branding from '../reports/branding.js';
 import * as reports from '../reports/service.js';
 import { initAutoReports } from '../reports/auto.js';
 import { canViewScheduledReport } from '../reports/schedules.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -101,7 +102,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   initAutoReports();
 
   // ---------- run reports ----------
-  app.post('/runs/:id/reports', async (req) => {
+  app.post('/runs/:id/reports', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const id = params(req).id!;
     requireRunView(id);
     const b = runReportBody.parse(req.body ?? {});
@@ -115,7 +116,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return reports.listRunReports(id);
   });
 
-  app.get('/runs/:id/report.pdf', async (req, reply) => {
+  app.get('/runs/:id/report.pdf', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     const id = params(req).id!;
     requireRunView(id);
     const q = z.object({ lang: z.string().max(10).optional(), timeZone: z.string().max(64).optional() }).parse(req.query ?? {});
@@ -125,7 +126,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- summary reports ----------
-  app.post('/reports/summary', async (req) => {
+  app.post('/reports/summary', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const b = summaryBody.parse(req.body ?? {});
     for (const pid of new Set(b.processIds)) {
       if (!processes.permissionsFor(pid).includes('view')) throw new HttpError(404, `Process ${pid} not found`, 'PROCESS_NOT_FOUND', { id: pid });
@@ -216,7 +217,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return after;
   });
 
-  app.post('/reports/branding/preview', async (req, reply) => {
+  app.post('/reports/branding/preview', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     const b = brandingBody.extend({ lang: langSchema, timeZone: z.string().max(64).optional() }).parse(req.body ?? {});
     const { lang, timeZone, ...draft } = b;
@@ -225,7 +226,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- verification of an archived (and possibly signed) copy ----------
-  app.post('/reports/verify', async (req) => {
+  app.post('/reports/verify', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const u = me();
     let data: Buffer;
     if (req.isMultipart()) {
@@ -273,7 +274,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return out;
   });
 
-  app.get('/reports/:id/download', async (req, reply) => {
+  app.get('/reports/:id/download', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     const rec = reports.getReport(params(req).id!);
     requireReportAccess(rec);
     let data: Buffer;

@@ -90,6 +90,7 @@
     "LIMIT_REACHED_reportSchedules": "You already own {{max}} report schedules – delete one you no longer need first.",
     "RATE_LIMITED": "Too many requests – try again in a moment.",
     "RATE_LIMITED_scrape": "This source was scraped a moment ago – try again in {{seconds}} s.",
+    "RATE_LIMITED_wait": "Too many requests – try again in {{seconds}} s.",
     "YAML_INVALID": "Invalid YAML: {{detail}}",
     "EXPRESSION_INVALID": "{{where}}: invalid expression – {{detail}}",
     "COLOR_INVALID": "Enter a hex colour like #1c7ed6.",

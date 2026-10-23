@@ -37,6 +37,22 @@ test.describe('sign-in', () => {
     await expect(page.getByRole('heading', { name: /^Sign in/ })).toBeVisible();
   });
 
+  test('too many requests shows how long to wait', async ({ page, allowConsole }) => {
+    allowConsole(/status of 429/);
+    // the server's 429 answer (server/test/rate-limit.test.ts), simulated: the shared demo server keeps its limits
+    await page.route('**/api/auth/login', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        headers: { 'retry-after': '42' },
+        body: JSON.stringify({ error: 'Too many requests – try again in 42 s', code: 'RATE_LIMITED', params: { context: 'wait', seconds: 42 } }),
+      }),
+    );
+    await signIn(page, USERS.vera.username, USERS.vera.password);
+    // the translated text (with a full stop), not the server's English message
+    await expect(page.getByRole('alert')).toContainText('Too many requests – try again in 42 s.');
+  });
+
   test('new account must change its temporary password first', async ({ page, apiAs }) => {
     const admin = await apiAs('admin');
     const username = uniq('newbie').replace(/\s/g, '').toLowerCase();

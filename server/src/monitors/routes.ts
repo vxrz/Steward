@@ -13,6 +13,7 @@ import { canCreateMonitors, type CheckRow } from './model.js';
 import { parseCsv } from './templates.js';
 import { validateMonitorFile } from './validation.js';
 import { db } from '../db.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -41,13 +42,13 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
       headers: req.headers,
       ip: req.ip,
     });
-    hooks.post('/hooks/monitor/:id', { bodyLimit: HEARTBEAT_MAX_BODY_BYTES }, async (req, reply) => {
+    hooks.post('/hooks/monitor/:id', { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: HEARTBEAT_MAX_BODY_BYTES }, async (req, reply) => {
       const res = await handleHeartbeat(params(req).id!, call(req));
       reply.header('cache-control', 'no-store');
       if (res.headers) reply.headers(res.headers);
       return reply.code(res.status).send(res.body);
     });
-    hooks.post('/hooks/monitors', { bodyLimit: HEARTBEAT_MAX_BODY_BYTES }, async (req, reply) => {
+    hooks.post('/hooks/monitors', { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: HEARTBEAT_MAX_BODY_BYTES }, async (req, reply) => {
       const res = await handleGatewayBatch(call(req));
       reply.header('cache-control', 'no-store');
       if (res.headers) reply.headers(res.headers);
@@ -70,7 +71,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   }));
   app.get('/monitors/examples', async () => svc.listExamples());
   app.post('/monitors/examples/:file', async (req) => svc.importExample(params(req).file!));
-  app.post('/monitors/import', async (req) => {
+  app.post('/monitors/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const b = z
       .object({
         yaml: z
@@ -126,7 +127,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
       z.object({ limit: z.coerce.number().int().min(1).max(1000).default(50) }).parse(req.query ?? {}).limit,
     ),
   );
-  app.post('/monitors/:id/run', async (req) => {
+  app.post('/monitors/:id/run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'acknowledge', 'run the checks of this monitor');
     if (!vault().unlocked) throw new HttpError(423, 'The vault is locked', 'VAULT_LOCKED');
     if (!engine.loadedMonitor(r.id))
@@ -139,7 +140,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   app.post('/monitors/:id/checks/:checkId/rotate', async (req) => svc.rotateHeartbeatSecret(params(req).id!, params(req).checkId!));
 
   /** Sends a sample report through the real heartbeat endpoint (secret added server-side). */
-  app.post('/monitors/:id/checks/:checkId/test-report', async (req) => {
+  app.post('/monitors/:id/checks/:checkId/test-report', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const r = svc.requireMonitor(params(req).id!, 'edit');
     const row = db().get<CheckRow>('SELECT * FROM monitor_checks WHERE monitor_id = ? AND check_id = ?', r.id, params(req).checkId);
     if (!row?.hook_id || !row.secret_enc) throw new HttpError(404, 'This check has no heartbeat endpoint', 'NO_HEARTBEAT');

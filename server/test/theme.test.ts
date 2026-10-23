@@ -325,6 +325,21 @@ describe('header logo', () => {
     expect((await s.api('GET', '/settings/theme')).logo.mime).toBe('image/png');
   });
 
+  it('recognises SVG behind comments without backtracking (no ReDoS on many comments)', async () => {
+    const { looksLikeSvg } = await import('../src/theme/service.js'); // after startTestServer (it loads the configuration)
+    expect(looksLikeSvg(Buffer.from('  <?xml version="1.0"?>\n<!-- a --> <!-- b -->\n<!DOCTYPE svg PUBLIC "x">\n<SVG width="1">'))).toBe(true);
+    expect(looksLikeSvg(Buffer.from('<!-- a -->x<svg>'))).toBe(false);
+    expect(looksLikeSvg(Buffer.from('<!-- unclosed <svg>'))).toBe(false);
+    expect(looksLikeSvg(Buffer.from('<svgx>'))).toBe(false);
+    // the former regex took minutes on this: exponential in the number of "--><!--"
+    const evil = Buffer.from('<!--' + '--><!--'.repeat(290));
+    const t = performance.now();
+    expect(looksLikeSvg(evil)).toBe(false);
+    expect(performance.now() - t).toBeLessThan(100);
+    const res = await upload(evil).catch((e: Error) => JSON.parse(e.message.replace(/^[^{]*/, '')));
+    expect(res.code).toBe('THEME_LOGO_TYPE');
+  });
+
   it('removes the logo and resets everything to the defaults (audited)', async () => {
     const removed = await s.api('DELETE', '/settings/theme/logo');
     expect(removed.logo).toBeNull();
