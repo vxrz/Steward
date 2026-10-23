@@ -55,7 +55,7 @@ test('a service document gets editions 1.0 and 1.1, a review, and shows on the s
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByRole('textbox', { name: 'Text (Markdown)' }).fill('## Purpose and scope\n\nRestart the plant gateway and check the heartbeat.\n');
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page).toHaveURL(new RegExp(`/records/${id}$`));
+  await expect(page).toHaveURL((url) => url.pathname.endsWith(`/records/${id}`));
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
   const second = page.getByRole('dialog', { name: /^Submit: DOC-/ });
   await second.getByRole('radio', { name: /^Minor – editorial change \(becomes 1\.1\)/ }).check();
