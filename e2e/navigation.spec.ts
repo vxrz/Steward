@@ -111,6 +111,8 @@ test.describe('navigation (admin)', () => {
     await expect(page).toHaveURL(/\/monitors\/[^/]+$/);
     await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toContainText('Machine 17 – PowerMeter');
     await settle(page);
+    // Ctrl+K toggles: pressed while the palette is still closing, it would close it instead of opening it
+    await expect(search).toBeHidden();
 
     await page.keyboard.press('Control+K');
     await search.fill('new record');
