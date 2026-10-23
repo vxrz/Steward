@@ -1,18 +1,17 @@
 import { useState } from 'react';
-import { Alert, Anchor, Button, Grid, Group, Menu, Modal, Paper, Stack, Text, TextInput, Timeline } from '@mantine/core';
+import { Anchor, Button, Grid, Group, Menu, Modal, Paper, Stack, Text, TextInput, Timeline } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { IconCheck, IconChevronDown, IconEdit, IconExternalLink, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { TICKET_LIMITS, type TicketDetail, type TicketEvent, type TicketStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
-import { LoadingState, PageHeader, subjectLabel } from '../components/common';
+import { DetailState, PageHeader, subjectLabel } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field } from '../components/records/common';
 import { TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings } from '../components/tickets/common';
 import { TicketForm } from '../components/tickets/TicketForm';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
-import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
 
 export function TicketDetailPage() {
@@ -25,10 +24,8 @@ export function TicketDetailPage() {
   const settings = useTicketSettings();
   const [editing, setEditing] = useState(false);
   const [statusTo, setStatusTo] = useState<TicketStatus | 'checked' | null>(null);
-  if (q.isLoading) return <LoadingState />;
-  if (q.error) return <Alert color="red">{errorText(q.error)}</Alert>;
   const x = q.data;
-  if (!x) return null;
+  if (!x) return <DetailState query={q} back="tickets" />;
   const canEdit = x.permissions.includes('edit');
   const refresh = (next?: TicketDetail) => {
     if (next) qc.setQueryData(['ticket', id], next);

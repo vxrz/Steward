@@ -57,7 +57,7 @@ import {
   type SignedPdfDetails,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
-import { PageHeader } from '../components/common';
+import { DetailState, PageHeader } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel, RecordStatusBadge, useTypeName, type LinkInput } from '../components/records/common';
@@ -91,9 +91,8 @@ export function RecordDetailPage() {
     void qc.invalidateQueries({ queryKey: ['record-versions', id] });
   };
 
-  if (q.error) return <Alert color="red">{errorText(q.error)}</Alert>;
   const rec = q.data;
-  if (!rec) return null;
+  if (!rec) return <DetailState query={q} back="records" />;
   const tampered = rec.tampered;
   const visibleActions = rec.actions.filter((a) => a.allowed || (a.approval && meta.data?.canApprove));
 

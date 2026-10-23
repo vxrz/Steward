@@ -35,6 +35,7 @@ import {
 import { get, getOptional, notifyError, post, put } from '../../api';
 import { useMe } from '../../auth';
 import { TICKET_STATUS_IDS, useSourceLabel, useTicketSettings } from './common';
+import { useFieldErrors } from '../common';
 
 type Affected = { kind: TicketLinkKind; id: string; label: string };
 
@@ -156,13 +157,18 @@ export function TicketForm({
     }
   };
 
-  const valid = d.externalNumber.trim() && d.title.trim() && (!d.externalUrl.trim() || /^https?:\/\/\S+$/i.test(d.externalUrl.trim()));
+  const v = useFieldErrors({
+    externalNumber: !d.externalNumber.trim() && t('common:validation.required'),
+    title: !d.title.trim() && t('common:validation.required'),
+    externalUrl: !!d.externalUrl.trim() && !/^https?:\/\/\S+$/i.test(d.externalUrl.trim()) && t('hints.externalUrl'),
+  });
   return (
     <Modal opened onClose={onClose} title={ticket ? t('editTitle', { number: ticket.externalNumber }) : t('new')} size="lg">
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          if (valid) void save();
+          if (v.validate()) void save();
         }}
       >
         <Stack gap="sm">
@@ -184,6 +190,7 @@ export function TicketForm({
               required
               data-autofocus
               classNames={{ input: 'mono' }}
+              error={v.error('externalNumber')}
             />
           </SimpleGrid>
           <TextInput
@@ -192,6 +199,7 @@ export function TicketForm({
             onChange={(e) => set({ title: e.currentTarget.value })}
             maxLength={TICKET_LIMITS.title}
             required
+            error={v.error('title')}
           />
           <TextInput
             label={t('fields.externalUrl')}
@@ -302,7 +310,7 @@ export function TicketForm({
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button type="submit" loading={busy} disabled={!valid}>
+            <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>

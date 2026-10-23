@@ -130,5 +130,10 @@
     "showingAll_one": "{{count}} Eintrag",
     "showingAll_other": "{{count}} Einträge",
     "loadMore": "Mehr laden"
+  },
+  "validation": {
+    "required": "Pflichtfeld",
+    "requiredOne": "Mindestens eine Auswahl",
+    "invalid": "Ungültig"
   }
 }

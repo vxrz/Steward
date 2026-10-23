@@ -26,7 +26,7 @@ import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash, IconUsersG
 import { Trans, useTranslation } from 'react-i18next';
 import { ROLES, ROLE_INFO, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { PageHeader } from '../components/common';
+import { PageHeader, useFieldErrors } from '../components/common';
 import { fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
@@ -339,7 +339,9 @@ function UserModal({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const v = useFieldErrors({ username: !username.trim() && t('common:validation.required') });
   const save = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     try {
       if (user) {
@@ -367,7 +369,14 @@ function UserModal({
   return (
     <Modal opened onClose={onClose} title={user ? t('userModal.edit', { user: user.username }) : t('addUser')}>
       <Stack>
-        <TextInput label={t('userModal.username')} required disabled={!!user} value={username} onChange={(e) => setUsername(e.currentTarget.value)} />
+        <TextInput
+          label={t('userModal.username')}
+          required
+          disabled={!!user}
+          value={username}
+          onChange={(e) => setUsername(e.currentTarget.value)}
+          error={v.error('username')}
+        />
         <TextInput label={t('userModal.displayName')} value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} />
         <TextInput label={t('userModal.email')} value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
         <MultiSelect label={t('table.roles')} data={roleOptions()} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
@@ -394,7 +403,7 @@ function UserModal({
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!username.trim()}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

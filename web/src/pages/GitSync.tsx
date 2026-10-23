@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { GIT_PROVIDERS, SYNC_KINDS, SYNC_LIMITS, type SyncFetchResult, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
-import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
+import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 
@@ -233,7 +233,13 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
   const [d, setD] = useState<Draft>(initial);
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
+  const v = useFieldErrors({
+    name: !d.name.trim() && t('common:validation.required'),
+    repoUrl: !d.repoUrl.trim() && t('common:validation.required'),
+    kinds: !d.kinds.length && t('common:validation.requiredOne'),
+  });
   const save = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     const body = {
       name: d.name,
@@ -265,7 +271,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
   return (
     <Modal opened onClose={onClose} title={d.id ? t('form.titleEdit') : t('form.titleNew')} size="lg">
       <Stack gap="sm">
-        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set('name', e.currentTarget.value)} data-autofocus />
+        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => set('name', e.currentTarget.value)} data-autofocus error={v.error('name')} />
         <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
           <Select
             label={t('form.provider')}
@@ -283,6 +289,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           value={d.repoUrl}
           onChange={(e) => set('repoUrl', e.currentTarget.value)}
           placeholder="https://git.example.com/team/steward-library"
+          error={v.error('repoUrl')}
         />
         <TextInput label={t('form.apiUrl')} description={t('form.apiUrlHint')} value={d.apiUrl ?? ''} onChange={(e) => set('apiUrl', e.currentTarget.value)} />
         <TextInput
@@ -292,7 +299,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           onChange={(e) => set('folder', e.currentTarget.value)}
           placeholder="steward"
         />
-        <Checkbox.Group label={t('form.kinds')} value={d.kinds} onChange={(v) => set('kinds', v as Draft['kinds'])} required>
+        <Checkbox.Group label={t('form.kinds')} value={d.kinds} onChange={(k) => set('kinds', k as Draft['kinds'])} required error={v.error('kinds')}>
           <Group gap="md" mt={4}>
             {SYNC_KINDS.map((k) => (
               <Checkbox key={k} value={k} label={t(`form.kind.${k}`)} />
@@ -351,7 +358,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!d.name.trim() || !d.repoUrl.trim() || !d.kinds.length}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

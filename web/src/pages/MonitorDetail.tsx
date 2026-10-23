@@ -46,11 +46,10 @@ import {
   type MonitorSaveResult,
 } from '@sm/shared';
 import { api, apiUrl, del, get, notifyError, notifyOk, post, put } from '../api';
-import { JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
-import { errorText } from '../i18n/errors';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
@@ -73,9 +72,8 @@ export function MonitorDetailPage() {
   const select = (c: string | null) => setSearch(c ? { check: c } : {}, { replace: true });
   const refresh = () => qc.invalidateQueries({ queryKey: ['monitor', id] });
 
-  if (q.error) return <Text c="red">{errorText(q.error)}</Text>;
   const m = q.data;
-  if (!m) return null;
+  if (!m) return <DetailState query={q} back="monitors" />;
   const can = (p: string) => m.permissions.includes(p as never);
   const sel = m.checks.find((c) => c.checkId === selected) ?? null;
   const rootIds = m.rootCauses.filter((r) => r.monitorId === m.id).map((r) => r.checkId);

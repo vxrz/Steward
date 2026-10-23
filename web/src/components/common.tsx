@@ -35,6 +35,7 @@ import {
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
+import { errorText } from '../i18n/errors';
 import { NAV_GROUPS, type NavKey } from './AppNav';
 
 /**
@@ -253,13 +254,42 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   const { t } = useTranslation();
   return (
     <Alert color="red" icon={<IconAlertTriangle size={18} />} title={t('loadFailed')} mb="md">
-      <Text size="sm">{error instanceof Error ? error.message : String(error)}</Text>
+      <Text size="sm">{errorText(error)}</Text>
       {onRetry && (
         <Button size="xs" variant="light" color="red" mt="xs" leftSection={<IconRefresh size={14} />} onClick={onRetry}>
           {t('retry')}
         </Button>
       )}
     </Alert>
+  );
+}
+
+/**
+ * A detail page before its entry is there: a skeleton of breadcrumb, title and content while it loads;
+ * the reason, _Try again_ and the way back when it could not be loaded.
+ */
+export function DetailState({ query, back }: { query: { isLoading: boolean; error: unknown; refetch: () => unknown }; back?: Crumb | Crumb[] }) {
+  const { t } = useTranslation();
+  const crumbs = back ? (Array.isArray(back) ? back : [back]) : [];
+  if (query.error)
+    return (
+      <>
+        {crumbs.length > 0 && <BackLinks crumbs={crumbs} />}
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+      </>
+    );
+  return (
+    <Stack gap="sm" aria-busy="true" aria-label={t('loading')} role="status" data-testid="detail-loading">
+      <Skeleton height={14} width={120} radius="sm" />
+      <Skeleton height={30} width="min(420px, 80%)" radius="sm" />
+      <Skeleton height={14} width="min(560px, 95%)" radius="sm" mb="sm" />
+      <Group gap="sm" grow wrap="wrap">
+        <Skeleton height={72} radius="sm" miw={160} />
+        <Skeleton height={72} radius="sm" miw={160} />
+        <Skeleton height={72} radius="sm" miw={160} />
+      </Group>
+      <Skeleton height={220} radius="sm" />
+    </Stack>
   );
 }
 
@@ -285,6 +315,24 @@ export function useCreateParam(allowed: boolean | undefined, open: () => void) {
     setParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per ?new=1
   }, [wanted, allowed]);
+}
+
+/**
+ * Inline validation of a dialog: the submit button stays enabled; on submit the fields that are
+ * missing or wrong show their message (Mantine `error`) and the first one gets the focus.
+ * `checks` maps a field to its problem (a text) or to nothing when it is fine.
+ */
+export function useFieldErrors<K extends string>(checks: Record<K, string | false | null | undefined>) {
+  const [shown, setShown] = useState(false);
+  const error = (k: K): string | undefined => (shown && checks[k]) || undefined;
+  /** true when every field is fine; otherwise shows the messages. */
+  const validate = (): boolean => {
+    if (Object.values(checks).every((v) => !v)) return true;
+    setShown(true);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    return false;
+  };
+  return { error, validate };
 }
 
 export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight?: number }) {

@@ -1,16 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Alert, Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
+import { Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { Dashboard, DashboardDefinition, DatasetStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
-import { PageHeader } from '../components/common';
+import { DetailState, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
-import { errorText } from '../i18n/errors';
 import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
@@ -33,8 +32,7 @@ export function DashboardViewPage() {
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
   const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter }), [refreshMs, statusFilter]);
 
-  if (dash.error) return <Alert color="red">{errorText(dash.error)}</Alert>;
-  if (!d || !def) return null;
+  if (!d || !def) return <DetailState query={dash} back="dashboards" />;
 
   const refresh = async () => {
     setBusy(true);

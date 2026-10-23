@@ -41,6 +41,7 @@ import type {
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
+import { useFieldErrors } from '../common';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 
 const CERT_MAX = 256 * 1024;
@@ -198,7 +199,13 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
     }
   };
 
+  const v = useFieldErrors<string>({
+    name: !d.name.trim() && t('common:validation.required'),
+    ...Object.fromEntries(d.owners.map((o, i) => [`owner${i}`, !o.email.trim() && t('common:validation.required')])),
+    ...Object.fromEntries(d.usedBy.links.map((l, i) => [`link${i}`, !l.id && t('common:validation.required')])),
+  });
   const save = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     setError(null);
     try {
@@ -229,7 +236,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
           {t('noSecretsHint')}
         </Alert>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label={t('fields.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} />
+          <TextInput label={t('fields.name')} required value={d.name} onChange={(e) => set({ name: e.currentTarget.value })} error={v.error('name')} />
           <Select
             label={t('fields.type')}
             required
@@ -297,6 +304,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 disabled={ownersLocked}
                 value={o.email}
                 onChange={(e) => set({ owners: d.owners.map((x, j) => (j === i ? { ...x, email: e.currentTarget.value } : x)) })}
+                error={v.error(`owner${i}`)}
               />
               <Autocomplete
                 style={{ flex: 1.4 }}
@@ -361,7 +369,8 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
                 searchable
                 data={options(l.kind)}
                 value={l.id || null}
-                onChange={(v) => set({ usedBy: { ...d.usedBy, links: d.usedBy.links.map((x, j) => (j === i ? { ...x, id: v ?? '' } : x)) } })}
+                onChange={(id) => set({ usedBy: { ...d.usedBy, links: d.usedBy.links.map((x, j) => (j === i ? { ...x, id: id ?? '' } : x)) } })}
+                error={v.error(`link${i}`)}
               />
               <ActionIcon
                 variant="subtle"
@@ -528,7 +537,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={save} loading={busy} disabled={!d.name.trim() || d.owners.some((o) => !o.email.trim()) || d.usedBy.links.some((l) => !l.id)}>
+          <Button onClick={save} loading={busy}>
             {t('common:save')}
           </Button>
         </Group>

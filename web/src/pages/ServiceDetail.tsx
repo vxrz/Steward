@@ -1,16 +1,15 @@
 import { useState } from 'react';
-import { Alert, Anchor, Badge, Button, Grid, Group, Paper, Stack, Text } from '@mantine/core';
+import { Anchor, Badge, Button, Grid, Group, Paper, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ServiceDetail } from '@sm/shared';
 import { del, get, notifyError, post } from '../api';
-import { PageHeader, subjectLabel } from '../components/common';
+import { DetailState, PageHeader, subjectLabel } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel } from '../components/records/common';
 import { fmtDate } from '../format';
-import { errorText } from '../i18n/errors';
 import { CriticalityBadge, ServiceFormModal } from './Services';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { confirmDanger } from '../components/confirm';
@@ -26,9 +25,8 @@ export function ServiceDetailPage() {
     else void qc.invalidateQueries({ queryKey: ['service', id] });
     void qc.invalidateQueries({ queryKey: ['services'] });
   };
-  if (q.error) return <Alert color="red">{errorText(q.error)}</Alert>;
   const s = q.data;
-  if (!s) return null;
+  if (!s) return <DetailState query={q} back="services" />;
   const archive = async () => {
     if (!s.archived && !(await confirmDanger({ action: 'archive', message: t('archiveConfirm', { name: s.name }) }))) return;
     try {

@@ -18,11 +18,10 @@ import {
 import type { AuditEntry, ProcessDetail, RunChild, RunDetail, RunStepRecord } from '@sm/shared';
 import { get, notifyError, post, apiUrl } from '../api';
 import { fmtDate, fmtDuration, fmtNumber, fmtTime, runDuration } from '../format';
-import { JsonView, Markdown, PageHeader, SeverityBadge, StatusBadge, statusLabel } from '../components/common';
+import { DetailState, JsonView, Markdown, PageHeader, SeverityBadge, StatusBadge, statusLabel } from '../components/common';
 import { TaskPanel } from '../components/TaskPanel';
 import { RunDialog } from '../components/RunDialog';
 import { GenerateReportDialog, RunReportsPanel, canReport } from '../components/reports/RunReports';
-import { errorText } from '../i18n/errors';
 
 const ACTIVE = ['running', 'waiting', 'queued'];
 /** Long runs (for-each over thousands of items) render their steps and log lines in pages. */
@@ -56,7 +55,7 @@ export function RunDetailPage() {
     return m;
   }, [run.data?.children]);
   const r = run.data;
-  if (!r) return run.error ? <Alert color="red">{errorText(run.error)}</Alert> : null;
+  if (!r) return <DetailState query={run} back="runs" />;
 
   const action = async (what: 'cancel' | 'resume') => {
     try {

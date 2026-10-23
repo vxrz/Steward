@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActionIcon, Alert, Anchor, Badge, Button, Center, Collapse, Group, Loader, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
+import { ActionIcon, Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import {
   IconApi,
   IconBook,
@@ -22,9 +22,8 @@ import type { AclEntry, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { AccessEditor } from '../components/AccessEditor';
 import { useMe } from '../auth';
-import { JsonView, PageHeader } from '../components/common';
+import { DetailState, JsonView, PageHeader } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
-import { errorText } from '../i18n/errors';
 import { fmtNumber } from '../format';
 import { KIND_COLORS } from './Platforms';
 import { SettingsTab } from '../components/platform/SettingsTab';
@@ -60,13 +59,8 @@ export function PlatformDetailPage() {
   const [saveType, setSaveType] = useState(false);
   const { isAdmin } = useMe();
 
-  if (platform.isLoading)
-    return (
-      <Center p="xl">
-        <Loader />
-      </Center>
-    );
-  if (platform.error || !platform.data) return <Alert color="red">{platform.error ? errorText(platform.error) : t('detail.notFound')}</Alert>;
+  if (platform.isLoading || platform.error) return <DetailState query={platform} back="platforms" />;
+  if (!platform.data) return <Alert color="red">{t('detail.notFound')}</Alert>;
   const p = platform.data;
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');

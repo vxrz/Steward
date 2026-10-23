@@ -51,6 +51,8 @@ body {
  */
 :root:root[data-mantine-color-scheme='light'] {
   --mantine-color-dimmed: #5c636a;
+  /* inline field errors (red.9: 4.5:1 on white; Mantine's red.6 has 3.3:1) */
+  --mantine-color-error: var(--mantine-color-red-9);
   --mantine-color-placeholder: #6c757d;
   --mantine-color-gray-text: #495057;
   --mantine-color-gray-light-color: #495057;
@@ -121,6 +123,7 @@ body {
 /* Same for the dark scheme: dimmed text and the filled orange used by warning badges. */
 :root:root[data-mantine-color-scheme='dark'] {
   --mantine-color-dimmed: var(--mantine-color-dark-1);
+  --mantine-color-error: var(--mantine-color-red-4);
   --mantine-color-orange-filled: #c54c0a;
   --mantine-color-orange-filled-hover: #ae4309;
 }

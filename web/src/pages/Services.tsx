@@ -7,7 +7,7 @@ import { IconExternalLink, IconPlus, IconStack2, IconTicket, IconTrash } from '@
 import { useTranslation } from 'react-i18next';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
 
@@ -203,7 +203,9 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   const [tags, setTags] = useState<string[]>(service?.tags ?? []);
   const [busy, setBusy] = useState(false);
   const setContact = (i: number, patch: Partial<ServiceContact>) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
   const save = async () => {
+    if (!v.validate()) return;
     setBusy(true);
     try {
       const body = {
@@ -230,13 +232,22 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   return (
     <Modal opened onClose={onClose} title={service ? t('editTitle', { name: service.name }) : t('newTitle')} size="lg">
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
         <Stack gap="sm">
-          <TextInput label={t('name')} value={name} onChange={(e) => setName(e.currentTarget.value)} required maxLength={160} data-autofocus />
+          <TextInput
+            label={t('name')}
+            value={name}
+            onChange={(e) => setName(e.currentTarget.value)}
+            required
+            maxLength={160}
+            data-autofocus
+            error={v.error('name')}
+          />
           <Textarea
             label={t('descriptionLabel')}
             description={t('descriptionHelp')}
@@ -332,7 +343,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button type="submit" loading={busy} disabled={!name.trim()}>
+            <Button type="submit" loading={busy}>
               {t('common:save')}
             </Button>
           </Group>

@@ -7,7 +7,7 @@ import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, I
 import { useTranslation } from 'react-i18next';
 import { RECORD_STATUSES, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
-import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/records/common';
 import { fmtDate, fmtRelative } from '../format';
@@ -274,8 +274,9 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const selected = types.data?.find((x) => x.key === type);
+  const v = useFieldErrors({ type: !type && t('common:validation.required'), title: !title.trim() && t('common:validation.required') });
   const submit = async () => {
-    if (!type || !title.trim()) return;
+    if (!v.validate() || !type) return;
     setBusy(true);
     try {
       // a built-in type starts with its template in the UI language (the server would use the stored, English one)
@@ -291,6 +292,7 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <Modal opened onClose={onClose} title={t('create.title')}>
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
@@ -304,13 +306,21 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
             onChange={setType}
             required
             data-autofocus
+            error={v.error('type')}
           />
           {selected?.description && (
             <Text size="xs" c="dimmed">
               {typeDescription(selected)}
             </Text>
           )}
-          <TextInput label={t('create.recordTitle')} value={title} onChange={(e) => setTitle(e.currentTarget.value)} required maxLength={300} />
+          <TextInput
+            label={t('create.recordTitle')}
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            required
+            maxLength={300}
+            error={v.error('title')}
+          />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

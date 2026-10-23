@@ -25,7 +25,7 @@ import { IconEdit, IconFileImport, IconHeartRateMonitor, IconKey, IconLayoutGrid
 import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorSummary } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
-import { EmptyState, Hint, PageHeader, QueryState } from '../components/common';
+import { EmptyState, Hint, PageHeader, QueryState, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
@@ -474,10 +474,11 @@ function GatewaysTab() {
 function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose: () => void; onSave: (d: GatewayDraft) => void }) {
   const { t } = useTranslation(['monitors', 'common']);
   const [d, setD] = useState(draft);
+  const v = useFieldErrors({ name: !d.name.trim() && t('common:validation.required') });
   return (
     <Modal opened onClose={onClose} title={draft.id ? t('gateways.editTitle') : t('gateways.new')} size="lg">
       <Stack>
-        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
+        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} error={v.error('name')} />
         <Textarea
           label={t('form.description')}
           autosize
@@ -510,9 +511,7 @@ function GatewayModal({ draft, onClose, onSave }: { draft: GatewayDraft; onClose
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button disabled={!d.name.trim()} onClick={() => onSave(d)}>
-            {draft.id ? t('common:save') : t('gateways.create')}
-          </Button>
+          <Button onClick={() => v.validate() && onSave(d)}>{draft.id ? t('common:save') : t('gateways.create')}</Button>
         </Group>
       </Stack>
     </Modal>

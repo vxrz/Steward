@@ -6,11 +6,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { RecordDetail, RecordFieldDef } from '@sm/shared';
 import { get, notifyError, notifyOk, put } from '../api';
-import { PageHeader } from '../components/common';
+import { DetailState, PageHeader } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { useTypeName } from '../components/records/common';
 import { fieldHelp, fieldLabel, optionLabel } from '../components/records/builtin';
-import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
 
 interface Draft {
@@ -67,8 +66,7 @@ export function RecordEditorPage() {
     if (rec && !draft) setDraft(fromRecord(rec));
   }, [rec, draft]);
 
-  if (q.error) return <Alert color="red">{errorText(q.error)}</Alert>;
-  if (!rec || !draft) return null;
+  if (!rec || !draft) return <DetailState query={q} back="records" />;
   if (!rec.permissions.edit) {
     return (
       <Alert color="orange" title={`${rec.number} ${rec.title}`}>

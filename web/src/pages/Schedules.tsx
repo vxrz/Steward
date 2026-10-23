@@ -7,7 +7,7 @@ import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from 
 import { Trans, useTranslation } from 'react-i18next';
 import type { ProcessDetail, ProcessSummary, Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
-import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam } from '../components/common';
+import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
@@ -237,6 +237,11 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
     }
   }, [proc.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const v = useFieldErrors({
+    process: !d.processId && t('common:validation.required'),
+    name: !d.name.trim() && t('common:validation.required'),
+    cron: !d.cron.trim() && t('common:validation.required'),
+  });
   return (
     <Modal opened onClose={onClose} title={draft.id ? t('edit') : t('new')} size="lg">
       <Stack>
@@ -246,9 +251,10 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           searchable
           data={(processes.data ?? []).filter((p) => p.permissions.includes('run')).map((p) => ({ value: p.id, label: p.name }))}
           value={d.processId || null}
-          onChange={(v) => setD({ ...d, processId: v ?? '', inputs: {}, bindings: {} })}
+          onChange={(p) => setD({ ...d, processId: p ?? '', inputs: {}, bindings: {} })}
+          error={v.error('process')}
         />
-        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} />
+        <TextInput label={t('form.name')} required value={d.name} onChange={(e) => setD({ ...d, name: e.currentTarget.value })} error={v.error('name')} />
         <div>
           <Text size="sm" fw={500} mb={4}>
             {t('form.when')}
@@ -269,7 +275,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
               classNames={{ input: 'mono' }}
               value={d.cron}
               onChange={(e) => setD({ ...d, cron: e.currentTarget.value })}
-              error={preview.error ? errorText(preview.error) : undefined}
+              error={v.error('cron') ?? (preview.error ? errorText(preview.error) : undefined)}
             />
             <TextInput label={t('form.timezone')} value={d.timezone ?? ''} onChange={(e) => setD({ ...d, timezone: e.currentTarget.value })} />
           </Group>
@@ -307,9 +313,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button onClick={() => onSave(d)} disabled={!d.processId || !d.name || !d.cron}>
-            {t('common:save')}
-          </Button>
+          <Button onClick={() => v.validate() && onSave(d)}>{t('common:save')}</Button>
         </Group>
       </Stack>
     </Modal>

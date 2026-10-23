@@ -130,5 +130,10 @@
     "showingAll_one": "{{count}} entry",
     "showingAll_other": "{{count}} entries",
     "loadMore": "Load more"
+  },
+  "validation": {
+    "required": "Required",
+    "requiredOne": "Choose at least one",
+    "invalid": "Not valid"
   }
 }
