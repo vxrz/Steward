@@ -112,57 +112,59 @@ export function RecordDetailPage() {
             {t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}
           </>
         }
-      />
-      <Group gap="xs" mb="sm" mt={-8} wrap="wrap">
-        {rec.permissions.edit && (
-          <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/records/${rec.id}/edit`)}>
-            {t('detail.edit')}
-          </Button>
-        )}
-        {visibleActions.map((a) => {
-          const button = (
-            <Button
-              key={a.action}
-              size="xs"
-              variant={a.approval ? 'filled' : 'default'}
-              color={a.action === 'reject' ? 'red' : a.approval ? 'green' : undefined}
-              disabled={!a.allowed}
-              onClick={() => setAction(a)}
-            >
-              {t(`actions.${a.action as 'submit'}`, { defaultValue: a.action })}
-            </Button>
-          );
-          return a.allowed ? (
-            button
-          ) : (
-            <Tooltip key={a.action} label={codeText(a.reasonCode, undefined, a.reason) ?? a.reason} multiline w={260}>
-              <span>{button}</span>
-            </Tooltip>
-          );
-        })}
-        {rec.permissions.revise && (
-          <Button size="xs" variant="default" leftSection={<IconGitBranch size={14} />} onClick={() => setRevising(true)}>
-            {rec.status === 'rejected' ? t('detail.rework') : t('detail.revise')}
-          </Button>
-        )}
-        <Menu position="bottom-end">
-          <Menu.Target>
-            <Button size="xs" variant="default" aria-label={t('detail.moreActions')} px={8}>
-              <IconDots size={16} />
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            {rec.permissions.generatePdf && (
-              <Menu.Item leftSection={<IconFileTypePdf size={14} />} onClick={() => setPdf(true)}>
-                {t('pdf.generate')}
-              </Menu.Item>
+        actions={
+          <>
+            {rec.permissions.edit && (
+              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/records/${rec.id}/edit`)}>
+                {t('detail.edit')}
+              </Button>
             )}
-            <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/records/${rec.id}/export`)}>
-              {t('detail.exportMd')}
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
+            {visibleActions.map((a) => {
+              const button = (
+                <Button
+                  key={a.action}
+                  size="xs"
+                  variant={a.approval ? 'filled' : 'default'}
+                  color={a.action === 'reject' ? 'red' : a.approval ? 'green' : undefined}
+                  disabled={!a.allowed}
+                  onClick={() => setAction(a)}
+                >
+                  {t(`actions.${a.action as 'submit'}`, { defaultValue: a.action })}
+                </Button>
+              );
+              return a.allowed ? (
+                button
+              ) : (
+                <Tooltip key={a.action} label={codeText(a.reasonCode, undefined, a.reason) ?? a.reason} multiline w={260}>
+                  <span>{button}</span>
+                </Tooltip>
+              );
+            })}
+            {rec.permissions.revise && (
+              <Button size="xs" variant="default" leftSection={<IconGitBranch size={14} />} onClick={() => setRevising(true)}>
+                {rec.status === 'rejected' ? t('detail.rework') : t('detail.revise')}
+              </Button>
+            )}
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <Button size="xs" variant="default" aria-label={t('detail.moreActions')} px={8}>
+                  <IconDots size={16} />
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {rec.permissions.generatePdf && (
+                  <Menu.Item leftSection={<IconFileTypePdf size={14} />} onClick={() => setPdf(true)}>
+                    {t('pdf.generate')}
+                  </Menu.Item>
+                )}
+                <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/records/${rec.id}/export`)}>
+                  {t('detail.exportMd')}
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          </>
+        }
+      />
       {tampered && (
         <Alert color="red" icon={<IconAlertTriangle size={16} />} mb="sm" title={t('detail.tamperedTitle')}>
           {t('detail.tampered')}

@@ -13,15 +13,15 @@ const Dot = () => (
 );
 
 /**
- * Small centred footer: origin, author, copyright, licence, source link and version
- * (plus the About page for signed-in users). Always the Steward product identity,
- * also with a custom app name and logo.
+ * Compact centred footer on every page: origin, author, copyright, licence, source link and version
+ * (plus the About page for signed-in users). One line on wide screens where it fits, smaller and
+ * wrapped on phones. Always the Steward product identity, also with a custom app name and logo.
  */
 export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
   const { t } = useTranslation();
   return (
-    <Text component="footer" size="xs" c="dimmed" ta="center" py="md" px="xs" style={{ lineHeight: 1.7 }}>
-      <Group gap={6} justify="center" wrap="wrap" component="span">
+    <Text component="footer" c="dimmed" ta="center" px="xs" className="app-footer">
+      <Group gap="4px 6px" justify="center" wrap="wrap" component="span">
         <span>
           <Trans
             i18nKey="footer.madeWith"
@@ -36,7 +36,7 @@ export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
         </span>
         <Dot />
         <Group gap={5} wrap="nowrap" component="span">
-          Metropolregion Nürnberg <FrankenRechen />
+          Metropolregion Nürnberg <FrankenRechen height={12} />
         </Group>
         <Dot />
         <span>
@@ -46,8 +46,7 @@ export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
             components={{ author: <Anchor href={BRAND.authorUrl} target="_blank" rel="noopener" inherit c="dimmed" underline="always" /> }}
           />
         </span>
-      </Group>
-      <Group gap={6} justify="center" wrap="wrap" component="span">
+        <Dot />
         <span>
           © {BRAND.copyrightYear} {BRAND.author}
         </span>
@@ -58,7 +57,7 @@ export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
         <Dot />
         <Anchor href={BRAND.repoUrl} target="_blank" rel="noopener" inherit c="dimmed" aria-label={t('footer.onGithub', { brand: BRAND.name })}>
           <Group gap={4} component="span" wrap="nowrap">
-            <IconBrandGithub size={13} aria-hidden />
+            <IconBrandGithub size={12} aria-hidden />
             GitHub
           </Group>
         </Anchor>

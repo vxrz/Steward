@@ -43,6 +43,12 @@ function inline(nodes: MdInline[], key: string): ReactNode[] {
   });
 }
 
+/** A list item without content – a template's "- " or "1. " placeholder (task items "- [ ]" stay). */
+function isEmptyItem(it: { checked?: boolean; blocks: MdBlock[] }): boolean {
+  if (it.checked !== undefined) return false;
+  return it.blocks.every((b) => b.t === 'paragraph' && b.c.every((n) => n.t === 'text' && !n.v.trim()));
+}
+
 function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
   return blocks.map((b, i) => {
     const k = `${key}.${i}`;
@@ -72,10 +78,13 @@ function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
             {renderBlocks(b.blocks, k)}
           </Blockquote>
         );
-      case 'list':
+      case 'list': {
+        // empty template items are left out of the preview (a lone "•" or "1." says nothing); the parser's tree is unchanged
+        const items = b.items.filter((it) => !isEmptyItem(it));
+        if (!items.length) return null;
         return (
           <List key={k} type={b.ordered ? 'ordered' : 'unordered'} start={b.ordered ? b.start : undefined} size="sm" mb="xs" withPadding>
-            {b.items.map((it, j) => (
+            {items.map((it, j) => (
               <List.Item
                 key={`${k}.${j}`}
                 icon={
@@ -87,6 +96,7 @@ function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
             ))}
           </List>
         );
+      }
       case 'table':
         return (
           <Box key={k} className="table-scroll" mb="xs">

@@ -107,66 +107,66 @@ export function MonitorDetailPage() {
             {!m.isTemplate && m.since && ` · ${t('detail.since', { date: fmtDate(m.since) })}`}
           </>
         }
-      />
-      <Group gap="xs" mb="sm" mt={-8}>
-        <>
-          {!m.isTemplate && can('acknowledge') && (
-            <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
-              {t('detail.checkNow')}
-            </Button>
-          )}
-          {m.isTemplate && (
-            <Button size="xs" onClick={() => setInstances(true)}>
-              {t('detail.newFromTemplate')}
-            </Button>
-          )}
-          {can('edit') && (
-            <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
-              {t('detail.edit')}
-            </Button>
-          )}
-          <Menu position="bottom-end">
-            <Menu.Target>
-              <Button size="xs" variant="default" aria-label={t('detail.moreActions')} px={8}>
-                <IconDots size={16} />
+        actions={
+          <>
+            {!m.isTemplate && can('acknowledge') && (
+              <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
+                {t('detail.checkNow')}
               </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              {!m.isTemplate && can('acknowledge') && (
-                <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
-                  {t('maintenance.plan')}
+            )}
+            {m.isTemplate && (
+              <Button size="xs" onClick={() => setInstances(true)}>
+                {t('detail.newFromTemplate')}
+              </Button>
+            )}
+            {can('edit') && (
+              <Button size="xs" leftSection={<IconEdit size={14} />} onClick={() => navigate(`/monitors/${m.id}/edit`)}>
+                {t('detail.edit')}
+              </Button>
+            )}
+            <Menu position="bottom-end">
+              <Menu.Target>
+                <Button size="xs" variant="default" aria-label={t('detail.moreActions')} px={8}>
+                  <IconDots size={16} />
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                {!m.isTemplate && can('acknowledge') && (
+                  <Menu.Item leftSection={<IconTool size={14} />} onClick={() => setMaint(true)}>
+                    {t('maintenance.plan')}
+                  </Menu.Item>
+                )}
+                {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
+                  <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
+                    {t('detail.acknowledgeProblem')}
+                  </Menu.Item>
+                )}
+                <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/monitors/${m.id}/export`)}>
+                  {t('detail.exportYaml')}
                 </Menu.Item>
-              )}
-              {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
-                <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
-                  {t('detail.acknowledgeProblem')}
-                </Menu.Item>
-              )}
-              <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/monitors/${m.id}/export`)}>
-                {t('detail.exportYaml')}
-              </Menu.Item>
-              {can('manage') && (
-                <Menu.Item
-                  color="red"
-                  leftSection={<IconTrash size={14} />}
-                  onClick={async () => {
-                    if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: m.name }) }))) return;
-                    try {
-                      await del(`/monitors/${m.id}`);
-                      qc.invalidateQueries({ queryKey: ['monitors'] });
-                      navigate('/monitors');
-                    } catch (e) {
-                      notifyError(e);
-                    }
-                  }}
-                >
-                  {t('common:delete')}
-                </Menu.Item>
-              )}
-            </Menu.Dropdown>
-          </Menu>
-        </>
-      </Group>
+                {can('manage') && (
+                  <Menu.Item
+                    color="red"
+                    leftSection={<IconTrash size={14} />}
+                    onClick={async () => {
+                      if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: m.name }) }))) return;
+                      try {
+                        await del(`/monitors/${m.id}`);
+                        qc.invalidateQueries({ queryKey: ['monitors'] });
+                        navigate('/monitors');
+                      } catch (e) {
+                        notifyError(e);
+                      }
+                    }}
+                  >
+                    {t('common:delete')}
+                  </Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </>
+        }
+      />
       <Stack gap="sm" mb="md">
         {!m.isTemplate && (
           <Text size="sm" c="dimmed">

@@ -140,6 +140,20 @@ p .mantine-Anchor-root,
 .react-flow .react-flow__panel.react-flow__attribution a {
   color: var(--mantine-color-dimmed);
 }
+/* Footer: one compact line on wide screens (wraps where it does not fit), smaller on phones. */
+.app-footer {
+  font-size: 11px;
+  line-height: 1.5;
+  padding-top: var(--mantine-spacing-xs);
+  padding-bottom: var(--mantine-spacing-xs);
+}
+@media (max-width: 36em) {
+  .app-footer {
+    font-size: 10px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+}
 /* Sortable column headers (DataTable): the whole header is the button. */
 .sort-header {
   color: inherit;
