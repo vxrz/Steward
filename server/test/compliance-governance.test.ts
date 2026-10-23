@@ -364,6 +364,8 @@ describe('GOV-10: mapping items to controls', () => {
       const seen = (await dana('GET', `/compliance/controls/${c.id}`)).tags.find((t: any) => t.kind === 'process');
       expect(seen).toMatchObject({ visible: false, targetId: null, label: '' });
       expect(await status(dana('POST', `/compliance/controls/${c.id}/tags/remove`, { kind: 'process', targetId: 'ih-access-snapshot' }))).toBe(404);
+      expect(await dana('GET', '/compliance/tagged?kind=process&targetId=ih-access-snapshot')).toEqual([]);
+      expect((await s.api('GET', '/compliance/tagged?kind=process&targetId=ih-access-snapshot')).map((x: any) => x.id)).toContain(c.id);
       expect((await s.api('GET', `/compliance/controls/${c.id}`)).tags.some((t: any) => t.targetId === 'ih-access-snapshot')).toBe(true);
     } finally {
       await s.api('PUT', '/processes/ih-access-snapshot/access', { acl: [] });

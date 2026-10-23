@@ -586,6 +586,8 @@ export function removeTag(controlId: string, kind: ControlTagKind, targetId: str
 export function controlsOf(kind: ControlTagKind, targetId: string): Control[] {
   const u = me();
   ensureCatalogues();
+  // not for items the user cannot see (no probing which hidden items are mapped)
+  if (!resolveTarget(kind, targetId, u)) return [];
   return db()
     .all<ControlRow & { catalogue_key: string }>(
       'SELECT c.*, k.key AS catalogue_key FROM control_tags t JOIN controls c ON c.id = t.control_id JOIN control_catalogues k ON k.id = c.catalogue_id WHERE t.kind = ? AND t.target_id = ? ORDER BY k.key, c.sort',
