@@ -12,12 +12,12 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
+import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { HttpError, newId, nowIso } from '../util.js';
-import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, same } from './access.js';
+import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, readsEverything, same, SYSTEM_USER } from './access.js';
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import type { RecordRow } from '../records/model.js';
@@ -812,20 +812,37 @@ export function coverage(p: Period, o: { catalogue?: string; controlIds?: string
   });
 }
 
-/** Full evidence of controls (no list limit) – for evidence packs. */
+/** Coverage of a control in an evidence pack: "notVisible" when there is evidence, but none the creator may see. */
+export type PackCoverageStatus = ControlCoverage['status'] | 'notVisible';
+
+const uniqueEvidence = (items: EvidenceItem[]) => {
+  const seen = new Set<string>();
+  return items.filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true)));
+};
+
+/**
+ * Full evidence of controls (no list limit) – for evidence packs. `hidden` counts the evidence items
+ * the reader may not see (GOV-12): a pack of someone who cannot see everything says how much it
+ * leaves out instead of reporting a gap.
+ */
 export function evidenceForControls(
   controlIds: string[],
   p: Period,
   u: AuthUser | null = currentUser(),
-): { control: Control; evidence: EvidenceItem[]; status: ControlCoverage['status'] }[] {
+): { control: Control; evidence: EvidenceItem[]; status: PackCoverageStatus; hidden: number }[] {
   const period = normPeriod(p);
+  const complete = readsEverything(u);
   return controlIds.map((id) => {
     const control = getControl(id);
     const mine = db().all<TagRow>('SELECT * FROM control_tags WHERE control_id = ?', id);
-    const seen = new Set<string>();
-    const evidence = mine
-      .flatMap((t) => evidenceOf(t, period, u))
-      .filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true)));
-    return { control, evidence, status: mine.length === 0 ? 'unmapped' : evidence.length ? 'covered' : 'gap' };
+    const evidence = uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, u)));
+    let hidden = 0;
+    if (!complete && mine.length) {
+      const visible = new Set(evidence.map((e) => `${e.kind}|${e.id}`));
+      const all = runAs(SYSTEM_USER, () => uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, SYSTEM_USER))));
+      hidden = all.filter((e) => !visible.has(`${e.kind}|${e.id}`)).length;
+    }
+    const status: PackCoverageStatus = mine.length === 0 ? 'unmapped' : evidence.length ? 'covered' : hidden ? 'notVisible' : 'gap';
+    return { control, evidence, status, hidden };
   });
 }

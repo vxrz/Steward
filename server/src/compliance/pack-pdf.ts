@@ -22,6 +22,10 @@ const TEXTS = {
     covered: 'evidence in the period',
     gap: 'GAP – no evidence in the period',
     unmapped: 'not mapped to any Steward item',
+    notVisible: 'NOT VISIBLE – there is evidence, but the creator of this pack may not see it',
+    hidden: '{n} hidden',
+    filtered:
+      'This pack holds only what {user} may see. Evidence they may not see is left out (see the column Evidence) – an auditor or administrator can create a complete pack.',
     contents: 'Contents',
     kind: 'Kind',
     item: 'Item',
@@ -30,7 +34,7 @@ const TEXTS = {
     omitted: 'Not included',
     integrity: 'Integrity and verification',
     integrityText:
-      'manifest.json lists every file of this pack with its SHA-256 and is signed (manifest.sig, Ed25519) with the key that also signs the audit checkpoints of this installation. Check the pack with: npm run evidence:verify -- <pack.zip> (or: steward evidence verify <pack.zip>). Compare the key fingerprint with the one shown under Audit log → Anchoring.',
+      'manifest.json lists every file of this pack with its SHA-256 and is signed (manifest.sig, Ed25519) with the key that also signs the audit checkpoints of this installation. Check the pack with: npm run evidence:verify -- <pack.zip> --fingerprint <fingerprint> (or: steward evidence verify …), with the fingerprint of the installation’s key as shown under Audit log → Anchoring outside the database – not the one printed here, which anyone building a pack could choose.',
     keyFingerprint: 'Key fingerprint',
     disclaimer:
       'This pack collects evidence that Steward recorded. It does not certify compliance with ISO/IEC 27001, IEC 62443 or any other standard – the assessment is up to your organisation and its auditors.',
@@ -60,6 +64,10 @@ const TEXTS = {
     covered: 'Nachweise im Zeitraum',
     gap: 'LÜCKE – keine Nachweise im Zeitraum',
     unmapped: 'keinem Steward-Element zugeordnet',
+    notVisible: 'NICHT SICHTBAR – es gibt Nachweise, aber der Ersteller dieses Pakets darf sie nicht sehen',
+    hidden: '{n} verborgen',
+    filtered:
+      'Dieses Paket enthält nur, was {user} sehen darf. Nachweise, die nicht sichtbar sind, fehlen (siehe Spalte Nachweise) – Auditoren und Administratoren können ein vollständiges Paket erstellen.',
     contents: 'Inhalt',
     kind: 'Art',
     item: 'Element',
@@ -68,7 +76,7 @@ const TEXTS = {
     omitted: 'Nicht enthalten',
     integrity: 'Integrität und Prüfung',
     integrityText:
-      'manifest.json führt jede Datei dieses Pakets mit ihrem SHA-256 auf und ist signiert (manifest.sig, Ed25519) – mit dem Schlüssel, der auch die Prüfpunkte des Audit-Logs dieser Installation signiert. Prüfen Sie das Paket mit: npm run evidence:verify -- <paket.zip> (oder: steward evidence verify <paket.zip>). Vergleichen Sie den Fingerabdruck des Schlüssels mit dem unter Audit-Log → Verankerung außerhalb der Datenbank.',
+      'manifest.json führt jede Datei dieses Pakets mit ihrem SHA-256 auf und ist signiert (manifest.sig, Ed25519) – mit dem Schlüssel, der auch die Prüfpunkte des Audit-Logs dieser Installation signiert. Prüfen Sie das Paket mit: npm run evidence:verify -- <paket.zip> --fingerprint <Fingerabdruck> (oder: steward evidence verify …), mit dem Fingerabdruck des Schlüssels der Installation, wie ihn Audit-Log → Verankerung außerhalb der Datenbank zeigt – nicht dem hier gedruckten, den jeder wählen könnte, der ein Paket baut.',
     keyFingerprint: 'Fingerabdruck des Schlüssels',
     disclaimer:
       'Dieses Paket sammelt Nachweise, die Steward aufgezeichnet hat. Es bescheinigt keine Konformität mit ISO/IEC 27001, IEC 62443 oder anderen Normen – die Bewertung liegt bei Ihrer Organisation und ihren Auditoren.',
@@ -96,7 +104,9 @@ export interface PackPdfModel {
   keyFingerprint: string;
   lang: ReportLang;
   timeZone?: string | null;
-  controls: { ref: string; catalogue: string; title: string; status: 'covered' | 'gap' | 'unmapped'; count: number }[];
+  /** Only what the creator may see */
+  filtered?: boolean;
+  controls: { ref: string; catalogue: string; title: string; status: 'covered' | 'gap' | 'unmapped' | 'notVisible'; count: number; hidden?: number }[];
   items: { kind: string; label: string; at: string; files: number }[];
   omitted: string[];
 }
@@ -139,6 +149,7 @@ export async function renderPackPdf(m: PackPdfModel, o: { compress?: boolean } =
     { label: L.createdAt, value: tr.dateTime(m.createdAt) },
   ]);
   w.paragraph(L.disclaimer, { tone: 'muted', size: 8 });
+  if (m.filtered) w.paragraph(L.filtered.replace('{user}', m.createdBy), { tone: 'warning', size: 8.5 });
 
   if (m.controls.length) {
     w.section(`${++n}. ${L.controls}`);
@@ -148,13 +159,15 @@ export async function renderPackPdf(m: PackPdfModel, o: { compress?: boolean } =
         { header: L.status, width: 3 },
         { header: L.evidence, width: 1, align: 'right' },
       ],
-      m.controls
-        .slice(0, MAX_ROWS)
-        .map((c) => [
-          { text: `${c.catalogue} ${c.ref} – ${c.title}`, bold: c.status === 'gap' },
-          { text: L[c.status], tone: c.status === 'covered' ? 'success' : c.status === 'gap' ? 'danger' : 'muted', bold: c.status === 'gap' },
-          String(c.count),
-        ]),
+      m.controls.slice(0, MAX_ROWS).map((c) => [
+        { text: `${c.catalogue} ${c.ref} – ${c.title}`, bold: c.status === 'gap' },
+        {
+          text: L[c.status],
+          tone: c.status === 'covered' ? 'success' : c.status === 'gap' ? 'danger' : c.status === 'notVisible' ? 'warning' : 'muted',
+          bold: c.status === 'gap',
+        },
+        c.hidden ? `${c.count} (${L.hidden.replace('{n}', String(c.hidden))})` : String(c.count),
+      ]),
     );
     if (m.controls.length > MAX_ROWS) w.paragraph(L.more.replace('{n}', String(m.controls.length - MAX_ROWS)), { tone: 'muted', size: 8 });
   }

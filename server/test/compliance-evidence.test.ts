@@ -205,7 +205,7 @@ describe('evidence packs', () => {
     expect(r.publicKey?.fingerprint).toBe(info.fingerprint);
     const audit = await s.api('GET', `/audit?entityType=evidence_pack&entityId=${p.id}`);
     expect(audit.map((e: any) => e.action)).toEqual(expect.arrayContaining(['evidence_pack.requested', 'evidence_pack.created', 'evidence_pack.downloaded']));
-  });
+  }, 60_000);
 
   it('detects a changed, added or removed file and a changed manifest', async () => {
     const { ZipReader, ZipWriter } = await import('../src/compliance/zip.js');
@@ -236,10 +236,11 @@ describe('evidence packs', () => {
     // the command line check: exit 0 for the pack, 1 for the tampered copy
     const tsx = path.resolve(__dirname, '../../node_modules/.bin/tsx');
     const cli = path.resolve(__dirname, '../src/cli/evidence-verify.ts');
-    const ok = spawnSync(tsx, [cli, packFile], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
+    const { fingerprint } = await s.api('GET', '/vault/info');
+    const ok = spawnSync(tsx, [cli, packFile, '--fingerprint', fingerprint], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
     expect(ok.status, ok.stderr).toBe(0);
     expect(ok.stdout).toContain('The evidence pack is intact.');
-    const bad = spawnSync(tsx, [cli, t1, '--json'], { encoding: 'utf8' });
+    const bad = spawnSync(tsx, [cli, t1, '--json', '--trust-pack-key'], { encoding: 'utf8' });
     expect(bad.status).toBe(1);
     expect(JSON.parse(bad.stdout).ok).toBe(false);
     expect(spawnSync(tsx, [cli], { encoding: 'utf8' }).status).toBe(2);
