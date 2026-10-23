@@ -42,6 +42,15 @@ export function pseudonym(username: string): string {
   return crypto.createHmac('sha256', pseudonymKey()).update(username.trim().toLowerCase()).digest('hex').slice(0, 12);
 }
 
+/**
+ * Pseudonym of a user name for traces (OpenTelemetry): keyed with the same per-installation key, but in its own
+ * domain, so whoever holds the traces can neither re-identify users by hashing known names nor link the value to
+ * the "ref" of failed sign-ins.
+ */
+export function tracePseudonym(username: string): string {
+  return crypto.createHmac('sha256', pseudonymKey()).update(`trace:${username}`).digest('hex').slice(0, 16);
+}
+
 function flush(key: string): void {
   const b = buckets.get(key);
   buckets.delete(key);

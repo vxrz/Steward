@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -23,6 +22,7 @@ import { db } from '../db.js';
 import { getSettings } from '../settings.js';
 import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
+import { tracePseudonym } from '../auth/login-audit.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
@@ -62,11 +62,6 @@ interface Binding {
 
 /** Where a run's evidence file (screenshot) is stored: data folder/artifacts/<run id>/<file>. */
 const artifactFile = (runId: string, name: string): string => pathInside(path.join(config.dataDir, 'artifacts'), runId, name);
-
-/** Stable pseudonym of a user name for traces (OpenTelemetry). */
-function userPseudonym(name: string): string {
-  return crypto.createHash('sha256').update(`steward-user:${name}`).digest('hex').slice(0, 16);
-}
 
 /** Keys whose values are never stored in the protocol (headers, credentials, OAuth token responses). */
 const REDACT_KEY =
@@ -593,7 +588,7 @@ async function execute(ctx: RunContext): Promise<void> {
         'sm.run.dry_run': ctx.dryRun,
         'sm.run.resumed': ctx.journal.size > 0,
         // a pseudonym, not the user name (traces go to a collector outside the audit boundary)
-        'enduser.pseudo.id': userPseudonym(ctx.actor),
+        'enduser.pseudo.id': tracePseudonym(ctx.actor),
       },
       () => runNode(start, ctx, null),
     );

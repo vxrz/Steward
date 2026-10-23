@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
 import { setup, startTestServer, type TestServer } from './helpers.js';
@@ -33,5 +34,13 @@ describe('OpenTelemetry tracing', () => {
     expect(http.length).toBeGreaterThanOrEqual(2);
     expect(http.some((h) => h.attributes['http.response.status_code'] === 200)).toBe(true);
     expect(String(http[0]!.attributes['url.full'])).not.toContain('?');
+
+    // the user is a keyed pseudonym: not the name, and not a plain hash anyone could recompute from known names
+    const { actor } = await s.api('GET', `/runs/${id}`);
+    const pseudo = String(run.attributes['enduser.pseudo.id']);
+    expect(pseudo).toMatch(/^[0-9a-f]{16}$/);
+    expect(pseudo).not.toContain(actor);
+    expect(pseudo).not.toBe(crypto.createHash('sha256').update(`steward-user:${actor}`).digest('hex').slice(0, 16));
+    expect(JSON.stringify(spans.map((sp) => sp.attributes))).not.toContain(`"${actor}"`);
   });
 });

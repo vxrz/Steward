@@ -19,7 +19,7 @@ This page describes which personal data Steward stores, for how long, and how re
 - **Failed sign-ins**: if the user name belongs to no account, it is _not_ stored – it is often a password typed into the wrong field. The audit entry says "unknown user name (ref …)" with a keyed pseudonym that only shows whether attempts repeat. For existing accounts the account's own name is used, never the typed text. Repeated failures are summed up per minute.
 - **Secret process inputs** (input type _secret_): stored only encrypted; protocols, reports, the audit log and the API show `***`, and the value is masked in step data and logs.
 - **Size limits**: free-text fields in the audit log are capped (longer texts are cut, with their length and SHA-256).
-- Error reports and traces (off by default) contain no user names, e-mail or IP addresses (see [ERROR-REPORTING.md](ERROR-REPORTING.md)); traces carry a pseudonym instead of the user name.
+- Error reports and traces (off by default) contain no user names, e-mail or IP addresses (see [ERROR-REPORTING.md](ERROR-REPORTING.md)); traces carry a pseudonym instead of the user name – a keyed hash with a per-installation key, so it cannot be reversed by hashing known user names.
 
 ## The audit log is immutable – how erasure works
 
