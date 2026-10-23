@@ -72,13 +72,15 @@
         ],
         "additionalProperties": false,
         "description": "Problem details (RFC 9457), served as application/problem+json",
-        "example": {
-          "type": "https://github.com/vxrz/steward/blob/main/docs/API.md#invalid-token",
-          "title": "Unauthorized",
-          "status": 401,
-          "detail": "Invalid, expired or revoked API token",
-          "instance": "/api/v1/runs"
-        }
+        "examples": [
+          {
+            "type": "https://github.com/vxrz/steward/blob/main/docs/API.md#invalid-token",
+            "title": "Unauthorized",
+            "status": 401,
+            "detail": "Invalid, expired or revoked API token",
+            "instance": "/api/v1/runs"
+          }
+        ]
       },
       "Health": {
         "title": "Health",
@@ -677,31 +679,33 @@
           "stats"
         ],
         "additionalProperties": false,
-        "example": {
-          "id": "run_8xQ2mK1pZt4a",
-          "processId": "ih-health-check",
-          "processName": "Insights Hub – Platform health check",
-          "processVersion": 3,
-          "status": "succeeded",
-          "dryRun": false,
-          "trigger": "schedule",
-          "scheduleId": "sch_Hn3r0dYw1kQe",
-          "parentRunId": null,
-          "parentStepKey": null,
-          "actor": "olivia",
-          "startedAt": "2026-10-22T06:00:00.012Z",
-          "finishedAt": "2026-10-22T06:00:04.871Z",
-          "error": null,
-          "stats": {
-            "steps": 12,
-            "failedSteps": 0,
-            "writes": 0,
-            "skippedWrites": 0,
-            "checksPassed": 5,
-            "checksFailed": 0,
-            "openTasks": 0
+        "examples": [
+          {
+            "id": "run_8xQ2mK1pZt4a",
+            "processId": "ih-health-check",
+            "processName": "Insights Hub – Platform health check",
+            "processVersion": 3,
+            "status": "succeeded",
+            "dryRun": false,
+            "trigger": "schedule",
+            "scheduleId": "sch_Hn3r0dYw1kQe",
+            "parentRunId": null,
+            "parentStepKey": null,
+            "actor": "olivia",
+            "startedAt": "2026-10-22T06:00:00.012Z",
+            "finishedAt": "2026-10-22T06:00:04.871Z",
+            "error": null,
+            "stats": {
+              "steps": 12,
+              "failedSteps": 0,
+              "writes": 0,
+              "skippedWrites": 0,
+              "checksPassed": 5,
+              "checksFailed": 0,
+              "openTasks": 0
+            }
           }
-        }
+        ]
       },
       "RunDetail": {
         "title": "RunDetail",
@@ -1820,20 +1824,22 @@
         ],
         "additionalProperties": false,
         "description": "Platform metadata. Credentials, variables and authentication settings are never part of the API.",
-        "example": {
-          "id": "pf_2bV9xLq0aYc1",
-          "name": "Insights Hub (production)",
-          "kind": "insights-hub",
-          "description": "EU1 tenant",
-          "environment": "production",
-          "baseUrl": "https://gateway.eu1.mindsphere.io",
-          "authType": "oauth2_client_credentials",
-          "permissions": [
-            "use"
-          ],
-          "createdAt": "2026-09-01T08:15:00.000Z",
-          "updatedAt": "2026-10-01T10:00:00.000Z"
-        }
+        "examples": [
+          {
+            "id": "pf_2bV9xLq0aYc1",
+            "name": "Insights Hub (production)",
+            "kind": "insights-hub",
+            "description": "EU1 tenant",
+            "environment": "production",
+            "baseUrl": "https://gateway.eu1.mindsphere.io",
+            "authType": "oauth2_client_credentials",
+            "permissions": [
+              "use"
+            ],
+            "createdAt": "2026-09-01T08:15:00.000Z",
+            "updatedAt": "2026-10-01T10:00:00.000Z"
+          }
+        ]
       },
       "Trigger": {
         "title": "Trigger",
