@@ -165,6 +165,7 @@ export function isFixedLengthPattern(re: RegExp): boolean {
   if (re.flags.includes('v')) return false;
   const s = re.source;
   if (s.length > NATIVE_MAX_PATTERN) return false;
+  const unicode = re.flags.includes('u');
   let inClass = false;
   for (let i = 0; i < s.length; i++) {
     const c = s[i]!;
@@ -172,8 +173,9 @@ export function isFixedLengthPattern(re: RegExp): boolean {
       const n = s[i + 1];
       // back references (\1…\9, \k<name>); inside a class \1 would be an octal escape – refused as well
       if (n === undefined || (n >= '1' && n <= '9') || n === 'k') return false;
-      // \u{…} and \p{…} contain braces: skip the escape as a whole
-      if ((n === 'u' || n === 'p' || n === 'P') && s[i + 2] === '{') {
+      // with the u flag, \u{…} and \p{…} contain braces: skip the escape as a whole. Without it (JSONata never
+      // sets u) "\u{0,99}" is the letter u with a quantifier – the brace must reach the quantifier check below
+      if (unicode && (n === 'u' || n === 'p' || n === 'P') && s[i + 2] === '{') {
         const end = s.indexOf('}', i + 3);
         if (end < 0) return false;
         i = end;

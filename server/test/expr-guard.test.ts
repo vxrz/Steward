@@ -112,8 +112,21 @@ describe('regular expressions give the same results as native ones', () => {
       /[a]+/,
       new RegExp('[a-z]', 'v'),
       new RegExp('x'.repeat(201)),
+      // without the u flag (JSONata never sets it) \\u{…} and \\p{…} are a letter with a quantifier
+      new RegExp('\\u{0,99}\\u{0,99}X'),
+      new RegExp('\\p{0,99}\\P{0,99}X'),
+      new RegExp('\\p{2}'),
     ])
       expect(isFixedLengthPattern(re), String(re)).toBe(false);
+  });
+
+  it('stops quantified \\u{…} patterns from JSONata within the time limit (review r4)', async () => {
+    // before the fix this ran natively on the main thread for ~35 s; in the worker it is stopped after its budget
+    const started = Date.now();
+    await expect(
+      evalExpr('$contains(s, /\\u{0,99}\\u{0,99}\\u{0,99}\\u{0,99}\\u{0,99}\\u{0,99}X/)', { s: 'u'.repeat(60) }, {}, { timeoutMs: 1000 }),
+    ).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5000);
   });
 });
 
