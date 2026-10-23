@@ -77,7 +77,9 @@
     "responsible": "Responsible",
     "anyone": "Anyone",
     "me": "Me (or my teams)",
-    "minAge": "Open for at least (days)"
+    "minAge": "Open for at least (days)",
+    "waitingVendor": "Waiting on vendors (waiting for vendor, or an open vendor ticket)",
+    "waitingVendorRemove": "Show all open tickets"
   },
   "table": {
     "ticket": "Ticket",

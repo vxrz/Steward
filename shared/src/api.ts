@@ -714,8 +714,29 @@ export interface DashboardData {
   failedChecks: { runId: string; processName: string; name: string; message: string; severity: string; ts: string }[];
   upcoming: Schedule[];
   counts: { platforms: number; processes: number; schedules: number; runs24h: number; failed24h: number };
+  /** The start page's tiles: what needs the viewer's attention */
+  attention: DashboardAttention;
   /** Administrators only: what is set up so far (the getting-started checklist on the start page) */
   setup?: DashboardSetup;
+}
+
+/**
+ * The start page's tiles, counted with the viewer's permissions (only what they may see). An entry is
+ * left out when the viewer has no right to that kind of item at all – the tile is not shown then.
+ */
+export interface DashboardAttention {
+  /** Open approvals and decisions the viewer may decide */
+  tasks: number;
+  /** Runs of visible processes started in the last 24 hours */
+  runs: { failed: number; total: number };
+  /** Monitors the viewer may view (templates and disabled monitors are not counted) */
+  monitors?: { down: number; degraded: number };
+  /** Credential register entries the viewer may see */
+  credentials?: { expired: number; overdue: number; dueSoon: number };
+  /** Open findings of the access reconciliation checks the viewer may read */
+  findings?: { open: number };
+  /** Open ticket references waiting for a vendor (status "waiting for vendor", or open with a vendor source) */
+  vendorTickets?: { open: number; oldestDays: number | null };
 }
 
 /** Instance-wide numbers of the getting-started checklist (all entries, not only the visible ones). */

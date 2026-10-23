@@ -39,6 +39,7 @@ import {
   me,
   platformAcl,
   platformPerms,
+  readsEverything,
   visiblePlatformName,
 } from './access.js';
 import { createAccessChange, documentedEntries, minus, recordCounts, uniqueRights } from './access-changes.js';
@@ -1018,6 +1019,25 @@ export function listFindings(
     if (out.length >= (f.limit ?? 5000)) break;
   }
   return out;
+}
+
+/**
+ * The start page's "Undocumented access changes" tile: open findings of the checks the current user may
+ * read. null for a user who may read no check (and is no administrator or auditor) – no tile, not a 0.
+ */
+export function findingAttention(): { open: number } | null {
+  const u = me();
+  const readable = db()
+    .all<CheckRow>('SELECT * FROM access_checks')
+    .filter((c) => canReadCheck(u, c));
+  if (!readable.length && !readsEverything(u)) return null;
+  let open = 0;
+  for (const c of readable) {
+    // documented findings count again when their entry no longer counts (effectiveStatus); dismissed ones never
+    const rows = db().all<FindingRow>("SELECT * FROM access_findings WHERE check_id = ? AND status IN ('open', 'documented')", c.id);
+    open += rows.filter((f) => effectiveStatus(f) === 'open').length;
+  }
+  return { open };
 }
 
 function readableFinding(id: string): { f: FindingRow; c: CheckRow } {

@@ -232,7 +232,10 @@
     "notifyHelp": "Besides the owner and the administrators",
     "enabled": "Enabled",
     "ignoreRights": "Ignored rights",
-    "ignoreRightsHelp": "Left out of the snapshots, e.g. a marker group of the access reviews that grants no access"
+    "ignoreRightsHelp": "Left out of the snapshots, e.g. a marker group of the access reviews that grants no access",
+    "onlyOpen": "Only checks with open findings",
+    "showAllChecks": "Show all checks",
+    "noOpenAnywhere": "None of your checks has open findings – every access change found is documented or dismissed."
   },
   "packs": {
     "title": "Evidence packs",

@@ -312,6 +312,18 @@ export interface TicketFilter {
   responsible?: string;
   /** Opened at least this many days ago */
   minAgeDays?: number;
+  /** vendor: waiting for a vendor (see waitingOnVendorSql) */
+  waitingOn?: 'vendor';
+}
+
+/**
+ * Tickets waiting for a vendor: status "waiting for vendor" (any source), or still "open" with a
+ * source marked as vendor tickets. "Waiting for us" is ours to do, so it is not counted.
+ */
+function waitingOnVendorSql(settings: TicketSettings): { sql: string; params: string[] } {
+  const keys = settings.sources.filter((s) => s.vendor).map((s) => s.key);
+  if (!keys.length) return { sql: "status = 'waitingVendor'", params: [] };
+  return { sql: `(status = 'waitingVendor' OR (status = 'open' AND source IN (${keys.map(() => '?').join(',')})))`, params: keys };
 }
 
 /** The ids of tickets that name an item as affected. */
@@ -357,6 +369,11 @@ export function listTickets(f: TicketFilter = {}, now = Date.now()): TicketRefer
   if (f.minAgeDays !== undefined) {
     where.push('opened_at <= ?');
     params.push(new Date(now - f.minAgeDays * DAY).toISOString());
+  }
+  if (f.waitingOn === 'vendor') {
+    const w = waitingOnVendorSql(settings);
+    where.push(w.sql);
+    params.push(...w.params);
   }
   let rows = db().all<TicketRow>(`SELECT * FROM ticket_refs ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY opened_at DESC, id`, ...params);
   if (f.link) {
@@ -426,6 +443,15 @@ export function addTicketEvent(
 }
 
 /** Distinct vendors of earlier entries (suggestions in the form). */
+/** The start page's "Waiting on vendors" tile (everyone who can sign in reads ticket references). */
+export function vendorAttention(now = Date.now()): { open: number; oldestDays: number | null } {
+  me();
+  const w = waitingOnVendorSql(ticketSettings());
+  const r = db().get<{ n: number; oldest: string | null }>(`SELECT COUNT(*) AS n, MIN(opened_at) AS oldest FROM ticket_refs WHERE ${w.sql}`, ...w.params);
+  const open = Number(r?.n ?? 0);
+  return { open, oldestDays: open && r?.oldest ? ageDays({ opened_at: r.oldest, resolved_at: null }, now) : null };
+}
+
 export function vendorSuggestions(): string[] {
   me();
   return db()

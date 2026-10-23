@@ -232,7 +232,10 @@
     "notifyHelp": "Zusätzlich zum Eigentümer und den Administratoren",
     "enabled": "Aktiv",
     "ignoreRights": "Ignorierte Rechte",
-    "ignoreRightsHelp": "Werden in den Snapshots weggelassen, z. B. eine Markierungsgruppe der Zugriffsprüfungen, die keinen Zugriff gewährt"
+    "ignoreRightsHelp": "Werden in den Snapshots weggelassen, z. B. eine Markierungsgruppe der Zugriffsprüfungen, die keinen Zugriff gewährt",
+    "onlyOpen": "Nur Abgleiche mit offenen Befunden",
+    "showAllChecks": "Alle Abgleiche zeigen",
+    "noOpenAnywhere": "Keiner Ihrer Abgleiche hat offene Befunde – jede gefundene Zugriffsänderung ist dokumentiert oder verworfen."
   },
   "packs": {
     "title": "Nachweispakete",

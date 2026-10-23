@@ -6,7 +6,13 @@
     "anyStatus": "Any status",
     "summaryReport": "Summary report",
     "process": "Process",
-    "status": "Status"
+    "status": "Status",
+    "period": "Started",
+    "anyTime": "Any time",
+    "periods": {
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days"
+    }
   },
   "table": {
     "empty": "No runs yet.",

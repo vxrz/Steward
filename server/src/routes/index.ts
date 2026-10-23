@@ -8,6 +8,7 @@ import {
   ROLES,
   validateProcess,
   type AuthStatus,
+  type DashboardAttention,
   type DashboardData,
   type DashboardSetup,
   type Me,
@@ -50,7 +51,10 @@ import { recordRoutes } from '../records/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
-import { startAccessChecks } from '../compliance/reconciliation.js';
+import { findingAttention, startAccessChecks } from '../compliance/reconciliation.js';
+import { monitorAttention } from '../monitors/service.js';
+import { dueAttention } from '../credentials/service.js';
+import { vendorAttention } from '../tickets/service.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
@@ -132,6 +136,13 @@ const runsQuery = z.object({
   scheduleId: z.string().max(200).optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional(),
   before: z.string().max(64).optional(),
+  /** Runs started after this time (ISO), e.g. the start page's "Failed runs (24 h)" */
+  since: z
+    .string()
+    .max(64)
+    .refine((x) => !Number.isNaN(Date.parse(x)), 'an ISO timestamp')
+    .transform((x) => new Date(x).toISOString())
+    .optional(),
 });
 const auditQuery = z.object({
   runId: z.string().max(200).optional(),
@@ -1025,8 +1036,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const last24 = db()
       .all<{ process_id: string; status: string }>('SELECT process_id, status FROM runs WHERE started_at > ?', since)
       .filter((r) => visible.has(r.process_id));
+    const failed24h = last24.filter((r) => r.status === 'failed').length;
+    const openTasks = visibleTasks('open').filter((t) => t.canDecide);
+    // the tiles: each counted by the feature's own permission-filtered service; left out without the right
+    const monitors = monitorAttention();
+    const credentials = dueAttention();
+    const findings = findingAttention();
+    const attention: DashboardAttention = {
+      tasks: openTasks.length,
+      runs: { failed: failed24h, total: last24.length },
+      ...(monitors ? { monitors } : {}),
+      ...(credentials ? { credentials } : {}),
+      ...(findings ? { findings } : {}),
+      vendorTickets: vendorAttention(),
+    };
     return {
-      openTasks: visibleTasks('open').filter((t) => t.canDecide),
+      openTasks,
       activeRuns: visibleRuns({ status: 'running,waiting,interrupted', limit: 20 }),
       recentRuns: visibleRuns({ limit: 12 }),
       failedChecks,
@@ -1036,8 +1061,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         processes: processes.listProcesses().length,
         schedules: scheduler.listSchedules().filter((s) => s.enabled).length,
         runs24h: last24.length,
-        failed24h: last24.filter((r) => r.status === 'failed').length,
+        failed24h,
       },
+      attention,
       ...(isAdmin(me()) ? { setup: setupProgress() } : {}),
     };
   });

@@ -6,7 +6,13 @@
     "anyStatus": "Jeder Status",
     "summaryReport": "Zusammenfassender Bericht",
     "process": "Prozess",
-    "status": "Status"
+    "status": "Status",
+    "period": "Gestartet",
+    "anyTime": "Jederzeit",
+    "periods": {
+      "24h": "Letzte 24 Stunden",
+      "7d": "Letzte 7 Tage"
+    }
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
