@@ -42,9 +42,9 @@
     "prepare": "husky || true"
   },
   "devDependencies": {
-    "@axe-core/playwright": "~4.10.2",
+    "@axe-core/playwright": "~4.13.0",
     "@eslint/js": "~10.0.1",
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.0",
     "cross-env": "^7.0.3",
     "esbuild": "^0.28.2",
     "eslint": "~10.12.0",
