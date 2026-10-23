@@ -424,3 +424,86 @@ describe('lists, links and permissions', () => {
     expect(audit.some((a: any) => a.action === 'record.edition_approved')).toBe(false);
   });
 });
+
+describe('PDF', () => {
+  it('has a document control table with the editions and the last review (en/de), and a PDF per edition', async () => {
+    const { generateRecordPdf } = await import('../src/records/pdf.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const pub = await publishedDoc('PDF concept', '## Content\n\nFirst text.\n');
+    await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'Checked with the plant manager' });
+    await dana('POST', `/records/${pub.id}/revise`, { comment: 'Second' });
+    await dana('PUT', `/records/${pub.id}`, { body: '## Content\n\nSecond text.\n' });
+    await dana('POST', `/records/${pub.id}/transition`, { action: 'submit', changeSummary: 'Typos fixed', editionKind: 'minor' });
+    await adam('POST', `/records/${pub.id}/transition`, { action: 'approve' });
+    const as = <T>(fn: () => Promise<T>) => runAs({ id: 'u', username: 'adam', displayName: 'Adam Approver', roles: ['approver'], teams: [] }, fn);
+    const en = (await as(() => generateRecordPdf(pub.id, { signers: [], lang: 'en' }))).texts.join('\n');
+    for (const fact of ['Document control', 'Edition 1.1', 'First edition', 'Typos fixed', 'Second text.', 'Checked with the plant manager'])
+      expect(en, fact).toContain(fact);
+    expect(en.toLowerCase()).toContain('last review');
+    const de = (await as(() => generateRecordPdf(pub.id, { signers: [], lang: 'de' }))).texts.join('\n');
+    for (const fact of ['Dokumentenlenkung', 'Fassung 1.1', 'Servicedokumentation', 'Veröffentlicht']) expect(de, fact).toContain(fact);
+    // the PDF of the earlier edition shows its frozen text and says it is not the current one
+    const old = await as(() => generateRecordPdf(pub.id, { signers: [], lang: 'en', edition: '1.0' }));
+    const text = old.texts.join('\n');
+    expect(text).toContain('First text.');
+    expect(text).not.toContain('Second text.');
+    expect(text).toContain('not the current edition');
+    expect(old.filename).toContain('-e1.0-');
+    expect(old.details).toMatchObject({ edition: '1.0', contentHash: pub.frozenHash });
+    // through the route: editors and approvers only, rate-limited like the record PDF
+    expect(await status(vera('POST', `/records/${pub.id}/editions/1.0/pdf`, {}))).toBe(403);
+    expect((await adam('POST', `/records/${pub.id}/editions/1.1/pdf`, { lang: 'en' })).kind).toBe('generated');
+  });
+});
+
+describe('start page tile', () => {
+  it('"Reviews due": editors, approvers and auditors see all documents; others only those they own or review', async () => {
+    const { db } = await import('../src/db.js');
+    const attention = async (c: Client) => (await c('GET', '/dashboard')).attention;
+    const before = await attention(audrey);
+    expect(await attention(vera)).not.toHaveProperty('reviews');
+    const pub = await publishedDoc('Tile target');
+    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), pub.id);
+    const soon = await publishedDoc('Tile target soon');
+    await dana('PUT', `/records/${soon.id}/review-settings`, { nextReviewAt: new Date(Date.now() + 5 * DAY).toISOString().slice(0, 10) });
+    const after = await attention(audrey);
+    expect(after.reviews.overdue - before.reviews.overdue).toBe(1);
+    expect(after.reviews.dueSoon - before.reviews.dueSoon).toBe(1);
+    // vera reviews one document: her tile counts only that one
+    await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'vera' });
+    expect((await attention(vera)).reviews).toEqual({ overdue: 1, dueSoon: 0 });
+    expect(await status(vera('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(200);
+    expect((await attention(vera)).reviews).toEqual({ overdue: 0, dueSoon: 0 });
+  });
+});
+
+describe('daily summary', () => {
+  it('lists the reviews due for the review owner, and documents waiting for approval', async () => {
+    const sum = await import('../src/notifications/summary.js');
+    const users = await import('../src/auth/users.js');
+    const { db } = await import('../src/db.js');
+    const pub = await publishedDoc('Summary concept');
+    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), pub.id);
+    await dana('PUT', `/records/${pub.id}/review-settings`, { reviewOwner: 'olivia' });
+    const waiting = await dana('POST', '/records', { type: 'DOC', title: 'Summary waiting' });
+    await dana('POST', `/records/${waiting.id}/transition`, { action: 'submit', changeSummary: 'First' });
+    const prefs = {
+      enabled: true,
+      time: '08:00',
+      timeZone: 'UTC',
+      days: 'everyday',
+      channel: 'inApp',
+      sections: ['records', 'reviews'],
+      skipEmpty: true,
+    } as const;
+    const build = (name: string) =>
+      sum.buildSummary(users.findUserByName(name)!, { ...prefs, sections: [...prefs.sections] }, Date.now() - 3600000, Date.now() + 1000);
+    const section = (c: ReturnType<typeof build>, id: string) => c.sections.find((x) => x.id === id)!;
+    const o = section(build('olivia'), 'reviews');
+    expect(o.items.find((i) => i.title.includes(pub.number))).toMatchObject({ title: `${pub.number} Summary concept (edition 1.0)`, tone: 'bad' });
+    expect(o.items[0]!.detail).toContain('overdue');
+    // dana owns it, but olivia reviews it
+    expect(section(build('dana'), 'reviews').items.some((i) => i.title.includes(pub.number))).toBe(false);
+    expect(section(build('adam'), 'records').items.some((i) => i.title.includes(waiting.number))).toBe(true);
+  });
+});

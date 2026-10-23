@@ -735,6 +735,8 @@ export interface DashboardAttention {
   credentials?: { expired: number; overdue: number; dueSoon: number };
   /** Open findings of the access reconciliation checks the viewer may read */
   findings?: { open: number };
+  /** Living documents whose periodic review is due soon or overdue (editors, approvers, auditors; others: the documents they own or review) */
+  reviews?: { overdue: number; dueSoon: number };
   /** Open ticket references waiting for a vendor (status "waiting for vendor", or open with a vendor source) */
   vendorTickets?: { open: number; oldestDays: number | null };
 }

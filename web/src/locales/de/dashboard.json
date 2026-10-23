@@ -35,7 +35,9 @@
     "vendorTickets": "Wartet auf Hersteller",
     "oldest_one": "ältestes seit {{count}} Tag",
     "oldest_other": "ältestes seit {{count}} Tagen",
-    "oldestToday": "ältestes seit heute"
+    "oldestToday": "ältestes seit heute",
+    "reviewsDue": "Fällige Überprüfungen",
+    "reviewsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig"
   },
   "waiting": "Wartet auf Ihre Entscheidung",
   "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",

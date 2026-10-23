@@ -159,9 +159,10 @@ p .mantine-Anchor-root,
   color: inherit;
   white-space: nowrap;
 }
-/* Start page tiles: five tiles in two columns – the last one takes the whole row (AttentionTiles.tsx) */
+/* Start page tiles: five or seven tiles in two columns – the last one takes the whole row (AttentionTiles.tsx) */
 @media (max-width: 74.99em) {
-  .attention-tiles[data-count='5'] > :last-child {
+  .attention-tiles[data-count='5'] > :last-child,
+  .attention-tiles[data-count='7'] > :last-child {
     grid-column: span 2;
   }
 }

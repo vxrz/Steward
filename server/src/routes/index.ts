@@ -55,6 +55,7 @@ import { findingAttention, startAccessChecks } from '../compliance/reconciliatio
 import { monitorAttention } from '../monitors/service.js';
 import { dueAttention } from '../credentials/service.js';
 import { vendorAttention } from '../tickets/service.js';
+import { reviewAttention } from '../records/documents.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
@@ -1045,12 +1046,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const monitors = monitorAttention();
     const credentials = dueAttention();
     const findings = findingAttention();
+    const reviews = reviewAttention();
     const attention: DashboardAttention = {
       tasks: openTasks.length,
       runs: { failed: failed24h, total: last24.length },
       ...(monitors ? { monitors } : {}),
       ...(credentials ? { credentials } : {}),
       ...(findings ? { findings } : {}),
+      ...(reviews ? { reviews } : {}),
       vendorTickets: vendorAttention(),
     };
     return {

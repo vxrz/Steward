@@ -125,7 +125,8 @@
       "credentials": "Credentials due",
       "tickets": "Open tickets you are responsible for",
       "records": "Records",
-      "reports": "Reports for you"
+      "reports": "Reports for you",
+      "reviews": "Document reviews due"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
@@ -166,11 +167,18 @@
       "proposed": "proposed",
       "accepted": "accepted",
       "superseded": "superseded",
-      "deprecated": "deprecated"
+      "deprecated": "deprecated",
+      "documented": "documented",
+      "verified": "verified",
+      "in_review": "in review",
+      "published": "published",
+      "revising": "revising",
+      "withdrawn": "withdrawn"
     },
     "reportDetail": "Generated {{date}}",
     "more_one": "… and {{count}} more",
-    "more_other": "… and {{count}} more"
+    "more_other": "… and {{count}} more",
+    "reviewTitle": "{{number}} {{title}} (edition {{edition}})"
   },
   "accessUndocumented": {
     "title": "Undocumented access changes: \"{{name}}\"",

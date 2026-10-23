@@ -35,7 +35,9 @@
     "vendorTickets": "Waiting on vendors",
     "oldest_one": "oldest {{count}} day",
     "oldest_other": "oldest {{count}} days",
-    "oldestToday": "oldest opened today"
+    "oldestToday": "oldest opened today",
+    "reviewsDue": "Reviews due",
+    "reviewsSplit": "{{overdue}} overdue · {{dueSoon}} due soon"
   },
   "waiting": "Waiting for your decision",
   "failedChecks": "Failed checks (last 7 days)",

@@ -28,6 +28,7 @@ import * as store from '../engine/store.js';
 import { parseCauses } from '../monitors/model.js';
 import { monitorVisibility, redactCauses, rootCauseMessage } from '../monitors/redact.js';
 import { listCredentials } from '../credentials/service.js';
+import { reviewsDueFor } from '../records/documents.js';
 import { listTickets } from '../tickets/service.js';
 import { getRecord } from '../records/service.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
@@ -341,7 +342,9 @@ function ticketsSection(c: Ctx): Section {
 function recordsSection(c: Ctx): Section {
   const status = (s: string) => t(c.l, `dailySummary.recordStatus.${s}` as MessageKey);
   const approvals: DailySummaryItem[] = [];
-  for (const r of db().all<{ id: string }>("SELECT id FROM records WHERE status IN ('submitted', 'proposed') ORDER BY updated_at DESC LIMIT 200")) {
+  for (const r of db().all<{ id: string }>(
+    "SELECT id FROM records WHERE status IN ('submitted', 'proposed', 'in_review') ORDER BY updated_at DESC LIMIT 200",
+  )) {
     try {
       const d = getRecord(r.id);
       if (d.actions.some((a) => a.approval && a.allowed))
@@ -370,6 +373,20 @@ function recordsSection(c: Ctx): Section {
       tone: 'info' as const,
     }));
   const items = [...approvals, ...changed];
+  return { count: items.length, items };
+}
+
+/** Living documents whose periodic review is due soon or overdue and that the recipient reviews (review owner, else owner). */
+function reviewsSection(c: Ctx): Section {
+  const items = reviewsDueFor(c.user, Date.parse(c.until)).map((x) => ({
+    title: t(c.l, 'dailySummary.reviewTitle', { number: x.number, title: x.title, edition: x.edition }),
+    detail: t(c.l, 'dailySummary.credentialDetail', {
+      status: t(c.l, `dailySummary.credentialStatus.${x.status}` as MessageKey),
+      date: dateOnly(c.l, x.nextReviewAt, c.tz),
+    }),
+    link: `/records/${encodeURIComponent(x.id)}?tab=changelog`,
+    tone: x.status === 'dueSoon' ? ('attention' as const) : ('bad' as const),
+  }));
   return { count: items.length, items };
 }
 
@@ -403,6 +420,7 @@ const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   credentials: credentialsSection,
   tickets: ticketsSection,
   records: recordsSection,
+  reviews: reviewsSection,
   reports: reportsSection,
 };
 

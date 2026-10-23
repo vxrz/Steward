@@ -117,7 +117,8 @@
       "credentials": "Credentials due",
       "tickets": "Open tickets I am responsible for",
       "records": "Records waiting for me or that changed",
-      "reports": "Reports for me"
+      "reports": "Reports for me",
+      "reviews": "Document reviews due for me"
     },
     "skipEmpty": "Send nothing on days without anything to report",
     "save": "Save",

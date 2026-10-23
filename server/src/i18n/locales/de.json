@@ -125,7 +125,8 @@
       "credentials": "Fällige Zugangsdaten",
       "tickets": "Offene Tickets in Ihrer Verantwortung",
       "records": "Dokumente",
-      "reports": "Berichte für Sie"
+      "reports": "Berichte für Sie",
+      "reviews": "Fällige Überprüfungen von Dokumenten"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
@@ -166,11 +167,18 @@
       "proposed": "Vorgeschlagen",
       "accepted": "Angenommen",
       "superseded": "Ersetzt",
-      "deprecated": "Veraltet"
+      "deprecated": "Veraltet",
+      "documented": "Dokumentiert",
+      "verified": "Geprüft",
+      "in_review": "In Prüfung",
+      "published": "Veröffentlicht",
+      "revising": "In Überarbeitung",
+      "withdrawn": "Außer Kraft"
     },
     "reportDetail": "Erstellt am {{date}}",
     "more_one": "… und {{count}} weiterer",
-    "more_other": "… und {{count}} weitere"
+    "more_other": "… und {{count}} weitere",
+    "reviewTitle": "{{number}} {{title}} (Fassung {{edition}})"
   },
   "accessUndocumented": {
     "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
