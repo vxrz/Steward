@@ -6,7 +6,9 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-The first public version, 0.1.0, is being prepared. It contains everything below.
+## [0.1.0] - 2026-10-23
+
+The first public version.
 
 ### Added
 
@@ -237,4 +239,5 @@ The first public version, 0.1.0, is being prepared. It contains everything below
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/service-manager/commits/HEAD
+[Unreleased]: https://github.com/vxrz/service-manager/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/vxrz/service-manager/releases/tag/v0.1.0
