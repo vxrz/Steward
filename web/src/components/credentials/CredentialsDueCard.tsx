@@ -8,7 +8,8 @@ import { getOptional } from '../../api';
 import { fmtDay, fmtRelative } from '../../format';
 import { CredentialStatusBadge } from '../../pages/Credentials';
 
-interface Summary {
+/** GET /api/credentials/summary (null for users who may not see the register). */
+export interface CredentialDueSummary {
   expired: number;
   overdue: number;
   dueSoon: number;
@@ -20,7 +21,7 @@ export function CredentialsDueCard() {
   const { t } = useTranslation('credentials');
   const s = useQuery({
     queryKey: ['credentials', 'summary'],
-    queryFn: () => getOptional<Summary | null>('/credentials/summary', null),
+    queryFn: () => getOptional<CredentialDueSummary | null>('/credentials/summary', null),
     refetchInterval: 60000,
   });
   const d = s.data;

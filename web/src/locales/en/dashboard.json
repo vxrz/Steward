@@ -16,9 +16,12 @@
   "counts": {
     "openTasks": "Open tasks",
     "runs24h": "Runs (24 h)",
-    "failed24h": "Failed (24 h)",
     "schedules": "Active schedules",
-    "platforms": "Platforms"
+    "platforms": "Platforms",
+    "monitorsDown": "Monitors down",
+    "credentialsDue": "Credentials due",
+    "failedNote_one": "{{count}} failed",
+    "failedNote_other": "{{count}} failed"
   },
   "waiting": "Waiting for your decision",
   "failedChecks": "Failed checks (last 7 days)",

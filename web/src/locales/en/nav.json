@@ -100,5 +100,64 @@
   "mainNavigation": "Main navigation",
   "collapseSidebar": "Collapse sidebar",
   "expandSidebar": "Expand sidebar",
-  "backToDashboard": "Go to the dashboard"
+  "backToDashboard": "Go to the dashboard",
+  "help": {
+    "label": "Help",
+    "whatsNew": "What's new",
+    "shortcuts": "Keyboard shortcuts",
+    "checklist": "Getting-started checklist",
+    "docs": "Documentation",
+    "doc": {
+      "guide": "User guide (README)",
+      "install": "Installation and operation",
+      "mcp": "AI assistants (MCP)",
+      "api": "Public REST API",
+      "gateway": "Monitor gateways (IoT)",
+      "all": "All documentation"
+    },
+    "then": "then",
+    "keys": {
+      "search": "Search pages, processes, monitors, records …",
+      "help": "Show this list",
+      "goTo": "Go to {{page}}",
+      "close": "Close a dialog or menu"
+    },
+    "shortcutsHint": "The shortcuts do not apply while you type in a field, in a dialog or in the process editor's canvas.",
+    "whatsNewIntro": "Highlights of the coming {{brand}} release.",
+    "fullChangelog": "Full change log on GitHub",
+    "news": {
+      "lists": {
+        "title": "Better lists",
+        "text": "Sort by any column, load older runs and more records, cards instead of wide tables on phones, a shortcut list (press ?) and this Help menu."
+      },
+      "confirm": {
+        "title": "Clear confirmations",
+        "text": "Deleting, archiving, revoking or rotating a secret asks in a dialog that says what happens, with a red button."
+      },
+      "gitSync": {
+        "title": "Git sync",
+        "text": "Fetch processes, dashboards, monitors and record types from Git and review each update before it is applied."
+      },
+      "tickets": {
+        "title": "Ticket references",
+        "text": "Document ServiceNow incidents and vendor tickets and link them to services, platforms and records."
+      },
+      "dailySummary": {
+        "title": "Daily summary",
+        "text": "Once a day: runs, decisions waiting, monitor changes and credentials due – in the app or by e-mail."
+      },
+      "credentials": {
+        "title": "Credentials register",
+        "text": "Expiry, rotation and review dates of API clients, certificates and tokens, with reminders – never the secrets."
+      },
+      "compliance": {
+        "title": "Access governance evidence",
+        "text": "Documented access changes, reconciliation with the platforms and evidence packs for audits."
+      },
+      "mcp": {
+        "title": "AI assistants (MCP)",
+        "text": "A read-only MCP server lets AI assistants look at runs, monitors and dashboards with your rights."
+      }
+    }
+  }
 }

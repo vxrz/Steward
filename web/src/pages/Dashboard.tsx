@@ -1,13 +1,13 @@
 import { Alert, Anchor, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { IconAlertTriangle, IconInbox, IconRocket } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { DashboardData } from '@sm/shared';
-import { get, notifyError, notifyOk, post } from '../api';
+import type { DashboardData, MonitorSummary } from '@sm/shared';
+import { get, getOptional, notifyError, notifyOk, post } from '../api';
 import { PageHeader, SeverityBadge } from '../components/common';
 import { RunTable } from '../components/RunTable';
-import { CredentialsDueCard } from '../components/credentials/CredentialsDueCard';
+import { CredentialsDueCard, type CredentialDueSummary } from '../components/credentials/CredentialsDueCard';
 import { GettingStarted } from '../components/dashboard/GettingStarted';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
@@ -17,7 +17,21 @@ export function DashboardPage({ demo }: { demo: boolean }) {
   const { t } = useTranslation('dashboard');
   const qc = useQueryClient();
   const d = useQuery({ queryKey: ['dashboard'], queryFn: () => get<DashboardData>('/dashboard'), refetchInterval: 5000 });
-  const { isAdmin } = useMe();
+  const { isAdmin, caps } = useMe();
+  // ?checklist=1: the Help menu's "Getting-started checklist"
+  const [params] = useSearchParams();
+  const showChecklist = params.get('checklist') === '1';
+  // same queries (and cache) as the monitor list and the "credentials due" card
+  const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors'), refetchInterval: 10000 });
+  const credentials = useQuery({
+    queryKey: ['credentials', 'summary'],
+    queryFn: () => getOptional<CredentialDueSummary | null>('/credentials/summary', null),
+    refetchInterval: 60000,
+  });
+  // tiles only for what the user can see: monitors they may view (or create), the credential register
+  const monitorsDown = monitors.data && (monitors.data.length > 0 || caps.createMonitors) ? monitors.data.filter((m) => m.status === 'down').length : null;
+  const cred = credentials.data;
+  const credentialsDue = cred ? cred.expired + cred.overdue + cred.dueSoon : null;
   const [demoAccounts, setDemoAccounts] = useState<{ users: string[]; password: string } | null>(null);
   const data = d.data;
   const loadDemoButton = isAdmin && (
@@ -54,7 +68,9 @@ export function DashboardPage({ demo }: { demo: boolean }) {
           </Text>
         </Alert>
       )}
-      {data?.setup && <GettingStarted setup={data.setup} demoAction={data.counts.platforms === 0 && demo ? loadDemoButton : undefined} />}
+      {data?.setup && (
+        <GettingStarted setup={data.setup} forceShow={showChecklist} demoAction={data.counts.platforms === 0 && demo ? loadDemoButton : undefined} />
+      )}
       {data && !data.setup && data.counts.platforms === 0 && (
         <Alert icon={<IconRocket />} title={t('getStarted.title')} mb="md">
           <Text size="sm">
@@ -68,12 +84,28 @@ export function DashboardPage({ demo }: { demo: boolean }) {
       )}
       {data && (
         <Stack>
-          <SimpleGrid cols={{ base: 2, sm: 3, lg: 5 }} spacing="xs">
+          <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="xs" data-testid="start-tiles">
             <Count label={t('counts.openTasks')} value={data.openTasks.length} color={data.openTasks.length ? 'violet' : undefined} to="/tasks" />
-            <Count label={t('counts.runs24h')} value={data.counts.runs24h} to="/runs" />
-            <Count label={t('counts.failed24h')} value={data.counts.failed24h} color={data.counts.failed24h ? 'red' : undefined} to="/runs" />
+            {/* failures are part of the runs tile, so six tiles fill two or three columns */}
+            <Count
+              label={t('counts.runs24h')}
+              value={data.counts.runs24h}
+              to={data.counts.failed24h ? '/runs?status=failed' : '/runs'}
+              note={data.counts.failed24h ? t('counts.failedNote', { count: data.counts.failed24h }) : undefined}
+            />
             <Count label={t('counts.schedules')} value={data.counts.schedules} to="/schedules" />
             <Count label={t('counts.platforms')} value={data.counts.platforms} to="/platforms" />
+            {monitorsDown !== null && (
+              <Count label={t('counts.monitorsDown')} value={monitorsDown} color={monitorsDown ? 'red' : undefined} to="/monitors?status=down" />
+            )}
+            {credentialsDue !== null && cred && (
+              <Count
+                label={t('counts.credentialsDue')}
+                value={credentialsDue}
+                color={cred.expired ? 'red' : cred.overdue ? 'orange' : cred.dueSoon ? 'yellow.8' : undefined}
+                to="/credentials?status=expired,overdue,dueSoon"
+              />
+            )}
           </SimpleGrid>
 
           {data.openTasks.length > 0 && (
@@ -168,15 +200,22 @@ export function DashboardPage({ demo }: { demo: boolean }) {
   );
 }
 
-function Count({ label, value, color, to }: { label: string; value: number; color?: string; to: string }) {
+function Count({ label, value, color, to, note }: { label: string; value: number; color?: string; to: string; note?: string }) {
   return (
     <Paper withBorder p="sm" className="clickable" component={Link} to={to} style={{ color: 'inherit', textDecoration: 'none', display: 'block' }}>
       <Text size="xs" c="dimmed">
         {label}
       </Text>
-      <Text fw={700} fz={26} c={color}>
-        {fmtNumber(value)}
-      </Text>
+      <Group gap={8} align="baseline" wrap="nowrap">
+        <Text fw={700} fz={26} c={color}>
+          {fmtNumber(value)}
+        </Text>
+        {note && (
+          <Text size="xs" fw={600} c="red" truncate>
+            {note}
+          </Text>
+        )}
+      </Group>
     </Paper>
   );
 }

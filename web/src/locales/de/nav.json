@@ -100,5 +100,64 @@
   "mainNavigation": "Hauptnavigation",
   "collapseSidebar": "Seitenleiste einklappen",
   "expandSidebar": "Seitenleiste ausklappen",
-  "backToDashboard": "Zur Übersicht"
+  "backToDashboard": "Zur Übersicht",
+  "help": {
+    "label": "Hilfe",
+    "whatsNew": "Neuigkeiten",
+    "shortcuts": "Tastenkürzel",
+    "checklist": "Checkliste für den Einstieg",
+    "docs": "Dokumentation",
+    "doc": {
+      "guide": "Benutzerhandbuch (README)",
+      "install": "Installation und Betrieb",
+      "mcp": "KI-Assistenten (MCP)",
+      "api": "Öffentliche REST-API",
+      "gateway": "Monitor-Gateways (IoT)",
+      "all": "Gesamte Dokumentation"
+    },
+    "then": "dann",
+    "keys": {
+      "search": "Seiten, Prozesse, Monitore, Dokumente suchen …",
+      "help": "Diese Liste anzeigen",
+      "goTo": "Zu {{page}} wechseln",
+      "close": "Dialog oder Menü schließen"
+    },
+    "shortcutsHint": "Die Kürzel gelten nicht, während Sie in einem Feld tippen, in einem Dialog oder auf der Arbeitsfläche des Prozesseditors.",
+    "whatsNewIntro": "Die Höhepunkte der kommenden {{brand}}-Version.",
+    "fullChangelog": "Vollständiges Änderungsprotokoll auf GitHub",
+    "news": {
+      "lists": {
+        "title": "Bessere Listen",
+        "text": "Nach jeder Spalte sortieren, ältere Ausführungen und weitere Dokumente nachladen, Karten statt breiter Tabellen auf dem Smartphone, eine Liste der Tastenkürzel (Taste ?) und dieses Hilfe-Menü."
+      },
+      "confirm": {
+        "title": "Klare Rückfragen",
+        "text": "Löschen, Archivieren, Widerrufen oder Erneuern eines Secrets fragt in einem Dialog nach, der die Folgen nennt – mit rotem Knopf."
+      },
+      "gitSync": {
+        "title": "Git-Synchronisierung",
+        "text": "Prozesse, Dashboards, Monitore und Dokumentarten aus Git holen und jede Änderung vor dem Übernehmen prüfen."
+      },
+      "tickets": {
+        "title": "Ticket-Referenzen",
+        "text": "ServiceNow-Incidents und Hersteller-Tickets dokumentieren und mit Services, Plattformen und Dokumenten verknüpfen."
+      },
+      "dailySummary": {
+        "title": "Tägliche Zusammenfassung",
+        "text": "Einmal am Tag: Ausführungen, offene Entscheidungen, Monitor-Änderungen und fällige Zugangsdaten – in der App oder per E-Mail."
+      },
+      "credentials": {
+        "title": "Zugangsdaten-Register",
+        "text": "Ablauf-, Rotations- und Prüftermine von API-Clients, Zertifikaten und Tokens mit Erinnerungen – nie die Secrets selbst."
+      },
+      "compliance": {
+        "title": "Nachweise zur Zugriffssteuerung",
+        "text": "Dokumentierte Berechtigungsänderungen, Abgleich mit den Plattformen und Nachweispakete für Audits."
+      },
+      "mcp": {
+        "title": "KI-Assistenten (MCP)",
+        "text": "Ein lesender MCP-Server lässt KI-Assistenten Ausführungen, Monitore und Dashboards mit Ihren Rechten ansehen."
+      }
+    }
+  }
 }

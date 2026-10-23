@@ -45,6 +45,7 @@ import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
 import { fmtRelative } from '../format';
 import { StatusBadge } from './common';
+import { isMac } from './HelpMenu';
 
 const RunDialog = lazy(() => import('./RunDialog').then((m) => ({ default: m.RunDialog })));
 
@@ -64,7 +65,6 @@ const short = (text: string | undefined): string | undefined => {
   const first = text.split(/(?<=[.!?])\s/)[0]!;
   return first.length > 90 ? first.slice(0, 88).trimEnd() + '…' : first;
 };
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 /** Every word of the query must appear in label, description or keywords. Empty query: only the groups not in `searchOnly` (pages, actions, recent runs). */
 const makeFilter =

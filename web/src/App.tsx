@@ -19,6 +19,7 @@ import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { AppNav, useNavGroups } from './components/AppNav';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
+import { HelpMenu } from './components/HelpMenu';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
 
@@ -156,6 +157,7 @@ function Shell({ status }: { status: AuthStatus }) {
           </Group>
           <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
             <CommandPaletteButton />
+            <HelpMenu />
             <NotificationCenter />
             <Tooltip label={colorScheme === 'dark' ? t('lightMode') : t('darkMode')}>
               <ActionIcon

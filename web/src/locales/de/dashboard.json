@@ -16,9 +16,12 @@
   "counts": {
     "openTasks": "Offene Aufgaben",
     "runs24h": "Ausführungen (24 h)",
-    "failed24h": "Fehlgeschlagen (24 h)",
     "schedules": "Aktive Zeitpläne",
-    "platforms": "Plattformen"
+    "platforms": "Plattformen",
+    "monitorsDown": "Monitore ausgefallen",
+    "credentialsDue": "Zugangsdaten fällig",
+    "failedNote_one": "{{count}} fehlgeschlagen",
+    "failedNote_other": "{{count}} fehlgeschlagen"
   },
   "waiting": "Wartet auf Ihre Entscheidung",
   "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Anchor, Card, CloseButton, Group, Kbd, List, Progress, Stack, Text, ThemeIcon, Title, VisuallyHidden } from '@mantine/core';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -34,11 +34,21 @@ function readHidden(): boolean {
  * links to the page or its create dialog) and a few features worth knowing. Hidden once everything is
  * done or when the administrator hides it (remembered per browser).
  */
-export function GettingStarted({ setup, demoAction }: { setup: DashboardSetup; demoAction?: ReactNode }) {
+/** `forceShow`: opened from the Help menu – shown (and no longer hidden) even when every step is done. */
+export function GettingStarted({ setup, demoAction, forceShow }: { setup: DashboardSetup; demoAction?: ReactNode; forceShow?: boolean }) {
   const { t } = useTranslation('dashboard');
   const [hidden, setHidden] = useState(readHidden);
+  useEffect(() => {
+    if (!forceShow) return;
+    setHidden(false);
+    try {
+      localStorage.removeItem(HIDDEN_KEY);
+    } catch {
+      /* storage blocked */
+    }
+  }, [forceShow]);
   const done = STEPS.filter((s) => s.done(setup)).length;
-  if (hidden || done === STEPS.length) return null;
+  if (hidden || (!forceShow && done === STEPS.length)) return null;
   const next = STEPS.find((s) => !s.done(setup));
   const hide = () => {
     setHidden(true);
