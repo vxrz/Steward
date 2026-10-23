@@ -1,4 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { config } from './config.js';
+import { logger } from './log.js';
 import { OPS_MIGRATIONS } from './migrations/ops.js';
 import { ENGINE_MIGRATIONS } from './migrations/engine.js';
 import { PERF_MIGRATIONS } from './migrations/perf.js';
@@ -18,6 +21,37 @@ import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
 import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
 
 export type { DatabaseTarget } from './database/sql.js';
+
+/** What a start-up changed on an existing database (Db.upgrade; audited as system.upgraded). */
+export interface UpgradeInfo {
+  fromSchema: { core: number; named: number };
+  toSchema: { core: number; named: number };
+  /** The app version that last opened the database (null: before versions were recorded). */
+  fromVersion: string | null;
+  toVersion: string;
+  /** Migrations applied, in order ("core 6", then names). */
+  migrations: string[];
+  /** SQLite: the copy made before migrating (null: nothing to migrate, turned off, or PostgreSQL). */
+  backup: string | null;
+  at: string;
+}
+
+export interface DbOptions {
+  migrate?: boolean;
+  /**
+   * SQLite: before applying migrations to an existing database, copy it to
+   * `<dir>/pre-<version>-<UTC time>.db` and keep the newest `keep` copies (0 = no copy).
+   */
+  backup?: { dir: string; keep: number };
+  /** The app version recorded in the database (default: config.version). */
+  appVersion?: string;
+  /** Tests: named migrations run after the built-in ones. */
+  extraMigrations?: NamedMigration[];
+}
+
+/** Settings rows the migration code maintains ("system." keys are internal, see settings.ts). */
+export const APP_VERSION_KEY = 'system.appVersion';
+export const PENDING_UPGRADES_KEY = 'system.pendingUpgrades';
 
 export interface NamedMigration {
   name: string;
@@ -340,7 +374,13 @@ export function namedMigrations(dialect: 'sqlite' | 'postgres'): { name: string;
 export class Db {
   readonly driver: Driver;
 
-  constructor(target: DatabaseTarget | Driver, opts: { migrate?: boolean } = {}) {
+  /** Set when this open migrated an existing database or found it last opened by another app version. */
+  upgrade?: UpgradeInfo;
+
+  constructor(
+    target: DatabaseTarget | Driver,
+    private readonly opts: DbOptions = {},
+  ) {
     this.driver = 'dialect' in target ? target : openDriver(target);
     try {
       if (opts.migrate !== false) this.migrate();
@@ -363,21 +403,6 @@ export class Db {
     return this.driver.label;
   }
 
-  /**
-   * Feature migrations by name (applied once, in list order, after the core list).
-   * Feature modules own their lists, so parallel work never collides on numbers.
-   */
-  private migrateNamed(): void {
-    this.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
-    for (const m of namedMigrations(this.dialect)) {
-      if (this.get('SELECT 1 FROM schema_migrations WHERE name = ?', m.name)) continue;
-      this.tx(() => {
-        this.exec(m.sql);
-        this.run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', m.name, new Date().toISOString());
-      });
-    }
-  }
-
   private migrate(): void {
     if (this.dialect === 'postgres') {
       try {
@@ -387,19 +412,155 @@ export class Db {
       }
     }
     const core = coreMigrations(this.dialect);
+    // Feature migrations by name (applied once, in list order, after the core list): feature
+    // modules own their lists, so parallel work never collides on numbers.
+    const named = [
+      ...namedMigrations(this.dialect),
+      ...(this.opts.extraMigrations ?? []).map((m) => ({ name: m.name, sql: this.dialect === 'sqlite' ? m.sql : (m.pg ?? pgDdl(m.sql)) })),
+    ];
     this.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)');
+    this.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
     const row = this.get<{ version: number }>('SELECT version FROM schema_version');
-    let version = row?.version ?? 0;
+    const from = Number(row?.version ?? 0);
     if (!row) this.run('INSERT INTO schema_version (version) VALUES (0)');
-    if (version > core.length) throw new Error(`The database schema (version ${version}) is newer than this version of the app supports (${core.length})`);
-    while (version < core.length) {
-      this.tx(() => {
-        this.exec(core[version]!);
-        version++;
-        this.run('UPDATE schema_version SET version = ?', version);
-      });
+    if (from > core.length) throw new Error(`The database schema (version ${from}) is newer than this version of the app supports (${core.length})`);
+    const done = new Set(this.all<{ name: string }>('SELECT name FROM schema_migrations').map((r) => r.name));
+    const pendingNamed = named.filter((m) => !done.has(m.name));
+    // an existing database: the core schema was there before this start
+    const existing = from > 0;
+    const pending = from < core.length || pendingNamed.length > 0;
+    const backup = existing && pending ? this.backupBeforeMigrating() : null;
+    if (existing && pending && !backup) {
+      const count = core.length - from + pendingNamed.length;
+      if (this.dialect === 'postgres')
+        logger.warn(
+          { migrations: count },
+          'PostgreSQL: migrating the database without an automatic backup – back up with pg_dump before you update the app (see docs/INSTALL.md, "Updating")',
+        );
+      else logger.warn({ migrations: count }, 'migrating the database without an automatic backup (SM_UPGRADE_BACKUPS=0)');
     }
-    this.migrateNamed();
+
+    const applied: string[] = [];
+    let step = '';
+    try {
+      for (let version = from; version < core.length;) {
+        step = `core migration ${version + 1}`;
+        this.tx(() => {
+          this.exec(core[version]!);
+          version++;
+          this.run('UPDATE schema_version SET version = ?', version);
+        });
+        applied.push(`core ${version}`);
+      }
+      for (const m of pendingNamed) {
+        step = `migration "${m.name}"`;
+        this.tx(() => {
+          this.exec(m.sql);
+          this.run('INSERT INTO schema_migrations (name, applied_at) VALUES (?, ?)', m.name, new Date().toISOString());
+        });
+        applied.push(m.name);
+      }
+    } catch (e) {
+      throw new Error(this.migrationFailed(step, (e as Error).message, applied, backup));
+    }
+    this.recordVersion({ existing, from, done: done.size, core: core.length, named: named.length, applied, backup });
+  }
+
+  /** The start-up error for a failed migration: what happened, and where the copy from before is. */
+  private migrationFailed(step: string, message: string, applied: string[], backup: string | null): string {
+    const lines = [`Database upgrade failed: ${step} did not apply: ${message}`];
+    lines.push(
+      applied.length
+        ? `This migration was rolled back; ${applied.length} migration(s) before it were applied (${applied.join(', ')}).`
+        : 'This migration was rolled back; the database was not changed.',
+    );
+    if (backup)
+      lines.push(
+        `A copy of the database from before the upgrade is at ${backup} – to go back, stop the app, replace the database with it and start the previous version.`,
+      );
+    else if (this.dialect === 'postgres') lines.push('To go back, restore the pg_dump backup made before the upgrade and start the previous version.');
+    else lines.push('No automatic copy was made (SM_UPGRADE_BACKUPS=0).');
+    lines.push('Please report the problem with this message.');
+    return lines.join('\n');
+  }
+
+  /**
+   * SQLite: a consistent copy of the whole database (VACUUM INTO: synchronous and online, unlike
+   * node:sqlite's backup(), which is asynchronous) to <dir>/pre-<version>-<UTC time>.db, 0600 like
+   * the database itself (it holds the same encrypted secrets). Older automatic copies beyond `keep`
+   * are removed. A failed copy stops the start: nothing is migrated without the safety net.
+   */
+  private backupBeforeMigrating(): string | null {
+    const b = this.opts.backup;
+    if (this.dialect !== 'sqlite' || !b || b.keep <= 0) return null;
+    const version = (this.opts.appVersion ?? config.version).replace(/[^\w.+-]/g, '_');
+    const stamp = new Date()
+      .toISOString()
+      .replace(/\.\d+Z$/, 'Z')
+      .replace(/:/g, '-');
+    try {
+      fs.mkdirSync(b.dir, { recursive: true, mode: 0o700 });
+      let file = path.join(b.dir, `pre-${version}-${stamp}.db`);
+      for (let n = 2; fs.existsSync(file); n++) file = path.join(b.dir, `pre-${version}-${stamp}-${n}.db`);
+      // VACUUM INTO accepts an empty file: created first, so it never exists with wider permissions
+      fs.writeFileSync(file, '', { mode: 0o600, flag: 'wx' });
+      if (process.platform !== 'win32') fs.chmodSync(file, 0o600);
+      try {
+        this.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+      } catch (e) {
+        fs.rmSync(file, { force: true });
+        throw e;
+      }
+      pruneBackups(b.dir, b.keep);
+      logger.info({ backup: file }, 'database backed up before migrating');
+      return file;
+    } catch (e) {
+      throw new Error(
+        `Database upgrade stopped: could not back up the database to ${b.dir} before migrating: ${(e as Error).message}. ` +
+          'Free disk space or fix the folder permissions (or set SM_UPGRADE_BACKUPS=0 to upgrade without a copy).',
+      );
+    }
+  }
+
+  /**
+   * Records the app version that opened an existing database and, for an upgrade, what changed
+   * (audited as system.upgraded once the vault is open, see upgrades.ts).
+   */
+  private recordVersion(o: { existing: boolean; from: number; done: number; core: number; named: number; applied: string[]; backup: string | null }): void {
+    const toVersion = this.opts.appVersion ?? config.version;
+    const stored = this.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', APP_VERSION_KEY);
+    let fromVersion: string | null = null;
+    try {
+      fromVersion = stored ? (JSON.parse(stored.value) as string) : null;
+    } catch {
+      /* unreadable: treated as unknown */
+    }
+    const put = (key: string, value: unknown) =>
+      this.run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+    const upgraded = o.existing && (o.applied.length > 0 || (fromVersion !== null && fromVersion !== toVersion));
+    this.tx(() => {
+      if (upgraded) {
+        this.upgrade = {
+          fromSchema: { core: o.from, named: o.done },
+          toSchema: { core: o.core, named: o.named },
+          fromVersion,
+          toVersion,
+          migrations: o.applied,
+          backup: o.backup,
+          at: new Date().toISOString(),
+        };
+        const list = this.get<{ value: string }>('SELECT value FROM settings WHERE key = ?', PENDING_UPGRADES_KEY);
+        let pendingList: UpgradeInfo[] = [];
+        try {
+          pendingList = list ? (JSON.parse(list.value) as UpgradeInfo[]) : [];
+        } catch {
+          /* replaced */
+        }
+        put(PENDING_UPGRADES_KEY, [...pendingList.slice(-9), this.upgrade]);
+      }
+      // not on a new, empty database: it stays empty (db:copy only copies into empty targets)
+      if (o.existing && fromVersion !== toVersion) put(APP_VERSION_KEY, toVersion);
+    });
   }
 
   all<T = Row>(sql: string, ...params: unknown[]): T[] {
@@ -458,9 +619,36 @@ export function databaseTarget(): DatabaseTarget {
 }
 export const databaseLabel = (): string => describeTarget(databaseTarget());
 
+/** Automatic copies made before migrating (pre-<version>-<time>[-n].db), newest first. */
+const BACKUP_FILE = /^pre-.+-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)(?:-(\d+))?\.db$/;
+export function listUpgradeBackups(dir: string): string[] {
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const key = (n: string) => {
+    const m = BACKUP_FILE.exec(n)!;
+    return `${m[1]}#${String(Number(m[2] ?? 1)).padStart(6, '0')}`;
+  };
+  return names
+    .filter((n) => BACKUP_FILE.test(n))
+    .sort((a, b) => (key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : 0))
+    .map((n) => path.join(dir, n));
+}
+function pruneBackups(dir: string, keep: number): void {
+  for (const f of listUpgradeBackups(dir).slice(keep)) fs.rmSync(f, { force: true });
+}
+
+/** The app's database with the start-up options: copies before migrating go to <data dir>/backups (SM_UPGRADE_BACKUPS). */
+export function openAppDb(target: DatabaseTarget = databaseTarget(), extra: Pick<DbOptions, 'extraMigrations'> = {}): Db {
+  return new Db(target, { backup: { dir: path.join(config.dataDir, 'backups'), keep: config.upgradeBackups }, ...extra });
+}
+
 let instance: Db | undefined;
 export function db(): Db {
-  if (!instance) instance = new Db(databaseTarget());
+  if (!instance) instance = openAppDb();
   return instance;
 }
 /** For tests. */
