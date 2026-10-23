@@ -90,6 +90,7 @@
     "LIMIT_REACHED_reportSchedules": "Sie haben bereits {{max}} Berichtszeitpläne – löschen Sie zuerst einen, den Sie nicht mehr brauchen.",
     "RATE_LIMITED": "Zu viele Anfragen – versuchen Sie es gleich noch einmal.",
     "RATE_LIMITED_scrape": "Diese Quelle wurde gerade erst abgerufen – versuchen Sie es in {{seconds}} s erneut.",
+    "RATE_LIMITED_wait": "Zu viele Anfragen – versuchen Sie es in {{seconds}} s erneut.",
     "YAML_INVALID": "Ungültiges YAML: {{detail}}",
     "EXPRESSION_INVALID": "{{where}}: ungültiger Ausdruck – {{detail}}",
     "COLOR_INVALID": "Geben Sie eine Hex-Farbe wie #1c7ed6 ein.",

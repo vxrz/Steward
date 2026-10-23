@@ -11,6 +11,7 @@ import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js'
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
 import * as catalogue from '../catalogue/service.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const csv = (v: unknown): string[] | undefined =>
@@ -112,7 +113,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.body);
     return svc.createRecord(b);
   });
-  app.post('/records/import', { bodyLimit: IMPORT_LIMITS.totalBytes * 2 + 64 * 1024 }, async (req) => {
+  app.post('/records/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: IMPORT_LIMITS.totalBytes * 2 + 64 * 1024 }, async (req) => {
     const b = z
       .object({
         type: z.string().max(64).optional(),
@@ -194,11 +195,11 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // PDF and signed copies
-  app.post('/records/:id/pdf', async (req) => {
+  app.post('/records/:id/pdf', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const { texts: _t, ...att } = await generateRecordPdf(params(req).id!, pdfInput.parse(req.body ?? {}));
     return att;
   });
-  app.post('/records/:id/signed', async (req) => {
+  app.post('/records/:id/signed', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const f = await uploadedFile(req, MAX_ATTACHMENT_BYTES);
     const plain = (req.query as { plain?: string }).plain === '1' || f.fields.plain === '1';
     return uploadSignedPdf(params(req).id!, f.filename, f.data, { plain });

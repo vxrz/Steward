@@ -7,6 +7,7 @@ import { requireCapability } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as svc from './service.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 /**
  * Credentials register (mounted under /api). Documentation only: no route
@@ -64,7 +65,7 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     return { items: svc.listCredentials(q), canCreate: svc.canCreateCredentials() };
   });
 
-  app.get('/credentials/export.csv', async (req, reply) => {
+  app.get('/credentials/export.csv', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
     me();
     const q = listQuery.parse(req.query ?? {});
     const items = svc.listCredentials({ ...q, archived: q.archived ?? 'include' });

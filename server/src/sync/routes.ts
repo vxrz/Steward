@@ -6,6 +6,7 @@ import * as sources from './service.js';
 import * as updates from './updates.js';
 import { fetchSource } from './fetch.js';
 import { handleSyncHook } from './hook.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -31,7 +32,7 @@ export async function syncRoutes(app: FastifyInstance): Promise<void> {
   await app.register(async (hooks) => {
     hooks.removeAllContentTypeParsers();
     hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: SYNC_WEBHOOK_MAX_BODY_BYTES }, (_req, body, done) => done(null, body));
-    hooks.post('/hooks/sync/:id', { bodyLimit: SYNC_WEBHOOK_MAX_BODY_BYTES }, async (req, reply) => {
+    hooks.post('/hooks/sync/:id', { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: SYNC_WEBHOOK_MAX_BODY_BYTES }, async (req, reply) => {
       const res = handleSyncHook({ sourceId: params(req).id!, raw: Buffer.isBuffer(req.body) ? req.body : undefined, headers: req.headers, ip: req.ip });
       reply.header('cache-control', 'no-store');
       if (res.headers) reply.headers(res.headers);
@@ -62,7 +63,7 @@ export async function syncRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   app.post('/sync-sources/:id/rotate-webhook-secret', async (req) => sources.rotateWebhookSecret(params(req).id!));
-  app.post('/sync-sources/:id/fetch', async (req) => {
+  app.post('/sync-sources/:id/fetch', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     sources.requireAdmin();
     sources.requireSource(params(req).id!);
     return fetchSource(params(req).id!, 'manual', currentActor());

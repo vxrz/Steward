@@ -10,6 +10,7 @@ import { permissionsFor } from '../processes/service.js';
 import { getPlatform } from '../platforms/service.js';
 import * as triggers from '../triggers/service.js';
 import { handleHook, registerTestNonce } from '../triggers/hook.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -49,7 +50,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     // Keep the raw bytes: HMAC signatures are computed over the exact body.
     hooks.removeAllContentTypeParsers();
     hooks.addContentTypeParser('*', { parseAs: 'buffer', bodyLimit: WEBHOOK_MAX_BODY_BYTES }, (_req, body, done) => done(null, body));
-    hooks.post('/hooks/:id', { bodyLimit: WEBHOOK_MAX_BODY_BYTES }, async (req, reply) => {
+    hooks.post('/hooks/:id', { config: { rateLimit: ROUTE_LIMITS.webhook }, bodyLimit: WEBHOOK_MAX_BODY_BYTES }, async (req, reply) => {
       const res = await handleHook({
         triggerId: params(req).id!,
         raw: Buffer.isBuffer(req.body) ? req.body : undefined,
@@ -116,7 +117,7 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
    * secret added server-side) and marks the call and the run as a test.
    * Dry run by default.
    */
-  app.post('/triggers/:id/test', async (req): Promise<WebhookTestResult> => {
+  app.post('/triggers/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req): Promise<WebhookTestResult> => {
     const r = triggers.requireTriggerEdit(params(req).id!);
     requireProcessRun(r.process_id);
     if (!r.enabled) throw new HttpError(409, 'The trigger is disabled – enable it to test');

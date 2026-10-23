@@ -5,6 +5,7 @@ import { HttpError } from '../util.js';
 import * as schedules from '../reports/schedules.js';
 import { listScheduledReports } from '../reports/service.js';
 import { reportSectionIds } from '../reports/sections.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 /**
  * Scheduled summary reports (mounted under /api):
@@ -50,7 +51,7 @@ export async function reportScheduleRoutes(app: FastifyInstance): Promise<void> 
     return { ok: true };
   });
 
-  app.post('/report-schedules/:id/run', async (req) => {
+  app.post('/report-schedules/:id/run', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
     const u = me();
     const s = schedules.getReportSchedule(params(req).id!);
     if (!s.canEdit) throw new HttpError(403, 'Only the owner or an administrator can run this report schedule', 'FORBIDDEN', { context: 'ownerOnly' });

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Security
+
+- **Request rate limits** for the web app's API, the inbound webhooks and the web UI's files ([@fastify/rate-limit](https://github.com/fastify/fastify-rate-limit)): 600 requests per minute and signed-in user, or per client address without a valid sign-in (`SM_RATE_LIMIT_PER_MINUTE`, `0` = off). Counted after the session check, so made-up session cookies or tokens count against the address, including refused (401) requests. Lower limits of their own for expensive actions: 30 per minute for PDF reports, evidence packs, exports, imports and audit verification, 120 for starting runs, checks and platform tests, 10 for password and passphrase changes; webhooks and the web UI's files get a bucket of 10 times the general limit per address. Above a limit: `429` with `Retry-After`, `RateLimit-*` headers and the error code `RATE_LIMITED` (translated in the web app), and one log line per user or address and minute. Health and readiness probes, `/api/v1` and `/api/mcp` (own limiters) are not counted. Counters are in memory, per server process. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits).
+
 ### Changed
 
 - Dependabot proposes new versions after 14 days (major versions after 21) instead of 7 and 14, matching the rule that dependencies are at least two weeks old. The Mantine packages and Vite with its React plugin come as one pull request each, since they must be upgraded together. Major versions of `@types/node` are ignored: the types follow the oldest supported Node.js version (24). Security updates are not delayed.

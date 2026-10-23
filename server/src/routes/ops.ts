@@ -11,6 +11,7 @@ import { getNotificationSettings, saveNotificationSettings } from '../notificati
 import { initNotifications, sendTest } from '../notifications/service.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 
 const me = (): AuthUser => {
   const u = currentUser();
@@ -118,7 +119,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     admin('change notification settings');
     return saveNotificationSettings(notificationSettingsBody.parse(req.body) as NotificationSettingsInput);
   });
-  app.post('/settings/notifications/test', async (req) => {
+  app.post('/settings/notifications/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const u = admin('test notification channels');
     const b = z.object({ channel: z.enum(['email', 'teams', 'webhook']), to: z.string().max(254).optional() }).parse(req.body);
     return sendTest(b.channel, b.to?.trim() || getUser(u.id).email);
@@ -129,7 +130,7 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     admin('view maintenance information');
     return maintenanceStatus();
   });
-  app.post('/maintenance/cleanup', async () => {
+  app.post('/maintenance/cleanup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {
     admin('run the cleanup');
     try {
       runCleanup({ manual: true });
