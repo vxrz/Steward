@@ -123,7 +123,11 @@ export function loadAllow(root) {
   const file = path.join(root, 'scripts/i18n-allow.json');
   const data = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   const l = data.literals ?? {};
-  return { exact: new Set(l.exact ?? []), patterns: (l.patterns ?? []).map((p) => new RegExp(p, 'u')) };
+  return {
+    exact: new Set(l.exact ?? []),
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp -- patterns come from the repository's own scripts/i18n-allow.json (reviewed like code), used only by this developer check
+    patterns: (l.patterns ?? []).map((p) => new RegExp(p, 'u')),
+  };
 }
 
 /**

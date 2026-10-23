@@ -120,12 +120,20 @@ jobs:
           count=$(jq '[.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL"))] | length' semgrep.json)
           echo "Semgrep: $(jq '.results | length' semgrep.json) finding(s), $count blocking"
           [ "$count" -eq 0 ]
-      - name: Upload SARIF to code scanning
+      # Semgrep keeps findings that are suppressed in the code (`nosemgrep: <rule> -- reason`) in its SARIF output,
+      # marked with "suppressions"; code scanning would still open alerts for them. Upload only the active ones –
+      # the same set the step above gates on. The artifact keeps the full file.
+      - name: Leave out findings suppressed in the code
         if: ${{ !cancelled() && hashFiles('semgrep.sarif') != '' }}
+        run: |
+          jq '.runs |= map(.results |= map(select((.suppressions // []) | length == 0)))' semgrep.sarif > semgrep-upload.sarif
+          echo "SARIF: $(jq '[.runs[].results[]] | length' semgrep.sarif) result(s), $(jq '[.runs[].results[]] | length' semgrep-upload.sarif) uploaded (suppressed in the code left out)"
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && hashFiles('semgrep-upload.sarif') != '' }}
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
-          sarif_file: semgrep.sarif
+          sarif_file: semgrep-upload.sarif
           category: semgrep
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}

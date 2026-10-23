@@ -47,6 +47,9 @@ and npm SBOMs to Dependency-Track. Setup and differences:
   `scorecard`). Findings show up as alerts and as annotations on pull requests.
   This needs a public repository or GitHub Advanced Security; elsewhere the upload
   step fails _without_ failing the job (`continue-on-error` on that step only).
+  Semgrep findings suppressed in the code (`nosemgrep … -- reason`) are left out
+  of the upload – Semgrep keeps them in its SARIF, and code scanning would open
+  alerts for them; the `semgrep-report` artifact still has the full file.
 - **Artifacts** (on the workflow run page): `*-report` artifacts keep the SARIF
   files for 30 days in any case; `container-sbom` holds the image SBOMs
   (CycloneDX and SPDX, 90 days for tags), `container-scan-reports` the image scan
