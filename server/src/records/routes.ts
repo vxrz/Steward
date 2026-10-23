@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { LINK_KINDS, RECORD_STATUSES, type RecordsMeta } from '@sm/shared';
+import { EDITION_KINDS, EDITION_RE, LINK_KINDS, RECORD_STATUSES, RECORD_WORKFLOW_KEYS, REVIEW_STATUSES, type RecordsMeta, type ReviewStatus } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
@@ -10,6 +10,7 @@ import { addAttachment, ATTACHMENT_EXTENSIONS, attachmentForDownload, contentDis
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
+import * as docs from './documents.js';
 import * as catalogue from '../catalogue/service.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 
@@ -30,6 +31,9 @@ const listQuery = z.object({
   tag: z.string().max(60).optional(),
   q: z.string().max(200).optional(),
   owner: z.string().max(128).optional(),
+  workflow: z.enum(RECORD_WORKFLOW_KEYS).optional(),
+  /** Living documents: review statuses, comma-separated (current, dueSoon, overdue, none) */
+  review: z.string().max(100).optional(),
   limit: z.coerce.number().int().min(1).max(10000).optional(),
 });
 
@@ -98,7 +102,19 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     const status = csv(q.status);
     if (status?.some((s) => !RECORD_STATUSES.includes(s)))
       throw new HttpError(400, `Unknown status – use ${RECORD_STATUSES.join(', ')}`, 'RECORD_STATUS_UNKNOWN', { allowed: RECORD_STATUSES.join(', ') });
-    return svc.listRecords({ type: q.type, status, tag: q.tag, q: q.q, owner: q.owner, limit: q.limit });
+    const review = csv(q.review);
+    if (review?.some((s) => !(REVIEW_STATUSES as readonly string[]).includes(s)))
+      throw new HttpError(400, `Unknown review status – use ${REVIEW_STATUSES.join(', ')}`, 'REVIEW_STATUS_UNKNOWN', { allowed: REVIEW_STATUSES.join(', ') });
+    return svc.listRecords({
+      type: q.type,
+      status,
+      tag: q.tag,
+      q: q.q,
+      owner: q.owner,
+      workflow: q.workflow,
+      review: review as ReviewStatus[] | undefined,
+      limit: q.limit,
+    });
   });
   app.post('/records', async (req) => {
     const b = z
@@ -133,7 +149,14 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
   app.get('/records/:id/versions/:version', async (req) => svc.getVersion(params(req).id!, z.coerce.number().int().min(1).parse(params(req).version)));
   app.post('/records/:id/transition', async (req) => {
     const b = z
-      .object({ action: z.string().min(1).max(40), comment: z.string().max(svc.LIMITS.comment).optional(), supersededBy: z.string().max(64).optional() })
+      .object({
+        action: z.string().min(1).max(40),
+        comment: z.string().max(svc.LIMITS.comment).optional(),
+        supersededBy: z.string().max(64).optional(),
+        // living documents (submit): minor or major edition, and what changed
+        editionKind: z.enum(EDITION_KINDS).optional(),
+        changeSummary: z.string().max(4000).optional(),
+      })
       .strict()
       .parse(req.body);
     return svc.transition(params(req).id!, b);
@@ -156,6 +179,18 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
         .parse(req.body).text,
     ),
   );
+  // living documents: editions, changelog, reviews
+  const edition = (req: FastifyRequest) => z.string().regex(EDITION_RE, 'an edition such as 1.0 or 2.1').parse(params(req).edition);
+  app.get('/records/:id/editions', async (req) => docs.listEditions(params(req).id!));
+  app.get('/records/:id/editions/:edition', async (req) => docs.getEdition(params(req).id!, edition(req)));
+  app.post('/records/:id/editions/:edition/pdf', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+    const { texts: _t, ...att } = await generateRecordPdf(params(req).id!, { ...pdfInput.parse(req.body ?? {}), edition: edition(req) });
+    return att;
+  });
+  app.get('/records/:id/changelog', async (req) => docs.changelog(params(req).id!));
+  app.get('/records/:id/reviews', async (req) => docs.listReviews(params(req).id!));
+  app.post('/records/:id/review', async (req) => docs.reviewDocument(params(req).id!, docs.reviewInput.parse(req.body)));
+  app.put('/records/:id/review-settings', async (req) => docs.updateReviewSettings(params(req).id!, docs.reviewSettingsInput.parse(req.body)));
   app.get('/records/:id/export', async (req, reply) => {
     const { filename, text } = exportMarkdown(params(req).id!);
     reply.header('content-disposition', contentDisposition(filename));

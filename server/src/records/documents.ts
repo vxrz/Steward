@@ -24,7 +24,7 @@ import { plannedReminder } from '../credentials/reminders.js';
 import { RECORD_APPROVER_ROLES, RECORD_EDITOR_ROLES, canEditRecord, forbid, me, statusParam } from './access.js';
 import { requireRecordRow, type RecordRow } from './model.js';
 import { requireType, type TypeRow } from './types.js';
-import { canReviewDocument, getRecord, startRevision, workflowOf } from './service.js';
+import { canReviewDocument, getRecord, startRevision, withStoredFields, workflowOf } from './service.js';
 import {
   addMonths,
   currentApprovedAt,
@@ -82,6 +82,60 @@ export function getEdition(idOrNumber: string, edition: string): RecordEdition {
   if (!e) throw new HttpError(404, `Edition ${edition} of ${r.number} not found`, 'EDITION_NOT_FOUND', { edition, number: r.number });
   const intact = intactEditions(r, t.key, [e]);
   return toEdition(e, docRow(r.id)?.current_edition ?? null, intact.has(e.edition));
+}
+
+/**
+ * A record as it was when an edition was approved – its frozen content, files and the history up to the
+ * approval, with the editions and reviews up to then – for the PDF of that edition.
+ */
+export function editionAsRecord(rec: RecordDetail, edition: string): RecordDetail {
+  if (!rec.document) throw new HttpError(409, `${rec.number} is not a living document`, 'NOT_A_DOCUMENT', { number: rec.number });
+  const e = getEdition(rec.id, edition);
+  const byId = new Map(rec.attachments.map((a) => [a.id, a]));
+  const order = (x: { major: number; minor: number }) => x.major * 100000 + x.minor;
+  const later = rec.document.editions.filter((x) => order(x) > order(e)).sort((a, b) => order(a) - order(b))[0];
+  // the next edition's approval ends what belongs to this one
+  const until = later?.approvedAt ?? '9999';
+  return {
+    ...rec,
+    title: e.title,
+    body: e.body,
+    fields: e.fields,
+    fieldDefs: withStoredFields(e.fieldDefs, e.fields),
+    status: 'published',
+    revision: e.revision,
+    version: e.version,
+    contentHash: e.contentHash,
+    frozenHash: e.contentHash,
+    frozen: true,
+    tampered: !e.intact,
+    submittedBy: e.submittedBy,
+    submittedAt: e.submittedAt,
+    attachments: e.attachments.map((a) => {
+      const row = byId.get(a.id);
+      return row
+        ? { ...row, kind: 'file' as const }
+        : {
+            id: a.id,
+            kind: 'file' as const,
+            filename: a.filename,
+            mime: '',
+            size: a.size,
+            sha256: a.sha256,
+            revision: e.revision,
+            createdAt: e.approvedAt,
+            createdBy: '',
+            details: null,
+          };
+    }),
+    events: rec.events.filter((x) => x.createdAt <= e.approvedAt),
+    document: {
+      ...rec.document,
+      pending: null,
+      editions: rec.document.editions.filter((x) => order(x) <= order(e)),
+      reviews: rec.document.reviews.filter((v) => v.createdAt < until),
+    },
+  };
 }
 
 export function listReviews(idOrNumber: string): RecordReview[] {

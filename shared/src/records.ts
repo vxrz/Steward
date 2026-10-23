@@ -432,6 +432,8 @@ export interface RecordPdfDetails {
   status: string;
   contentHash: string;
   signers: RecordSigner[];
+  /** Living documents: the PDF of this frozen edition */
+  edition?: string;
 }
 
 export interface SignatureInfo {

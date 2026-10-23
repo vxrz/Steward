@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_RECORD_TYPES, LINK_KINDS, RECORD_ACTIONS, RECORD_STATUSES, parseMarkdown, inlineText } from '@sm/shared';
+import { DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE, LINK_KINDS, RECORD_ACTIONS, RECORD_STATUSES, parseMarkdown, inlineText } from '@sm/shared';
 import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type Client, type TestServer } from './helpers.js';
 
 let s: TestServer;
@@ -984,7 +984,7 @@ describe('web texts', () => {
     for (const st of RECORD_STATUSES) expect(en.status[st], st).toBeTypeOf('string');
     for (const a of RECORD_ACTIONS) expect(en.actions[a], a).toBeTypeOf('string');
     for (const k of LINK_KINDS) expect(en.links.kinds[k], k).toBeTypeOf('string');
-    for (const t of DEFAULT_RECORD_TYPES) expect(en.builtinTypes[t.key], t.key).toBe(t.name);
+    for (const t of [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE]) expect(en.builtinTypes[t.key], t.key).toBe(t.name);
   });
 
   it('the English texts of the built-in types mirror DEFAULT_RECORD_TYPES (description, template, fields, options)', () => {
@@ -993,9 +993,10 @@ describe('web texts', () => {
     for (const lang of ['en', 'de']) {
       const server = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../src/i18n/locales/${lang}.json`), 'utf8'));
       const web = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../../web/src/locales/${lang}/records.json`), 'utf8'));
-      for (const t of DEFAULT_RECORD_TYPES) expect(server.recordTemplates[t.key], `${lang} ${t.key}`).toBe(web.builtin.types[t.key].template);
+      for (const t of [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE])
+        expect(server.recordTemplates[t.key], `${lang} ${t.key}`).toBe(web.builtin.types[t.key].template);
     }
-    for (const t of DEFAULT_RECORD_TYPES) {
+    for (const t of [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE]) {
       expect(en.builtin.types[t.key]?.description, `${t.key} description`).toBe(t.description);
       expect(en.builtin.types[t.key]?.template, `${t.key} template`).toBe(t.template);
       for (const f of t.fields) {
@@ -1010,7 +1011,7 @@ describe('web texts', () => {
     const { BUILTIN_TEXTS } = await import('../src/records/pdf-i18n.js');
     for (const [lang, texts] of Object.entries(BUILTIN_TEXTS)) {
       const web = JSON.parse(fs.readFileSync(path.resolve(__dirname, `../../web/src/locales/${lang}/records.json`), 'utf8'));
-      for (const t of DEFAULT_RECORD_TYPES) {
+      for (const t of [...DEFAULT_RECORD_TYPES, DOCUMENT_RECORD_TYPE]) {
         expect(texts!.types[t.key], `${lang} ${t.key}`).toBe(web.builtinTypes[t.key]);
         for (const f of t.fields) {
           expect(texts!.fields[f.key], `${lang} ${t.key}.${f.key}`).toBe(web.builtin.fields[f.key].label);
