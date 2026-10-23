@@ -204,6 +204,14 @@ export function reviewDocument(idOrNumber: string, input: z.infer<typeof reviewI
       number: r.number,
       status: statusParam(r.status),
     });
+  // a review found that the document needs an update: it stays due until the next edition is approved
+  if (input.outcome === 'no_change' && d.update_requested_at)
+    throw new HttpError(
+      409,
+      `A review found that ${r.number} needs an update: the review stays due until the next edition is approved`,
+      'DOCUMENT_UPDATE_REQUESTED',
+      { number: r.number },
+    );
   const comment = input.comment.trim();
   if (input.outcome === 'needs_update' && !comment) throw new HttpError(400, 'Please say what needs to change', 'COMMENT_REQUIRED');
   const now = nowIso();

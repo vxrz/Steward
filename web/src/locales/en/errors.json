@@ -405,6 +405,7 @@
     "CHANGE_SUMMARY_REQUIRED": "Summarise what changed in this edition.",
     "CHANGE_SUMMARY_TOO_LONG": "The change summary is too long (at most {{max}} characters).",
     "DOCUMENT_NO_EDITION": "{{number}} has no approved edition yet: there is nothing to review.",
+    "DOCUMENT_UPDATE_REQUESTED": "A review found that {{number}} needs an update. The review stays due until the next edition is approved.",
     "EDITION_INVALID": "\"{{edition}}\" is not an edition (e.g. 1.0 or 2.1).",
     "EDITION_KIND_REQUIRED": "Choose whether this is a minor (editorial) or a major (substantive) edition.",
     "EDITION_NOT_FOUND": "Edition {{edition}} of {{number}} was not found.",

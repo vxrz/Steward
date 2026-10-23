@@ -748,4 +748,27 @@ describe('security review fixes', () => {
     const audit = await s.api('GET', `/audit?entityType=record&entityId=${pub.id}&action=record.review_settings_changed`);
     expect(audit.length).toBe(5);
   });
+
+  it('"no change" is refused while an update is requested; the request clears only with the new edition', async () => {
+    const pub = await publishedDoc('Update requested target');
+    await dana('POST', `/records/${pub.id}/review`, { outcome: 'needs_update', comment: 'Contacts are outdated' });
+    const refused = await errorOf(adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'looks fine to me' }));
+    expect(refused.status).toBe(409);
+    expect(refused.text).toContain('DOCUMENT_UPDATE_REQUESTED');
+    // still refused after the new edition was rejected
+    await dana('PUT', `/records/${pub.id}`, { body: '## Responsibilities\n\n- New contacts\n' });
+    await dana('POST', `/records/${pub.id}/transition`, { action: 'submit', changeSummary: 'Contacts', editionKind: 'minor' });
+    await adam('POST', `/records/${pub.id}/transition`, { action: 'reject', comment: 'Not yet' });
+    expect(await status(adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change' }))).toBe(409);
+    const still = await vera('GET', `/records/${pub.id}`);
+    expect(still.document.review.updateRequestedAt).toBeTruthy();
+    expect(still.document.reviews.map((r: any) => r.outcome)).toEqual(['needs_update']);
+    // approving the new edition clears it; then "no change" works again
+    await dana('POST', `/records/${pub.id}/transition`, { action: 'submit', changeSummary: 'Contacts', editionKind: 'minor' });
+    expect((await adam('POST', `/records/${pub.id}/transition`, { action: 'approve' })).document.review.updateRequestedAt).toBeNull();
+    expect((await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change' })).document.reviews[0]).toMatchObject({
+      outcome: 'no_change',
+      edition: '1.1',
+    });
+  });
 });

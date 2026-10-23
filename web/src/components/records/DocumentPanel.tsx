@@ -152,7 +152,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
             )}
           </Stack>
           <Group gap="xs">
-            {doc.permissions.review && (
+            {doc.permissions.review && !r.updateRequestedAt && (
               <Button size="xs" leftSection={<IconCircleCheck size={14} />} onClick={() => setReviewing('no_change')}>
                 {t('document.reviewedNoChange')}
               </Button>

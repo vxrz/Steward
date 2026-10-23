@@ -405,6 +405,7 @@
     "CHANGE_SUMMARY_REQUIRED": "Fassen Sie zusammen, was sich in dieser Fassung geändert hat.",
     "CHANGE_SUMMARY_TOO_LONG": "Die Zusammenfassung der Änderungen ist zu lang (höchstens {{max}} Zeichen).",
     "DOCUMENT_NO_EDITION": "{{number}} hat noch keine freigegebene Fassung: Es gibt nichts zu überprüfen.",
+    "DOCUMENT_UPDATE_REQUESTED": "Eine Überprüfung hat ergeben, dass {{number}} aktualisiert werden muss. Die Überprüfung bleibt fällig, bis die nächste Fassung freigegeben ist.",
     "EDITION_INVALID": "„{{edition}}“ ist keine Fassung (z. B. 1.0 oder 2.1).",
     "EDITION_KIND_REQUIRED": "Wählen Sie, ob dies eine kleine (redaktionelle) oder eine große (inhaltliche) Fassung ist.",
     "EDITION_NOT_FOUND": "Fassung {{edition}} von {{number}} wurde nicht gefunden.",
