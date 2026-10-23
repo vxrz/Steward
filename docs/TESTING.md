@@ -76,6 +76,24 @@ Rules of thumb:
 - Read-only checks of server state are faster through `apiAs('<user>')` than through the UI.
 - Put "real" writes on data that only your test uses. For example, the real-run test flags users into the empty demo group `mdsp_usergroup:LegacyProjects`.
 
+### Upgrade tests
+
+People keep their data across releases, so every supported upgrade path is tested. `server/test/fixtures/upgrade/<version>/` holds a data folder written by a released version, made by its own code: `datadir/` (the SQLite database, `vault.json`, `audit-anchor.json`, record attachments, the PDF report and the evidence pack) and `manifest.json` (passphrase, ids and counts the test expects). `server/test/upgrade.test.ts` copies each fixture, starts the current version on it and checks that the migrations ran, the vault unlocks with the fixture passphrase, the old data comes back from the API, the audit hash chain and the signed checkpoints still verify, the run that waited for an approval finishes after the approval, attachments and the report download, and the evidence pack still verifies. With `SM_TEST_DATABASE_URL` (`npm run test:pg`) it moves the fixture to PostgreSQL with `db:copy` first and runs the same checks. `server/test/upgrade-backup.test.ts` covers the automatic copy before migrating and the `system.upgraded` audit entry.
+
+The fixtures are test data only: their vault and keys are protected by the published passphrase `steward-upgrade-fixture` (see the [fixture README](../server/test/fixtures/upgrade/README.md)).
+
+**Add a fixture for every minor release** (v0.2.0, v0.3.0, …), right after tagging it:
+
+```bash
+git worktree add --detach ../steward-v0.2.0 v0.2.0
+(cd ../steward-v0.2.0 && npm ci --ignore-scripts)
+node scripts/fixtures/make-upgrade-fixture.mjs --app ../steward-v0.2.0 --out server/test/fixtures/upgrade/v0.2.0
+git worktree remove ../steward-v0.2.0
+npm test -- test/upgrade.test.ts
+```
+
+The script starts the release in demo mode on a fresh data folder (SQLite), sets it up with the test passphrase and creates the content through the API, stops it cleanly and copies only what an installation keeps (no logs, no instance file; the database is compacted). Keep a fixture below about 3 MB. If a release changed an API the script uses, adapt the script in a way that still works for the older releases, or note the release it needs in the script. Keep the old fixtures: each one is an upgrade path that must keep working. Add the new version to the list in the fixture README.
+
 ## 2. Manual test scenarios per role (demo)
 
 Start the demo with `npm run demo`, set it up, then click **Load demo platforms & processes**. Every demo user has the password `Demo-password-1`. Use separate browser profiles or private windows to be signed in as several people at once.

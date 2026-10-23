@@ -6,6 +6,16 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Safe in-place updates** ([docs/INSTALL.md](docs/INSTALL.md#6-updating)): before an update migrates an existing SQLite database, Steward writes a consistent copy to `<data folder>/backups/pre-<version>-<UTC time>.db` (0600; the newest 3 are kept, `SM_UPGRADE_BACKUPS` changes the number, `0` turns it off). Nothing is copied when there is nothing to migrate or for a new database. A failed migration stops the start with a message that names the migration and the copy. After the vault is unlocked, the audit log gets one `system.upgraded` entry (old and new version and schema, migrations applied, path of the copy). PostgreSQL is not copied by the app: the log recommends `pg_dump` before updates. `db:copy` keeps such a copy of an older SQLite source as well. The database is now opened (and migrated) before the server listens.
+- **Upgrade test from real v0.1.0 data**: `server/test/upgrade.test.ts` starts the current version on a data folder written by v0.1.0 (`server/test/fixtures/upgrade/v0.1.0`, test data with a published passphrase) – on SQLite, and on PostgreSQL after `db:copy` – and checks migrations, vault unlock, the old data, audit chain and signed checkpoints, resuming a waiting run, attachments, the PDF report and the evidence pack. `scripts/fixtures/make-upgrade-fixture.mjs` makes the fixture for each new minor release ([docs/TESTING.md](docs/TESTING.md#upgrade-tests)).
+
+### Changed
+
+- Code scanning no longer shows Semgrep findings that are suppressed in the code with a reason (`nosemgrep … -- reason`); the CI job already ignored them, but the uploaded SARIF still contained them, so code scanning opened alerts.
+- Dependabot proposes new versions after 14 days (major versions after 21) instead of 7 and 14, matching the rule that dependencies are at least two weeks old. The Mantine packages and Vite with its React plugin come as one pull request each, since they must be upgraded together. Major versions of `@types/node` are ignored: the types follow the oldest supported Node.js version (24). Security updates are not delayed.
+
 ### Security
 
 - **Request rate limits** for the web app's API, the inbound webhooks and the web UI's files ([@fastify/rate-limit](https://github.com/fastify/fastify-rate-limit)): 600 requests per minute and signed-in user, or per client address without a valid sign-in (`SM_RATE_LIMIT_PER_MINUTE`, `0` = off). Counted after the session check, so made-up session cookies or tokens count against the address, including refused (401) requests. Lower limits of their own for expensive actions: 30 per minute for PDF reports, evidence packs, exports, imports and audit verification, 120 for starting runs, checks and platform tests, 10 for password and passphrase changes; webhooks and the web UI's files get a bucket of 10 times the general limit per address. Above a limit: `429` with `Retry-After`, `RateLimit-*` headers and the error code `RATE_LIMITED` (translated in the web app), and one log line per user or address and minute. Health and readiness probes, `/api/v1` and `/api/mcp` (own limiters) are not counted. Counters are in memory, per server process. See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-rate-limits).
@@ -13,11 +23,6 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 - Files in the data folder (run screenshots, PDF reports, platform documents) and the monitor examples are opened through one helper that only accepts plain names and refuses any path outside its folder. The ids were already looked up in the database first, so this is defence in depth.
 - Traces (OpenTelemetry, off by default) carry the user as a keyed hash with a per-installation key instead of a plain SHA-256 of the user name, so whoever holds the traces cannot re-identify users by hashing known names.
 - CodeQL no longer scans test code (`server/test`, `e2e`), which is not shipped; everything else, including the demo mock servers, still runs with the `security-extended` queries.
-
-### Changed
-
-- Code scanning no longer shows Semgrep findings that are suppressed in the code with a reason (`nosemgrep … -- reason`); the CI job already ignored them, but the uploaded SARIF still contained them, so code scanning opened alerts.
-- Dependabot proposes new versions after 14 days (major versions after 21) instead of 7 and 14, matching the rule that dependencies are at least two weeks old. The Mantine packages and Vite with its React plugin come as one pull request each, since they must be upgraded together. Major versions of `@types/node` are ignored: the types follow the oldest supported Node.js version (24). Security updates are not delayed.
 
 ## [0.1.0] - 2026-10-23
 

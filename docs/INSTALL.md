@@ -138,6 +138,55 @@ npm run db:copy -- --from sqlite:./data/service-manager.db --to postgres://stewa
 - Size on the _Settings → Maintenance_ page is the size of the schema's tables and indexes. PostgreSQL's autovacuum reclaims space after the retention cleanup.
 - `/api/ready` checks that the database is reachable and writable, for both kinds.
 
+## 6. Updating
+
+Your data stays in the data folder (and, if you use it, in PostgreSQL). A new version keeps it: at the first start it upgrades the database to its own schema, then works on the same data. Updates go forward only.
+
+**Every time:**
+
+1. Read the release notes ([CHANGELOG.md](../CHANGELOG.md)) for steps that apply to you.
+2. Stop the app. Running steps of runs are marked _interrupted_ at the next start; runs that wait for a decision keep waiting.
+3. Back up the data folder (and the PostgreSQL database, see below).
+4. Replace the app, keep the data folder.
+5. Start the new version and unlock the vault with your master passphrase, as usual.
+
+**Desktop executable.** Close the console window (or press Ctrl+C in it). Copy the data folder somewhere safe (Windows `%LOCALAPPDATA%\steward`, macOS `~/Library/Application Support/steward`, Linux `~/.local/share/steward`, or your `--data-dir`). Unpack the new release over the old file, or next to it, and start it. With `--autostart on`, sign out and in again, or start the new file once, so that the autostart entry points to it.
+
+**Node.js.**
+
+```bash
+# stop the app (Ctrl+C or your service manager), then:
+tar czf steward-data-$(date +%F).tgz -C data .   # or your SM_DATA_DIR
+git pull                                          # or unpack the new release
+npm ci && npm run build
+npm start
+```
+
+**Container.**
+
+```bash
+docker compose stop
+docker run --rm -v <project>_sm-data:/data -v "$PWD":/backup alpine tar czf /backup/steward-data-$(date +%F).tgz -C /data .
+git pull && docker compose build --pull   # or: docker compose pull, for an image from a registry
+docker compose up -d
+```
+
+`<project>` is the compose project, by default the folder name (`docker volume ls` shows it). The data volume stays; only the image changes.
+
+**What happens at the first start.** The app compares the database with the migrations it knows:
+
+- Nothing new: it starts as usual. No copy is made.
+- Migrations to apply (SQLite): it first writes a copy of the database to `<data folder>/backups/pre-<new version>-<UTC time>.db`, then applies the migrations, each one in its own transaction. The log line `database backed up before migrating` names the copy. The newest 3 copies are kept; set `SM_UPGRADE_BACKUPS` to keep more, or `0` for none. The copies are private to the account that runs the app (0600), like the database: they hold the same encrypted secrets.
+- After the vault is unlocked, the audit log gets one entry `system.upgraded` with the old and new version, the schema before and after, the migrations applied and the path of the copy.
+- A migration fails: the app does not start. The message says which migration failed and where the copy is. The failed migration is rolled back; migrations before it in the same start stay applied. Restore the copy (below) and start the previous version, and please report the problem with the message.
+- The database is newer than the app (a downgrade): the app refuses to start with `The database schema (version …) is newer than this version of the app supports`. **Downgrades are not supported.** To go back, restore the copy or backup from before the update and use the previous version with it.
+
+**Restore the automatic copy (SQLite).** Stop the app. In the data folder, move `service-manager.db` and any `service-manager.db-wal` and `service-manager.db-shm` aside, copy the backup to `service-manager.db`, and start the version you used before the update. (A copy is named after the version that was about to migrate it, not the one that wrote it.) Keep `vault.json` and the other files of the data folder: the copy belongs to them. Your manual backup of the whole data folder works the same way: stop, unpack, start.
+
+**PostgreSQL.** The app does not back up PostgreSQL itself: a copy of a live server database is best made with the server's own tools. Before every update, run `pg_dump` (see [Backup](#5-database-sqlite-or-postgresql)) and back up the data folder. When an update migrates the database, the log says so with the warning `PostgreSQL: migrating the database without an automatic backup`. PostgreSQL rolls back a failed migration as well; to go back, restore the dump with `pg_restore --clean` and start the previous version.
+
+**Moving to a deployed instance.** Copy the data folder of the desktop app to the server, start the same or a newer version there, and – for PostgreSQL – move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
+
 ## Resetting a demo and recovering access
 
 ### Start a demo from scratch
