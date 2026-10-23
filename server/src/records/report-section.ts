@@ -1,5 +1,5 @@
 import { z, type ZodType } from 'zod';
-import { RECORD_TYPE_KEY_RE, RECORD_WORKFLOWS, type RecordWorkflowKey, type ReportLang } from '@sm/shared';
+import { RECORD_TYPE_KEY_RE, RECORD_WORKFLOWS, type RecordWorkflowKey, type ReportLang, type ReviewStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson } from '../util.js';
 import { currentUser } from '../auth/context.js';
@@ -7,6 +7,8 @@ import { registerReportSection } from '../reports/sections.js';
 import type { CellInput, Tone } from '../reports/pdf/engine.js';
 import { canReadRecordRow, canReadRecords } from './access.js';
 import { recordTexts } from './pdf-i18n.js';
+import { reviewState, type DocRow } from './document-model.js';
+import { reminderSettings } from '../credentials/service.js';
 
 /**
  * "Records" section of scheduled summary reports: what happened to records in
@@ -17,6 +19,11 @@ import { recordTexts } from './pdf-i18n.js';
  *
  * The status "at the end of the period" is replayed from the record events, so
  * a report generated later for the same period shows the same figures.
+ *
+ * Living documents (workflow "document") get their own table: the edition valid
+ * and the review status at the end of the period (replayed from the editions and
+ * reviews; the review settings are today's), with the editions approved and the
+ * reviews recorded in the period.
  */
 
 const DAY = 86400000;
@@ -48,6 +55,21 @@ const en = {
   noOpen: 'No open change requests.',
   noWindows: 'No planned change windows.',
   more: '{n} more not shown.',
+  documents: 'Living documents: editions and reviews',
+  documentsIntro:
+    'The edition valid and the review status at the end of the period; editions approved and reviews recorded in the period. Due soon: within {days} days (the credentials reminder setting).',
+  edition: 'Edition',
+  reviewStatus: 'Review',
+  nextReview: 'Next review',
+  lastReview: 'Last review',
+  editionsApproved: 'Editions approved',
+  reviewsRecorded: 'Reviews',
+  reviewsDue: 'Reviews due or overdue',
+  noDocuments: 'No living documents.',
+  rs_current: 'current',
+  rs_dueSoon: 'due soon',
+  rs_overdue: 'overdue',
+  rs_none: '–',
 };
 type Key = keyof typeof en;
 const de: Record<Key, string> = {
@@ -76,6 +98,21 @@ const de: Record<Key, string> = {
   noOpen: 'Keine offenen Änderungsanträge.',
   noWindows: 'Keine geplanten Änderungsfenster.',
   more: '{n} weitere nicht angezeigt.',
+  documents: 'Lebende Dokumente: Fassungen und Überprüfungen',
+  documentsIntro:
+    'Die gültige Fassung und der Überprüfungsstatus am Ende des Zeitraums; im Zeitraum freigegebene Fassungen und erfasste Überprüfungen. Bald fällig: innerhalb von {days} Tagen (Einstellung der Erinnerungen für Zugangsdaten).',
+  edition: 'Fassung',
+  reviewStatus: 'Überprüfung',
+  nextReview: 'Nächste Überprüfung',
+  lastReview: 'Letzte Überprüfung',
+  editionsApproved: 'Freigegebene Fassungen',
+  reviewsRecorded: 'Überprüfungen',
+  reviewsDue: 'Fällige oder überfällige Überprüfungen',
+  noDocuments: 'Keine lebenden Dokumente.',
+  rs_current: 'aktuell',
+  rs_dueSoon: 'bald fällig',
+  rs_overdue: 'überfällig',
+  rs_none: '–',
 };
 const rt = (lang: ReportLang, key: Key, vars?: Record<string, string | number>) =>
   (lang === 'de' ? de : en)[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars?.[k] ?? `{${k}}`));
@@ -106,6 +143,16 @@ export interface RecordsSectionData {
   openByStatus: { status: string; count: number }[];
   open: RecordRef[];
   windows: (RecordRef & { start: string | null; end: string | null; risk: string })[];
+  /** Living documents at the end of the period */
+  documents: (RecordRef & {
+    edition: string | null;
+    reviewStatus: ReviewStatus;
+    nextReviewAt: string | null;
+    lastReviewedAt: string | null;
+    editionsInPeriod: string[];
+    reviewsInPeriod: number;
+  })[];
+  dueSoonDays: number;
 }
 
 interface TypeRow {
@@ -124,6 +171,8 @@ const empty = (windowDays: number): RecordsSectionData => ({
   openByStatus: [],
   open: [],
   windows: [],
+  documents: [],
+  dueSoonDays: reminderSettings().dueSoonDays,
 });
 
 function build(c: RecordsConfig, ctx: { from: number; to: number; now: number }): RecordsSectionData {
@@ -172,7 +221,7 @@ function build(c: RecordsConfig, ctx: { from: number; to: number; now: number })
   ))
     mark(v.record_id, 'changed');
   for (const e of db().all<{ record_id: string; to_status: string }>(
-    "SELECT record_id, to_status FROM record_events WHERE kind = 'transition' AND to_status IN ('approved', 'accepted', 'implemented') AND created_at >= ? AND created_at < ?",
+    "SELECT record_id, to_status FROM record_events WHERE kind = 'transition' AND to_status IN ('approved', 'accepted', 'implemented', 'published') AND created_at >= ? AND created_at < ?",
     fromIso,
     toIso,
   ))
@@ -216,6 +265,59 @@ function build(c: RecordsConfig, ctx: { from: number; to: number; now: number })
     out.windows.push({ ...rr, start, end, risk: f.risk ?? '' });
   }
   out.windows.sort((a, b) => Date.parse(a.start ?? a.end!) - Date.parse(b.start ?? b.end!) || a.number.localeCompare(b.number));
+
+  // living documents: edition and review status at the end of the period
+  const docs = records.filter((r) => types.get(r.type_id)!.workflow === 'document');
+  if (docs.length) {
+    const at = Math.min(ctx.to, ctx.now);
+    const intervals = new Map(
+      db()
+        .all<{ id: string; review_interval_months: number | null }>("SELECT id, review_interval_months FROM record_types WHERE workflow = 'document'")
+        .map((t) => [t.id, t.review_interval_months]),
+    );
+    const docIds = new Set(docs.map((r) => r.id));
+    const editions = db()
+      .all<{ record_id: string; edition: string; approved_at: string; major: number; minor: number }>(
+        'SELECT record_id, edition, approved_at, major, minor FROM record_editions WHERE approved_at <= ? ORDER BY approved_at, major, minor',
+        atIso,
+      )
+      .filter((e) => docIds.has(e.record_id));
+    const reviews = db()
+      .all<{ record_id: string; outcome: string; created_at: string }>(
+        'SELECT record_id, outcome, created_at FROM record_reviews WHERE created_at <= ? ORDER BY created_at',
+        atIso,
+      )
+      .filter((v) => docIds.has(v.record_id));
+    for (const r of docs) {
+      const rr = ref(r);
+      const mine = editions.filter((e) => e.record_id === r.id);
+      const cur = mine[mine.length - 1];
+      const rv = reviews.filter((v) => v.record_id === r.id);
+      // the last "no change" review after the current edition moves the next review (as reviewDocument does)
+      const last = rv.filter((v) => v.outcome === 'no_change' && (!cur || v.created_at >= cur.approved_at)).pop();
+      const d = db().get<DocRow>('SELECT * FROM record_documents WHERE record_id = ?', r.id);
+      const replay = d ? { ...d, last_reviewed_at: last?.created_at ?? null, next_review_override: null } : undefined;
+      const state = reviewState(
+        { owner: r.owner, status: rr.status },
+        { workflow: 'document', review_interval_months: intervals.get(r.type_id) ?? null },
+        replay,
+        cur?.approved_at ?? null,
+        at,
+        out.dueSoonDays,
+      );
+      const editionsInPeriod = mine.filter((e) => e.approved_at >= fromIso && e.approved_at < toIso).map((e) => e.edition);
+      const reviewsInPeriod = rv.filter((v) => v.created_at >= fromIso && v.created_at < toIso).length;
+      out.documents.push({
+        ...rr,
+        edition: cur?.edition ?? null,
+        reviewStatus: state.status,
+        nextReviewAt: state.nextReviewAt,
+        lastReviewedAt: rv[rv.length - 1]?.created_at ?? null,
+        editionsInPeriod,
+        reviewsInPeriod,
+      });
+    }
+  }
   return out;
 }
 
@@ -233,6 +335,15 @@ registerReportSection<RecordsConfig, RecordsSectionData>({
   glance: (d, l) => [
     { label: rt(l, 'openCrs'), value: String(d.open.length), tone: 'default' },
     { label: rt(l, 'windows'), value: String(d.windows.length), tone: d.windows.length ? 'info' : 'default' },
+    ...((d.documents ?? []).length
+      ? [
+          {
+            label: rt(l, 'reviewsDue'),
+            value: String(d.documents.filter((x) => x.reviewStatus === 'dueSoon' || x.reviewStatus === 'overdue').length),
+            tone: (d.documents.some((x) => x.reviewStatus === 'overdue') ? 'warning' : 'default') as Tone,
+          },
+        ]
+      : []),
   ],
   render: (d, { w, tr, lang, section }) => {
     const rx = recordTexts(lang);
@@ -317,5 +428,41 @@ registerReportSection<RecordsConfig, RecordsSectionData>({
       { empty: rt(lang, 'noWindows'), size: 7.4 },
     );
     more(d.windows.length);
+
+    const docs = d.documents ?? [];
+    if (docs.length) {
+      w.subheading(rt(lang, 'documents'));
+      w.paragraph(rt(lang, 'documentsIntro', { days: d.dueSoonDays }), { tone: 'muted', size: 8 });
+      w.table(
+        [
+          { header: rt(lang, 'number'), width: 1.6, mono: true },
+          { header: rt(lang, 'recordTitle'), width: 2.6 },
+          { header: rt(lang, 'status'), width: 1.2 },
+          { header: rt(lang, 'edition'), width: 0.8 },
+          { header: rt(lang, 'reviewStatus'), width: 1 },
+          { header: rt(lang, 'nextReview'), width: 1.3 },
+          { header: rt(lang, 'what'), width: 1.8 },
+        ],
+        docs.slice(0, MAX_ROWS).map((r): CellInput[] => [
+          r.number,
+          { text: r.title, bold: true },
+          rx.status(r.status),
+          r.edition ?? '–',
+          {
+            text: rt(lang, `rs_${r.reviewStatus}` as Key),
+            tone: r.reviewStatus === 'overdue' ? 'danger' : r.reviewStatus === 'dueSoon' ? 'warning' : 'default',
+          },
+          r.nextReviewAt ? tr.date(r.nextReviewAt) : '–',
+          [
+            r.editionsInPeriod.length ? `${rt(lang, 'editionsApproved')}: ${r.editionsInPeriod.join(', ')}` : '',
+            r.reviewsInPeriod ? `${rt(lang, 'reviewsRecorded')}: ${r.reviewsInPeriod}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || '–',
+        ]),
+        { empty: rt(lang, 'noDocuments'), size: 7.4 },
+      );
+      more(docs.length);
+    }
   },
 });

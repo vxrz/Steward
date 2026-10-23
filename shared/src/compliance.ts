@@ -266,6 +266,17 @@ export interface EvidenceItem {
   detail: string;
   /** Item the evidence comes from (the tagged process, record type …) */
   via: { kind: ControlTagKind; id: string; label: string };
+  /** Living documents: the edition valid at the end of the period (with its content hash and approval) and the last review up to then */
+  document?: EvidenceDocument;
+}
+
+export interface EvidenceDocument {
+  edition: string;
+  contentHash: string;
+  approvedAt: string;
+  approvedBy: string;
+  lastReviewedAt: string | null;
+  lastReviewedBy: string | null;
 }
 
 export type CoverageStatus = 'covered' | 'gap' | 'unmapped';

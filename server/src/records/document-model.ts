@@ -2,6 +2,7 @@ import {
   DEFAULT_REVIEW_INTERVAL_MONTHS,
   EDITION_RE,
   type DocumentReviewState,
+  type EvidenceDocument,
   type EditionKind,
   type RecordEdition,
   type RecordEditionSummary,
@@ -297,4 +298,36 @@ export function documentStates(
     out.set(x.record_id, { edition: x.current_edition, review, typeId: x.type_id });
   }
   return out;
+}
+
+/**
+ * Compliance evidence of a document for a period: the edition valid at the end of the period (the newest one
+ * approved up to then) and the last review up to then; null when no edition was valid in the period (none
+ * approved by its end, or withdrawn before it began).
+ */
+export function documentEvidence(recordId: string, from: string, to: string): EvidenceDocument | null {
+  const e = db().get<EditionRow>(
+    'SELECT * FROM record_editions WHERE record_id = ? AND approved_at <= ? ORDER BY major DESC, minor DESC LIMIT 1',
+    recordId,
+    to,
+  );
+  if (!e) return null;
+  const withdrawn = db().get<{ created_at: string }>(
+    "SELECT created_at FROM record_events WHERE record_id = ? AND to_status = 'withdrawn' ORDER BY created_at LIMIT 1",
+    recordId,
+  )?.created_at;
+  if (withdrawn && withdrawn < from) return null;
+  const review = db().get<{ reviewer: string; created_at: string }>(
+    'SELECT reviewer, created_at FROM record_reviews WHERE record_id = ? AND created_at <= ? ORDER BY created_at DESC LIMIT 1',
+    recordId,
+    to,
+  );
+  return {
+    edition: e.edition,
+    contentHash: e.content_hash,
+    approvedAt: e.approved_at,
+    approvedBy: e.approved_by,
+    lastReviewedAt: review?.created_at ?? null,
+    lastReviewedBy: review?.reviewer ?? null,
+  };
 }

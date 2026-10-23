@@ -507,3 +507,104 @@ describe('daily summary', () => {
     expect(section(build('adam'), 'records').items.some((i) => i.title.includes(waiting.number))).toBe(true);
   });
 });
+
+describe('scheduled report section', () => {
+  it('lists living documents with the edition and the review status at the end of the period', async () => {
+    const { reportSection } = await import('../src/reports/sections.js');
+    await import('../src/reports/schedules.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    const { db } = await import('../src/db.js');
+    const pub = await publishedDoc('Report concept');
+    await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'ok' });
+    const late = await publishedDoc('Report concept overdue');
+    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 400 * DAY).toISOString(), late.id);
+    const def = reportSection('records')!;
+    const now = Date.now();
+    const build = (config: Record<string, unknown>, from: number, to: number) =>
+      runAs(toAuthUser(findUserByName('audrey')!), () => def.build(def.schema.parse(config), { from, to, now, lang: 'en' })) as any;
+    const d = await build({ types: ['DOC'] }, now - DAY, now + 60000);
+    const row = d.documents.find((x: any) => x.id === pub.id);
+    expect(row).toMatchObject({ edition: '1.0', status: 'published', reviewStatus: 'current', editionsInPeriod: ['1.0'], reviewsInPeriod: 1 });
+    expect(d.documents.find((x: any) => x.id === late.id)).toMatchObject({ reviewStatus: 'overdue' });
+    expect(d.activity.find((x: any) => x.id === pub.id).what).toContain('approved');
+    // before the first approval: no edition, no review planned
+    const before = await build({ types: ['DOC'] }, now - 3 * DAY, now - 2 * DAY);
+    expect(before.documents.find((x: any) => x.id === pub.id)).toBeUndefined();
+    const glance = def.glance!(d, 'en');
+    expect(glance.find((g: any) => g.label === 'Reviews due or overdue')).toBeTruthy();
+    // a generated report renders the table
+    const sched = await dana('POST', '/report-schedules', {
+      name: 'Documents report',
+      preset: 'custom',
+      cron: '0 6 * * 1',
+      timezone: 'UTC',
+      periodDays: 2,
+      lang: 'en',
+      title: 'Documents report',
+      sections: { records: { types: ['DOC'] } },
+      recipients: { users: [], teams: [], emails: [] },
+      attachPdf: false,
+      enabled: false,
+    });
+    const schedules = await import('../src/reports/schedules.js');
+    const rep = await schedules.runReportSchedule(sched.id, { actor: 'dana', compress: false });
+    const text = rep.texts.join('\n');
+    for (const fact of ['Living documents: editions and reviews', late.number, 'overdue', 'Editions approved: 1.0']) expect(text, fact).toContain(fact);
+  });
+});
+
+describe('compliance evidence', () => {
+  it('documents count as evidence while an edition is valid, with its hash, approval and last review; packs carry that edition', async () => {
+    const { db } = await import('../src/db.js');
+    const iso = await vera('GET', '/compliance/controls?catalogue=ISO27001');
+    const c537 = iso.find((c: any) => c.ref === '5.37');
+    expect((await dana('GET', '/compliance/tag-targets?kind=recordType&q=DOC')).map((x: any) => x.id)).toContain(DOCUMENT_TYPE_ID);
+    await dana('POST', `/compliance/controls/${c537.id}/tags`, { kind: 'recordType', targetId: DOCUMENT_TYPE_ID });
+    // approved long ago, reviewed since, then a new edition is being drafted: the valid edition is the evidence
+    const old = await publishedDoc('Evidence manual', '## Content\n\nEdition one.\n');
+    db().run('UPDATE record_editions SET approved_at = ? WHERE record_id = ?', new Date(Date.now() - 200 * DAY).toISOString(), old.id);
+    await adam('POST', `/records/${old.id}/review`, { outcome: 'no_change', comment: 'ok' });
+    await dana('POST', `/records/${old.id}/revise`, { comment: 'next' });
+    await dana('PUT', `/records/${old.id}`, { body: '## Content\n\nDraft of edition two.\n' });
+    // withdrawn before the period: not evidence
+    const gone = await publishedDoc('Evidence gone');
+    await dana('POST', `/records/${gone.id}/transition`, { action: 'withdraw', comment: 'obsolete' });
+    db().run("UPDATE record_events SET created_at = ? WHERE record_id = ? AND to_status = 'withdrawn'", new Date(Date.now() - 10 * DAY).toISOString(), gone.id);
+    const from = new Date(Date.now() - 2 * DAY).toISOString();
+    const to = new Date(Date.now() + 60000).toISOString();
+    const cov = await vera('GET', `/compliance/coverage?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&catalogue=ISO27001`);
+    const c = cov.find((x: any) => x.control.ref === '5.37');
+    expect(c.status).toBe('covered');
+    const item = c.evidence.find((e: any) => e.id === old.id);
+    expect(item).toMatchObject({
+      kind: 'record',
+      status: 'revising',
+      document: { edition: '1.0', contentHash: old.frozenHash, approvedBy: 'adam', lastReviewedBy: 'adam' },
+    });
+    expect(c.evidence.some((e: any) => e.id === gone.id)).toBe(false);
+    // the evidence pack: the PDF of edition 1.0 (not the draft), and the edition in the index
+    const p = await s.api('POST', '/compliance/evidence-packs', { title: 'Docs', scope: { controlIds: [c537.id] }, from, to });
+    let done: any;
+    for (let i = 0; i < 600; i++) {
+      done = await s.api('GET', `/compliance/evidence-packs/${p.id}`);
+      if (done.status !== 'building') break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(done).toMatchObject({ status: 'ready' });
+    const { ZipReader } = await import('../src/compliance/zip.js');
+    const { verifyPack } = await import('../src/compliance/evidence-verify.js');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const stored = path.join(s.dataDir, 'evidence-packs', `${p.id}.zip`);
+    expect(fs.existsSync(stored)).toBe(true);
+    const zip = await ZipReader.open(stored);
+    const names = zip.entries.map((e) => e.name);
+    expect(names).toContain(`records/${old.number}/${old.number}-edition-1.0.pdf`);
+    const json = JSON.parse((await zip.read(zip.find(`records/${old.number}/record.json`)!)).toString());
+    expect(json).toMatchObject({ body: '## Content\n\nEdition one.\n', frozenHash: old.frozenHash });
+    const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString());
+    expect(index.items.find((i: any) => i.id === old.id).document).toMatchObject({ edition: '1.0', contentHash: old.frozenHash });
+    expect((await verifyPack(stored)).ok).toBe(true);
+  }, 60_000);
+});
