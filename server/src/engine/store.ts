@@ -120,7 +120,7 @@ function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
   };
 }
 
-export function listRuns(f: { processId?: string; status?: string; scheduleId?: string; limit?: number; before?: string }): RunSummary[] {
+export function listRuns(f: { processId?: string; status?: string; scheduleId?: string; limit?: number; before?: string; since?: string }): RunSummary[] {
   const where: string[] = [];
   const params: unknown[] = [];
   if (f.processId) (where.push('process_id = ?'), params.push(f.processId));
@@ -134,6 +134,7 @@ export function listRuns(f: { processId?: string; status?: string; scheduleId?: 
       params.push(...f.status.split(',')));
   if (f.scheduleId) (where.push('schedule_id = ?'), params.push(f.scheduleId));
   if (f.before) (where.push('started_at < ?'), params.push(f.before));
+  if (f.since) (where.push('started_at > ?'), params.push(f.since));
   params.push(Math.min(f.limit ?? 100, 1000));
   return db()
     .all<RunRow & { open_tasks: number }>(

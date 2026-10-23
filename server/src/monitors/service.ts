@@ -161,6 +161,19 @@ export function listMonitors(opts: { templates?: boolean } = {}): MonitorSummary
   return rows.map((r) => summary(r, counts.get(r.id), canView));
 }
 
+/**
+ * Down and degraded monitors the current user may view, for the start page; null when they may neither
+ * view a monitor nor create one (no tile). Same rules as the list, without its per-monitor details.
+ */
+export function monitorAttention(): { down: number; degraded: number } | null {
+  const rows = db()
+    .all<Joined>(`${SELECT} WHERE m.is_template = 0`)
+    .filter((r) => permissionsOfRow(r).includes('view'));
+  if (!rows.length && !canCreateMonitors(currentUser())) return null;
+  const live = rows.filter((r) => r.enabled);
+  return { down: live.filter((r) => r.status === 'down').length, degraded: live.filter((r) => r.status === 'degraded').length };
+}
+
 function checkStates(r: Joined, def: MonitorDefinition, canView: MonitorVisibility): CheckState[] {
   const rows = new Map(
     db()

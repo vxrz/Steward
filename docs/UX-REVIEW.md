@@ -124,6 +124,7 @@ Variants: status of a list entry or a lifecycle (runs, tasks, credentials, recor
 - `e2e/navigation.spec.ts`: sections and folding (remembered, opens on its own pages), the icon-only sidebar (with an axe check), breadcrumbs, the 404 page, palette pages, monitor search and "New record", a viewer's sections and actions, the checklist on an empty installation (progress, a step opening its dialog, hiding) and the empty states of nine pages.
 - `e2e/mobile.spec.ts`: filters folded on phones; Records, Services and Triggers added to the "no horizontal scroll" checks.
 - `server/test/dashboard-setup.test.ts`: the setup counts, and that only administrators get them.
+- `server/test/dashboard-attention.test.ts`: which tiles administrators, auditors, operators and viewers get, and that monitors, credentials and findings the user may not see are not counted; vendor tickets and the run filter by start time.
 
 ## Backlog, implemented
 
@@ -156,7 +157,22 @@ Still disabled until valid (left as they are: a single obvious field or a securi
 
 ### Start page tiles (finding 21)
 
-New tiles _Monitors down_ (links to `/monitors?status=down`; shown when the user sees at least one monitor or may create them) and _Credentials due_ (expired + overdue + due soon, links to the filtered register; shown when the register summary is available to the user). The failed runs of the last 24 hours moved into the runs tile ("3 failed", the tile then opens the failed runs), so there are six tiles: 2 × 3 on phones, 3 × 2 on tablets, one row on wide screens. On the monitor list the status counts are now filter buttons.
+The tiles show what needs the user's attention, not an inventory (the _Platforms_ and _Active schedules_ tiles are gone; upcoming schedules stay in the _Upcoming_ list). In this order, each a link to the matching filtered list:
+
+| Tile                        | Counts                                                                                  | Subtitle                  | Opens                                         |
+| --------------------------- | --------------------------------------------------------------------------------------- | ------------------------- | --------------------------------------------- |
+| Waiting for you             | Open approvals and decisions the user may decide                                        | Approvals and decisions   | `/tasks` (My tasks)                           |
+| Failed runs (24 h)          | Failed runs of visible processes started in the last 24 hours                           | of N runs                 | `/runs?status=failed&within=24h`              |
+| Monitors down               | Down monitors the user may view (enabled, no templates)                                 | N degraded                | `/monitors?status=down,degraded`              |
+| Credentials due             | Expired, overdue and due-soon entries the user may see                                  | N overdue · N due soon    | `/credentials?status=expired,overdue,dueSoon` |
+| Undocumented access changes | Open findings of the access reconciliation checks the user may read                     | Open findings to document | `/compliance/reconciliation?findings=open`    |
+| Waiting on vendors          | Open ticket references with status _waiting for vendor_, or _open_ with a vendor source | oldest N days             | `/tickets?waiting=vendor`                     |
+
+- **Counted on the server** (`attention` in `GET /api/dashboard`) with the feature's own permission rules, so the start page never counts what the user may not open. A kind the user has no right to at all is left out of the response, and the tile is not shown (not a 0): no monitor tile without a visible monitor (unless the user may create them), no credential tile for a viewer who owns no entry, no findings tile without a readable check (administrators and auditors always get it). Ticket references are readable by everyone.
+- **Tone**: a tile that needs attention uses the status colours (`TONE`): violet for decisions, red for failures, expiry and down monitors, orange for overdue credentials and open findings, yellow for degraded monitors, entries due soon and vendor tickets – on the number, its icon and the left edge. A zero is calm: a green 0 with a check icon and _All quiet_.
+- **Layout**: the grid adapts to the number of tiles so no row is left half empty – six tiles 2 × 3 on phones and tablets, 3 × 2 from 992 px; four 2 × 2 (one row on wide screens); five tiles in two columns let the last one span the row.
+- **Accessibility**: the tiles are a list of links in the tab order; each link's name is "label: number – subtitle" (e.g. _Failed runs (24 h): 2 – of 14 runs_), so the visible label starts the name. Colour is never the only signal.
+- **Filtered lists**: Runs got a _Started_ filter (last 24 hours, last 7 days; `?within=24h`, API `since`); the monitor status buttons switch several statuses (`?status=down,degraded`); Tickets take `?waiting=vendor` (API `waitingOn=vendor`) and Access reconciliation `?findings=open` (only checks with open findings), both shown as a removable filter chip.
 
 ### Keyboard shortcuts (finding 22)
 
@@ -174,7 +190,7 @@ A _Help_ button in the header: _What's new_ (a short, curated list in the locale
 
 ### Tests
 
-`e2e/ux.spec.ts`: the confirmation flow (focus on Cancel, Escape, Cancel, Delete, axe), sorting and _Load more_ on Runs, filters from the URL, the start page tiles and the monitor status filter, the shortcut dialog and `g` shortcuts (also that typing in a field is not taken as a shortcut), the Help menu, inline validation (light and dark axe check), the detail skeleton and – on the phone project – run and credential cards without horizontal scroll and the compact footer. `server/test/runs-paging.test.ts`: paging with `before` when most runs are hidden.
+`e2e/ux.spec.ts`: the confirmation flow (focus on Cancel, Escape, Cancel, Delete, axe), sorting and _Load more_ on Runs, filters from the URL, the start page tiles (order, names, links, keyboard, axe, the ticket filter they open, the monitor status filter, the runs period), a viewer's quiet day (green zeros, no tiles without the right) and two balanced columns at 390 px, the shortcut dialog and `g` shortcuts (also that typing in a field is not taken as a shortcut), the Help menu, inline validation (light and dark axe check), the detail skeleton and – on the phone project – run and credential cards without horizontal scroll and the compact footer. `server/test/runs-paging.test.ts`: paging with `before` when most runs are hidden.
 
 ## Backlog
 

@@ -5,6 +5,7 @@ import {
   Badge,
   Box,
   Button,
+  CloseButton,
   Code,
   Group,
   Modal,
@@ -41,7 +42,10 @@ export function AccessReconciliationPage() {
   const meta = useQuery({ queryKey: ['reconciliation-meta'], queryFn: () => get<AccessReconciliationMeta>('/compliance/reconciliation/meta') });
   const checks = useQuery({ queryKey: ['access-checks'], queryFn: () => get<AccessCheck[]>('/compliance/access-checks') });
   useCreateParam(meta.data?.canCreate, () => setEditing('new'));
-  const list = checks.data ?? [];
+  const all = checks.data ?? [];
+  // ?findings=open (the start page's "Undocumented access changes" tile): only checks with open findings
+  const onlyOpen = params.get('findings') === 'open';
+  const list = onlyOpen ? all.filter((c) => c.openFindings > 0) : all;
   const selectedId = params.get('check') ?? list[0]?.id ?? null;
   const selected = list.find((c) => c.id === selectedId) ?? null;
   const select = (id: string) => {
@@ -64,7 +68,34 @@ export function AccessReconciliationPage() {
         }
       />
       <QueryState query={checks} />
-      {checks.isSuccess && list.length === 0 && (
+      {onlyOpen && (
+        <Group gap={6} mb="sm">
+          <Badge
+            variant="light"
+            tt="none"
+            data-testid="filter-open-findings"
+            rightSection={
+              <CloseButton
+                size="xs"
+                aria-label={t('reconciliation.showAllChecks')}
+                onClick={() => {
+                  const next = new URLSearchParams(params);
+                  next.delete('findings');
+                  setParams(next, { replace: true });
+                }}
+              />
+            }
+          >
+            {t('reconciliation.onlyOpen')}
+          </Badge>
+        </Group>
+      )}
+      {checks.isSuccess && onlyOpen && all.length > 0 && list.length === 0 && (
+        <EmptyState compact icon={IconShieldCheck} title={t('reconciliation.noOpenTitle')}>
+          {t('reconciliation.noOpenAnywhere')}
+        </EmptyState>
+      )}
+      {checks.isSuccess && all.length === 0 && (
         <EmptyState
           icon={IconArrowsDiff}
           title={t('reconciliation.emptyTitle')}

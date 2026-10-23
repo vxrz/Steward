@@ -77,7 +77,9 @@
     "responsible": "Verantwortlich",
     "anyone": "Alle",
     "me": "Ich (oder meine Teams)",
-    "minAge": "Seit mindestens (Tagen) offen"
+    "minAge": "Seit mindestens (Tagen) offen",
+    "waitingVendor": "Wartet auf Hersteller (Status „Wartet auf Hersteller“ oder offenes Hersteller-Ticket)",
+    "waitingVendorRemove": "Alle offenen Tickets zeigen"
   },
   "table": {
     "ticket": "Ticket-Referenz",

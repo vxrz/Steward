@@ -54,6 +54,8 @@ export function TicketsPage() {
   const [minAge, setMinAge] = useState<number | ''>('');
   const [debounced] = useDebouncedValue(q, 300);
   const link = params.get('link');
+  // ?waiting=vendor: the start page's "Waiting on vendors" tile
+  const waitingVendor = params.get('waiting') === 'vendor';
   const settings = useTicketSettings();
   const sourceLabel = useSourceLabel();
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
@@ -69,17 +71,29 @@ export function TicketsPage() {
     if (item) u.set('link', item);
     if (responsible) u.set('responsible', responsible);
     if (minAge !== '') u.set('minAgeDays', String(minAge));
+    if (waitingVendor) u.set('waitingOn', 'vendor');
     return u.toString();
-  }, [debounced, statuses, state, sources, vendor, service, link, responsible, minAge]);
+  }, [debounced, statuses, state, sources, vendor, service, link, responsible, minAge, waitingVendor]);
   const list = useQuery({ queryKey: ['ticket-references', qs], queryFn: () => get<TicketList>(`/ticket-references?${qs}`) });
   const [creating, setCreating] = useState(false);
   useCreateParam(list.data?.canCreate, () => setCreating(true));
   const items = list.data?.items ?? [];
-  const filtered = !!(debounced.trim() || statuses.length || state !== 'open' || sources.length || vendor || service || link || responsible || minAge !== '');
+  const filtered = !!(
+    debounced.trim() ||
+    statuses.length ||
+    state !== 'open' ||
+    sources.length ||
+    vendor ||
+    service ||
+    link ||
+    responsible ||
+    minAge !== '' ||
+    waitingVendor
+  );
   const linkLabel = link ? (items.flatMap((x) => x.links).find((l) => l.visible && `${l.kind}:${l.targetId}` === link)?.label ?? link) : null;
-  const clearLink = () => {
+  const clearParam = (key: string) => {
     const next = new URLSearchParams(params);
-    next.delete('link');
+    next.delete(key);
     setParams(next, { replace: true });
   };
 
@@ -152,11 +166,23 @@ export function TicketsPage() {
           )
         }
       />
-      {link && (
+      {(link || waitingVendor) && (
         <Group gap={6} mb="sm">
-          <Badge variant="light" tt="none" rightSection={<CloseButton size="xs" aria-label={t('common:remove')} onClick={clearLink} />}>
-            {t('fields.affected')}: {linkLabel}
-          </Badge>
+          {link && (
+            <Badge variant="light" tt="none" rightSection={<CloseButton size="xs" aria-label={t('common:remove')} onClick={() => clearParam('link')} />}>
+              {t('fields.affected')}: {linkLabel}
+            </Badge>
+          )}
+          {waitingVendor && (
+            <Badge
+              variant="light"
+              tt="none"
+              data-testid="filter-waiting-vendor"
+              rightSection={<CloseButton size="xs" aria-label={t('filters.waitingVendorRemove')} onClick={() => clearParam('waiting')} />}
+            >
+              {t('filters.waitingVendor')}
+            </Badge>
+          )}
         </Group>
       )}
       <FilterPanel active={[q, state !== 'open', statuses.length, sources.length, vendor, service, responsible, minAge !== ''].filter(Boolean).length}>

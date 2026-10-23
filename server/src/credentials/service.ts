@@ -897,3 +897,15 @@ export function dueSummary(now = Date.now()): { overdue: number; expired: number
     items: list.slice(0, 8),
   };
 }
+
+/**
+ * The start page's "Credentials due" tile: entries the current user may see. null for a user who reads
+ * only the entries they own and owns none (viewers), so they get no tile.
+ */
+export function dueAttention(now = Date.now()): { expired: number; overdue: number; dueSoon: number } | null {
+  const u = currentUser();
+  const list = listCredentials({}, now);
+  if (!list.length && !(u && u.roles.some((x) => READ_ROLES.includes(x)))) return null;
+  const n = (s: CredentialStatus) => list.filter((c) => c.status === s).length;
+  return { expired: n('expired'), overdue: n('overdue'), dueSoon: n('dueSoon') };
+}

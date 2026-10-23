@@ -22,7 +22,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconFileImport, IconHeartRateMonitor, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
-import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorSummary } from '@sm/shared';
+import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorStatus, type MonitorSummary } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
 import { EmptyState, Hint, PageHeader, QueryState, useFieldErrors } from '../components/common';
@@ -45,10 +45,14 @@ export function MonitorsPage() {
   const canCreate = useMe().caps.createMonitors;
   const list = monitors.data ?? [];
   const counts = Object.fromEntries(MONITOR_STATUSES.map((s) => [s, list.filter((m) => m.status === s).length]));
-  // ?status=down (the start page's "Monitors down" tile); the count badges switch it
-  const statusFilter = MONITOR_STATUSES.find((s) => s === params.get('status')) ?? null;
-  const setStatusFilter = (s: string | null) => setParams(s ? { status: s } : {}, { replace: true });
-  const shown = statusFilter ? list.filter((m) => m.status === statusFilter) : list;
+  // ?status=down,degraded (the start page's "Monitors down" tile); the count badges switch each status on and off
+  const wanted = (params.get('status') ?? '').split(',');
+  const statusFilter = MONITOR_STATUSES.filter((s) => wanted.includes(s));
+  const toggleStatus = (s: MonitorStatus) => {
+    const next = statusFilter.includes(s) ? statusFilter.filter((x) => x !== s) : [...statusFilter, s];
+    setParams(next.length ? { status: next.join(',') } : {}, { replace: true });
+  };
+  const shown = statusFilter.length ? list.filter((m) => statusFilter.includes(m.status)) : list;
 
   return (
     <>
@@ -88,15 +92,15 @@ export function MonitorsPage() {
       {tab === 'monitors' && (
         <>
           <Group gap="xs" mb="sm" role="group" aria-label={t('list.filterByStatus')}>
-            {MONITOR_STATUSES.filter((s) => counts[s] || s === statusFilter).map((s) => (
+            {MONITOR_STATUSES.filter((s) => counts[s] || statusFilter.includes(s)).map((s) => (
               <Badge
                 key={s}
                 component="button"
                 type="button"
                 color={MONITOR_COLORS[s]}
-                variant={s === statusFilter ? 'filled' : 'light'}
-                aria-pressed={s === statusFilter}
-                onClick={() => setStatusFilter(s === statusFilter ? null : s)}
+                variant={statusFilter.includes(s) ? 'filled' : 'light'}
+                aria-pressed={statusFilter.includes(s)}
+                onClick={() => toggleStatus(s)}
                 style={{ cursor: 'pointer' }}
               >
                 {t('list.count', { count: counts[s], status: monitorStatusLabel(s) })}

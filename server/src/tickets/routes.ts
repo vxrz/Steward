@@ -42,6 +42,7 @@ export const ticketListQuery = z.object({
     .optional(),
   responsible: z.string().max(130).optional(),
   minAgeDays: z.coerce.number().int().min(0).max(3650).optional(),
+  waitingOn: z.enum(['vendor']).optional(),
 });
 
 export async function ticketRoutes(app: FastifyInstance): Promise<void> {
