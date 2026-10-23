@@ -14,6 +14,7 @@ import { parseCsv } from './templates.js';
 import { validateMonitorFile } from './validation.js';
 import { db } from '../db.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -71,7 +72,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   }));
   app.get('/monitors/examples', async () => svc.listExamples());
   app.post('/monitors/examples/:file', async (req) => svc.importExample(params(req).file!));
-  app.post('/monitors/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+  app.post('/monitors/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
     const b = z
       .object({
         yaml: z

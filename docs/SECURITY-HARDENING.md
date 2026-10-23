@@ -42,6 +42,11 @@ Steward limits how many requests one client can send, so a script or a stuck bro
 - **Above a limit** Steward answers `429 Too Many Requests` with `Retry-After` (seconds) and the error code `RATE_LIMITED`; the web app shows how long to wait. Counted answers carry `RateLimit-Limit`, `RateLimit-Remaining` and `RateLimit-Reset`. A limited user or address is logged once per minute as `rate limit reached` (with the key, the limit and the route, never cookies or tokens); it is not written to the audit log. Failed sign-ins keep their own, stricter lockout (see [Sign-in](#sign-in)).
 - **One server process:** the counters are kept in memory and reset on restart. Several Steward instances behind a load balancer would each count on their own (Steward runs as one instance today); a shared store such as Redis would be needed then.
 
+## Request body limits
+
+- **Size:** 25 MB per request for signed-in users (platform OpenAPI specs up to 20 MB arrive as JSON); some routes have lower limits (sign-in 16 KB, MCP 64 KB, inbound webhooks 64–512 KB). Requests without a session or token may send at most 64 KB and must give a `Content-Length`.
+- **Shape:** before a route validates a JSON body, Steward counts its contents: at most 10,000 items in one list, 10,000 fields in one object, 200,000 values in all and 100 levels of nesting (imports of bundles, connector types and monitors: 50,000 items or fields and 1,000,000 values). Above that: `413` with the error code `BODY_TOO_COMPLEX`. The count is linear and stops at the first limit, so validation can't be made to allocate memory per list item ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) in zod).
+
 ## Sign-in
 
 - **Single sign-on** (Entra ID / OIDC) with your company's MFA. Then set _Settings → Sign-in → Only administrators_ so that ordinary users cannot fall back to passwords. Keep one or two local break-glass administrator accounts with long passwords in the company password manager. If their passwords are lost too, `steward admin reset-password` on the server sets a one-time password (needs the data folder and the master passphrase, audited; see [INSTALL.md](INSTALL.md#forgotten-administrator-password)).

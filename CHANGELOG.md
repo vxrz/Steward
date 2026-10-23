@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
+Safe in-place updates, living documents for service documentation, and security fixes (some also affect v0.1.0 installations – updating is recommended).
+
 ### Added
 
 - **Safe in-place updates** ([docs/INSTALL.md](docs/INSTALL.md#6-updating)): before an update migrates an existing SQLite database, Steward writes a consistent copy to `<data folder>/backups/pre-<version>-<UTC time>.db` (0600; the newest 3 are kept, `SM_UPGRADE_BACKUPS` changes the number, `0` turns it off). Nothing is copied when there is nothing to migrate or for a new database. A failed migration stops the start with a message that names the migration and the copy. After the vault is unlocked, the audit log gets one `system.upgraded` entry (old and new version and schema, migrations applied, path of the copy). PostgreSQL is not copied by the app: the log recommends `pg_dump` before updates. `db:copy` keeps such a copy of an older SQLite source as well. The database is now opened (and migrated) before the server listens.
@@ -19,6 +23,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Security
 
+- **Request body limits against memory exhaustion in validation** ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), zod): a signed-in user could crash the server with one large request – a list of 12 million items in a 23 MB body made validation allocate 3 GB. Every JSON body is now checked before validation: at most 10,000 items in one list, 10,000 fields in one object, 200,000 values and 100 levels (imports of bundles, connector types and monitors: 50,000 and 1,000,000); above that `413` with `BODY_TOO_COMPLEX`. Requests without a sign-in must give a `Content-Length` (a chunked body skipped the 64 KB limit). See [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md#request-body-limits).
 - **"Superseded by" named records the reader may not read.** The record page, `GET /api/v1/records/{id}` and the record PDF showed the id, number and title of the superseding record (decisions; replaced living documents) even when the reader may not read it, e.g. an access change entry. It now shows as not visible, like links to hidden items (`supersededBy.visible: false` without id, number or title). A decision can only be superseded by a decision record, and a document only replaced by a living document.
 - **No owner hand-over while an approval is pending.** Four-eyes compares the approver with the current owner, so the owner of a submitted change request (or a proposed decision, a documented access change) could hand it over to someone else and approve it. Changing the owner is now refused (`RECORD_OWNER_LOCKED`) until the decision.
 - **Approvals name the content they decide on.** The transition API takes an optional `contentHash`; the web app sends the hash it shows in the approval dialog, and Steward refuses the decision (`RECORD_CHANGED`) if the record was reworked and submitted again in the meantime.
@@ -265,5 +270,6 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/vxrz/steward/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/vxrz/steward/releases/tag/v0.1.0

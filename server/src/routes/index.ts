@@ -71,6 +71,7 @@ import { capabilities, decisionCheck, isAdmin, processPermissions, require, requ
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { BRAND } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 
 let started = false;
@@ -602,7 +603,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(b.fromPlatformId, 'manage', 'use this platform as a template');
     return connectors.createTypeFromPlatform(b.fromPlatformId, b);
   });
-  app.post('/platform-types/import', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+  app.post('/platform-types/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
     requireCapability(me(), 'createPlatforms', 'import connector types');
     return connectors.importType(z.object({ package: z.any() }).parse(req.body).package);
   });

@@ -82,7 +82,7 @@ function envInt(name: string, fallback: number, min: number, max: number): numbe
 const publicUrl = process.env.SM_PUBLIC_URL?.trim().replace(/\/+$/, '') || undefined;
 
 export const config = {
-  version: '0.1.0',
+  version: '0.1.1',
   host: process.env.SM_HOST ?? '127.0.0.1',
   port: Number(process.env.SM_PORT ?? 4310),
   dataDir,
