@@ -1,0 +1,100 @@
+name: "Industrial Edge – Stale device cleanup"
+description: |
+  Housekeeping for devices that have been offline for a long time (e.g.
+  decommissioned hardware). Lists them, lets you pick the ones to remove and –
+  after a second person confirms (four-eyes) – deletes them from IEM.
+  Always start with a dry run.
+
+  Recommended schedule: monthly. Verify the delete endpoint
+  (DELETE /portal/api/v1/devices/{id}) and the field names against your IEM
+  version before running it for real; removing a device from IEM requires
+  re-onboarding to use it again.
+tags: [housekeeping, devices, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+inputs:
+  - name: offlineDays
+    label: Offline for at least (days)
+    type: number
+    default: 30
+  - name: statusField
+    label: Field holding the connection state
+    type: string
+    default: connectionState
+  - name: onlineValue
+    label: Value meaning "online"
+    type: string
+    default: ONLINE
+steps:
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    saveAs: devices
+  - id: stale
+    type: set
+    name: Find stale devices
+    values:
+      all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
+      stale: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue and $exists(lastSeen) and $daysSince(lastSeen) >= $inputs.offlineDays]] }}"
+  - id: pick
+    type: userTask
+    name: Select devices to remove
+    when: "$count(vars.stale) > 0"
+    mode: select
+    title: "{{ $count(vars.stale) }} device(s) offline for {{ inputs.offlineDays }}+ days – select the ones to remove"
+    instructions: |
+      Only remove hardware that is really decommissioned. Selected devices are deleted from
+      Industrial Edge Management after a second person confirms.
+    items: vars.stale
+    itemKey: id
+    columns:
+      - { label: Device, value: name }
+      - { label: Last seen, value: "$substring(lastSeen, 0, 10)" }
+      - { label: Days offline, value: "$daysSince(lastSeen)" }
+      - { label: Firmware, value: firmware }
+    preselect: "true"
+    saveAs: selection
+  - id: confirm
+    type: userTask
+    name: Confirm removal (four-eyes)
+    when: "$count(vars.selection.selected) > 0"
+    mode: approve
+    title: "Delete {{ $count(vars.selection.selected) }} device(s) from IEM?"
+    instructions: |
+      Requested by {{ run.actor }}.
+
+      {{ $join(vars.selection.selected.('- ' & name & ' (last seen ' & $substring(lastSeen, 0, 10) & ')'), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: approval
+  - id: delete
+    type: forEach
+    name: Delete devices
+    when: "vars.approval.approved = true"
+    items: vars.selection.selected
+    as: device
+    steps:
+      - id: deleteDevice
+        type: http
+        name: Delete device
+        connection: iem
+        method: DELETE
+        path: "/portal/api/v1/devices/{{ vars.device.id }}"
+        expectStatus: [200, 202, 204, 404]
+  - id: report
+    type: report
+    name: Result
+    title: Stale device cleanup
+    text: |
+      - Offline for {{ inputs.offlineDays }}+ days: **{{ $count(vars.stale) }}**
+      - Removed: **{{ vars.approval.approved = true ? $count(vars.selection.selected) : 0 }}**{{ run.dryRun ? ' (dry run – nothing deleted)' : '' }}
+    rows: vars.stale
+    columns:
+      - { label: Device, value: name }
+      - { label: Days offline, value: "$daysSince(lastSeen)" }
+      - { label: Result, value: "id in $vars.selection.selectedKeys and $vars.approval.approved = true ? 'deleted' : 'kept'" }

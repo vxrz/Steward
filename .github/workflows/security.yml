@@ -1,0 +1,229 @@
+# Security checks on every push and pull request, and weekly (new advisories
+# appear without code changes). What each job does and how to handle a finding:
+# docs/SECURITY-PIPELINE.md. Run them locally: scripts/security/scan.sh
+name: Security
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+  schedule:
+    - cron: '17 5 * * 1' # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  secrets:
+    name: Secret scanning (gitleaks, full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write # SARIF upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # all commits: a secret that was committed and deleted is still leaked
+          persist-credentials: false
+      - name: Install gitleaks
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" gitleaks && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: gitleaks
+        run: gitleaks git . --config .gitleaks.toml --redact --no-banner --report-format sarif --report-path gitleaks.sarif
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && hashFiles('gitleaks.sarif') != '' }}
+        continue-on-error: true # not available for private repositories without GitHub Advanced Security
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: gitleaks-report
+          path: gitleaks.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  dependencies:
+    name: Dependency vulnerabilities (npm audit, OSV-Scanner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: npm audit (production dependencies, high and critical)
+        # ci.yml additionally fails on moderate findings; this job also runs weekly on an unchanged lockfile
+        run: npm audit --omit=dev --audit-level=high
+      - name: Install OSV-Scanner
+        if: ${{ !cancelled() }}
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" osv-scanner && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: OSV-Scanner (all dependencies in package-lock.json)
+        if: ${{ !cancelled() }}
+        run: |
+          osv-scanner scan source --lockfile package-lock.json --config osv-scanner.toml --format sarif --output-file osv.sarif || true
+          osv-scanner scan source --lockfile package-lock.json --config osv-scanner.toml --format table
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && hashFiles('osv.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: osv.sarif
+          category: osv-scanner
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: osv-report
+          path: osv.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  semgrep:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Semgrep (registry rule sets, OSS engine)
+        env:
+          # semgrep/semgrep:1.181.1
+          SEMGREP_IMAGE: semgrep/semgrep@sha256:3db5c7af55eb1f512eac0abf0ab69a97b52c74b5e9a27314c221aee1a78d7ab2
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -e SEMGREP_SEND_METRICS=off "$SEMGREP_IMAGE" \
+            semgrep scan --metrics=off \
+              --config p/default --config p/typescript --config p/nodejs --config p/secrets \
+              --config p/github-actions --config p/dockerfile \
+              --sarif-output=semgrep.sarif --json-output=semgrep.json
+      - name: Fail on blocking findings (severity ERROR, or HIGH/CRITICAL in newer rules)
+        run: |
+          jq -r '.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL")) | "::error file=\(.path),line=\(.start.line)::\(.check_id): \(.extra.message | gsub("\n"; " "))"' semgrep.json
+          count=$(jq '[.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL"))] | length' semgrep.json)
+          echo "Semgrep: $(jq '.results | length' semgrep.json) finding(s), $count blocking"
+          [ "$count" -eq 0 ]
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && hashFiles('semgrep.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: semgrep-report
+          path: |
+            semgrep.sarif
+            semgrep.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  trivy-fs:
+    name: Trivy (dependencies, misconfiguration, secrets)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Trivy
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" trivy && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Trivy filesystem scan
+        run: |
+          trivy fs --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
+            --format sarif --output trivy-fs.sarif .
+          trivy fs --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
+            --exit-code 1 --format table .
+      - name: Trivy configuration scan (Dockerfile, Compose, …)
+        if: ${{ !cancelled() }}
+        run: trivy config --severity HIGH,CRITICAL --exit-code 1 .
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && hashFiles('trivy-fs.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: trivy-fs-report
+          path: trivy-fs.sarif
+          if-no-files-found: ignore
+          retention-days: 30
+
+  lint:
+    name: Dockerfile and workflow lint (hadolint, actionlint, zizmor)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install hadolint and actionlint
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" hadolint actionlint && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: hadolint
+        run: |
+          hadolint --format sarif Dockerfile > hadolint.sarif || true
+          hadolint Dockerfile
+      - name: actionlint
+        if: ${{ !cancelled() }}
+        run: actionlint -color
+      - name: zizmor (GitHub Actions security audit)
+        if: ${{ !cancelled() }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/zizmor"
+          echo 'zizmor==1.31.1 --hash=sha256:58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410' > "$RUNNER_TEMP/zizmor.txt"
+          "$RUNNER_TEMP/zizmor/bin/pip" install --quiet --no-deps --require-hashes --only-binary=:all: -r "$RUNNER_TEMP/zizmor.txt"
+          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --format sarif .github/workflows > zizmor.sarif || true
+          "$RUNNER_TEMP/zizmor/bin/zizmor" --offline --min-severity medium .github/workflows
+      - name: Upload hadolint SARIF
+        if: ${{ !cancelled() && hashFiles('hadolint.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: hadolint.sarif
+          category: hadolint
+      - name: Upload zizmor SARIF
+        if: ${{ !cancelled() && hashFiles('zizmor.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: zizmor.sarif
+          category: zizmor
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: lint-reports
+          path: |
+            hadolint.sarif
+            zizmor.sarif
+          if-no-files-found: ignore
+          retention-days: 30

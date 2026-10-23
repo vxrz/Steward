@@ -1,0 +1,459 @@
+{
+  "title": "Dokumente",
+  "description": "Änderungsanträge und Entscheidungsprotokolle: in Steward geschrieben und freigegeben, von Personen außerhalb als PDF unterschrieben.",
+  "new": "Neues Dokument",
+  "import": "Markdown importieren",
+  "builtinTypes": {
+    "CR": "Änderungsantrag",
+    "ADR": "Architekturentscheidung",
+    "DR": "Entscheidungsprotokoll",
+    "SDR": "Sicherheitsentscheidung",
+    "AC": "Zugriffsänderung"
+  },
+  "builtin": {
+    "types": {
+      "CR": {
+        "description": "Eine geplante Änderung an einem Service oder einer Plattform: Grund, Risiko, Rückfallplan und Umsetzungszeitraum. Freigegeben von jemand anderem als dem Antragsteller.",
+        "template": "## Beschreibung\n\n\n## Umsetzungsplan\n\n1. \n\n## Test und Verifikation\n\n\n## Kommunikation\n\n"
+      },
+      "ADR": {
+        "description": "Eine für die Architektur bedeutsame Entscheidung mit ihrem Kontext und ihren Konsequenzen (im Stil von MADR oder Nygard).",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n"
+      },
+      "DR": {
+        "description": "Eine Entscheidung des Service-Teams, die nicht die Architektur betrifft, z. B. eine Betriebsregel oder die Wahl eines Lieferanten.",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n"
+      },
+      "SDR": {
+        "description": "Eine Sicherheitsentscheidung, z. B. ein akzeptiertes Risiko, eine Ausnahme oder eine Härtungsmaßnahme. Wenn Ihr Team SDR für etwas anderes verwendet, ändern Sie Name und Beschreibung (das Kürzel lässt sich nicht mehr ändern, sobald es Dokumente gibt) oder archivieren Sie die Dokumentart.",
+        "template": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n"
+      },
+      "AC": {
+        "description": "Dokumentation einer Erteilung, eines Entzugs oder einer Änderung von Zugriffsrechten auf einer Plattform, auch außerhalb von Steward. Das Dokumentieren friert den Eintrag ein; eine zweite Person kann ihn prüfen.",
+        "template": "## Details\n\n\n## Nachweise\n\n- \n"
+      }
+    },
+    "fields": {
+      "reason": {
+        "label": "Begründung"
+      },
+      "risk": {
+        "label": "Risiko"
+      },
+      "impact": {
+        "label": "Auswirkungen"
+      },
+      "rollbackPlan": {
+        "label": "Rückfallplan"
+      },
+      "plannedStart": {
+        "label": "Geplanter Beginn"
+      },
+      "plannedEnd": {
+        "label": "Geplantes Ende"
+      },
+      "decisionDate": {
+        "label": "Entscheidungsdatum"
+      },
+      "deciders": {
+        "label": "Entscheider",
+        "help": "Personen, die die Entscheidung getroffen haben"
+      },
+      "consulted": {
+        "label": "Konsultiert"
+      },
+      "informed": {
+        "label": "Informiert"
+      },
+      "platform": {
+        "label": "Plattform",
+        "help": "ID der Steward-Plattform, deren Zugriff sich geändert hat"
+      },
+      "subjectId": {
+        "label": "Subjekt-ID",
+        "help": "Benutzername, Benutzer-ID oder ID des technischen Benutzers auf der Plattform"
+      },
+      "subjectName": {
+        "label": "Name des Subjekts",
+        "help": "Anzeigename"
+      },
+      "subjectType": {
+        "label": "Art des Subjekts"
+      },
+      "changeKind": {
+        "label": "Änderung"
+      },
+      "rightsBefore": {
+        "label": "Rechte vorher",
+        "help": "Rollen, Gruppen oder Scopes vor der Änderung, eine pro Zeile"
+      },
+      "rightsAfter": {
+        "label": "Rechte nachher",
+        "help": "Rollen, Gruppen oder Scopes nach der Änderung, eine pro Zeile"
+      },
+      "requestedBy": {
+        "label": "Angefordert von"
+      },
+      "requestRef": {
+        "label": "Antragsreferenz",
+        "help": "Ticketnummer oder Link, z. B. ein ServiceNow-Antrag"
+      },
+      "approvedBy": {
+        "label": "Freigegeben von"
+      },
+      "performedBy": {
+        "label": "Durchgeführt von"
+      },
+      "performedAt": {
+        "label": "Durchgeführt am"
+      },
+      "origin": {
+        "label": "Herkunft"
+      },
+      "runId": {
+        "label": "Ausführung",
+        "help": "Ausführung, die die Änderung vorgenommen hat (automatische Einträge)"
+      },
+      "findingId": {
+        "label": "Abgleich-Befund",
+        "help": "Undokumentierte Änderung, die dieser Eintrag nachträglich dokumentiert"
+      }
+    },
+    "options": {
+      "risk": {
+        "low": "niedrig",
+        "medium": "mittel",
+        "high": "hoch"
+      },
+      "subjectType": {
+        "user": "Benutzer",
+        "technical": "technischer Benutzer"
+      },
+      "changeKind": {
+        "grant": "Erteilung",
+        "revoke": "Entzug",
+        "modify": "Änderung",
+        "onboarding": "Onboarding",
+        "offboarding": "Offboarding"
+      },
+      "origin": {
+        "manual": "manuell",
+        "run": "Ausführung",
+        "reconciliation": "nachträglich (Abgleich)"
+      }
+    }
+  },
+  "status": {
+    "draft": "Entwurf",
+    "submitted": "Eingereicht",
+    "approved": "Freigegeben",
+    "rejected": "Abgelehnt",
+    "implemented": "Umgesetzt",
+    "closed": "Abgeschlossen",
+    "cancelled": "Zurückgezogen",
+    "proposed": "Vorgeschlagen",
+    "accepted": "Angenommen",
+    "superseded": "Ersetzt",
+    "deprecated": "Veraltet",
+    "documented": "Dokumentiert",
+    "verified": "Geprüft"
+  },
+  "actions": {
+    "submit": "Einreichen",
+    "approve": "Freigeben",
+    "reject": "Ablehnen",
+    "implement": "Als umgesetzt markieren",
+    "close": "Abschließen",
+    "cancel": "Zurückziehen",
+    "propose": "Vorschlagen",
+    "accept": "Annehmen",
+    "supersede": "Als ersetzt markieren",
+    "deprecate": "Als veraltet markieren",
+    "document": "Dokumentieren",
+    "verify": "Prüfen"
+  },
+  "list": {
+    "search": "Suche",
+    "type": "Art",
+    "allTypes": "Alle Arten",
+    "status": "Status",
+    "allStatuses": "Alle Status",
+    "clearTag": "Filter für Schlagwort {{tag}} entfernen",
+    "noMatch": "Kein Dokument passt zum Filter.",
+    "number": "Nummer",
+    "record": "Dokument",
+    "owner": "Eigentümer",
+    "updated": "Geändert",
+    "revision": "Revision {{n}}",
+    "ownerLine": "{{owner}} · geändert {{when}}",
+    "emptyTitle": "Noch keine Dokumente",
+    "emptyText": "Änderungsanträge und Entscheidungsprotokolle, die Sie sehen dürfen, erscheinen hier.",
+    "emptyCreateText": "Schreiben Sie einen Änderungsantrag oder ein Entscheidungsprotokoll, oder importieren Sie vorhandene Entscheidungsprotokolle aus Markdown-Dateien.",
+    "emptyAction": "Erstes Dokument schreiben",
+    "emptyImport": "Vorhandene Dokumente importieren"
+  },
+  "create": {
+    "title": "Neues Dokument",
+    "type": "Art",
+    "recordTitle": "Titel",
+    "submit": "Entwurf anlegen"
+  },
+  "tabs": {
+    "content": "Inhalt",
+    "versions": "Versionen ({{count}})",
+    "links": "Verweise ({{count}})",
+    "attachments": "Anhänge ({{count}})",
+    "discussion": "Freigaben & Kommentare ({{count}})",
+    "pdfs": "PDF & Unterschriften ({{count}})"
+  },
+  "detail": {
+    "owner": "Eigentümer {{owner}}",
+    "revisionVersion": "Revision {{revision}}, Version {{version}}",
+    "edit": "Bearbeiten",
+    "revise": "Neue Revision",
+    "rework": "Überarbeiten (neue Revision)",
+    "moreActions": "Weitere Aktionen",
+    "exportMd": "Als Markdown exportieren",
+    "frozen": "Der Inhalt ist eingefroren: Er wurde mit seinem Hash festgehalten, als das Dokument den Entwurfsstatus verlassen hat.",
+    "frozenRevisable": "Der Inhalt ist eingefroren. Um ihn zu ändern, starten Sie eine neue Revision: Das Dokument wird wieder zum Entwurf und braucht eine neue Freigabe.",
+    "frozenHash": "Inhalts-Hash: {{hash}}",
+    "contentHash": "Aktueller Inhalts-Hash (SHA-256): {{hash}}",
+    "tamperedTitle": "Der Inhalt passt nicht zu seinem festgehaltenen Hash",
+    "tampered": "Das Dokument wurde nach dem Einfrieren außerhalb von Steward geändert. Es kann weder freigegeben noch weitergeführt werden. Prüfen Sie das Audit-Log.",
+    "supersededBy": "Diese Entscheidung wurde ersetzt durch",
+    "importedStatus": "Aus {{file}} mit dem Status „{{status}}“ importiert. Importierte Dokumente beginnen als Entwurf und brauchen eine Freigabe in Steward.",
+    "noBody": "Noch kein Text."
+  },
+  "versions": {
+    "title": "Versionen",
+    "version": "Version",
+    "revision": "Revision",
+    "author": "Autor",
+    "date": "Datum",
+    "comment": "Kommentar",
+    "hash": "Hash",
+    "from": "Vergleiche",
+    "to": "mit",
+    "option": "v{{version}} (Revision {{revision}}, {{author}})",
+    "onlyOne": "Bisher gibt es nur eine Version.",
+    "same": "Die beiden Versionen haben denselben Inhalt.",
+    "contextOnly": "Nur geänderte Zeilen mit Umfeld"
+  },
+  "links": {
+    "title": "Verweise",
+    "add": "Verweis hinzufügen",
+    "kind": "Art",
+    "kinds": {
+      "process": "Prozess",
+      "run": "Ausführung",
+      "monitor": "Monitor",
+      "platform": "Plattform",
+      "dashboard": "Dashboard",
+      "record": "Dokument",
+      "service": "Service",
+      "credential": "Zugangsdaten",
+      "external": "Externer Link"
+    },
+    "target": "Ziel",
+    "search": "Zum Suchen tippen",
+    "searching": "Suche läuft …",
+    "nothingFound": "Nichts gefunden",
+    "note": "Hinweis",
+    "notePlaceholder": "z. B. betroffen, setzt um, Ticket",
+    "url": "URL",
+    "urlHelp": "http oder https, z. B. der Eintrag in Ihrer CMDB, ein Ticket oder eine Wiki-Seite",
+    "label": "Bezeichnung",
+    "labelPlaceholder": "z. B. ServiceNow CHG0042",
+    "empty": "Noch keine Verweise.",
+    "notVisible": "Für Sie nicht sichtbar",
+    "remove": "Verweis entfernen",
+    "removeNamed": "Verweis auf {{name}} entfernen",
+    "removeConfirm": "Diesen Verweis entfernen?",
+    "actions": "Aktionen",
+    "backlinks": "Verwiesen von",
+    "noBacklinks": "Noch verweist nichts hierher."
+  },
+  "attachments": {
+    "title": "Anhänge",
+    "upload": "Dateien hinzufügen",
+    "help": "Dokumente und E-Mails, die zum Inhalt gehören (PDF, Bilder, .eml, .msg, Office-Dateien, Text; je bis 20 MB). Ihre SHA-256-Werte gehen in den Inhalts-Hash ein.",
+    "frozen": "Der Inhalt ist eingefroren: Anhänge lassen sich nur in einer neuen Revision ändern.",
+    "readOnly": "Dokumente und E-Mails, die zum Inhalt gehören.",
+    "empty": "Keine Anhänge.",
+    "file": "Datei",
+    "size": "Größe",
+    "sha256": "SHA-256",
+    "added": "Hinzugefügt",
+    "actions": "Aktionen",
+    "removeNamed": "{{name}} entfernen",
+    "removeConfirm": "{{name}} aus dem Dokument entfernen?"
+  },
+  "discussion": {
+    "comment": "Kommentar",
+    "placeholder": "Fragen, Anmerkungen, Prüfhinweise …",
+    "send": "Kommentar hinzufügen",
+    "by": "{{actor}} · {{date}}",
+    "transition": "{{action}} ({{from}} → {{to}})",
+    "revision": "Neue Revision {{revision}}",
+    "events": {
+      "created": "Angelegt",
+      "imported": "Importiert",
+      "comment": "Kommentar",
+      "transition": "Status geändert",
+      "revision": "Neue Revision"
+    }
+  },
+  "transition": {
+    "title": "{{action}}: {{number}}",
+    "to": "Neuer Status: {{status}}",
+    "approvalNote": "Sie geben genau diesen Inhalt frei oder lehnen ihn ab (Hash {{hash}}). Die Entscheidung wird im Audit-Log festgehalten.",
+    "freezeNote": "Der Inhalt ist ab jetzt eingefroren. Spätere Änderungen brauchen eine neue Revision.",
+    "supersededBy": "Ersetzt durch",
+    "comment": "Kommentar",
+    "commentRequired": "Pflichtfeld: Bitte nennen Sie einen Grund.",
+    "commentOptional": "Optional."
+  },
+  "revise": {
+    "title": "Neue Revision von {{number}}",
+    "help": "Das Dokument wird als Revision {{revision}} wieder zum Entwurf. Der eingefrorene Inhalt bleibt im Versionsverlauf und im Audit-Log. Es braucht eine neue Freigabe.",
+    "reason": "Warum ist eine neue Revision nötig?",
+    "submit": "Neue Revision starten"
+  },
+  "pdf": {
+    "title": "PDF von {{number}}",
+    "generate": "PDF erzeugen",
+    "generateButton": "Erzeugen",
+    "lang": "Sprache",
+    "langs": {
+      "en": "Englisch",
+      "de": "Deutsch"
+    },
+    "signers": "Unterzeichner",
+    "signersHelp": "Personen außerhalb von Steward, die das PDF unterschreiben, z. B. die fachlich verantwortliche Person oder die antragstellende Person. Jede erhält einen Unterschriftsblock mit einem leeren digitalen Signaturfeld.",
+    "signerName": "Name",
+    "signerRole": "Rolle",
+    "signerEmail": "E-Mail (optional)",
+    "rolePlaceholder": "z. B. Fachverantwortliche",
+    "addSigner": "Unterzeichner hinzufügen",
+    "removeSigner": "Unterzeichner {{n}} entfernen",
+    "draftWarning": "Dieses Dokument ist noch ein Entwurf: Das PDF wird entsprechend gekennzeichnet. Reichen Sie es zuerst ein, wenn das PDF unterschrieben werden soll.",
+    "created": "Das PDF wurde erzeugt und beim Dokument abgelegt.",
+    "signHowTo": "Schicken Sie es an die Unterzeichner. Sie unterschreiben die Signaturfelder in Adobe Acrobat Reader oder einem anderen PDF-Programm und senden die Datei zurück. Laden Sie die unterschriebene Datei im Reiter „PDF & Unterschriften“ hoch.",
+    "generatedTitle": "Erzeugte PDFs",
+    "state": "Inhalt",
+    "none": "Noch kein PDF erzeugt.",
+    "signedTitle": "Unterschriebene PDFs",
+    "upload": "Unterschriebenes PDF hochladen",
+    "uploadHelp": "Steward nimmt ein unterschriebenes PDF nur an, wenn es unverändert mit einem hier für die aktuelle, eingefrorene Revision dieses Dokuments erzeugten PDF beginnt und jede Unterschrift darin einen Signaturwert und einen vollständigen Byte-Bereich hat. Geprüft wird die Struktur; die Signaturen werden nicht kryptografisch validiert, und die Namen der Unterzeichnenden sind die Angaben des Signaturprogramms.",
+    "plain": "Ohne Prüfung anhängen (Administratoren)",
+    "uploaded": "Das unterschriebene PDF wurde beim Dokument abgelegt.",
+    "noneSigned": "Noch kein unterschriebenes PDF.",
+    "derivedBadge": "Stammt von einem erzeugten PDF ab",
+    "unverifiedBadge": "Nicht geprüft",
+    "derivedFrom": "Stammt ab von {{file}}",
+    "signatureLine": "Angegebene unterzeichnende Person: {{name}} (nicht geprüft) · unterschrieben {{date}} · Feld {{field}}",
+    "unknownSigner": "Unbekannte Person",
+    "byteRangeOdd": "ungewöhnlicher Byte-Bereich",
+    "structureOnly": "Struktur geprüft, Signaturen nicht kryptografisch validiert. Validieren Sie sie bei Bedarf in einem PDF-Programm.",
+    "notChecked": "Von einem Administrator angehängt, ohne zu prüfen, ob es von einem erzeugten PDF abstammt."
+  },
+  "editor": {
+    "title": "{{number}} bearbeiten",
+    "recordTitle": "Titel",
+    "body": "Text (Markdown)",
+    "markdownHelp": "Überschriften mit ##, Listen mit - oder 1., **fett**, `Code`, Tabellen mit |. HTML wird als Text angezeigt.",
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "tags": "Schlagwörter",
+    "tagsHelp": "Nach jedem Schlagwort die Eingabetaste drücken",
+    "comment": "Änderungsnotiz",
+    "commentPlaceholder": "Was haben Sie geändert? (erscheint im Versionsverlauf)",
+    "requiredHint": "Mit * markierte Felder müssen ausgefüllt sein, bevor das Dokument eingereicht werden kann.",
+    "saved": "Als Version {{version}} gespeichert",
+    "discard": "Ihre Änderungen verwerfen?",
+    "frozen": "Der Inhalt dieses Dokuments ist eingefroren. Starten Sie eine neue Revision, um ihn zu ändern.",
+    "notAllowed": "Sie dürfen dieses Dokument nicht bearbeiten."
+  },
+  "importer": {
+    "title": "Markdown-Dateien importieren",
+    "help": "Importieren Sie Entscheidungsprotokolle (MADR, ADRs nach Nygard) oder andere Markdown-Dateien mit YAML-Frontmatter. Jede Datei wird ein Entwurf; ein Status aus der Datei bleibt als Hinweis und Schlagwort erhalten.",
+    "type": "Art",
+    "typeHelp": "Für Dateien, die im Frontmatter keine Art nennen (type: ADR). ADRs werden automatisch erkannt.",
+    "typeFromFile": "Aus der Datei",
+    "drop": ".md-Dateien hierher ziehen (bis zu 20 Dateien, je 256 KB)",
+    "choose": "Dateien auswählen",
+    "tooLarge": "{{name}} ist zu groß (höchstens 256 KB).",
+    "tooMany": "Höchstens {{max}} Dateien auf einmal.",
+    "preview": "Vorschau",
+    "result": "Importiert",
+    "file": "Datei",
+    "recordCol": "Dokument",
+    "details": "Details",
+    "ok": "Bereit",
+    "error": "Fehler",
+    "formatLine": "Format: {{format}}",
+    "formats": {
+      "madr": "MADR",
+      "nygard": "ADR nach Nygard",
+      "frontmatter": "Markdown mit Frontmatter",
+      "markdown": "Markdown",
+      "steward": "Steward-Export"
+    },
+    "originalStatus": "Status in der Datei: {{status}} (als Entwurf importiert)",
+    "fieldsLine": "Felder: {{fields}}",
+    "import_one": "{{count}} Datei importieren",
+    "import_other": "{{count}} Dateien importieren",
+    "done_one": "{{count}} Dokument angelegt.",
+    "done_other": "{{count}} Dokumente angelegt."
+  },
+  "types": {
+    "title": "Dokumentarten",
+    "description": "Nummernpräfix, Name, Ablauf, Vorlage und Felder jeder Art von Dokument.",
+    "adminOnly": "Nur Administratoren verwalten Dokumentarten.",
+    "new": "Neue Dokumentart",
+    "edit": "Dokumentart {{key}} bearbeiten",
+    "editNamed": "{{name}} bearbeiten",
+    "key": "Kürzel",
+    "keyHelp": "Nummernpräfix, 2–10 Großbuchstaben oder Ziffern (CR → CR-2026-0001)",
+    "keyLocked": "Das Kürzel lässt sich nicht ändern, solange es Dokumente dieser Art gibt: Es ist Teil ihrer Nummern und Inhalts-Hashes. Ändern Sie stattdessen den Namen.",
+    "name": "Name",
+    "descriptionLabel": "Beschreibung",
+    "workflow": "Ablauf",
+    "workflows": {
+      "change": "Änderung",
+      "decision": "Entscheidung",
+      "access": "Zugriff"
+    },
+    "workflowHelp": {
+      "change": "Entwurf → Eingereicht → Freigegeben oder Abgelehnt → Umgesetzt → Abgeschlossen; Zurückgezogen aus Entwurf oder Eingereicht.",
+      "decision": "Entwurf → Vorgeschlagen → Angenommen oder Abgelehnt; Angenommen → Ersetzt oder Veraltet.",
+      "access": "Entwurf → Dokumentiert (eingefroren) → von einer zweiten Person geprüft; Zurückgezogen aus Entwurf."
+    },
+    "workflowLocked": "Der Ablauf lässt sich nicht ändern, solange es Dokumente dieser Art gibt.",
+    "template": "Vorlage (Markdown)",
+    "templateHelp": "Der Text, mit dem ein neues Dokument beginnt, meist die Abschnittsüberschriften.",
+    "fields": "Felder",
+    "recordCount": "Dokumente",
+    "actions": "Aktionen",
+    "archived": "archiviert",
+    "archive": "Archiviert",
+    "archiveHelp": "Archivierte Arten behalten ihre Dokumente, nehmen aber keine neuen an.",
+    "field": {
+      "key": "Schlüssel",
+      "label": "Bezeichnung",
+      "kind": "Typ",
+      "required": "Pflichtfeld",
+      "options": "Auswahlwerte",
+      "add": "Feld hinzufügen",
+      "remove": "Feld {{n}} entfernen"
+    },
+    "kinds": {
+      "text": "Text (einzeilig)",
+      "textarea": "Text (mehrzeilig)",
+      "date": "Datum",
+      "datetime": "Datum und Uhrzeit",
+      "select": "Auswahl"
+    },
+    "builtinHint": "Eingebaute Dokumentarten werden in der Sprache der jeweiligen Person angezeigt, solange ihre Texte unverändert sind. Texte, die Sie hier ändern, sehen alle so, wie Sie sie eingeben."
+  }
+}

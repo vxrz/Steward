@@ -1,0 +1,115 @@
+name: "Insights Hub – Add users to a group (with sub-process)"
+description: |
+  Adds existing users to a user group. Shows two engine features:
+
+  - The group is resolved by the building block #90 "Resolve an Insights Hub
+    group", called as a sub-process (its run is linked to this one).
+  - The users are looked up in parallel (4 at a time). Variables set inside a
+    parallel loop stay local to each item; the loop's `results` collect them.
+
+  Unknown users only cause a warning. Adding memberships needs an approval.
+  Writes: group memberships (dry run first).
+tags: [onboarding, groups, subprocess, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: users
+    label: Users (e-mail addresses, one per line)
+    type: list
+    required: true
+    default: |
+      anna.berger@example.com
+      noah.otto@example.com
+      nobody@example.com
+  - name: group
+    label: Group
+    type: string
+    default: mdsp_usergroup:Operators
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: resolveGroup
+    type: subprocess
+    name: Resolve group (sub-process)
+    process: subflow-resolve-group
+    inputs:
+      groupName: "{{ inputs.group }}"
+    saveAs: group
+  - id: groupFound
+    type: check
+    name: Group exists
+    condition: "vars.group.found"
+    message: "{{ vars.group.found ? inputs.group & ' has ' & vars.group.memberCount & ' member(s)' : 'Group ' & inputs.group & ' not found' }}"
+    failRun: true
+  - id: lookup
+    type: forEach
+    name: Look up users (4 in parallel)
+    items: inputs.users
+    as: address
+    concurrency: 4
+    saveAs: lookups
+    steps:
+      - id: findUser
+        type: http
+        name: Find user
+        connection: hub
+        method: GET
+        path: "{{ vars.idm }}/Users"
+        query:
+          filter: 'userName eq "{{ $lowercase($trim(vars.address)) }}"'
+        saveAs: found
+      - id: classify
+        type: set
+        name: Classify
+        values:
+          email: "{{ vars.address }}"
+          userId: "{{ vars.found.body.resources[0].id }}"
+          state: "{{ $count(vars.found.body.resources) = 0 ? 'unknown' : (vars.found.body.resources[0].id in $vars.group.memberIds ? 'member' : 'add') }}"
+  - id: plan
+    type: set
+    name: Build plan
+    values:
+      plan: "{{ [vars.lookups.results[state = 'add'].{ 'email': email, 'userId': userId }] }}"
+      unknown: "{{ [vars.lookups.results[state = 'unknown'].email] }}"
+  - id: unknownUsers
+    type: check
+    name: All users exist
+    severity: warning
+    condition: "$count(vars.unknown) = 0"
+    message: "{{ $count(vars.unknown) = 0 ? 'All users found' : 'Unknown user(s): ' & $join(vars.unknown, ', ') }}"
+  - id: approve
+    type: userTask
+    name: Approve memberships
+    when: "$count(vars.plan) > 0"
+    mode: approve
+    title: "Add {{ $count(vars.plan) }} user(s) to {{ inputs.group }}?"
+    instructions: |
+      {{ $join(vars.plan.('- ' & email), '\n') }}
+  - id: add
+    type: forEach
+    name: Add memberships
+    items: vars.plan
+    as: p
+    steps:
+      - id: addMember
+        type: http
+        name: Add membership
+        connection: hub
+        method: POST
+        path: "{{ vars.idm }}/Groups/{{ vars.group.groupId }}/members"
+        body:
+          type: USER
+          value: "{{ vars.p.userId }}"
+        expectStatus: [200, 201, 409]
+  - id: summary
+    type: report
+    name: Summary
+    title: "Users and {{ inputs.group }}"
+    rows: vars.lookups.results
+    columns:
+      - { label: User, value: email }
+      - { label: Result, value: "state = 'add' ? 'membership added' : (state = 'member' ? 'already a member' : 'unknown user')" }

@@ -1,0 +1,132 @@
+{
+  "tokens": {
+    "owner": "Owner",
+    "token": "Token",
+    "scope": "Scope",
+    "created": "Created",
+    "lastUsed": "Last used",
+    "expires": "Expires",
+    "status": "Status",
+    "full": "full access",
+    "read": "read only",
+    "never": "never",
+    "states": {
+      "revoked": "revoked",
+      "expired": "expired",
+      "active": "active"
+    },
+    "revoke": "Revoke token",
+    "revokeNamed": "Revoke token {{name}}",
+    "revokeConfirm": "Revoke the token “{{name}}”? Scripts using it stop working immediately.",
+    "revoked": "Token revoked",
+    "title": "API tokens",
+    "hint": "For scripts and other tools. A token acts with your rights.",
+    "new": "New token",
+    "unavailable": "API tokens are not available on this server.",
+    "none": "No tokens yet.",
+    "example": "Example:",
+    "copyNow": "Copy the token now. It is shown only once and cannot be recovered.",
+    "useLike": "Use it like this:",
+    "done": "Done",
+    "notCreated": "Token not created",
+    "newTitle": "New API token",
+    "nameHint": "What the token is for, e.g. “Nightly report script”",
+    "access": "Access",
+    "readOnly": "Read only",
+    "fullAccess": "Full access",
+    "readHint": "Can only read data (GET requests).",
+    "fullHint": "Can do everything you can do, including starting runs and changing data.",
+    "expiresAfter": "Expires after (days)",
+    "expiresHint": "Leave empty for a token that never expires",
+    "create": "Create token",
+    "createdTitle": "Token created",
+    "exampleReadOnly": "Example (a read-only token is enough):",
+    "mcp": "MCP client",
+    "mcpClient": "MCP client",
+    "mcpHint": "Only for AI assistants (MCP clients): read-only tools on the MCP endpoint. Refused by the REST API and everywhere else.",
+    "mcpUseLike": "Put it into your MCP client:",
+    "mcpServerOff": "The MCP server is turned off – an administrator can turn it on under Settings. Then put the token into your MCP client:",
+    "mcpAvailable": "AI assistants (MCP clients) use a separate token with scope “MCP client”."
+  },
+  "title": "Profile",
+  "description": "Your account, language, notifications and API tokens.",
+  "notSaved": "Not saved",
+  "language": {
+    "title": "Language",
+    "label": "Language",
+    "hint": "Used for the interface, in-app notifications and e-mails to you.",
+    "notChosen": "Not chosen yet – the interface follows your browser and messages use the server's default language."
+  },
+  "account": {
+    "saved": "Profile saved",
+    "title": "Account",
+    "username": "Username",
+    "displayName": "Display name",
+    "email": "E-mail",
+    "ssoHint": "Name and e-mail come from your single sign-on provider and are updated when you sign in."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "intro": "The bell in the header always shows your notifications. Administrators choose which events are sent by which channel.",
+    "email": "E-mail notifications",
+    "emailHint": "Sent to {{email}} when e-mail is set up on this server.",
+    "emailMissing": "Add an e-mail address to your account first.",
+    "browser": "Browser notifications",
+    "browserUnsupported": "This browser does not support notifications.",
+    "browserDenied": "Blocked by your browser. Allow notifications for this site in the browser settings, then try again.",
+    "browserHint": "Show a system notification on this device while the app is open in a tab.",
+    "testTitle": "Test notification",
+    "testBody": "Browser notifications work.",
+    "test": "Show a test notification"
+  },
+  "password": {
+    "title": "Password",
+    "hint": "Change the password you use to sign in.",
+    "change": "Change password",
+    "changed": "Password changed"
+  },
+  "dailySummary": {
+    "title": "Daily summary",
+    "intro": "Once a day, a short summary of what concerns you: failed runs, decisions waiting for you, monitor status changes, credentials due, your open tickets, records and reports. Only what you may see.",
+    "enabled": "Send me a daily summary",
+    "notAllowed": "An administrator switched daily summaries off.",
+    "time": "Time",
+    "timeZone": "Time zone",
+    "days": "Days",
+    "daysOptions": {
+      "weekdays": "Monday to Friday",
+      "everyday": "Every day"
+    },
+    "channel": "Where",
+    "channelOptions": {
+      "inApp": "In the app",
+      "inAppEmail": "In the app and by e-mail"
+    },
+    "emailBlocked": {
+      "smtpOff": "E-mail is not set up on this server – the summary appears in the app only.",
+      "routeOff": "An administrator does not send daily summaries by e-mail – it appears in the app only.",
+      "noAddress": "Add an e-mail address to your account to get it by e-mail.",
+      "optedOut": "Turn on e-mail notifications above to get it by e-mail.",
+      "domainNotAllowed": "Your e-mail address is outside the allowed domains – the summary appears in the app only."
+    },
+    "sections": "Include",
+    "sectionNames": {
+      "runs": "Runs and failures",
+      "tasks": "Decisions waiting for me",
+      "monitors": "Monitor status changes",
+      "credentials": "Credentials due",
+      "tickets": "Open tickets I am responsible for",
+      "records": "Records waiting for me or that changed",
+      "reports": "Reports for me"
+    },
+    "skipEmpty": "Send nothing on days without anything to report",
+    "save": "Save",
+    "saved": "Daily summary settings saved",
+    "lastSent": "Last summary: {{when}}",
+    "preview": "Preview",
+    "previewTitle": "Preview: {{title}}",
+    "previewEmpty": "Nothing to report right now.",
+    "more_one": "… and {{count}} more",
+    "more_other": "… and {{count}} more"
+  }
+}

@@ -1,0 +1,19 @@
+name: Edge fleet
+description: Industrial Edge device fleet – connectivity, firmware and application versions. Fed by the IEM inventory snapshot, firmware compliance and app version compliance processes.
+refreshSeconds: 60
+widgets:
+  - { id: total, type: kpi, title: Devices, dataset: iem.devices, metric: total, width: 3 }
+  - { id: online, type: kpi, title: Online, dataset: iem.devices, metric: online, goodWhen: up, width: 3 }
+  - { id: offline, type: kpi, title: Offline, dataset: iem.devices, metric: offline, goodWhen: down, width: 3 }
+  - { id: outdatedFw, type: kpi, title: Firmware below baseline, dataset: iem.firmware, metric: outdated, goodWhen: down, width: 3 }
+  - { id: outdatedApps, type: kpi, title: Outdated app installations, dataset: iem.app-compliance, metric: outdated, goodWhen: down, width: 3 }
+  - { id: apps, type: kpi, title: Apps in catalog, dataset: iem.apps, metric: apps, width: 3 }
+  - { id: inactive, type: kpi, title: Inactive devices, dataset: iem.devices, metric: inactive, goodWhen: down, width: 3 }
+  - { id: rows, type: kpi, title: Installations checked, dataset: iem.app-compliance, metric: installations, width: 3 }
+  - { id: status, type: status, title: Device status, dataset: iem.devices, width: 6 }
+  - { id: trend, type: trend, title: Online vs. offline, dataset: iem.devices, metrics: [online, offline], days: 30, width: 6 }
+  - { id: devices, type: table, title: All devices, dataset: iem.devices, width: 12 }
+  - { id: firmware, type: table, title: Firmware updates needed, dataset: iem.firmware, problemsOnly: true, width: 6 }
+  - { id: appVersions, type: table, title: Outdated applications, dataset: iem.app-compliance, problemsOnly: true, width: 6 }
+  - { id: catalog, type: table, title: Application catalog, dataset: iem.apps, width: 6 }
+  - { id: fresh, type: freshness, width: 6 }

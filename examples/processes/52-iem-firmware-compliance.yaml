@@ -1,0 +1,68 @@
+name: "Industrial Edge – Firmware compliance"
+description: |
+  Compares the firmware of every edge device with the minimum version your
+  security baseline requires and lists devices that need an update.
+  Read-only – plan the updates in IEM (update jobs) afterwards.
+
+  Recommended schedule: daily, and after a new firmware is released.
+  Publishes `iem.firmware`. Verify the firmware field name on your IEM version.
+tags: [compliance, security, devices, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+inputs:
+  - name: minFirmware
+    label: Minimum firmware version
+    type: string
+    default: 2.3.0
+steps:
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    saveAs: devices
+  - id: evaluate
+    type: set
+    name: Compare versions
+    values:
+      fleet: >-
+        {{ (
+          $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
+          $all := vars.devices.body.data ? vars.devices.body.data : vars.devices.body;
+          [$all.$merge([$, { "compliant": $norm(firmware) >= $norm($inputs.minFirmware) }])]
+        ) }}
+      outdated: "{{ [vars.fleet[$not(compliant)]] }}"
+  - id: compliance
+    type: check
+    name: All devices meet the minimum firmware
+    severity: warning
+    condition: "$count(vars.outdated) = 0"
+    message: "{{ $count(vars.outdated) }} of {{ $count(vars.fleet) }} device(s) below {{ inputs.minFirmware }}: {{ $join(vars.outdated.(name & ' (' & firmware & ')'), ', ') }}"
+  - id: publish
+    type: publish
+    name: Publish firmware compliance
+    dataset: iem.firmware
+    title: Firmware compliance
+    rows: vars.fleet
+    key: id
+    columns:
+      - { label: Device, value: name }
+      - { label: Firmware, value: firmware }
+      - { label: Required, value: "$inputs.minFirmware" }
+    status: "compliant ? 'good' : 'warning'"
+    statusText: "compliant ? 'compliant' : 'update to ' & $inputs.minFirmware & ' or later'"
+    metrics:
+      compliant: "$count(vars.fleet[compliant])"
+      outdated: "$count(vars.outdated)"
+    staleAfterMinutes: 1500
+  - id: report
+    type: report
+    name: Devices to update
+    title: Devices below the minimum firmware
+    rows: vars.outdated
+    columns:
+      - { label: Device, value: name }
+      - { label: Firmware, value: firmware }
+      - { label: State, value: connectionState }

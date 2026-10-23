@@ -1,0 +1,125 @@
+# Woodpecker CI: security checks (counterpart of .github/workflows/security.yml).
+# gitleaks over the full git history, npm audit, OSV-Scanner, Semgrep, Trivy fs/config,
+# hadolint, actionlint (the GitHub workflows stay in use), zizmor, and woodpecker-cli lint
+# for these files. All checks run in parallel; each prints a readable table in its log.
+#
+# Also weekly (new advisories appear without code changes): create a cron named "weekly"
+# in the repository settings (Settings → Crons, e.g. "17 5 * * 1") – docs/WOODPECKER.md.
+# The scanners come from scripts/security/install-tools.sh (pinned versions, SHA-256 checked),
+# Semgrep from its image pinned by digest, zizmor from PyPI with --require-hashes.
+# No secrets. Findings and how to suppress them: docs/SECURITY-PIPELINE.md.
+
+variables:
+  # buildpack-deps:bookworm-scm (Debian 12 with bash, curl, git) – runs install-tools.sh
+  - &tools_image buildpack-deps:bookworm-scm@sha256:1314fd2a9c83b257b37132883b3c8e326d3909211bdcb419c9757399ebc34bf3
+  - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
+  # semgrep/semgrep:1.181.1 (same pin as security.yml and scripts/security/scan.sh)
+  - &semgrep_image semgrep/semgrep@sha256:3db5c7af55eb1f512eac0abf0ab69a97b52c74b5e9a27314c221aee1a78d7ab2
+  # python:3.13-slim-bookworm (zizmor)
+  - &python_image python:3.13-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+  # woodpeckerci/woodpecker-cli:v3.19.0-alpine
+  - &woodpecker_cli_image woodpeckerci/woodpecker-cli:v3.19.0-alpine@sha256:27a77117e38d7bbdc380f0e90ff3ee4871ab1eefa78b5d9136a2c969fbecd9f4
+  # woodpeckerci/plugin-git:2.10.1
+  - &git_plugin woodpeckerci/plugin-git:2.10.1@sha256:550075c844fcec0af41d9d28f9860aa5d8c43e1e9419be4b9266dc02c2f29804
+
+when:
+  - event: push
+    branch: [main, 'claude/**']
+  - event: [pull_request, manual]
+  - event: cron
+    cron: weekly
+
+# install-tools.sh downloads Linux x86_64 binaries
+labels:
+  platform: linux/amd64
+
+# full history: a secret that was committed and deleted later is still leaked
+clone:
+  - name: git
+    image: *git_plugin
+    settings:
+      partial: false
+      depth: 0
+
+steps:
+  - name: gitleaks
+    image: *tools_image
+    depends_on: []
+    commands:
+      - scripts/security/install-tools.sh --dir /tmp/bin gitleaks
+      - git config --global --add safe.directory "$${CI_WORKSPACE}"
+      - echo "commits in history:" "$$(git rev-list --count HEAD)"
+      - /tmp/bin/gitleaks git . --config .gitleaks.toml --redact --no-banner
+
+  - name: npm-audit
+    image: *node_image
+    depends_on: []
+    commands:
+      # high and critical in production dependencies (ci.yaml also fails on moderate)
+      - npm audit --omit=dev --audit-level=high
+
+  - name: osv-scanner
+    image: *tools_image
+    depends_on: []
+    commands:
+      - scripts/security/install-tools.sh --dir /tmp/bin osv-scanner
+      # all dependencies in package-lock.json (dev too); ignores with reason and expiry in osv-scanner.toml
+      - /tmp/bin/osv-scanner scan source --lockfile package-lock.json --config osv-scanner.toml --format table
+
+  - name: semgrep
+    image: *semgrep_image
+    depends_on: []
+    environment:
+      SEMGREP_SEND_METRICS: 'off'
+    commands:
+      # the image expects the code in /src (docker run -v "$PWD:/src"); here it is the workspace
+      - export SEMGREP_SRC_DIRECTORY="$${CI_WORKSPACE}"
+      - >-
+        semgrep scan --metrics=off
+        --config p/default --config p/typescript --config p/nodejs --config p/secrets
+        --config p/github-actions --config p/dockerfile
+        --json-output=semgrep.json
+      # warnings are reported only; findings with severity ERROR (HIGH/CRITICAL in newer rules) fail the step
+      - jq -r '.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL")) | "\(.extra.severity) \(.path):\(.start.line) \(.check_id)"' semgrep.json
+      - count="$$(jq '[.results[] | select(.extra.severity | IN("ERROR", "HIGH", "CRITICAL"))] | length' semgrep.json)"
+      - >-
+        echo "Semgrep: $$(jq '.results | length' semgrep.json) finding(s), $${count} blocking"
+      - test "$${count}" -eq 0
+
+  - name: trivy
+    image: *tools_image
+    depends_on: []
+    commands:
+      - scripts/security/install-tools.sh --dir /tmp/bin trivy
+      # dependencies, misconfiguration and secrets; high/critical with a fix available
+      - /tmp/bin/trivy fs --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format table .
+      # Dockerfile, Compose files, …
+      - /tmp/bin/trivy config --severity HIGH,CRITICAL --exit-code 1 .
+
+  - name: hadolint-actionlint
+    image: *tools_image
+    depends_on: []
+    commands:
+      - scripts/security/install-tools.sh --dir /tmp/bin hadolint actionlint
+      # actionlint runs shellcheck on run: blocks when it is installed (as on GitHub's runners)
+      - >-
+        { apt-get update -qq && apt-get install -y -qq --no-install-recommends shellcheck >/dev/null; }
+        || echo "warning: shellcheck could not be installed – actionlint runs without it"
+      - /tmp/bin/hadolint Dockerfile
+      - /tmp/bin/actionlint -color
+
+  - name: zizmor
+    image: *python_image
+    depends_on: []
+    commands:
+      - python3 -m venv /tmp/zizmor
+      - echo 'zizmor==1.31.1 --hash=sha256:58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410' > /tmp/zizmor.txt
+      - '/tmp/zizmor/bin/pip install --quiet --no-deps --require-hashes --only-binary=:all: -r /tmp/zizmor.txt'
+      - /tmp/zizmor/bin/zizmor --offline --min-severity medium .github/workflows
+
+  - name: woodpecker-lint
+    image: *woodpecker_cli_image
+    depends_on: []
+    commands:
+      # the buildx plugin must be allowed to run privileged (server: WOODPECKER_PLUGINS_PRIVILEGED)
+      - woodpecker-cli --disable-update-check lint --strict --plugins-privileged woodpeckerci/plugin-docker-buildx .woodpecker/

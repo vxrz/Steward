@@ -1,0 +1,18 @@
+# https://editorconfig.org – basic editor settings; Prettier (.prettierrc.json) does the rest
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.md]
+# two trailing spaces are a line break in Markdown
+trim_trailing_whitespace = false
+
+[server/assets/**]
+# third-party licence texts, kept as published
+trim_trailing_whitespace = false

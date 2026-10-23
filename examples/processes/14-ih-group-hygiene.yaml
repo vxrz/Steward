@@ -1,0 +1,108 @@
+name: "Insights Hub – Group and role hygiene"
+description: |
+  Finds clutter in the authorization model: user groups without members,
+  groups with a single member (often a sign of person-specific rights) and
+  users who only hold the default role (accounts that probably are not needed).
+  Read-only; records checks and a report and publishes `ih.groups`.
+
+  Recommended schedule: weekly.
+  Required rights: read users and groups.
+tags: [housekeeping, groups, governance, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: defaultRole
+    label: Default role every user has
+    type: string
+    default: mdsp:core:StandardUser
+  - name: ignoreGroups
+    label: Groups that may legitimately be empty
+    type: list
+    default: [mdsp_usergroup:AccessReview]
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: listUsers
+    type: http
+    name: List users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: users
+  - id: listGroups
+    type: http
+    name: List groups and roles
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: groups
+  - id: analyse
+    type: set
+    name: Analyse
+    values:
+      groupStats: >-
+        {{ [vars.groups.body[$not(displayName in $inputs.ignoreGroups)].(
+          $g := $;
+          $m := $vars.users.body[$g.id in groups.value];
+          {
+            "id": $g.id,
+            "name": $g.displayName,
+            "kind": $contains($g.displayName, 'mdsp:core:') ? 'role' : 'group',
+            "members": $count($m),
+            "memberNames": $join($m.userName, ', ')
+          }
+        )] }}
+      empty: "{{ [vars.groupStats[members = 0]] }}"
+      single: "{{ [vars.groupStats[members = 1 and kind = 'group']] }}"
+      onlyDefault: "{{ [vars.users.body[$count(groups[display != $inputs.defaultRole]) = 0]] }}"
+  - id: checkEmpty
+    type: check
+    name: No empty groups
+    severity: warning
+    condition: "$count(vars.empty) = 0"
+    message: "{{ $count(vars.empty) }} group(s) without members: {{ $join(vars.empty.name, ', ') }}"
+  - id: checkSingle
+    type: check
+    name: No single-member groups
+    severity: info
+    condition: "$count(vars.single) = 0"
+    message: "{{ $count(vars.single) }} group(s) with one member: {{ $join(vars.single.(name & ' (' & memberNames & ')'), ', ') }}"
+  - id: checkDefault
+    type: check
+    name: No users with only the default role
+    severity: warning
+    condition: "$count(vars.onlyDefault) = 0"
+    message: "{{ $count(vars.onlyDefault) }} user(s) only have {{ inputs.defaultRole }}: {{ $join(vars.onlyDefault.userName, ', ') }}"
+  - id: publish
+    type: publish
+    name: Publish groups
+    dataset: ih.groups
+    title: Groups and roles (hygiene)
+    rows: "vars.groupStats^(members)"
+    key: id
+    columns:
+      - { label: Group, value: name }
+      - { label: Kind, value: kind }
+      - { label: Members, value: members }
+    status: "members = 0 ? 'warning' : 'good'"
+    statusText: "members = 0 ? 'no members – delete or document' : (members = 1 and kind = 'group' ? 'single member: ' & memberNames : '')"
+    metrics:
+      groups: "$count(vars.groupStats)"
+      empty: "$count(vars.empty)"
+      singleMember: "$count(vars.single)"
+      onlyDefaultRole: "$count(vars.onlyDefault)"
+    staleAfterMinutes: 11520
+  - id: reportDefault
+    type: report
+    name: Users with only the default role
+    title: Users with only the default role
+    rows: vars.onlyDefault
+    columns:
+      - { label: User, value: userName }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }

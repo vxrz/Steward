@@ -1,0 +1,94 @@
+name: "Insights Hub – Platform health check"
+description: |
+  Ad-hoc or scheduled status test: authenticates and calls core services
+  (Identity Management, Asset Management) and records pass/fail checks with
+  response times. Read-only.
+
+  Recommended schedule: every 15 minutes. Publishes the dataset `ih.health`
+  (one row per service with status and latency) for dashboards.
+  Required rights: read access to users (im.usr.r / tenant user) and assets.
+tags: [status, health, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: maxLatencyMs
+    label: Max. acceptable response time (ms)
+    type: number
+    default: 3000
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
+  - id: idm
+    type: http
+    name: Identity Management – list 1 user
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    query: { count: 1 }
+    onError: continue
+    saveAs: idm
+  - id: idmOk
+    type: check
+    name: Identity Management reachable
+    condition: "vars.idm.status = 200"
+    message: "{{ vars.idm.error ? vars.idm.error : 'HTTP ' & vars.idm.status & ' in ' & vars.idm.durationMs & ' ms, ' & vars.idm.body.totalResults & ' users' }}"
+  - id: idmFast
+    type: check
+    name: Identity Management response time
+    severity: warning
+    when: "vars.idm.status = 200"
+    condition: "vars.idm.durationMs <= $inputs.maxLatencyMs"
+    message: "{{ vars.idm.durationMs }} ms (limit {{ inputs.maxLatencyMs }} ms)"
+  - id: am
+    type: http
+    name: Asset Management – list 1 asset
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assets"
+    query: { size: 1 }
+    onError: continue
+    saveAs: am
+  - id: amOk
+    type: check
+    name: Asset Management reachable
+    condition: "vars.am.status = 200"
+    message: "{{ vars.am.error ? vars.am.error : 'HTTP ' & vars.am.status & ' in ' & vars.am.durationMs & ' ms, ' & vars.am.body.page.totalElements & ' assets' }}"
+  - id: amFast
+    type: check
+    name: Asset Management response time
+    severity: warning
+    when: "vars.am.status = 200"
+    condition: "vars.am.durationMs <= $inputs.maxLatencyMs"
+    message: "{{ vars.am.durationMs }} ms (limit {{ inputs.maxLatencyMs }} ms)"
+  - id: healthRows
+    type: set
+    name: Collect service status
+    values:
+      services: >-
+        {{ [
+          { "service": "Identity Management", "http": vars.idm.status, "latency": vars.idm.durationMs, "error": vars.idm.error },
+          { "service": "Asset Management", "http": vars.am.status, "latency": vars.am.durationMs, "error": vars.am.error }
+        ] }}
+  - id: publish
+    type: publish
+    name: Publish service health
+    dataset: ih.health
+    title: Insights Hub service health
+    rows: vars.services
+    key: service
+    columns:
+      - { label: Service, value: service }
+      - { label: HTTP, value: "$exists(http) ? http : '–'" }
+      - { label: Latency (ms), value: latency }
+    status: "($exists(error) or http != 200) ? 'critical' : (latency > $inputs.maxLatencyMs ? 'warning' : 'good')"
+    statusText: "$exists(error) ? error : (http != 200 ? 'HTTP ' & http : latency & ' ms')"
+    metrics:
+      latencyIdm: "vars.idm.durationMs"
+      latencyAm: "vars.am.durationMs"
+      failed: "$count(vars.services[$exists(error) or http != 200])"
+    staleAfterMinutes: 45

@@ -1,0 +1,139 @@
+{
+  "add": "Hinzufügen",
+  "remove": "Entfernen",
+  "copy": "Kopieren",
+  "copied": "Kopiert",
+  "name": "Name",
+  "value": "Wert",
+  "status": {
+    "queued": "in Warteschlange",
+    "running": "läuft",
+    "waiting": "wartet",
+    "succeeded": "erfolgreich",
+    "failed": "fehlgeschlagen",
+    "cancelled": "abgebrochen",
+    "interrupted": "unterbrochen",
+    "skipped": "übersprungen",
+    "dryrun": "Probelauf",
+    "open": "offen",
+    "completed": "abgeschlossen"
+  },
+  "footer": {
+    "madeWith": "Mit <heart>❤️</heart> gemacht in Erlangen",
+    "love": "Liebe",
+    "builtBy": "Gestaltet und entwickelt von <author>{{author}}</author> mit KI",
+    "openSource": "Open Source ({{license}})",
+    "onGithub": "{{brand}} auf GitHub",
+    "rake": "Fränkischer Rechen",
+    "rakeTitle": "Fränkischer Rechen",
+    "version": "{{brand}} {{version}}",
+    "about": "Über {{brand}}"
+  },
+  "roles": {
+    "admin": "Administrator",
+    "designer": "Designer",
+    "operator": "Operator",
+    "approver": "Freigeber",
+    "auditor": "Prüfer",
+    "viewer": "Betrachter"
+  },
+  "roleInfo": {
+    "admin": "Alles: Benutzer, Teams, Plattformen und Zugangsdaten, Einstellungen, alle Prozesse",
+    "designer": "Prozesse anlegen; Prozesse bearbeiten und ausführen (sofern nicht eingeschränkt)",
+    "operator": "Prozesse ausführen und planen (sofern nicht eingeschränkt)",
+    "approver": "Über Freigaben und Benutzeraufgaben entscheiden",
+    "auditor": "Lesezugriff auf alle Prozesse, Ausführungen, Protokolle und das Audit-Log",
+    "viewer": "Lesezugriff auf Prozesse und ihre Ausführungen (sofern nicht eingeschränkt)"
+  },
+  "loading": "Wird geladen…",
+  "severity": {
+    "error": "Fehler",
+    "warning": "Warnung",
+    "info": "Info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Rolle: {{role}}"
+  },
+  "cancel": "Abbrechen",
+  "save": "Speichern",
+  "delete": "Löschen",
+  "close": "Schließen",
+  "edit": "Bearbeiten",
+  "back": "Zurück",
+  "yes": "Ja",
+  "no": "Nein",
+  "permissions": {
+    "view": "Ansehen",
+    "run": "Ausführen",
+    "edit": "Bearbeiten",
+    "approve": "Freigeben",
+    "manage": "Verwalten",
+    "use": "Nutzen",
+    "acknowledge": "bestätigen"
+  },
+  "breadcrumb": "Navigationspfad",
+  "loadFailed": "Die Seite konnte nicht geladen werden",
+  "retry": "Erneut versuchen",
+  "filters": "Filter",
+  "filtersActive_one": "Filter ({{count}} aktiv)",
+  "filtersActive_other": "Filter ({{count}} aktiv)",
+  "confirm": {
+    "delete": {
+      "title": "Löschen bestätigen",
+      "button": "Löschen"
+    },
+    "archive": {
+      "title": "Archivieren bestätigen",
+      "button": "Archivieren"
+    },
+    "remove": {
+      "title": "Entfernen bestätigen",
+      "button": "Entfernen"
+    },
+    "revoke": {
+      "title": "Zugang widerrufen",
+      "button": "Widerrufen"
+    },
+    "rotate": {
+      "title": "Secret erneuern",
+      "button": "Secret erneuern"
+    },
+    "reset": {
+      "title": "Zurücksetzen bestätigen",
+      "button": "Zurücksetzen"
+    },
+    "lockVault": {
+      "title": "Tresor sperren",
+      "button": "Tresor sperren"
+    },
+    "discard": {
+      "title": "Änderungen verwerfen",
+      "button": "Verwerfen"
+    },
+    "cleanup": {
+      "title": "Alte Daten löschen",
+      "button": "Jetzt löschen"
+    },
+    "confirm": {
+      "title": "Bitte bestätigen",
+      "button": "Bestätigen"
+    }
+  },
+  "table": {
+    "sortBy": "Sortieren nach",
+    "sortedAsc": "Aufsteigend – auf absteigend umstellen",
+    "sortedDesc": "Absteigend – auf aufsteigend umstellen",
+    "showingOf": "{{shown}} von {{total}} angezeigt",
+    "showingFirst_one": "Der erste Eintrag wird angezeigt",
+    "showingFirst_other": "Die ersten {{count}} Einträge werden angezeigt",
+    "showingAll_one": "{{count}} Eintrag",
+    "showingAll_other": "{{count}} Einträge",
+    "loadMore": "Mehr laden"
+  },
+  "validation": {
+    "required": "Pflichtfeld",
+    "requiredOne": "Mindestens eine Auswahl",
+    "invalid": "Ungültig"
+  }
+}

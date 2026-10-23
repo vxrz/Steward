@@ -1,0 +1,32 @@
+{
+  "everyoneWithRole": "Alle mit der Rolle {{role}}",
+  "restrictedProcess": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren und der Eigentümer. Prüfer haben immer Lesezugriff.",
+  "restrictedPlatform": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren. Prüfer haben immer Lesezugriff.",
+  "defaultsProcess": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer bearbeiten und führen aus, Operatoren führen aus, Freigeber entscheiden, Betrachter lesen). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
+  "defaultsPlatform": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer und Operatoren dürfen sie nutzen, nur Administratoren verwalten sie). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
+  "owner": "Eigentümer",
+  "ownerHint": "Der Eigentümer hat immer alle Rechte an diesem Prozess.",
+  "who": "Wer",
+  "noEntries": "Keine Einträge – es gelten die Standardrechte der Rollen.",
+  "kinds": {
+    "user": "Benutzer",
+    "team": "Team",
+    "role": "Rolle"
+  },
+  "addLabel": "Benutzer, Team oder Rolle hinzufügen",
+  "addPlaceholder": "user:alice · team:service desk · role:operator",
+  "reset": "Zurücksetzen",
+  "save": "Zugriff speichern",
+  "help": {
+    "view": "Prozess und seine Ausführungen ansehen",
+    "run": "Ausführungen starten und planen, Auswahlentscheidungen treffen",
+    "edit": "Ablauf ändern (erzeugt neue Versionen)",
+    "approve": "Über Freigaben und Benutzeraufgaben entscheiden",
+    "manage": "Zugriff ändern, archivieren (Prozesse) · Konfiguration, Zugangsdaten und Zugriff ändern, schreibende Aufrufe im Explorer (Plattformen)",
+    "use": "Plattform in Ausführungen und Zeitplänen nutzen, lesende Aufrufe im Explorer",
+    "acknowledge": "Probleme bestätigen und Wartungsfenster planen (Monitore)"
+  },
+  "restrictedMonitor": "<b>Eingeschränkt:</b> Nur die unten aufgeführten Einträge erhalten die markierten Rechte, zusätzlich Administratoren und der Eigentümer. Prüfer haben immer Lesezugriff.",
+  "defaultsMonitor": "<b>Es gelten die Standardrechte der Rollen</b> (z. B. Designer bearbeiten, Operatoren bestätigen, alle anderen lesen). Einträge hinzufügen, um den Zugriff auf bestimmte Benutzer, Teams oder Rollen zu beschränken.",
+  "ownerHintMonitor": "Der Eigentümer hat immer alle Rechte an diesem Monitor und wird darüber benachrichtigt."
+}

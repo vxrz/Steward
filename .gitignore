@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+*.log
+.env
+test-results/
+dist-exe/
+playwright-report/
+blob-report/
+e2e/.auth/
+.tools/

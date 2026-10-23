@@ -1,0 +1,149 @@
+name: "Insights Hub – Privileged access review (attestation)"
+description: |
+  Periodic attestation of administrative access. Lists everyone holding a
+  privileged role (e.g. mdsp:core:TenantAdmin), asks the reviewer to tick who
+  keeps it (recently active admins are preselected) and – after a second
+  person confirms (four-eyes) – removes the privileged role from everyone else.
+
+  Recommended schedule: monthly (or quarterly), plus after organisational
+  changes. Publishes `ih.privileged` with the result of the review.
+  Required rights: read users/groups and change group membership (im.g.u).
+  Removal only touches the privileged roles listed in the inputs.
+tags: [governance, privileged, users, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: privilegedRoles
+    label: Privileged roles / groups to review
+    type: list
+    default: [mdsp:core:TenantAdmin]
+  - name: activeWithinDays
+    label: Preselect admins active within (days)
+    type: number
+    default: 30
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+      dry: "{{ run.dryRun }}"
+  - id: listUsers
+    type: http
+    name: List users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate: { mode: scim, pageSize: 500 }
+    saveAs: users
+  - id: privileged
+    type: set
+    name: Find privileged memberships
+    values:
+      privileged: >-
+        {{ [vars.users.body.(
+          $u := $;
+          groups[display in $inputs.privilegedRoles].{
+            "key": $u.id & '|' & value,
+            "id": $u.id,
+            "userName": $u.userName,
+            "name": $u.name.givenName & ' ' & $u.name.familyName,
+            "role": display,
+            "groupId": value,
+            "lastLogonTime": $u.lastLogonTime
+          }
+        )] }}
+  - id: attest
+    type: userTask
+    name: Who keeps privileged access?
+    when: "$count(vars.privileged) > 0"
+    mode: select
+    title: "Privileged access review: tick the {{ $count(vars.privileged) }} assignment(s) that remain justified"
+    instructions: |
+      Roles under review: {{ $join(inputs.privilegedRoles, ', ') }}.
+      **Unticked** assignments are removed after a second person confirms.
+      Admins who signed in within the last {{ inputs.activeWithinDays }} days are preselected.
+    items: vars.privileged
+    itemKey: key
+    columns:
+      - { label: User, value: userName }
+      - { label: Role, value: role }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
+    preselect: "$exists(lastLogonTime) and $daysSince(lastLogonTime) <= $inputs.activeWithinDays"
+    saveAs: attestation
+  - id: confirm
+    type: userTask
+    name: Confirm removal (four-eyes)
+    when: "$count(vars.attestation.unselected) > 0"
+    mode: approve
+    title: "Remove {{ $count(vars.attestation.unselected) }} privileged assignment(s)?"
+    instructions: |
+      Requested by {{ run.actor }}. A different person has to confirm.
+
+      {{ $join(vars.attestation.unselected.('- ' & userName & ' – ' & role), '\n') }}
+    assignees: [role:approver, role:admin]
+    fourEyes: true
+    onReject: continue
+    saveAs: removal
+  - id: remove
+    type: forEach
+    name: Remove privileged roles
+    when: "vars.removal.approved = true"
+    items: vars.attestation.unselected
+    as: entry
+    steps:
+      - id: removeMembership
+        type: http
+        name: Remove role membership
+        connection: hub
+        method: DELETE
+        path: "{{ vars.idm }}/Groups/{{ vars.entry.groupId }}/members/{{ vars.entry.id }}"
+        expectStatus: [200, 204, 404]
+  - id: documentRemoval
+    type: accessChange
+    name: Document removed privileged access
+    when: "vars.removal.approved = true"
+    connection: hub
+    kind: revoke
+    items: vars.attestation.unselected
+    subjectId: id
+    subjectName: userName
+    rights: "[role]"
+    reason: "Privileged access review: assignment not attested"
+    approvedBy: "{{ vars.removal.decidedBy }}"
+  - id: publish
+    type: publish
+    name: Publish review result
+    dataset: ih.privileged
+    title: Privileged access
+    rows: vars.privileged
+    key: key
+    columns:
+      - { label: User, value: userName }
+      - { label: Role, value: role }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Days, value: "$daysSince(lastLogonTime)" }
+      - label: Review
+        value: >-
+          key in $vars.attestation.selectedKeys ? 'kept'
+            : ($vars.removal.approved = true ? ($vars.dry ? 'removed (dry run)' : 'removed')
+            : ($exists($vars.attestation) ? 'removal rejected' : 'not reviewed'))
+    status: >-
+      $not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90 ? 'critical'
+        : ($daysSince(lastLogonTime) >= 30 ? 'warning' : 'good')
+    statusText: "$exists(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
+    metrics:
+      privileged: "$count(vars.privileged)"
+      stale90: "$count(vars.privileged[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90])"
+      removed: "vars.removal.approved = true ? $count(vars.attestation.unselected) : 0"
+    staleAfterMinutes: 46080
+  - id: summary
+    type: report
+    name: Summary
+    title: Privileged access review
+    text: |
+      - Privileged assignments reviewed: **{{ $count(vars.privileged) }}**
+      - Kept: **{{ $count(vars.attestation.selected) }}**
+      - Removed: **{{ vars.removal.approved = true ? $count(vars.attestation.unselected) : 0 }}**{{ vars.removal.approved = false ? ' (removal rejected by ' & vars.removal.decidedBy & ')' : '' }}{{ run.dryRun ? ' – dry run, nothing changed' : '' }}

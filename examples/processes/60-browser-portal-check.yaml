@@ -1,0 +1,36 @@
+name: "Browser – Portal login and status screenshot"
+description: |
+  Example of browser automation: signs in to a web portal with the stored
+  credentials of a platform, reads a status text, checks it and keeps a
+  screenshot as evidence in the run protocol. Adapt URLs and selectors to
+  your portal (Playwright selectors: CSS, text=…, role=…).
+tags: [status, browser]
+connections:
+  - slot: portal
+    description: Platform whose portal URL and username/password secrets are used
+inputs:
+  - name: expectedStatus
+    label: Expected status text
+    type: string
+    default: Operational
+steps:
+  - id: login
+    type: browser
+    name: Sign in and capture status
+    connection: portal
+    actions:
+      - { action: goto, value: /login }
+      - { action: fill, selector: "#email", value: "{{ $secret('portal', 'username') }}" }
+      - { action: fill, selector: "#password", value: "{{ $secret('portal', 'password') }}" }
+      - { action: click, selector: "#signin" }
+      - { action: waitFor, selector: "#system-status" }
+      - { action: extract, selector: "#system-status", as: status }
+      - { action: extract, selector: "#license-usage", as: license }
+      - { action: screenshot, name: dashboard, fullPage: true }
+    saveAs: portal
+  - id: statusOk
+    type: check
+    name: Portal reports expected status
+    severity: warning
+    condition: "$contains(vars.portal.status, $inputs.expectedStatus)"
+    message: "{{ vars.portal.status }} (license usage {{ vars.portal.license }})"

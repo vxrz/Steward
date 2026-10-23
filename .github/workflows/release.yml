@@ -1,0 +1,141 @@
+# Builds the desktop executables for Windows, macOS and Linux.
+# Push a tag like v0.2.0 to publish a GitHub release (v0.2.0-beta.1 → pre-release).
+# "Run workflow", or a commit message containing [build-exe], builds without releasing
+# (download the files from the run's artifacts).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+    # A branch commit with "[build-exe]" in its message builds the executables (no release)
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Hardening (see docs/SECURITY-PIPELINE.md): actions pinned to commit SHAs, no persisted git credentials,
+# no dependency cache for release builds (cache poisoning), time limits; releases are never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  executable:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[build-exe]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: macos-15-intel
+            target: macos-x64
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Install scripts – only the reviewed ones (package.json "allowScripts")
+        run: node scripts/install-scripts.mjs --check --run
+      - run: npm run build
+        env:
+          SM_BUILD_COMMIT: ${{ github.sha }}
+      - run: npm run build:exe
+        env:
+          SM_BUILD_COMMIT: ${{ github.sha }}
+      - name: Smoke test
+        shell: bash
+        run: |
+          EXE=$(find dist-exe -maxdepth 1 -type f | head -1)
+          "$EXE" --version
+          "$EXE" --no-open --port 4399 --data-dir "$RUNNER_TEMP/sm-data" &
+          PID=$!
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:4399/api/health && break; sleep 1; done
+          curl -sf http://127.0.0.1:4399/api/health
+          curl -sf http://127.0.0.1:4399/ | grep -q '<div id="root">'
+          kill $PID || true
+      - name: Package
+        shell: bash
+        run: |
+          cd dist-exe
+          if [ "${{ runner.os }}" = "Windows" ]; then 7z a ../steward-${{ matrix.target }}.zip ./*; else tar czf ../steward-${{ matrix.target }}.tar.gz ./*; fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: steward-${{ matrix.target }}
+          path: steward-${{ matrix.target }}.*
+
+  sbom:
+    if: github.event_name != 'push' || startsWith(github.ref, 'refs/tags/') || contains(github.event.head_commit.message, '[build-exe]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install dependencies (install scripts off)
+        run: npm ci --ignore-scripts
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Install scripts – only the reviewed ones (package.json "allowScripts")
+        run: node scripts/install-scripts.mjs --check --run
+      - run: npx --yes @cyclonedx/cyclonedx-npm@4.2.1 --omit dev --output-file sbom.cdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [executable, sbom]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write # keyless signing of the attestations (Sigstore, no long-lived key)
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        run: cd out && sha256sum -- * > SHA256SUMS.txt
+      # Signed build provenance (SLSA) for every download: verify with
+      #   gh attestation verify steward-linux-x64.tar.gz --repo <owner>/<repo>
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            out/steward-*
+            out/SHA256SUMS.txt
+      - name: SBOM attestation
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: out/steward-*
+          sbom-path: out/sbom.cdx.json
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: out/*
+          generate_release_notes: true
+          # v1.2.3-beta.1 and similar → pre-release
+          prerelease: ${{ contains(github.ref_name, '-') }}

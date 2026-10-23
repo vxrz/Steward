@@ -1,0 +1,197 @@
+{
+  "list": {
+    "newName": "New dashboard",
+    "title": "Dashboards",
+    "description": "Status overviews built from data that your processes publish (once, on demand or on a schedule). Dashboards only read stored data – they never call the platforms themselves.",
+    "importYaml": "Import YAML",
+    "fromTemplate": "From template",
+    "new": "New dashboard",
+    "emptyTitle": "No dashboards yet",
+    "emptyText": "Start from a template (e.g. platform operations), then run the inventory processes that feed it – or schedule them so the data stays fresh.",
+    "widgets_one": "{{count}} widget",
+    "widgets_other": "{{count}} widgets",
+    "by": "by {{owner}}",
+    "updated": "updated {{when}}",
+    "emptyAction": "Start from a template"
+  },
+  "datasets": {
+    "title": "Datasets",
+    "hint": "Published by “{{node}}” nodes. Each run replaces the rows and adds metric values to the history used by trend charts. You see the datasets of processes you may view.",
+    "dataset": "Dataset",
+    "source": "Source",
+    "updated": "Updated",
+    "rows": "Rows",
+    "status": "Status",
+    "none": "No datasets yet – run a process that contains a “{{node}}” node.",
+    "stale": "stale",
+    "deleteHint": "Delete dataset and its history",
+    "delete": "Delete dataset",
+    "deleteConfirm": "Delete dataset \"{{key}}\" and its metric history? It is recreated by the next run of {{process}}."
+  },
+  "templates": {
+    "title": "Dashboard templates",
+    "none": "No templates found in examples/dashboards.",
+    "created": "Created \"{{name}}\"",
+    "use": "Use"
+  },
+  "import": {
+    "title": "Import dashboard (YAML or JSON)",
+    "loadFile": "Load file",
+    "failed": "Import failed",
+    "submit": "Import"
+  },
+  "status": {
+    "good": "Good",
+    "warning": "Warning",
+    "serious": "Serious",
+    "critical": "Critical",
+    "unknown": "Unknown",
+    "none": "no status"
+  },
+  "view": {
+    "refreshing_one": "Refreshing – {{count}} run started",
+    "refreshing_other": "Refreshing – {{count}} runs started",
+    "nothingStarted": "Nothing was started",
+    "noSources": "This dashboard has no data sources yet.",
+    "refreshFailed": "Refresh failed",
+    "saved": "Dashboard saved",
+    "notSaved": "Not saved",
+    "refresh": "Refresh data",
+    "more": "More",
+    "exportYaml": "Export YAML",
+    "deleteConfirm": "Delete dashboard \"{{name}}\"? The datasets stay.",
+    "noWidgets": "No widgets yet",
+    "clickEdit": "Click Edit and add widgets.",
+    "widgetsHint": "Widgets show datasets published by processes with a “{{node}}” node – see <a>datasets</a>.",
+    "dataFrom": "data from {{when}}",
+    "noData": "no data yet"
+  },
+  "widgets": {
+    "kpi": {
+      "label": "Stat tile",
+      "info": "Stat tile: latest value of a metric (or the row count) with change and sparkline"
+    },
+    "trend": {
+      "label": "Trend chart",
+      "info": "Line chart of up to three metrics over time"
+    },
+    "status": {
+      "label": "Status distribution",
+      "info": "Distribution of row statuses (good / warning / serious / critical)"
+    },
+    "table": {
+      "label": "Table",
+      "info": "Rows of a dataset with status badges, search and a problems-only filter"
+    },
+    "checks": {
+      "label": "Checks",
+      "info": "Check results of the latest run of a process"
+    },
+    "freshness": {
+      "label": "Data freshness",
+      "info": "Age of every dataset on this dashboard and the next scheduled refresh"
+    },
+    "markdown": {
+      "label": "Text",
+      "info": "Free text (markdown subset)"
+    }
+  },
+  "editor": {
+    "defaultNotes": "Notes for this dashboard",
+    "widgets_one": "Widgets ({{count}})",
+    "widgets_other": "Widgets ({{count}})",
+    "settings": "Settings",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "addWidget": "Add widget",
+    "description": "Description",
+    "refreshSeconds": "Re-read stored data every (seconds)",
+    "refreshSecondsHint": "The dashboard only reads stored datasets; the platforms are queried by the processes (schedules) that publish them.",
+    "applyYaml": "Apply YAML"
+  },
+  "form": {
+    "title": "{{type}} widget",
+    "widgetTitle": "Title",
+    "automatic": "Automatic",
+    "width": "Width",
+    "widths": {
+      "w3": "Quarter (3/12)",
+      "w4": "Third (4/12)",
+      "w6": "Half (6/12)",
+      "w8": "Two thirds (8/12)",
+      "w12": "Full width"
+    },
+    "dataset": "Dataset",
+    "datasetHint": "Published by a “{{node}}” node; unpublished keys are allowed and show data after the first run.",
+    "datasetPlaceholder": "e.g. iem.devices",
+    "value": "Value",
+    "rowCount": "Number of rows",
+    "metric": "Metric: {{name}}",
+    "increaseIs": "Increase is",
+    "neutral": "Neutral",
+    "good": "Good",
+    "bad": "Bad",
+    "compareDays": "Compare with (days ago)",
+    "metrics": "Metrics (max. 3)",
+    "pickMetrics": "Pick metrics",
+    "noMetrics": "No metrics published yet",
+    "days": "Days",
+    "columns": "Columns",
+    "allColumns": "All columns",
+    "problemsOnly": "Show problems only by default",
+    "rowsShown": "Rows shown",
+    "process": "Process",
+    "text": "Text (markdown subset)",
+    "apply": "Apply"
+  },
+  "w": {
+    "chart": "Chart",
+    "table": "Table",
+    "viewToggle": "Chart or table view",
+    "chooseDataset": "Choose a dataset for this widget.",
+    "noData": "No data in <c>{{dataset}}</c> yet (or no access). Run the process that publishes it – a “{{node}}” node with this dataset key.",
+    "goToProcesses": "Go to processes",
+    "olderThan_one": "Older than {{count}} minute",
+    "olderThan_other": "Older than {{count}} minutes",
+    "rows": "rows",
+    "vsDaysAgo_one": "vs {{count}} d ago",
+    "vsDaysAgo_other": "vs {{count}} d ago",
+    "lastDays_one": "{{name}} – last {{count}} day",
+    "lastDays_other": "{{name}} – last {{count}} days",
+    "noHistory": "No metric history yet – trends appear after a few runs.",
+    "statusTitle": "{{name}} – status",
+    "downloadCsv": "Download CSV",
+    "search": "Search",
+    "problemsOnly": "Problems only",
+    "clearFilter": "Clear status filter",
+    "statusOnly": "{{status}} only",
+    "rowsOf": "{{shown}} of {{total}}",
+    "allGood": "No matching rows – all good.",
+    "noRows": "No rows.",
+    "showMore_one": "Show more ({{count}} hidden)",
+    "showMore_other": "Show more ({{count}} hidden)",
+    "latestRun": "latest run {{when}}",
+    "open": "open",
+    "chooseProcess": "Choose a process for this widget.",
+    "notRunYet": "The process has not run yet.",
+    "noChecks": "The latest run has no checks.",
+    "passed": "passed",
+    "failed": "failed",
+    "failedSeverity": "failed · {{severity}}",
+    "nextRefresh": "Next refresh",
+    "noDataShort": "no data",
+    "run": "run",
+    "notScheduled": "not scheduled",
+    "noDatasets": "No datasets on this dashboard.",
+    "unknownType": "Unknown widget type"
+  },
+  "charts": {
+    "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",
+    "time": "Time",
+    "noStatusRows": "No rows with a status.",
+    "segment": "{{status}}: {{count}} ({{share}})",
+    "segmentFilter": "{{status}}: {{count}} ({{share}}) – click to filter tables",
+    "share": "Share",
+    "valuesOf": "Values of {{names}}"
+  }
+}

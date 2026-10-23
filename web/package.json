@@ -1,0 +1,37 @@
+{
+  "name": "@sm/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mantine/core": "~7.17.8",
+    "@mantine/hooks": "~7.17.8",
+    "@mantine/modals": "~7.17.8",
+    "@mantine/notifications": "~7.17.8",
+    "@mantine/spotlight": "~7.17.8",
+    "@sentry/react": "~10.75.0",
+    "@sm/shared": "0.1.0",
+    "@tabler/icons-react": "~3.34.0",
+    "@tanstack/react-query": "~5.80.0",
+    "@xyflow/react": "~12.8.6",
+    "diff": "~8.0.4",
+    "i18next": "~26.4.2",
+    "i18next-browser-languagedetector": "~8.2.1",
+    "react": "~18.3.1",
+    "react-dom": "~18.3.1",
+    "react-i18next": "~17.0.14",
+    "react-router-dom": "~7.18.4",
+    "yaml": "~2.8.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.23",
+    "@types/react-dom": "~18.3.7",
+    "@vitejs/plugin-react": "~4.7.0",
+    "vite": "~6.4.5"
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "items": {
+    "dashboard": "Übersicht",
+    "dashboards": "Dashboards",
+    "tasks": "Meine Aufgaben",
+    "runs": "Ausführungen",
+    "processes": "Prozesse",
+    "schedules": "Zeitpläne",
+    "platforms": "Plattformen",
+    "audit": "Audit-Log",
+    "users": "Benutzer & Teams",
+    "settings": "Einstellungen",
+    "profile": "Profil & API-Token",
+    "triggers": "Auslöser",
+    "monitors": "Monitore",
+    "credentials": "Zugangsdaten",
+    "reports": "Berichte",
+    "records": "Dokumente",
+    "services": "Services",
+    "gitUpdates": "Änderungen aus Git",
+    "tickets": "Ticket-Referenzen",
+    "controls": "Kontrollen",
+    "accessChanges": "Zugriffsänderungen",
+    "reconciliation": "Zugriffsabgleich",
+    "evidencePacks": "Nachweispakete"
+  },
+  "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
+  "pageNotFound": "Seite nicht gefunden",
+  "toggleNavigation": "Navigation ein-/ausblenden",
+  "toggleColorScheme": "Farbschema wechseln",
+  "demo": "Demo",
+  "lightMode": "Heller Modus",
+  "darkMode": "Dunkler Modus",
+  "language": "Sprache",
+  "userMenu": {
+    "label": "Benutzermenü",
+    "installApp": "App installieren",
+    "changePassword": "Passwort ändern",
+    "lockVault": "Tresor sperren",
+    "lockVaultConfirm": "Tresor sperren? Zeitpläne werden angehalten, und alle müssen warten, bis ein Administrator ihn wieder entsperrt.",
+    "signOut": "Abmelden",
+    "about": "Über {{brand}}",
+    "systemStatus": "Systemstatus"
+  },
+  "palette": {
+    "newProcess": "Neuer Prozess",
+    "newProcessHint": "Leeren Prozess anlegen und im Editor öffnen",
+    "lightMode": "Zum hellen Modus wechseln",
+    "darkMode": "Zum dunklen Modus wechseln",
+    "colorSchemeHint": "Farbschema ändern",
+    "groups": {
+      "actions": "Aktionen",
+      "pages": "Seiten",
+      "recentRuns": "Letzte Ausführungen",
+      "processes": "Prozesse",
+      "startRun": "Ausführung starten",
+      "dashboards": "Dashboards",
+      "platforms": "Plattformen",
+      "monitors": "Monitore",
+      "services": "Services",
+      "records": "Dokumente",
+      "credentials": "Zugangsdaten",
+      "tickets": "Ticket-Referenzen"
+    },
+    "runBy": "Ausführung von {{actor}} · {{when}}",
+    "dryRunBy": "Probelauf von {{actor}} · {{when}}",
+    "startRunOf": "{{name}} ausführen",
+    "nothingFound": "Nichts gefunden",
+    "placeholder": "Seiten, Prozesse, Monitore, Dokumente suchen…",
+    "search": "Suchen",
+    "searchWithShortcut": "Suchen ({{shortcut}})",
+    "searchButton": "Suchen…",
+    "keywords": {
+      "page": "Seite",
+      "create": "anlegen neu",
+      "theme": "Farbschema hell dunkel"
+    },
+    "pages": {
+      "monitorWall": "Statuswand der Monitore",
+      "recordTypes": "Dokumentarten",
+      "systemStatus": "Systemstatus",
+      "about": "Über"
+    },
+    "create": {
+      "monitor": "Neuer Monitor",
+      "record": "Neues Dokument",
+      "credential": "Neuer Zugangsdaten-Eintrag",
+      "service": "Neuer Service",
+      "schedule": "Neuer Zeitplan",
+      "ticket": "Neue Ticket-Referenz"
+    }
+  },
+  "groups": {
+    "operate": "Betrieb",
+    "automate": "Automatisierung",
+    "service": "Service-Management",
+    "admin": "Administration",
+    "compliance": "Compliance"
+  },
+  "mainNavigation": "Hauptnavigation",
+  "collapseSidebar": "Seitenleiste einklappen",
+  "expandSidebar": "Seitenleiste ausklappen",
+  "backToDashboard": "Zur Übersicht",
+  "help": {
+    "label": "Hilfe",
+    "whatsNew": "Neuigkeiten",
+    "shortcuts": "Tastenkürzel",
+    "checklist": "Checkliste für den Einstieg",
+    "docs": "Dokumentation",
+    "doc": {
+      "guide": "Benutzerhandbuch (README)",
+      "install": "Installation und Betrieb",
+      "mcp": "KI-Assistenten (MCP)",
+      "api": "Öffentliche REST-API",
+      "gateway": "Monitor-Gateways (IoT)",
+      "all": "Gesamte Dokumentation"
+    },
+    "then": "dann",
+    "keys": {
+      "search": "Seiten, Prozesse, Monitore, Dokumente suchen …",
+      "help": "Diese Liste anzeigen",
+      "goTo": "Zu {{page}} wechseln",
+      "close": "Dialog oder Menü schließen"
+    },
+    "shortcutsHint": "Die Kürzel gelten nicht, während Sie in einem Feld tippen, in einem Dialog oder auf der Arbeitsfläche des Prozesseditors.",
+    "whatsNewIntro": "Die Höhepunkte der kommenden {{brand}}-Version.",
+    "fullChangelog": "Vollständiges Änderungsprotokoll auf GitHub",
+    "news": {
+      "lists": {
+        "title": "Bessere Listen",
+        "text": "Nach jeder Spalte sortieren, ältere Ausführungen und weitere Dokumente nachladen, Karten statt breiter Tabellen auf dem Smartphone, eine Liste der Tastenkürzel (Taste ?) und dieses Hilfe-Menü."
+      },
+      "confirm": {
+        "title": "Klare Rückfragen",
+        "text": "Löschen, Archivieren, Widerrufen oder Erneuern eines Secrets fragt in einem Dialog nach, der die Folgen nennt – mit rotem Knopf."
+      },
+      "gitSync": {
+        "title": "Git-Synchronisierung",
+        "text": "Prozesse, Dashboards, Monitore und Dokumentarten aus Git holen und jede Änderung vor dem Übernehmen prüfen."
+      },
+      "tickets": {
+        "title": "Ticket-Referenzen",
+        "text": "ServiceNow-Incidents und Hersteller-Tickets dokumentieren und mit Services, Plattformen und Dokumenten verknüpfen."
+      },
+      "dailySummary": {
+        "title": "Tägliche Zusammenfassung",
+        "text": "Einmal am Tag: Ausführungen, offene Entscheidungen, Monitor-Änderungen und fällige Zugangsdaten – in der App oder per E-Mail."
+      },
+      "credentials": {
+        "title": "Zugangsdaten-Register",
+        "text": "Ablauf-, Rotations- und Prüftermine von API-Clients, Zertifikaten und Tokens mit Erinnerungen – nie die Secrets selbst."
+      },
+      "compliance": {
+        "title": "Nachweise zur Zugriffssteuerung",
+        "text": "Dokumentierte Berechtigungsänderungen, Abgleich mit den Plattformen und Nachweispakete für Audits."
+      },
+      "mcp": {
+        "title": "KI-Assistenten (MCP)",
+        "text": "Ein lesender MCP-Server lässt KI-Assistenten Ausführungen, Monitore und Dashboards mit Ihren Rechten ansehen."
+      }
+    }
+  }
+}

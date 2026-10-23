@@ -1,0 +1,32 @@
+# gitleaks configuration (secret scanning, see docs/SECURITY-PIPELINE.md).
+# The default rules apply; the allow-lists below only cover values that are
+# fake on purpose. Keep them narrow: an exact value, limited to test paths.
+# Do NOT allow-list whole folders – a real secret pasted into a test must still be found.
+
+title = "Steward gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake tokens in the error reporting and CLI tests (they check that tokens are scrubbed)"
+paths = ['''^server/test/[^/]+\.test\.ts$''']
+regexTarget = "match"
+regexes = [
+  '''smt_AbCdEf0123456789xyz''',
+  '''smt_cliTestToken0123456789''',
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJzdWIiOiJqYW5lIn0\.c2lnbmF0dXJlLXBhcnQ''',
+]
+
+[[allowlists]]
+description = "Demo and mock-platform credentials (only active with SM_DEMO=1) and test passwords – fake by design"
+paths = ['''^server/src/mock/[^/]+\.ts$''', '''^server/src/routes/demo\.ts$''', '''^server/test/[^/]+\.ts$''', '''^README\.md$''', '''^docs/[^/]+\.md$''']
+regexTarget = "line"
+regexes = [
+  '''\bdemo-oidc-secret\b''',
+  '''\bdemo-secret\b''',
+  '''\bdemo-password\b''',
+  '''\bDemo-password-1\b''',
+  '''\bAdmin-password-1\b''',
+  '''correct horse battery''',
+]

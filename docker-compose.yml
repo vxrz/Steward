@@ -1,0 +1,38 @@
+# docker compose up -d   →   http://localhost:4310
+services:
+  steward:
+    build: .
+    image: steward:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
+    volumes:
+      - sm-data:/data
+    # Hardening: read-only image, no Linux capabilities, no privilege escalation
+    read_only: true
+    tmpfs:
+      - /tmp # browser steps (WITH_BROWSER=1) need a writable /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 2g
+    # Unattended unlock so schedules run after a restart: the passphrase as a Docker secret (a file only root
+    # can read on the host, e.g. created with: install -m 600 /dev/null passphrase.txt && $EDITOR passphrase.txt)
+    # secrets: [steward_passphrase]
+    environment:
+      # Host names users type in the browser (besides localhost)
+      SM_ALLOWED_HOSTS: ""
+      # SM_MASTER_PASSPHRASE_FILE: /run/secrets/steward_passphrase
+      # Behind a reverse proxy (TLS terminated there): its address, and the public https URL (Secure cookie, HSTS)
+      # SM_TRUST_PROXY: "1"
+      # SM_PUBLIC_URL: "https://steward.example.com"
+      # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+      # Error reporting to Sentry/GlitchTip/Bugsink (off by default, see docs/ERROR-REPORTING.md)
+      # SM_SENTRY_DSN: "https://<key>@glitchtip.example.com/1"
+      SM_LOG_LEVEL: info
+volumes:
+  sm-data:
+# secrets:
+#   steward_passphrase:
+#     file: ./passphrase.txt

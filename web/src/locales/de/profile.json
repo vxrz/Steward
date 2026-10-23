@@ -1,0 +1,132 @@
+{
+  "tokens": {
+    "owner": "Eigentümer",
+    "token": "Token",
+    "scope": "Umfang",
+    "created": "Erstellt",
+    "lastUsed": "Zuletzt verwendet",
+    "expires": "Läuft ab",
+    "status": "Status",
+    "full": "Vollzugriff",
+    "read": "nur lesen",
+    "never": "nie",
+    "states": {
+      "revoked": "widerrufen",
+      "expired": "abgelaufen",
+      "active": "aktiv"
+    },
+    "revoke": "Token widerrufen",
+    "revokeNamed": "Token {{name}} widerrufen",
+    "revokeConfirm": "Token „{{name}}“ widerrufen? Skripte, die es verwenden, funktionieren sofort nicht mehr.",
+    "revoked": "Token widerrufen",
+    "title": "API-Token",
+    "hint": "Für Skripte und andere Tools. Ein Token handelt mit Ihren Rechten.",
+    "new": "Neues Token",
+    "unavailable": "API-Token sind auf diesem Server nicht verfügbar.",
+    "none": "Noch keine Token.",
+    "example": "Beispiel:",
+    "createdTitle": "Token erstellt",
+    "copyNow": "Token jetzt kopieren. Es wird nur einmal angezeigt und lässt sich nicht wiederherstellen.",
+    "useLike": "So verwenden:",
+    "done": "Fertig",
+    "notCreated": "Token nicht erstellt",
+    "newTitle": "Neues API-Token",
+    "nameHint": "Wofür das Token gedacht ist, z. B. „Nächtliches Berichtsskript“",
+    "access": "Zugriff",
+    "readOnly": "Nur lesen",
+    "fullAccess": "Vollzugriff",
+    "readHint": "Kann nur Daten lesen (GET-Anfragen).",
+    "fullHint": "Kann alles, was Sie dürfen, einschließlich Ausführungen starten und Daten ändern.",
+    "expiresAfter": "Läuft ab nach (Tagen)",
+    "expiresHint": "Leer lassen für ein Token, das nie abläuft",
+    "create": "Token erstellen",
+    "exampleReadOnly": "Beispiel (ein Token mit Lesezugriff genügt):",
+    "mcp": "MCP-Client",
+    "mcpClient": "MCP-Client",
+    "mcpHint": "Nur für KI-Assistenten (MCP-Clients): lesende Werkzeuge am MCP-Endpunkt. Von der REST-API und überall sonst abgelehnt.",
+    "mcpUseLike": "Tragen Sie es in Ihren MCP-Client ein:",
+    "mcpServerOff": "Der MCP-Server ist ausgeschaltet – ein Administrator kann ihn unter Einstellungen einschalten. Danach tragen Sie das Token in Ihren MCP-Client ein:",
+    "mcpAvailable": "KI-Assistenten (MCP-Clients) verwenden ein eigenes Token mit dem Umfang „MCP-Client“."
+  },
+  "title": "Profil",
+  "description": "Ihr Konto, Ihre Sprache, Benachrichtigungen und API-Token.",
+  "notSaved": "Nicht gespeichert",
+  "language": {
+    "title": "Sprache",
+    "label": "Sprache",
+    "hint": "Für die Oberfläche, In-App-Benachrichtigungen und E-Mails an Sie.",
+    "notChosen": "Noch nicht gewählt – die Oberfläche folgt Ihrem Browser, Nachrichten verwenden die Standardsprache des Servers."
+  },
+  "account": {
+    "saved": "Profil gespeichert",
+    "title": "Konto",
+    "username": "Benutzername",
+    "displayName": "Anzeigename",
+    "email": "E-Mail",
+    "ssoHint": "Name und E-Mail-Adresse stammen von Ihrem Single-Sign-on-Anbieter und werden bei der Anmeldung aktualisiert."
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "intro": "Die Glocke in der Kopfzeile zeigt immer Ihre Benachrichtigungen. Administratoren legen fest, welche Ereignisse über welchen Kanal gesendet werden.",
+    "email": "E-Mail-Benachrichtigungen",
+    "emailHint": "Werden an {{email}} gesendet, sobald E-Mail auf diesem Server eingerichtet ist.",
+    "emailMissing": "Zuerst eine E-Mail-Adresse im Konto hinterlegen.",
+    "browser": "Browser-Benachrichtigungen",
+    "browserUnsupported": "Dieser Browser unterstützt keine Benachrichtigungen.",
+    "browserDenied": "Vom Browser blockiert. Benachrichtigungen für diese Seite in den Browsereinstellungen erlauben und erneut versuchen.",
+    "browserHint": "Zeigt eine Systembenachrichtigung auf diesem Gerät, solange die App in einem Tab geöffnet ist.",
+    "testTitle": "Testbenachrichtigung",
+    "testBody": "Browser-Benachrichtigungen funktionieren.",
+    "test": "Testbenachrichtigung anzeigen"
+  },
+  "password": {
+    "title": "Passwort",
+    "hint": "Das Passwort für die Anmeldung ändern.",
+    "change": "Passwort ändern",
+    "changed": "Passwort geändert"
+  },
+  "dailySummary": {
+    "title": "Tageszusammenfassung",
+    "intro": "Einmal am Tag eine kurze Zusammenfassung dessen, was Sie betrifft: fehlgeschlagene Ausführungen, Entscheidungen, die auf Sie warten, Statuswechsel von Monitoren, fällige Zugangsdaten, Ihre offenen Tickets, Dokumente und Berichte. Nur, was Sie sehen dürfen.",
+    "enabled": "Mir eine Tageszusammenfassung senden",
+    "notAllowed": "Ein Administrator hat die Tageszusammenfassungen ausgeschaltet.",
+    "time": "Uhrzeit",
+    "timeZone": "Zeitzone",
+    "days": "Tage",
+    "daysOptions": {
+      "weekdays": "Montag bis Freitag",
+      "everyday": "Jeden Tag"
+    },
+    "channel": "Wohin",
+    "channelOptions": {
+      "inApp": "In der App",
+      "inAppEmail": "In der App und per E-Mail"
+    },
+    "emailBlocked": {
+      "smtpOff": "E-Mail ist auf diesem Server nicht eingerichtet – die Zusammenfassung erscheint nur in der App.",
+      "routeOff": "Ein Administrator versendet Tageszusammenfassungen nicht per E-Mail – sie erscheint nur in der App.",
+      "noAddress": "Hinterlegen Sie eine E-Mail-Adresse in Ihrem Konto, um sie per E-Mail zu erhalten.",
+      "optedOut": "Schalten Sie oben die E-Mail-Benachrichtigungen ein, um sie per E-Mail zu erhalten.",
+      "domainNotAllowed": "Ihre E-Mail-Adresse liegt außerhalb der erlaubten Domains – die Zusammenfassung erscheint nur in der App."
+    },
+    "sections": "Enthalten",
+    "sectionNames": {
+      "runs": "Ausführungen und Fehlschläge",
+      "tasks": "Entscheidungen, die auf mich warten",
+      "monitors": "Statuswechsel von Monitoren",
+      "credentials": "Fällige Zugangsdaten",
+      "tickets": "Offene Tickets in meiner Verantwortung",
+      "records": "Dokumente, die auf mich warten oder sich geändert haben",
+      "reports": "Berichte für mich"
+    },
+    "skipEmpty": "An Tagen ohne Neuigkeiten nichts senden",
+    "save": "Speichern",
+    "saved": "Einstellungen der Tageszusammenfassung gespeichert",
+    "lastSent": "Letzte Zusammenfassung: {{when}}",
+    "preview": "Vorschau",
+    "previewTitle": "Vorschau: {{title}}",
+    "previewEmpty": "Gerade gibt es nichts zu berichten.",
+    "more_one": "… und {{count}} weiterer",
+    "more_other": "… und {{count}} weitere"
+  }
+}

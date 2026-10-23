@@ -1,0 +1,93 @@
+{
+  "title": "Übersicht",
+  "description": "Was Ihre Aufmerksamkeit braucht, was gerade läuft und was geplant ist.",
+  "demoAccounts": {
+    "title": "Demo-Konten angelegt",
+    "text": "Als <b>{{users}}</b> mit dem Passwort <code>{{password}}</code> anmelden, um die Rollen in Aktion zu sehen (dana = Designer, olivia = Operator, adam = Freigeber, audrey = Prüfer, vera = Betrachter; olivia und adam bilden das Team „Service Desk“)."
+  },
+  "getStarted": {
+    "title": "Erste Schritte",
+    "step1": "1. Eine <a>Plattform</a> hinzufügen (Insights-Hub-Tenant, Industrial Edge Management, beliebige REST-API) – mit Zugangsdaten und API-Spezifikation.",
+    "step2": "2. Einen <a>Prozess</a> aus einer Vorlage oder von Grund auf anlegen.",
+    "step3": "3. Ausführen (zuerst als Probelauf) oder einen <a>Zeitplan</a> anlegen.",
+    "loadDemo": "Demo-Plattformen & -Prozesse laden",
+    "demoLoaded": "{{platforms}} Demo-Plattformen und {{processes}} Prozesse geladen"
+  },
+  "counts": {
+    "label": "Was Ihre Aufmerksamkeit braucht",
+    "name": "{{label}}: {{value}} – {{detail}}",
+    "allQuiet": "Alles ruhig",
+    "tasks": "Wartet auf Sie",
+    "tasksDetail": "Freigaben und Entscheidungen",
+    "failedRuns": "Fehlgeschlagene Ausführungen (24 h)",
+    "ofRuns_one": "von {{count}} Ausführung",
+    "ofRuns_other": "von {{count}} Ausführungen",
+    "runsQuiet_one": "Alles ruhig · {{count}} Ausführung",
+    "runsQuiet_other": "Alles ruhig · {{count}} Ausführungen",
+    "monitorsDown": "Monitore ausgefallen",
+    "degraded_one": "{{count}} beeinträchtigt",
+    "degraded_other": "{{count}} beeinträchtigt",
+    "noneDegraded": "keiner beeinträchtigt",
+    "credentialsDue": "Zugangsdaten fällig",
+    "credentialsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig",
+    "findings": "Undokumentierte Zugriffsänderungen",
+    "findingsDetail": "Offene Befunde zum Dokumentieren",
+    "vendorTickets": "Wartet auf Hersteller",
+    "oldest_one": "ältestes seit {{count}} Tag",
+    "oldest_other": "ältestes seit {{count}} Tagen",
+    "oldestToday": "ältestes seit heute"
+  },
+  "waiting": "Wartet auf Ihre Entscheidung",
+  "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",
+  "recentRuns": "Letzte Ausführungen",
+  "upcoming": "Demnächst",
+  "nothingScheduled": "Nichts geplant. <a>Prozess planen</a>.",
+  "upcomingLine": "{{process}} · {{date}} ({{relative}})",
+  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · Probelauf",
+  "checklist": {
+    "title": "Erste Schritte",
+    "hide": "Checkliste „Erste Schritte“ ausblenden",
+    "progressLabel": "Fortschritt der Einrichtung",
+    "progress": "{{done}} von {{total}} erledigt",
+    "doneSr": "(erledigt)",
+    "steps": {
+      "platform": {
+        "title": "Plattform hinzufügen",
+        "text": "Ein Insights-Hub-Tenant, ein Industrial Edge Management oder eine beliebige REST-API, mit Zugangsdaten und API-Spezifikation."
+      },
+      "process": {
+        "title": "Prozess erstellen",
+        "text": "Mit einer Vorlage beginnen (Health Checks, Zugriffsprüfungen, Inventar) oder einen eigenen Ablauf bauen."
+      },
+      "run": {
+        "title": "Probelauf starten",
+        "text": "Ein Probelauf simuliert jede Änderung und schreibt das vollständige Protokoll – auf der Plattform ändert sich nichts."
+      },
+      "schedule": {
+        "title": "Prozess einplanen",
+        "text": "Health Checks und Prüfungen selbstständig laufen lassen, z. B. jeden Montagmorgen."
+      },
+      "monitor": {
+        "title": "System mit einem Monitor überwachen",
+        "text": "Kombinierbare Verfügbarkeitsprüfungen mit Ursachen, Wartungsfenstern und Alarmen."
+      },
+      "credential": {
+        "title": "Zugangsdaten dokumentieren",
+        "text": "Wo Zugangsdaten liegen, wem sie gehören und wann sie ablaufen – nie das Geheimnis selbst."
+      },
+      "users": {
+        "title": "Team einladen",
+        "text": "Benutzer anlegen oder Single Sign-on anbinden; Rollen legen fest, wer was darf."
+      },
+      "report": {
+        "title": "Zusammenfassenden Bericht senden",
+        "text": "Ein wöchentliches oder monatliches PDF für das Service-Meeting: Verfügbarkeit, Zugangsdaten, Ausführungen und Dokumente."
+      }
+    },
+    "discover": "Auch nützlich:",
+    "discoverTokens": "API-Token für Skripte und KI-Assistenten (MCP)",
+    "discoverWall": "Statuswand der Monitore",
+    "discoverSearch": "alles durchsuchen mit",
+    "shortcutCtrlK": "Strg K"
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "title": "Berichte",
+  "description": "Geplante zusammenfassende Berichte (Verfügbarkeit und SLA, Zugangsdaten, Ausführungen) und das Archiv der erstellten PDF-Berichte.",
+  "new": "Neuer Berichtszeitplan",
+  "edit": "Berichtszeitplan bearbeiten",
+  "schedulesTitle": "Berichtszeitpläne",
+  "disabled": "deaktiviert",
+  "table": {
+    "name": "Name",
+    "when": "Wann",
+    "sections": "Abschnitte",
+    "last": "Letzter Bericht",
+    "next": "Nächster Lauf",
+    "owner": "Läuft mit den Rechten von {{owner}}"
+  },
+  "presets": {
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "monthly": "Monatlich",
+    "custom": "Benutzerdefiniert"
+  },
+  "presetHints": {
+    "daily": "Jeden Tag um 06:00 über den Vortag.",
+    "weekly": "Jeden Montag um 06:00 über die Vorwoche (Montag bis Sonntag).",
+    "monthly": "Am 1. um 06:00 über den Vormonat.",
+    "custom": "Ihr Cron-Ausdruck (fünf Felder: Minute Stunde Tag Monat Wochentag; höchstens einmal pro Stunde); der Bericht umfasst die angegebene Zahl von Tagen vor jedem Lauf."
+  },
+  "sections": {
+    "availability": {
+      "title": "Verfügbarkeit der Monitore",
+      "hint": "Verfügbarkeit, Ausfälle und Antwortzeiten je Monitor, mit optionalem SLA-Ziel"
+    },
+    "gatus": {
+      "title": "Verfügbarkeit der Gatus-Endpunkte",
+      "hint": "Aus den Metriken, die Steward von Gatus abruft (Metrik-Modus)"
+    },
+    "credentials": {
+      "title": "Zugangsdaten-Register",
+      "hint": "Abgelaufene und überfällige Einträge sowie bald fällige"
+    },
+    "runs": {
+      "title": "Ausführungen",
+      "hint": "Erfolgreiche und fehlgeschlagene Ausführungen je Prozess"
+    },
+    "records": {
+      "title": "Dokumente und Änderungsanträge",
+      "hint": "Erstellte, geänderte, freigegebene oder umgesetzte Dokumente; offene Änderungsanträge nach Status; geplante Änderungsfenster"
+    },
+    "tickets": {
+      "title": "Ticket-Referenzen",
+      "hint": "Offene Tickets je Service und Hersteller mit ihrem Alter; eröffnete und gelöste Tickets; mittlere Lösungszeit je Hersteller"
+    }
+  },
+  "runNow": "Jetzt erstellen",
+  "runNowOf": "„{{name}}“ jetzt erstellen",
+  "editOf": "„{{name}}“ bearbeiten",
+  "deleteOf": "„{{name}}“ löschen",
+  "deleteConfirm": "Den Berichtszeitplan „{{name}}“ löschen? Bisher erstellte Berichte bleiben im Archiv.",
+  "ranOk": "„{{name}}“ erstellt: {{file}}",
+  "runFailed": "Bericht nicht erstellt",
+  "generatedTitle": "Erstellte Berichte",
+  "noReports": "Noch keine zusammenfassenden oder geplanten Berichte.",
+  "reports": {
+    "title": "Bericht",
+    "period": "Zeitraum",
+    "created": "Erstellt",
+    "file": "Datei",
+    "download": "PDF ({{size}})",
+    "kind": {
+      "run": "Ausführungsbericht",
+      "summary": "Zusammenfassung",
+      "scheduled": "Geplant"
+    }
+  },
+  "saved": "Berichtszeitplan gespeichert",
+  "notSaved": "Berichtszeitplan nicht gespeichert",
+  "form": {
+    "name": "Name",
+    "title": "Berichtstitel",
+    "titleHint": "Steht auf der Titelseite; Standard: der Name",
+    "when": "Wann",
+    "cron": "Cron-Ausdruck",
+    "periodDays": "Zeitraum (Tage vor dem Lauf)",
+    "timezone": "Zeitzone",
+    "lang": "Berichtssprache",
+    "classification": "Einstufung",
+    "sections": "Abschnitte",
+    "ownerRights": "Der Bericht läuft mit Ihren Rechten: Er enthält nur, was Sie sehen dürfen. Empfänger sehen den Bericht, nicht die Daten dahinter.",
+    "monitors": "Monitore",
+    "allVisible": "Alle, die Sie sehen dürfen",
+    "slaTarget": "SLA-Ziel (%)",
+    "gatusPlatforms": "Gatus-Plattformen (Metrik-Modus)",
+    "noGatus": "Aktivieren Sie zuerst den Metrik-Modus für eine Gatus-Plattform (Plattform → Metriken).",
+    "dueWithinDays": "Auch Einträge, die fällig werden innerhalb von (Tage)",
+    "processes": "Prozesse",
+    "recordTypes": "Dokumentarten",
+    "allTypes": "Alle Arten",
+    "windowDays": "Änderungsfenster bis (Tage nach dem Zeitraum)",
+    "windowDaysHint": "Geplante Änderungsfenster vom Beginn des Zeitraums bis so viele Tage nach seinem Ende",
+    "recipients": "Empfänger",
+    "users": "Benutzer",
+    "teams": "Teams",
+    "emails": "E-Mail-Adressen",
+    "emailsHint": "Erhalten den Bericht nur per E-Mail (wenn E-Mail eingerichtet ist). Bis zu 20 Adressen; ihre Domain muss unter Einstellungen → Benachrichtigungen erlaubt sein. Nach jeder Adresse Enter drücken.",
+    "attachPdf": "PDF an E-Mails anhängen",
+    "attachPdfHint": "Sonst enthält die E-Mail einen Link (zum Öffnen ist ein Konto nötig).",
+    "enabled": "Aktiv"
+  },
+  "emptyState": {
+    "title": "Noch keine Berichtszeitpläne",
+    "text": "Senden Sie Ihrem Team wöchentlich oder monatlich einen zusammenfassenden PDF-Bericht (Verfügbarkeit, Zugangsdaten, Ausführungen, Dokumente).",
+    "action": "Ersten Berichtszeitplan anlegen"
+  }
+}

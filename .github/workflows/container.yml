@@ -1,0 +1,162 @@
+# Builds the container image (not pushed), creates SBOMs with Syft and scans the
+# image with Grype and Trivy. Runs weekly as well: new advisories for the base
+# image appear without code changes. Details: docs/SECURITY-PIPELINE.md.
+#
+# On tags the SBOMs are kept as the "container-sbom" artifact; release.yml can
+# attach them to the GitHub release.
+name: Container
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    tags: ['v*']
+  pull_request:
+  schedule:
+    - cron: '53 5 * * 1' # Mondays 05:53 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image:
+    name: Build, SBOM and scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read # the SARIF upload reads this workflow run ("Resource not accessible by integration" without it)
+      security-events: write # SARIF upload
+      id-token: write # tags: keyless signing of the provenance attestation (Sigstore)
+      attestations: write
+    env:
+      IMAGE: steward:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build date
+        id: build-date
+        run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}
+          provenance: false
+          pull: true
+          # shown on the About page and in the system status
+          build-args: |
+            SM_BUILD_COMMIT=${{ github.sha }}
+            SM_BUILD_DATE=${{ steps.build-date.outputs.date }}
+      - name: Install Syft, Grype and Trivy
+        run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" syft grype trivy && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: SBOM (Syft – CycloneDX and SPDX)
+        run: |
+          mkdir -p reports
+          syft scan "docker:$IMAGE" --source-name steward --source-version "${GITHUB_REF_NAME//\//-}" \
+            -o cyclonedx-json=reports/sbom.cdx.json -o spdx-json=reports/sbom.spdx.json -o syft-json=reports/sbom.syft.json
+      - name: Grype (fails on high/critical with a fix available)
+        run: |
+          grype "sbom:reports/sbom.syft.json" --only-fixed -o sarif --file reports/grype.sarif || true
+          grype "sbom:reports/sbom.syft.json" --only-fixed --fail-on high -o table
+      - name: Trivy image (fails on high/critical with a fix available)
+        if: ${{ !cancelled() }}
+        run: |
+          trivy image --scanners vuln,secret --ignore-unfixed --severity HIGH,CRITICAL --format sarif --output reports/trivy-image.sarif "$IMAGE"
+          trivy image --scanners vuln,secret --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 --format table "$IMAGE"
+      - name: Upload Grype SARIF
+        if: ${{ !cancelled() && hashFiles('reports/grype.sarif') != '' }}
+        continue-on-error: true # not available for private repositories without GitHub Advanced Security
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: reports/grype.sarif
+          category: grype-image
+      - name: Upload Trivy SARIF
+        if: ${{ !cancelled() && hashFiles('reports/trivy-image.sarif') != '' }}
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: reports/trivy-image.sarif
+          category: trivy-image
+      - name: Keep SBOMs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-sbom
+          path: |
+            reports/sbom.cdx.json
+            reports/sbom.spdx.json
+          if-no-files-found: ignore
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 30 }}
+      # Tags: the image as an OCI archive with signed build provenance and SBOM attestations, so it can be
+      # loaded on an air-gapped host and verified first:
+      #   gh attestation verify steward-image.tar.gz --repo <owner>/<repo>  &&  docker load < steward-image.tar.gz
+      # (when the image is pushed to a registry instead, attest the pushed digest with subject-name/subject-digest
+      # and push-to-registry: true)
+      - name: Export image (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: docker save "$IMAGE" | gzip -n > reports/steward-image.tar.gz
+      - name: Image build provenance attestation (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: reports/steward-image.tar.gz
+      - name: Image SBOM attestation (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: reports/steward-image.tar.gz
+          sbom-path: reports/sbom.cdx.json
+      - name: Keep the attested image (tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-image
+          path: reports/steward-image.tar.gz
+          retention-days: 90
+      - name: Keep scan reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: container-scan-reports
+          path: |
+            reports/*.sarif
+            reports/sbom.syft.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  browser-variant:
+    name: Browser variant builds (WITH_BROWSER=1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the image with Chromium (not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: steward:ci-browser
+          provenance: false
+          pull: true
+          build-args: |
+            WITH_BROWSER=1
+      - name: Chromium starts in the image
+        run: |
+          docker run --rm --entrypoint node steward:ci-browser -e "
+            const { chromium } = require('playwright');
+            chromium.launch({ args: ['--no-sandbox'] }).then(async (b) => { console.log('Chromium', b.version()); await b.close(); });
+          "

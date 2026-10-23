@@ -1,0 +1,97 @@
+name: "Industrial Edge – App version compliance"
+description: |
+  Compares the applications installed on each device with the latest version in
+  the IEM application catalog and lists outdated installations.
+
+  Recommended schedule: daily. Publishes `iem.app-compliance`.
+  Verify against your IEM version: the per-device app listing used here
+  (GET /portal/api/v1/devices/{id}/apps returning data[].applicationId/version)
+  is an assumption – check the Portal API reference of your release and adapt
+  the path/fields. Devices that cannot be queried are reported as "unknown".
+tags: [compliance, apps, devices, dashboard, industrial-edge]
+connections:
+  - slot: iem
+    kind: industrial-edge-management
+steps:
+  - id: setup
+    type: set
+    name: Prepare
+    values:
+      rows: "{{ [] }}"
+  - id: devices
+    type: http
+    name: List devices
+    connection: iem
+    method: GET
+    path: /portal/api/v1/devices
+    saveAs: devices
+  - id: catalog
+    type: http
+    name: Application catalog
+    connection: iem
+    method: GET
+    path: /portal/api/v1/applications
+    saveAs: catalog
+  - id: each
+    type: forEach
+    name: Each device
+    items: "vars.devices.body.data ? vars.devices.body.data : vars.devices.body"
+    as: device
+    steps:
+      - id: installed
+        type: http
+        name: Installed apps
+        connection: iem
+        method: GET
+        path: "/portal/api/v1/devices/{{ vars.device.id }}/apps"
+        onError: continue
+        saveAs: installed
+      - id: compare
+        type: set
+        name: Compare with catalog
+        values:
+          rows: >-
+            {{ (
+              $norm := function($v){ $join($map($split($string($v) & '.0.0', '.')[[0..2]], function($p){ $pad($p, -6, '0') }), '.') };
+              $cat := vars.catalog.body.data ? vars.catalog.body.data : vars.catalog.body;
+              $dev := vars.device;
+              $exists(vars.installed.error)
+                ? $append(vars.rows, [{ "key": $dev.id & '/-', "device": $dev.name, "app": '–', "installed": '–', "latest": '–', "state": 'unknown', "error": vars.installed.error }])
+                : $append(vars.rows, [vars.installed.body.data.(
+                    $app := $;
+                    $latest := $cat[applicationId = $app.applicationId].version;
+                    {
+                      "key": $dev.id & '/' & $app.applicationId,
+                      "device": $dev.name,
+                      "app": $app.title ? $app.title : $app.applicationId,
+                      "installed": $app.version,
+                      "latest": $exists($latest) ? $latest : '–',
+                      "state": $exists($latest) ? ($norm($app.version) >= $norm($latest) ? 'current' : 'behind') : 'not in catalog'
+                    }
+                  )])
+            ) }}
+  - id: publish
+    type: publish
+    name: Publish app compliance
+    dataset: iem.app-compliance
+    title: Edge app versions
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Device, value: device }
+      - { label: Application, value: app }
+      - { label: Installed, value: installed }
+      - { label: Latest, value: latest }
+    status: "state = 'current' ? 'good' : (state = 'behind' ? 'warning' : 'unknown')"
+    statusText: "state = 'behind' ? 'update to ' & latest : ($exists(error) ? 'could not read apps' : state)"
+    metrics:
+      installations: "$count(vars.rows[state != 'unknown'])"
+      outdated: "$count(vars.rows[state = 'behind'])"
+      unknownDevices: "$count(vars.rows[state = 'unknown'])"
+    staleAfterMinutes: 1500
+  - id: check
+    type: check
+    name: All installed apps are current
+    severity: warning
+    condition: "$count(vars.rows[state = 'behind']) = 0"
+    message: "{{ $count(vars.rows[state = 'behind']) }} outdated installation(s)"

@@ -1,0 +1,71 @@
+{
+  "name": "steward",
+  "private": true,
+  "license": "Apache-2.0",
+  "version": "0.1.0",
+  "description": "Steward – repeatable, auditable service procedures for Siemens Insights Hub, Industrial Edge and any REST platform",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": "^24.0.0 || ^26.0.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "demo": "npm run build && cross-env SM_DEMO=1 npm run start -w server",
+    "test": "npm run test -w server",
+    "test:ui": "playwright test",
+    "test:pg": "node scripts/test-pg.mjs",
+    "db:copy": "tsx server/src/cli/db-copy.ts",
+    "typecheck": "tsc -p shared && tsc -p server && tsc -p web && tsc -p e2e",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dev:demo": "cross-env SM_DEMO=1 node scripts/dev.mjs",
+    "validate": "tsx server/src/cli/validate.ts",
+    "openapi": "tsx server/src/cli/openapi.ts",
+    "build:exe": "node scripts/build-exe.mjs",
+    "desktop": "tsx server/src/desktop/launcher.ts",
+    "contract": "tsx server/src/cli/contract.ts",
+    "admin": "tsx server/src/cli/admin.ts",
+    "mcp": "tsx server/src/cli/mcp.ts",
+    "audit:verify-export": "tsx server/src/cli/audit-verify-export.ts",
+    "evidence:verify": "tsx server/src/cli/evidence-verify.ts",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "i18n:literals": "node scripts/i18n-literals.mjs",
+    "prepare": "husky || true"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "~4.10.2",
+    "@eslint/js": "~10.0.1",
+    "@playwright/test": "^1.63.0",
+    "cross-env": "^7.0.3",
+    "esbuild": "^0.28.2",
+    "eslint": "~10.12.0",
+    "eslint-config-prettier": "~10.1.8",
+    "eslint-plugin-react-hooks": "~7.1.1",
+    "globals": "~17.13.0",
+    "husky": "~9.1.7",
+    "lint-staged": "~17.6.0",
+    "postject": "^1.0.0-alpha.6",
+    "prettier": "~3.9.9",
+    "tinypool": "~2.2.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "~8.71.1"
+  },
+  "overrides": {
+    "tinypool": "$tinypool"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "fsevents@2.3.2": false,
+    "fsevents@2.3.3": false
+  }
+}

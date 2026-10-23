@@ -1,0 +1,47 @@
+# Woodpecker CI: the server test suite on PostgreSQL (counterpart of the "test-postgres"
+# job in .github/workflows/ci.yml). Every test server gets its own schema.
+# PostgreSQL runs as a service container, reachable as host "postgres".
+# The password is a throw-away value for this service only (no secret needed).
+
+variables:
+  - &node_image node:24-trixie-slim@sha256:43b9ba1142b8dcf33fa8f922ca1be85714adc444e0586c7cf7726daaeabc1bea
+  # postgres:16.15-bookworm (same major version as docker-compose.postgres.yml)
+  - &postgres_image postgres:16.15-bookworm@sha256:d81f7b51697014367236d07ec58b54153fc28f828b72bf247fe5c7487520bcb0
+  - &code_paths
+    exclude: ['**/*.md', 'LICENSE', 'NOTICE', '.github/**', 'docs/*.svg']
+  - &pg_env
+    SM_TEST_DATABASE_URL: postgres://postgres:postgres@postgres:5432/postgres
+    npm_config_fund: 'false'
+    npm_config_update_notifier: 'false'
+
+when:
+  - event: push
+    branch: [main, 'claude/**']
+    path: *code_paths
+  - event: pull_request
+    path: *code_paths
+  - event: manual
+
+services:
+  - name: postgres
+    image: *postgres_image
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - 5432
+
+steps:
+  - name: install
+    image: *node_image
+    environment: *pg_env
+    commands:
+      - npm ci --no-audit
+
+  - name: test-postgres
+    image: *node_image
+    environment: *pg_env
+    commands:
+      - node scripts/ci/wait-for-postgres.mjs 90
+      # the suite includes browser automation tests (Chromium + system libraries, as in ci.yaml)
+      - npx playwright install --with-deps chromium
+      - npm run test:pg

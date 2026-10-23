@@ -1,0 +1,472 @@
+{
+  "wall": {
+    "back": "Back to the monitors",
+    "title": "Status wall",
+    "problems_one": "{{count}} of {{total}} monitors needs attention",
+    "problems_other": "{{count}} of {{total}} monitors need attention",
+    "allHealthy_one": "The monitor is healthy",
+    "allHealthy_other": "All {{count}} monitors are healthy",
+    "updated": "Updated {{when}}",
+    "fullScreen": "Full screen",
+    "checks_one": "{{count}} check",
+    "checks_other": "{{count}} checks",
+    "uptimeSince": "Uptime 24 h {{uptime}} · since {{since}}",
+    "acknowledgedBy": "acknowledged by {{user}}"
+  },
+  "title": "Monitors",
+  "description": "Composable health checks with dependencies: every check runs on its own schedule; links explain failures (root causes) and keep follow-up alerts quiet.",
+  "new": "New monitor",
+  "tabs": {
+    "monitors": "Monitors",
+    "templates": "Templates",
+    "gateways": "Gateways"
+  },
+  "import": "Import",
+  "list": {
+    "count": "{{count}} {{status}}",
+    "rootCauseLine": "Root cause: {{causes}}",
+    "uptimeLine": "Uptime 24 h {{h24}} · 7 d {{d7}} · {{since}}",
+    "status": "Status",
+    "monitor": "Monitor",
+    "rootCause": "Root cause",
+    "uptime24h": "Uptime 24 h",
+    "uptime7d": "Uptime 7 d",
+    "lastChange": "Last change",
+    "checks": "Checks",
+    "acknowledged": "acknowledged",
+    "disabled": "disabled",
+    "fromTemplate": "from template",
+    "maintenanceLine": "Maintenance: {{reason}}",
+    "filterByStatus": "Filter by status",
+    "noMatch": "No monitors have this status."
+  },
+  "templates": {
+    "intro": "A template is a monitor with parameters (IP address, asset id, cadence …). Create many monitors from it with a form or a CSV file; when the template changes, instances show \"template updated\" and can be re-synced.",
+    "none": "No templates yet. Import \"{{example}}\" from the example library.",
+    "template": "Template",
+    "version": "Version",
+    "instances": "Instances",
+    "newMonitors": "New monitors",
+    "open": "Open template {{name}}"
+  },
+  "gateways": {
+    "notSaved": "Gateway not saved",
+    "intro": "A gateway (for example the plant's IoT gateway) reports many heartbeat checks in one call to <c>{{endpoint}}</c>, mapped by the check key. It has one secret; the allowed keys limit what it may report.",
+    "new": "New gateway",
+    "gateway": "Gateway",
+    "allowedKeys": "Allowed keys",
+    "lastReport": "Last report",
+    "accepted": "Accepted",
+    "line": "secret {{prefix}}… · {{auth}} · {{rate}}/min · owner {{owner}}",
+    "rejected_one": "{{count}} rejected",
+    "rejected_other": "{{count}} rejected",
+    "rotate": "Rotate secret",
+    "rotateFor": "Rotate secret of {{name}}",
+    "rotateConfirm": "Rotate the secret of \"{{name}}\"? The current secret stops working immediately.",
+    "editFor": "Edit {{name}}",
+    "deleteFor": "Delete {{name}}",
+    "deleteConfirm": "Delete gateway \"{{name}}\"? Its reports will be rejected.",
+    "secretTitle": "Secret of \"{{name}}\"",
+    "copyNow": "Copy the secret now",
+    "copyNowText": "It is shown only once. Store it in the gateway's configuration; rotate it if it may have leaked.",
+    "manyInOneCall": "Report many checks in one call",
+    "reportFormat": "Each report: key (the check key), ts (ISO 8601 or Unix time, optional), value, status (up/degraded/down, optional) and data. HMAC mode: add X-Steward-Gateway with the gateway id and X-Steward-Signature.",
+    "stored": "I have stored the secret",
+    "editTitle": "Edit gateway",
+    "allowedCheckKeys": "Allowed check keys",
+    "allowedCheckKeysHint": "Wildcard *, e.g. m17.* – required: a gateway may only report the keys listed here, and only for monitors its owner may edit",
+    "cidrs": "Allowed source addresses",
+    "cidrsHint": "IP or CIDR; empty: any",
+    "callsPerMinute": "Calls per minute",
+    "create": "Create and show secret",
+    "noKeys": "none – nothing is accepted"
+  },
+  "auth": {
+    "short": {
+      "token": "token",
+      "hmac": "hmac",
+      "either": "either"
+    },
+    "mode": {
+      "token": "Static token",
+      "hmac": "HMAC signature",
+      "either": "Either"
+    }
+  },
+  "secrets": {
+    "secret": "Secret",
+    "url": "URL",
+    "title": "Heartbeat secrets",
+    "copyNow": "Copy the secrets now",
+    "copyNowText": "Each secret is shown only once and cannot be recovered. Store it in the reporting system (for example the IoT gateway). If one is lost or leaked, rotate it on the check.",
+    "curl": "Test with curl",
+    "stored": "I have stored the secrets"
+  },
+  "form": {
+    "name": "Name",
+    "description": "Description",
+    "enabled": "Enabled",
+    "interval": "Interval (s)",
+    "timeout": "Timeout (s)",
+    "failuresBeforeDown": "Failures before down",
+    "successesBeforeUp": "Successes before up",
+    "host": "Host",
+    "platform": "Platform",
+    "choosePlatform": "Choose a platform",
+    "noPlatformOfKind": "No platform of kind {{kind}}",
+    "noPlatform": "No platform",
+    "expectedData": "Expected data",
+    "expectedReports": "Expected reports",
+    "cadence": "Regular cadence",
+    "maxAge": "On change (maximum age)",
+    "expectedEvery": "Expected every (s)",
+    "degradedAfterMissed": "Degraded after missed",
+    "intervalsDefault": "intervals (default {{n}})",
+    "downAfterMissed": "Down after missed",
+    "downOlderThan": "Down when older than (s)",
+    "degradedOlderThan": "Degraded when older than (s)",
+    "optional": "optional",
+    "checkId": "Check id",
+    "checkIdHint": "Letters, digits, _ and -; used in links, item keys and the API",
+    "checkIdFixed": "Fixed once saved",
+    "hostOrIp": "Host or IP address",
+    "fallbackPort": "TCP fallback port",
+    "fallbackPortHint": "Used when ICMP is not available (default 80)",
+    "degradedAbove": "Degraded above (ms)",
+    "port": "Port",
+    "method": "Method",
+    "expectedStatus": "Expected status",
+    "certWarning": "Certificate warning (days)",
+    "certWarningHint": "0 = off, default 14",
+    "condition": "Condition (JSONata, optional)",
+    "conditionHttpHint": "Over {{vars}}, e.g. {{example}}",
+    "insecureTls": "Accept self-signed certificates",
+    "useProxy": "Use the proxy from the environment",
+    "path": "Path",
+    "query": "Query parameters",
+    "conditionPlatformHint": "Over {{vars}}; default: HTTP 2xx",
+    "sourceInsightsHub": "Insights Hub time series",
+    "sourcePlatform": "Any platform API",
+    "assetId": "Asset id",
+    "aspect": "Aspect",
+    "variables": "Variables",
+    "variablesHint": "The newest value of each must be fresh; the worst counts",
+    "sharedCall": "Checks on the same asset and aspect share one Insights Hub call per cycle.",
+    "timestamp": "Timestamp (JSONata)",
+    "timestampHint": "Over the response body; a timestamp or a list (the newest counts)",
+    "gatewayKey": "Key for gateway reports",
+    "defaultValue": "Default: {{value}}",
+    "reportCondition": "Condition on the report (JSONata, optional)",
+    "reportConditionHint": "Over {{vars}}, e.g. {{example}}",
+    "statusExpression": "Status from the report (JSONata, optional)",
+    "statusExpressionHint": "Returns up, degraded, down or true/false; default: the report's status field",
+    "authentication": "Authentication",
+    "reportsPerMinute": "Reports per minute",
+    "default60": "default 60",
+    "cidrsHint": "IP or CIDR; empty = any",
+    "endpointKey": "Endpoint key",
+    "endpointKeyHint": "{{pattern}}, e.g. {{example}}",
+    "gatusMaxAge": "Down when the newest result is older than (s)",
+    "gatusRecent": "Degraded on failures in the last N results",
+    "subMonitorHint": "Evaluated on its own schedule; this node shows its aggregated status",
+    "schedule": "Schedule and thresholds",
+    "monitorDefault": "Empty: monitor default",
+    "critical": "Critical (a failure takes the monitor down)",
+    "gatusSource": "Data source",
+    "gatusSourceHint": "Metrics: the state Steward scrapes from Gatus' /metrics (Platform → Metrics). API: Gatus' status API (needs basic auth when Gatus is protected).",
+    "gatusSources": {
+      "auto": "Automatic (metrics when enabled for the platform)",
+      "api": "Gatus status API",
+      "metrics": "Scraped metrics"
+    }
+  },
+  "detail": {
+    "template": "template",
+    "owner": "owner {{owner}}",
+    "since": "since {{date}}",
+    "checkNow": "Check now",
+    "newFromTemplate": "New monitors from template",
+    "edit": "Edit",
+    "moreActions": "More actions",
+    "acknowledgeProblem": "Acknowledge problem",
+    "exportYaml": "Export YAML",
+    "deleteConfirm": "Delete \"{{name}}\" with its history? Heartbeat URLs stop working.",
+    "uptime": "Uptime: {{uptime}}",
+    "acknowledgedBy": "Acknowledged by {{user}} {{when}}",
+    "noComment": "No comment",
+    "remove": "Remove",
+    "templateUpdated": "The template was updated",
+    "templateUpdatedText": "This monitor was created from an older version of its template. Re-sync replaces the definition with the current template version (parameters stay).",
+    "resynced": "Re-synced with the template",
+    "resync": "Re-sync",
+    "disabled": "This monitor is disabled – its checks do not run.",
+    "tabs": {
+      "overview": "Overview",
+      "history": "History",
+      "heartbeats": "Heartbeat setup",
+      "maintenance": "Maintenance",
+      "definition": "Definition",
+      "access": "Access"
+    },
+    "graphHint": "Arrows point from a check to the checks that depend on it. Dashed: soft link (both run; a failing parent explains the child). Solid: hard link (the child is not evaluated while the parent is down). Click a check for details.",
+    "onEvery": "every evaluation",
+    "onChange": "on change",
+    "accessSaved": "Access saved",
+    "check": "Check",
+    "latestResult": "Latest result",
+    "lastCheck": "Last check",
+    "likelyCausedBy": "Likely caused by {{causes}}",
+    "likelyCausedByNoAlert": "Likely caused by {{causes}} – no separate alert is sent for this check.",
+    "lastOkNext": "Last ok: {{lastOk}} · next check: {{next}}",
+    "key": "Key: <c>{{key}}</c>",
+    "openMonitor": "Open \"{{name}}\"",
+    "statusChanges": "Status changes",
+    "latestResults": "Latest results",
+    "configuration": "Configuration",
+    "hiddenMonitor": "a monitor you cannot view",
+    "openHiddenMonitor": "Includes a monitor you cannot view."
+  },
+  "maintenance": {
+    "plan": "Plan maintenance",
+    "window": "Maintenance window",
+    "until": "Until {{date}}: {{reason}} (by {{user}})",
+    "noReason": "no reason given",
+    "endNow": "End now",
+    "none": "No maintenance windows.",
+    "active": "active",
+    "notPlanned": "Maintenance not planned",
+    "title": "Maintenance – {{name}}",
+    "intro": "Checks keep running and their results are recorded, but the monitor shows \"maintenance\", notifications and runbooks are silenced, and the time does not count against uptime.",
+    "start": "Start",
+    "duration": "Duration (hours)",
+    "reason": "Reason"
+  },
+  "outputs": {
+    "title": "Outputs",
+    "types": {
+      "notification": {
+        "label": "Notification (in-app, e-mail, Teams)",
+        "help": "The owner and the subscribers are notified about root causes only; dependent failures are folded into one alert."
+      },
+      "webhook": {
+        "label": "Webhook (JSON)",
+        "help": "POSTs { source, monitor, events[] } with status, status code, root causes and the latest message."
+      },
+      "gatus": {
+        "label": "Gatus external endpoint",
+        "help": "Pushes success/error to POST /api/v1/endpoints/<key>/external with the platform credential \"externalToken\"."
+      },
+      "zabbix": {
+        "label": "Zabbix",
+        "help": "sender: trapper protocol to port 10051 (items of type Zabbix trapper); api: history.push (Zabbix 7.0+, API token). Values: 0 up, 1 degraded, 2 down, 3 unknown, 4 blocked, 5 maintenance."
+      },
+      "process": {
+        "label": "Start a process (runbook)",
+        "help": "Starts the runbook as the monitor owner; inputs are JSONata over { monitor, check, event }."
+      }
+    },
+    "intro": "Outputs send status changes (and optionally every evaluation) to people and other monitoring systems. Placeholders in keys and paths: {{placeholders}}.",
+    "none": "No outputs yet – the status is still available in the API, Prometheus metrics and dashboards.",
+    "remove": "Remove output {{id}}",
+    "subscribers": "Subscribers",
+    "subscribersHint": "{{examples}}; the owner is always notified",
+    "hold": "Hold dependent alerts (s)",
+    "holdHint": "Wait this long so a parent failing a little later still explains the failure (default 0)",
+    "urlHint": "Without credentials; for authenticated targets choose a platform instead",
+    "orPlatform": "or platform",
+    "gatusPlatform": "Gatus platform",
+    "externalKey": "External endpoint key",
+    "tokenCredential": "Token credential",
+    "zabbixPlatform": "Zabbix platform",
+    "protocol": "Protocol",
+    "viaSender": "Sender / trapper (TCP 10051)",
+    "viaApi": "API history.push (7.0+)",
+    "value": "Value",
+    "valueCode": "Numeric code",
+    "valueText": "Status text",
+    "zabbixHost": "Zabbix host",
+    "zabbixHostPlaceholder": "platform variable host",
+    "itemKeyMonitor": "Item key (monitor)",
+    "itemKeyCheck": "Item key (check)",
+    "process": "Process",
+    "inputs": "Inputs (JSONata)",
+    "input": "Input",
+    "connections": "Connections (slot → platform id)",
+    "slot": "Slot",
+    "dryRun": "Dry run",
+    "send": "Send",
+    "onChange": "On change",
+    "onEvery": "Every evaluation",
+    "atMostEvery": "At most every (s)",
+    "subjects": "Subjects",
+    "includeMonitor": "The monitor status",
+    "includeChecks": "Each check",
+    "includeAll": "Monitor and checks",
+    "onlyStatuses": "Only these statuses",
+    "all": "all",
+    "onlyChecks": "Only these checks",
+    "add": "Add output",
+    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs."
+  },
+  "heartbeat": {
+    "endpoint": "Heartbeat endpoint",
+    "line": "{{auth}} · secret {{prefix}}… · last report {{when}}",
+    "testSent": "Test report sent",
+    "sendTest": "Send test report",
+    "rotateConfirm": "Rotate the secret? The reporting system must use the new one right away.",
+    "setupIntro": "Heartbeat checks are fed by another system, for example the IoT gateway: either one call per check with that check's secret, or one call for many checks with a gateway secret (Monitors → Gateways), mapped by the check key. A missing report turns the check down without any request. Body (JSON, max. 64 KB): status (optional: up, degraded, down or true/false), value, ts (ISO 8601 or Unix time) and data.",
+    "oneCheck": "One check (curl)",
+    "gatewayKey": "Gateway key: <c>{{key}}</c> · secret {{prefix}}… (shown only when created or rotated)",
+    "manyChecks": "Many checks in one call (gateway)",
+    "manageGateways": "Manage gateways"
+  },
+  "history": {
+    "time": "Time",
+    "change": "Change",
+    "message": "Message",
+    "result": "Result",
+    "duration": "Duration"
+  },
+  "editor": {
+    "notSaved": "Monitor not saved",
+    "editTitle": "Edit {{name}}",
+    "description": "Add checks from the palette and connect them: drag from the lower handle of a check to the check that depends on it.",
+    "tabs": {
+      "graph": "Checks and links",
+      "settings": "Settings"
+    },
+    "palette": "Check palette",
+    "link": "Link",
+    "soft": "Soft",
+    "hard": "Hard",
+    "linkHint": "Soft: both checks run; when both fail, the dependent check is reported as \"likely caused by\" the other and no separate alert is sent. Hard: the dependent check is not evaluated (blocked) while this one is down.",
+    "removeLink": "Remove link",
+    "selectHint": "Select a check to edit it, or click a link to change it.",
+    "startHint": "Start with a check from the palette.",
+    "key": "Key",
+    "keyHint": "Stable identifier for integrations (Zabbix item keys, LLD, Prometheus, heartbeat keys); default from the name",
+    "tags": "Tags",
+    "failuresHint": "Consecutive failing results",
+    "aggregate": "Monitor status",
+    "rules": {
+      "worst": "Worst check",
+      "critical": "Worst critical check (others only degrade)",
+      "quorum": "Quorum: k of n critical checks up"
+    },
+    "quorum": "k (checks that must be up)",
+    "isTemplate": "This is a template (parameters as {{example}}, edited as YAML)",
+    "templateYaml": "Templates are edited as YAML: {{example}} placeholders may stand anywhere, also where numbers are expected. They are replaced when monitors are created from the template.",
+    "yamlSource": "YAML source",
+    "apply": "Apply"
+  },
+  "graph": {
+    "nonCritical": "non-critical",
+    "hard": "hard",
+    "softLinkAria": "soft link from {{from}} to {{to}}",
+    "hardLinkAria": "hard link from {{from}} to {{to}}"
+  },
+  "acknowledge": {
+    "title": "Acknowledge – {{name}}",
+    "intro": "Tells others that someone is working on the problem. Further notifications of this monitor are held back until it is up again.",
+    "comment": "Comment",
+    "button": "Acknowledge"
+  },
+  "instances": {
+    "notCreated": "Instances not created",
+    "title": "New monitors from \"{{name}}\"",
+    "one": "One monitor",
+    "csv": "Many from CSV",
+    "csvHint": "One line per monitor. Columns: the parameter names, plus optional \"name\" and \"key\". Comma or semicolon separated; the first line is the header.",
+    "loadCsv": "Load a CSV file",
+    "create": "Create"
+  },
+  "importDialog": {
+    "failed": "Import failed",
+    "title": "Import a monitor",
+    "library": "From the example library",
+    "choose": "Choose an example",
+    "templateName": "{{name}} (template)",
+    "importExample": "Import example",
+    "paste": "Or paste YAML",
+    "loadFile": "Load a file",
+    "importYaml": "Import YAML"
+  },
+  "status": {
+    "up": "Up",
+    "degraded": "Degraded",
+    "down": "Down",
+    "unknown": "Unknown",
+    "blocked": "Blocked",
+    "maintenance": "Maintenance"
+  },
+  "statusLower": {
+    "up": "up",
+    "degraded": "degraded",
+    "down": "down",
+    "unknown": "unknown",
+    "blocked": "blocked",
+    "maintenance": "maintenance"
+  },
+  "statusInfo": {
+    "up": "Healthy",
+    "degraded": "Warning threshold reached",
+    "down": "Failing",
+    "unknown": "No data yet, or the check itself could not run",
+    "blocked": "Not evaluated because a hard dependency is down",
+    "maintenance": "In a maintenance window – alerts are silenced"
+  },
+  "checkTypes": {
+    "ping": {
+      "label": "Ping",
+      "help": "ICMP echo via the system ping command; falls back to a TCP connect when ping is not available"
+    },
+    "tcp": {
+      "label": "TCP port",
+      "help": "Opens a TCP connection to host:port"
+    },
+    "http": {
+      "label": "HTTP(S)",
+      "help": "Calls a URL: expected status, JSONata condition on the body, response time, TLS certificate expiry"
+    },
+    "platform": {
+      "label": "Platform API",
+      "help": "Calls an operation through a configured platform (its authentication, base URL and retries)"
+    },
+    "freshness": {
+      "label": "Data freshness",
+      "help": "Latest timestamp of a data source must be recent: expected cadence or maximum age (Insights Hub time series preset)"
+    },
+    "heartbeat": {
+      "label": "Heartbeat (push)",
+      "help": "Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down"
+    },
+    "gatus": {
+      "label": "Gatus endpoint",
+      "help": "Status of an endpoint monitored by Gatus"
+    },
+    "monitor": {
+      "label": "Sub-monitor",
+      "help": "The aggregated status of another monitor (evaluated on its own schedule)"
+    }
+  },
+  "newCheck": {
+    "ping": "Host reachable",
+    "tcp": "Port open",
+    "http": "HTTP endpoint",
+    "platform": "Platform API",
+    "freshness": "Data in Insights Hub",
+    "heartbeat": "Data reported by the gateway",
+    "gatus": "Gatus endpoint",
+    "monitor": "Sub-monitor"
+  },
+  "uptime": {
+    "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"
+  },
+  "emptyState": {
+    "title": "No monitors yet",
+    "text": "Monitors you may see will show up here.",
+    "textCreate": "Watch devices, APIs and data flows with composable checks. Create a monitor, or import an example from the library.",
+    "action": "Create your first monitor",
+    "import": "Import an example"
+  }
+}

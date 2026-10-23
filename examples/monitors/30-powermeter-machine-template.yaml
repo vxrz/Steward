@@ -1,0 +1,71 @@
+# Template for many machines with a PowerMeter (20–30 at a plant): create instances
+# under Monitors → Templates with a form or a CSV upload, e.g.
+#   name,machine,pmHost,pmPort,pmAssetId,machineAssetId
+#   Machine 18 – PowerMeter,m18,10.20.18.5,502,dbfa9e622382fa83e88a45aadfd71b1e,85f82206529dc06be0d931dad284d778
+# {{ params.x }} is replaced once when an instance is created; "Re-sync" applies a
+# newer template version to an instance.
+kind: monitorTemplate
+key: powermeter-machine
+name: "{{ params.title }}"
+description: "PowerMeter {{ params.pmHost }} and the machine data of {{ params.machine }}, both through the IoT gateway and Insights Hub."
+tags: [iot]
+intervalSeconds: 60
+parameters:
+  - { name: title, label: Monitor name, description: "e.g. Machine 18 – PowerMeter" }
+  - { name: machine, label: Machine code, description: "Prefix of the heartbeat keys, e.g. m18 → m18.powermeter, m18.machine" }
+  - { name: pmHost, label: PowerMeter IP address }
+  - { name: pmPort, label: PowerMeter TCP port (ping fallback), type: number, default: 502 }
+  - { name: pmAssetId, label: Insights Hub asset of the PowerMeter }
+  - { name: machineAssetId, label: Insights Hub asset of the machine }
+  - { name: pmCadence, label: PowerMeter cadence (s), type: number, default: 60 }
+  - { name: machineMaxAge, label: Maximum age of machine data (s), type: number, default: 600 }
+checks:
+  - { id: pm-reachable, name: PowerMeter reachable, type: ping, host: "{{ params.pmHost }}", fallbackPort: "{{ params.pmPort }}", x: 0, y: 0 }
+  - id: pm-reports
+    name: PowerMeter data reported by the gateway
+    type: heartbeat
+    key: "{{ params.machine }}.powermeter"
+    mode: cadence
+    expectedIntervalSeconds: "{{ params.pmCadence }}"
+    condition: "value > 0"
+    x: -160
+    y: 160
+  - id: pm-ih
+    name: PowerMeter data in Insights Hub
+    type: freshness
+    platform: Insights Hub
+    assetId: "{{ params.pmAssetId }}"
+    aspect: Energy
+    variables: [activePower]
+    mode: cadence
+    expectedIntervalSeconds: "{{ params.pmCadence }}"
+    degradedAfterMissed: 3
+    downAfterMissed: 6
+    x: -160
+    y: 320
+  - id: machine-reports
+    name: Machine data reported by the gateway
+    type: heartbeat
+    key: "{{ params.machine }}.machine"
+    mode: maxAge
+    maxAgeSeconds: "{{ params.machineMaxAge }}"
+    x: 160
+    y: 160
+  - id: machine-ih
+    name: Machine data in Insights Hub
+    type: freshness
+    platform: Insights Hub
+    assetId: "{{ params.machineAssetId }}"
+    aspect: MachineData
+    variables: [spindleSpeed]
+    mode: maxAge
+    maxAgeSeconds: "{{ params.machineMaxAge + 300 }}"
+    x: 160
+    y: 320
+links:
+  - { from: pm-reachable, to: pm-reports }
+  - { from: pm-reports, to: pm-ih }
+  - { from: pm-reachable, to: machine-reports }
+  - { from: machine-reports, to: machine-ih }
+outputs:
+  - { id: notify, type: notification, subscribers: ["role:operator"] }

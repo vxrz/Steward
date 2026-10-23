@@ -1,0 +1,82 @@
+{
+  "center": {
+    "title": "Benachrichtigungen",
+    "labelUnread_one": "Benachrichtigungen ({{count}} ungelesen)",
+    "labelUnread_other": "Benachrichtigungen ({{count}} ungelesen)",
+    "unread_one": "{{count}} ungelesen",
+    "unread_other": "{{count}} ungelesen",
+    "markAllRead": "Alle als gelesen markieren",
+    "settings": "Benachrichtigungseinstellungen",
+    "unavailable": "Benachrichtigungen sind auf diesem Server nicht verfügbar.",
+    "empty": "Keine neuen Benachrichtigungen.",
+    "unreadItem": "Ungelesen: {{title}}"
+  },
+  "events": {
+    "task": {
+      "assigned": {
+        "label": "Entscheidung",
+        "info": "Eine Ausführung wartet auf eine Entscheidung, die Sie treffen dürfen"
+      }
+    },
+    "run": {
+      "failed": {
+        "label": "Ausführung fehlgeschlagen",
+        "info": "Eine von Ihnen gestartete Ausführung (oder eine geplante Ausführung, deren Eigentümer Sie sind) ist fehlgeschlagen"
+      }
+    },
+    "check": {
+      "failed": {
+        "label": "Prüfung fehlgeschlagen",
+        "info": "Eine Prüfung ist in einer von Ihnen gestarteten Ausführung oder einem Ihrer Prozesse fehlgeschlagen"
+      }
+    },
+    "dataset": {
+      "stale": {
+        "label": "Veraltete Daten",
+        "info": "Dashboard-Daten, die Sie liefern, sind älter als ihre Aktualitätsgrenze"
+      }
+    },
+    "schedule": {
+      "skipped": {
+        "label": "Zeitplan übersprungen",
+        "info": "Ein Zeitplan, dessen Eigentümer Sie sind, wurde übersprungen (fehlende Rechte, läuft noch …)"
+      }
+    },
+    "monitor": {
+      "status": {
+        "label": "Monitor-Status",
+        "info": "Ein Monitor, den Sie besitzen oder abonniert haben, hat seinen Status geändert (nur Ursachen)"
+      }
+    },
+    "credential": {
+      "due": {
+        "label": "Zugangsdaten fällig",
+        "info": "Zugangsdaten, deren Eigentümer Sie sind, laufen bald ab oder müssen rotiert oder überprüft werden (oder sind überfällig)"
+      }
+    },
+    "report": {
+      "ready": {
+        "label": "Bericht erstellt",
+        "info": "Ein geplanter Bericht, den Sie erhalten, wurde erstellt"
+      }
+    },
+    "ticket": {
+      "unchecked": {
+        "label": "Ticket nicht geprüft",
+        "info": "Eine offene Ticket-Referenz in Ihrer Verantwortung wurde länger nicht geprüft"
+      }
+    },
+    "summary": {
+      "daily": {
+        "label": "Tageszusammenfassung",
+        "info": "Die Tageszusammenfassung für Personen, die sie in ihrem Profil eingeschaltet haben (nur in der App und per E-Mail)"
+      }
+    },
+    "access": {
+      "undocumented": {
+        "label": "Undokumentierter Zugriff",
+        "info": "Der Zugriffsabgleich hat Zugriffsänderungen ohne Eintrag gefunden"
+      }
+    }
+  }
+}

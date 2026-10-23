@@ -1,0 +1,128 @@
+name: "Insights Hub – Access review 1: flag inactive users"
+description: |
+  Phase 1 of the user housekeeping procedure. Lists all users, finds those who
+  have not logged in for the configured number of days and – after you confirm
+  the selection – adds them to a review group (e.g. mdsp_usergroup:AccessReview).
+  Run "Access review 2" later to decide who keeps access.
+
+  Note: the last-login attribute `lastLogonTime` is returned by the Insights Hub
+  user API but is not part of the official spec. Verify it with a dry run on
+  your tenant and adjust the "Determine inactive users" step if needed.
+tags: [housekeeping, users, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+    description: Insights Hub tenant
+inputs:
+  - name: inactiveDays
+    label: Days without login
+    type: number
+    default: 90
+    required: true
+  - name: reviewGroup
+    label: Review group (display name)
+    type: string
+    default: mdsp_usergroup:AccessReview
+    required: true
+  - name: includeNeverLoggedIn
+    label: Include users that never logged in
+    type: boolean
+    default: true
+  - name: exempt
+    label: Exempt users (user names, one per line)
+    type: list
+    description: Technical or break-glass accounts that must never be flagged.
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: listUsers
+    type: http
+    name: List all users
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Users"
+    paginate:
+      mode: scim
+      pageSize: 100
+    saveAs: users
+  - id: findGroup
+    type: http
+    name: Find review group
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    query:
+      filter: 'displayName eq "{{ inputs.reviewGroup }}"'
+    saveAs: groupResult
+  - id: groupExists
+    type: check
+    name: Review group exists
+    condition: "$count(vars.groupResult.body.resources) = 1"
+    message: "Review group {{ inputs.reviewGroup }}: {{ $count(vars.groupResult.body.resources) = 1 ? 'found' : 'not found – create it first' }}"
+    failRun: true
+  - id: candidates
+    type: set
+    name: Determine inactive users
+    values:
+      group: "{{ vars.groupResult.body.resources[0] }}"
+      alreadyFlagged: "{{ $count(vars.users.body[$inputs.reviewGroup in groups.display]) }}"
+      inactive: >-
+        {{ vars.users.body[
+             $not(userName in $inputs.exempt)
+             and $not($inputs.reviewGroup in groups.display)
+             and ($exists(lastLogonTime)
+                   ? $daysSince(lastLogonTime) >= $inputs.inactiveDays
+                   : $inputs.includeNeverLoggedIn)
+           ][] }}
+  - id: confirm
+    type: userTask
+    name: Confirm users to flag
+    when: "$count(vars.inactive) > 0"
+    mode: select
+    title: "Flag {{ $count(vars.inactive) }} inactive user(s) for access review"
+    instructions: |
+      These users have not logged in for at least **{{ inputs.inactiveDays }} days**.
+      Selected users will be added to `{{ inputs.reviewGroup }}`. Untick anyone who should be left alone.
+    items: vars.inactive
+    itemKey: id
+    columns:
+      - { label: User, value: userName }
+      - { label: Name, value: "name.givenName & ' ' & name.familyName" }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
+      - { label: Groups, value: "$join(groups.display, ', ')" }
+    preselect: "true"
+    saveAs: decision
+  - id: flag
+    type: forEach
+    name: Add selected users to review group
+    when: "$count(vars.decision.selected) > 0"
+    items: vars.decision.selected
+    as: user
+    steps:
+      - id: addMember
+        type: http
+        name: Add to review group
+        connection: hub
+        method: POST
+        path: "{{ vars.idm }}/Groups/{{ vars.group.id }}/members"
+        body:
+          type: USER
+          value: "{{ vars.user.id }}"
+        expectStatus: [200, 201, 409]
+  - id: summary
+    type: report
+    name: Summary
+    title: Users flagged for access review
+    text: |
+      - Users checked: **{{ $count(vars.users.body) }}**
+      - Already in review group: **{{ vars.alreadyFlagged }}**
+      - Inactive candidates (>= {{ inputs.inactiveDays }} days): **{{ $count(vars.inactive) }}**
+      - Flagged now: **{{ $count(vars.decision.selected) }}**{{ run.dryRun ? ' (dry run – nothing changed)' : '' }}
+    rows: vars.decision.selected
+    columns:
+      - { label: User, value: userName }
+      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }

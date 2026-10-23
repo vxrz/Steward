@@ -1,0 +1,43 @@
+name: "Building block – Resolve an Insights Hub group"
+description: |
+  Reusable sub-process: looks up a user group or role by its display name and
+  returns its id and members. Other processes call it with a "Run sub-process"
+  step (see #91) and read the result from the step's outputs:
+  `found`, `groupId`, `memberIds`, `memberCount`. Read-only.
+
+  Import this template together with the processes that call it.
+tags: [building-block, subprocess, groups, insights-hub]
+connections:
+  - slot: hub
+    kind: insights-hub
+inputs:
+  - name: groupName
+    label: Group / role display name
+    type: string
+    default: mdsp_usergroup:Operators
+outputs:
+  found: "$count(vars.group.body.resources) > 0"
+  groupId: "vars.group.body.resources[0].id"
+  memberIds: "[vars.group.body.resources[0].members.value]"
+  memberCount: "$count(vars.group.body.resources[0].members)"
+steps:
+  - id: setup
+    type: set
+    name: Resolve API paths
+    values:
+      idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
+  - id: lookup
+    type: http
+    name: Find group by name
+    connection: hub
+    method: GET
+    path: "{{ vars.idm }}/Groups"
+    query:
+      filter: 'displayName eq "{{ inputs.groupName }}"'
+    saveAs: group
+  - id: found
+    type: check
+    name: Group exists
+    severity: warning
+    condition: "$count(vars.group.body.resources) = 1"
+    message: "{{ $count(vars.group.body.resources) = 1 ? inputs.groupName & ': ' & $count(vars.group.body.resources[0].members) & ' member(s)' : 'No group named ' & inputs.groupName }}"

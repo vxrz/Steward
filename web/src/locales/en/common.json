@@ -1,0 +1,139 @@
+{
+  "add": "Add",
+  "remove": "Remove",
+  "copy": "Copy",
+  "copied": "Copied",
+  "name": "Name",
+  "value": "Value",
+  "status": {
+    "queued": "queued",
+    "running": "running",
+    "waiting": "waiting",
+    "succeeded": "succeeded",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "interrupted": "interrupted",
+    "skipped": "skipped",
+    "dryrun": "dry run",
+    "open": "open",
+    "completed": "completed"
+  },
+  "footer": {
+    "madeWith": "Made with <heart>❤️</heart> in Erlangen, Germany",
+    "love": "love",
+    "builtBy": "Designed & built by <author>{{author}}</author> with AI",
+    "openSource": "Open source ({{license}})",
+    "onGithub": "{{brand}} on GitHub",
+    "rake": "Franconian rake",
+    "rakeTitle": "Franconian rake (Fränkischer Rechen)",
+    "version": "{{brand}} {{version}}",
+    "about": "About {{brand}}"
+  },
+  "roles": {
+    "admin": "admin",
+    "designer": "designer",
+    "operator": "operator",
+    "approver": "approver",
+    "auditor": "auditor",
+    "viewer": "viewer"
+  },
+  "roleInfo": {
+    "admin": "Everything: users, teams, platforms and credentials, settings, all processes",
+    "designer": "Create processes; edit and run processes (unless restricted)",
+    "operator": "Run and schedule processes (unless restricted)",
+    "approver": "Decide approvals and user tasks",
+    "auditor": "Read-only access to all processes, runs, protocols and the audit log",
+    "viewer": "Read-only access to processes and their runs (unless restricted)"
+  },
+  "loading": "Loading…",
+  "severity": {
+    "error": "error",
+    "warning": "warning",
+    "info": "info"
+  },
+  "subjects": {
+    "team": "Team {{name}}",
+    "role": "Role: {{role}}"
+  },
+  "cancel": "Cancel",
+  "save": "Save",
+  "delete": "Delete",
+  "close": "Close",
+  "edit": "Edit",
+  "back": "Back",
+  "yes": "Yes",
+  "no": "No",
+  "permissions": {
+    "view": "view",
+    "run": "run",
+    "edit": "edit",
+    "approve": "approve",
+    "manage": "manage",
+    "use": "use",
+    "acknowledge": "acknowledge"
+  },
+  "breadcrumb": "Breadcrumb",
+  "loadFailed": "Could not load this page",
+  "retry": "Try again",
+  "filters": "Filters",
+  "filtersActive_one": "Filters ({{count}} active)",
+  "filtersActive_other": "Filters ({{count}} active)",
+  "confirm": {
+    "delete": {
+      "title": "Confirm deletion",
+      "button": "Delete"
+    },
+    "archive": {
+      "title": "Confirm archiving",
+      "button": "Archive"
+    },
+    "remove": {
+      "title": "Confirm removal",
+      "button": "Remove"
+    },
+    "revoke": {
+      "title": "Revoke access",
+      "button": "Revoke"
+    },
+    "rotate": {
+      "title": "Rotate the secret",
+      "button": "Rotate secret"
+    },
+    "reset": {
+      "title": "Confirm reset",
+      "button": "Reset"
+    },
+    "lockVault": {
+      "title": "Lock the vault",
+      "button": "Lock vault"
+    },
+    "discard": {
+      "title": "Discard changes",
+      "button": "Discard"
+    },
+    "cleanup": {
+      "title": "Delete old data",
+      "button": "Delete now"
+    },
+    "confirm": {
+      "title": "Please confirm",
+      "button": "Confirm"
+    }
+  },
+  "table": {
+    "sortBy": "Sort by",
+    "sortedAsc": "Ascending – switch to descending",
+    "sortedDesc": "Descending – switch to ascending",
+    "showingOf": "Showing {{shown}} of {{total}}",
+    "showingFirst_one": "Showing the first entry",
+    "showingFirst_other": "Showing the first {{count}} entries",
+    "showingAll_one": "{{count}} entry",
+    "showingAll_other": "{{count}} entries",
+    "loadMore": "Load more"
+  },
+  "validation": {
+    "required": "Required",
+    "requiredOne": "Choose at least one",
+    "invalid": "Not valid"
+  }
+}

@@ -1,0 +1,40 @@
+# Machine data of Machine 17, pushed by the IoT gateway and forwarded to Insights Hub.
+# It is its own monitor (own schedule and status), so it keeps working when the
+# PowerMeter monitor breaks – "Machine 17 – PowerMeter" includes it as a sub-monitor.
+# Replace the asset id with your own; the platform is resolved by name, or the only
+# Insights Hub platform is used.
+kind: monitor
+key: machine-17-machine-data
+name: Machine 17 – machine data
+description: The machine reports on change only, so both checks use a maximum age instead of a cadence.
+tags: [machine-17, iot]
+intervalSeconds: 60
+failuresBeforeDown: 2
+checks:
+  - id: machine-reports
+    name: Machine data reported by the gateway
+    type: heartbeat
+    key: m17.machine
+    mode: maxAge
+    maxAgeSeconds: 600
+    degradedAgeSeconds: 420
+    x: 0
+    y: 0
+  - id: machine-ih
+    name: Machine data in Insights Hub
+    type: freshness
+    source: insightsHub
+    platform: Insights Hub
+    assetId: 1ae6b74eebc51efc3d04f73c3ca5e5d3
+    aspect: MachineData
+    variables: [spindleSpeed]
+    mode: maxAge
+    maxAgeSeconds: 900
+    x: 0
+    y: 160
+links:
+  - { from: machine-reports, to: machine-ih }
+outputs:
+  - id: notify
+    type: notification
+    subscribers: [role:operator]

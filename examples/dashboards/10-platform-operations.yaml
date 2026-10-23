@@ -1,0 +1,28 @@
+name: Platform operations
+description: Daily overview of Insights Hub and Industrial Edge – users, data, devices and service health. Fed by the inventory, freshness, optimization and health-check processes.
+refreshSeconds: 60
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Platform operations** – all figures come from scheduled processes (hourly inventories, 15-minute health checks).
+      Opening this page never calls the platforms. Use *Refresh* to re-run the feeding processes now.
+  - { id: ihUsers, type: kpi, title: Insights Hub users, dataset: ih.users, metric: total, width: 3, days: 30 }
+  - { id: ihInactive, type: kpi, title: Inactive users (90+ days), dataset: ih.users, metric: inactive90, goodWhen: down, width: 3 }
+  - { id: ihAdmins, type: kpi, title: Users with admin role, dataset: ih.users, metric: admins, goodWhen: down, width: 3 }
+  - { id: ihSaving, type: kpi, title: Attribute saving potential, dataset: ih.attribute-optimization, metric: potentialSavings, goodWhen: down, width: 3 }
+  - { id: iemOnline, type: kpi, title: Edge devices online, dataset: iem.devices, metric: online, goodWhen: up, width: 3 }
+  - { id: iemOffline, type: kpi, title: Edge devices offline, dataset: iem.devices, metric: offline, goodWhen: down, width: 3 }
+  - { id: iemOutdated, type: kpi, title: Outdated firmware, dataset: iem.devices, metric: outdated, goodWhen: down, width: 3 }
+  - { id: ihStale, type: kpi, title: Stale data streams, dataset: ih.data-freshness, metric: stale, goodWhen: down, width: 3 }
+  - { id: usersTrend, type: trend, title: Users over time, dataset: ih.users, metrics: [total, inactive90], days: 30, width: 6 }
+  - { id: devicesTrend, type: trend, title: Edge devices over time, dataset: iem.devices, metrics: [online, offline], days: 30, width: 6 }
+  - { id: devStatus, type: status, title: Edge device status, dataset: iem.devices, width: 4 }
+  - { id: dataStatus, type: status, title: Data freshness, dataset: ih.data-freshness, width: 4 }
+  - { id: userStatus, type: status, title: User activity, dataset: ih.users, width: 4 }
+  - { id: devProblems, type: table, title: Devices needing attention, dataset: iem.devices, problemsOnly: true, width: 6 }
+  - { id: dataProblems, type: table, title: Stale or missing data, dataset: ih.data-freshness, problemsOnly: true, limit: 20, width: 6 }
+  - { id: privileged, type: table, title: Privileged access (last review), dataset: ih.privileged, width: 12 }
+  - { id: health, type: checks, title: Insights Hub health check, process: ih-health-check, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness of this dashboard, width: 6 }

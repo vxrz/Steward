@@ -1,0 +1,93 @@
+{
+  "title": "Dashboard",
+  "description": "What needs your attention, what is running and what is planned.",
+  "demoAccounts": {
+    "title": "Demo accounts created",
+    "text": "Sign in as <b>{{users}}</b> with the password <code>{{password}}</code> to see the roles in action (dana = designer, olivia = operator, adam = approver, audrey = auditor, vera = viewer; olivia and adam form the team “Service Desk”)."
+  },
+  "getStarted": {
+    "title": "Get started",
+    "step1": "1. Add a <a>platform</a> (Insights Hub tenant, Industrial Edge Management, any REST API) with its credentials and API spec.",
+    "step2": "2. Create a <a>process</a> from a template or from scratch.",
+    "step3": "3. Run it (start with a dry run) or <a>schedule</a> it.",
+    "loadDemo": "Load demo platforms & processes",
+    "demoLoaded": "Loaded {{platforms}} demo platforms and {{processes}} processes"
+  },
+  "counts": {
+    "label": "What needs your attention",
+    "name": "{{label}}: {{value}} – {{detail}}",
+    "allQuiet": "All quiet",
+    "tasks": "Waiting for you",
+    "tasksDetail": "Approvals and decisions",
+    "failedRuns": "Failed runs (24 h)",
+    "ofRuns_one": "of {{count}} run",
+    "ofRuns_other": "of {{count}} runs",
+    "runsQuiet_one": "All quiet · {{count}} run",
+    "runsQuiet_other": "All quiet · {{count}} runs",
+    "monitorsDown": "Monitors down",
+    "degraded_one": "{{count}} degraded",
+    "degraded_other": "{{count}} degraded",
+    "noneDegraded": "none degraded",
+    "credentialsDue": "Credentials due",
+    "credentialsSplit": "{{overdue}} overdue · {{dueSoon}} due soon",
+    "findings": "Undocumented access changes",
+    "findingsDetail": "Open findings to document",
+    "vendorTickets": "Waiting on vendors",
+    "oldest_one": "oldest {{count}} day",
+    "oldest_other": "oldest {{count}} days",
+    "oldestToday": "oldest opened today"
+  },
+  "waiting": "Waiting for your decision",
+  "failedChecks": "Failed checks (last 7 days)",
+  "recentRuns": "Recent runs",
+  "upcoming": "Upcoming",
+  "nothingScheduled": "Nothing scheduled. <a>Plan a process</a>.",
+  "upcomingLine": "{{process}} · {{date}} ({{relative}})",
+  "upcomingLineDryRun": "{{process}} · {{date}} ({{relative}}) · dry run",
+  "checklist": {
+    "title": "Get started",
+    "hide": "Hide the getting-started checklist",
+    "progressLabel": "Setup progress",
+    "progress": "{{done}} of {{total}} done",
+    "doneSr": "(done)",
+    "steps": {
+      "platform": {
+        "title": "Add a platform",
+        "text": "An Insights Hub tenant, an Industrial Edge Management or any REST API, with its credentials and API spec."
+      },
+      "process": {
+        "title": "Create a process",
+        "text": "Start from a template (health checks, access reviews, inventory) or build your own flow."
+      },
+      "run": {
+        "title": "Start a dry run",
+        "text": "A dry run simulates every change and writes the full protocol – nothing is changed on the platform."
+      },
+      "schedule": {
+        "title": "Schedule a process",
+        "text": "Let health checks and reviews run on their own, e.g. every Monday morning."
+      },
+      "monitor": {
+        "title": "Watch a system with a monitor",
+        "text": "Composable uptime checks with root causes, maintenance windows and alerts."
+      },
+      "credential": {
+        "title": "Document your credentials",
+        "text": "Where each credential is kept, who owns it and when it expires – never the secret itself."
+      },
+      "users": {
+        "title": "Invite your team",
+        "text": "Add users or connect single sign-on; roles decide what everybody may do."
+      },
+      "report": {
+        "title": "Send a summary report",
+        "text": "A weekly or monthly PDF for the service meeting: availability, credentials, runs and records."
+      }
+    },
+    "discover": "Also worth knowing:",
+    "discoverTokens": "API tokens for scripts and AI assistants (MCP)",
+    "discoverWall": "monitor status wall",
+    "discoverSearch": "search everything with",
+    "shortcutCtrlK": "Ctrl K"
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "title": "Ticket references",
+  "description": "Tickets in other systems that the team keeps an eye on: incidents users reported through ServiceNow, and tickets with the vendors of the platforms and services we use. Steward only documents them – the ticket itself is handled where it lives.",
+  "new": "New ticket reference",
+  "editTitle": "Edit {{number}}",
+  "saved": "Ticket reference saved",
+  "deleted": "Ticket reference deleted",
+  "deleteConfirm": "Delete the ticket reference {{number}}? Its history is removed; the audit log keeps it.",
+  "status": {
+    "open": "Open",
+    "waitingVendor": "Waiting for vendor",
+    "waitingUs": "Waiting for us",
+    "resolved": "Resolved",
+    "closed": "Closed"
+  },
+  "sources": {
+    "servicenow-incident": "ServiceNow incident",
+    "servicenow-other": "ServiceNow (other)",
+    "vendor": "Vendor ticket",
+    "other": "Other"
+  },
+  "fields": {
+    "source": "Source",
+    "externalNumber": "Number",
+    "externalUrl": "Link",
+    "title": "Title",
+    "note": "Note",
+    "vendor": "Vendor",
+    "responsible": "Responsible on our side",
+    "status": "Status",
+    "openedAt": "Opened",
+    "resolvedAt": "Resolved",
+    "lastCheckedAt": "Last checked",
+    "affected": "Affected items",
+    "reminder": "Reminder",
+    "age": "Age",
+    "comment": "Comment"
+  },
+  "hints": {
+    "externalNumber": "As in the other system, e.g. INC0012345 or the vendor's case number",
+    "externalUrl": "http(s) link to the ticket in the other system",
+    "note": "Short note in Markdown: what it is about, what was agreed",
+    "vendor": "Pick a vendor of an earlier entry or type a new one",
+    "responsible": "Steward users and teams who look after it. They may edit the entry and get the reminders.",
+    "responsibleSelf": "You edit this entry as one of the responsible people: keep yourself or your team in the list.",
+    "statusComment": "Shown in the history of the entry",
+    "openedAt": "When the ticket was opened in the other system"
+  },
+  "reminder": {
+    "default": "Default ({{label}})",
+    "off": "Off for this entry",
+    "days": "Custom",
+    "daysLabel": "Remind after this many days without a check",
+    "defaultOff": "off",
+    "defaultDays_one": "after {{count}} day",
+    "defaultDays_other": "after {{count}} days",
+    "summary_one": "Reminds after {{count}} day without a check",
+    "summary_other": "Reminds after {{count}} days without a check",
+    "none": "No reminder"
+  },
+  "filters": {
+    "search": "Search",
+    "state": "Show",
+    "states": {
+      "open": "Open tickets",
+      "closed": "Resolved and closed",
+      "all": "All"
+    },
+    "status": "Status",
+    "allStatuses": "Any status",
+    "source": "Source",
+    "allSources": "All sources",
+    "vendor": "Vendor",
+    "allVendors": "All vendors",
+    "service": "Service",
+    "allServices": "All services",
+    "responsible": "Responsible",
+    "anyone": "Anyone",
+    "me": "Me (or my teams)",
+    "minAge": "Open for at least (days)",
+    "waitingVendor": "Waiting on vendors (waiting for vendor, or an open vendor ticket)",
+    "waitingVendorRemove": "Show all open tickets"
+  },
+  "table": {
+    "ticket": "Ticket",
+    "source": "Source",
+    "status": "Status",
+    "vendor": "Vendor",
+    "affected": "Affected",
+    "responsible": "Responsible",
+    "age": "Age",
+    "lastChecked": "Last checked"
+  },
+  "ageDays_one": "{{count}} day",
+  "ageDays_other": "{{count}} days",
+  "neverChecked": "never",
+  "actions": {
+    "markChecked": "Mark checked",
+    "checkedDone": "Marked as checked",
+    "changeStatus": "Change status",
+    "statusChanged": "Status changed",
+    "openExternal": "Open ticket",
+    "delete": "Delete",
+    "edit": "Edit",
+    "statusMenu": "Change the status of {{number}}"
+  },
+  "detail": {
+    "details": "Details",
+    "history": "History",
+    "noNote": "No note.",
+    "notVisible": "an item you cannot see",
+    "noAffected": "No affected items.",
+    "createdBy": "Added by {{user}} on {{date}}",
+    "updatedBy": "Changed by {{user}} {{when}}",
+    "events": {
+      "created": "Added",
+      "updated": "Changed",
+      "status": "Status: {{from}} → {{to}}",
+      "checked": "Checked",
+      "reminded": "Reminder sent"
+    },
+    "fieldsChanged": "Fields: {{fields}}",
+    "markdownSafe": "The note is rendered as Markdown without HTML."
+  },
+  "affected": {
+    "add": "Add affected item",
+    "kind": "Kind",
+    "item": "Item",
+    "search": "Type to search",
+    "nothing": "Nothing found",
+    "remove": "Remove {{name}}"
+  },
+  "emptyState": {
+    "title": "No ticket references yet",
+    "text": "Note tickets here that matter for the service: an incident users reported in ServiceNow, or a case you opened with a vendor. Record who looks after it, link the affected services and platforms, and keep the status up to date.",
+    "action": "Add a ticket reference"
+  },
+  "emptyFiltered": "No ticket references match the filters.",
+  "panel": {
+    "title": "Open tickets",
+    "none": "No open tickets.",
+    "showClosed": "Show resolved and closed",
+    "all": "All ticket references",
+    "add": "Add ticket reference"
+  },
+  "vendorBadge_one": "{{count}} open vendor ticket",
+  "vendorBadge_other": "{{count}} open vendor tickets",
+  "settings": {
+    "title": "Ticket references",
+    "description": "Sources of tickets and the default reminder. A source in use cannot be removed (rename it instead). Vendor sources count in the \"open vendor tickets\" badge of the service catalogue.",
+    "sources": "Sources",
+    "key": "Key",
+    "label": "Name",
+    "vendor": "Vendor source",
+    "addSource": "Add source",
+    "removeSource": "Remove source {{name}}",
+    "reminderDefault": "Remind by default",
+    "reminderDefaultHint": "Remind the responsible people when an open ticket was not checked for this many days. Entries can choose their own value or turn it off.",
+    "reminderDays": "Days without a check",
+    "save": "Save ticket settings",
+    "saved": "Ticket reference settings saved"
+  }
+}
