@@ -237,6 +237,7 @@
     "tamperedTitle": "The content does not match its recorded hash",
     "tampered": "The record was changed outside Steward after it was frozen. It cannot be approved or moved on. Check the audit log.",
     "supersededBy": "This decision was superseded by",
+    "replacedBy": "This document was replaced by",
     "importedStatus": "Imported from {{file}} with the status \"{{status}}\". Imported records start as drafts and need an approval in Steward.",
     "noBody": "No text yet."
   },

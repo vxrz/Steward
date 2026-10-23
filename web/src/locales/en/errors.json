@@ -137,6 +137,7 @@
     "FOUR_EYES_CONTENT_AUTHOR": "Four-eyes principle: an author of the content (text, fields or attached files) cannot approve or reject it.",
     "SUPERSEDED_BY_REQUIRED": "Name the record that supersedes this one.",
     "SUPERSEDE_SELF": "A record cannot supersede itself.",
+    "SUPERSEDED_BY_WORKFLOW": "{{number}} cannot replace or supersede this record: a document is replaced by a document, a decision superseded by a decision.",
     "ATTACHMENT_NOT_FOUND": "Attachment not found.",
     "ATTACHMENT_EXISTS": "This file is attached to the record already.",
     "ATTACHMENT_LIMIT": "At most {{max}} attachments per record.",

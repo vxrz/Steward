@@ -555,7 +555,11 @@ export interface RecordDetail extends RecordSummary {
   tampered: boolean;
   submittedBy: string | null;
   submittedAt: string | null;
-  supersededBy: { id: string; number: string; title: string } | null;
+  /**
+   * The record that superseded (decisions) or replaced (documents) this one; like links to hidden items, a
+   * record the reader may not read is named only as not visible (no id, number or title).
+   */
+  supersededBy: { visible: boolean; id: string | null; number: string | null; title: string | null } | null;
   importMeta: Record<string, unknown> | null;
   type: RecordType;
   actions: RecordActionInfo[];

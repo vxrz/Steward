@@ -4321,17 +4321,31 @@
               {
                 "type": "object",
                 "properties": {
+                  "visible": {
+                    "type": "boolean",
+                    "description": "false: the reader may not read the superseding record (id, number and title are null)"
+                  },
                   "id": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "number": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   },
                   "title": {
-                    "type": "string"
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 },
                 "required": [
+                  "visible",
                   "id",
                   "number",
                   "title"
@@ -4341,7 +4355,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The record that superseded (decisions) or replaced (documents) this one"
           },
           "attachments": {
             "type": "array",

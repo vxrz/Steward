@@ -71,7 +71,7 @@ Draft ──propose──▶ Proposed ──accept──▶ Accepted ──super
 ```
 
 - **Approve, accept and reject** are approvals: only approvers and administrators, and never someone who wrote the record (four-eyes, see below). Rejecting needs a comment.
-- **Supersede** names the record that replaces the decision. Steward adds a link "superseded by", so the new record shows the old one under _Linked from_.
+- **Supersede** names the record that replaces the decision – another decision record. Steward adds a link "superseded by", so the new record shows the old one under _Linked from_.
 - **New revision** (_Rework_ on a rejected record): from _Submitted_, _Rejected_ (change) or _Proposed_, _Rejected_ (decision) the record goes back to _Draft_ as revision 2, 3, …. It needs a reason. Approved, accepted and closed records cannot be revised: approved content is immutable. Write a new record instead (and supersede the old decision).
 - Closed, cancelled, superseded and deprecated are final.
 
@@ -83,7 +83,7 @@ Draft ──submit──▶ In review ──approve──▶ Published (edition 
 ```
 
 - **Approve** freezes the content as an **edition** (1.0, 1.1, 2.0). Rejecting needs a comment and goes back to _Draft_ (no edition yet) or _Revising_.
-- **Withdraw** needs a reason and may name the replacing document (link "replaced by"). Withdrawing while the next edition is drafted drops the draft; every approved edition stays readable.
+- **Withdraw** needs a reason and may name the replacing document – another living document (link "replaced by"). Withdrawing while the next edition is drafted drops the draft; every approved edition stays readable.
 - The content can change in _Draft_ and _Revising_. A new edition starts from the current one, which stays valid until the next one is approved.
 
 ## Content, versions and the content hash
@@ -132,7 +132,7 @@ A record or service links to:
 
 Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
-You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
+You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. The same holds for _superseded by_ and _replaced by_: if the reader may not read that record (an access change entry, say), the record page, the PDF and the API only say that it is not visible (`supersededBy: { visible: false, id: null, number: null, title: null }`). Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
 
 Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
 

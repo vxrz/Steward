@@ -137,6 +137,7 @@
     "FOUR_EYES_CONTENT_AUTHOR": "Vier-Augen-Prinzip: Wer am Inhalt mitgeschrieben hat (Text, Felder oder angehängte Dateien), kann das Dokument nicht freigeben oder ablehnen.",
     "SUPERSEDED_BY_REQUIRED": "Geben Sie das Dokument an, das dieses ersetzt.",
     "SUPERSEDE_SELF": "Ein Dokument kann sich nicht selbst ersetzen.",
+    "SUPERSEDED_BY_WORKFLOW": "{{number}} kann dieses Dokument nicht ersetzen: Ein lebendes Dokument wird nur durch ein lebendes Dokument ersetzt, eine Entscheidung nur durch eine Entscheidung.",
     "ATTACHMENT_NOT_FOUND": "Anhang nicht gefunden.",
     "ATTACHMENT_EXISTS": "Diese Datei ist bereits an das Dokument angehängt.",
     "ATTACHMENT_LIMIT": "Höchstens {{max}} Anhänge pro Dokument.",

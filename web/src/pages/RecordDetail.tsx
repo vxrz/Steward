@@ -203,10 +203,16 @@ export function RecordDetailPage() {
       )}
       {rec.supersededBy && (
         <Alert color="orange" mb="sm">
-          {t('detail.supersededBy')}{' '}
-          <Anchor component={Link} to={`/records/${rec.supersededBy.id}`}>
-            {rec.supersededBy.number} {rec.supersededBy.title}
-          </Anchor>
+          {rec.document ? t('detail.replacedBy') : t('detail.supersededBy')}{' '}
+          {rec.supersededBy.visible && rec.supersededBy.id ? (
+            <Anchor component={Link} to={`/records/${rec.supersededBy.id}`}>
+              {rec.supersededBy.number} {rec.supersededBy.title}
+            </Anchor>
+          ) : (
+            <Text span c="dimmed" fs="italic">
+              {t('links.notVisible')}
+            </Text>
+          )}
         </Alert>
       )}
       {typeof rec.importMeta?.originalStatus === 'string' && rec.status === 'draft' && (

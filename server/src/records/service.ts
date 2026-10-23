@@ -463,7 +463,6 @@ export function getRecord(idOrNumber: string): RecordDetail {
   const r = requireRecordRow(idOrNumber);
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
-  const sup = r.superseded_by ? recordRow(r.superseded_by) : undefined;
   const frozen = !isEditableStatus(wf, r.status);
   const hash = currentContentHash(r, t);
   const document = isDocument(t) ? documentInfo(u, r, t) : null;
@@ -481,7 +480,7 @@ export function getRecord(idOrNumber: string): RecordDetail {
     tampered: frozen && !frozenIntact(r, hash),
     submittedBy: r.submitted_by,
     submittedAt: r.submitted_at,
-    supersededBy: sup ? { id: sup.id, number: sup.number, title: sup.title } : null,
+    supersededBy: supersededInfo(u, r),
     importMeta: parseJson<Record<string, unknown> | null>(r.import_meta, null),
     type: toType(t),
     actions: actionsOf(u, r, wf),
@@ -492,6 +491,17 @@ export function getRecord(idOrNumber: string): RecordDetail {
     events: listEvents(r.id),
     document,
   };
+}
+
+/**
+ * The record that superseded or replaced this one – named only when the reader may read it (an access change
+ * entry, say), else like a link to a hidden item: not visible, without its id, number or title.
+ */
+export function supersededInfo(u: AuthUser | null, r: Pick<RecordRow, 'superseded_by'>): RecordDetail['supersededBy'] {
+  if (!r.superseded_by) return null;
+  const sup = recordRow(r.superseded_by);
+  if (!sup || !canReadRecordRow(u, sup)) return { visible: false, id: null, number: null, title: null };
+  return { visible: true, id: sup.id, number: sup.number, title: sup.title };
 }
 
 /** May review the current edition of a document: its owner, its review owner, approvers and administrators. */
@@ -861,6 +871,14 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
     if (!superseding || !canReadRecordRow(u, superseding))
       throw new HttpError(404, `Record ${input.supersededBy} not found`, 'RECORD_NOT_FOUND', { id: input.supersededBy });
     if (superseding.id === r.id) throw new HttpError(400, 'A record cannot supersede itself', 'SUPERSEDE_SELF');
+    // a document is replaced by a document, a decision superseded by a decision
+    if (requireType(superseding.type_id).workflow !== t.workflow)
+      throw new HttpError(
+        400,
+        `${superseding.number} cannot ${isDocument(t) ? 'replace' : 'supersede'} ${r.number}: it must have the same workflow (${t.workflow})`,
+        'SUPERSEDED_BY_WORKFLOW',
+        { number: superseding.number, workflow: t.workflow },
+      );
   }
   let hash = currentContentHash(r, t);
   if (!leavingDraft && !frozenIntact(r, hash)) {

@@ -140,7 +140,15 @@ export const RecordDetail = Record_.extend({
   frozen: z.boolean().describe('The content can no longer change (outside the draft status)'),
   submittedBy: z.string().nullable(),
   submittedAt: ts().nullable(),
-  supersededBy: z.object({ id: z.string(), number: z.string(), title: z.string() }).nullable(),
+  supersededBy: z
+    .object({
+      visible: z.boolean().describe('false: the reader may not read the superseding record (id, number and title are null)'),
+      id: z.string().nullable(),
+      number: z.string().nullable(),
+      title: z.string().nullable(),
+    })
+    .nullable()
+    .describe('The record that superseded (decisions) or replaced (documents) this one'),
   attachments: z.array(RecordAttachment),
   links: z.array(RecordLink),
   events: z.array(RecordEvent).describe('Transitions, approvals, revisions and comments, oldest first'),

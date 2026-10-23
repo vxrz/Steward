@@ -237,6 +237,7 @@
     "tamperedTitle": "Der Inhalt passt nicht zu seinem festgehaltenen Hash",
     "tampered": "Das Dokument wurde nach dem Einfrieren außerhalb von Steward geändert. Es kann weder freigegeben noch weitergeführt werden. Prüfen Sie das Audit-Log.",
     "supersededBy": "Diese Entscheidung wurde ersetzt durch",
+    "replacedBy": "Dieses lebende Dokument wurde ersetzt durch",
     "importedStatus": "Aus {{file}} mit dem Status „{{status}}“ importiert. Importierte Dokumente beginnen als Entwurf und brauchen eine Freigabe in Steward.",
     "noBody": "Noch kein Text."
   },

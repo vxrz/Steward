@@ -648,3 +648,56 @@ describe('public API v1', () => {
     expect(doc.components.schemas.RecordEdition).toBeTruthy();
   });
 });
+
+describe('security review fixes', () => {
+  it('"superseded by" / "replaced by" names only records the reader may read; replacements keep the workflow', async () => {
+    const { db } = await import('../src/db.js');
+    const { generateRecordPdf } = await import('../src/records/pdf.js');
+    const { runAs } = await import('../src/auth/context.js');
+    const { findUserByName, toAuthUser } = await import('../src/auth/users.js');
+    // an access change entry: vera and dana may not read it
+    const secret = await s.api('POST', '/records', { type: 'AC', title: 'Secret grant of the gateway admin' });
+    expect(await status(vera('GET', `/records/${secret.id}`))).toBe(404);
+    // a decision is superseded by a decision, a document replaced by a document
+    const adr = await dana('POST', '/records', { type: 'ADR', title: 'Use one gateway' });
+    await dana('POST', `/records/${adr.id}/transition`, { action: 'propose' });
+    await adam('POST', `/records/${adr.id}/transition`, { action: 'accept' });
+    expect((await errorOf(s.api('POST', `/records/${adr.id}/transition`, { action: 'supersede', supersededBy: secret.id }))).text).toContain(
+      'SUPERSEDED_BY_WORKFLOW',
+    );
+    const cr = await newCr('Not a decision');
+    expect((await errorOf(dana('POST', `/records/${adr.id}/transition`, { action: 'supersede', supersededBy: cr.id }))).text).toContain(
+      'SUPERSEDED_BY_WORKFLOW',
+    );
+    const doc = await publishedDoc('Replaced by something else');
+    expect((await errorOf(dana('POST', `/records/${doc.id}/transition`, { action: 'withdraw', comment: 'x', supersededBy: adr.id }))).text).toContain(
+      'SUPERSEDED_BY_WORKFLOW',
+    );
+    expect((await errorOf(s.api('POST', `/records/${doc.id}/transition`, { action: 'withdraw', comment: 'x', supersededBy: secret.id }))).text).toContain(
+      'SUPERSEDED_BY_WORKFLOW',
+    );
+    // older data (or a decision superseded before the check): the hidden record is not named
+    const b = await dana('POST', '/records', { type: 'ADR', title: 'Use two gateways' });
+    await dana('POST', `/records/${adr.id}/transition`, { action: 'supersede', supersededBy: b.id });
+    db().run('UPDATE records SET superseded_by = ? WHERE id = ?', secret.id, adr.id);
+    const hidden = { visible: false, id: null, number: null, title: null };
+    expect((await vera('GET', `/records/${adr.id}`)).supersededBy).toEqual(hidden);
+    expect((await dana('GET', `/records/${adr.id}`)).supersededBy).toEqual(hidden);
+    expect((await adam('GET', `/records/${adr.id}`)).supersededBy).toEqual({ visible: true, id: secret.id, number: secret.number, title: secret.title });
+    // the public API
+    const { token } = await vera('POST', '/me/tokens', { name: 'supersede read', scope: 'read' });
+    const v1 = await fetch(`${s.base}/api/v1/records/${adr.id}`, { headers: { authorization: `Bearer ${token}` } });
+    const body = await v1.json();
+    expect(body.supersededBy).toEqual(hidden);
+    expect(JSON.stringify(body)).not.toContain(secret.number);
+    // the PDF of someone who may not read it
+    const pdf = await runAs(toAuthUser(findUserByName('dana')!), () => generateRecordPdf(adr.id, { signers: [], lang: 'en' }));
+    const text = pdf.texts.join('\n');
+    expect(text).not.toContain('Secret grant');
+    expect(text).not.toContain(secret.number);
+    expect(text).toContain('not visible');
+    // the export
+    const md = await dana('GET', `/records/${adr.id}/export`);
+    expect(String(md)).not.toContain('Secret grant');
+  });
+});

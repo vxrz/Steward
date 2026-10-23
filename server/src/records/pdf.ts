@@ -326,7 +326,15 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     { label: t('created'), value: `${tr.dateTime(rec.createdAt)} · ${personLabel(rec.createdBy)}` },
     { label: t('updated'), value: `${tr.dateTime(rec.updatedAt)} · ${personLabel(rec.updatedBy)}` },
     { label: t('submitted'), value: rec.submittedAt ? `${tr.dateTime(rec.submittedAt)} · ${personLabel(rec.submittedBy ?? '')}` : '–' },
-    ...(rec.supersededBy ? [{ label: t('supersededBy'), value: `${rec.supersededBy.number} ${rec.supersededBy.title}`, span: 2 as const }] : []),
+    ...(rec.supersededBy
+      ? [
+          {
+            label: t('supersededBy'),
+            value: rec.supersededBy.visible ? `${rec.supersededBy.number} ${rec.supersededBy.title}` : t('notVisible'),
+            span: 2 as const,
+          },
+        ]
+      : []),
     { label: t('contentHash'), value: hash, mono: true, span: 2, tone: tampered ? 'danger' : 'default' },
   ]);
   w.paragraph(draft ? t('draftHashNote') : t('frozenHashNote'), { tone: 'muted', size: 7.8 });
