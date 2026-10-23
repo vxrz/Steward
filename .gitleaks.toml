@@ -30,3 +30,7 @@ regexes = [
   '''\bAdmin-password-1\b''',
   '''correct horse battery''',
 ]
+
+[[allowlists]]
+description = "Upgrade test fixtures (server/test/fixtures/upgrade/<version>/datadir): data folders written by released versions for server/test/upgrade.test.ts. Their vault, audit anchor and database hold keys and encrypted secrets protected by the published test passphrase (see the fixture README). Only these three generated files; the README, manifest.json and any other file there are still scanned."
+paths = ['''^server/test/fixtures/upgrade/v\d+\.\d+\.\d+/datadir/(vault\.json|audit-anchor\.json|service-manager\.db)$''']

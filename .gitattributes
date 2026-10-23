@@ -1,0 +1,2 @@
+# Upgrade test fixtures: byte for byte as a released version wrote them (no line-ending conversion)
+server/test/fixtures/upgrade/*/datadir/** -text
