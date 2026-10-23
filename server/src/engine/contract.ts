@@ -1,4 +1,3 @@
-import YAML from 'yaml';
 import type { ApiOperation, ContractCheckResult } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -6,6 +5,7 @@ import { parseJson } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
 import { resolveRef } from '../platforms/openapi.js';
+import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 
 /**
  * Sandbox contract test: call every documented GET operation without required
@@ -20,7 +20,7 @@ const MAX_OPERATIONS = 30;
 
 function parseDoc(content: string): Doc | undefined {
   try {
-    const d = content.trim().startsWith('{') ? JSON.parse(content) : YAML.parse(content);
+    const d = content.trim().startsWith('{') ? JSON.parse(content) : parseYaml(content, SPEC_YAML);
     return d && typeof d === 'object' ? (d as Doc) : undefined;
   } catch {
     return undefined;

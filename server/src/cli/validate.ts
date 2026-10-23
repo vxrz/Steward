@@ -4,10 +4,11 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import YAML from 'yaml';
 import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess } from '@sm/shared';
 import { validateMonitorFile } from '../monitors/validation.js';
 import { config } from '../config.js';
+import { MAX_DEFINITION_TEXT } from '../util.js';
+import { parseYaml } from '../yaml-safe.js';
 import { EXIT_FAILURE, EXIT_OK, UsageError, palette, parseCli, usageFailure } from './args.js';
 
 const COMMAND = 'npm run validate --';
@@ -57,7 +58,7 @@ export async function validateFile(file: string): Promise<FileResult> {
   let raw: unknown;
   try {
     const text = fs.readFileSync(file, 'utf8');
-    raw = file.endsWith('.json') ? JSON.parse(text) : YAML.parse(text);
+    raw = file.endsWith('.json') ? JSON.parse(text) : parseYaml(text, { maxBytes: MAX_DEFINITION_TEXT });
   } catch (e) {
     return { file: rel, kind: 'unreadable', ok: false, errors: [`cannot parse – ${(e as Error).message}`], warnings: [] };
   }

@@ -378,6 +378,8 @@
     "ACCESS_CHECK_RUNNING": "This check is running already.",
     "SNAPSHOT_NOT_FOUND": "Snapshot {{id}} not found.",
     "FINDING_NOT_FOUND": "Finding {{id}} not found.",
+    "YAML_TOO_LARGE": "The YAML text is too large (at most {{kb}} KB).",
+    "YAML_TOO_MANY_KEYS": "The YAML text has too many keys (at most {{max}}).",
     "FINDING_CLOSED": "This finding is not open any more.",
     "FINDING_REASON_REQUIRED": "Please say why this change needs no access change entry.",
     "CHECK_HAS_SNAPSHOTS": "This check has snapshots: they are evidence of who had access when. Disable the check instead.",

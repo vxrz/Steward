@@ -378,6 +378,8 @@
     "ACCESS_CHECK_RUNNING": "Dieser Abgleich läuft bereits.",
     "SNAPSHOT_NOT_FOUND": "Snapshot {{id}} nicht gefunden.",
     "FINDING_NOT_FOUND": "Befund {{id}} nicht gefunden.",
+    "YAML_TOO_LARGE": "Der YAML-Text ist zu groß (höchstens {{kb}} KB).",
+    "YAML_TOO_MANY_KEYS": "Der YAML-Text hat zu viele Schlüssel (höchstens {{max}}).",
     "FINDING_CLOSED": "Dieser Befund ist nicht mehr offen.",
     "FINDING_REASON_REQUIRED": "Bitte begründen Sie, warum diese Änderung keinen Eintrag braucht.",
     "CHECK_HAS_SNAPSHOTS": "Dieser Abgleich hat Snapshots: Sie belegen, wer wann Zugriff hatte. Deaktivieren Sie den Abgleich stattdessen.",

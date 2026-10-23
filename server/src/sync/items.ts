@@ -1,6 +1,7 @@
 import path from 'node:path';
 import YAML from 'yaml';
-import { BUNDLE_FORMATS, dashboardDefinitionSchema, validateProcess, type ProcessDefinition, type SyncKind } from '@sm/shared';
+import { BUNDLE_FORMATS, SYNC_LIMITS, dashboardDefinitionSchema, validateProcess, type ProcessDefinition, type SyncKind } from '@sm/shared';
+import { parseYamlDocument } from '../yaml-safe.js';
 import { db } from '../db.js';
 import { canonicalJson, HttpError, parseJson, sha256, slugify } from '../util.js';
 import { currentUser } from '../auth/context.js';
@@ -35,10 +36,10 @@ export interface ParsedItem {
 
 export type ParseResult = { ok: true; item: ParsedItem } | { ok: false; kind: SyncKind | null; identity: string | null; errors: string[]; hash: string };
 
-/** Parse YAML as plain data: core schema, unique keys, bounded aliases (no "billion laughs"), no custom tags. */
+/** Parse YAML as plain data: core schema, unique keys (checked in linear time), bounded size and aliases (no "billion laughs"), no custom tags. */
 export function parseData(text: string, file: string): unknown {
   if (file.toLowerCase().endsWith('.json')) return JSON.parse(text);
-  const doc = YAML.parseDocument(text, { schema: 'core', uniqueKeys: true, customTags: [] });
+  const doc = parseYamlDocument(text, { schema: 'core', customTags: [], maxBytes: SYNC_LIMITS.maxFileBytes });
   if (doc.errors.length) throw new Error(doc.errors[0]!.message);
   if (doc.warnings.some((w) => w.code === 'TAG_RESOLVE_FAILED')) throw new Error('unknown YAML tags are not allowed');
   return doc.toJS({ maxAliasCount: 100 });

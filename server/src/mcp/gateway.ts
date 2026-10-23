@@ -15,7 +15,6 @@
  *   cannot starve runs and monitors of the platform's connection slots;
  * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
-import YAML from 'yaml';
 import { z } from 'zod';
 import type { ApiOperation, Platform } from '@sm/shared';
 import { audit } from '../audit.js';
@@ -31,6 +30,7 @@ import { emit } from '../events.js';
 import { TokenBucketLimiter } from '../api/v1/rateLimit.js';
 import { pageArray } from '../api/v1/pagination.js';
 import { HttpError } from '../util.js';
+import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { GATEWAY_TIMEOUT_MS, MAX_GATEWAY_RESPONSE_BYTES, gatewayConcurrency, gatewayRateLimit } from './config.js';
 import { ToolError, cap, cursorArg, defineTool, limitArg, type ToolContext, type ToolDef } from './tooling.js';
 
@@ -109,7 +109,7 @@ function specDoc(specId: string): Record<string, unknown> | null {
   let doc: Record<string, unknown>;
   try {
     const content = platforms.getSpecContent(specId);
-    doc = (content.trim().startsWith('{') ? JSON.parse(content) : YAML.parse(content)) as Record<string, unknown>;
+    doc = (content.trim().startsWith('{') ? JSON.parse(content) : parseYaml(content, SPEC_YAML)) as Record<string, unknown>;
   } catch {
     return null;
   }

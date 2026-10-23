@@ -1,4 +1,3 @@
-import YAML from 'yaml';
 import { z } from 'zod';
 import {
   ACCESS_TYPE_ID,
@@ -22,6 +21,7 @@ import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, same } f
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import type { RecordRow } from '../records/model.js';
+import { parseYamlDocument } from '../yaml-safe.js';
 
 /**
  * Control catalogues (ISO/IEC 27001 Annex A, IEC 62443-2-1, NIS2 Art. 21 built in – identifiers and
@@ -31,7 +31,17 @@ import type { RecordRow } from '../records/model.js';
  * what the reader may see.
  */
 
-export const LIMITS = { controls: 2000, title: 300, description: 4000, importBytes: 1024 * 1024, evidencePerControl: 200, tagsPerControl: 200 };
+export const LIMITS = {
+  controls: 2000,
+  title: 300,
+  description: 4000,
+  importBytes: 1024 * 1024,
+  /** YAML is capped lower than JSON and CSV (parsing it is more expensive) */
+  yamlBytes: 256 * 1024,
+  yamlKeys: 50_000,
+  evidencePerControl: 200,
+  tagsPerControl: 200,
+};
 
 interface CatalogueRow {
   id: string;
@@ -274,15 +284,28 @@ export function parseCatalogueFile(filename: string, content: string): ParsedCat
       throw new HttpError(400, 'The CSV file needs a header row with the columns ref and title (optional: description)', 'CATALOGUE_CSV_HEADER');
     controls = rows.slice(1).map((r) => ({ ref: r[ref] ?? '', title: r[title] ?? '', description: desc >= 0 ? (r[desc] ?? '') : '' }));
   } else {
+    if (ext !== 'json' && Buffer.byteLength(content) > LIMITS.yamlBytes)
+      throw new HttpError(413, `The file is too large (at most ${LIMITS.yamlBytes / 1024} KB for YAML)`, 'CATALOGUE_TOO_LARGE', {
+        kb: LIMITS.yamlBytes / 1024,
+      });
     let data: unknown;
     try {
       if (ext === 'json') data = JSON.parse(content);
       else {
-        const doc = YAML.parseDocument(content, { schema: 'core', uniqueKeys: true, merge: false, prettyErrors: false, strict: true, customTags: [] });
+        const doc = parseYamlDocument(content, {
+          schema: 'core',
+          merge: false,
+          prettyErrors: false,
+          strict: true,
+          customTags: [],
+          maxBytes: LIMITS.yamlBytes,
+          maxKeys: LIMITS.yamlKeys,
+        });
         if (doc.errors.length) throw new Error(doc.errors[0]!.message);
         data = doc.toJS({ maxAliasCount: 20 });
       }
     } catch (e) {
+      if (e instanceof HttpError) throw e;
       throw new HttpError(400, `The file cannot be read: ${(e as Error).message.slice(0, 200)}`, 'CATALOGUE_UNREADABLE', {
         detail: (e as Error).message.slice(0, 200),
       });

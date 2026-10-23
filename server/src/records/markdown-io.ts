@@ -5,6 +5,7 @@ import { errorParam, HttpError } from '../util.js';
 import { canCreateRecords, fieldParam, forbid, me } from './access.js';
 import { cleanFields, cleanTags, createRecord, getRecord, LIMITS, workflowOf } from './service.js';
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
+import { parseYamlDocument } from '../yaml-safe.js';
 
 /**
  * Markdown import and export of records.
@@ -61,7 +62,14 @@ export function parseFrontmatter(src: string): Record<string, unknown> {
     throw new HttpError(400, `The frontmatter is too large (at most ${IMPORT_LIMITS.frontmatterBytes / 1024} KiB)`, 'IMPORT_FRONTMATTER_TOO_LARGE', {
       maxKib: IMPORT_LIMITS.frontmatterBytes / 1024,
     });
-  const doc = YAML.parseDocument(src, { schema: 'core', uniqueKeys: true, merge: false, prettyErrors: false, strict: true, customTags: [] });
+  const doc = parseYamlDocument(src, {
+    schema: 'core',
+    merge: false,
+    prettyErrors: false,
+    strict: true,
+    customTags: [],
+    maxBytes: IMPORT_LIMITS.frontmatterBytes,
+  });
   if (doc.errors.length) {
     const detail = doc.errors[0]!.message.split('\n')[0]!;
     throw new HttpError(400, `Invalid YAML frontmatter: ${detail}`, 'IMPORT_FRONTMATTER_INVALID', { detail });

@@ -5,7 +5,8 @@ import { dashboardDefinitionSchema, type Dashboard, type DashboardDefinition } f
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
-import { HttpError, nowIso, parseJson, slugify } from '../util.js';
+import { HttpError, MAX_DEFINITION_TEXT, nowIso, parseJson, slugify } from '../util.js';
+import { parseYaml } from '../yaml-safe.js';
 import { currentUser } from '../auth/context.js';
 import { capabilities, isAdmin } from '../auth/permissions.js';
 import { logger } from '../log.js';
@@ -42,8 +43,9 @@ function toDashboard(r: DashRow): Dashboard {
 export function parseDashboardText(text: string): DashboardDefinition {
   let raw: unknown;
   try {
-    raw = text.trim().startsWith('{') ? JSON.parse(text) : YAML.parse(text);
+    raw = text.trim().startsWith('{') ? JSON.parse(text) : parseYaml(text, { maxBytes: MAX_DEFINITION_TEXT });
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     throw new HttpError(400, `Could not parse: ${(e as Error).message}`);
   }
   return checked(raw);
