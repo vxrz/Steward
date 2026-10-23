@@ -36,7 +36,7 @@ Steward is a local tool for running standard service and platform procedures aga
 
 ## Quick start (demo with simulated platforms)
 
-Requirements: **Node.js 24 (LTS)** (it uses the built-in SQLite). Windows, macOS and Linux are supported.
+Requirements: **Node.js 24 (LTS)**, the primary version, or Node.js 26 (Current, tested in CI). Steward uses the built-in SQLite. Windows, macOS and Linux are supported.
 
 ```bash
 npm install

@@ -38,15 +38,21 @@ jobs:
         run: npm run i18n:literals
 
   build-test:
+    # Node.js 24 (LTS) is the primary version (.nvmrc, Dockerfile, desktop executable); 26 (Current) is tested as well
+    name: build-test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
       - name: Install dependencies (install scripts off)
         run: npm ci --ignore-scripts
@@ -64,6 +70,7 @@ jobs:
       - name: Bundle the desktop executable's server (CommonJS)
         run: node scripts/build-exe.mjs --bundle-only
       - name: Dependency audit (production dependencies)
+        if: matrix.node == 24
         run: npm audit --omit=dev --audit-level=moderate
 
   test-postgres:
