@@ -119,5 +119,16 @@
       "title": "Please confirm",
       "button": "Confirm"
     }
+  },
+  "table": {
+    "sortBy": "Sort by",
+    "sortedAsc": "Ascending – switch to descending",
+    "sortedDesc": "Descending – switch to ascending",
+    "showingOf": "Showing {{shown}} of {{total}}",
+    "showingFirst_one": "Showing the first entry",
+    "showingFirst_other": "Showing the first {{count}} entries",
+    "showingAll_one": "{{count}} entry",
+    "showingAll_other": "{{count}} entries",
+    "loadMore": "Load more"
   }
 }

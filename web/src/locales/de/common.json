@@ -119,5 +119,16 @@
       "title": "Bitte bestätigen",
       "button": "Bestätigen"
     }
+  },
+  "table": {
+    "sortBy": "Sortieren nach",
+    "sortedAsc": "Aufsteigend – auf absteigend umstellen",
+    "sortedDesc": "Absteigend – auf aufsteigend umstellen",
+    "showingOf": "{{shown}} von {{total}} angezeigt",
+    "showingFirst_one": "Der erste Eintrag wird angezeigt",
+    "showingFirst_other": "Die ersten {{count}} Einträge werden angezeigt",
+    "showingAll_one": "{{count}} Eintrag",
+    "showingAll_other": "{{count}} Einträge",
+    "loadMore": "Mehr laden"
   }
 }

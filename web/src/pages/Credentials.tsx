@@ -16,7 +16,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
   Textarea,
@@ -47,6 +46,7 @@ import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 
@@ -103,6 +103,134 @@ export function LocationView({ c }: { c: Credential }) {
   );
 }
 
+/** The register: sortable table on wide screens, cards on phones; a row opens the entry's drawer. */
+function CredentialTable({ items, onOpen }: { items: Credential[]; onOpen: (id: string) => void }) {
+  const { t } = useTranslation(['credentials', 'common']);
+  const nameButton = (c: Credential, fw = 500) => (
+    <Anchor
+      component="button"
+      type="button"
+      size="sm"
+      fw={fw}
+      ta="left"
+      onClick={(e: React.MouseEvent) => {
+        e.stopPropagation();
+        onOpen(c.id);
+      }}
+      style={{ overflowWrap: 'anywhere' }}
+    >
+      {c.name}
+    </Anchor>
+  );
+  const archivedBadge = (c: Credential) =>
+    c.archived && (
+      <Badge ml={6} size="xs" color="gray" variant="outline">
+        {t('archived')}
+      </Badge>
+    );
+  const nextDueKind = (c: Credential) => t(`dueKinds.${[...c.dues].sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]!.kind}`);
+  const owners = (c: Credential) => [...c.owners.map((o) => o.email), ...c.ownerSubjects].join(', ');
+  const platformOf = (c: Credential) => c.platformName ?? c.platformText;
+  const columns: DataColumn<Credential>[] = [
+    {
+      key: 'name',
+      header: t('table.name'),
+      sortValue: (c) => c.name,
+      cell: (c) => (
+        <>
+          {nameButton(c)}
+          {archivedBadge(c)}
+          {c.tags.length > 0 && (
+            <Text size="xs" c="dimmed">
+              {c.tags.join(' · ')}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    { key: 'type', header: t('table.type'), sortValue: (c) => t(`types.${c.type}`), cell: (c) => t(`types.${c.type}`) },
+    {
+      key: 'platform',
+      header: t('table.platform'),
+      sortValue: platformOf,
+      cell: (c) => (
+        <>
+          {platformOf(c) || '–'}
+          {c.environment && (
+            <Text size="xs" c="dimmed">
+              {c.environment}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('table.status'),
+      // by urgency, not alphabetically
+      sortValue: (c) => CREDENTIAL_STATUS_IDS.indexOf(c.status),
+      cell: (c) => <CredentialStatusBadge status={c.status} />,
+    },
+    {
+      key: 'nextDue',
+      header: t('table.nextDue'),
+      sortValue: (c) => c.nextDueAt,
+      nowrap: true,
+      cell: (c) =>
+        c.nextDueAt ? (
+          <>
+            {fmtDay(c.nextDueAt)}
+            <Text size="xs" c="dimmed">
+              {nextDueKind(c)} · {fmtRelative(c.nextDueAt)}
+            </Text>
+          </>
+        ) : (
+          '–'
+        ),
+    },
+    {
+      key: 'owners',
+      header: t('table.owners'),
+      sortValue: owners,
+      cell: (c) => (
+        <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
+          {owners(c) || '–'}
+        </Text>
+      ),
+    },
+  ];
+  return (
+    <DataTable
+      rows={items}
+      columns={columns}
+      rowKey={(c) => c.id}
+      ariaLabel={t('title')}
+      onRowClick={(c) => onOpen(c.id)}
+      footer={<ListFooter shown={items.length} />}
+      testId="credential-list"
+      card={(c) => (
+        <Paper withBorder p="sm">
+          <Group justify="space-between" wrap="nowrap" align="flex-start" gap="xs">
+            <div style={{ minWidth: 0 }}>
+              {nameButton(c, 600)}
+              {archivedBadge(c)}
+            </div>
+            <CredentialStatusBadge status={c.status} size="xs" />
+          </Group>
+          <Text size="xs" c="dimmed">
+            {[t(`types.${c.type}`), platformOf(c), c.environment].filter(Boolean).join(' · ')}
+          </Text>
+          {c.nextDueAt && (
+            <Text size="xs">
+              {t('table.nextDue')}: {fmtDay(c.nextDueAt)} ({nextDueKind(c)} · {fmtRelative(c.nextDueAt)})
+            </Text>
+          )}
+        </Paper>
+      )}
+    />
+  );
+}
+
 export function CredentialsPage() {
   const { t } = useTranslation(['credentials', 'common']);
   const qc = useQueryClient();
@@ -110,7 +238,10 @@ export function CredentialsPage() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [types, setTypes] = useState<string[]>([]);
-  const [statuses, setStatuses] = useState<string[]>([]);
+  // ?status=overdue,expired (the start page's "Credentials due" tile) presets the status filter
+  const [statuses, setStatuses] = useState<string[]>(() =>
+    (params.get('status') ?? '').split(',').filter((x): x is CredentialStatus => (CREDENTIAL_STATUS_IDS as string[]).includes(x)),
+  );
   const [platform, setPlatform] = useState('');
   const [owner, setOwner] = useState('');
   const [dueWithin, setDueWithin] = useState<number | ''>('');
@@ -245,72 +376,7 @@ export function CredentialsPage() {
             {t('emptyState.text')}
           </EmptyState>
         ))}
-      {!!list.data?.items.length && (
-        <div className="table-scroll">
-          <Table highlightOnHover fz="sm" aria-label={t('title')}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>{t('table.name')}</Table.Th>
-                <Table.Th>{t('table.type')}</Table.Th>
-                <Table.Th>{t('table.platform')}</Table.Th>
-                <Table.Th>{t('table.status')}</Table.Th>
-                <Table.Th>{t('table.nextDue')}</Table.Th>
-                <Table.Th>{t('table.owners')}</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {list.data.items.map((c) => (
-                <Table.Tr key={c.id}>
-                  <Table.Td>
-                    <Anchor component="button" type="button" size="sm" fw={500} onClick={() => open(c.id)}>
-                      {c.name}
-                    </Anchor>
-                    {c.archived && (
-                      <Badge ml={6} size="xs" color="gray" variant="outline">
-                        {t('archived')}
-                      </Badge>
-                    )}
-                    {c.tags.length > 0 && (
-                      <Text size="xs" c="dimmed">
-                        {c.tags.join(' · ')}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>{t(`types.${c.type}`)}</Table.Td>
-                  <Table.Td>
-                    {c.platformName ?? (c.platformText || '–')}
-                    {c.environment && (
-                      <Text size="xs" c="dimmed">
-                        {c.environment}
-                      </Text>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <CredentialStatusBadge status={c.status} />
-                  </Table.Td>
-                  <Table.Td className="nowrap">
-                    {c.nextDueAt ? (
-                      <>
-                        {fmtDay(c.nextDueAt)}
-                        <Text size="xs" c="dimmed">
-                          {t(`dueKinds.${[...c.dues].sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]!.kind}`)} · {fmtRelative(c.nextDueAt)}
-                        </Text>
-                      </>
-                    ) : (
-                      '–'
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" style={{ overflowWrap: 'anywhere' }}>
-                      {[...c.owners.map((o) => o.email), ...c.ownerSubjects].join(', ') || '–'}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </div>
-      )}
+      {!!list.data?.items.length && <CredentialTable items={list.data.items} onOpen={open} />}
       {openId && <CredentialDrawer id={openId} onClose={() => open(null)} onEdit={(c) => setEditing(c)} isAdmin={isAdmin} onChanged={refresh} />}
       {editing && (
         <CredentialEditor

@@ -19,7 +19,6 @@ import {
   Textarea,
   Tooltip,
 } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconFileImport, IconHeartRateMonitor, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
@@ -32,6 +31,7 @@ import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
+import { DataTable, type DataColumn } from '../components/DataTable';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -45,6 +45,10 @@ export function MonitorsPage() {
   const canCreate = useMe().caps.createMonitors;
   const list = monitors.data ?? [];
   const counts = Object.fromEntries(MONITOR_STATUSES.map((s) => [s, list.filter((m) => m.status === s).length]));
+  // ?status=down (the start page's "Monitors down" tile); the count badges switch it
+  const statusFilter = MONITOR_STATUSES.find((s) => s === params.get('status')) ?? null;
+  const setStatusFilter = (s: string | null) => setParams(s ? { status: s } : {}, { replace: true });
+  const shown = statusFilter ? list.filter((m) => m.status === statusFilter) : list;
 
   return (
     <>
@@ -83,9 +87,18 @@ export function MonitorsPage() {
       </Group>
       {tab === 'monitors' && (
         <>
-          <Group gap="xs" mb="sm">
-            {MONITOR_STATUSES.filter((s) => counts[s]).map((s) => (
-              <Badge key={s} color={MONITOR_COLORS[s]} variant="light">
+          <Group gap="xs" mb="sm" role="group" aria-label={t('list.filterByStatus')}>
+            {MONITOR_STATUSES.filter((s) => counts[s] || s === statusFilter).map((s) => (
+              <Badge
+                key={s}
+                component="button"
+                type="button"
+                color={MONITOR_COLORS[s]}
+                variant={s === statusFilter ? 'filled' : 'light'}
+                aria-pressed={s === statusFilter}
+                onClick={() => setStatusFilter(s === statusFilter ? null : s)}
+                style={{ cursor: 'pointer' }}
+              >
                 {t('list.count', { count: counts[s], status: monitorStatusLabel(s) })}
               </Badge>
             ))}
@@ -111,7 +124,12 @@ export function MonitorsPage() {
               {canCreate ? t('emptyState.textCreate') : t('emptyState.text')}
             </EmptyState>
           )}
-          {list.length > 0 && <MonitorTable monitors={list} />}
+          {list.length > 0 && shown.length === 0 && (
+            <Text c="dimmed" size="sm">
+              {t('list.noMatch')}
+            </Text>
+          )}
+          {shown.length > 0 && <MonitorTable monitors={shown} />}
         </>
       )}
       {tab === 'templates' && (
@@ -136,104 +154,121 @@ export function MonitorsPage() {
   );
 }
 
+/** Sort order of the status column: the worst state first. */
+const STATUS_ORDER = ['down', 'degraded', 'blocked', 'unknown', 'maintenance', 'up'];
+
 function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
   const { t } = useTranslation('monitors');
-  const navigate = useNavigate();
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  if (narrow) {
-    return (
-      <Stack gap="xs" role="list" aria-label={t('title')}>
-        {monitors.map((m) => (
-          <Paper key={m.id} withBorder p="sm" role="listitem" style={{ borderLeft: `6px solid var(--mantine-color-${MONITOR_COLORS[m.status]}-filled)` }}>
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Anchor component={Link} to={`/monitors/${m.id}`} fw={600} size="sm">
-                {m.name}
-              </Anchor>
-              <MonitorStatusBadge status={m.status} size="xs" />
+  const causes = (m: MonitorSummary) =>
+    m.maintenance ? t('list.maintenanceLine', { reason: m.maintenance.reason }) : m.rootCauses.map((c) => causeText(c, m.id)).join(', ');
+  const columns: DataColumn<MonitorSummary>[] = [
+    {
+      key: 'status',
+      header: t('list.status'),
+      sortValue: (m) => STATUS_ORDER.indexOf(m.status),
+      nowrap: true,
+      cell: (m) => (
+        <>
+          <MonitorStatusBadge status={m.status} />
+          {m.acknowledged && (
+            <Badge ml={4} size="xs" variant="outline">
+              {t('list.acknowledged')}
+            </Badge>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'monitor',
+      header: t('list.monitor'),
+      sortValue: (m) => m.name,
+      cell: (m) => (
+        <>
+          <Anchor component={Link} to={`/monitors/${m.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {m.name}
+          </Anchor>
+          <Text size="xs" c="dimmed" className="mono">
+            {m.key}
+            {!m.enabled && ` · ${t('list.disabled')}`}
+            {m.templateId && ` · ${t('list.fromTemplate')}`}
+          </Text>
+          {m.tags.length > 0 && (
+            <Group gap={4} mt={2}>
+              {m.tags.map((tag) => (
+                <Badge key={tag} size="xs" variant="default">
+                  {tag}
+                </Badge>
+              ))}
             </Group>
-            {m.rootCauses.length > 0 && (
-              <Text size="xs" c="red">
-                {t('list.rootCauseLine', { causes: m.rootCauses.map((c) => causeText(c, m.id)).join(', ') })}
-              </Text>
-            )}
-            <Text size="xs" c="dimmed">
-              {t('list.uptimeLine', { h24: fmtUptime(m.uptime.h24), d7: fmtUptime(m.uptime.d7), since: fmtRelative(m.since) })}
-            </Text>
-          </Paper>
-        ))}
-      </Stack>
-    );
-  }
-  return (
-    <div className="table-scroll">
-      <Table highlightOnHover fz="sm" aria-label={t('title')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('list.status')}</Table.Th>
-            <Table.Th>{t('list.monitor')}</Table.Th>
-            <Table.Th>{t('list.rootCause')}</Table.Th>
-            <Table.Th>{t('list.uptime24h')}</Table.Th>
-            <Table.Th>{t('list.uptime7d')}</Table.Th>
-            <Table.Th>{t('list.lastChange')}</Table.Th>
-            <Table.Th>{t('list.checks')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {monitors.map((m) => (
-            <Table.Tr key={m.id} className="clickable" onClick={() => navigate(`/monitors/${m.id}`)}>
-              <Table.Td className="nowrap">
-                <MonitorStatusBadge status={m.status} />
-                {m.acknowledged && (
-                  <Badge ml={4} size="xs" variant="outline">
-                    {t('list.acknowledged')}
-                  </Badge>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <Anchor component={Link} to={`/monitors/${m.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                  {m.name}
-                </Anchor>
-                <Text size="xs" c="dimmed" className="mono">
-                  {m.key}
-                  {!m.enabled && ` · ${t('list.disabled')}`}
-                  {m.templateId && ` · ${t('list.fromTemplate')}`}
-                </Text>
-                {m.tags.length > 0 && (
-                  <Group gap={4} mt={2}>
-                    {m.tags.map((tag) => (
-                      <Badge key={tag} size="xs" variant="default">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
-                )}
-              </Table.Td>
-              <Table.Td maw={280}>
-                <Text size="xs" c={m.rootCauses.length ? 'red' : 'dimmed'} lineClamp={2}>
-                  {m.maintenance ? t('list.maintenanceLine', { reason: m.maintenance.reason }) : m.rootCauses.map((c) => causeText(c, m.id)).join(', ') || '–'}
-                </Text>
-              </Table.Td>
-              <Table.Td>{fmtUptime(m.uptime.h24)}</Table.Td>
-              <Table.Td>{fmtUptime(m.uptime.d7)}</Table.Td>
-              <Table.Td className="nowrap">
-                <Tooltip label={fmtDate(m.since)}>
-                  <Text size="xs">{fmtRelative(m.since)}</Text>
-                </Tooltip>
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4} wrap="wrap" miw={140}>
-                  {MONITOR_STATUSES.filter((s) => m.counts[s]).map((s) => (
-                    <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={monitorStatusLabel(s)} style={{ minWidth: 'max-content' }}>
-                      {t('list.count', { count: m.counts[s], status: monitorStatusLower(s) })}
-                    </Badge>
-                  ))}
-                </Group>
-              </Table.Td>
-            </Table.Tr>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'rootCause',
+      header: t('list.rootCause'),
+      sortValue: causes,
+      tdProps: () => ({ style: { maxWidth: 280 } }),
+      cell: (m) => (
+        <Text size="xs" c={m.rootCauses.length ? 'red' : 'dimmed'} lineClamp={2}>
+          {causes(m) || '–'}
+        </Text>
+      ),
+    },
+    { key: 'h24', header: t('list.uptime24h'), sortValue: (m) => m.uptime.h24, cell: (m) => fmtUptime(m.uptime.h24) },
+    { key: 'd7', header: t('list.uptime7d'), sortValue: (m) => m.uptime.d7, cell: (m) => fmtUptime(m.uptime.d7) },
+    {
+      key: 'since',
+      header: t('list.lastChange'),
+      sortValue: (m) => m.since,
+      nowrap: true,
+      cell: (m) => (
+        <Tooltip label={fmtDate(m.since)}>
+          <Text size="xs">{fmtRelative(m.since)}</Text>
+        </Tooltip>
+      ),
+    },
+    {
+      key: 'checks',
+      header: t('list.checks'),
+      cell: (m) => (
+        <Group gap={4} wrap="wrap" miw={140}>
+          {MONITOR_STATUSES.filter((s) => m.counts[s]).map((s) => (
+            <Badge key={s} size="xs" color={MONITOR_COLORS[s]} variant="light" title={monitorStatusLabel(s)} style={{ minWidth: 'max-content' }}>
+              {t('list.count', { count: m.counts[s], status: monitorStatusLower(s) })}
+            </Badge>
           ))}
-        </Table.Tbody>
-      </Table>
-    </div>
+        </Group>
+      ),
+    },
+  ];
+  return (
+    <DataTable
+      rows={monitors}
+      columns={columns}
+      rowKey={(m) => m.id}
+      ariaLabel={t('title')}
+      rowHref={(m) => `/monitors/${m.id}`}
+      testId="monitor-list"
+      card={(m) => (
+        <Paper withBorder p="sm" style={{ borderLeft: `6px solid var(--mantine-color-${MONITOR_COLORS[m.status]}-filled)` }}>
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <Anchor component={Link} to={`/monitors/${m.id}`} fw={600} size="sm">
+              {m.name}
+            </Anchor>
+            <MonitorStatusBadge status={m.status} size="xs" />
+          </Group>
+          {m.rootCauses.length > 0 && (
+            <Text size="xs" c="red">
+              {t('list.rootCauseLine', { causes: m.rootCauses.map((c) => causeText(c, m.id)).join(', ') })}
+            </Text>
+          )}
+          <Text size="xs" c="dimmed">
+            {t('list.uptimeLine', { h24: fmtUptime(m.uptime.h24), d7: fmtUptime(m.uptime.d7), since: fmtRelative(m.since) })}
+          </Text>
+        </Paper>
+      )}
+    />
   );
 }
 

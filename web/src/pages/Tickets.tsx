@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, CloseButton, Group, MultiSelect, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput } from '@mantine/core';
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
+import { Anchor, Badge, Button, CloseButton, Group, MultiSelect, NumberInput, Paper, Select, SimpleGrid, Text, TextInput } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconPlus, IconTicket } from '@tabler/icons-react';
@@ -10,6 +10,7 @@ import { get } from '../api';
 import { EmptyState, FilterPanel, PageHeader, QueryState, subjectLabel, useCreateParam } from '../components/common';
 import { ExternalTicketLink, TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings } from '../components/tickets/common';
 import { TicketForm } from '../components/tickets/TicketForm';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { fmtDate, fmtRelative } from '../format';
 
 type State = 'open' | 'closed' | 'all';
@@ -43,7 +44,6 @@ export function TicketsPage() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const [q, setQ] = useState('');
   const [state, setState] = useState<State>('open');
   const [statuses, setStatuses] = useState<string[]>([]);
@@ -82,6 +82,62 @@ export function TicketsPage() {
     next.delete('link');
     setParams(next, { replace: true });
   };
+
+  const columns: DataColumn<TicketReference>[] = [
+    {
+      key: 'ticket',
+      header: t('table.ticket'),
+      sortValue: (x) => x.externalNumber,
+      cell: (x) => (
+        <>
+          <Group gap={6} wrap="nowrap">
+            <Anchor component={Link} to={`/tickets/${x.id}`} fw={600} size="sm" className="mono" onClick={(e) => e.stopPropagation()}>
+              {x.externalNumber}
+            </Anchor>
+            <span onClick={(e) => e.stopPropagation()}>
+              <ExternalTicketLink ticket={x} size="xs" />
+            </span>
+          </Group>
+          <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+            {x.title}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {sourceLabel(x.source)}
+          </Text>
+        </>
+      ),
+    },
+    { key: 'status', header: t('table.status'), sortValue: (x) => TICKET_STATUS_IDS.indexOf(x.status), cell: (x) => <TicketStatusBadge status={x.status} /> },
+    { key: 'vendor', header: t('table.vendor'), sortValue: (x) => x.vendor, cell: (x) => x.vendor || '–' },
+    {
+      key: 'affected',
+      header: t('table.affected'),
+      tdProps: () => ({ onClick: (e: React.MouseEvent) => e.stopPropagation() }),
+      cell: (x) => <AffectedList x={x} />,
+    },
+    {
+      key: 'responsible',
+      header: t('table.responsible'),
+      sortValue: (x) => x.responsible.map(subjectLabel).join(', '),
+      cell: (x) => <Text size="xs">{x.responsible.map(subjectLabel).join(', ') || '–'}</Text>,
+    },
+    {
+      key: 'age',
+      header: t('table.age'),
+      sortValue: (x) => x.ageDays,
+      nowrap: true,
+      tdProps: (x) => ({ title: fmtDate(x.openedAt) }),
+      cell: (x) => t('ageDays', { count: x.ageDays }),
+    },
+    {
+      key: 'lastChecked',
+      header: t('table.lastChecked'),
+      sortValue: (x) => x.lastCheckedAt,
+      nowrap: true,
+      tdProps: (x) => ({ title: x.lastCheckedAt ? fmtDate(x.lastCheckedAt) : undefined }),
+      cell: (x) => (x.lastCheckedAt ? fmtRelative(x.lastCheckedAt) : t('neverChecked')),
+    },
+  ];
 
   return (
     <>
@@ -187,86 +243,38 @@ export function TicketsPage() {
             {t('emptyState.text')}
           </EmptyState>
         ))}
-      {items.length > 0 &&
-        (narrow ? (
-          <Stack gap="xs" role="list" aria-label={t('title')}>
-            {items.map((x) => (
-              <Paper key={x.id} withBorder p="sm" role="listitem">
-                <Group justify="space-between" wrap="nowrap" align="flex-start">
-                  <div style={{ minWidth: 0 }}>
-                    <Group gap={6}>
-                      <Anchor component={Link} to={`/tickets/${x.id}`} fw={600} size="sm" className="mono">
-                        {x.externalNumber}
-                      </Anchor>
-                      <ExternalTicketLink ticket={x} size="xs" />
-                    </Group>
-                    <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                      {x.title}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {[sourceLabel(x.source), x.vendor, t('ageDays', { count: x.ageDays })].filter(Boolean).join(' · ')}
-                    </Text>
-                  </div>
-                  <TicketStatusBadge status={x.status} size="xs" />
-                </Group>
-              </Paper>
-            ))}
-          </Stack>
-        ) : (
-          <div className="table-scroll">
-            <Table highlightOnHover fz="sm" aria-label={t('title')}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>{t('table.ticket')}</Table.Th>
-                  <Table.Th>{t('table.status')}</Table.Th>
-                  <Table.Th>{t('table.vendor')}</Table.Th>
-                  <Table.Th>{t('table.affected')}</Table.Th>
-                  <Table.Th>{t('table.responsible')}</Table.Th>
-                  <Table.Th>{t('table.age')}</Table.Th>
-                  <Table.Th>{t('table.lastChecked')}</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {items.map((x) => (
-                  <Table.Tr key={x.id} className="clickable" onClick={() => navigate(`/tickets/${x.id}`)}>
-                    <Table.Td>
-                      <Group gap={6} wrap="nowrap">
-                        <Anchor component={Link} to={`/tickets/${x.id}`} fw={600} size="sm" className="mono" onClick={(e) => e.stopPropagation()}>
-                          {x.externalNumber}
-                        </Anchor>
-                        <span onClick={(e) => e.stopPropagation()}>
-                          <ExternalTicketLink ticket={x} size="xs" />
-                        </span>
-                      </Group>
-                      <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
-                        {x.title}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {sourceLabel(x.source)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <TicketStatusBadge status={x.status} />
-                    </Table.Td>
-                    <Table.Td>{x.vendor || '–'}</Table.Td>
-                    <Table.Td onClick={(e) => e.stopPropagation()}>
-                      <AffectedList x={x} />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="xs">{x.responsible.map(subjectLabel).join(', ') || '–'}</Text>
-                    </Table.Td>
-                    <Table.Td className="nowrap" title={fmtDate(x.openedAt)}>
-                      {t('ageDays', { count: x.ageDays })}
-                    </Table.Td>
-                    <Table.Td className="nowrap" title={x.lastCheckedAt ? fmtDate(x.lastCheckedAt) : undefined}>
-                      {x.lastCheckedAt ? fmtRelative(x.lastCheckedAt) : t('neverChecked')}
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </div>
-        ))}
+      {items.length > 0 && (
+        <DataTable
+          rows={items}
+          columns={columns}
+          rowKey={(x) => x.id}
+          ariaLabel={t('title')}
+          rowHref={(x) => `/tickets/${x.id}`}
+          footer={<ListFooter shown={items.length} />}
+          testId="ticket-list"
+          card={(x) => (
+            <Paper withBorder p="sm">
+              <Group justify="space-between" wrap="nowrap" align="flex-start">
+                <div style={{ minWidth: 0 }}>
+                  <Group gap={6}>
+                    <Anchor component={Link} to={`/tickets/${x.id}`} fw={600} size="sm" className="mono">
+                      {x.externalNumber}
+                    </Anchor>
+                    <ExternalTicketLink ticket={x} size="xs" />
+                  </Group>
+                  <Text size="sm" style={{ overflowWrap: 'anywhere' }}>
+                    {x.title}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {[sourceLabel(x.source), x.vendor, t('ageDays', { count: x.ageDays })].filter(Boolean).join(' · ')}
+                  </Text>
+                </div>
+                <TicketStatusBadge status={x.status} size="xs" />
+              </Group>
+            </Paper>
+          )}
+        />
+      )}
       {creating && (
         <TicketForm
           ticket={null}

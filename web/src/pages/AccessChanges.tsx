@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, Paper, Select, Stack, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
+import { Anchor, Badge, Box, Button, Checkbox, Group, Modal, Paper, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconPlus, IconSearch, IconUserShield } from '@tabler/icons-react';
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { ACCESS_CHANGE_KINDS, type AccessChange, type Platform, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { useMe } from '../auth';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam } from '../components/common';
 import { RecordStatusBadge } from '../components/records/common';
 import { KindBadge, RightsDiff } from '../components/compliance/common';
@@ -132,90 +133,89 @@ function OriginBadge({ a }: { a: AccessChange }) {
 
 function AccessChangeTable({ rows }: { rows: AccessChange[] }) {
   const { t } = useTranslation('compliance');
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  if (narrow) {
-    return (
-      <Stack gap="xs" role="list" aria-label={t('accessChanges.title')}>
-        {rows.map((a) => (
-          <Paper key={a.recordId} withBorder p="sm" role="listitem">
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Box style={{ minWidth: 0 }}>
-                <Anchor component={Link} to={`/records/${a.recordId}`} fw={600} size="sm">
-                  {a.subjectName || a.subjectId}
-                </Anchor>
-                <Text size="xs" c="dimmed">
-                  {a.number} · {fmtDate(a.performedAt)} · {a.platformName ?? a.platformId}
-                </Text>
-              </Box>
-              <RecordStatusBadge status={a.status} size="xs" />
-            </Group>
-            <Group gap={4} mt={4}>
-              <KindBadge kind={a.kind} />
-              <OriginBadge a={a} />
-            </Group>
-            <Box mt={4}>
-              <RightsDiff granted={a.granted} revoked={a.revoked} />
-            </Box>
-          </Paper>
-        ))}
-      </Stack>
-    );
-  }
+  const columns: DataColumn<AccessChange>[] = [
+    {
+      key: 'number',
+      header: t('accessChanges.number'),
+      sortValue: (a) => a.number,
+      cell: (a) => (
+        <Anchor component={Link} to={`/records/${a.recordId}`} className="mono" size="sm">
+          {a.number}
+        </Anchor>
+      ),
+    },
+    { key: 'performedAt', header: t('accessChanges.performedAt'), sortValue: (a) => a.performedAt, cell: (a) => fmtDate(a.performedAt) },
+    {
+      key: 'subject',
+      header: t('accessChanges.subject'),
+      sortValue: (a) => a.subjectName || a.subjectId,
+      cell: (a) => (
+        <>
+          <Text size="sm">{a.subjectName || a.subjectId}</Text>
+          {a.subjectName && (
+            <Text size="xs" c="dimmed" className="mono">
+              {a.subjectId}
+            </Text>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'platform',
+      header: t('accessChanges.platform'),
+      sortValue: (a) => a.platformName,
+      cell: (a) =>
+        a.platformName ?? (
+          <Text c="dimmed" size="sm">
+            {t('accessChanges.platformHidden')}
+          </Text>
+        ),
+    },
+    {
+      key: 'change',
+      header: t('accessChanges.change'),
+      sortValue: (a) => a.kind,
+      cell: (a) => (
+        <Group gap={4}>
+          <KindBadge kind={a.kind} />
+          <OriginBadge a={a} />
+        </Group>
+      ),
+    },
+    { key: 'rights', header: t('accessChanges.rights'), cell: (a) => <RightsDiff granted={a.granted} revoked={a.revoked} /> },
+    { key: 'status', header: t('accessChanges.status'), sortValue: (a) => a.status, cell: (a) => <RecordStatusBadge status={a.status} size="xs" /> },
+  ];
   return (
-    <div className="table-scroll">
-      <Table highlightOnHover fz="sm" aria-label={t('accessChanges.title')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('accessChanges.number')}</Table.Th>
-            <Table.Th>{t('accessChanges.performedAt')}</Table.Th>
-            <Table.Th>{t('accessChanges.subject')}</Table.Th>
-            <Table.Th>{t('accessChanges.platform')}</Table.Th>
-            <Table.Th>{t('accessChanges.change')}</Table.Th>
-            <Table.Th>{t('accessChanges.rights')}</Table.Th>
-            <Table.Th>{t('accessChanges.status')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {rows.map((a) => (
-            <Table.Tr key={a.recordId}>
-              <Table.Td>
-                <Anchor component={Link} to={`/records/${a.recordId}`} className="mono" size="sm">
-                  {a.number}
-                </Anchor>
-              </Table.Td>
-              <Table.Td>{fmtDate(a.performedAt)}</Table.Td>
-              <Table.Td>
-                <Text size="sm">{a.subjectName || a.subjectId}</Text>
-                {a.subjectName && (
-                  <Text size="xs" c="dimmed" className="mono">
-                    {a.subjectId}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                {a.platformName ?? (
-                  <Text c="dimmed" size="sm">
-                    {t('accessChanges.platformHidden')}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>
-                <Group gap={4}>
-                  <KindBadge kind={a.kind} />
-                  <OriginBadge a={a} />
-                </Group>
-              </Table.Td>
-              <Table.Td>
-                <RightsDiff granted={a.granted} revoked={a.revoked} />
-              </Table.Td>
-              <Table.Td>
-                <RecordStatusBadge status={a.status} size="xs" />
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </div>
+    <DataTable
+      rows={rows}
+      columns={columns}
+      rowKey={(a) => a.recordId}
+      ariaLabel={t('accessChanges.title')}
+      footer={<ListFooter shown={rows.length} />}
+      testId="access-change-list"
+      card={(a) => (
+        <Paper withBorder p="sm">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <Box style={{ minWidth: 0 }}>
+              <Anchor component={Link} to={`/records/${a.recordId}`} fw={600} size="sm">
+                {a.subjectName || a.subjectId}
+              </Anchor>
+              <Text size="xs" c="dimmed">
+                {a.number} · {fmtDate(a.performedAt)} · {a.platformName ?? a.platformId}
+              </Text>
+            </Box>
+            <RecordStatusBadge status={a.status} size="xs" />
+          </Group>
+          <Group gap={4} mt={4}>
+            <KindBadge kind={a.kind} />
+            <OriginBadge a={a} />
+          </Group>
+          <Box mt={4}>
+            <RightsDiff granted={a.granted} revoked={a.revoked} />
+          </Box>
+        </Paper>
+      )}
+    />
   );
 }
 

@@ -36,7 +36,9 @@
     "acknowledged": "bestätigt",
     "disabled": "deaktiviert",
     "fromTemplate": "aus Vorlage",
-    "maintenanceLine": "Wartung: {{reason}}"
+    "maintenanceLine": "Wartung: {{reason}}",
+    "filterByStatus": "Nach Status filtern",
+    "noMatch": "Kein Monitor hat diesen Status."
   },
   "templates": {
     "intro": "Eine Vorlage ist ein Monitor mit Parametern (IP-Adresse, Asset-ID, Takt …). Daraus lassen sich viele Monitore per Formular oder CSV-Datei anlegen; ändert sich die Vorlage, zeigen die Instanzen „Vorlage aktualisiert“ und lassen sich neu abgleichen.",

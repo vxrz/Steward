@@ -36,7 +36,9 @@
     "acknowledged": "acknowledged",
     "disabled": "disabled",
     "fromTemplate": "from template",
-    "maintenanceLine": "Maintenance: {{reason}}"
+    "maintenanceLine": "Maintenance: {{reason}}",
+    "filterByStatus": "Filter by status",
+    "noMatch": "No monitors have this status."
   },
   "templates": {
     "intro": "A template is a monitor with parameters (IP address, asset id, cadence …). Create many monitors from it with a form or a CSV file; when the template changes, instances show \"template updated\" and can be re-synced.",

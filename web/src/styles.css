@@ -137,3 +137,8 @@ p .mantine-Anchor-root,
 .react-flow .react-flow__panel.react-flow__attribution a {
   color: var(--mantine-color-dimmed);
 }
+/* Sortable column headers (DataTable): the whole header is the button. */
+.sort-header {
+  color: inherit;
+  white-space: nowrap;
+}

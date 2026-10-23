@@ -4,7 +4,9 @@
     "description": "Jede Ausführung eines Prozesses mit vollständigem Protokoll.",
     "allProcesses": "Alle Prozesse",
     "anyStatus": "Jeder Status",
-    "summaryReport": "Zusammenfassender Bericht"
+    "summaryReport": "Zusammenfassender Bericht",
+    "process": "Prozess",
+    "status": "Status"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",

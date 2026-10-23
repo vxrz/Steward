@@ -1,17 +1,21 @@
 import { useRef, useState } from 'react';
 import { Alert, Anchor, Badge, Box, Button, FileButton, Group, Modal, Paper, Select, Stack, Table, Text, TextInput } from '@mantine/core';
-import { useDebouncedValue, useMediaQuery } from '@mantine/hooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useDebouncedValue } from '@mantine/hooks';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, IconSettings, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { RECORD_STATUSES, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
-import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam } from '../components/common';
+import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
 import { RecordStatusBadge, useRecordTypes, useTypeName } from '../components/records/common';
 import { fmtDate, fmtRelative } from '../format';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabelByKey, typeDescription, typeTemplate } from '../components/records/builtin';
+
+/** Records per request; "Load more" raises the limit by this much. */
+const RECORDS_PAGE = 500;
 
 export function RecordsPage() {
   const { t } = useTranslation(['records', 'common']);
@@ -32,14 +36,21 @@ export function RecordsPage() {
   if (status) query.set('status', status);
   if (tag) query.set('tag', tag);
   if (q.trim()) query.set('q', q.trim());
-  const records = useQuery({ queryKey: ['records', query.toString()], queryFn: () => get<RecordSummary[]>(`/records?${query}`) });
+  // one more than shown tells whether there are more ("Load more" raises the limit)
+  const [limit, setLimit] = useState(RECORDS_PAGE);
+  const records = useQuery({
+    queryKey: ['records', query.toString(), limit],
+    queryFn: () => get<RecordSummary[]>(`/records?${query}${query.toString() ? '&' : ''}limit=${limit + 1}`),
+    placeholderData: keepPreviousData,
+  });
   const set = (k: string, v: string | null) => {
     const next = new URLSearchParams(params);
     if (v) next.set(k, v);
     else next.delete(k);
     setParams(next, { replace: true });
   };
-  const list = records.data ?? [];
+  const all = records.data ?? [];
+  const list = all.slice(0, limit);
   const canCreate = meta.data?.canCreate ?? false;
   useCreateParam(meta.data?.canCreate, () => setCreating(true));
 
@@ -68,48 +79,50 @@ export function RecordsPage() {
           </>
         }
       />
-      <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
-        <TextInput
-          size="xs"
-          label={t('list.search')}
-          leftSection={<IconSearch size={14} />}
-          value={text}
-          onChange={(e) => setText(e.currentTarget.value)}
-          w={{ base: '100%', xs: 240 }}
-        />
-        <Select
-          size="xs"
-          label={t('list.type')}
-          placeholder={t('list.allTypes')}
-          clearable
-          data={(types.data ?? []).map((x) => ({ value: x.key, label: `${x.key} – ${typeName(x)}` }))}
-          value={type}
-          onChange={(v) => set('type', v)}
-          w={{ base: '100%', xs: 240 }}
-        />
-        <Select
-          size="xs"
-          label={t('list.status')}
-          placeholder={t('list.allStatuses')}
-          clearable
-          data={RECORD_STATUSES.map((s) => ({ value: s, label: t(`status.${s as 'draft'}`) }))}
-          value={status}
-          onChange={(v) => set('status', v)}
-          w={{ base: '100%', xs: 180 }}
-        />
-        {tag && (
-          <Badge
-            variant="light"
-            rightSection={<IconX size={12} aria-hidden />}
-            style={{ cursor: 'pointer' }}
-            onClick={() => set('tag', null)}
-            component="button"
-            aria-label={t('list.clearTag', { tag })}
-          >
-            {tag}
-          </Badge>
-        )}
-      </Group>
+      <FilterPanel active={[type, status, tag, q.trim()].filter(Boolean).length}>
+        <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
+          <TextInput
+            size="xs"
+            label={t('list.search')}
+            leftSection={<IconSearch size={14} />}
+            value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+            w={{ base: '100%', xs: 240 }}
+          />
+          <Select
+            size="xs"
+            label={t('list.type')}
+            placeholder={t('list.allTypes')}
+            clearable
+            data={(types.data ?? []).map((x) => ({ value: x.key, label: `${x.key} – ${typeName(x)}` }))}
+            value={type}
+            onChange={(v) => set('type', v)}
+            w={{ base: '100%', xs: 240 }}
+          />
+          <Select
+            size="xs"
+            label={t('list.status')}
+            placeholder={t('list.allStatuses')}
+            clearable
+            data={RECORD_STATUSES.map((s) => ({ value: s, label: t(`status.${s as 'draft'}`) }))}
+            value={status}
+            onChange={(v) => set('status', v)}
+            w={{ base: '100%', xs: 180 }}
+          />
+          {tag && (
+            <Badge
+              variant="light"
+              rightSection={<IconX size={12} aria-hidden />}
+              style={{ cursor: 'pointer' }}
+              onClick={() => set('tag', null)}
+              component="button"
+              aria-label={t('list.clearTag', { tag })}
+            >
+              {tag}
+            </Badge>
+          )}
+        </Group>
+      </FilterPanel>
       <QueryState query={records} />
       {records.isSuccess &&
         list.length === 0 &&
@@ -137,17 +150,28 @@ export function RecordsPage() {
             {canCreate ? t('list.emptyCreateText') : t('list.emptyText')}
           </EmptyState>
         ))}
-      {list.length > 0 && <RecordTable records={list} onTag={(x) => set('tag', x)} />}
+      {list.length > 0 && (
+        <RecordTable
+          records={list}
+          onTag={(x) => set('tag', x)}
+          footer={
+            <ListFooter
+              shown={list.length}
+              hasMore={all.length > limit}
+              onLoadMore={() => setLimit((n) => n + RECORDS_PAGE)}
+              loading={records.isFetching && records.isPlaceholderData}
+            />
+          }
+        />
+      )}
       {creating && <NewRecordModal onClose={() => setCreating(false)} onCreated={(r) => navigate(`/records/${r.id}/edit`)} />}
       {importing && <ImportModal onClose={() => setImporting(false)} />}
     </>
   );
 }
 
-function RecordTable({ records, onTag }: { records: RecordSummary[]; onTag: (tag: string) => void }) {
+function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onTag: (tag: string) => void; footer?: React.ReactNode }) {
   const { t } = useTranslation('records');
-  const navigate = useNavigate();
-  const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   const tags = (r: RecordSummary) =>
     r.tags.length > 0 && (
       <Group gap={4} mt={2}>
@@ -168,70 +192,76 @@ function RecordTable({ records, onTag }: { records: RecordSummary[]; onTag: (tag
         ))}
       </Group>
     );
-  if (narrow) {
-    return (
-      <Stack gap="xs" role="list" aria-label={t('title')}>
-        {records.map((r) => (
-          <Paper key={r.id} withBorder p="sm" role="listitem">
-            <Group justify="space-between" wrap="nowrap" align="flex-start">
-              <Box style={{ minWidth: 0 }}>
-                <Text size="xs" c="dimmed" className="mono">
-                  {r.number}
-                </Text>
-                <Anchor component={Link} to={`/records/${r.id}`} fw={600} size="sm">
-                  {r.title}
-                </Anchor>
-              </Box>
-              <RecordStatusBadge status={r.status} size="xs" />
-            </Group>
-            <Text size="xs" c="dimmed">
-              {t('list.ownerLine', { owner: r.owner, when: fmtRelative(r.updatedAt) })}
+  const columns: DataColumn<RecordSummary>[] = [
+    { key: 'number', header: t('list.number'), sortValue: (r) => r.number, tdProps: () => ({ className: 'nowrap mono' }), cell: (r) => r.number },
+    {
+      key: 'title',
+      header: t('list.record'),
+      sortValue: (r) => r.title,
+      cell: (r) => (
+        <>
+          <Anchor component={Link} to={`/records/${r.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
+            {r.title}
+          </Anchor>
+          {tags(r)}
+        </>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('list.status'),
+      sortValue: (r) => t(`status.${r.status as 'draft'}`),
+      nowrap: true,
+      cell: (r) => (
+        <>
+          <RecordStatusBadge status={r.status} />
+          {r.revision > 1 && (
+            <Text span size="xs" c="dimmed" ml={6}>
+              {t('list.revision', { n: r.revision })}
             </Text>
-            {tags(r)}
-          </Paper>
-        ))}
-      </Stack>
-    );
-  }
+          )}
+        </>
+      ),
+    },
+    { key: 'owner', header: t('list.owner'), sortValue: (r) => r.owner, cell: (r) => r.owner },
+    {
+      key: 'updated',
+      header: t('list.updated'),
+      sortValue: (r) => r.updatedAt,
+      nowrap: true,
+      tdProps: (r) => ({ title: fmtDate(r.updatedAt) }),
+      cell: (r) => fmtRelative(r.updatedAt),
+    },
+  ];
   return (
-    <div className="table-scroll">
-      <Table highlightOnHover fz="sm" aria-label={t('title')}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t('list.number')}</Table.Th>
-            <Table.Th>{t('list.record')}</Table.Th>
-            <Table.Th>{t('list.status')}</Table.Th>
-            <Table.Th>{t('list.owner')}</Table.Th>
-            <Table.Th>{t('list.updated')}</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {records.map((r) => (
-            <Table.Tr key={r.id} className="clickable" onClick={() => navigate(`/records/${r.id}`)}>
-              <Table.Td className="nowrap mono">{r.number}</Table.Td>
-              <Table.Td>
-                <Anchor component={Link} to={`/records/${r.id}`} fw={500} size="sm" onClick={(e) => e.stopPropagation()}>
-                  {r.title}
-                </Anchor>
-                {tags(r)}
-              </Table.Td>
-              <Table.Td className="nowrap">
-                <RecordStatusBadge status={r.status} />
-                {r.revision > 1 && (
-                  <Text span size="xs" c="dimmed" ml={6}>
-                    {t('list.revision', { n: r.revision })}
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td>{r.owner}</Table.Td>
-              <Table.Td className="nowrap" title={fmtDate(r.updatedAt)}>
-                {fmtRelative(r.updatedAt)}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </div>
+    <DataTable
+      rows={records}
+      columns={columns}
+      rowKey={(r) => r.id}
+      ariaLabel={t('title')}
+      rowHref={(r) => `/records/${r.id}`}
+      footer={footer}
+      testId="record-list"
+      card={(r) => (
+        <Paper withBorder p="sm">
+          <Group justify="space-between" wrap="nowrap" align="flex-start">
+            <Box style={{ minWidth: 0 }}>
+              <Text size="xs" c="dimmed" className="mono">
+                {r.number}
+              </Text>
+              <Anchor component={Link} to={`/records/${r.id}`} fw={600} size="sm">
+                {r.title}
+              </Anchor>
+            </Box>
+            <RecordStatusBadge status={r.status} size="xs" />
+          </Group>
+          <Text size="xs" c="dimmed">
+            {t('list.ownerLine', { owner: r.owner, when: fmtRelative(r.updatedAt) })}
+          </Text>
+          {tags(r)}
+        </Paper>
+      )}
+    />
   );
 }
 
@@ -285,7 +315,7 @@ function NewRecordModal({ onClose, onCreated }: { onClose: () => void; onCreated
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button type="submit" loading={busy} disabled={!type || !title.trim()}>
+            <Button type="submit" loading={busy}>
               {t('create.submit')}
             </Button>
           </Group>

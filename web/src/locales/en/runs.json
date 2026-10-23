@@ -4,7 +4,9 @@
     "description": "Every execution of a process with its full protocol.",
     "allProcesses": "All processes",
     "anyStatus": "Any status",
-    "summaryReport": "Summary report"
+    "summaryReport": "Summary report",
+    "process": "Process",
+    "status": "Status"
   },
   "table": {
     "empty": "No runs yet.",

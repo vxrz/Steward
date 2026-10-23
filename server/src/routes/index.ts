@@ -245,13 +245,24 @@ function visibleTasks(status?: string): TaskRecord[] {
   return withDecisionRights(store.listTasks({ status }).filter((t) => visible.has(t.processId ?? store.taskProcessId(t.id))));
 }
 
+/**
+ * Runs the user may see, newest first. Runs of hidden processes are left out before the limit applies:
+ * further batches are read (older than the last one) until the page is full, so a short page means
+ * "no more runs" and `before` = the oldest run's start continues the list.
+ */
 function visibleRuns(f: Parameters<typeof store.listRuns>[0]): RunSummary[] {
   const visible = visibleProcessIds();
-  const limit = f.limit ?? 100;
-  return store
-    .listRuns({ ...f, limit: limit * 3 })
-    .filter((r) => visible.has(r.processId))
-    .slice(0, limit);
+  const limit = Math.min(f.limit ?? 100, 1000);
+  const batch = Math.min(limit * 3, 1000);
+  const out: RunSummary[] = [];
+  let before = f.before;
+  for (let i = 0; i < 20 && out.length < limit; i++) {
+    const rows = store.listRuns({ ...f, before, limit: batch });
+    out.push(...rows.filter((r) => visible.has(r.processId)));
+    if (rows.length < batch) break;
+    before = rows[rows.length - 1]!.startedAt;
+  }
+  return out.slice(0, limit);
 }
 
 function redact<T>(v: T, secrets: Record<string, string>): T {
