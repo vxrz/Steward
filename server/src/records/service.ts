@@ -831,6 +831,8 @@ export interface TransitionInput {
   editionKind?: EditionKind;
   /** Submitting a living document: what changed in this edition (required) */
   changeSummary?: string;
+  /** Optional: the content hash the person saw (approvals); a different current hash is refused, so nobody decides on content they did not see */
+  contentHash?: string;
 }
 
 export function transition(idOrNumber: string, input: TransitionInput): RecordDetail {
@@ -904,6 +906,11 @@ export function transition(idOrNumber: string, input: TransitionInput): RecordDe
       number: r.number,
     });
   }
+  if (input.contentHash !== undefined && input.contentHash !== hash)
+    throw new HttpError(409, `${r.number} was changed in the meantime – reload it and check the content before you decide`, 'RECORD_CHANGED', {
+      number: r.number,
+      version: Number(r.version),
+    });
   const now = nowIso();
   let approved: EditionRow | undefined;
   let row = r;

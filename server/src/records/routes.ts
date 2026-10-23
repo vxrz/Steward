@@ -156,6 +156,11 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
         // living documents (submit): minor or major edition, and what changed
         editionKind: z.enum(EDITION_KINDS).optional(),
         changeSummary: z.string().max(4000).optional(),
+        // optional: the content hash the decision is based on (the web app sends the one it showed when approving)
+        contentHash: z
+          .string()
+          .regex(/^[0-9a-f]{64}$/, 'a SHA-256 hash (64 hex digits)')
+          .optional(),
       })
       .strict()
       .parse(req.body);

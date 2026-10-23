@@ -795,4 +795,35 @@ describe('security review fixes', () => {
     const draft = await newCr('Draft hand-over');
     expect((await dana('PUT', `/records/${draft.id}`, { owner: 'olivia' })).owner).toBe('olivia');
   });
+
+  it('an approval names the content hash it decides on; changed content is refused (all workflows)', async () => {
+    // a change request: the approver opened it, then the author reworked and resubmitted it
+    const cr = await newCr('Approve what you saw');
+    await dana('POST', `/records/${cr.id}/transition`, { action: 'submit' });
+    const seen = (await adam('GET', `/records/${cr.id}`)).frozenHash;
+    await dana('POST', `/records/${cr.id}/revise`, { comment: 'one more thing' });
+    await dana('PUT', `/records/${cr.id}`, { body: 'Something else entirely' });
+    await dana('POST', `/records/${cr.id}/transition`, { action: 'submit' });
+    const refused = await errorOf(adam('POST', `/records/${cr.id}/transition`, { action: 'approve', contentHash: seen }));
+    expect(refused.status).toBe(409);
+    expect(refused.text).toContain('RECORD_CHANGED');
+    expect((await vera('GET', `/records/${cr.id}`)).status).toBe('submitted');
+    expect(await status(adam('POST', `/records/${cr.id}/transition`, { action: 'approve', contentHash: 'abc' }))).toBe(400);
+    const now = (await adam('GET', `/records/${cr.id}`)).frozenHash;
+    expect(now).not.toBe(seen);
+    expect((await adam('POST', `/records/${cr.id}/transition`, { action: 'approve', contentHash: now })).status).toBe('approved');
+    // a document: rejected, changed and resubmitted while the approver still had the old edition open
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'Approve the edition you saw', body: 'One' });
+    await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First' });
+    const old = (await adam('GET', `/records/${doc.id}`)).frozenHash;
+    await s.api('POST', `/records/${doc.id}/transition`, { action: 'reject', comment: 'Two, please' });
+    await dana('PUT', `/records/${doc.id}`, { body: 'Two' });
+    await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First' });
+    expect((await errorOf(adam('POST', `/records/${doc.id}/transition`, { action: 'approve', contentHash: old }))).text).toContain('RECORD_CHANGED');
+    expect((await vera('GET', `/records/${doc.id}`)).document.editions).toEqual([]);
+    // a decision: accept with the hash shown
+    const adr = await dana('POST', '/records', { type: 'ADR', title: 'Accept what you saw' });
+    const proposed = await dana('POST', `/records/${adr.id}/transition`, { action: 'propose' });
+    expect((await adam('POST', `/records/${adr.id}/transition`, { action: 'accept', contentHash: proposed.frozenHash })).status).toBe('accepted');
+  });
 });

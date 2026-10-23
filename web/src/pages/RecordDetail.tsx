@@ -798,6 +798,8 @@ function TransitionModal({
           action: action.action,
           comment: comment.trim() || undefined,
           supersededBy: target ?? undefined,
+          // approvals decide on the content shown here: the server refuses if it changed in the meantime
+          ...(action.approval ? { contentHash: rec.frozenHash ?? rec.contentHash } : {}),
           ...(edition ? { changeSummary: summary.trim(), ...(kind ? { editionKind: kind } : {}) } : {}),
         }),
       );
