@@ -14,6 +14,7 @@ import { errorText } from '../i18n/errors';
 import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
+import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 
 export function DashboardViewPage() {
@@ -126,7 +127,7 @@ export function DashboardViewPage() {
                       color="red"
                       leftSection={<IconTrash size={14} />}
                       onClick={async () => {
-                        if (!confirm(t('view.deleteConfirm', { name: d.name }))) return;
+                        if (!(await confirmDanger({ action: 'delete', message: t('view.deleteConfirm', { name: d.name }) }))) return;
                         try {
                           await del(`/dashboards/${d.id}`);
                           qc.invalidateQueries({ queryKey: ['dashboards'] });

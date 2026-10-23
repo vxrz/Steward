@@ -43,6 +43,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, Hint, PageHeader, QueryState, StatusBadge } from '../components/common';
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
+import { confirmDanger } from '../components/confirm';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -130,7 +131,7 @@ export function TriggersPage() {
   };
 
   const rotate = async (tr: WebhookTrigger) => {
-    if (!confirm(t('rotateConfirm', { name: tr.name }))) return;
+    if (!(await confirmDanger({ action: 'rotate', message: t('rotateConfirm', { name: tr.name }) }))) return;
     try {
       setSecret(await post<WebhookTriggerSecret>(`/triggers/${tr.id}/rotate`));
       refresh();
@@ -276,7 +277,7 @@ export function TriggersPage() {
                             color="red"
                             aria-label={t('deleteFor', { name: tr.name })}
                             onClick={async () => {
-                              if (!confirm(t('deleteConfirm', { name: tr.name }))) return;
+                              if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: tr.name }) }))) return;
                               await del(`/triggers/${tr.id}`).catch(notifyError);
                               refresh();
                             }}

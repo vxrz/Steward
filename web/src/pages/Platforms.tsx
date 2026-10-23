@@ -31,6 +31,7 @@ import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../com
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
+import { confirmDanger } from '../components/confirm';
 
 export const KIND_COLORS: Record<string, string> = {
   'insights-hub': 'teal',
@@ -228,7 +229,7 @@ function ConnectorTypesModal({ opened, onClose, canManage }: { opened: boolean; 
                               color="red"
                               aria-label={t('common:delete')}
                               onClick={async () => {
-                                if (!confirm(t('types.deleteConfirm', { name: ct.label }))) return;
+                                if (!(await confirmDanger({ action: 'delete', message: t('types.deleteConfirm', { name: ct.label }) }))) return;
                                 await del(`/platform-types/${encodeURIComponent(ct.kind)}`).catch(notifyError);
                                 refresh();
                               }}

@@ -18,6 +18,7 @@ import {
   type RecordType,
 } from '@sm/shared';
 import { get, notifyError } from '../../api';
+import { confirmDanger } from '../confirm';
 
 export const useRecordTypes = (archived = false) =>
   useQuery({ queryKey: ['record-types', archived], queryFn: () => get<RecordType[]>(`/record-types${archived ? '?archived=1' : ''}`), staleTime: 30_000 });
@@ -115,7 +116,7 @@ export function LinksPanel({
                           color="red"
                           aria-label={t('links.removeNamed', { name: l.label || l.url || t('links.notVisible') })}
                           onClick={async () => {
-                            if (confirm(t('links.removeConfirm'))) await onRemove(l.id).catch(notifyError);
+                            if (await confirmDanger({ action: 'remove', message: t('links.removeConfirm') })) await onRemove(l.id).catch(notifyError);
                           }}
                         >
                           <IconTrash size={16} />

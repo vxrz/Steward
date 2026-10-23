@@ -24,6 +24,7 @@ import { currentLanguage } from '../i18n';
 import { LANGUAGES } from '../i18n/languages';
 import { useChangeLanguage } from './LanguageSwitcher';
 import { BRAND } from '../../../shared/src/brand';
+import { confirmDanger } from './confirm';
 
 export async function signOut(qc: ReturnType<typeof useQueryClient>): Promise<void> {
   try {
@@ -132,7 +133,7 @@ export function UserMenu() {
             <Menu.Item
               leftSection={<IconLock size={14} />}
               onClick={async () => {
-                if (!confirm(t('userMenu.lockVaultConfirm'))) return;
+                if (!(await confirmDanger({ action: 'lockVault', message: t('userMenu.lockVaultConfirm') }))) return;
                 try {
                   await post('/vault/lock');
                   await resetToAuth(qc);

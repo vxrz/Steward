@@ -48,6 +48,7 @@ import { useMe } from '../auth';
 import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
+import { confirmDanger } from '../components/confirm';
 
 export const CREDENTIAL_TYPE_IDS: CredentialType[] = ['apiClient', 'technicalUser', 'password', 'token', 'certificate', 'agentCertificate', 'sshKey', 'other'];
 export const CREDENTIAL_STATUS_IDS: CredentialStatus[] = ['ok', 'dueSoon', 'overdue', 'expired'];
@@ -422,7 +423,7 @@ function CredentialDrawer({
                 color="red"
                 leftSection={<IconTrash size={14} />}
                 onClick={async () => {
-                  if (!confirm(t('detail.deleteConfirm', { name: c.name }))) return;
+                  if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: c.name }) }))) return;
                   try {
                     await del(`/credentials/${id}`);
                     notifyOk(t('detail.deleted'));

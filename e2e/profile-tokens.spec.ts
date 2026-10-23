@@ -1,7 +1,7 @@
 import { request as pwRequest } from '@playwright/test';
 import { test, expect } from './support/fixtures';
 import { authFile, baseURL } from './support/env';
-import { uniq } from './support/helpers';
+import { confirmDialog, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('olivia'), permissions: ['clipboard-read', 'clipboard-write'] });
 
@@ -39,8 +39,8 @@ test('API token: create (read-only), copy once, use, revoke', async ({ page }) =
     expect((await script.get('/api/runs')).status()).toBe(200);
     expect((await script.post('/api/runs', { data: { processId: 'ih-health-check' } })).status()).toBe(403);
 
-    page.once('dialog', (d) => d.accept());
     await row.getByRole('button', { name: `Revoke token ${name}` }).click();
+    await confirmDialog(page, 'Revoke', { title: 'Revoke access', message: name });
     await expect(page.getByText('Token revoked')).toBeVisible();
     await expect(row).toContainText('revoked');
     expect((await script.get('/api/runs')).status()).toBe(401);

@@ -37,6 +37,7 @@ import {
   setBrowserNotifyOptIn,
   showBrowserNotification,
 } from '../components/notifications/browserNotify';
+import { confirmDanger } from '../components/confirm';
 
 export function ProfilePage() {
   const { t } = useTranslation('profile');
@@ -251,7 +252,7 @@ function TokensCard() {
   const isMobile = useMediaQuery('(max-width: 48em)');
 
   const revoke = async (token: ApiToken) => {
-    if (!confirm(t('tokens.revokeConfirm', { name: token.name }))) return;
+    if (!(await confirmDanger({ action: 'revoke', message: t('tokens.revokeConfirm', { name: token.name }) }))) return;
     try {
       await del(`/me/tokens/${encodeURIComponent(token.id)}`);
       notifyOk(t('tokens.revoked'));

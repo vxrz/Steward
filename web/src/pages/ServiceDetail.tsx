@@ -13,6 +13,7 @@ import { fmtDate } from '../format';
 import { errorText } from '../i18n/errors';
 import { CriticalityBadge, ServiceFormModal } from './Services';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
+import { confirmDanger } from '../components/confirm';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -29,7 +30,7 @@ export function ServiceDetailPage() {
   const s = q.data;
   if (!s) return null;
   const archive = async () => {
-    if (!s.archived && !confirm(t('archiveConfirm', { name: s.name }))) return;
+    if (!s.archived && !(await confirmDanger({ action: 'archive', message: t('archiveConfirm', { name: s.name }) }))) return;
     try {
       refresh(await post<ServiceDetail>(`/services/${s.id}/archive`, { archived: !s.archived }));
     } catch (e) {

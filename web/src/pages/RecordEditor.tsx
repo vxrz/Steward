@@ -11,6 +11,7 @@ import { MarkdownView } from '../components/records/MarkdownView';
 import { useTypeName } from '../components/records/common';
 import { fieldHelp, fieldLabel, optionLabel } from '../components/records/builtin';
 import { errorText } from '../i18n/errors';
+import { confirmDanger } from '../components/confirm';
 
 interface Draft {
   title: string;
@@ -99,8 +100,8 @@ export function RecordEditorPage() {
       setBusy(false);
     }
   };
-  const cancel = () => {
-    if (dirty && !confirm(t('editor.discard'))) return;
+  const cancel = async () => {
+    if (dirty && !(await confirmDanger({ action: 'discard', message: t('editor.discard') }))) return;
     navigate(`/records/${rec.id}`);
   };
 

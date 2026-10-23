@@ -1,5 +1,6 @@
 import { test, expect, sessionHeaders } from './support/fixtures';
 import { authFile } from './support/env';
+import { confirmDialog } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -19,8 +20,8 @@ test('settings: notification routing, retention, maintenance status', async ({ p
   for (const label of ['Database', 'Evidence files', 'Runs', 'Audit entries', 'Last cleanup']) {
     await expect(page.getByRole('main').getByText(label, { exact: true })).toBeVisible();
   }
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Clean up now' }).click();
+  await confirmDialog(page, 'Delete now', { title: 'Delete old data' });
   await expect(page.getByText('Cleanup finished')).toBeVisible();
 
   // retention: save, reload, restore

@@ -31,6 +31,7 @@ import { fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 import i18n from '../i18n';
+import { confirmDanger } from '../components/confirm';
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: 'red',
@@ -120,7 +121,7 @@ export function UsersPage() {
   };
 
   const reset = async (u: UserInfo) => {
-    if (!confirm(t('resetConfirm', { user: u.username }))) return;
+    if (!(await confirmDanger({ action: 'reset', message: t('resetConfirm', { user: u.username }) }))) return;
     try {
       const r = await post<{ temporaryPassword: string }>(`/users/${u.id}/reset-password`);
       setTemp({ username: u.username, password: r.temporaryPassword });
@@ -247,7 +248,7 @@ export function UsersPage() {
                     color="red"
                     aria-label={t('teams.delete', { name: team.name })}
                     onClick={async () => {
-                      if (!confirm(t('teams.deleteConfirm', { name: team.name }))) return;
+                      if (!(await confirmDanger({ action: 'delete', message: t('teams.deleteConfirm', { name: team.name }) }))) return;
                       await del(`/teams/${team.id}`).catch(notifyError);
                       refresh();
                     }}

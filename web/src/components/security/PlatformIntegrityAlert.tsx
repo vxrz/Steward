@@ -5,6 +5,7 @@ import { IconAlertTriangle } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Platform } from '@sm/shared';
 import { notifyError, notifyOk, post } from '../../api';
+import { confirmDialog } from '../confirm';
 
 /**
  * Shown when the platform's connection settings fail their integrity check (changed directly in the
@@ -16,7 +17,7 @@ export function PlatformIntegrityAlert({ platform, canConfirm }: { platform: Pla
   const [busy, setBusy] = useState(false);
   if (platform.integrity !== 'mismatch' && platform.integrity !== 'unsealed') return null;
   const confirm = async () => {
-    if (!window.confirm(t('integrity.confirmQuestion', { url: platform.baseUrl }))) return;
+    if (!(await confirmDialog({ action: 'confirm', message: t('integrity.confirmQuestion', { url: platform.baseUrl }), danger: false }))) return;
     setBusy(true);
     try {
       await post(`/platforms/${platform.id}/confirm-config`);

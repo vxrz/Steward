@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { uniq, waitForRun } from './support/helpers';
+import { confirmDialog, uniq, waitForRun } from './support/helpers';
 
 test.use({ storageState: authFile('olivia') });
 
@@ -39,8 +39,8 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
 
   // clean up so the schedule never fires during later tests
   await page.goto('/schedules');
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('row').filter({ hasText: name }).getByRole('button', { name: 'Delete' }).click();
+  await confirmDialog(page, 'Delete', { message: name });
   await expect(page.getByRole('row').filter({ hasText: name })).toHaveCount(0);
 });
 

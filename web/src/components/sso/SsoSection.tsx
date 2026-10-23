@@ -7,6 +7,7 @@ import type { SsoProvider, SsoProviderInput } from '@sm/shared';
 import { BRAND } from '../../../../shared/src/brand';
 import { del, get, notifyError, put } from '../../api';
 import { ProviderEditor } from './ProviderEditor';
+import { confirmDanger } from '../confirm';
 
 export const SSO_PROVIDERS_KEY = ['sso-providers'];
 
@@ -41,7 +42,7 @@ export function SsoSection() {
   };
 
   const remove = async (p: SsoProvider) => {
-    if (!confirm(t('sso.removeConfirm', { name: p.displayName }))) return;
+    if (!(await confirmDanger({ action: 'remove', message: t('sso.removeConfirm', { name: p.displayName }) }))) return;
     try {
       await del(`/sso/providers/${p.id}`);
       refresh();

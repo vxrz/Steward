@@ -4,6 +4,7 @@ import { test, expect, USERS } from './support/fixtures';
 import { expectAccessible, settle } from './support/axe';
 import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
 import { BRAND } from '../shared/src/brand';
+import { confirmDialog } from './support/helpers';
 
 /**
  * Theming (Settings → Appearance). The theme applies to everyone, so these tests run against
@@ -168,8 +169,8 @@ test.describe('custom theme (own server)', () => {
     const page = await open(browser);
     await page.goto('/settings');
     const card = page.locator('.mantine-Card-root', { has: page.getByRole('heading', { name: 'Appearance' }) });
-    page.once('dialog', (d) => d.accept());
     await card.getByRole('button', { name: `Reset to ${BRAND.name} defaults` }).click();
+    await confirmDialog(page, 'Reset', { title: 'Confirm reset' });
     await expect(page.getByText(`Appearance reset to the ${BRAND.name} defaults`)).toBeVisible();
     await expect(card.getByRole('textbox', { name: 'Primary color' })).toHaveValue('#1c7ed6');
     await expect(page.getByRole('banner').getByText(BRAND.name, { exact: true })).toBeVisible();

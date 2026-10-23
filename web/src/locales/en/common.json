@@ -77,5 +77,47 @@
   "retry": "Try again",
   "filters": "Filters",
   "filtersActive_one": "Filters ({{count}} active)",
-  "filtersActive_other": "Filters ({{count}} active)"
+  "filtersActive_other": "Filters ({{count}} active)",
+  "confirm": {
+    "delete": {
+      "title": "Confirm deletion",
+      "button": "Delete"
+    },
+    "archive": {
+      "title": "Confirm archiving",
+      "button": "Archive"
+    },
+    "remove": {
+      "title": "Confirm removal",
+      "button": "Remove"
+    },
+    "revoke": {
+      "title": "Revoke access",
+      "button": "Revoke"
+    },
+    "rotate": {
+      "title": "Rotate the secret",
+      "button": "Rotate secret"
+    },
+    "reset": {
+      "title": "Confirm reset",
+      "button": "Reset"
+    },
+    "lockVault": {
+      "title": "Lock the vault",
+      "button": "Lock vault"
+    },
+    "discard": {
+      "title": "Discard changes",
+      "button": "Discard"
+    },
+    "cleanup": {
+      "title": "Delete old data",
+      "button": "Delete now"
+    },
+    "confirm": {
+      "title": "Please confirm",
+      "button": "Confirm"
+    }
+  }
 }

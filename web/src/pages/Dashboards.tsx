@@ -11,6 +11,7 @@ import { EmptyState, PageHeader, QueryState } from '../components/common';
 import { fmtNumber, fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { StatusCounts } from '../components/dashboard/status';
+import { confirmDanger } from '../components/confirm';
 import '../components/dashboard/viz.css';
 
 interface DashboardTemplate {
@@ -175,7 +176,8 @@ export function DashboardsPage() {
                         color="red"
                         aria-label={t('datasets.delete')}
                         onClick={async () => {
-                          if (!confirm(t('datasets.deleteConfirm', { key: m.key, process: m.processName }))) return;
+                          if (!(await confirmDanger({ action: 'delete', message: t('datasets.deleteConfirm', { key: m.key, process: m.processName }) })))
+                            return;
                           await del(`/datasets/${encodeURIComponent(m.key)}`).catch(notifyError);
                           qc.invalidateQueries({ queryKey: ['datasets'] });
                         }}

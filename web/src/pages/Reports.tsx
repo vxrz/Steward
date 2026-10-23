@@ -34,6 +34,7 @@ import { EmptyState, PageHeader, QueryState, useCreateParam } from '../component
 import { reportLangName } from '../components/reports/RunReports';
 import { useTypeName } from '../components/records/common';
 import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
+import { confirmDanger } from '../components/confirm';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
 const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets'];
@@ -197,7 +198,7 @@ export function ReportsPage() {
                               color="red"
                               aria-label={t('deleteOf', { name: s.name })}
                               onClick={async () => {
-                                if (!confirm(t('deleteConfirm', { name: s.name }))) return;
+                                if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
                                 await del(`/report-schedules/${s.id}`).catch(notifyError);
                                 refresh();
                               }}

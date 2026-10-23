@@ -42,6 +42,7 @@ import { errorText } from '../../i18n/errors';
 import { themeQueryKey } from '../../theme';
 import { Logo } from '../brand/Logo';
 import { fmtDate, fmtNumber } from '../../format';
+import { confirmDanger } from '../confirm';
 
 const SWATCHES = ['#1c7ed6', '#0b7285', '#2f9e44', '#e8590c', '#e30613', '#7950f2', '#ffd400', '#343a40'];
 
@@ -119,8 +120,8 @@ export function ThemeSettingsCard() {
       () => put<ThemeSettings>('/settings/theme', { ...draft, primaryColor: primary, accentColor: accent, appName: draft.appName.trim() }),
       t('theme.saved'),
     );
-  const reset = () => {
-    if (!confirm(t('theme.resetConfirm', { brand: BRAND.name }))) return;
+  const reset = async () => {
+    if (!(await confirmDanger({ action: 'reset', message: t('theme.resetConfirm', { brand: BRAND.name }) }))) return;
     void run('reset', () => post<ThemeSettings>('/settings/theme/reset'), t('theme.resetDone', { brand: BRAND.name }));
   };
   const upload = (file: File | null) => {

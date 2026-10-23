@@ -77,5 +77,47 @@
   "retry": "Erneut versuchen",
   "filters": "Filter",
   "filtersActive_one": "Filter ({{count}} aktiv)",
-  "filtersActive_other": "Filter ({{count}} aktiv)"
+  "filtersActive_other": "Filter ({{count}} aktiv)",
+  "confirm": {
+    "delete": {
+      "title": "Löschen bestätigen",
+      "button": "Löschen"
+    },
+    "archive": {
+      "title": "Archivieren bestätigen",
+      "button": "Archivieren"
+    },
+    "remove": {
+      "title": "Entfernen bestätigen",
+      "button": "Entfernen"
+    },
+    "revoke": {
+      "title": "Zugang widerrufen",
+      "button": "Widerrufen"
+    },
+    "rotate": {
+      "title": "Secret erneuern",
+      "button": "Secret erneuern"
+    },
+    "reset": {
+      "title": "Zurücksetzen bestätigen",
+      "button": "Zurücksetzen"
+    },
+    "lockVault": {
+      "title": "Tresor sperren",
+      "button": "Tresor sperren"
+    },
+    "discard": {
+      "title": "Änderungen verwerfen",
+      "button": "Verwerfen"
+    },
+    "cleanup": {
+      "title": "Alte Daten löschen",
+      "button": "Jetzt löschen"
+    },
+    "confirm": {
+      "title": "Bitte bestätigen",
+      "button": "Bestätigen"
+    }
+  }
 }

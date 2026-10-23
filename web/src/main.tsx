@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { Center, Loader } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
+import { ModalsProvider } from '@mantine/modals';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import '@mantine/core/styles.css';
 import '@mantine/notifications/styles.css';
@@ -29,20 +30,23 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       {/* the administrator's theme (Settings → Appearance), also on the sign-in page */}
       <ThemedMantineProvider>
         <Notifications position="top-right" />
-        <BrowserRouter>
-          <ErrorBoundary>
-            {/* Suspends while the language files of a non-English UI load. */}
-            <Suspense
-              fallback={
-                <Center h="100vh">
-                  <Loader />
-                </Center>
-              }
-            >
-              <App />
-            </Suspense>
-          </ErrorBoundary>
-        </BrowserRouter>
+        {/* confirmation dialogs (components/confirm.tsx) */}
+        <ModalsProvider>
+          <BrowserRouter>
+            <ErrorBoundary>
+              {/* Suspends while the language files of a non-English UI load. */}
+              <Suspense
+                fallback={
+                  <Center h="100vh">
+                    <Loader />
+                  </Center>
+                }
+              >
+                <App />
+              </Suspense>
+            </ErrorBoundary>
+          </BrowserRouter>
+        </ModalsProvider>
       </ThemedMantineProvider>
     </QueryClientProvider>
   </React.StrictMode>,

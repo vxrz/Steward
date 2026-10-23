@@ -31,6 +31,7 @@ import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
+import { confirmDanger } from '../components/confirm';
 
 type Draft = SyncSourceSettings & { id?: string; token?: string; hasToken?: boolean; removeToken?: boolean };
 
@@ -86,7 +87,7 @@ export function GitSyncPage() {
     }
   };
   const remove = async (s: SyncSource) => {
-    if (!confirm(t('sources.deleteConfirm', { name: s.name }))) return;
+    if (!(await confirmDanger({ action: 'delete', message: t('sources.deleteConfirm', { name: s.name }) }))) return;
     try {
       await del(`/sync-sources/${s.id}`);
       notifyOk(t('sources.deleted'));
@@ -96,7 +97,7 @@ export function GitSyncPage() {
     }
   };
   const rotate = async (s: SyncSource) => {
-    if (!confirm(t('sources.rotateConfirm'))) return;
+    if (!(await confirmDanger({ action: 'rotate', message: t('sources.rotateConfirm') }))) return;
     try {
       const r = await post<SyncSourceSecret>(`/sync-sources/${s.id}/rotate-webhook-secret`);
       if (r.webhookSecret) setSecret({ path: r.source.webhookPath, secret: r.webhookSecret });

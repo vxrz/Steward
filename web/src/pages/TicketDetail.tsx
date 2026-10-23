@@ -13,6 +13,7 @@ import { TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings
 import { TicketForm } from '../components/tickets/TicketForm';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
+import { confirmDanger } from '../components/confirm';
 
 export function TicketDetailPage() {
   const { t } = useTranslation(['tickets', 'records', 'common']);
@@ -34,7 +35,7 @@ export function TicketDetailPage() {
     void qc.invalidateQueries({ queryKey: ['ticket-references'] });
   };
   const remove = async () => {
-    if (!confirm(t('deleteConfirm', { number: x.externalNumber }))) return;
+    if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { number: x.externalNumber }) }))) return;
     try {
       await del(`/ticket-references/${x.id}`);
       notifyOk(t('deleted'));

@@ -31,6 +31,7 @@ import { useMe } from '../auth';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatusLabel, monitorStatusLower } from '../components/monitors/status';
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
+import { confirmDanger } from '../components/confirm';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -382,7 +383,7 @@ function GatewaysTab() {
                             variant="subtle"
                             aria-label={t('gateways.rotateFor', { name: g.name })}
                             onClick={async () => {
-                              if (!confirm(t('gateways.rotateConfirm', { name: g.name }))) return;
+                              if (!(await confirmDanger({ action: 'rotate', message: t('gateways.rotateConfirm', { name: g.name }) }))) return;
                               setSecret(await post(`/monitor-gateways/${g.id}/rotate`));
                               refresh();
                             }}
@@ -398,7 +399,7 @@ function GatewaysTab() {
                           color="red"
                           aria-label={t('gateways.deleteFor', { name: g.name })}
                           onClick={async () => {
-                            if (!confirm(t('gateways.deleteConfirm', { name: g.name }))) return;
+                            if (!(await confirmDanger({ action: 'delete', message: t('gateways.deleteConfirm', { name: g.name }) }))) return;
                             await del(`/monitor-gateways/${g.id}`).catch(notifyError);
                             refresh();
                           }}

@@ -13,6 +13,7 @@ import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtRelative } from '../format';
 import i18n from '../i18n';
 import { errorText } from '../i18n/errors';
+import { confirmDanger } from '../components/confirm';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -171,7 +172,7 @@ export function SchedulesPage() {
                           color="red"
                           aria-label={t('common:delete')}
                           onClick={async () => {
-                            if (!confirm(t('deleteConfirm', { name: s.name }))) return;
+                            if (!(await confirmDanger({ action: 'delete', message: t('deleteConfirm', { name: s.name }) }))) return;
                             await del(`/schedules/${s.id}`).catch(notifyError);
                             qc.invalidateQueries({ queryKey: ['schedules'] });
                           }}

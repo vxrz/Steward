@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { authFile, baseURL } from './support/env';
-import { uniq } from './support/helpers';
+import { confirmDialog, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -61,7 +61,7 @@ test('admin creates a user, assigns roles and a team, then deactivates the accou
   }
 
   // clean up the team
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: `Delete team ${team}` }).click();
+  await confirmDialog(page, 'Delete', { title: 'Confirm deletion', message: team });
   await expect(page.getByText(team, { exact: true })).toHaveCount(0);
 });

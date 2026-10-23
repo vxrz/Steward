@@ -66,6 +66,7 @@ import { fmtBytes, fmtDate, fmtDay } from '../format';
 import { currentLanguage } from '../i18n';
 import { codeText, errorText } from '../i18n/errors';
 import { fieldLabel, optionLabel } from '../components/records/builtin';
+import { confirmDanger } from '../components/confirm';
 
 const TABS = ['content', 'versions', 'links', 'attachments', 'discussion', 'pdfs'] as const;
 type Tab = (typeof TABS)[number];
@@ -464,7 +465,7 @@ function AttachmentTable({ rec, items, canRemove, onChange }: { rec: RecordDetai
                     color="red"
                     aria-label={t('attachments.removeNamed', { name: a.filename })}
                     onClick={async () => {
-                      if (!confirm(t('attachments.removeConfirm', { name: a.filename }))) return;
+                      if (!(await confirmDanger({ action: 'remove', message: t('attachments.removeConfirm', { name: a.filename }) }))) return;
                       try {
                         await del(`/records/${rec.id}/attachments/${a.id}`);
                         onChange();

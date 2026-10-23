@@ -82,3 +82,15 @@ export async function expectNoHorizontalScroll(page: Page): Promise<void> {
 export async function expectShell(page: Page): Promise<void> {
   await expect(page.getByRole('button', { name: 'User menu' })).toBeVisible();
 }
+
+/**
+ * The themed confirmation dialog (web/src/components/confirm.tsx): waits for it, optionally checks
+ * its message and clicks the confirm button (by its label, e.g. "Delete").
+ */
+export async function confirmDialog(page: Page, button: string, opts: { title?: string | RegExp; message?: string | RegExp } = {}): Promise<void> {
+  const dialog = page.getByRole('dialog', opts.title ? { name: opts.title } : {}).filter({ has: page.getByTestId('confirm-dialog-confirm') });
+  await expect(dialog).toBeVisible();
+  if (opts.message) await expect(dialog.getByTestId('confirm-dialog-message')).toContainText(opts.message);
+  await dialog.getByRole('button', { name: button, exact: true }).click();
+  await expect(dialog).toBeHidden();
+}

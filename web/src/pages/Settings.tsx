@@ -40,6 +40,7 @@ import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
+import { confirmDanger } from '../components/confirm';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const { t } = useTranslation(['settings', 'common']);
@@ -344,7 +345,7 @@ function MaintenanceStatusView() {
   const m = status.data;
   if (!m) return null;
   const cleanup = async () => {
-    if (!confirm(t('maintenance.confirm'))) return;
+    if (!(await confirmDanger({ action: 'cleanup', message: t('maintenance.confirm') }))) return;
     setBusy(true);
     try {
       type Result = { runsDeleted: number; artifactsDeleted: number; notificationsDeleted: number };
@@ -407,7 +408,7 @@ function AdminTokensCard() {
   const tokens = useQuery({ queryKey: ['tokens', 'all'], queryFn: () => getOptional<ApiToken[] | null>('/tokens', null) });
   if (!tokens.data) return null;
   const revoke = async (token: ApiToken) => {
-    if (!confirm(t('tokens.revokeConfirm', { name: token.name, owner: token.owner }))) return;
+    if (!(await confirmDanger({ action: 'revoke', message: t('tokens.revokeConfirm', { name: token.name, owner: token.owner }) }))) return;
     try {
       await del(`/tokens/${encodeURIComponent(token.id)}`);
       notifyOk(t('tokens.revoked'));

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { GatusEndpointState, GatusMetricsSource, Platform } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../../api';
 import { fmtDay, fmtNumber, fmtRelative } from '../../format';
+import { confirmDanger } from '../confirm';
 
 interface Draft {
   enabled: boolean;
@@ -142,8 +143,9 @@ export function GatusMetricsTab({ platform }: { platform: Platform }) {
                 variant="subtle"
                 color="red"
                 loading={busy === 'remove'}
-                onClick={() => {
-                  if (confirm(t('removeConfirm'))) void run('remove', () => del(`/gatus/sources/${platform.id}`).then(() => notifyOk(t('removed'))));
+                onClick={async () => {
+                  if (await confirmDanger({ action: 'remove', message: t('removeConfirm') }))
+                    void run('remove', () => del(`/gatus/sources/${platform.id}`).then(() => notifyOk(t('removed'))));
                 }}
               >
                 {t('remove')}

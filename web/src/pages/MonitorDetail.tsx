@@ -54,6 +54,7 @@ import { errorText } from '../i18n/errors';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
+import { confirmDanger } from '../components/confirm';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -151,7 +152,7 @@ export function MonitorDetailPage() {
                   color="red"
                   leftSection={<IconTrash size={14} />}
                   onClick={async () => {
-                    if (!confirm(t('detail.deleteConfirm', { name: m.name }))) return;
+                    if (!(await confirmDanger({ action: 'delete', message: t('detail.deleteConfirm', { name: m.name }) }))) return;
                     try {
                       await del(`/monitors/${m.id}`);
                       qc.invalidateQueries({ queryKey: ['monitors'] });
@@ -588,7 +589,7 @@ function HeartbeatCard({
               variant="subtle"
               leftSection={<IconKey size={12} />}
               onClick={async () => {
-                if (!confirm(t('heartbeat.rotateConfirm'))) return;
+                if (!(await confirmDanger({ action: 'rotate', message: t('heartbeat.rotateConfirm') }))) return;
                 try {
                   const r = await api<{ secret: string; path: string }>('POST', `/monitors/${monitor.id}/checks/${c.checkId}/rotate`);
                   onSecret({ secrets: [{ checkId: c.checkId, ...r }] });

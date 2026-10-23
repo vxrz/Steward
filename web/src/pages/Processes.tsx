@@ -45,6 +45,7 @@ import { fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
 import { BRAND } from '../../../shared/src/brand';
 import { useMe } from '../auth';
+import { confirmDanger } from '../components/confirm';
 
 export function ProcessesPage() {
   const { t } = useTranslation(['processes', 'common']);
@@ -182,7 +183,7 @@ export function ProcessesPage() {
                         color="red"
                         leftSection={<IconArchive size={14} />}
                         onClick={async () => {
-                          if (!confirm(t('card.archiveConfirm', { name: p.name }))) return;
+                          if (!(await confirmDanger({ action: 'archive', message: t('card.archiveConfirm', { name: p.name }) }))) return;
                           await del(`/processes/${p.id}`).catch(notifyError);
                           qc.invalidateQueries({ queryKey: ['processes'] });
                         }}
