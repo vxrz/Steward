@@ -30,7 +30,10 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install scripts – only the reviewed ones (package.json "allowScripts")
         run: node scripts/install-scripts.mjs --check --run
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium for Playwright
+        # a hanging install fails here instead of using up the whole job time
+        timeout-minutes: 15
+        run: npx playwright install --with-deps chromium
       - name: Build web UI
         run: npm run build
       - name: UI tests
