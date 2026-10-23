@@ -75,6 +75,42 @@ test('an access change made outside Steward shows up as undocumented, is documen
   await expectAccessible(page, 'evidence packs');
 });
 
+test('with four-eyes dismissals, a second person confirms the dismissal of a finding', async ({ page, apiAs }) => {
+  const admin = await apiAs('admin');
+  const dana = await apiAs('dana');
+  const hub = await platformId(admin, 'insights-hub');
+  const check = await json(
+    await dana.post('/api/compliance/access-checks', {
+      data: { name: uniq('E2E four-eyes check'), platformId: hub, source: 'insights-hub', cron: '0 5 * * *', timezone: 'UTC' },
+    }),
+  );
+  await json(await dana.post(`/api/compliance/access-checks/${check.id}/run`, { data: {} })); // baseline
+  await json(await admin.put('/api/settings', { data: { findingDismissFourEyes: true } }));
+  try {
+    const sim = await json(await dana.post('/api/compliance/demo/simulate-change', { data: { accessCheckId: check.id } }));
+    const finding = sim.result.findings[0];
+    // the owner of the check asks for the dismissal: the finding stays open
+    const asked = await json(await dana.post(`/api/compliance/findings/${finding.id}/dismiss`, { data: { comment: 'Vendor test account' } }));
+    expect(asked).toMatchObject({ status: 'open', dismissRequestedBy: 'dana' });
+
+    await page.goto(`/compliance/reconciliation?check=${check.id}`);
+    const findings = page.getByRole('table', { name: 'Findings' });
+    const row = findings.getByRole('row').filter({ hasText: finding.subjectName });
+    await expect(row).toContainText('dana asked to dismiss it: Vendor test account');
+    await row.getByRole('button', { name: `Confirm the dismissal of the change of ${finding.subjectName}` }).click();
+    const dialog = page.getByRole('dialog', { name: `Confirm the dismissal of the change of ${finding.subjectName}` });
+    await expect(dialog).toContainText('Vendor test account');
+    await expectAccessible(page, 'confirm dismissal');
+    await dialog.getByRole('button', { name: 'Confirm dismissal' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(findings.getByRole('row').filter({ hasText: finding.subjectName })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'All findings' }).click();
+    await expect(page.getByRole('table', { name: 'Findings' }).getByRole('row').filter({ hasText: finding.subjectName })).toContainText('Dismissed');
+  } finally {
+    await admin.put('/api/settings', { data: { findingDismissFourEyes: false } });
+  }
+});
+
 test('the compliance pages work at phone width @mobile', async ({ page }) => {
   for (const [path, heading] of [
     ['/compliance/controls', 'Controls'],

@@ -167,7 +167,8 @@ export async function createRunEntries(runId: string, reportId: string | null = 
           requestedBy: run.actor,
           requestRef: [...m.refs].join(', ').slice(0, 500) || undefined,
           approvedBy: ([...m.approvers].join(', ') || approvers.join(', ')).slice(0, 200) || undefined,
-          performedBy: `${run.actor} (run ${runId})`.slice(0, 200),
+          // the person who started the run (the run is in runId): four-eyes compares it with the verifier
+          performedBy: (run.actor || 'system').slice(0, 200),
           performedAt: m.performedAt,
           origin: 'run',
           runId,

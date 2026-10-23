@@ -311,7 +311,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/record-types': ALL,
   // ---- compliance: access changes, reconciliation, controls, evidence packs ----
   'GET /api/compliance/access-changes': ALL,
-  'GET /api/compliance/access-changes/:accessChangeId': ALL,
+  // access change entries name people and their rights: not for viewers (who have no right on the platform)
+  'GET /api/compliance/access-changes/:accessChangeId': NOT_VIEWER,
   'POST /api/compliance/access-changes': RUN,
   'GET /api/compliance/reconciliation/meta': ALL,
   'GET /api/compliance/access-checks': ALL,

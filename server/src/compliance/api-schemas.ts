@@ -32,6 +32,11 @@ export const AccessChange = z.object({
   runId: z.string().nullable(),
   findingId: z.string().nullable(),
   frozenHash: z.string().nullable().describe('Content hash recorded when the entry was documented'),
+  tampered: z
+    .boolean()
+    .describe('The documented content no longer matches the authentic audit entry that froze it (changed outside Steward); it does not count'),
+  documentedBy: z.string().nullable().describe('Who documented the current revision ("system" for entries of runs); null for drafts'),
+  lastEditedBy: z.string().describe('Author of the newest version of the content'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -61,11 +66,13 @@ export const AccessFinding = z.object({
   resolvedBy: z.string().nullable(),
   resolvedAt: ts().nullable(),
   comment: z.string().describe('Why a dismissed finding needs no entry'),
+  dismissRequestedBy: z.string().nullable().describe('Four-eyes dismissals: who asked to dismiss the open finding (a second person confirms)'),
+  dismissRequestedAt: ts().nullable(),
 });
 
 export const ControlTag = z.object({
   kind: z.enum(CONTROL_TAG_KINDS),
-  targetId: z.string(),
+  targetId: z.string().nullable().describe('Id of the item – null when the token owner may not see it'),
   label: z.string().describe('Name of the item – empty when the token owner may not see it'),
   visible: z.boolean(),
 });

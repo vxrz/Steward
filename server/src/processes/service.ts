@@ -17,7 +17,8 @@ import { currentActor, currentUser } from '../auth/context.js';
 import { logger } from '../log.js';
 import { cleanAcl, processPermissions } from '../auth/permissions.js';
 import { PROCESS_PERMISSIONS, type AclEntry, type ProcessPermission } from '@sm/shared';
-import { HttpError, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { HttpError, MAX_DEFINITION_TEXT, canonicalJson, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { parseYaml } from '../yaml-safe.js';
 
 interface ProcessRow {
   id: string;
@@ -212,8 +213,9 @@ export function archiveProcess(id: string): void {
 
 export function parseDefinitionText(text: string): unknown {
   try {
-    return text.trim().startsWith('{') ? JSON.parse(text) : YAML.parse(text);
+    return text.trim().startsWith('{') ? JSON.parse(text) : parseYaml(text, { maxBytes: MAX_DEFINITION_TEXT });
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     throw new HttpError(400, `Could not parse: ${(e as Error).message}`);
   }
 }

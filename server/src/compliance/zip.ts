@@ -179,7 +179,13 @@ export interface ZipEntry {
   offset: number;
 }
 
-/** Reads the central directory of a ZIP file; entries are streamed on demand. */
+/**
+ * Reads the central directory of a ZIP file; entries are streamed on demand. Only well-formed archives
+ * as ZipWriter writes them are accepted: one disk, no ZIP64, no encryption or data descriptors, every
+ * local header matching its central directory entry, and the entries, the central directory and the
+ * end record covering the file without gaps, overlaps or trailing bytes – so no data can hide in a
+ * pack outside what the verifier checks.
+ */
 export class ZipReader {
   private constructor(
     readonly file: string,
@@ -203,31 +209,75 @@ export class ZipReader {
         }
       }
       if (eocd < 0) throw new ZipFormatError('Not a ZIP file (no end of central directory)');
+      const eocdAt = size - tailLen + eocd;
       const count = tail.readUInt16LE(eocd + 10);
       const cdSize = tail.readUInt32LE(eocd + 12);
       const cdOffset = tail.readUInt32LE(eocd + 16);
-      if (cdOffset + cdSize > size) throw new ZipFormatError('Broken ZIP file (central directory outside the file)');
+      const commentLen = tail.readUInt16LE(eocd + 20);
+      if (tail.readUInt16LE(eocd + 4) !== 0 || tail.readUInt16LE(eocd + 6) !== 0 || tail.readUInt16LE(eocd + 8) !== count)
+        throw new ZipFormatError('Unsupported ZIP file (several disks)');
+      if (count === 0xffff || cdSize === MAX_U32 || cdOffset === MAX_U32) throw new ZipFormatError('Unsupported ZIP file (ZIP64)');
+      if (eocdAt + 22 + commentLen !== size) throw new ZipFormatError('Broken ZIP file (data after the end of the archive)');
+      if (cdOffset + cdSize !== eocdAt) throw new ZipFormatError('Broken ZIP file (data between the central directory and its end record)');
       const cd = Buffer.alloc(cdSize);
       await fh.read(cd, 0, cdSize, cdOffset);
       const entries: ZipEntry[] = [];
+      const names: Buffer[] = [];
       let p = 0;
       for (let i = 0; i < count; i++) {
         if (p + 46 > cd.length || cd.readUInt32LE(p) !== 0x02014b50) throw new ZipFormatError('Broken ZIP file (central directory entry)');
         const nameLen = cd.readUInt16LE(p + 28);
         const extraLen = cd.readUInt16LE(p + 30);
-        const commentLen = cd.readUInt16LE(p + 32);
+        const commentLen2 = cd.readUInt16LE(p + 32);
+        const flags = cd.readUInt16LE(p + 8);
+        if (flags & 0x0009) throw new ZipFormatError('Unsupported ZIP file (encrypted entries or data descriptors)');
+        if (p + 46 + nameLen + extraLen + commentLen2 > cd.length) throw new ZipFormatError('Broken ZIP file (central directory entry)');
+        const name = cd.subarray(p + 46, p + 46 + nameLen);
         const entry: ZipEntry = {
           method: cd.readUInt16LE(p + 10),
           crc: cd.readUInt32LE(p + 16),
           csize: cd.readUInt32LE(p + 20),
           usize: cd.readUInt32LE(p + 24),
           offset: cd.readUInt32LE(p + 42),
-          name: cd.subarray(p + 46, p + 46 + nameLen).toString('utf8'),
+          name: name.toString('utf8'),
         };
         if (entry.offset + 30 > size) throw new ZipFormatError(`Broken ZIP file (entry ${entry.name})`);
         entries.push(entry);
-        p += 46 + nameLen + extraLen + commentLen;
+        names.push(Buffer.from(name));
+        p += 46 + nameLen + extraLen + commentLen2;
       }
+      if (p !== cdSize) throw new ZipFormatError('Broken ZIP file (the central directory has more data than its entries)');
+      // every local header matches its central directory entry; the entries cover the file up to the central directory
+      const spans: { start: number; end: number; name: string }[] = [];
+      const head = Buffer.alloc(30);
+      for (let i = 0; i < entries.length; i++) {
+        const e = entries[i]!;
+        await fh.read(head, 0, 30, e.offset);
+        if (head.readUInt32LE(0) !== 0x04034b50) throw new ZipFormatError(`Broken ZIP file (local header of ${e.name})`);
+        const nameLen = head.readUInt16LE(26);
+        const extraLen = head.readUInt16LE(28);
+        const localName = Buffer.alloc(nameLen);
+        if (e.offset + 30 + nameLen > size) throw new ZipFormatError(`Broken ZIP file (local header of ${e.name})`);
+        await fh.read(localName, 0, nameLen, e.offset + 30);
+        if (
+          head.readUInt16LE(6) & 0x0009 ||
+          head.readUInt16LE(8) !== e.method ||
+          head.readUInt32LE(14) !== e.crc ||
+          head.readUInt32LE(18) !== e.csize ||
+          head.readUInt32LE(22) !== e.usize ||
+          !localName.equals(names[i]!)
+        )
+          throw new ZipFormatError(`Broken ZIP file (the local header of ${e.name} differs from the central directory)`);
+        spans.push({ start: e.offset, end: e.offset + 30 + nameLen + extraLen + e.csize, name: e.name });
+      }
+      spans.sort((a, b) => a.start - b.start);
+      let at = 0;
+      for (const sp of spans) {
+        if (sp.start !== at)
+          throw new ZipFormatError(sp.start > at ? `Broken ZIP file (unlisted data before ${sp.name})` : `Broken ZIP file (${sp.name} overlaps another entry)`);
+        at = sp.end;
+      }
+      if (at !== cdOffset) throw new ZipFormatError('Broken ZIP file (unlisted data before the central directory)');
       return new ZipReader(file, size, entries);
     } finally {
       await fh.close();

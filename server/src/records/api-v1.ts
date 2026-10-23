@@ -7,7 +7,7 @@ import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
 import * as A from './api-schemas.js';
 
-/** Records in the public, read-only API (list, get, versions). Every token owner may read records, as in the UI. */
+/** Records in the public, read-only API (list, get, versions). Every token owner may read records, as in the UI – access change entries only who may read them there. */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -73,7 +73,8 @@ export async function recordApiRoutes(_app: FastifyInstance, get: Get): Promise<
       operationId: 'listRecords',
       tag: 'Records',
       summary: 'List records',
-      description: 'Change requests and decision records, ordered by number.',
+      description:
+        'Change requests and decision records, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.',
       query: A.RecordListQuery,
       paginated: true,
       response: pageOf('Record', 'A page of records'),

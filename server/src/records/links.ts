@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
+import { ACCESS_TYPE_ID, LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
@@ -8,6 +8,7 @@ import { permissionsFor } from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { likeEscape } from '../database/sql.js';
 import { credentialPermissions, credentialsLinkingTo, type CredentialRow } from '../credentials/service.js';
+import { canReadRecordRow } from './access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 
 /**
@@ -126,19 +127,23 @@ registerLinkKind('dashboard', {
   },
 });
 
+// records: everyone, except access change entries (who may read them: canReadRecordRow)
+type RecordLinkRow = { id: string; number: string; title: string; status: string; type_id: string; fields: string; owner: string };
+const recordVisible = (r: RecordLinkRow) => r.type_id !== ACCESS_TYPE_ID || canReadRecordRow(currentUser(), r);
 registerLinkKind('record', {
   resolve(id) {
-    const r = db().get<{ number: string; title: string; status: string }>('SELECT number, title, status FROM records WHERE id = ?', id);
-    return r ? { label: `${r.number} ${r.title}`, path: `/records/${id}`, detail: r.status } : null;
+    const r = db().get<RecordLinkRow>('SELECT id, number, title, status, type_id, fields, owner FROM records WHERE id = ?', id);
+    return r && recordVisible(r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}`, detail: r.status } : null;
   },
   search(q, limit) {
     return db()
-      .all<{ id: string; number: string; title: string; status: string }>(
-        "SELECT id, number, title, status FROM records WHERE lower(number) LIKE ? ESCAPE '\\' OR lower(title) LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT ?",
+      .all<RecordLinkRow>(
+        "SELECT id, number, title, status, type_id, fields, owner FROM records WHERE lower(number) LIKE ? ESCAPE '\\' OR lower(title) LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 500",
         like(q),
         like(q),
-        limit,
       )
+      .filter(recordVisible)
+      .slice(0, limit)
       .map((r) => ({ kind: 'record' as const, id: r.id, label: `${r.number} ${r.title}`, detail: r.status }));
   },
 });
@@ -255,7 +260,7 @@ export function listLinks(from: LinkSource, id: string): ItemLink[] {
   return db().all<LinkRow>('SELECT * FROM item_links WHERE from_kind = ? AND from_id = ? ORDER BY created_at, id', from, id).map(toLink);
 }
 
-/** Whether the current user may see an item (records and services: everyone). */
+/** Whether the current user may see an item (services: everyone; records: everyone but access change entries). */
 export function targetVisible(kind: string, id: string): boolean {
   return !!RESOLVERS.get(kind)?.resolve(id);
 }

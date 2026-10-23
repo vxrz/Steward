@@ -5,7 +5,7 @@ import { parseJson } from '../util.js';
 import { currentUser } from '../auth/context.js';
 import { registerReportSection } from '../reports/sections.js';
 import type { CellInput, Tone } from '../reports/pdf/engine.js';
-import { canReadRecords } from './access.js';
+import { canReadRecordRow, canReadRecords } from './access.js';
 import { recordTexts } from './pdf-i18n.js';
 
 /**
@@ -139,12 +139,13 @@ function build(c: RecordsConfig, ctx: { from: number; to: number; now: number })
   const toIso = new Date(ctx.to).toISOString();
   // the state at the end of the period (or now, if the period ends in the future)
   const atIso = new Date(Math.min(ctx.to, ctx.now)).toISOString();
+  const reader = currentUser();
   const records = db()
     .all<{ id: string; type_id: string; number: string; title: string; owner: string; fields: string; created_at: string }>(
       'SELECT id, type_id, number, title, owner, fields, created_at FROM records WHERE created_at <= ? ORDER BY number',
       atIso,
     )
-    .filter((r) => types.has(r.type_id));
+    .filter((r) => types.has(r.type_id) && canReadRecordRow(reader, r));
   if (!records.length) return out;
   const ids = new Set(records.map((r) => r.id));
 

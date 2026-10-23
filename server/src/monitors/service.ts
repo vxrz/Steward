@@ -28,6 +28,10 @@ import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { config } from '../config.js';
 import { errorParam, HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { parseYaml } from '../yaml-safe.js';
+
+/** Largest monitor file (the import route accepts 512 KB). */
+export const MONITOR_YAML_BYTES = 1024 * 1024;
 import { currentUser } from '../auth/context.js';
 import { cleanAcl } from '../auth/permissions.js';
 import { getPlatform } from '../platforms/service.js';
@@ -972,8 +976,9 @@ export function exportMonitor(idOrKey: string): string {
 export async function importMonitor(text: string, opts: { key?: string } = {}): Promise<MonitorSaveResult> {
   let raw: unknown;
   try {
-    raw = YAML.parse(text);
+    raw = parseYaml(text, { maxBytes: MONITOR_YAML_BYTES });
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     throw new HttpError(400, `Invalid YAML: ${(e as Error).message}`, 'YAML_INVALID', { detail: (e as Error).message });
   }
   const obj = (raw ?? {}) as Record<string, unknown>;
@@ -999,7 +1004,7 @@ export function listExamples(): { file: string; kind: string; key: string | null
     .sort()
     .flatMap((f) => {
       try {
-        const o = YAML.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as Record<string, unknown>;
+        const o = parseYaml(fs.readFileSync(path.join(dir, f), 'utf8'), { maxBytes: MONITOR_YAML_BYTES }) as Record<string, unknown>;
         return [{ file: f, kind: String(o.kind), key: (o.key as string) ?? null, name: String(o.name ?? f), description: String(o.description ?? '') }];
       } catch {
         return [];

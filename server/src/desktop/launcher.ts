@@ -167,7 +167,7 @@ async function main(): Promise<number> {
   if (evidenceArgv) {
     if (evidenceArgv[0] !== 'verify') {
       if (evidenceArgv[0] === '--help' || evidenceArgv[0] === '-h') {
-        process.stdout.write(`Usage: ${BRAND.slug} evidence verify <pack.zip> [--public-key <key>] [--json]\n`);
+        process.stdout.write(`Usage: ${BRAND.slug} evidence verify <pack.zip> [--public-key <key> | --fingerprint <fp> | --trust-pack-key] [--json]\n`);
         return EXIT_OK;
       }
       return usageFailure(

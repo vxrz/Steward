@@ -29,16 +29,17 @@ import { canViewScheduledReport } from '../reports/schedules.js';
 import { getRecord } from '../records/service.js';
 import { renderRecordPdf } from '../records/pdf.js';
 import { attachmentFile, attachmentRows, type RecordRow } from '../records/model.js';
+import { canReadRecordRow } from '../records/access.js';
 import { getService } from '../catalogue/service.js';
 import { csvCell } from '../audit-export.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { canExportEvidence, canReadCheck, forbid, me, readsEverything, same, visiblePlatformName } from './access.js';
 import { toAccessChange } from './access-changes.js';
-import { evidenceForControls, evidenceOf, getControl } from './controls.js';
+import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import { renderPackPdf } from './pack-pdf.js';
-import { AUDIT_EXCERPT_FILE, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
+import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
 import { ZipLimitError, ZipWriter, type WrittenEntry } from './zip.js';
 
 /**
@@ -322,6 +323,7 @@ function platformItems(platformId: string, from: string, to: string, u: AuthUser
     ACCESS_TYPE_ID,
     `%${likeEscape(JSON.stringify(platformId))}%`,
   )) {
+    if (!canReadRecordRow(u, r)) continue;
     const a = toAccessChange(r, u);
     if (a.platformId !== platformId || !inPeriod(a.performedAt || r.created_at, from, to)) continue;
     out.push({
@@ -444,7 +446,9 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
 
     // 1. what belongs into the pack (as the requester sees it)
     const items = new Map<string, PackItem>();
-    const controls: { id: string; ref: string; catalogue: string; title: string; status: 'covered' | 'gap' | 'unmapped'; count: number }[] = [];
+    const controls: { id: string; ref: string; catalogue: string; title: string; status: PackCoverageStatus; count: number; hidden: number }[] = [];
+    // the pack holds what its creator may see: it says so, and how much it leaves out per control (GOV-12)
+    const complete = readsEverything(u);
     if (scope.controlIds) {
       for (const c of evidenceForControls(scope.controlIds, { from, to }, u)) {
         const label = `${c.control.catalogueKey} ${c.control.ref}`;
@@ -456,6 +460,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
           title: c.control.title,
           status: c.status,
           count: c.evidence.length,
+          hidden: c.hidden,
         });
       }
     } else if (scope.platformId) addItems(items, platformItems(scope.platformId, from, to, u));
@@ -543,7 +548,12 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       await b.json(`${dir}/check.json`, getCheck(cid));
       await b.json(`${dir}/snapshots.json`, listSnapshots(cid, { from, to, limit: 5000 }));
       await b.json(`${dir}/findings.json`, listFindings({ checkId: cid, from, to }));
-      await b.json(`${dir}/chain-verification.json`, { verifiedAt: nowIso(), ...verifyChain(cid) });
+      const v = verifyChain(cid);
+      await b.json(`${dir}/chain-verification.json`, { verifiedAt: nowIso(), ...v });
+      if (!v.ok)
+        b.omitted.push(
+          `Reconciliation ${cid}: the snapshots or findings do not match the audit log (${v.problems.length} problem(s), see ${dir}/chain-verification.json)`,
+        );
     }
     if (accessChanges.length) {
       await b.json('access-changes/access-changes.json', accessChanges);
@@ -570,6 +580,9 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
         'runId',
         'findingId',
         'frozenHash',
+        'tampered',
+        'documentedBy',
+        'lastEditedBy',
       ] as const;
       const csv =
         [head.join(','), ...accessChanges.map((a) => head.map((h) => csvCell(Array.isArray(a[h]) ? (a[h] as string[]).join('; ') : a[h])).join(','))].join(
@@ -589,11 +602,29 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
     else b.omitted.push('Audit log excerpt: only auditors and administrators may export the audit log');
 
     // 5. index (JSON and PDF/A)
-    const meta = { id, title: row.title, scope, scopeLabel: scopeLabel(scope, u), from, to, createdAt: row.created_at, createdBy: row.created_by, lang };
+    const meta = {
+      id,
+      title: row.title,
+      scope,
+      scopeLabel: scopeLabel(scope, u),
+      from,
+      to,
+      createdAt: row.created_at,
+      createdBy: row.created_by,
+      lang,
+      /** true: only what the creator may see (not an administrator or auditor) */
+      filtered: !complete,
+    };
+    const hidden = controls.reduce((n, c) => n + c.hidden, 0);
+    if (!complete)
+      b.omitted.push(
+        `This pack holds only what ${row.created_by} may see${hidden ? ` – ${hidden} evidence item(s) of the chosen controls are not visible to them` : ''}. Ask an auditor or administrator for a complete pack.`,
+      );
     const index = {
       format: 'steward-evidence-index',
       version: 1,
       pack: meta,
+      filtered: { complete, permissionsOf: row.created_by, hidden },
       product: BRAND.name,
       productVersion: config.version,
       generatedAt: nowIso(),
@@ -615,6 +646,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       createdBy: row.created_by,
       keyFingerprint: fingerprint,
       lang,
+      filtered: !complete,
       controls,
       items: list.map((i) => ({ kind: i.kind, label: i.label, at: i.at, files: i.files.length })),
       omitted: b.omitted,
@@ -624,14 +656,17 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
     // 6. signed manifest
     const manifest: PackManifest = {
       format: EVIDENCE_PACK_FORMAT,
-      version: 1,
+      version: 2,
       pack: { ...meta, product: BRAND.name, productVersion: config.version },
       keyFingerprint: fingerprint,
       files: b.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })),
     };
     const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + '\n', 'utf8');
     await zip.add('manifest.json', manifestBytes, { compress: true });
-    await zip.add('manifest.sig', Buffer.from(vault().sign(manifestBytes) + '\n'), { compress: false });
+    // domain separation: the key also signs audit checkpoints, so a manifest signature covers a prefix of its own
+    await zip.add('manifest.sig', Buffer.from(vault().sign(Buffer.concat([Buffer.from(MANIFEST_SIGNATURE_DOMAIN, 'utf8'), manifestBytes])) + '\n'), {
+      compress: false,
+    });
     await zip.add('public-key.pem', Buffer.from(publicKeyPem(pub)), { compress: false });
     const { size } = await zip.finish();
     zip = null;

@@ -1,24 +1,33 @@
 import { EVIDENCE_PACK_FORMAT, type AuditCheckpoint, type AuditEntry } from '@sm/shared';
 import { DIGEST_SEED, checkpointPayload, digestStep } from '../audit.js';
 import { publicKeyFingerprint, verifySignature } from '../vault.js';
-import { ZipReader, type ZipEntry } from './zip.js';
+import { ZipFormatError, ZipReader, type ZipEntry } from './zip.js';
 
 /**
  * Offline check of an evidence pack (no server, vault or database needed):
- *  1. manifest.json is signed (manifest.sig, Ed25519) by the key in public-key.pem – or by the key
- *     given with --public-key (compare the fingerprint with the one of your installation);
+ *  1. manifest.json is signed (manifest.sig, Ed25519) by the key given with --public-key, by the key
+ *     in public-key.pem when its fingerprint is the one given with --fingerprint, or by the key in
+ *     public-key.pem at all. Only the first two prove the pack comes from the installation: anyone can
+ *     sign a pack with a key of their own, so the third is "valid for an UNTRUSTED key" unless the
+ *     auditor accepts the pack's key on purpose (--trust-pack-key, after comparing the fingerprint);
  *  2. every file listed in the manifest is in the ZIP with exactly that size and SHA-256, and the
- *     ZIP holds no other files;
+ *     ZIP holds no other files (and no bytes outside its entries);
  *  3. the audit log excerpt (when present) is an unbroken chain whose public digest, continued from
  *     its start digest, reaches the signed checkpoint included in the pack.
  */
 
 export const PACK_META_FILES = ['manifest.json', 'manifest.sig', 'public-key.pem'];
 export const AUDIT_EXCERPT_FILE = 'audit/audit-log-excerpt.json';
+/**
+ * Manifests of version 2 are signed with this prefix (domain separation: the same key signs the audit
+ * checkpoints, whose payload is canonical JSON and never starts with it). Version 1 manifests (packs
+ * built before) were signed without a prefix and still verify.
+ */
+export const MANIFEST_SIGNATURE_DOMAIN = 'steward-evidence-manifest-v2\n';
 
 export interface PackManifest {
   format: typeof EVIDENCE_PACK_FORMAT;
-  version: 1;
+  version: 1 | 2;
   pack: Record<string, unknown> & { id: string; title: string; from: string; to: string; createdAt: string; createdBy: string };
   keyFingerprint: string;
   files: { path: string; size: number; sha256: string }[];
@@ -34,7 +43,11 @@ export interface AuditExcerpt {
 }
 
 export interface PackVerifyResult {
+  /** The pack is intact: signature valid for the key used, every file as listed, the audit excerpt reaches its checkpoint */
   ok: boolean;
+  /** The key is one the auditor trusts: given with --public-key, the fingerprint given with --fingerprint, or accepted with --trust-pack-key */
+  trusted: boolean;
+  trust: 'public-key' | 'fingerprint' | 'pack-key-accepted' | 'untrusted';
   pack: PackManifest['pack'] | null;
   publicKey: { source: 'option' | 'pack'; fingerprint: string } | null;
   signatureOk: boolean;
@@ -70,11 +83,39 @@ export function verifyExcerpt(x: AuditExcerpt, publicKey: string): { ok: boolean
 }
 
 const pemToDer = (k: string) => (k.includes('BEGIN') ? k.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '') : k.trim());
+/** Fingerprints compared as hex digits (colons, spaces and case do not matter). */
+export const normFingerprint = (f: string): string => f.toLowerCase().replace(/[^0-9a-f]/g, '');
 
-export async function verifyPack(file: string, o: { publicKey?: string | null } = {}): Promise<PackVerifyResult> {
+export interface VerifyOptions {
+  /** The installation's public key (PEM or base64 SPKI) – the pack must be signed with it */
+  publicKey?: string | null;
+  /** The installation's key fingerprint – the key in the pack must have it */
+  fingerprint?: string | null;
+  /** Accept the key in the pack (the auditor compared its fingerprint some other way) */
+  trustPackKey?: boolean;
+}
+
+export async function verifyPack(file: string, o: VerifyOptions = {}): Promise<PackVerifyResult> {
   const problems: string[] = [];
-  const res: PackVerifyResult = { ok: false, pack: null, publicKey: null, signatureOk: false, files: { listed: 0, ok: 0 }, audit: null, problems };
-  const zip = await ZipReader.open(file);
+  const res: PackVerifyResult = {
+    ok: false,
+    trusted: false,
+    trust: 'untrusted',
+    pack: null,
+    publicKey: null,
+    signatureOk: false,
+    files: { listed: 0, ok: 0 },
+    audit: null,
+    problems,
+  };
+  let zip: ZipReader;
+  try {
+    zip = await ZipReader.open(file);
+  } catch (e) {
+    if (!(e instanceof ZipFormatError)) throw e;
+    problems.push(`The ZIP file is malformed: ${e.message}`);
+    return res;
+  }
   const get = (n: string) => zip.find(n);
   const manifestEntry = get('manifest.json');
   const sigEntry = get('manifest.sig');
@@ -94,6 +135,10 @@ export async function verifyPack(file: string, o: { publicKey?: string | null } 
     problems.push('manifest.json is not an evidence pack manifest');
     return res;
   }
+  if (manifest.version !== 1 && manifest.version !== 2) {
+    problems.push(`manifest.json has the unknown version ${String(manifest.version).slice(0, 20)} – use a newer verifier`);
+    return res;
+  }
   res.pack = manifest.pack ?? null;
   const keyEntry = get('public-key.pem');
   const packKey = keyEntry ? (await zip.read(keyEntry, 16 * 1024)).toString('utf8') : null;
@@ -110,8 +155,14 @@ export async function verifyPack(file: string, o: { publicKey?: string | null } 
     return res;
   }
   res.publicKey = { source: o.publicKey ? 'option' : 'pack', fingerprint };
+  if (o.publicKey) res.trust = 'public-key';
+  else if (o.fingerprint) {
+    if (normFingerprint(o.fingerprint) === normFingerprint(fingerprint)) res.trust = 'fingerprint';
+    else problems.push(`The pack is signed with the key ${fingerprint}, not with the trusted key ${o.fingerprint}`);
+  } else if (o.trustPackKey) res.trust = 'pack-key-accepted';
   const signature = (await zip.read(sigEntry, 16 * 1024)).toString('utf8').trim();
-  res.signatureOk = verifySignature(key, manifestBytes, signature);
+  const signed = manifest.version === 1 ? manifestBytes : Buffer.concat([Buffer.from(MANIFEST_SIGNATURE_DOMAIN, 'utf8'), manifestBytes]);
+  res.signatureOk = verifySignature(key, signed, signature);
   if (!res.signatureOk) problems.push('The manifest signature is invalid for this public key (the manifest was changed or signed by another key)');
   if (manifest.keyFingerprint && manifest.keyFingerprint !== fingerprint)
     problems.push(`The manifest names key ${manifest.keyFingerprint}, the public key is ${fingerprint}`);
@@ -162,5 +213,6 @@ export async function verifyPack(file: string, o: { publicKey?: string | null } 
     }
   }
   res.ok = problems.length === 0;
+  res.trusted = res.ok && res.trust !== 'untrusted';
   return res;
 }

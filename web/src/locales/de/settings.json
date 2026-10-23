@@ -38,6 +38,11 @@
     "listHint": "Ein Eintrag pro Zeile: ein Ursprung (https://host[:port]), ein Host oder Host-Muster (*.example.com) oder ein CIDR. Cloud-Metadaten (169.254.169.254, …) und Link-local-Adressen sowie der eigene Port des Steward-Servers sind immer gesperrt.",
     "note": "Absolute URLs, die hier nicht abgedeckt sind, schlagen mit einer Meldung fehl, die den Autor bittet, eine Administratorin um Freigabe des Ursprungs zu bitten."
   },
+  "compliance": {
+    "title": "Zugriffsabgleich",
+    "dismissFourEyes": "Verwerfen nach dem Vier-Augen-Prinzip",
+    "dismissFourEyesHint": "Ein verworfener Befund bleibt offen, bis eine zweite Person (der Eigentümer des Abgleichs oder ein Administrator) das Verwerfen bestätigt."
+  },
   "retention": {
     "title": "Aufbewahrung",
     "runs": "Ausführungen aufbewahren (Tage)",

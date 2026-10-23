@@ -551,6 +551,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         apiDocs: z.enum(API_DOCS_MODES).optional(),
         outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
         outboundAllowList: z.array(z.string().trim().min(1).max(255)).max(200).optional(),
+        findingDismissFourEyes: z.boolean().optional(),
       })
       .parse(req.body);
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)

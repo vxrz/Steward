@@ -136,6 +136,22 @@ const CORE = `
   CREATE INDEX evidence_packs_created ON evidence_packs(created_by, created_at);
 `;
 
+/** Tables of compliance evidence whose rows are never deleted (a trigger refuses it; db:copy --force lifts it while replacing data). */
+export const EVIDENCE_TABLES = ['access_snapshots', 'access_findings'];
+
+export function noDeleteTrigger(dialect: 'sqlite' | 'postgres', table: string): { create: string; drop: string } {
+  const name = `${table}_no_delete`;
+  return dialect === 'sqlite'
+    ? {
+        create: `CREATE TRIGGER ${name} BEFORE DELETE ON ${table} BEGIN SELECT RAISE(ABORT, '${table.replace(/_/g, ' ')} cannot be deleted'); END;`,
+        drop: `DROP TRIGGER IF EXISTS ${name};`,
+      }
+    : {
+        create: `CREATE TRIGGER ${name} BEFORE DELETE ON ${table} FOR EACH ROW EXECUTE FUNCTION access_evidence_no_delete();`,
+        drop: `DROP TRIGGER IF EXISTS ${name} ON ${table};`,
+      };
+}
+
 export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
   {
     name: 'compliance-001-core',
@@ -147,6 +163,23 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE FUNCTION access_snapshots_immutable() RETURNS trigger LANGUAGE plpgsql AS $$
         BEGIN RAISE EXCEPTION 'access snapshots are immutable'; END $$;
       CREATE TRIGGER access_snapshots_immutable BEFORE UPDATE ON access_snapshots FOR EACH ROW EXECUTE FUNCTION access_snapshots_immutable();
+    `,
+  },
+  {
+    // four-eyes dismissals of findings; snapshots and findings are evidence: never deleted (defence in depth –
+    // the verification compares them with the authentic audit entries as well)
+    name: 'compliance-002-governance',
+    sql: `
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_by TEXT;
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_at TEXT;
+      ${EVIDENCE_TABLES.map((t) => noDeleteTrigger('sqlite', t).create).join('\n      ')}
+    `,
+    pg: `
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_by TEXT;
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_at TEXT;
+      CREATE FUNCTION access_evidence_no_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION '% cannot be deleted', TG_TABLE_NAME; END $$;
+      ${EVIDENCE_TABLES.map((t) => noDeleteTrigger('postgres', t).create).join('\n      ')}
     `,
   },
 ];

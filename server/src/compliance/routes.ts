@@ -21,6 +21,7 @@ import { permissionsOfRow } from '../monitors/model.js';
 import { HttpError, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { contentDisposition } from '../records/attachments.js';
+import { canReadRecordRow } from '../records/access.js';
 import { canCreateChecks, canManageCatalogues, canReadCheck, canTagControls, me, readsEverything, same } from './access.js';
 import { accessChangeInput, createAccessChange, getAccessChange, listAccessChanges } from './access-changes.js';
 import { createRunEntries } from './run-entries.js';
@@ -259,12 +260,13 @@ function tagTargets(kind: ControlTagKind, text: string): { id: string; label: st
         .map((t) => ({ id: t.id, label: `${t.key} – ${t.name}` }));
     case 'record':
       return db()
-        .all<{ id: string; number: string; title: string }>(
-          "SELECT id, number, title FROM records WHERE lower(number) LIKE ? ESCAPE '\\' OR lower(title) LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT ?",
+        .all<{ id: string; number: string; title: string; type_id: string; fields: string; owner: string }>(
+          "SELECT id, number, title, type_id, fields, owner FROM records WHERE lower(number) LIKE ? ESCAPE '\\' OR lower(title) LIKE ? ESCAPE '\\' ORDER BY updated_at DESC LIMIT 500",
           like,
           like,
-          LIMIT,
         )
+        .filter((r) => canReadRecordRow(u, r))
+        .slice(0, LIMIT)
         .map((r) => ({ id: r.id, label: `${r.number} ${r.title}` }));
     case 'monitor':
       return db()

@@ -85,17 +85,19 @@ describe('access change entries', () => {
     expect(a).toMatchObject({ status: 'documented', granted: ['mdsp_usergroup:Operators'], revoked: [], origin: 'manual', afterTheFact: false });
     expect(a.number).toMatch(/^AC-\d{4}-\d{4}$/);
     expect(a.frozenHash).toMatch(/^[0-9a-f]{64}$/);
-    const rec = await vera('GET', `/records/${a.recordId}`);
+    const rec = await audrey('GET', `/records/${a.recordId}`);
     expect(rec.frozen).toBe(true);
     expect(rec.links.map((l: any) => l.note)).toEqual(expect.arrayContaining(['platform', 'request']));
     // the performer cannot verify the entry; operators are no approvers
     expect(await errorOf(adam('POST', `/records/${a.recordId}/transition`, { action: 'verify' }))).toContain('Four-eyes');
     expect(await status(olivia('POST', `/records/${a.recordId}/transition`, { action: 'verify' }))).toBe(403);
     expect((await s.api('POST', `/records/${a.recordId}/transition`, { action: 'verify' })).status).toBe('verified');
-    // everyone reads them (auditors and viewers included)
-    const list = await vera('GET', `/compliance/access-changes?platformId=${hub}&subject=service-account`);
+    // auditors, approvers and who may use the platform read them; viewers do not (they name people and their rights)
+    const list = await adam('GET', `/compliance/access-changes?platformId=${hub}&subject=service-account`);
     expect(list.map((x: any) => x.recordId)).toContain(a.recordId);
     expect((await audrey('GET', `/compliance/access-changes/${a.number}`)).status).toBe('verified');
+    expect(await vera('GET', `/compliance/access-changes?platformId=${hub}`)).toEqual([]);
+    expect(await status(vera('GET', `/records/${a.recordId}`))).toBe(404);
   });
 
   it('reject incomplete input', async () => {

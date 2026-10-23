@@ -1,4 +1,3 @@
-import YAML from 'yaml';
 import { z } from 'zod';
 import {
   ACCESS_TYPE_ID,
@@ -13,15 +12,17 @@ import {
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { currentUser, type AuthUser } from '../auth/context.js';
-import { capabilities } from '../auth/permissions.js';
+import { currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { capabilities, isAdmin } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { HttpError, newId, nowIso } from '../util.js';
-import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, same } from './access.js';
+import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, readsEverything, same, SYSTEM_USER } from './access.js';
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import type { RecordRow } from '../records/model.js';
+import { canReadRecordRow } from '../records/access.js';
+import { parseYamlDocument } from '../yaml-safe.js';
 
 /**
  * Control catalogues (ISO/IEC 27001 Annex A, IEC 62443-2-1, NIS2 Art. 21 built in – identifiers and
@@ -31,7 +32,17 @@ import type { RecordRow } from '../records/model.js';
  * what the reader may see.
  */
 
-export const LIMITS = { controls: 2000, title: 300, description: 4000, importBytes: 1024 * 1024, evidencePerControl: 200, tagsPerControl: 200 };
+export const LIMITS = {
+  controls: 2000,
+  title: 300,
+  description: 4000,
+  importBytes: 1024 * 1024,
+  /** YAML is capped lower than JSON and CSV (parsing it is more expensive) */
+  yamlBytes: 256 * 1024,
+  yamlKeys: 50_000,
+  evidencePerControl: 200,
+  tagsPerControl: 200,
+};
 
 interface CatalogueRow {
   id: string;
@@ -274,15 +285,28 @@ export function parseCatalogueFile(filename: string, content: string): ParsedCat
       throw new HttpError(400, 'The CSV file needs a header row with the columns ref and title (optional: description)', 'CATALOGUE_CSV_HEADER');
     controls = rows.slice(1).map((r) => ({ ref: r[ref] ?? '', title: r[title] ?? '', description: desc >= 0 ? (r[desc] ?? '') : '' }));
   } else {
+    if (ext !== 'json' && Buffer.byteLength(content) > LIMITS.yamlBytes)
+      throw new HttpError(413, `The file is too large (at most ${LIMITS.yamlBytes / 1024} KB for YAML)`, 'CATALOGUE_TOO_LARGE', {
+        kb: LIMITS.yamlBytes / 1024,
+      });
     let data: unknown;
     try {
       if (ext === 'json') data = JSON.parse(content);
       else {
-        const doc = YAML.parseDocument(content, { schema: 'core', uniqueKeys: true, merge: false, prettyErrors: false, strict: true, customTags: [] });
+        const doc = parseYamlDocument(content, {
+          schema: 'core',
+          merge: false,
+          prettyErrors: false,
+          strict: true,
+          customTags: [],
+          maxBytes: LIMITS.yamlBytes,
+          maxKeys: LIMITS.yamlKeys,
+        });
         if (doc.errors.length) throw new Error(doc.errors[0]!.message);
         data = doc.toJS({ maxAliasCount: 20 });
       }
     } catch (e) {
+      if (e instanceof HttpError) throw e;
       throw new HttpError(400, `The file cannot be read: ${(e as Error).message.slice(0, 200)}`, 'CATALOGUE_UNREADABLE', {
         detail: (e as Error).message.slice(0, 200),
       });
@@ -382,9 +406,10 @@ export function importCatalogue(o: { catalogueId?: string; key?: string; name?: 
 
 // ---------- controls ----------
 
+/** A mapped item as the reader sees it: the id only when they may see the item (ids can carry names, e.g. process slugs). */
 function tagInfo(t: TagRow, u: AuthUser | null): ControlTag {
   const r = resolveTarget(t.kind, t.target_id, u);
-  return { kind: t.kind, targetId: t.target_id, label: r?.label ?? '', path: r?.path ?? null, visible: !!r };
+  return { kind: t.kind, targetId: r ? t.target_id : null, label: r?.label ?? '', path: r?.path ?? null, visible: !!r };
 }
 
 function toControl(c: ControlRow, cat: Pick<CatalogueRow, 'key'>, u: AuthUser | null, tags?: TagRow[]): Control {
@@ -486,8 +511,11 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
       return t ? { label: `${t.key} – ${t.name}`, path: `/records?type=${encodeURIComponent(t.key)}` } : null;
     }
     case 'record': {
-      const r = db().get<{ number: string; title: string }>('SELECT number, title FROM records WHERE id = ?', id);
-      return r && u ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;
+      const r = db().get<{ number: string; title: string; type_id: string; fields: string; owner: string }>(
+        'SELECT number, title, type_id, fields, owner FROM records WHERE id = ?',
+        id,
+      );
+      return r && canReadRecordRow(u, r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;
     }
     case 'monitor': {
       const m = db().get<{ name: string; owner: string; acl: string }>('SELECT name, owner, acl FROM monitors WHERE id = ?', id);
@@ -540,6 +568,8 @@ export function removeTag(controlId: string, kind: ControlTagKind, targetId: str
   const u = me();
   if (!canTagControls(u)) forbid('map items to controls', 'tagControls');
   const c = controlRow(controlId);
+  // only items the user can see (administrators: any), as when adding them – no probing for hidden ids
+  if (!isAdmin(u) && !resolveTarget(kind, targetId, u)) throw new HttpError(404, 'This item is not mapped to the control', 'TAG_NOT_FOUND');
   const n = db().run('DELETE FROM control_tags WHERE control_id = ? AND kind = ? AND target_id = ?', c.id, kind, targetId).changes;
   if (!n) throw new HttpError(404, 'This item is not mapped to the control', 'TAG_NOT_FOUND');
   audit({
@@ -556,6 +586,8 @@ export function removeTag(controlId: string, kind: ControlTagKind, targetId: str
 export function controlsOf(kind: ControlTagKind, targetId: string): Control[] {
   const u = me();
   ensureCatalogues();
+  // not for items the user cannot see (no probing which hidden items are mapped)
+  if (!resolveTarget(kind, targetId, u)) return [];
   return db()
     .all<ControlRow & { catalogue_key: string }>(
       'SELECT c.*, k.key AS catalogue_key FROM control_tags t JOIN controls c ON c.id = t.control_id JOIN control_catalogues k ON k.id = c.catalogue_id WHERE t.kind = ? AND t.target_id = ? ORDER BY k.key, c.sort',
@@ -620,6 +652,7 @@ export function evidenceOf(tag: Pick<TagRow, 'kind' | 'target_id'>, p: Period, u
               p.to,
             );
       for (const r of rows) {
+        if (!canReadRecordRow(u, r)) continue;
         if (tag.kind === 'record' && !db().get(`SELECT 1 FROM record_events WHERE record_id = ? AND ${inPeriodSql('created_at')}`, r.id, p.from, p.to))
           continue;
         if (r.type_id === ACCESS_TYPE_ID) {
@@ -781,20 +814,37 @@ export function coverage(p: Period, o: { catalogue?: string; controlIds?: string
   });
 }
 
-/** Full evidence of controls (no list limit) – for evidence packs. */
+/** Coverage of a control in an evidence pack: "notVisible" when there is evidence, but none the creator may see. */
+export type PackCoverageStatus = ControlCoverage['status'] | 'notVisible';
+
+const uniqueEvidence = (items: EvidenceItem[]) => {
+  const seen = new Set<string>();
+  return items.filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true)));
+};
+
+/**
+ * Full evidence of controls (no list limit) – for evidence packs. `hidden` counts the evidence items
+ * the reader may not see (GOV-12): a pack of someone who cannot see everything says how much it
+ * leaves out instead of reporting a gap.
+ */
 export function evidenceForControls(
   controlIds: string[],
   p: Period,
   u: AuthUser | null = currentUser(),
-): { control: Control; evidence: EvidenceItem[]; status: ControlCoverage['status'] }[] {
+): { control: Control; evidence: EvidenceItem[]; status: PackCoverageStatus; hidden: number }[] {
   const period = normPeriod(p);
+  const complete = readsEverything(u);
   return controlIds.map((id) => {
     const control = getControl(id);
     const mine = db().all<TagRow>('SELECT * FROM control_tags WHERE control_id = ?', id);
-    const seen = new Set<string>();
-    const evidence = mine
-      .flatMap((t) => evidenceOf(t, period, u))
-      .filter((e) => (seen.has(`${e.kind}|${e.id}`) ? false : (seen.add(`${e.kind}|${e.id}`), true)));
-    return { control, evidence, status: mine.length === 0 ? 'unmapped' : evidence.length ? 'covered' : 'gap' };
+    const evidence = uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, u)));
+    let hidden = 0;
+    if (!complete && mine.length) {
+      const visible = new Set(evidence.map((e) => `${e.kind}|${e.id}`));
+      const all = runAs(SYSTEM_USER, () => uniqueEvidence(mine.flatMap((t) => evidenceOf(t, period, SYSTEM_USER))));
+      hidden = all.filter((e) => !visible.has(`${e.kind}|${e.id}`)).length;
+    }
+    const status: PackCoverageStatus = mine.length === 0 ? 'unmapped' : evidence.length ? 'covered' : hidden ? 'notVisible' : 'gap';
+    return { control, evidence, status, hidden };
   });
 }

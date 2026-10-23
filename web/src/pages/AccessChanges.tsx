@@ -110,6 +110,13 @@ export function AccessChangesPage() {
 
 function OriginBadge({ a }: { a: AccessChange }) {
   const { t } = useTranslation('compliance');
+  // content changed outside Steward: the entry does not count for the reconciliation
+  if (a.tampered)
+    return (
+      <Badge size="xs" color="red" variant="filled" title={t('accessChanges.tamperedHint')}>
+        {t('accessChanges.tampered')}
+      </Badge>
+    );
   if (a.afterTheFact)
     return (
       <Badge size="xs" color="orange" variant="light">

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import YAML from 'yaml';
 import { fetch } from 'undici';
 import { config } from '../config.js';
 import { db } from '../db.js';
@@ -10,6 +9,7 @@ import { createPlatform } from '../platforms/service.js';
 import { DEMO_ZABBIX } from '../mock/mockZabbix.js';
 import { DEMO_IOT_ASSETS } from '../mock/mockIot.js';
 import * as svc from './service.js';
+import { parseYaml } from '../yaml-safe.js';
 import { createGateway, gatewayRow } from './gateways.js';
 import type { GatewayRow } from './model.js';
 
@@ -80,7 +80,7 @@ export async function setupMonitorDemo(): Promise<number> {
         .sort()
     : []) {
     const text = demoize(fs.readFileSync(path.join(dir, f), 'utf8'));
-    const key = (YAML.parse(text) as { key?: string }).key;
+    const key = (parseYaml(text, { maxBytes: svc.MONITOR_YAML_BYTES }) as { key?: string }).key;
     if (key && have.has(key)) continue;
     try {
       await svc.importMonitor(text);

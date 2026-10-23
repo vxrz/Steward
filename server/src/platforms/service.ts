@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import YAML from 'yaml';
 import type { ApiOperation, McpGatewayConfig, Platform, PlatformConfig, PlatformDoc, PlatformSpec } from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
+import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
 import { invalidatePlatformCaches } from './http.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
 import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
@@ -269,8 +269,9 @@ export function parseSpec(content: string): {
 } {
   let doc: Record<string, unknown>;
   try {
-    doc = (content.trim().startsWith('{') ? JSON.parse(content) : YAML.parse(content)) as Record<string, unknown>;
+    doc = (content.trim().startsWith('{') ? JSON.parse(content) : parseYaml(content, SPEC_YAML)) as Record<string, unknown>;
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     throw new HttpError(400, `Could not parse specification: ${(e as Error).message}`);
   }
   if (!doc || typeof doc !== 'object') throw new HttpError(400, 'Specification is empty');

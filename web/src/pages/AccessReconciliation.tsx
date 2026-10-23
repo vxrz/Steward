@@ -31,6 +31,7 @@ import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useCreateParam 
 import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/compliance/common';
 import { fmtDate, fmtRelative } from '../format';
 import { localNow } from './AccessChanges';
+import { useMe } from '../auth';
 
 /** Compliance → Access reconciliation: who has which access (snapshots) compared with the documented access changes. */
 export function AccessReconciliationPage() {
@@ -314,6 +315,11 @@ function FindingsTable({
                     {f.comment}
                   </Text>
                 )}
+                {f.status === 'open' && f.dismissRequestedBy && (
+                  <Text size="xs" c="dimmed">
+                    {t('reconciliation.dismissRequested', { user: f.dismissRequestedBy, reason: f.comment })}
+                  </Text>
+                )}
               </Table.Td>
               <Table.Td>
                 <Group gap={4} justify="flex-end" wrap="nowrap">
@@ -328,9 +334,11 @@ function FindingsTable({
                       variant="subtle"
                       color="gray"
                       onClick={() => onDismiss(f)}
-                      aria-label={t('reconciliation.dismissFor', { subject: f.subjectName || f.subjectId })}
+                      aria-label={t(f.dismissRequestedBy ? 'reconciliation.confirmDismissFor' : 'reconciliation.dismissFor', {
+                        subject: f.subjectName || f.subjectId,
+                      })}
                     >
-                      {t('reconciliation.dismiss')}
+                      {t(f.dismissRequestedBy ? 'reconciliation.confirmDismiss' : 'reconciliation.dismiss')}
                     </Button>
                   )}
                 </Group>
@@ -496,6 +504,8 @@ function DismissModal({ finding, onClose, onDone }: { finding: AccessFinding; on
   const { t } = useTranslation(['compliance', 'common']);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  // four-eyes dismissals: a second person confirms the reason the first one gave
+  const confirming = !!finding.dismissRequestedBy;
   const submit = async () => {
     setBusy(true);
     try {
@@ -509,12 +519,17 @@ function DismissModal({ finding, onClose, onDone }: { finding: AccessFinding; on
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('reconciliation.dismissTitle', { subject: finding.subjectName || finding.subjectId })}>
+    <Modal
+      opened
+      onClose={onClose}
+      title={t(confirming ? 'reconciliation.confirmDismissTitle' : 'reconciliation.dismissTitle', { subject: finding.subjectName || finding.subjectId })}
+    >
       <Stack gap="sm">
         <Text size="sm">{t('reconciliation.dismissHelp')}</Text>
+        {confirming && <Text size="sm">{t('reconciliation.dismissRequested', { user: finding.dismissRequestedBy, reason: finding.comment })}</Text>}
         <Textarea
-          label={t('reconciliation.dismissReason')}
-          required
+          label={t(confirming ? 'reconciliation.confirmDismissComment' : 'reconciliation.dismissReason')}
+          required={!confirming}
           autosize
           minRows={2}
           value={comment}
@@ -525,8 +540,8 @@ function DismissModal({ finding, onClose, onDone }: { finding: AccessFinding; on
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
           </Button>
-          <Button color="red" onClick={submit} loading={busy} disabled={!comment.trim()}>
-            {t('reconciliation.dismiss')}
+          <Button color="red" onClick={submit} loading={busy} disabled={!confirming && !comment.trim()}>
+            {t(confirming ? 'reconciliation.confirmDismiss' : 'reconciliation.dismiss')}
           </Button>
         </Group>
       </Stack>
@@ -536,6 +551,7 @@ function DismissModal({ finding, onClose, onDone }: { finding: AccessFinding; on
 
 function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; onClose: () => void; onSaved: (c: AccessCheck) => void }) {
   const { t } = useTranslation(['compliance', 'common']);
+  const { isAdmin } = useMe();
   const qc = useQueryClient();
   const platforms = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []) });
@@ -635,7 +651,8 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
         />
         <TagsInput
           label={t('reconciliation.ignoreRights')}
-          description={t('reconciliation.ignoreRightsHelp')}
+          description={t(isAdmin ? 'reconciliation.ignoreRightsHelp' : 'reconciliation.ignoreRightsAdminOnly')}
+          disabled={!isAdmin}
           value={f.ignoreRights}
           onChange={(v) => up('ignoreRights', v)}
           maxTags={100}

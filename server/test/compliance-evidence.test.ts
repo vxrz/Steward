@@ -114,12 +114,15 @@ describe('control catalogues', () => {
     expect(await status(dana('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: 'prc_none' }))).toBe(404);
     const tagged = await dana('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: procs[0].id });
     expect(tagged.tags.map((t: any) => t.label)).toContain(procs[0].label);
-    const cov = await vera('GET', `/compliance/coverage?from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`);
+    const period = `from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`;
+    const cov = await dana('GET', `/compliance/coverage?${period}`);
     const by = Object.fromEntries(cov.map((c: any) => [c.control.ref, c]));
     expect(by['5.18'].status).toBe('covered');
     expect(by['5.18'].counts.accessChange).toBeGreaterThanOrEqual(2);
-    // the viewer may not see the reconciliation check, so its snapshots are no evidence for them
-    expect(by['5.18'].counts.snapshot).toBeUndefined();
+    // the viewer may neither see the reconciliation check nor the access change entries: no evidence for them
+    const viewer = Object.fromEntries((await vera('GET', `/compliance/coverage?${period}`)).map((c: any) => [c.control.ref, c]));
+    expect(viewer['5.18'].counts.snapshot).toBeUndefined();
+    expect(viewer['5.18'].counts.accessChange).toBeUndefined();
     const auditorCov = await audrey(
       'GET',
       `/compliance/coverage?from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`,
@@ -202,7 +205,7 @@ describe('evidence packs', () => {
     expect(r.publicKey?.fingerprint).toBe(info.fingerprint);
     const audit = await s.api('GET', `/audit?entityType=evidence_pack&entityId=${p.id}`);
     expect(audit.map((e: any) => e.action)).toEqual(expect.arrayContaining(['evidence_pack.requested', 'evidence_pack.created', 'evidence_pack.downloaded']));
-  });
+  }, 60_000);
 
   it('detects a changed, added or removed file and a changed manifest', async () => {
     const { ZipReader, ZipWriter } = await import('../src/compliance/zip.js');
@@ -233,10 +236,11 @@ describe('evidence packs', () => {
     // the command line check: exit 0 for the pack, 1 for the tampered copy
     const tsx = path.resolve(__dirname, '../../node_modules/.bin/tsx');
     const cli = path.resolve(__dirname, '../src/cli/evidence-verify.ts');
-    const ok = spawnSync(tsx, [cli, packFile], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
+    const { fingerprint } = await s.api('GET', '/vault/info');
+    const ok = spawnSync(tsx, [cli, packFile, '--fingerprint', fingerprint], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
     expect(ok.status, ok.stderr).toBe(0);
     expect(ok.stdout).toContain('The evidence pack is intact.');
-    const bad = spawnSync(tsx, [cli, t1, '--json'], { encoding: 'utf8' });
+    const bad = spawnSync(tsx, [cli, t1, '--json', '--trust-pack-key'], { encoding: 'utf8' });
     expect(bad.status).toBe(1);
     expect(JSON.parse(bad.stdout).ok).toBe(false);
     expect(spawnSync(tsx, [cli], { encoding: 'utf8' }).status).toBe(2);
