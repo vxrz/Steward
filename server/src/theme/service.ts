@@ -137,8 +137,32 @@ export function imageInfo(data: Buffer): { mime: ThemeLogoType; width: number; h
   return null;
 }
 
-const looksLikeSvg = (data: Buffer) =>
-  /^\s*(<\?xml[^>]*>\s*)?(<!--[\s\S]*?-->\s*)*(<!doctype svg[^>]*>\s*)?<svg[\s>]/i.test(data.subarray(0, 2048).toString('utf8'));
+/**
+ * Does the file start like an SVG document (XML declaration, comments, doctype, then `<svg`)? Only for a
+ * clearer error message. A plain scan: a regex with a repeated comment group backtracks exponentially on
+ * input like `<!--` followed by many `--><!--`.
+ */
+export function looksLikeSvg(data: Buffer): boolean {
+  const s = data.subarray(0, 2048).toString('utf8');
+  let i = 0;
+  const skipSpace = () => {
+    while (i < s.length && /\s/.test(s[i]!)) i++;
+  };
+  const at = (prefix: string) => s.slice(i, i + prefix.length).toLowerCase() === prefix;
+  /** Moves behind the next `end`; false when there is none. */
+  const skipPast = (end: string, from: number) => {
+    const j = s.indexOf(end, from);
+    if (j < 0) return false;
+    i = j + end.length;
+    skipSpace();
+    return true;
+  };
+  skipSpace();
+  if (at('<?xml') && !skipPast('>', i)) return false;
+  while (at('<!--')) if (!skipPast('-->', i + 4)) return false;
+  if (at('<!doctype svg') && !skipPast('>', i)) return false;
+  return at('<svg') && /[\s>]/.test(s[i + 4] ?? '');
+}
 
 export function setLogo(data: Buffer): ThemeSettings {
   if (!data.length) throw new HttpError(400, 'The file is empty', 'THEME_LOGO_EMPTY');

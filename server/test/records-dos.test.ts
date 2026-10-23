@@ -8,7 +8,7 @@
  * which hid backtracking patterns; it no longer changes V8 flags.)
  */
 import { describe, expect, it } from 'vitest';
-import { inlineText, MD_MAX_TABLE_CELLS, parseInline, parseMarkdown, type MdBlock } from '@sm/shared';
+import { inlineText, MD_MAX_TABLE_CELLS, parseInline, parseMarkdown, safeHref, type MdBlock } from '@sm/shared';
 import { breakLongWords, MAX_UNBROKEN_CHARS, ReportWriter, type Chrome, type PdfMeta } from '../src/reports/pdf/engine.js';
 import { h1Title, parseRecordMarkdown } from '../src/records/markdown-io.js';
 import { findSignatures } from '../src/records/signed.js';
@@ -42,12 +42,30 @@ describe('R2: Markdown parser is linear', () => {
     'fence info with spaces': '```' + ' '.repeat(N) + '`',
     'table separator with spaces': 'a|b\n' + ' '.repeat(N) + 'x',
     'table separator, trailing spaces': 'a|b\n-' + ' '.repeat(N) + 'x',
+    // the link target regex backtracked over whitespace (16 K tabs: 10 s)
+    'link target, tabs': '[a](' + '\t'.repeat(N) + 'x',
+    'link target, spaces': '[a](' + ' '.repeat(N) + 'x',
+    'link target, spaces before a title': '[a](x' + ' '.repeat(N) + '"t" x',
+    'link target, unclosed titles': '[a](x "'.repeat(N / 8),
   };
   for (const [name, input] of Object.entries(cases)) {
     it(`parses ${name} (${Math.round(input.length / 1024)} KB) in well under a second`, () => {
       expect(ms(() => parseMarkdown(input))).toBeLessThan(2000);
     });
   }
+
+  it('checks mailto: links in linear time and keeps link targets and titles', () => {
+    expect(ms(() => safeHref('mailto:' + '!@'.repeat(N / 2) + ' x'))).toBeLessThan(500);
+    expect(safeHref('mailto:a@b@c')).toBe('mailto:a@b@c');
+    expect(safeHref('mailto:@b')).toBeNull();
+    const link = (md: string) => parseInline(md).find((n) => n.t === 'link');
+    expect(link('[w](https://en.wikipedia.org/wiki/A_(b) "t")')).toMatchObject({ href: 'https://en.wikipedia.org/wiki/A_(b)' });
+    expect(link("[w](  <https://x.y/a>   'title'  )")).toMatchObject({ href: 'https://x.y/a' });
+    expect(link('[w](mailto:a@b.c "t" )')).toMatchObject({ href: 'mailto:a@b.c' });
+    expect(inlineText(parseInline('[w](mailto:a@b.c "unclosed)'))).toBe('[w](mailto:a@b.c "unclosed)');
+    expect(inlineText(parseInline('[w](mailto:a@b.c(x)'))).toBe('[w](mailto:a@b.c(x)');
+    expect(inlineText(parseInline('[w]( "only a title")'))).toBe('w');
+  });
 
   it('caps table columns and cells (no cell bomb from short rows)', () => {
     const bomb = 'a|'.repeat(3000) + '\n' + '-|'.repeat(3000) + '\n' + '|\n'.repeat(N / 4);
