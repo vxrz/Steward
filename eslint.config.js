@@ -38,6 +38,17 @@ export default defineConfig(
       // Errors are re-thrown with a curated message on purpose (e.g. only the first line of a browser error):
       // attaching `cause` would change what is logged, journaled and sent to error reporting.
       'preserve-caught-error': 'off',
+      // V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour
+      // (the experimental regexp engine flags set this way crashed Node 26 when a worker thread started)
+      'no-restricted-syntax': [
+        'error',
+        ...[
+          "MemberExpression[property.name='setFlagsFromString']",
+          "MemberExpression[property.value='setFlagsFromString']",
+          "ImportSpecifier[imported.name='setFlagsFromString']",
+          "ObjectPattern > Property[key.name='setFlagsFromString']",
+        ].map((selector) => ({ selector, message: 'Do not change V8 flags at runtime (v8.setFlagsFromString): pass them on the command line, if at all.' })),
+      ],
     },
   },
 
