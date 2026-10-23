@@ -191,6 +191,18 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         </Card>
         <Card withBorder>
           <Title order={5} mb="sm">
+            {t('compliance.title')}
+          </Title>
+          <Switch
+            disabled={readOnly}
+            label={t('compliance.dismissFourEyes')}
+            description={t('compliance.dismissFourEyesHint')}
+            checked={!!s.findingDismissFourEyes}
+            onChange={(e) => setS({ ...s, findingDismissFourEyes: e.currentTarget.checked })}
+          />
+        </Card>
+        <Card withBorder>
+          <Title order={5} mb="sm">
             {t('retention.title')}
           </Title>
           <Stack>

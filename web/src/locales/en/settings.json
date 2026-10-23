@@ -38,6 +38,11 @@
     "listHint": "One entry per line: an origin (https://host[:port]), a host or host glob (*.example.com) or a CIDR. Cloud-metadata (169.254.169.254, …) and link-local addresses and the Steward server's own port are always blocked.",
     "note": "Absolute URLs that are not covered here fail with a message telling the author to ask an administrator to allow the origin."
   },
+  "compliance": {
+    "title": "Access reconciliation",
+    "dismissFourEyes": "Four-eyes dismissals",
+    "dismissFourEyesHint": "A finding someone dismisses stays open until a second person (the owner of the check or an administrator) confirms the dismissal."
+  },
   "retention": {
     "title": "Data retention",
     "runs": "Keep runs (days)",

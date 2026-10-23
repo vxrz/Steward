@@ -1,13 +1,15 @@
-import type { RecordFieldDef, Role } from '@sm/shared';
+import { ACCESS_TYPE_ID, type RecordFieldDef, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
-import { HttpError, type ErrorParam } from '../util.js';
+import { canReadAccessEntry } from '../compliance/access.js';
+import { HttpError, parseJson, type ErrorParam } from '../util.js';
 
 /**
  * Who may do what with records and services. Everyone who can sign in reads
- * records and services (auditors included); changes need one of the roles
- * below, checked on the server for every route.
+ * records and services (auditors included) – except access change entries,
+ * which name people and their rights (see canReadRecordRow); changes need one
+ * of the roles below, checked on the server for every route.
  */
 
 const has = (u: AuthUser | null, roles: Role[]) => !!u && u.roles.some((r) => roles.includes(r));
@@ -22,6 +24,16 @@ export const SERVICE_EDITOR_ROLES: Role[] = ['admin', 'designer'];
 
 /** Read records and catalogue services: everyone who can sign in. */
 export const canReadRecords = (u: AuthUser | null = currentUser()): boolean => !!u;
+
+/**
+ * Read one record: everyone who can sign in, but access change entries (the built-in type AC) only
+ * administrators, auditors, approvers, the entry's owner and whoever has a right on its platform.
+ */
+export function canReadRecordRow(u: AuthUser | null, r: { type_id: string; fields: string; owner: string }): boolean {
+  if (!u) return false;
+  if (r.type_id !== ACCESS_TYPE_ID) return true;
+  return canReadAccessEntry(u, parseJson<Record<string, string>>(r.fields, {}).platform ?? '', r.owner);
+}
 export const canCreateRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_EDITOR_ROLES);
 export const canApproveRecords = (u: AuthUser | null = currentUser()): boolean => has(u, RECORD_APPROVER_ROLES);
 export const canManageRecordTypes = (u: AuthUser | null = currentUser()): boolean => isAdmin(u);

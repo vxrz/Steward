@@ -20,6 +20,8 @@ import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context
 import { isAdmin } from '../auth/permissions.js';
 import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
+import { permissionsFor } from '../processes/service.js';
+import { getSettings } from '../settings.js';
 import { buildUrl, platformRequest } from '../platforms/http.js';
 import { assertOutboundAllowed } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
@@ -33,12 +35,13 @@ import {
   canEditCheck,
   canReadCheck,
   forbid,
+  isSubjectOf,
   me,
   platformAcl,
   platformPerms,
   visiblePlatformName,
 } from './access.js';
-import { createAccessChange, documentedEntries, FINAL_STATUSES, minus, uniqueRights } from './access-changes.js';
+import { createAccessChange, documentedEntries, minus, recordCounts, uniqueRights } from './access-changes.js';
 
 /**
  * Access reconciliation: a check takes a snapshot of who has which access on a platform (Insights
@@ -54,11 +57,15 @@ import { createAccessChange, documentedEntries, FINAL_STATUSES, minus, uniqueRig
 export const LIMITS = {
   subjects: 50000,
   rightsPerSubject: 1000,
+  /** Rights of all subjects together */
+  assignments: 500_000,
   text: 300,
   checksPerOwner: 50,
   /** IH identity management: users per page and pages */
   pageSize: 500,
   maxPages: 200,
+  /** Largest answer of one page of the identity management API */
+  pageBytes: 16 * 1024 * 1024,
   minIntervalMs: 15 * 60000,
 };
 /** Changes documented with a time up to this much before the previous snapshot (or after the current one) still count. */
@@ -127,6 +134,8 @@ interface FindingRow {
   resolved_by: string | null;
   resolved_at: string | null;
   comment: string;
+  dismiss_requested_by: string | null;
+  dismiss_requested_at: string | null;
 }
 
 const checkRow = (id: string) => db().get<CheckRow>('SELECT * FROM access_checks WHERE id = ?', id);
@@ -227,6 +236,30 @@ function checkCron(cron: string, tz: string): void {
   }
 }
 
+/**
+ * A dataset check reads data a process published: its owner must be allowed to view that process
+ * (the snapshot shows who has which access; GOV-4). A key without data yet is checked on every run.
+ */
+function datasetReadable(owner: AuthUser, key: string | null | undefined): boolean {
+  const d = key ? db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', key) : undefined;
+  return !d || runAs(owner, () => permissionsFor(d.process_id).includes('view'));
+}
+
+function datasetForbidden(key: string | null | undefined, owner: string): never {
+  throw new HttpError(403, `${owner} may not view the process that publishes the dataset "${key ?? ''}"`, 'ACCESS_CHECK_DATASET_FORBIDDEN', {
+    key: key ?? '',
+    owner,
+  });
+}
+
+/** Ignored rights hide grants of those rights from every snapshot: only administrators set or change them (GOV-5). */
+function checkIgnoreRights(u: AuthUser, next: string[], cur: string[]): void {
+  const norm = (l: string[]) => JSON.stringify(uniqueRights(l).map((x) => x.toLowerCase()));
+  if (!isAdmin(u) && norm(next) !== norm(cur)) forbid('change the rights a check ignores', 'ignoreRights');
+}
+
+const changed = (from: string[], to: string[]) => (JSON.stringify(from) === JSON.stringify(to) ? {} : { from, to });
+
 function validatePlatform(u: AuthUser, input: CheckInput): void {
   const p = platformAcl(input.platformId);
   if (!p.exists) throw new HttpError(400, `Platform ${input.platformId} not found`, 'PLATFORM_NOT_FOUND', { id: input.platformId });
@@ -249,6 +282,8 @@ export function createCheck(input: CheckInput): AccessCheck {
   const u = me();
   if (!canCreateChecks(u)) forbid('set up access reconciliation checks', 'createAccessChecks');
   validatePlatform(u, input);
+  checkIgnoreRights(u, input.ignoreRights, []);
+  if (input.source === 'dataset' && !datasetReadable(u, input.datasetKey)) datasetForbidden(input.datasetKey, u.username);
   checkCron(input.cron, input.timezone);
   const owned = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM access_checks WHERE lower(owner) = lower(?)', u.username)!.n);
   if (owned >= LIMITS.checksPerOwner)
@@ -280,7 +315,15 @@ export function createCheck(input: CheckInput): AccessCheck {
       entityType: 'access_check',
       entityId: id,
       summary: `Access reconciliation "${input.name}" created (${input.source}${input.datasetKey ? ` ${input.datasetKey}` : ''}, ${input.cron})`,
-      details: { platformId: input.platformId, source: input.source, datasetKey: input.datasetKey ?? null, cron: input.cron, timezone: input.timezone },
+      details: {
+        platformId: input.platformId,
+        source: input.source,
+        datasetKey: input.datasetKey ?? null,
+        cron: input.cron,
+        timezone: input.timezone,
+        notify: input.notify,
+        ignoreRights: input.ignoreRights,
+      },
     });
   });
   arm(id);
@@ -292,14 +335,19 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
   const cur = readableCheck(id);
   if (!canEditCheck(u, cur)) forbid('change this access check', 'changeAccessCheck');
   validatePlatform(u, input);
+  const curIgnore = parseJson<string[]>(cur.ignore_rights, []);
+  const curNotify = parseJson<string[]>(cur.notify, []);
+  checkIgnoreRights(u, input.ignoreRights, curIgnore);
   checkCron(input.cron, input.timezone);
   const hasSnapshots = !!db().get('SELECT 1 FROM access_snapshots WHERE check_id = ?', id);
-  if (hasSnapshots && (input.platformId !== cur.platform_id || input.source !== cur.source))
+  const datasetKey = input.source === 'dataset' ? (input.datasetKey ?? null) : null;
+  if (hasSnapshots && (input.platformId !== cur.platform_id || input.source !== cur.source || datasetKey !== cur.dataset_key))
     throw new HttpError(
       409,
-      'The platform and source of a check with snapshots cannot change (its history would mix platforms) – create a new check',
+      'The platform, source and dataset of a check with snapshots cannot change (its history would mix sources) – create a new check',
       'ACCESS_CHECK_LOCKED',
     );
+  if (input.source === 'dataset' && datasetKey !== cur.dataset_key && !datasetReadable(ownerUser(cur), datasetKey)) datasetForbidden(datasetKey, cur.owner);
   db().tx(() => {
     db().run(
       'UPDATE access_checks SET name = ?, description = ?, platform_id = ?, source = ?, dataset_key = ?, cron = ?, timezone = ?, enabled = ?, notify = ?, ignore_rights = ?, updated_at = ?, updated_by = ? WHERE id = ?',
@@ -322,7 +370,15 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
       entityType: 'access_check',
       entityId: id,
       summary: `Access reconciliation "${input.name}" changed${input.enabled ? '' : ' (disabled)'}`,
-      details: { source: input.source, datasetKey: input.datasetKey ?? null, cron: input.cron, timezone: input.timezone, enabled: input.enabled },
+      details: {
+        source: input.source,
+        datasetKey: input.datasetKey ?? null,
+        cron: input.cron,
+        timezone: input.timezone,
+        enabled: input.enabled,
+        ...(Object.keys(changed(curNotify, input.notify)).length ? { notify: changed(curNotify, input.notify) } : {}),
+        ...(Object.keys(changed(curIgnore, input.ignoreRights)).length ? { ignoreRights: changed(curIgnore, input.ignoreRights) } : {}),
+      },
     });
   });
   arm(id);
@@ -409,12 +465,13 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
   const secrets = getSecrets(c.platform_id);
   const idm = String(platform.config.variables?.idmPath || '/api/identitymanagement/v3').replace(/\/$/, '');
   const raw: { id: string; name?: string; type?: string; rights: unknown[] }[] = [];
+  let assignments = 0;
   let start = 1;
   for (let page = 0; page < LIMITS.maxPages; page++) {
     const path = `${idm}/Users`;
     const query = { startIndex: start, count: LIMITS.pageSize };
     await assertOutboundAllowed(await buildUrl(platform, secrets, path, query), outboundContext());
-    const res = await platformRequest(platform, secrets, { method: 'GET', url: path, query, maxResponseBytes: 64 * 1024 * 1024 }, AbortSignal.timeout(60000));
+    const res = await platformRequest(platform, secrets, { method: 'GET', url: path, query, maxResponseBytes: LIMITS.pageBytes }, AbortSignal.timeout(60000));
     if (!res.ok) throw new HttpError(502, `The identity management API answered HTTP ${res.status}`, 'IDM_HTTP', { status: res.status });
     const body = res.body as { resources?: unknown[]; Resources?: unknown[]; totalResults?: number } | null;
     const list = (body?.resources ?? body?.Resources ?? []) as {
@@ -423,23 +480,41 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
       name?: { givenName?: string; familyName?: string };
       groups?: { display?: string; value?: string }[];
     }[];
+    // the limits apply while collecting, so a hostile or broken API cannot make Steward hold all pages first
     for (const u of list) {
       if (!u?.id) continue;
-      raw.push({ id: u.id, name: u.userName ?? '', type: 'user', rights: (u.groups ?? []).map((g) => g.display ?? g.value ?? '') });
+      const groups = Array.isArray(u.groups) ? u.groups : [];
+      if (groups.length > LIMITS.rightsPerSubject)
+        throw new HttpError(400, `${clip(u.id)} has more than ${LIMITS.rightsPerSubject} rights`, 'SNAPSHOT_TOO_MANY_RIGHTS', {
+          id: clip(u.id),
+          max: LIMITS.rightsPerSubject,
+        });
+      assignments += groups.length;
+      if (assignments > LIMITS.assignments)
+        throw new HttpError(400, `The snapshot has more than ${LIMITS.assignments} assignments`, 'SNAPSHOT_TOO_MANY_ASSIGNMENTS', {
+          max: LIMITS.assignments,
+        });
+      raw.push({ id: clip(u.id), name: clip(u.userName), type: 'user', rights: groups.map((g) => clip(g?.display ?? g?.value ?? '')) });
+      if (raw.length > LIMITS.subjects)
+        throw new HttpError(400, `The tenant has more than ${LIMITS.subjects} users`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
     }
     start += list.length;
     if (!list.length || (typeof body?.totalResults === 'number' && start > body.totalResults)) break;
-    if (raw.length > LIMITS.subjects)
-      throw new HttpError(400, `The tenant has more than ${LIMITS.subjects} users`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
   }
   return { subjects: normalizeSubjects(raw), sourceRunId: null };
 }
 
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
-  const d = db().get<{ rows: string; run_id: string; dry_run: number }>('SELECT rows, run_id, dry_run FROM datasets WHERE key = ?', c.dataset_key);
+  const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
+    'SELECT rows, run_id, dry_run, process_id FROM datasets WHERE key = ?',
+    c.dataset_key,
+  );
   if (!d)
     throw new HttpError(409, `Dataset "${c.dataset_key}" has no data yet – run the process that publishes it`, 'DATASET_EMPTY', { key: c.dataset_key ?? '' });
+  // the check runs as its owner: only data of a process the owner may view (GOV-4)
+  const owner = ownerUser(c);
+  if (!runAs(owner, () => permissionsFor(d.process_id).includes('view'))) datasetForbidden(c.dataset_key, c.owner);
   if (d.dry_run)
     throw new HttpError(409, `Dataset "${c.dataset_key}" comes from a dry run – it is not used as an access snapshot`, 'DATASET_DRY_RUN', {
       key: c.dataset_key ?? '',
@@ -595,6 +670,8 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
           resolved_by: null,
           resolved_at: null,
           comment: '',
+          dismiss_requested_by: null,
+          dismiss_requested_at: null,
         }));
     }
     db().tx(() => {
@@ -778,17 +855,25 @@ export function verifyCheck(checkId: string): { ok: boolean; checked: number; pr
   return verifyChain(checkId);
 }
 
-export function verifyChain(checkId: string): { ok: boolean; checked: number; problems: string[] } {
+/**
+ * Recomputes every snapshot hash and the chain of a check and compares the snapshots and findings with
+ * the authentic (HMAC-chained) audit entries (GOV-6): every audited snapshot and finding must still be
+ * in the database, and the status of every finding must be the one its audit entries say – so rows
+ * deleted or changed by someone with database access (but without the vault) are found.
+ */
+export function verifyChain(checkId: string): { ok: boolean; checked: number; findingsChecked: number; problems: string[] } {
   const rows = db().all<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq ASC', checkId);
   const problems: string[] = [];
-  const audited = new Map<string, string>();
+  const audited = new Map<string, { chainHash: string; seq: number }>();
+  const auditedFindings = new Set<string>();
   const { rows: entries } = authenticRows("entity_type = 'access_check' AND entity_id = ? AND action = 'access_check.snapshot'", [checkId], {
     ascending: true,
     limit: 1_000_000,
   });
   for (const e of entries) {
-    const d = parseJson<{ snapshotId?: string; chainHash?: string }>(e.details, {});
-    if (d.snapshotId && d.chainHash) audited.set(d.snapshotId, d.chainHash);
+    const d = parseJson<{ snapshotId?: string; chainHash?: string; seq?: number; findings?: string[] }>(e.details, {});
+    if (d.snapshotId && d.chainHash) audited.set(d.snapshotId, { chainHash: d.chainHash, seq: Number(d.seq) });
+    for (const id of Array.isArray(d.findings) ? d.findings : []) if (typeof id === 'string') auditedFindings.add(id);
   }
   let prev: SnapshotRow | undefined;
   const byId = new Map(rows.map((r) => [r.id, r]));
@@ -801,19 +886,71 @@ export function verifyChain(checkId: string): { ok: boolean; checked: number; pr
       problems.push(`Snapshot #${s.seq}: the data does not match its hash`);
     if (s.data === null && (!s.same_as || byId.get(s.same_as)?.hash !== s.hash))
       problems.push(`Snapshot #${s.seq}: the referenced data does not match its hash`);
-    if (audited.get(s.id) !== s.chain_hash) problems.push(`Snapshot #${s.seq}: no matching authentic audit entry`);
+    if (audited.get(s.id)?.chainHash !== s.chain_hash) problems.push(`Snapshot #${s.seq}: no matching authentic audit entry`);
     prev = s;
   }
-  return { ok: problems.length === 0, checked: rows.length, problems };
+  // snapshots in the audit log that are gone (also the newest ones, which leave no gap in the sequence)
+  for (const [id, a] of audited) if (!byId.has(id)) problems.push(`Snapshot #${a.seq} is in the audit log but missing from the database`);
+  const findingsChecked = verifyFindings(checkId, auditedFindings, problems);
+  return { ok: problems.length === 0, checked: rows.length, findingsChecked, problems };
+}
+
+/** Findings against their authentic audit entries: existence, status and documenting entry. */
+function verifyFindings(checkId: string, audited: Set<string>, problems: string[]): number {
+  const rows = db().all<FindingRow>('SELECT * FROM access_findings WHERE check_id = ?', checkId);
+  const ids = [...new Set([...audited, ...rows.map((r) => r.id)])];
+  const history = new Map<string, { created: boolean; status: AccessFindingStatus; recordId: string | null }>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const { rows: entries } = authenticRows(`entity_type = 'access_finding' AND entity_id IN (${chunk.map(() => '?').join(', ')})`, chunk, {
+      ascending: true,
+      limit: 1_000_000,
+    });
+    for (const e of entries) {
+      const h = history.get(String(e.entity_id)) ?? { created: false, status: 'open' as AccessFindingStatus, recordId: null };
+      const d = parseJson<{ checkId?: string; recordId?: string }>(e.details, {});
+      if (d.checkId && d.checkId !== checkId) continue;
+      if (e.action === 'access_finding.created') h.created = true;
+      else if (e.action === 'access_finding.documented') ((h.status = 'documented'), (h.recordId = d.recordId ?? null));
+      else if (e.action === 'access_finding.dismissed') ((h.status = 'dismissed'), (h.recordId = null));
+      history.set(String(e.entity_id), h);
+    }
+  }
+  const present = new Set(rows.map((r) => r.id));
+  for (const id of audited) if (!present.has(id)) problems.push(`Finding ${id} is in the audit log but missing from the database`);
+  for (const r of rows) {
+    const h = history.get(r.id);
+    if (!h?.created && !audited.has(r.id)) {
+      problems.push(`Finding ${r.id} has no authentic audit entry`);
+      continue;
+    }
+    const expected = h?.status ?? 'open';
+    if (r.status !== expected) problems.push(`Finding ${r.id}: status ${r.status} in the database, ${expected} in the audit log`);
+    else if (expected === 'documented' && h?.recordId && r.record_id !== h.recordId)
+      problems.push(`Finding ${r.id}: documented by another entry than the audit log says`);
+  }
+  return rows.length;
 }
 
 // ---------- findings ----------
 
-/** A finding documented by an entry that went back to draft (new revision) or was cancelled counts as open again. */
+/**
+ * A finding documented by an entry that went back to draft (new revision) or was cancelled counts as
+ * open again – as does one whose entry no longer counts (changed in the database, or documented by
+ * the subject of the change: see entryCounts).
+ */
 function effectiveStatus(f: FindingRow): AccessFindingStatus {
   if (f.status !== 'documented') return f.status;
-  const r = f.record_id ? db().get<{ status: string }>('SELECT status FROM records WHERE id = ?', f.record_id) : undefined;
-  return r && FINAL_STATUSES.includes(r.status) ? 'documented' : 'open';
+  return f.record_id && recordCounts(f.record_id) ? 'documented' : 'open';
+}
+
+const fourEyesDismissals = (): boolean => getSettings().findingDismissFourEyes === true;
+const subjectOfFinding = (u: AuthUser | null, f: FindingRow) => !!u && isSubjectOf(u.username, { subjectId: f.subject_id, subjectName: f.subject_name });
+
+/** Dismiss (or, with four-eyes dismissals, ask to dismiss or confirm the dismissal of) a finding: the owner of the check or an administrator – never its subject, and not twice the same person. */
+function mayDismiss(u: AuthUser | null, f: FindingRow, c: CheckRow): boolean {
+  if (!u || !canDismissFinding(u, c) || subjectOfFinding(u, f)) return false;
+  return !(fourEyesDismissals() && f.dismiss_requested_by && f.dismiss_requested_by.toLowerCase() === u.username.toLowerCase());
 }
 
 function findingRowsOf(f: { checkId?: string; platformId?: string; snapshotId?: string; from?: string; to?: string }): FindingRow[] {
@@ -858,8 +995,10 @@ function toFinding(f: FindingRow, u: AuthUser | null, c?: CheckRow): AccessFindi
     resolvedBy: status === 'open' ? null : f.resolved_by,
     resolvedAt: status === 'open' ? null : f.resolved_at,
     comment: f.comment,
-    canDocument: status === 'open' && !!check && canDocumentFinding(u, check),
-    canDismiss: status === 'open' && !!check && canDismissFinding(u, check),
+    dismissRequestedBy: status === 'open' ? f.dismiss_requested_by : null,
+    dismissRequestedAt: status === 'open' ? f.dismiss_requested_at : null,
+    canDocument: status === 'open' && !!check && canDocumentFinding(u, check) && !subjectOfFinding(u, f),
+    canDismiss: status === 'open' && !!check && mayDismiss(u, f, check),
   };
 }
 
@@ -917,6 +1056,7 @@ export function documentFinding(id: string, input: z.infer<typeof documentInput>
   const { f, c } = readableFinding(id);
   if (!canDocumentFinding(u, c)) forbid('document access changes of this check', 'documentFinding');
   if (effectiveStatus(f) !== 'open') throw new HttpError(409, 'This finding is not open any more', 'FINDING_CLOSED');
+  if (subjectOfFinding(u, f)) subjectSelf();
   const subject = f.subject_name || f.subject_id;
   const entry = createAccessChange(
     {
@@ -963,13 +1103,44 @@ export function documentFinding(id: string, input: z.infer<typeof documentInput>
   return getFinding(f.id);
 }
 
+function subjectSelf(): never {
+  throw new HttpError(403, 'Four-eyes principle: nobody documents or dismisses a change of their own access', 'ACCESS_SUBJECT_SELF');
+}
+
+/**
+ * Dismisses a finding that needs no entry, with a reason. With four-eyes dismissals (setting), the
+ * first call asks for the dismissal and a second person who may dismiss confirms it.
+ */
 export function dismissFinding(id: string, comment: string): AccessFinding {
   const u = me();
   const { f, c } = readableFinding(id);
   if (!canDismissFinding(u, c)) forbid('dismiss findings of this check', 'changeAccessCheck');
   if (effectiveStatus(f) !== 'open') throw new HttpError(409, 'This finding is not open any more', 'FINDING_CLOSED');
-  const why = comment.trim();
+  if (subjectOfFinding(u, f)) subjectSelf();
+  const requested = fourEyesDismissals() ? f.dismiss_requested_by : null;
+  if (requested && requested.toLowerCase() === u.username.toLowerCase())
+    throw new HttpError(403, 'Four-eyes principle: another person confirms the dismissal you asked for', 'FOUR_EYES_DISMISS');
+  const why = (requested ? f.comment : comment).trim();
   if (!why) throw new HttpError(400, 'Please say why this change needs no access change entry', 'FINDING_REASON_REQUIRED');
+  if (fourEyesDismissals() && !requested) {
+    db().tx(() => {
+      db().run(
+        'UPDATE access_findings SET dismiss_requested_by = ?, dismiss_requested_at = ?, comment = ? WHERE id = ?',
+        u.username,
+        nowIso(),
+        why.slice(0, 2000),
+        f.id,
+      );
+      audit({
+        action: 'access_finding.dismiss_requested',
+        entityType: 'access_finding',
+        entityId: f.id,
+        summary: `Dismissal of the undocumented access change of ${f.subject_name || f.subject_id} requested: ${why.slice(0, 300)}`,
+        details: { checkId: c.id, comment: why.slice(0, 2000) },
+      });
+    });
+    return getFinding(f.id);
+  }
   db().tx(() => {
     db().run(
       "UPDATE access_findings SET status = 'dismissed', resolved_by = ?, resolved_at = ?, comment = ? WHERE id = ?",
@@ -982,21 +1153,31 @@ export function dismissFinding(id: string, comment: string): AccessFinding {
       action: 'access_finding.dismissed',
       entityType: 'access_finding',
       entityId: f.id,
-      summary: `Undocumented access change of ${f.subject_name || f.subject_id} dismissed: ${why.slice(0, 300)}`,
-      details: { checkId: c.id, comment: why.slice(0, 2000) },
+      summary: `Undocumented access change of ${f.subject_name || f.subject_id} dismissed: ${why.slice(0, 300)}${requested ? ` (asked by ${requested})` : ''}`,
+      details: {
+        checkId: c.id,
+        comment: why.slice(0, 2000),
+        ...(requested ? { requestedBy: requested, confirmComment: comment.trim().slice(0, 2000) } : {}),
+      },
     });
   });
   return getFinding(f.id);
 }
 
 /**
- * After an access change entry was documented: open findings of the platform that it (with the
- * other documented entries) now fully explains are marked as documented.
+ * After an access change entry was documented (by the current user): open findings of the platform
+ * that it (with the other documented entries that count) now fully explains are marked as documented
+ * – only findings of checks whose findings the user may document (GOV-1).
  */
 export function rematchFindings(platformId: string, recordId: string): number {
+  const u = currentUser();
   const open = db().all<FindingRow>("SELECT * FROM access_findings WHERE platform_id = ? AND status = 'open'", platformId);
+  const checks = new Map<string, CheckRow | undefined>();
   let n = 0;
   for (const f of open) {
+    if (!checks.has(f.check_id)) checks.set(f.check_id, checkRow(f.check_id));
+    const c = checks.get(f.check_id);
+    if (!c || !canDocumentFinding(u, c)) continue;
     const entries = documentedEntries(platformId, Date.parse(f.window_from) - GRACE_MS, Date.parse(f.window_to) + GRACE_MS);
     if (!entries.some((e) => e.recordId === recordId)) continue;
     const before = parseJson<string[]>(f.rights_before, []);

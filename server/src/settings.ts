@@ -14,6 +14,7 @@ const DEFAULTS = (): Settings => ({
     ? (process.env.SM_OUTBOUND_POLICY as OutboundPolicy)
     : 'platforms',
   outboundAllowList: [],
+  findingDismissFourEyes: false,
 });
 
 /** Keys used by feature modules (see readSetting); never part of the public Settings. */
@@ -62,6 +63,7 @@ export function updateSettings(patch: Partial<Settings>): Settings {
     'apiDocs',
     'outboundPolicy',
     'outboundAllowList',
+    'findingDismissFourEyes',
   ];
   db().tx(() => {
     for (const k of allowed) {

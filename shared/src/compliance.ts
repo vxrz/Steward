@@ -87,6 +87,12 @@ export interface AccessChange {
   runId: string | null;
   findingId: string | null;
   frozenHash: string | null;
+  /** The frozen content no longer matches the authentic audit entry that froze it (changed outside Steward): the entry does not count */
+  tampered: boolean;
+  /** Who documented (froze) the current revision – "system" for automatic entries; null while it is a draft */
+  documentedBy: string | null;
+  /** Author of the newest version of the content */
+  lastEditedBy: string;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -196,6 +202,9 @@ export interface AccessFinding {
   resolvedBy: string | null;
   resolvedAt: string | null;
   comment: string;
+  /** Four-eyes dismissals: the first person asked to dismiss the finding (still open until a second person confirms) */
+  dismissRequestedBy: string | null;
+  dismissRequestedAt: string | null;
   canDocument: boolean;
   canDismiss: boolean;
 }
@@ -225,7 +234,8 @@ export interface ControlCatalogue {
 
 export interface ControlTag {
   kind: ControlTagKind;
-  targetId: string;
+  /** Id of the item; null when the reader may not see it (ids can carry names) */
+  targetId: string | null;
   /** Name of the item; empty when the reader may not see it */
   label: string;
   path: string | null;

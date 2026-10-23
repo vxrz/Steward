@@ -114,12 +114,15 @@ describe('control catalogues', () => {
     expect(await status(dana('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: 'prc_none' }))).toBe(404);
     const tagged = await dana('POST', `/compliance/controls/${c82.id}/tags`, { kind: 'process', targetId: procs[0].id });
     expect(tagged.tags.map((t: any) => t.label)).toContain(procs[0].label);
-    const cov = await vera('GET', `/compliance/coverage?from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`);
+    const period = `from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`;
+    const cov = await dana('GET', `/compliance/coverage?${period}`);
     const by = Object.fromEntries(cov.map((c: any) => [c.control.ref, c]));
     expect(by['5.18'].status).toBe('covered');
     expect(by['5.18'].counts.accessChange).toBeGreaterThanOrEqual(2);
-    // the viewer may not see the reconciliation check, so its snapshots are no evidence for them
-    expect(by['5.18'].counts.snapshot).toBeUndefined();
+    // the viewer may neither see the reconciliation check nor the access change entries: no evidence for them
+    const viewer = Object.fromEntries((await vera('GET', `/compliance/coverage?${period}`)).map((c: any) => [c.control.ref, c]));
+    expect(viewer['5.18'].counts.snapshot).toBeUndefined();
+    expect(viewer['5.18'].counts.accessChange).toBeUndefined();
     const auditorCov = await audrey(
       'GET',
       `/compliance/coverage?from=${encodeURIComponent(dayAgo())}&to=${encodeURIComponent(inAMinute())}&catalogue=ISO27001`,

@@ -665,6 +665,8 @@ export interface Settings {
   outboundPolicy: OutboundPolicy;
   /** Extra destinations processes may reach: origins (https://host[:port]), host names/globs (*.example.com) or CIDRs. */
   outboundAllowList: string[];
+  /** Access reconciliation: dismissing a finding needs a second person who confirms it (four-eyes) */
+  findingDismissFourEyes: boolean;
 }
 
 export const OUTBOUND_POLICIES = ['platforms', 'allowList', 'open'] as const;

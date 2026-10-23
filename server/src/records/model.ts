@@ -2,7 +2,9 @@ import path from 'node:path';
 import type { RecordAttachment } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
+import { currentUser } from '../auth/context.js';
 import { canonicalJson, HttpError, parseJson, sha256 } from '../util.js';
+import { canReadRecordRow } from './access.js';
 
 /** Database rows of records and their attachments, and the content hashes. */
 
@@ -51,9 +53,11 @@ export function recordRow(idOrNumber: string): RecordRow | undefined {
   return db().get<RecordRow>('SELECT * FROM records WHERE id = ? OR number = ?', idOrNumber, idOrNumber.toUpperCase());
 }
 
+/** A record the signed-in user may read (404 otherwise, so hidden access change entries cannot be probed). */
 export function requireRecordRow(idOrNumber: string): RecordRow {
   const r = recordRow(idOrNumber);
-  if (!r) throw new HttpError(404, `Record ${idOrNumber} not found`, 'RECORD_NOT_FOUND', { id: idOrNumber });
+  const u = currentUser();
+  if (!r || (u && !canReadRecordRow(u, r))) throw new HttpError(404, `Record ${idOrNumber} not found`, 'RECORD_NOT_FOUND', { id: idOrNumber });
   return r;
 }
 

@@ -13,7 +13,7 @@ import {
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
-import { capabilities } from '../auth/permissions.js';
+import { capabilities, isAdmin } from '../auth/permissions.js';
 import { permissionsFor } from '../processes/service.js';
 import { permissionsOfRow } from '../monitors/model.js';
 import { HttpError, newId, nowIso } from '../util.js';
@@ -21,6 +21,7 @@ import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, same } f
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
 import type { RecordRow } from '../records/model.js';
+import { canReadRecordRow } from '../records/access.js';
 import { parseYamlDocument } from '../yaml-safe.js';
 
 /**
@@ -405,9 +406,10 @@ export function importCatalogue(o: { catalogueId?: string; key?: string; name?: 
 
 // ---------- controls ----------
 
+/** A mapped item as the reader sees it: the id only when they may see the item (ids can carry names, e.g. process slugs). */
 function tagInfo(t: TagRow, u: AuthUser | null): ControlTag {
   const r = resolveTarget(t.kind, t.target_id, u);
-  return { kind: t.kind, targetId: t.target_id, label: r?.label ?? '', path: r?.path ?? null, visible: !!r };
+  return { kind: t.kind, targetId: r ? t.target_id : null, label: r?.label ?? '', path: r?.path ?? null, visible: !!r };
 }
 
 function toControl(c: ControlRow, cat: Pick<CatalogueRow, 'key'>, u: AuthUser | null, tags?: TagRow[]): Control {
@@ -509,8 +511,11 @@ export function resolveTarget(kind: ControlTagKind, id: string, u: AuthUser | nu
       return t ? { label: `${t.key} – ${t.name}`, path: `/records?type=${encodeURIComponent(t.key)}` } : null;
     }
     case 'record': {
-      const r = db().get<{ number: string; title: string }>('SELECT number, title FROM records WHERE id = ?', id);
-      return r && u ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;
+      const r = db().get<{ number: string; title: string; type_id: string; fields: string; owner: string }>(
+        'SELECT number, title, type_id, fields, owner FROM records WHERE id = ?',
+        id,
+      );
+      return r && canReadRecordRow(u, r) ? { label: `${r.number} ${r.title}`, path: `/records/${id}` } : null;
     }
     case 'monitor': {
       const m = db().get<{ name: string; owner: string; acl: string }>('SELECT name, owner, acl FROM monitors WHERE id = ?', id);
@@ -563,6 +568,8 @@ export function removeTag(controlId: string, kind: ControlTagKind, targetId: str
   const u = me();
   if (!canTagControls(u)) forbid('map items to controls', 'tagControls');
   const c = controlRow(controlId);
+  // only items the user can see (administrators: any), as when adding them – no probing for hidden ids
+  if (!isAdmin(u) && !resolveTarget(kind, targetId, u)) throw new HttpError(404, 'This item is not mapped to the control', 'TAG_NOT_FOUND');
   const n = db().run('DELETE FROM control_tags WHERE control_id = ? AND kind = ? AND target_id = ?', c.id, kind, targetId).changes;
   if (!n) throw new HttpError(404, 'This item is not mapped to the control', 'TAG_NOT_FOUND');
   audit({
@@ -643,6 +650,7 @@ export function evidenceOf(tag: Pick<TagRow, 'kind' | 'target_id'>, p: Period, u
               p.to,
             );
       for (const r of rows) {
+        if (!canReadRecordRow(u, r)) continue;
         if (tag.kind === 'record' && !db().get(`SELECT 1 FROM record_events WHERE record_id = ? AND ${inPeriodSql('created_at')}`, r.id, p.from, p.to))
           continue;
         if (r.type_id === ACCESS_TYPE_ID) {

@@ -34,7 +34,7 @@ export function complianceApiRoutes(get: Get): void {
       tag: 'Compliance',
       summary: 'List access change entries',
       description:
-        'Documented grants, revocations and changes of access rights (records of the type "Access change"), newest first. Includes entries created automatically by runs and entries documented after the fact.',
+        'Documented grants, revocations and changes of access rights (records of the type "Access change"), newest first. Includes entries created automatically by runs and entries documented after the fact. Only entries the token owner may read: administrators, auditors and approvers read all, others those of platforms they have a right on (and their own).',
       query: A.AccessChangeListQuery,
       paginated: true,
       response: pageOf('AccessChange', 'A page of access change entries'),

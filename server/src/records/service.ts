@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ACCESS_RECORD_TYPE,
+  ACCESS_TYPE_ID,
   DEFAULT_RECORD_TYPES,
   RECORD_WORKFLOWS,
   type RecordActionInfo,
@@ -19,6 +20,7 @@ import { findUserByName, getUser } from '../auth/users.js';
 import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
 import { getSettings } from '../settings.js';
 import { isAdmin } from '../auth/permissions.js';
+import { canDocumentAccessOn, isSubjectOf, isSystem } from '../compliance/access.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import {
@@ -26,6 +28,7 @@ import {
   canCommentRecord,
   canCreateRecords,
   canEditRecord,
+  canReadRecordRow,
   fieldParam,
   forbid,
   fourEyesReason,
@@ -137,9 +140,9 @@ export interface ListFilter {
   limit?: number;
 }
 
-/** Records, newest change first. Every signed-in user may read records. */
+/** Records, newest change first. Every signed-in user may read records (access change entries: see canReadRecordRow). */
 export function listRecords(f: ListFilter = {}): RecordSummary[] {
-  me();
+  const u = me();
   const where: string[] = [];
   const params: unknown[] = [];
   if (f.type) {
@@ -165,12 +168,26 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
     params.push(`%${likeEscape(JSON.stringify(tag))}%`);
   }
   const limit = Math.min(Math.max(f.limit ?? 500, 1), 10000);
-  const rows = db().all<Listed>(
-    `${SELECT}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY r.updated_at DESC, r.id DESC LIMIT ?`,
-    ...params,
-    limit,
-  );
-  return rows.map(toSummary).filter((r) => !tag || r.tags.includes(tag));
+  // records the user may not read are left out before the limit applies (pages of rows until the limit is reached)
+  const page = Math.max(limit, 500);
+  const out: RecordSummary[] = [];
+  for (let offset = 0; out.length < limit; offset += page) {
+    const rows = db().all<Listed>(
+      `${SELECT}${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY r.updated_at DESC, r.id DESC LIMIT ? OFFSET ?`,
+      ...params,
+      page,
+      offset,
+    );
+    for (const r of rows) {
+      if (!canReadRecordRow(u, r)) continue;
+      const sum = toSummary(r);
+      if (tag && !sum.tags.includes(tag)) continue;
+      out.push(sum);
+      if (out.length >= limit) break;
+    }
+    if (rows.length < page) break;
+  }
+  return out;
 }
 
 /**
@@ -189,10 +206,49 @@ function contentAuthors(r: RecordRow): string[] {
     r.id,
   ))
     names.add(a.actor);
-  // access change entries: whoever performed the change does not verify it
-  const performer = parseJson<Record<string, string>>(r.fields, {}).performedBy?.trim();
-  if (performer && db().get('SELECT 1 FROM record_types WHERE id = ? AND workflow = ?', r.type_id, 'access')) names.add(performer);
+  // access change entries: whoever performed the change does not verify it; for an entry of a run, nor
+  // does the person who started the run or approved it (entries of older versions name "user (run …)")
+  if (db().get('SELECT 1 FROM record_types WHERE id = ? AND workflow = ?', r.type_id, 'access')) {
+    const f = parseJson<Record<string, string>>(r.fields, {});
+    const performer = f.performedBy?.trim().replace(/ \(run [^)]*\)$/, '');
+    if (performer) names.add(performer);
+    if (f.origin === 'run' && f.runId) {
+      const run = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', f.runId);
+      if (run?.actor) names.add(run.actor);
+      for (const t of db().all<{ decided_by: string | null }>("SELECT decided_by FROM run_tasks WHERE run_id = ? AND mode = 'approve'", f.runId))
+        if (t.decided_by) names.add(t.decided_by);
+    }
+  }
   return [...names];
+}
+
+const isAccessEntry = (r: Pick<RecordRow, 'type_id'>) => r.type_id === ACCESS_TYPE_ID;
+const accessFields = (r: Pick<RecordRow, 'fields'>) => parseJson<Record<string, string>>(r.fields, {});
+/** Entries a run created are Steward's evidence of what the run did: people neither change nor revise them (they document a correction instead). */
+const isRunEntry = (r: Pick<RecordRow, 'type_id' | 'fields'>) => isAccessEntry(r) && accessFields(r).origin === 'run';
+
+/** Fields of an access change entry only Steward sets: the origin (other than manual), the run and the finding. */
+const RESERVED_ACCESS_FIELDS = ['origin', 'runId', 'findingId'];
+
+/**
+ * Access change entries: only people who may use the platform write them (GOV-1); the origin, run and
+ * finding are set by Steward itself (automatic entries, documenting a finding) and never change afterwards.
+ */
+function checkAccessEntry(u: AuthUser, fields: Record<string, string>, cur: Record<string, string> | null, internal: boolean): void {
+  for (const platform of new Set([fields.platform ?? '', ...(cur ? [cur.platform ?? ''] : [])]))
+    if (!canDocumentAccessOn(u, platform)) forbid('document access changes of this platform', 'documentAccess');
+  if (internal || isSystem(u)) return;
+  const reserved = cur
+    ? RESERVED_ACCESS_FIELDS.filter((k) => (fields[k] ?? '') !== (cur[k] ?? ''))
+    : RESERVED_ACCESS_FIELDS.filter((k) => (k === 'origin' ? !!fields[k] && fields[k] !== 'manual' : !!fields[k]));
+  if (reserved.length)
+    throw new HttpError(400, `Only Steward sets ${reserved.join(', ')} of an access change entry`, 'ACCESS_FIELD_RESERVED', { fields: reserved.join(', ') });
+}
+
+function runEntryLocked(r: RecordRow): never {
+  throw new HttpError(409, `${r.number} was documented automatically by a run – document a correction as a new entry instead`, 'ACCESS_RUN_ENTRY_LOCKED', {
+    number: r.number,
+  });
 }
 
 /** Audit actions of the transitions that leave the initial status (they freeze the content). */
@@ -249,7 +305,8 @@ export function withStoredFields(defs: RecordFieldDef[], fields: Record<string, 
 
 export function permissionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): RecordPermissions {
   const draft = r.status === wf.initial;
-  const edit = canEditRecord(u, r);
+  const accessLocked = isAccessEntry(r) && (!canDocumentAccessOn(u, accessFields(r).platform ?? '') || (isRunEntry(r) && !isSystem(u)));
+  const edit = canEditRecord(u, r) && !accessLocked;
   return {
     edit: edit && draft,
     comment: canCommentRecord(u, r),
@@ -271,7 +328,12 @@ function actionsOf(u: AuthUser | null, r: RecordRow, wf: RecordWorkflow): Record
     else if (t.approval) {
       if (!canApproveRecords(u)) reason = { code: 'RECORD_APPROVERS_ONLY', message: 'Only approvers and administrators can approve or reject records' };
       else reason = fourEyesReason(u, r, contentAuthors(r)) ?? undefined;
+      // access change entries: nobody verifies a change of their own access
+      if (!reason && isAccessEntry(r) && isSubjectOf(u.username, accessFields(r)))
+        reason = { code: 'FOUR_EYES_SUBJECT', message: 'Four-eyes principle: the subject of an access change cannot verify it' };
     } else if (!canEditRecord(u, r)) reason = { code: 'RECORD_EDITORS_ONLY', message: 'Only designers, operators, administrators and the owner can do this' };
+    else if (isAccessEntry(r) && !canDocumentAccessOn(u, accessFields(r).platform ?? ''))
+      reason = { code: 'ACCESS_PLATFORM_REQUIRED', message: 'Only people who may use the platform document its access changes' };
     out.push({
       action: t.action,
       to: t.to,
@@ -454,6 +516,8 @@ export interface CreateInput {
   importMeta?: Record<string, unknown>;
   /** Fields the type does not know are dropped instead of rejected (import) */
   lenientFields?: boolean;
+  /** Steward's own compliance code (automatic entries of runs, documenting a finding): may set the reserved fields of access change entries */
+  internal?: boolean;
 }
 
 /**
@@ -485,6 +549,7 @@ export function createRecord(input: CreateInput): RecordDetail {
   if (body.length > LIMITS.body)
     throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`, 'TEXT_TOO_LONG', { maxKib: LIMITS.body / 1024 });
   const fields = cleanFields(toType(t, 0).fields, input.fields ?? {}, { dropUnknown: input.lenientFields, typeKey: t.key });
+  if (t.id === ACCESS_TYPE_ID) checkAccessEntry(u, fields, null, !!input.internal);
   const tags = cleanTags(input.tags ?? []);
   const wf = workflowOf(t);
   const id = newId('rec_');
@@ -542,6 +607,7 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
   if (!canEditRecord(u, r)) forbid('change this record', 'changeRecord');
+  if (isRunEntry(r) && !isSystem(u)) runEntryLocked(r);
   if (input.baseVersion !== undefined && input.baseVersion !== Number(r.version)) {
     throw new HttpError(409, `${r.number} was changed in the meantime (version ${r.version}) – reload and apply your changes again`, 'RECORD_CHANGED', {
       number: r.number,
@@ -558,6 +624,7 @@ export function updateRecord(idOrNumber: string, input: UpdateInput): RecordDeta
     throw new HttpError(400, `The title is required (at most ${LIMITS.title} characters)`, 'TITLE_REQUIRED', { max: LIMITS.title });
   if (next.body.length > LIMITS.body)
     throw new HttpError(400, `The text is too long (at most ${LIMITS.body / 1024} KiB)`, 'TEXT_TOO_LONG', { maxKib: LIMITS.body / 1024 });
+  if (isAccessEntry(r)) checkAccessEntry(u, next.fields, cur.fields, false);
   const contentChanged = versionHash(next) !== versionHash(cur);
   if (contentChanged && r.status !== wf.initial) {
     throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
@@ -719,6 +786,8 @@ export function revise(idOrNumber: string, comment: string): RecordDetail {
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
   if (!canEditRecord(u, r)) forbid('start a new revision of this record', 'reviseRecord');
+  if (isRunEntry(r) && !isSystem(u)) runEntryLocked(r);
+  if (isAccessEntry(r) && !canDocumentAccessOn(u, accessFields(r).platform ?? '')) forbid('document access changes of this platform', 'documentAccess');
   if (!wf.revisable.includes(r.status))
     throw new HttpError(409, `${r.number} is ${r.status}: a new revision is only possible when it is ${wf.revisable.join(' or ')}`, 'INVALID_TRANSITION', {
       number: r.number,
@@ -791,6 +860,10 @@ export function requireEditable(
   const t = requireType(r.type_id);
   const wf = workflowOf(t);
   if (!canEditRecord(u, r)) forbid(what, 'changeRecord');
+  if (o.draftOnly && isAccessEntry(r)) {
+    if (isRunEntry(r) && !isSystem(u)) runEntryLocked(r);
+    if (!canDocumentAccessOn(u, accessFields(r).platform ?? '')) forbid('document access changes of this platform', 'documentAccess');
+  }
   if (o.draftOnly && r.status !== wf.initial)
     throw new HttpError(409, `${r.number} is ${r.status}: its content is frozen. Start a new revision to change it.`, 'RECORD_FROZEN', {
       number: r.number,

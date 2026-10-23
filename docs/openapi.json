@@ -5230,6 +5230,21 @@
             ],
             "description": "Content hash recorded when the entry was documented"
           },
+          "tampered": {
+            "type": "boolean",
+            "description": "The documented content no longer matches the authentic audit entry that froze it (changed outside Steward); it does not count"
+          },
+          "documentedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Who documented the current revision (\"system\" for entries of runs); null for drafts"
+          },
+          "lastEditedBy": {
+            "type": "string",
+            "description": "Author of the newest version of the content"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -5270,6 +5285,9 @@
           "runId",
           "findingId",
           "frozenHash",
+          "tampered",
+          "documentedBy",
+          "lastEditedBy",
           "createdAt",
           "createdBy",
           "updatedAt"
@@ -5406,6 +5424,26 @@
           "comment": {
             "type": "string",
             "description": "Why a dismissed finding needs no entry"
+          },
+          "dismissRequestedBy": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Four-eyes dismissals: who asked to dismiss the open finding (a second person confirms)"
+          },
+          "dismissRequestedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
           }
         },
         "required": [
@@ -5431,7 +5469,9 @@
           "recordNumber",
           "resolvedBy",
           "resolvedAt",
-          "comment"
+          "comment",
+          "dismissRequestedBy",
+          "dismissRequestedAt"
         ],
         "additionalProperties": false
       },
@@ -5477,7 +5517,11 @@
                   ]
                 },
                 "targetId": {
-                  "type": "string"
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the item – null when the token owner may not see it"
                 },
                 "label": {
                   "type": "string",
@@ -5525,7 +5569,11 @@
             ]
           },
           "targetId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Id of the item – null when the token owner may not see it"
           },
           "label": {
             "type": "string",
@@ -9532,7 +9580,7 @@
         "tags": [
           "Records"
         ],
-        "description": "Change requests and decision records, ordered by number.",
+        "description": "Change requests and decision records, ordered by number. Access change entries (type AC) only for administrators, auditors, approvers, their owner and who has a right on their platform.",
         "parameters": [
           {
             "schema": {
@@ -10087,7 +10135,7 @@
         "tags": [
           "Compliance"
         ],
-        "description": "Documented grants, revocations and changes of access rights (records of the type \"Access change\"), newest first. Includes entries created automatically by runs and entries documented after the fact.",
+        "description": "Documented grants, revocations and changes of access rights (records of the type \"Access change\"), newest first. Includes entries created automatically by runs and entries documented after the fact. Only entries the token owner may read: administrators, auditors and approvers read all, others those of platforms they have a right on (and their own).",
         "parameters": [
           {
             "schema": {

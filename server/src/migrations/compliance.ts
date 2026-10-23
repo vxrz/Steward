@@ -149,4 +149,25 @@ export const COMPLIANCE_MIGRATIONS: NamedMigration[] = [
       CREATE TRIGGER access_snapshots_immutable BEFORE UPDATE ON access_snapshots FOR EACH ROW EXECUTE FUNCTION access_snapshots_immutable();
     `,
   },
+  {
+    // four-eyes dismissals of findings; snapshots and findings are evidence: never deleted (defence in depth –
+    // the verification compares them with the authentic audit entries as well)
+    name: 'compliance-002-governance',
+    sql: `
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_by TEXT;
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_at TEXT;
+      CREATE TRIGGER access_snapshots_no_delete BEFORE DELETE ON access_snapshots
+        BEGIN SELECT RAISE(ABORT, 'access snapshots cannot be deleted'); END;
+      CREATE TRIGGER access_findings_no_delete BEFORE DELETE ON access_findings
+        BEGIN SELECT RAISE(ABORT, 'access findings cannot be deleted'); END;
+    `,
+    pg: `
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_by TEXT;
+      ALTER TABLE access_findings ADD COLUMN dismiss_requested_at TEXT;
+      CREATE FUNCTION access_evidence_no_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN RAISE EXCEPTION '% cannot be deleted', TG_TABLE_NAME; END $$;
+      CREATE TRIGGER access_snapshots_no_delete BEFORE DELETE ON access_snapshots FOR EACH ROW EXECUTE FUNCTION access_evidence_no_delete();
+      CREATE TRIGGER access_findings_no_delete BEFORE DELETE ON access_findings FOR EACH ROW EXECUTE FUNCTION access_evidence_no_delete();
+    `,
+  },
 ];

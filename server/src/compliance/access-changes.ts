@@ -5,11 +5,12 @@ import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { HttpError, parseJson } from '../util.js';
 import { likeEscape } from '../database/sql.js';
 import { requireType } from '../records/types.js';
-import { createRecord, transition } from '../records/service.js';
+import { createRecord, currentContentHash, frozenIntact, transition } from '../records/service.js';
+import { canReadRecordRow } from '../records/access.js';
 import { addAttachment } from '../records/attachments.js';
 import { addLink } from '../records/links.js';
 import type { RecordRow } from '../records/model.js';
-import { me, visiblePlatformName } from './access.js';
+import { isSubjectOf, me, SYSTEM_USER, visiblePlatformName } from './access.js';
 
 /**
  * Access change entries are records of the built-in type "Access change" (id rty_ac, workflow
@@ -60,6 +61,15 @@ export function entryTitle(kind: string, subject: string, granted: string[], rev
   return t.length > 300 ? `${t.slice(0, 299)}…` : t;
 }
 
+/** Frozen content that no longer matches the authentic audit entry that froze it (changed in the database). */
+export function entryTampered(r: RecordRow): boolean {
+  if (r.status === 'draft') return false;
+  return !frozenIntact(r, currentContentHash(r, requireType(r.type_id)));
+}
+
+const lastAuthor = (r: RecordRow): string =>
+  db().get<{ author: string }>('SELECT author FROM record_versions WHERE record_id = ? AND version = ?', r.id, r.version)?.author ?? r.created_by;
+
 export function toAccessChange(r: RecordRow, u: AuthUser | null = currentUser()): AccessChange {
   const f = parseJson<Record<string, string>>(r.fields, {});
   const before = splitRights(f.rightsBefore);
@@ -90,6 +100,9 @@ export function toAccessChange(r: RecordRow, u: AuthUser | null = currentUser())
     runId: f.runId || null,
     findingId: f.findingId || null,
     frozenHash: r.frozen_hash,
+    tampered: entryTampered(r),
+    documentedBy: FINAL_STATUSES.includes(r.status) ? r.submitted_by : null,
+    lastEditedBy: lastAuthor(r),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedAt: r.updated_at,
@@ -118,12 +131,13 @@ function entryRows(platformId?: string): RecordRow[] {
   return db().all<RecordRow>(`SELECT * FROM records WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT 20000`, ...params);
 }
 
-/** Access change entries, newest first. Every signed-in user may read them (they are records). */
+/** Access change entries, newest first – those the user may read (administrators, auditors, approvers, the owner, who has a right on the platform). */
 export function listAccessChanges(f: AccessChangeFilter = {}): AccessChange[] {
   const u = me();
   const q = f.subject?.trim().toLowerCase();
   const out: AccessChange[] = [];
   for (const r of entryRows(f.platformId)) {
+    if (!canReadRecordRow(u, r)) continue;
     const a = toAccessChange(r, u);
     if (f.platformId && a.platformId !== f.platformId) continue;
     if (f.status?.length && !f.status.includes(a.status)) continue;
@@ -140,19 +154,39 @@ export function listAccessChanges(f: AccessChangeFilter = {}): AccessChange[] {
 export function getAccessChange(idOrNumber: string): AccessChange {
   const u = me();
   const r = db().get<RecordRow>('SELECT * FROM records WHERE (id = ? OR number = ?) AND type_id = ?', idOrNumber, idOrNumber.toUpperCase(), accessTypeId());
-  if (!r) throw new HttpError(404, `Access change ${idOrNumber} not found`, 'ACCESS_CHANGE_NOT_FOUND', { id: idOrNumber });
+  if (!r || !canReadRecordRow(u, r)) throw new HttpError(404, `Access change ${idOrNumber} not found`, 'ACCESS_CHANGE_NOT_FOUND', { id: idOrNumber });
   return toAccessChange(r, u);
 }
 
-/** Documented (or verified) entries of a platform performed in a time window – for the reconciliation (no permission filter). */
+/**
+ * Whether a documented entry counts as documentation for the reconciliation: its content is intact
+ * (GOV-13), and the person who documented it – for an entry of a run: who started the run – is not
+ * the subject of the change (nobody documents their own access, GOV-1).
+ */
+export function entryCounts(a: AccessChange): boolean {
+  if (!FINAL_STATUSES.includes(a.status) || a.tampered) return false;
+  if (isSubjectOf(a.documentedBy, a)) return false;
+  // entries of older versions name the run's starter as "user (run …)"
+  return !(a.origin === 'run' && isSubjectOf(a.performedBy.replace(/ \(run [^)]*\)$/, ''), a));
+}
+
+/** Documented (or verified) entries of a platform performed in a time window that count (entryCounts) – for the reconciliation (no permission filter). */
 export function documentedEntries(platformId: string, fromMs: number, toMs: number): AccessChange[] {
   return entryRows(platformId)
     .filter((r) => FINAL_STATUSES.includes(r.status))
+    .filter((r) => {
+      const f = parseJson<Record<string, string>>(r.fields, {});
+      const t = Date.parse(f.performedAt ?? '');
+      return f.platform === platformId && Number.isFinite(t) && t > fromMs && t <= toMs;
+    })
     .map((r) => toAccessChange(r, null))
-    .filter((a) => {
-      const t = Date.parse(a.performedAt);
-      return a.platformId === platformId && Number.isFinite(t) && t > fromMs && t <= toMs;
-    });
+    .filter(entryCounts);
+}
+
+/** Whether the entry of a record (by id) counts as documentation (see entryCounts). */
+export function recordCounts(recordId: string): boolean {
+  const r = db().get<RecordRow>('SELECT * FROM records WHERE id = ? AND type_id = ?', recordId, accessTypeId());
+  return !!r && entryCounts(toAccessChange(r, null));
 }
 
 // ---------- create ----------
@@ -239,6 +273,8 @@ export function createAccessChange(
     body: i.body,
     fields: entryFields(i),
     tags: i.tags,
+    // origin, run and finding are Steward's to set (the generic records API refuses them)
+    internal: true,
   });
   for (const l of o.links ?? []) {
     try {
@@ -253,6 +289,5 @@ export function createAccessChange(
   return getAccessChange(rec.id);
 }
 
-/** Steward itself (automatic entries of runs): creates and documents records and sees every run to link it; never approves or verifies. */
-export const SYSTEM_USER: AuthUser = { id: 'system', username: 'system', displayName: 'Steward', roles: ['operator', 'auditor'], teams: [] };
+export { SYSTEM_USER };
 export const asSystem = <T>(fn: () => T): T => runAs(SYSTEM_USER, fn);

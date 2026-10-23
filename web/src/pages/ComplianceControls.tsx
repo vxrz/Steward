@@ -361,8 +361,8 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
             </Text>
           ) : (
             <Stack gap={4}>
-              {cov.control.tags.map((tag) => (
-                <Group key={`${tag.kind}:${tag.targetId}`} justify="space-between" wrap="nowrap">
+              {cov.control.tags.map((tag, i) => (
+                <Group key={`${tag.kind}:${tag.targetId ?? `hidden-${i}`}`} justify="space-between" wrap="nowrap">
                   <Text size="sm">
                     <Badge size="xs" variant="default" mr={6}>
                       {t(`tagKinds.${tag.kind}`)}
@@ -377,12 +377,13 @@ function ControlDrawer({ cov, meta, onClose }: { cov: ControlCoverage; meta?: Co
                       </Text>
                     )}
                   </Text>
-                  {meta?.canTag && (
+                  {/* items the reader may not see have no id here and cannot be removed by them */}
+                  {meta?.canTag && tag.targetId && (
                     <ActionIcon
                       variant="subtle"
                       color="red"
                       aria-label={t('controls.removeTag', { label: tag.label || tag.targetId })}
-                      onClick={() => remove(tag.kind, tag.targetId)}
+                      onClick={() => remove(tag.kind, tag.targetId!)}
                     >
                       <IconTrash size={16} />
                     </ActionIcon>
