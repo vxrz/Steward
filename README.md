@@ -280,7 +280,7 @@ For ISO/IEC 27001, IEC 62443-2-1 and NIS2 audits, _Compliance_ collects the evid
 - **Access changes**: documented grants, revocations and changes of access rights (a record type with four-eyes verification), also created automatically by runs of processes that change access;
 - **Access reconciliation**: scheduled snapshots of who has which access, compared with the documented changes; changes made outside Steward show up as findings and are documented after the fact with one click;
 - **Controls**: catalogues (identifiers and short topic names only) with the mapped Steward items and the evidence coverage per period, gaps highlighted;
-- **Evidence packs**: signed ZIP exports for auditors, checked offline with `npm run evidence:verify -- pack.zip`.
+- **Evidence packs**: signed ZIP exports for auditors, checked offline with `npm run evidence:verify -- pack.zip --public-key <the installation's key>`.
 
 See [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 

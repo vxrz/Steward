@@ -83,7 +83,7 @@ The **content** of a record is its title, Markdown text, fields and attached fil
 
 ## Who may do what
 
-Everyone who can sign in reads records and services (auditors included). The server checks every action.
+Everyone who can sign in reads records and services (auditors included) – except access change entries (type AC), which only administrators, auditors, approvers, their owner and who has a right on their platform read, and only people who may use that platform write (see [COMPLIANCE.md](COMPLIANCE.md#access-change-entries)). The server checks every action.
 
 | Action                                                                                                         | Who                                                                                                                                                                                                                                         |
 | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
