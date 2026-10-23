@@ -2,7 +2,7 @@
   "name": "steward",
   "private": true,
   "license": "Apache-2.0",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Steward – repeatable, auditable service procedures for Siemens Insights Hub, Industrial Edge and any REST platform",
   "type": "module",
   "workspaces": [
