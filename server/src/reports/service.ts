@@ -5,7 +5,7 @@ import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit, authenticRows } from '../audit.js';
 import { runRow } from '../engine/store.js';
-import { HttpError, newId, nowIso, parseJson, sha256, slugify } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
 import { getBranding, logo } from './branding.js';
 import { resolveTimeZone, translator } from './i18n.js';
 import { buildRunModel, contentHash, evidenceImages, person, type ReportContext, type RunReportModel } from './model.js';
@@ -91,7 +91,7 @@ export function listSummaryReports(limit = 200): ReportRecord[] {
 export function getReport(id: string): ReportRecord & { file: string } {
   const r = db().get<Row>('SELECT * FROM reports WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Report ${id} not found`, 'REPORT_NOT_FOUND', { id });
-  return { ...toRecord(r), file: path.join(reportsDir(), ...r.path.split('/')) };
+  return { ...toRecord(r), file: reportFile(r.path) };
 }
 
 export function resolveLang(explicit?: string | null, userLocale?: string | null): ReportLang {
@@ -130,8 +130,11 @@ function brandingInput(override?: Partial<ReportBranding>) {
   return { branding, logo: logo().data };
 }
 
+/** A stored report's file from its relative path ("<run id>/<report id>.pdf", "summary/<report id>.pdf" …). */
+const reportFile = (rel: string): string => pathInside(reportsDir(), ...rel.split('/'));
+
 function writeOnce(rel: string, data: Buffer): void {
-  const file = path.join(reportsDir(), ...rel.split('/'));
+  const file = reportFile(rel);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, data, { flag: 'wx' }); // never overwrite
   if (process.platform !== 'win32') fs.chmodSync(file, 0o400); // read-only, for the service account only
@@ -193,7 +196,7 @@ function store(rec: ReportRecord, rel: string, pdf: Buffer, details: Record<stri
       });
     });
   } catch (e) {
-    fs.rmSync(path.join(reportsDir(), ...rel.split('/')), { force: true });
+    fs.rmSync(reportFile(rel), { force: true });
     throw e;
   }
   return rec;

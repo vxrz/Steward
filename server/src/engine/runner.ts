@@ -23,7 +23,7 @@ import { db } from '../db.js';
 import { getSettings } from '../settings.js';
 import { currentActor, runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
-import { HttpError, newId, nowIso, parseJson, sha256, sleep } from '../util.js';
+import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '../util.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
@@ -59,6 +59,9 @@ interface Binding {
   secrets: Record<string, string>;
   baseUrl: string;
 }
+
+/** Where a run's evidence file (screenshot) is stored: data folder/artifacts/<run id>/<file>. */
+const artifactFile = (runId: string, name: string): string => pathInside(path.join(config.dataDir, 'artifacts'), runId, name);
 
 /** Stable pseudonym of a user name for traces (OpenTelemetry). */
 function userPseudonym(name: string): string {
@@ -1720,9 +1723,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
         case 'screenshot': {
           const buf = await page.screenshot({ fullPage: !!a.fullPage, type: 'png' });
           const id = newId('art_');
-          const dir = path.join(config.dataDir, 'artifacts', ctx.runId);
-          fs.mkdirSync(dir, { recursive: true });
-          const file = path.join(dir, `${id}.png`);
+          const file = artifactFile(ctx.runId, `${id}.png`);
+          fs.mkdirSync(path.dirname(file), { recursive: true });
           fs.writeFileSync(file, buf);
           const hash = sha256(buf);
           const name = a.name || `screenshot-${i + 1}`;
@@ -1745,9 +1747,8 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
       try {
         const buf = await page.screenshot({ type: 'png' });
         const id = newId('art_');
-        const dir = path.join(config.dataDir, 'artifacts', ctx.runId);
-        fs.mkdirSync(dir, { recursive: true });
-        const file = path.join(dir, `${id}.png`);
+        const file = artifactFile(ctx.runId, `${id}.png`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
         fs.writeFileSync(file, buf);
         store.addArtifact({
           id,

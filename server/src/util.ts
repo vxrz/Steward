@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
 import type { ErrorParam, ErrorParams } from '@sm/shared';
 
 export type { ErrorParam, ErrorParams };
@@ -97,6 +98,22 @@ export class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+/** One file or folder name made from our own ids and cleaned file names: no separators, no leading dot. */
+const SAFE_SEGMENT = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,254}$/;
+
+/**
+ * A path inside `base` (artifacts, reports, uploaded documents …) from plain name segments. Throws
+ * instead of returning a path outside `base`, so a file name or id can never reach another folder,
+ * even if a caller passed one taken from a request without looking it up first.
+ */
+export function pathInside(base: string, ...segments: string[]): string {
+  const root = path.resolve(base);
+  if (!segments.length || !segments.every((s) => SAFE_SEGMENT.test(s))) throw new HttpError(400, 'Invalid file name');
+  const file = path.resolve(root, ...segments);
+  if (!file.startsWith(root + path.sep)) throw new HttpError(400, 'Invalid file name');
+  return file;
 }
 
 /** Largest process or dashboard definition accepted as YAML/JSON text (the examples are below 10 KB). */
