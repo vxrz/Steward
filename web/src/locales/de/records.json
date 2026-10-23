@@ -559,6 +559,9 @@
     "settingsIntervalHelp_one": "Leer: das Intervall der Art (jeden Monat). 0: keine regelmäßige Überprüfung.",
     "settingsIntervalHelp_other": "Leer: das Intervall der Art (alle {{count}} Monate). 0: keine regelmäßige Überprüfung.",
     "settingsNext": "Früher überprüfen am",
-    "settingsNextHelp": "Optional: ein früheres Datum für die nächste Überprüfung. Die nächste Überprüfung oder Fassung hebt es auf."
+    "settingsNextHelp": "Optional: ein früheres Datum für die nächste Überprüfung. Die nächste Überprüfung oder Fassung hebt es auf.",
+    "newEditionReason": "Warum ist eine neue Fassung nötig?",
+    "newEditionSubmit": "Neue Fassung beginnen",
+    "freezeNote": "Der Inhalt ist ab jetzt eingefroren. Eine spätere Änderung braucht eine neue Fassung."
   }
 }

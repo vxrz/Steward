@@ -77,6 +77,12 @@
         "label": "Undocumented access",
         "info": "The access reconciliation found access changes without an access change entry"
       }
+    },
+    "document": {
+      "review": {
+        "label": "Document review due",
+        "info": "A living document you review is due for its periodic review soon (or is overdue)"
+      }
     }
   }
 }

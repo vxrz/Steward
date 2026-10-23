@@ -186,7 +186,7 @@ export function DocumentChangelog({ rec, onChange }: { rec: RecordDetail; onChan
           </Text>
         ) : (
           <div className="table-scroll">
-            <Table fz="sm" aria-label={t('document.changelog')} data-testid="document-changelog">
+            <Table fz="sm" aria-label={t('document.changelog')} data-testid="document-changelog" style={{ minWidth: 760 }}>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>{t('document.edition')}</Table.Th>

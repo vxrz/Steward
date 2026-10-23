@@ -77,6 +77,12 @@
         "label": "Undokumentierter Zugriff",
         "info": "Der Zugriffsabgleich hat Zugriffsänderungen ohne Eintrag gefunden"
       }
+    },
+    "document": {
+      "review": {
+        "label": "Überprüfung eines Dokuments fällig",
+        "info": "Ein Dokument, das Sie überprüfen, ist bald zur regelmäßigen Überprüfung fällig (oder überfällig)"
+      }
     }
   }
 }

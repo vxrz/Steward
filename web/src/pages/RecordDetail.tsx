@@ -812,7 +812,7 @@ function TransitionModal({
         )}
         {!rec.frozen && (
           <Text size="xs" c="dimmed">
-            {t('transition.freezeNote')}
+            {rec.document ? t('document.freezeNote') : t('transition.freezeNote')}
           </Text>
         )}
         {edition && <EditionFields rec={rec} kind={kind} onKind={setKind} summary={summary} onSummary={setSummary} />}
@@ -876,7 +876,7 @@ function ReviseModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () 
           {rec.document ? t('document.newEditionHelp', { edition: rec.document.currentEdition ?? '' }) : t('revise.help', { revision: rec.revision + 1 })}
         </Text>
         <Textarea
-          label={t('revise.reason')}
+          label={rec.document ? t('document.newEditionReason') : t('revise.reason')}
           autosize
           minRows={2}
           value={comment}
@@ -890,7 +890,7 @@ function ReviseModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () 
             {t('common:cancel')}
           </Button>
           <Button onClick={submit} loading={busy} disabled={!comment.trim()}>
-            {t('revise.submit')}
+            {rec.document ? t('document.newEditionSubmit') : t('revise.submit')}
           </Button>
         </Group>
       </Stack>
