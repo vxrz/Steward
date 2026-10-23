@@ -52,7 +52,8 @@ export function parsePromValue(s: string): number | null {
     case 'NaN':
       return NaN;
   }
-  if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s)) return null;
+  // unambiguous (linear): \d+\.?\d* backtracked quadratically on long digit runs
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(s)) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
 }

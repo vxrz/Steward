@@ -178,6 +178,30 @@ describe('scrubbing', () => {
     expect(scrubString('value my-own-secret here', { secrets: ['my-own-secret'] })).toBe('value *** here');
   });
 
+  it('masks JSON Web Tokens like the former regular expression, in linear time', () => {
+    expect(scrubString(`a ${JWT} b`)).toBe('a *** b');
+    expect(scrubString(`x-${JWT}.tail`)).toBe('x-***.tail'); // a token ends with its third segment
+    expect(scrubString(`key=${JWT},next`)).toBe('key=***,next');
+    expect(scrubString('xeyJabcd.efgh.ij')).toBe('xeyJabcd.efgh.ij'); // no word boundary before eyJ
+    expect(scrubString('eyJab.efgh.ij')).toBe('eyJab.efgh.ij'); // first segment too short
+    // was quadratic: every "eyJ" of the run was tried again up to the run's end (seconds for 70 KB)
+    const t0 = performance.now();
+    scrubString(('-eyJ'.repeat(2000) + ' ').repeat(10));
+    expect(performance.now() - t0).toBeLessThan(2000);
+  });
+
+  it('caps long strings before the patterns run, without leaving half a secret', () => {
+    const secret = 'S'.repeat(30);
+    const long = 'word '.repeat(2000) + secret + ' end';
+    const s = scrubString(long, { secrets: [secret] });
+    expect(s.length).toBeLessThanOrEqual(8193);
+    expect(s.endsWith('…')).toBe(true);
+    expect(s).not.toContain('SSSS');
+    // a token cut at the limit is dropped with the rest, not sent in part
+    const cut = scrubString('a '.repeat(4090) + JWT);
+    expect(cut).not.toContain('eyJ');
+  });
+
   it('removes request details, user data and host name from events', () => {
     const e = scrubEvent({
       server_name: 'LAPTOP-JDOE',
