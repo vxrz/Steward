@@ -608,3 +608,43 @@ describe('compliance evidence', () => {
     expect((await verifyPack(stored)).ok).toBe(true);
   }, 60_000);
 });
+
+describe('public API v1', () => {
+  it('reads editions, reviews and the review status (read-only)', async () => {
+    const pub = await publishedDoc('API v1 concept', '## Content\n\nVia the API.\n');
+    await adam('POST', `/records/${pub.id}/review`, { outcome: 'no_change', comment: 'api' });
+    const { token } = await vera('POST', '/me/tokens', { name: 'docs read', scope: 'read' });
+    const v1 = async (url: string) => {
+      const res = await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } });
+      return { status: res.status, body: res.status === 200 ? await res.json() : await res.text() };
+    };
+    const list = await v1('/records?workflow=document&reviewStatus=current&limit=200');
+    expect(list.body.items.find((r: any) => r.id === pub.id)).toMatchObject({ edition: '1.0', reviewStatus: 'current' });
+    expect(list.body.items.every((r: any) => r.workflow === 'document')).toBe(true);
+    const detail = await v1(`/records/${pub.number}`);
+    expect(detail.body.document).toMatchObject({
+      currentEdition: '1.0',
+      pending: null,
+      review: { status: 'current', intervalMonths: 12, owner: 'dana', lastReviewedBy: 'adam' },
+    });
+    const editions = await v1(`/records/${pub.id}/editions`);
+    expect(editions.body.items).toEqual([
+      expect.objectContaining({ edition: '1.0', kind: 'major', approvedBy: 'adam', contentHash: pub.frozenHash, current: true, intact: true }),
+    ]);
+    const e = await v1(`/records/${pub.id}/editions/1.0`);
+    expect(e.body).toMatchObject({ edition: '1.0', body: '## Content\n\nVia the API.\n' });
+    expect((await v1(`/records/${pub.id}/editions/7.0`)).status).toBe(404);
+    expect((await v1(`/records/${pub.id}/editions/x`)).status).toBe(404);
+    const reviews = await v1(`/records/${pub.id}/reviews`);
+    expect(reviews.body.items).toEqual([expect.objectContaining({ outcome: 'no_change', reviewer: 'adam', edition: '1.0', comment: 'api' })]);
+    // read-only: no way to review or approve through the public API
+    const post = await fetch(`${s.base}/api/v1/records/${pub.id}/review`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+    expect([404, 405]).toContain(post.status);
+    // the OpenAPI document describes them
+    const doc = (await v1('/openapi.json')).body;
+    expect(Object.keys(doc.paths)).toEqual(
+      expect.arrayContaining(['/records/{recordId}/editions', '/records/{recordId}/editions/{edition}', '/records/{recordId}/reviews']),
+    );
+    expect(doc.components.schemas.RecordEdition).toBeTruthy();
+  });
+});
