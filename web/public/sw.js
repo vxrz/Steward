@@ -10,7 +10,9 @@ const ASSET_CACHE = 'sm-assets-v1';
 const KEEP = [SHELL_CACHE, ASSET_CACHE];
 /** About two builds' worth of hashed files; anything evicted is simply fetched again. */
 const MAX_ASSETS = 160;
-const SHELL = ['/', '/icon.svg', '/icon-192.png'];
+// The app's path: "/" at the root, "/steward/" under a path prefix (SM_BASE_PATH) – the worker's scope.
+const BASE = new URL(self.registration.scope).pathname;
+const SHELL = [BASE, BASE + 'icon.svg', BASE + 'icon-192.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -40,10 +42,12 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/mock/')) return;
+  if (!url.pathname.startsWith(BASE)) return;
+  const path = url.pathname.slice(BASE.length - 1);
+  if (path.startsWith('/api/') || path.startsWith('/mock/')) return;
 
   // Hashed build assets never change: cache first.
-  if (url.pathname.startsWith('/assets/')) {
+  if (path.startsWith('/assets/')) {
     event.respondWith(
       caches.open(ASSET_CACHE).then((cache) =>
         cache.match(req).then(
@@ -66,11 +70,11 @@ self.addEventListener('fetch', (event) => {
         .then((res) => {
           if (res.ok) {
             const copy = res.clone();
-            event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.put('/', copy)));
+            event.waitUntil(caches.open(SHELL_CACHE).then((c) => c.put(BASE, copy)));
           }
           return res;
         })
-        .catch(() => caches.match('/')),
+        .catch(() => caches.match(BASE)),
     );
   }
 });

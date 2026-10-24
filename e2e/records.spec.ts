@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { expectAccessible, settle } from './support/axe';
+import { animationsDone, expectAccessible, settle } from './support/axe';
 import { chooseOption, expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('dana') });
@@ -129,6 +129,8 @@ test('a service is created and linked to a record, with backlinks both ways', as
   const link = page.getByRole('dialog', { name: 'Add link' });
   await chooseOption(page, 'Kind', 'Record');
   await link.getByRole('textbox', { name: 'Target' }).fill(rec.number);
+  await expect(page.getByRole('option', { name: rec.number })).toBeVisible();
+  await animationsDone(page);
   await page.getByRole('option', { name: rec.number }).click();
   await link.getByRole('textbox', { name: 'Note' }).fill('affected');
   await link.getByRole('button', { name: 'Add link' }).click();

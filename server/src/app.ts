@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { BlockList, isIPv6 } from 'node:net';
 import path from 'node:path';
-import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
@@ -26,6 +26,7 @@ import { mcpRoutes } from './mcp/http.js';
 import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 import { checkBodyShape } from './bodyShape.js';
+import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
@@ -175,6 +176,25 @@ export function trustProxyFn(tp: number | string[]): string[] | ((addr: string, 
   };
 }
 
+/**
+ * A request outside the base path (SM_BASE_PATH): 404 – nothing of Steward lives there. Only "/" itself is
+ * redirected to the base path (a fixed target, never built from the request). The most likely cause is a
+ * reverse proxy that strips the prefix: logged as a hint, at most once a minute.
+ */
+let lastOutsideHint = 0;
+function outsideBasePath(req: FastifyRequest, reply: FastifyReply) {
+  const original = String((req.raw as { originalUrl?: string }).originalUrl ?? req.raw.url ?? '');
+  if (original === '/' && isRead(req.method)) return reply.code(302).header('location', `${config.basePath}/`).send();
+  if (Date.now() - lastOutsideHint > 60_000) {
+    lastOutsideHint = Date.now();
+    logger.warn(
+      { method: req.method, path: original.split('?')[0]!.slice(0, 200), basePath: config.basePath },
+      `request outside the base path ${config.basePath} answered with 404 – if a reverse proxy is in front, it has to pass the path on unchanged (no prefix stripping), see docs/INSTALL.md`,
+    );
+  }
+  return reply.code(404).header('cache-control', 'no-store').send({ error: 'Not found' });
+}
+
 /** Requests without any credentials may only send small bodies (sign-in, setup); everything else needs a session or token first. */
 const ANONYMOUS_BODY_LIMIT = 64 * 1024;
 
@@ -184,10 +204,14 @@ export const registeredRoutes = (app: FastifyInstance): { method: string; url: s
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   connectVaultToDatabase();
+  const BASE = config.basePath;
   const app = Fastify({
     ...(opts.logger ? { loggerInstance: logger } : { logger: false }),
     disableRequestLogging: true,
     bodyLimit: 25 * 1024 * 1024,
+    // Under a path prefix (SM_BASE_PATH): strip it once before routing, so every route, check and limit below
+    // sees the same paths as at the root; requests outside it are marked and answered with 404 (onRequest).
+    ...(BASE ? { rewriteUrl: (req: Parameters<typeof stripBasePath>[0]) => stripBasePath(req, BASE) } : {}),
     // Behind a reverse proxy: believe X-Forwarded-For/-Proto/-Host only from the configured proxies (SM_TRUST_PROXY)
     ...(config.trustProxy !== undefined ? { trustProxy: trustProxyFn(config.trustProxy) } : {}),
     ...(config.tls
@@ -217,8 +241,20 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   /** The single sign-on callback page finishes with a small inline script. */
   const CSP_SSO_CALLBACK = CSP.replace("script-src 'self'", "script-src 'self' 'unsafe-inline'");
 
+  // Under a path prefix: redirects to app paths ("/x") stay below it, whoever sends them (routes, plugins, mocks).
+  if (BASE) {
+    app.addHook('onSend', async (req, reply, payload) => {
+      const loc = reply.getHeader('location');
+      if (typeof loc === 'string' && !(req.raw as { [OUTSIDE_BASE]?: boolean })[OUTSIDE_BASE]) reply.header('location', withBasePath(loc, BASE));
+      return payload;
+    });
+  }
+
   // --- local-only safety net ---
   app.addHook('onRequest', async (req, reply) => {
+    if ((req.raw as { [OUTSIDE_BASE]?: boolean })[OUTSIDE_BASE]) return outsideBasePath(req, reply);
+    // "/steward" → "/steward/" (the onSend hook above puts the base path in front of "/")
+    if ((req.raw as { [BARE_BASE]?: boolean })[BARE_BASE] && isRead(req.method)) return reply.code(302).redirect(req.url);
     // Only origin-form request targets ("/path"). Absolute-form ("GET http://host/api/…") would otherwise
     // reach routes while looking like a non-API URL to the checks below.
     if (!req.url.startsWith('/')) return reply.code(400).send({ error: 'Bad request target' });
@@ -380,21 +416,27 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(systemRoutes);
 
   if (fs.existsSync(config.webDist)) {
+    // index.html always comes from the page handler below: it gets the <base href> of the base path
+    const page = () => injectBaseHref(fs.readFileSync(path.join(config.webDist, 'index.html'), 'utf8'), BASE);
     await app.register(fastifyStatic, {
       root: config.webDist,
+      index: false,
+      allowedPath: (pathName) => pathName !== '/index.html',
       preCompressed: true, // serves the .br/.gz files written by the web build
       setHeaders: (res, file) => {
         // hashed build assets never change
         if (/[\\/]assets[\\/]/.test(file)) res.header('cache-control', 'public, max-age=31536000, immutable');
       },
     });
+    // the start page (at the root and at "<base path>" / "<base path>/"): the page, not the directory
+    app.get('/', async (_req, reply) => reply.type('text/html; charset=utf-8').send(page()));
     // the page fallback reads index.html: limited like the routes (the plugin only hooks routes)
     app.setNotFoundHandler({ preHandler: app.rateLimit() }, (req, reply) => {
       // the file-extension check looks at the path only: /records?subject=a@example.com is a page, /missing.js is not
       const pathname = req.url.split('?')[0]!;
-      const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(pathname) && !/\.[a-z0-9]+$/i.test(pathname);
+      const isPage = req.method === 'GET' && !/^\/(api|mock)\//.test(pathname) && (!/\.[a-z0-9]+$/i.test(pathname) || pathname === '/index.html');
       if (!isPage) return reply.code(404).send({ error: 'Not found' });
-      return reply.type('text/html').send(fs.readFileSync(path.join(config.webDist, 'index.html')));
+      return reply.type('text/html; charset=utf-8').send(page());
     });
   } else {
     app.get('/', async (_req, reply) =>

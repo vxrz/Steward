@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fetch } from 'undici';
-import { config } from '../config.js';
+import { config, loopbackUrl } from '../config.js';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
@@ -31,7 +31,7 @@ function demoize(text: string): string {
   return text
     .replace(/host: 10\.20\.\d+\.\d+/g, 'host: 127.0.0.1')
     .replace(/fallbackPort: 502/g, `fallbackPort: ${config.port}`)
-    .replace(/http:\/\/127\.0\.0\.1:4310/g, `http://127.0.0.1:${config.port}`);
+    .replace(/http:\/\/127\.0\.0\.1:4310/g, loopbackUrl());
 }
 
 export async function setupMonitorDemo(): Promise<number> {
@@ -46,7 +46,7 @@ export async function setupMonitorDemo(): Promise<number> {
       kind: 'zabbix',
       environment: 'demo',
       description: 'Simulated Zabbix 7 JSON-RPC API (history.push) served by the built-in mock. A real Zabbix also accepts the trapper protocol on port 10051.',
-      baseUrl: `http://127.0.0.1:${config.port}/mock/zabbix`,
+      baseUrl: `${loopbackUrl()}/mock/zabbix`,
       config: {
         auth: { type: 'bearer' },
         variables: { host: DEMO_ZABBIX.host, apiPath: '/api_jsonrpc.php', trapperHost: '127.0.0.1', trapperPort: '10051' },
@@ -162,7 +162,7 @@ async function simulateOnce(first = false): Promise<void> {
     });
   if (first) reports.push({ key: 'm18.powermeter', ts: new Date(now - 25 * 60000).toISOString(), value: 51.2, data: { unit: 'kW' } });
   try {
-    const res = await fetch(`http://127.0.0.1:${config.port}/api/hooks/monitors`, {
+    const res = await fetch(`${loopbackUrl()}/api/hooks/monitors`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${vault().decrypt<string>(g.secret_enc)}` },
       body: JSON.stringify({ reports }),

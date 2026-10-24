@@ -62,7 +62,7 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   startNotificationJobs();
   startMaintenanceJobs();
   startAuditJobs();
-  const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}`;
+  const url = `${config.tls ? 'https' : 'http'}://${config.host === '0.0.0.0' ? 'localhost' : config.host}:${config.port}${config.basePath}`;
   writeInstanceFile(url);
   logger.info({ url, dataDir: config.dataDir, database: db().label, demo: config.demo, tracing, errorReporting }, 'service manager started');
 

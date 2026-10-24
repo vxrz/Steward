@@ -9,6 +9,7 @@ import { JsonView, StatusBadge, statusLabel } from '../common';
 import { fmtDate, fmtDuration, fmtRelative } from '../../format';
 import { inspectNode, isNotFound, useLatestRun, useRunDetail } from './editorApi';
 import { errorText } from '../../i18n/errors';
+import { withBase } from '../../basePath';
 
 type Activation = NodeInspection['activations'][number];
 
@@ -147,7 +148,7 @@ export function NodeInspector({ processId, nodeId }: { processId?: string; nodeI
             t={t}
             i18nKey={run.dryRun ? 'inspector.runLineDry' : 'inspector.runLine'}
             values={{ id: run.id, status: statusLabel(run.status), when: fmtRelative(run.startedAt) }}
-            components={{ a: <Anchor href={`/runs/${run.id}`} target="_blank" size="xs" className="mono" /> }}
+            components={{ a: <Anchor href={withBase(`/runs/${run.id}`)} target="_blank" size="xs" className="mono" /> }}
           />
         </Text>
         <Tooltip label={t('inspector.reload')}>

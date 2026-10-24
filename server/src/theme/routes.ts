@@ -68,7 +68,28 @@ function manifest(): string {
   }
   const t = theme.publicTheme();
   const name = t.appName || BRAND.name;
-  return JSON.stringify({ ...base, name, short_name: t.appName ? name.slice(0, 30) : BRAND.shortName, theme_color: t.primaryColor }, null, 2);
+  return JSON.stringify(
+    { ...below(base, config.basePath), name, short_name: t.appName ? name.slice(0, 30) : BRAND.shortName, theme_color: t.primaryColor },
+    null,
+    2,
+  );
+}
+
+/** The manifest's own URLs (start_url, scope, icons, shortcuts) below the base path (SM_BASE_PATH). */
+function below(m: Record<string, unknown>, basePath: string): Record<string, unknown> {
+  if (!basePath) return m;
+  const at = (u: unknown) => (typeof u === 'string' && u.startsWith('/') && !u.startsWith('//') ? basePath + u : u);
+  const list = (v: unknown, key: string) =>
+    Array.isArray(v)
+      ? v.map((x) => (x && typeof x === 'object' ? { ...(x as Record<string, unknown>), [key]: at((x as Record<string, unknown>)[key]) } : x))
+      : v;
+  return {
+    ...m,
+    start_url: at(m.start_url),
+    scope: at(m.scope),
+    ...(m.icons ? { icons: list(m.icons, 'src') } : {}),
+    ...(m.shortcuts ? { shortcuts: list(m.shortcuts, 'url') } : {}),
+  };
 }
 
 async function readUpload(req: FastifyRequest): Promise<Buffer> {

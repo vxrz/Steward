@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { config } from '../../config.js';
 import { ProblemError } from './problem.js';
 
 /**
@@ -76,10 +77,10 @@ export function pageRows<T>(rows: T[], limit: number, keyOf: (x: T) => Key, filt
   return { items, nextCursor: rows.length > limit ? encodeCursor(keyOf(items[items.length - 1]!), filters) : null };
 }
 
-/** RFC 8288 Link header pointing to the next page (relative URL). */
+/** RFC 8288 Link header pointing to the next page (an absolute path, below the base path). */
 export function linkNext(req: FastifyRequest, reply: FastifyReply, nextCursor: string | null): void {
   if (!nextCursor) return;
   const url = new URL(req.url, 'http://local');
   url.searchParams.set('cursor', nextCursor);
-  reply.header('link', `<${url.pathname}${url.search}>; rel="next"`);
+  reply.header('link', `<${config.basePath}${url.pathname}${url.search}>; rel="next"`);
 }

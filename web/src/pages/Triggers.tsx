@@ -44,6 +44,7 @@ import { EmptyState, Hint, PageHeader, QueryState, StatusBadge } from '../compon
 import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { appUrl } from '../basePath';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -105,7 +106,7 @@ const GATUS_MAPPING: Record<string, string> = {
 
 const AUTH_MODES: WebhookAuthMode[] = ['token', 'hmac', 'either'];
 
-const hookUrl = (tr: Pick<WebhookTrigger, 'path'>) => `${window.location.origin}${tr.path}`;
+const hookUrl = (tr: Pick<WebhookTrigger, 'path'>) => appUrl(tr.path);
 
 export function TriggersPage() {
   const { t } = useTranslation(['triggers', 'common']);

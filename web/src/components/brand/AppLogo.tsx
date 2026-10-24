@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppTheme } from '../../theme';
 import { Logo } from './Logo';
+import { withBase } from '../../basePath';
 
 /**
  * The header/sign-in logo: the administrator's logo (Settings → Appearance) or the
@@ -14,7 +15,7 @@ export function AppLogo({ size = 28, title }: { size?: number; title?: string })
   if (!logoUrl || failed === logoUrl) return <Logo size={size} title={title} />;
   return (
     <img
-      src={logoUrl}
+      src={withBase(logoUrl)}
       alt={title ?? ''}
       height={size}
       onError={() => setFailed(logoUrl)}

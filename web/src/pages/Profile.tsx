@@ -38,6 +38,7 @@ import {
   showBrowserNotification,
 } from '../components/notifications/browserNotify';
 import { confirmDanger } from '../components/confirm';
+import { appUrl } from '../basePath';
 
 export function ProfilePage() {
   const { t } = useTranslation('profile');
@@ -263,7 +264,7 @@ function TokensCard() {
   };
 
   const list = tokens.data ?? [];
-  const host = typeof window !== 'undefined' ? window.location.origin : 'http://<host>';
+  const host = appUrl();
   const publicApi = usePublicApi();
   const mcp = useMcpServer();
   // The versioned REST API is the stable interface for scripts; fall back to the internal API when it is off.

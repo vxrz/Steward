@@ -1,4 +1,5 @@
 import zlib from 'node:zlib';
+import { appHref } from './support/env';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect, USERS } from './support/fixtures';
 import { expectAccessible, settle } from './support/axe';
@@ -126,7 +127,7 @@ test.describe('custom theme (own server)', () => {
     await srv.api('POST', '/settings/theme/logo', { contentBase64: logoPng().toString('base64') });
     const page = await open(browser);
     await page.goto('/');
-    const img = page.getByRole('banner').locator('img[src^="/api/theme/logo"]');
+    const img = page.getByRole('banner').locator(`img[src^="${appHref('/api/theme/logo')}"]`);
     await expect(img).toBeVisible();
     expect(await img.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(120);
     const login = await open(browser, { signedIn: false });
@@ -174,7 +175,7 @@ test.describe('custom theme (own server)', () => {
     await expect(page.getByText(`Appearance reset to the ${BRAND.name} defaults`)).toBeVisible();
     await expect(card.getByRole('textbox', { name: 'Primary color' })).toHaveValue('#1c7ed6');
     await expect(page.getByRole('banner').getByText(BRAND.name, { exact: true })).toBeVisible();
-    await expect(page.getByRole('banner').locator('img[src^="/api/theme/logo"]')).toHaveCount(0);
+    await expect(page.getByRole('banner').locator(`img[src^="${appHref('/api/theme/logo')}"]`)).toHaveCount(0);
     expect((await (await page.request.get('/api/theme')).json()).custom).toBe(false);
   });
 });

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { test as base, expect, request as pwRequest, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { USERS, authFile, baseURL, type UserKey } from './env';
+import { applyBasePath } from './basePath';
 
 /**
  * Console messages that are expected and harmless. Keep this list short and explicit:
@@ -45,7 +46,19 @@ export interface Fixtures {
   consoleGuard: GuardState;
 }
 
-export const test = base.extend<Fixtures>({
+/** Worker-scoped: under E2E_BASE_PATH, app paths passed to goto() and API requests get the base path (support/basePath.ts). */
+interface WorkerFixtures {
+  basePathUrls: void;
+}
+
+export const test = base.extend<Fixtures, WorkerFixtures>({
+  basePathUrls: [
+    async ({ browser }, use) => {
+      await applyBasePath(browser);
+      await use();
+    },
+    { scope: 'worker', auto: true },
+  ],
   consoleGuard: [
     // eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument
     async ({}, use) => {

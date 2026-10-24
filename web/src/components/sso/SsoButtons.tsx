@@ -3,6 +3,7 @@ import { Alert, Button, Stack } from '@mantine/core';
 import { IconBrandWindows, IconKey } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { SsoProviderPublic } from '@sm/shared';
+import { appPath, withBase } from '../../basePath';
 
 /** Reads ?sso_error=… once and removes it from the address bar. */
 export function useSsoError(): [string | null, () => void] {
@@ -25,7 +26,8 @@ export function useSsoError(): [string | null, () => void] {
 export function SsoButtons({ providers }: { providers: SsoProviderPublic[] }) {
   const { t } = useTranslation('auth');
   if (!providers.length) return null;
-  const path = window.location.pathname + window.location.search;
+  // app-relative: the server puts its base path in front again after signing in
+  const path = appPath();
   const returnTo = encodeURIComponent(path.startsWith('/') ? path : '/');
   return (
     <Stack gap="xs">
@@ -33,7 +35,7 @@ export function SsoButtons({ providers }: { providers: SsoProviderPublic[] }) {
         <Button
           key={p.id}
           component="a"
-          href={`/api/auth/oidc/${encodeURIComponent(p.id)}/start?returnTo=${returnTo}`}
+          href={withBase(`/api/auth/oidc/${encodeURIComponent(p.id)}/start?returnTo=${returnTo}`)}
           variant="default"
           size="md"
           fullWidth

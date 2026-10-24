@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { get, notifyError, post } from '../../api';
 import { fmtDate, fmtNumber } from '../../format';
 import { monitorStatusLabel } from './status';
+import { appUrl } from '../../basePath';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
   const { t } = useTranslation('common');
@@ -31,7 +32,8 @@ export function CopyBlock({ label, text }: { label: string; text: string }) {
   );
 }
 
-export const origin = () => window.location.origin;
+/** Absolute URL of this Steward (origin + base path) for copy-paste snippets. */
+export const origin = () => appUrl();
 
 export function heartbeatCurl(path: string, hmac = false): string {
   const url = `${origin()}${path}`;

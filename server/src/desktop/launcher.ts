@@ -201,7 +201,8 @@ async function main(): Promise<number> {
   if (args.sendTestError) return sendTestError();
 
   const host = config.host === '0.0.0.0' ? 'localhost' : config.host;
-  const url = `${config.tls ? 'https' : 'http'}://${host}:${config.port}`;
+  // (the desktop app is its own origin; a base path from the environment is honoured all the same)
+  const url = `${config.tls ? 'https' : 'http'}://${host}:${config.port}${config.basePath}`;
   if (await portAnswers(url)) {
     // Only open the window when it is *our* Steward: it has to prove that it knows the secret in our data folder.
     const { verifyInstance } = await import('../instance.js');

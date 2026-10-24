@@ -171,11 +171,14 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
   return getNotificationSettings();
 }
 
-/** Absolute base URL for links in e-mails, Teams cards and webhooks. */
+/**
+ * Absolute base URL for links in e-mails, Teams cards and webhooks: the base URL of the notification settings
+ * (as entered, including any path), else SM_PUBLIC_URL (including the base path), else this server on localhost.
+ */
 export function publicBaseUrl(): string {
-  const configured = storedConfig().baseUrl || process.env.SM_PUBLIC_URL?.trim().replace(/\/+$/, '');
+  const configured = storedConfig().baseUrl || config.publicUrl;
   if (configured) return configured;
-  return `${config.tls ? 'https' : 'http'}://localhost:${config.port}`;
+  return `${config.tls ? 'https' : 'http'}://localhost:${config.port}${config.basePath}`;
 }
 
 export function absoluteLink(link: string | undefined): string {

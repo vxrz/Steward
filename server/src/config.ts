@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { parseDatabaseTarget, type DatabaseTarget } from './database/sql.js';
+import { resolveBasePath } from './basePath.js';
 
 // In the single-file executable import.meta is not available; paths then come from SM_* variables.
 const here = typeof import.meta.url === 'string' ? path.dirname(fileURLToPath(import.meta.url)) : process.cwd();
@@ -79,7 +80,8 @@ function envInt(name: string, fallback: number, min: number, max: number): numbe
   return n;
 }
 
-const publicUrl = process.env.SM_PUBLIC_URL?.trim().replace(/\/+$/, '') || undefined;
+/** SM_PUBLIC_URL (normalised: origin + base path) and SM_BASE_PATH; a mismatch or an invalid value refuses to start (see basePath.ts). */
+const { basePath, publicUrl } = resolveBasePath(process.env);
 
 export const config = {
   version: '0.1.1',
@@ -106,8 +108,13 @@ export const config = {
   masterPassphrase: readMasterPassphrase(),
   /** Serve HTTPS (recommended when other people access the tool over the network). */
   tls: process.env.SM_TLS_CERT && process.env.SM_TLS_KEY ? { cert: process.env.SM_TLS_CERT, key: process.env.SM_TLS_KEY } : undefined,
-  /** The address users open (behind a reverse proxy: its https:// URL). */
+  /** The address users open (behind a reverse proxy: its https:// URL), including the base path. */
   publicUrl,
+  /**
+   * The path prefix Steward runs under behind a reverse proxy ('' = the root; e.g. '/steward'), from
+   * SM_BASE_PATH or the path of SM_PUBLIC_URL. Everything is served below it (see basePath.ts).
+   */
+  basePath,
   /** Reverse proxy addresses / hop count whose X-Forwarded-* headers are believed (SM_TRUST_PROXY). */
   trustProxy: parseTrustProxy(process.env.SM_TRUST_PROXY),
   /**
@@ -123,6 +130,9 @@ export const config = {
     return !!this.tls || !!publicUrl?.startsWith('https://');
   },
 };
+
+/** This server on loopback, below the base path (the demo's mock platforms and simulators call it). */
+export const loopbackUrl = (): string => `http://127.0.0.1:${config.port}${config.basePath}`;
 
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1', '[::1]'];
 

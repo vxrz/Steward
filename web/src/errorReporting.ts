@@ -6,6 +6,7 @@
  * the server (@sm/shared scrubEvent); no session replay, no tracing, no sessions.
  */
 import { scrubBreadcrumb, scrubEvent, type ClientConfig } from '@sm/shared';
+import { withBase } from './basePath';
 
 type SentryReact = typeof import('./sentry');
 
@@ -32,7 +33,7 @@ export async function initErrorReporting(): Promise<void> {
   window.addEventListener('error', onError);
   window.addEventListener('unhandledrejection', onRejection);
   try {
-    const res = await fetch('/api/client-config', { credentials: 'same-origin' });
+    const res = await fetch(withBase('/api/client-config'), { credentials: 'same-origin' });
     const cfg = res.ok ? ((await res.json()) as ClientConfig) : null;
     const er = cfg?.errorReporting;
     if (!er?.dsn) throw new Error('off');

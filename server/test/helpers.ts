@@ -41,7 +41,8 @@ export async function startTestServer(opts: { dataDir?: string } = {}): Promise<
   // what main.ts does for SM_PORT=0: the instance proof, the own-API guard and demo URLs use the real port
   config.port = port;
   process.env.SM_PORT = String(port);
-  const base = `http://127.0.0.1:${port}`;
+  // under a path prefix (SM_BASE_PATH) everything lives below it
+  const base = `http://127.0.0.1:${port}${config.basePath}`;
   const client = (): Client => {
     let cookie = '';
     // the session cookie plus the session key the web app keeps in localStorage (session binding)

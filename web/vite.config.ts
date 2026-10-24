@@ -55,7 +55,13 @@ function brand(): Plugin {
   const json = JSON.stringify(manifest, null, 2);
   return {
     name: 'sm-brand',
-    transformIndexHtml: (html) => html.replaceAll('%BRAND_NAME%', BRAND.name).replaceAll('%BRAND_COLOR%', BRAND.color),
+    // <base href="/">: the server replaces it with its base path (SM_BASE_PATH), so the relative asset URLs
+    // of the build (base: './') and the app's runtime base work under any path prefix with one build
+    transformIndexHtml: (html) =>
+      html
+        .replaceAll('%BRAND_NAME%', BRAND.name)
+        .replaceAll('%BRAND_COLOR%', BRAND.color)
+        .replace(/<head>/i, '<head>\n    <base href="/" />'),
     configureServer(server) {
       server.middlewares.use('/manifest.webmanifest', (_req, res) => {
         res.setHeader('content-type', 'application/manifest+json');
@@ -86,6 +92,8 @@ function precompress(): Plugin {
 }
 
 export default defineConfig({
+  // relative asset URLs: resolved against the <base href> the server writes (see brand())
+  base: './',
   plugins: [react(), brand(), licenses(), precompress()],
   // Version and build of the web UI (About page, footer; compared with the server's version)
   define: {

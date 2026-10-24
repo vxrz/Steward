@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { withBase } from './basePath';
 
 /** The non-standard event Chromium fires when the app can be installed. */
 interface BeforeInstallPromptEvent extends Event {
@@ -45,7 +46,7 @@ export function initPwa(): void {
   );
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
+      navigator.serviceWorker.register(withBase('/sw.js')).catch(() => {
         /* no service worker available – the app still works */
       });
     });

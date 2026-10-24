@@ -54,6 +54,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
+import { appUrl } from '../basePath';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -553,7 +554,7 @@ function HeartbeatCard({
           {t('heartbeat.endpoint')}
         </Text>
         <Text size="xs" className="mono" style={{ wordBreak: 'break-all' }}>
-          POST {window.location.origin}
+          POST {appUrl()}
           {hb.path}
         </Text>
         <Text size="xs" c="dimmed">
@@ -622,7 +623,7 @@ function HeartbeatSetup({ monitor, onSecret }: { monitor: MonitorDetail; onSecre
               <Text fw={600}>{c.name}</Text>
               <MonitorStatusBadge status={c.status} variant="light" />
             </Group>
-            <CopyBlock label={t('secrets.url')} text={`${window.location.origin}${c.heartbeat!.path}`} />
+            <CopyBlock label={t('secrets.url')} text={appUrl(c.heartbeat!.path)} />
             <CopyBlock label={t('heartbeat.oneCheck')} text={heartbeatCurl(c.heartbeat!.path, c.heartbeat!.authMode === 'hmac')} />
             <Text size="xs" c="dimmed">
               <Trans

@@ -43,6 +43,7 @@ import { themeQueryKey } from '../../theme';
 import { Logo } from '../brand/Logo';
 import { fmtDate, fmtNumber } from '../../format';
 import { confirmDanger } from '../confirm';
+import { BASE_PATH } from '../../basePath';
 
 const SWATCHES = ['#1c7ed6', '#0b7285', '#2f9e44', '#e8590c', '#e30613', '#7950f2', '#ffd400', '#343a40'];
 
@@ -133,7 +134,7 @@ export function ThemeSettingsCard() {
   };
   const removeLogo = () => run('removeLogo', () => api<ThemeSettings>('DELETE', '/settings/theme/logo'), t('theme.logoRemoved'));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft({ ...draft, [k]: v });
-  const logoUrl = s.logo ? `/api/theme/logo?v=${s.logo.sha256.slice(0, 16)}` : null;
+  const logoUrl = s.logo ? `${BASE_PATH}/api/theme/logo?v=${s.logo.sha256.slice(0, 16)}` : null;
 
   return (
     <Card withBorder>

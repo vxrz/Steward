@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 
 /**
  * Minimal OpenID Connect provider for demo mode and tests ("simulated Entra ID").
@@ -28,7 +29,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     { identity: (typeof DEMO_IDENTITIES)[number]; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }
   >();
 
-  const issuerOf = (host: string | undefined) => `http://${host}/mock/oidc`;
+  const issuerOf = (host: string | undefined) => `http://${host}${config.basePath}/mock/oidc`;
 
   app.get('/oidc/.well-known/openid-configuration', async (req) => {
     const iss = issuerOf(req.headers.host);
@@ -60,7 +61,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
       const p = new URLSearchParams(params);
       p.set('login', i.sub);
       // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- every value is HTML-escaped with esc(); dev/demo-only mock identity provider
-      return `<li><a class="acc" href="/mock/oidc/authorize/approve?${esc(p.toString())}"><b>${esc(i.name)}</b><br><small>${esc(i.preferred_username)} · roles: ${esc(i.roles.join(', ') || 'none')}</small></a></li>`;
+      return `<li><a class="acc" href="${config.basePath}/mock/oidc/authorize/approve?${esc(p.toString())}"><b>${esc(i.name)}</b><br><small>${esc(i.preferred_username)} · roles: ${esc(i.roles.join(', ') || 'none')}</small></a></li>`;
     }).join('');
     return reply
       .type('text/html')

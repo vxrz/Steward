@@ -1,6 +1,6 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { PROCESS, authFile } from './support/env';
+import { PROCESS, authFile, appHref } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { startRunApi, waitForRun } from './support/helpers';
 import { sessionState, startIsolatedServer, type IsolatedServer } from './support/server';
@@ -83,7 +83,7 @@ test.describe('navigation (admin)', () => {
 
     await page.goto('/records/types');
     await settle(page);
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Records' })).toHaveAttribute('href', '/records');
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Records' })).toHaveAttribute('href', appHref('/records'));
 
     // unknown addresses explain themselves and lead home
     await page.goto('/no-such-page');
