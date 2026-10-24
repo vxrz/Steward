@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreateServices, canEditService, canReadRecordRow, forbid, me } from '../records/access.js';
-import { addLink, httpUrl, listBacklinks, listLinks, removeLink, type LinkInput } from '../records/links.js';
+import { addLink, httpUrl, listBacklinks, listLinks, removeLink, targetVisible, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { documentStates } from '../records/document-model.js';
 
 /**
@@ -75,14 +75,12 @@ export const serviceInput = z
   .strict();
 export type ServiceInput = z.infer<typeof serviceInput>;
 
-const linkCount = (id: string) => Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM item_links WHERE from_kind = 'service' AND from_id = ?", id)!.n);
-
 function cmdbOf(r: ServiceRow): ServiceSummary['cmdb'] {
   if (!r.cmdb_system && !r.cmdb_id && !r.cmdb_url) return null;
   return { system: r.cmdb_system ?? '', id: r.cmdb_id ?? '', url: r.cmdb_url ?? '' };
 }
 
-function toSummary(r: ServiceRow, links: number | undefined, overdue: number): ServiceSummary {
+function toSummary(r: ServiceRow, links: number, docs: { documents: number; overdue: number }): ServiceSummary {
   return {
     id: r.id,
     name: r.name,
@@ -92,8 +90,9 @@ function toSummary(r: ServiceRow, links: number | undefined, overdue: number): S
     tags: parseJson<string[]>(r.tags, []),
     cmdb: cmdbOf(r),
     archived: !!r.archived,
-    linkCount: links ?? linkCount(r.id),
-    overdueDocuments: overdue,
+    linkCount: links,
+    documentCount: docs.documents,
+    overdueDocuments: docs.overdue,
     updatedAt: r.updated_at,
   };
 }
@@ -172,38 +171,78 @@ export function serviceDocuments(serviceId: string, u: AuthUser | null): Service
     .sort((a, b) => a.number.localeCompare(b.number));
 }
 
-/** Per service: how many documents linked to it (either way) that the user may read have an overdue review. */
-function overdueDocumentCounts(u: AuthUser): Map<string, number> {
-  const overdue = new Set([...documentStates()].filter(([, s]) => s.review.status === 'overdue').map(([id]) => id));
-  const out = new Map<string, number>();
-  if (!overdue.size) return out;
+/**
+ * Per service: the living documents linked to it (either way) that the user may read, and how many of them have an
+ * overdue review. Each linked document is read (in chunks) and checked once, whatever the number of services.
+ */
+function documentCounts(u: AuthUser): Map<string, { documents: number; overdue: number }> {
+  const out = new Map<string, { documents: number; overdue: number }>();
   const pairs = db().all<{ service: string; record: string }>(
     `SELECT to_id AS service, from_id AS record FROM item_links WHERE from_kind = 'record' AND to_kind = 'service'
      UNION SELECT from_id AS service, to_id AS record FROM item_links WHERE from_kind = 'service' AND to_kind = 'record'`,
   );
-  const readable = new Map<string, boolean>();
-  const canRead = (id: string) => {
-    if (!readable.has(id)) {
-      const r = db().get<DocLinkRow>(`${DOC_SELECT} AND r.id = ?`, id);
-      readable.set(id, !!r && canReadRecordRow(u, r));
+  if (!pairs.length) return out;
+  const ids = [...new Set(pairs.map((p) => p.record))];
+  const readable = new Set<string>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    for (const r of db().all<DocLinkRow>(`${DOC_SELECT} AND r.id IN (${chunk.map(() => '?').join(', ')})`, ...chunk)) {
+      if (canReadRecordRow(u, r)) readable.add(r.id);
     }
-    return readable.get(id)!;
-  };
-  for (const p of pairs) if (overdue.has(p.record) && canRead(p.record)) out.set(p.service, (out.get(p.service) ?? 0) + 1);
+  }
+  if (!readable.size) return out;
+  const overdue = new Set([...documentStates(undefined, undefined, [...readable])].filter(([, st]) => st.review.status === 'overdue').map(([id]) => id));
+  for (const p of pairs) {
+    if (!readable.has(p.record)) continue;
+    const c = out.get(p.service) ?? { documents: 0, overdue: 0 };
+    c.documents++;
+    if (overdue.has(p.record)) c.overdue++;
+    out.set(p.service, c);
+  }
   return out;
 }
 
-export function listServices(o: { archived?: boolean } = {}): ServiceSummary[] {
-  const u = me();
-  const counts = new Map(
-    db()
-      .all<{ id: string; n: number }>("SELECT from_id AS id, COUNT(*) AS n FROM item_links WHERE from_kind = 'service' GROUP BY from_id")
-      .map((c) => [c.id, Number(c.n)]),
+/**
+ * Per service: the links the current user may see – external URLs, and internal links whose target they may
+ * see, as on the service page (links to hidden or deleted items are not counted). One query for the links;
+ * each distinct target is checked once (its resolver's permission check), not once per service.
+ */
+function visibleLinkCounts(serviceIds: Set<string>): Map<string, number> {
+  const rows = db().all<{ id: string; to_kind: string | null; to_id: string | null }>(
+    "SELECT from_id AS id, to_kind, to_id FROM item_links WHERE from_kind = 'service'",
   );
-  const overdue = overdueDocumentCounts(u);
-  return db()
-    .all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`)
-    .map((r) => toSummary(r, counts.get(r.id) ?? 0, overdue.get(r.id) ?? 0));
+  const seen = new Map<string, boolean>();
+  const visible = (kind: string, id: string) => {
+    const key = `${kind}:${id}`;
+    if (!seen.has(key)) seen.set(key, targetVisible(kind, id));
+    return seen.get(key)!;
+  };
+  const out = new Map<string, number>();
+  for (const l of rows) {
+    if (!serviceIds.has(l.id)) continue;
+    if (l.to_kind && !visible(l.to_kind, l.to_id ?? '')) continue;
+    out.set(l.id, (out.get(l.id) ?? 0) + 1);
+  }
+  return out;
+}
+
+function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary }[] {
+  const u = me();
+  const rows = db().all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`);
+  const links = visibleLinkCounts(new Set(rows.map((r) => r.id)));
+  const docs = documentCounts(u);
+  return rows.map((r) => ({ r, s: toSummary(r, links.get(r.id) ?? 0, docs.get(r.id) ?? { documents: 0, overdue: 0 }) }));
+}
+
+export function listServices(o: { archived?: boolean } = {}): ServiceSummary[] {
+  return listRows(o).map((x) => x.s);
+}
+
+/** A service with its description and creation (the public API's list; the web app's list leaves the description out). */
+export type ServiceEntry = ServiceSummary & Pick<ServiceDetail, 'description' | 'createdAt' | 'createdBy' | 'updatedBy'>;
+
+export function listServiceEntries(o: { archived?: boolean } = {}): ServiceEntry[] {
+  return listRows(o).map(({ r, s }) => ({ ...s, description: r.description, createdAt: r.created_at, createdBy: r.created_by, updatedBy: r.updated_by }));
 }
 
 /** The living documents of a service (404 for an unknown service). */
@@ -216,14 +255,18 @@ export function getService(id: string): ServiceDetail {
   const u = me();
   const r = row(id);
   const documents = serviceDocuments(r.id, u);
-  const s = toSummary(r, undefined, documents.filter((d) => d.reviewStatus === 'overdue').length);
+  const links = listLinks('service', r.id);
+  const s = toSummary(r, links.filter((l) => l.visible).length, {
+    documents: documents.length,
+    overdue: documents.filter((d) => d.reviewStatus === 'overdue').length,
+  });
   return {
     ...s,
     description: r.description,
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedBy: r.updated_by,
-    links: listLinks('service', r.id),
+    links,
     backlinks: listBacklinks('service', r.id),
     documents,
     canEdit: canEditService(u, s.owners),
@@ -339,6 +382,12 @@ export function addServiceLink(id: string, input: LinkInput) {
   const cur = row(id);
   if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
   return addLink('service', id, input, `service "${cur.name}"`);
+}
+
+export function updateServiceLink(id: string, linkId: string, input: LinkUpdate) {
+  const cur = row(id);
+  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
+  return updateLink('service', id, linkId, input, `service "${cur.name}"`).link;
 }
 
 export function removeServiceLink(id: string, linkId: string): void {

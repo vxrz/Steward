@@ -219,6 +219,9 @@ describe('system.upgraded audit entry', () => {
       expect(entries[0].summary).toContain(`backup before migrating: ${backups[0]}`);
       const { db } = await import('../src/db.js');
       expect(db().get('SELECT 1 FROM settings WHERE key = ?', PENDING_UPGRADES_KEY)).toBeUndefined();
+      // the web app's notice for administrators names the same copy
+      const { notice } = await s.api('GET', '/system/update-notice');
+      expect(notice).toMatchObject({ toVersion: config.version, migrations: ['upgrade_test_audit'], backups: [backups[0]], noBackupReason: null });
       expect((await s.api('GET', '/audit/verify')).ok).toBe(true);
     } finally {
       await s.app.close();

@@ -103,7 +103,9 @@ describe('service catalogue', () => {
     expect((await dana('GET', `/backlinks?kind=platform&id=${platform.id}`)).map((b: any) => b.id)).toContain(svc.id);
     // not for a platform the reader may not see
     expect(await status(vera('GET', `/backlinks?kind=platform&id=${platform.id}`))).toBe(404);
-    expect((await vera('GET', '/services')).find((x: any) => x.id === svc.id).linkCount).toBe(4);
+    // nor counted for her: the list counts the links the reader may see
+    expect((await vera('GET', '/services')).find((x: any) => x.id === svc.id).linkCount).toBe(3);
+    expect((await dana('GET', '/services')).find((x: any) => x.id === svc.id).linkCount).toBe(4);
     // the link picker finds services
     expect((await dana('GET', '/link-targets?kind=service&q=plant')).map((t: any) => t.id)).toContain(svc.id);
     await dana('DELETE', `/services/${svc.id}/links/${l1.id}`);
@@ -127,5 +129,28 @@ describe('service catalogue', () => {
       expect.arrayContaining(['service.archived', 'service.restored', 'service.link_added', 'service.link_removed']),
     );
     expect(await status(vera('GET', '/services/svc_nope'))).toBe(404);
+  });
+});
+
+describe('link count in the services list', () => {
+  it('counts only links the reader may see (external links always)', async () => {
+    const svc = await s.api('POST', '/services', { name: 'Link count service' });
+    // a process restricted to the administrator
+    const def = { name: 'Hidden link target', nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }], wires: [] };
+    const p = await s.api('POST', '/processes', { definition: def });
+    await s.api('PUT', `/processes/${p.id}/access`, { acl: [{ subject: 'user:admin', permissions: ['view'] }] });
+    await s.api('POST', `/services/${svc.id}/links`, { kind: 'process', id: p.id });
+    await s.api('POST', `/services/${svc.id}/links`, { kind: 'process', id: 'ih-health-check' });
+    await s.api('POST', `/services/${svc.id}/links`, { url: 'https://wiki.example.com/link-count', label: 'Runbook' });
+    const count = async (c: Client) => (await c('GET', '/services')).find((x: any) => x.id === svc.id).linkCount;
+    expect(await count(s.api)).toBe(3);
+    expect(await count(dana)).toBe(2);
+    expect(await count(vera)).toBe(2);
+    // the service page says the same
+    expect((await vera('GET', `/services/${svc.id}`)).linkCount).toBe(2);
+    expect((await s.api('GET', `/services/${svc.id}`)).linkCount).toBe(3);
+    // once everyone may see the process, it counts for everyone
+    await s.api('PUT', `/processes/${p.id}/access`, { acl: [] });
+    expect(await count(vera)).toBe(3);
   });
 });

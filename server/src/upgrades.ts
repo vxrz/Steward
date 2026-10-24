@@ -1,6 +1,7 @@
 import { audit } from './audit.js';
 import { db, PENDING_UPGRADES_KEY, type UpgradeInfo } from './db.js';
 import { readSetting, writeSetting } from './settings.js';
+import { recordUpdateNotice } from './system/update-notice.js';
 
 const schema = (s: UpgradeInfo['fromSchema']) => `${s.core}+${s.named}`;
 
@@ -8,7 +9,8 @@ const schema = (s: UpgradeInfo['fromSchema']) => `${s.core}+${s.named}`;
  * Writes one system.upgraded audit entry per upgrade the database recorded at start-up (db.ts,
  * recordVersion). Called once the vault is open: the audit log needs its key, and the entry has to
  * come after the migrations (the audit log itself may be part of them). The records stay in the
- * database until then, so a restart before the unlock does not lose them.
+ * database until then, so a restart before the unlock does not lose them. Also records the update
+ * notice administrators see in the web app (system/update-notice.ts).
  */
 export function auditPendingUpgrades(): number {
   const list = readSetting<UpgradeInfo[]>(PENDING_UPGRADES_KEY, []);
@@ -25,6 +27,8 @@ export function auditPendingUpgrades(): number {
         details: u,
       });
     }
+    // the web app's notice for administrators (replaces the one of an earlier update)
+    recordUpdateNotice(list);
     writeSetting(PENDING_UPGRADES_KEY, null);
   });
   return list.length;

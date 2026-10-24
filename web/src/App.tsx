@@ -20,6 +20,7 @@ import { CommandPalette, CommandPaletteButton } from './components/CommandPalett
 import { AppNav, useNavGroups } from './components/AppNav';
 import { NotificationCenter } from './components/notifications/NotificationCenter';
 import { HelpMenu } from './components/HelpMenu';
+import { UpdateNotice } from './components/UpdateNotice';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
 
@@ -187,6 +188,7 @@ function Shell({ status }: { status: AuthStatus }) {
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+          {caps.manageSettings && <UpdateNotice />}
           <ErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<PageLoader />}>
               <Routes>

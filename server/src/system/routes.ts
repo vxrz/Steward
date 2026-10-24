@@ -1,6 +1,6 @@
 import os from 'node:os';
 import type { FastifyInstance } from 'fastify';
-import type { AboutInfo, SystemStatus } from '@sm/shared';
+import type { AboutInfo, SystemStatus, UpdateNotice } from '@sm/shared';
 import { config } from '../config.js';
 import { db, databaseLabel } from '../db.js';
 import { vault } from '../vault.js';
@@ -16,10 +16,14 @@ import { publicApiStatus } from '../api/v1/config.js';
 import { HttpError, nowIso } from '../util.js';
 import { buildInfo, deploymentKind } from '../buildinfo.js';
 import { readinessChecks } from './readiness.js';
+import { dismissUpdateNotice, updateNoticeFor } from './update-notice.js';
+import { z } from 'zod';
 
 /**
  *   GET /api/about          signed-in users: version and build of the server
  *   GET /api/system/status  administrators (full) and auditors (limited: no paths, hosts or connection details)
+ *   GET /api/system/update-notice, POST /api/system/update-notice/dismiss
+ *                           administrators: the notice after an update (it names the backup copy's path)
  */
 
 const SYSTEM = { id: 'system', username: 'system', displayName: 'System', roles: ['admin' as const], teams: [] };
@@ -128,5 +132,26 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     if (!full && !u.roles.includes('auditor')) throw new HttpError(403, 'The system status is available to administrators and auditors', 'FORBIDDEN');
     reply.header('cache-control', 'no-store');
     return systemStatus(full);
+  });
+
+  const requireAdmin = () => {
+    const u = currentUser();
+    if (!u) throw new HttpError(401, 'Please sign in', 'NOT_SIGNED_IN');
+    if (!isAdmin(u)) throw new HttpError(403, 'The update notice is available to administrators', 'FORBIDDEN');
+    return u;
+  };
+
+  app.get('/api/system/update-notice', async (_req, reply): Promise<{ notice: UpdateNotice | null }> => {
+    const u = requireAdmin();
+    reply.header('cache-control', 'no-store');
+    return { notice: updateNoticeFor(u.id) };
+  });
+
+  const dismissBody = z.object({ id: z.string().min(1).max(64) }).strict();
+  app.post('/api/system/update-notice/dismiss', async (req) => {
+    const u = requireAdmin();
+    const { id } = dismissBody.parse(req.body);
+    if (!dismissUpdateNotice(u, id)) throw new HttpError(404, 'This update notice no longer exists', 'UPDATE_NOTICE_NOT_FOUND');
+    return { ok: true };
   });
 }

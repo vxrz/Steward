@@ -49,6 +49,7 @@ const TAGS = [
   { name: 'Credentials', description: 'Credentials register: documentation of credentials (owners, location, expiry, rotation) – never secret values' },
   { name: 'Semantic model', description: 'The data model of this API as an Apache Ossie semantic model' },
   { name: 'Records', description: 'Change requests and decision records: content, versions, approvals and attachments' },
+  { name: 'Services', description: 'The service catalogue: services with contacts, responsible people, criticality, CMDB entry and links' },
   {
     name: 'Ticket references',
     description: 'Tickets in other systems (ServiceNow incidents, vendor tickets) that Steward documents: status, responsible people, affected items',

@@ -12,7 +12,7 @@ const tokens: Record<string, string> = {};
 let tinyProcess: string;
 let restricted: string;
 let hub: string;
-/** A service with a linked living document (no list of services in the API: the id comes from the UI) */
+/** A service with a linked living document */
 let apiService = '';
 /** Every secret value we know of; none may ever show up in a /api/v1 response. */
 const SECRETS: string[] = [];
@@ -461,6 +461,7 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
       await get('/records/{recordId}/editions/{edition}', `/records/${x.id}/editions/${e.edition}`);
     await listAll('/records/{recordId}/reviews', `/records/${x.id}/reviews`);
   }
+  for (const x of (await listAll('/services', '/services?archived=include')).slice(0, 5)) await get('/services/{serviceId}', `/services/${x.id}`);
   if (apiService) await listAll('/services/{serviceId}/documents', `/services/${apiService}/documents`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
@@ -570,6 +571,116 @@ describe('every endpoint', () => {
     const stale = await v1(tokens.vera, `/datasets/api.test/rows?limit=2&cursor=${p1.body.nextCursor}`);
     expect(stale.status).toBe(409);
     expect(stale.body.type).toMatch(/#dataset-changed$/);
+  });
+});
+
+describe('services', () => {
+  let svc: string;
+  let archived: string;
+  beforeAll(async () => {
+    svc = (
+      await s.api('POST', '/services', {
+        name: 'API catalogue service',
+        description: 'Collects **machine** data.',
+        criticality: 'high',
+        contacts: [
+          { role: 'business', email: 'erika@example.com', name: 'Erika' },
+          { role: 'it', email: 'ops@example.com' },
+        ],
+        owners: ['team:service desk'],
+        cmdb: { system: 'ServiceNow', id: 'CI0099', url: 'https://example.service-now.com/ci/99' },
+        tags: ['api'],
+      })
+    ).id;
+    await s.api('POST', `/services/${svc}/links`, { kind: 'process', id: restricted, note: 'secret' });
+    await s.api('POST', `/services/${svc}/links`, { kind: 'process', id: tinyProcess });
+    await s.api('POST', `/services/${svc}/links`, { url: 'https://wiki.example.com/api-runbook', label: 'Runbook', linkType: 'runbook' });
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'API catalogue concept', links: [{ kind: 'service', id: svc }] });
+    // an access change entry linked to the service: viewers may not read it
+    const ac = await s.api('GET', '/records?type=AC');
+    if (ac[0]) await s.api('POST', `/services/${svc}/links`, { kind: 'record', id: ac[0].id });
+    expect(doc.id).toBeTruthy();
+    archived = (await s.api('POST', '/services', { name: 'API archived service' })).id;
+    await s.api('POST', `/services/${archived}/archive`, { archived: true });
+  });
+
+  it('lists services with what the token owner may see', async () => {
+    const find = async (t: string) => {
+      const all: any[] = [];
+      let cursor: string | null = null;
+      do {
+        const r: Res = await v1(t, `/services?limit=2${cursor ? `&cursor=${cursor}` : ''}`);
+        expect(r.status).toBe(200);
+        validate('/services', r);
+        all.push(...r.body.items);
+        cursor = r.body.nextCursor;
+      } while (cursor);
+      return all;
+    };
+    const asAdmin = await find(tokens.admin);
+    const names = asAdmin.map((x) => x.name.toLowerCase());
+    expect(names).toEqual([...names].sort());
+    expect(asAdmin.map((x) => x.id)).not.toContain(archived);
+    const mine = asAdmin.find((x) => x.id === svc);
+    expect(mine).toMatchObject({
+      name: 'API catalogue service',
+      description: 'Collects **machine** data.',
+      criticality: 'high',
+      contacts: [
+        { role: 'business', email: 'erika@example.com', name: 'Erika' },
+        { role: 'it', email: 'ops@example.com', name: null },
+      ],
+      owners: ['team:service desk'],
+      tags: ['api'],
+      cmdb: { system: 'ServiceNow', id: 'CI0099', url: 'https://example.service-now.com/ci/99' },
+      archived: false,
+      documentCount: 1,
+      overdueDocuments: 0,
+      createdBy: 'admin',
+    });
+    const all = (await s.api('GET', `/services/${svc}`)).links.length;
+    expect(mine.linkCount).toBe(all);
+    // vera may not see the restricted process (nor an access change entry)
+    const forVera = (await find(tokens.vera)).find((x) => x.id === svc);
+    expect(forVera.linkCount).toBe(2);
+    expect(forVera.documentCount).toBe(1);
+  });
+
+  it('filters archived services', async () => {
+    const ids = async (q: string) => (await v1(tokens.vera, `/services?limit=200&archived=${q}`)).body.items.map((x: any) => x.id);
+    expect(await ids('include')).toEqual(expect.arrayContaining([svc, archived]));
+    const only = await ids('only');
+    expect(only).toContain(archived);
+    expect(only).not.toContain(svc);
+    expect((await v1(tokens.vera, '/services?archived=yes')).status).toBe(400);
+    // a cursor belongs to its filter
+    const p1 = await v1(tokens.vera, '/services?limit=1');
+    expect((await v1(tokens.vera, `/services?limit=1&archived=include&cursor=${p1.body.nextCursor}`)).status).toBe(400);
+  });
+
+  it('gets one service with its links – hidden items without id or name', async () => {
+    const r = await v1(tokens.vera, `/services/${svc}`);
+    expect(r.status).toBe(200);
+    validate('/services/{serviceId}', r);
+    const hidden = r.body.links.filter((l: any) => !l.visible);
+    expect(hidden.length).toBeGreaterThanOrEqual(1);
+    for (const l of hidden) expect(l).toMatchObject({ targetId: null, label: '' });
+    expect(r.text).not.toContain('API secret process');
+    expect(r.text).not.toContain(restricted);
+    expect(r.body.links).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'process', targetId: tinyProcess, visible: true }),
+        expect.objectContaining({ kind: null, url: 'https://wiki.example.com/api-runbook', linkType: 'runbook', linkTypeName: 'Runbook' }),
+      ]),
+    );
+    expect(r.body.linkCount).toBe(2);
+    const forDana = await v1(tokens.dana, `/services/${svc}`);
+    expect(forDana.body.links.find((l: any) => l.targetId === restricted)).toMatchObject({ label: 'API secret process', visible: true });
+    expect((await v1(tokens.vera, `/services/${archived}`)).body.archived).toBe(true);
+    const missing = await v1(tokens.vera, '/services/svc_nope');
+    expect(missing.status).toBe(404);
+    expect(missing.body.type).toMatch(/#not-found$/);
+    expect((await v1(null, `/services/${svc}`)).status).toBe(401);
   });
 });
 

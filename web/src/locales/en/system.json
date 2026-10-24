@@ -260,5 +260,22 @@
       "localOnly": "localhost only",
       "proxy": "Outbound proxy (environment)"
     }
+  },
+  "updateNotice": {
+    "title": "{{brand}} was updated to {{to}}",
+    "titleFrom": "{{brand}} was updated from {{from}} to {{to}}",
+    "migrations_one": "Updated on {{when}}. 1 database migration was applied:",
+    "migrations_other": "Updated on {{when}}. {{count}} database migrations were applied:",
+    "noMigrations": "Updated on {{when}}. No changes to the database were needed.",
+    "moreMigrations": "and {{count}} more (see the audit log, “system.upgraded”)",
+    "backup_one": "Copy of the database from before the update:",
+    "backup_other": "Copies of the database from before the update:",
+    "noBackup": {
+      "notNeeded": "No copy of the database was needed.",
+      "postgres": "Steward makes no copy of a PostgreSQL database. Back it up with pg_dump before every update.",
+      "disabled": "No copy of the database was made: automatic copies are turned off (SM_UPGRADE_BACKUPS=0)."
+    },
+    "releaseNotes": "Release notes for {{version}}",
+    "dismiss": "Dismiss the update notice"
   }
 }
