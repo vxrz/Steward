@@ -26,7 +26,7 @@ import { mcpRoutes } from './mcp/http.js';
 import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 import { checkBodyShape } from './bodyShape.js';
-import { injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
+import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
 /** Reachable without signing in. */
 const PUBLIC_PATHS = [
@@ -253,6 +253,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // --- local-only safety net ---
   app.addHook('onRequest', async (req, reply) => {
     if ((req.raw as { [OUTSIDE_BASE]?: boolean })[OUTSIDE_BASE]) return outsideBasePath(req, reply);
+    // "/steward" → "/steward/" (the onSend hook above puts the base path in front of "/")
+    if ((req.raw as { [BARE_BASE]?: boolean })[BARE_BASE] && isRead(req.method)) return reply.code(302).redirect(req.url);
     // Only origin-form request targets ("/path"). Absolute-form ("GET http://host/api/…") would otherwise
     // reach routes while looking like a non-API URL to the checks below.
     if (!req.url.startsWith('/')) return reply.code(400).send({ error: 'Bad request target' });

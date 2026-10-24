@@ -65,21 +65,26 @@ export function resolveBasePath(env: { SM_BASE_PATH?: string; SM_PUBLIC_URL?: st
 
 /** Marker on requests whose path is outside the base path (set by stripBasePath, read by app.ts). */
 export const OUTSIDE_BASE = Symbol('smOutsideBasePath');
+/** Marker on requests for the base path itself without the trailing slash ("/steward", "/steward?x"): redirected to "/steward/". */
+export const BARE_BASE = Symbol('smBareBasePath');
 /** Where requests outside the base path are routed: matches no route of Steward's own (app.ts answers them with 404 first). */
 export const OUTSIDE_BASE_URL = '/__outside_base_path__';
 
 /**
- * Fastify's rewriteUrl: "/steward/api/health?x" → "/api/health?x", "/steward" → "/". Paths outside the
+ * Fastify's rewriteUrl: "/steward/api/health?x" → "/api/health?x", "/steward" → "/" (marked: app.ts redirects
+ * it to "/steward/", the app's own address – the scope of its service worker and its router). Paths outside the
  * base path ("/", "/stewardx", "/Steward/…", "/steward%2Fapi", "//steward/…") are marked and routed to
  * OUTSIDE_BASE_URL. The match is literal and case-sensitive on the raw request target, before any
  * decoding; non-origin-form targets ("http://host/…", "*") are left alone (app.ts answers them with 400).
  */
-export function stripBasePath(req: { url?: string; [OUTSIDE_BASE]?: boolean }, basePath: string): string {
+export function stripBasePath(req: { url?: string; [OUTSIDE_BASE]?: boolean; [BARE_BASE]?: boolean }, basePath: string): string {
   const url = req.url ?? '/';
   if (!basePath || !url.startsWith('/')) return url;
   if (url === basePath || url.startsWith(basePath + '/') || url.startsWith(basePath + '?')) {
     const rest = url.slice(basePath.length);
-    return rest.startsWith('/') ? rest : '/' + rest;
+    if (rest.startsWith('/')) return rest;
+    req[BARE_BASE] = true;
+    return '/' + rest;
   }
   req[OUTSIDE_BASE] = true;
   return OUTSIDE_BASE_URL;

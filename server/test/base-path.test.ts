@@ -256,7 +256,12 @@ describe('behind a reverse proxy under /steward', () => {
   });
 
   it('serves the web UI: page with <base href>, assets, deep links, manifest and service worker', async () => {
-    for (const p of ['', '/', '/index.html', '/runs/run_123', '/records?subject=a@example.com']) {
+    // the base path itself: to its trailing-slash form (the app's address), the query kept
+    const bare = await get(`${P}?sso_error=x`);
+    expect(bare.status).toBe(302);
+    expect(bare.headers.get('location')).toBe('/steward/?sso_error=x');
+    expect((await get(P)).headers.get('location')).toBe('/steward/');
+    for (const p of ['/', '/index.html', '/runs/run_123', '/records?subject=a@example.com']) {
       const r = await get(`${P}${p}`);
       expect(r.status, p).toBe(200);
       expect(r.headers.get('content-type'), p).toContain('text/html');
