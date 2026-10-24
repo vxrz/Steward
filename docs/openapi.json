@@ -4031,6 +4031,99 @@
         ],
         "additionalProperties": false
       },
+      "ServiceDocument": {
+        "title": "ServiceDocument",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "Record number, e.g. DOC-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string",
+            "description": "Key of the record type (a type with the workflow \"document\"), e.g. DOC"
+          },
+          "typeName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "Status in the record type's workflow: draft, submitted, approved, rejected, implemented, closed, cancelled, proposed, accepted, superseded, deprecated, documented, verified, in_review, published, revising, withdrawn"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The edition valid now, e.g. 1.1; null while there is no approved edition (a draft)"
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "current",
+              "dueSoon",
+              "overdue",
+              "none"
+            ],
+            "description": "Periodic review status (current, dueSoon, overdue; none: no review planned)"
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the next periodic review is due"
+          },
+          "daysLeft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Whole days until the next review (negative when overdue)"
+          },
+          "linkedFrom": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "record",
+                "service"
+              ]
+            },
+            "description": "How the document and the service are linked: record – the document links to the service; service – the service links to the document"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "typeKey",
+          "typeName",
+          "status",
+          "edition",
+          "reviewStatus",
+          "nextReviewAt",
+          "daysLeft",
+          "linkedFrom"
+        ],
+        "additionalProperties": false
+      },
       "Record": {
         "title": "Record",
         "type": "object",
@@ -10792,6 +10885,119 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/documents": {
+      "get": {
+        "operationId": "listServiceDocuments",
+        "summary": "Living documents of a service",
+        "tags": [
+          "Records"
+        ],
+        "description": "Records of the workflow \"document\" that link to the service or that the service links to, ordered by number, each with its current edition and review status. Documents the token owner may not read are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of documents",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ServiceDocument"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

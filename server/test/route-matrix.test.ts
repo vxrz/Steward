@@ -454,6 +454,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records/:recordId/editions': ALL,
   'GET /api/v1/records/:recordId/editions/:edition': ALL,
   'GET /api/v1/records/:recordId/reviews': ALL,
+  'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -571,6 +572,7 @@ function fill(url: string): string {
     .replace(/:ticketId/g, fx.ticket!)
     .replace(/:monitorId/g, fx.monitor!)
     .replace(/:recordId/g, fx.record!)
+    .replace(/:serviceId/g, fx.service!)
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
     .replace(/:snapshotId/g, fx.snapshot!)

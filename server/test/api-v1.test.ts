@@ -12,6 +12,8 @@ const tokens: Record<string, string> = {};
 let tinyProcess: string;
 let restricted: string;
 let hub: string;
+/** A service with a linked living document (no list of services in the API: the id comes from the UI) */
+let apiService = '';
 /** Every secret value we know of; none may ever show up in a /api/v1 response. */
 const SECRETS: string[] = [];
 const PLATFORM_KEYS = ['id', 'name', 'kind', 'description', 'environment', 'baseUrl', 'authType', 'permissions', 'createdAt', 'updatedAt'].sort();
@@ -459,6 +461,7 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
       await get('/records/{recordId}/editions/{edition}', `/records/${x.id}/editions/${e.edition}`);
     await listAll('/records/{recordId}/reviews', `/records/${x.id}/reviews`);
   }
+  if (apiService) await listAll('/services/{serviceId}/documents', `/services/${apiService}/documents`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
   await get('/control-catalogues', '/control-catalogues');
@@ -515,7 +518,8 @@ describe('every endpoint', () => {
     await s.api('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
     await s.api('POST', `/records/${rec.id}/transition`, { action: 'submit', comment: 'ready' });
     // a living document with an approved edition and a review
-    const doc = await dana('POST', '/records', { type: 'DOC', title: 'API concept' });
+    apiService = (await s.api('POST', '/services', { name: 'API service', owners: [] })).id;
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'API concept', links: [{ kind: 'service', id: apiService }] });
     await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
     await s.api('POST', `/records/${doc.id}/transition`, { action: 'approve' });
     await s.api('POST', `/records/${doc.id}/review`, { outcome: 'no_change', comment: 'ok' });

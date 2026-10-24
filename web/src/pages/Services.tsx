@@ -3,7 +3,7 @@ import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, 
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { IconExternalLink, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
+import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
@@ -41,6 +41,17 @@ function VendorTicketsBadge({ count, serviceId, ml }: { count: number | undefine
       style={{ cursor: 'pointer' }}
     >
       {t('vendorBadge', { count })}
+    </Badge>
+  );
+}
+
+/** "1 review overdue": living documents of the service (only those the reader may read) whose periodic review is overdue. */
+function OverdueReviewsBadge({ count, ml }: { count: number; ml?: number }) {
+  const { t } = useTranslation('services');
+  if (!count) return null;
+  return (
+    <Badge size="xs" color="red" variant="light" tt="none" ml={ml} leftSection={<IconFileAlert size={11} aria-hidden />} data-testid="overdue-reviews">
+      {t('overdueBadge', { count })}
     </Badge>
   );
 }
@@ -102,6 +113,7 @@ export function ServicesPage() {
                       {s.name}
                     </Anchor>
                     <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} />
+                    <OverdueReviewsBadge count={s.overdueDocuments} />
                   </Group>
                   <CriticalityBadge value={s.criticality} />
                 </Group>
@@ -137,6 +149,7 @@ export function ServicesPage() {
                         </Badge>
                       )}
                       <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} ml={6} />
+                      <OverdueReviewsBadge count={s.overdueDocuments} ml={6} />
                       {s.tags.length > 0 && (
                         <Group gap={4} mt={2}>
                           {s.tags.map((tag) => (

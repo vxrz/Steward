@@ -197,6 +197,7 @@ The tab _Changelog_ lists every edition (edition, kind, date, authors, approver,
 - **Daily summary**: the section _Document reviews due_ for the reviews you own. Documents in review count as waiting for your approval.
 - **Scheduled reports**: the records section lists living documents with the edition and the review status at the end of the period, and the editions and reviews in it.
 - **Links** to a document show its current edition.
+- **Service page**: the section _Documentation_ (see [Service catalogue](#documentation-of-a-service)); the document page names its services next to the number and owner.
 - **Compliance**: map a document type or a document to a control (e.g. ISO 27001 5.1, 5.37). A document counts as evidence while an edition is valid in the period, even without changes; the evidence shows the edition, its content hash, its approval and the last review. Evidence packs hold the PDF of that edition and its `record.json`.
 
 ## Import and export (Markdown)
@@ -346,7 +347,7 @@ Web UI API (session; changes need the `x-sm-client` header like every other rout
 | Route                                                                                                                                                   | What                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `GET /api/records?type=&status=&tag=&q=&owner=&workflow=&review=`                                                                                       | list (status, review: comma-separated)                                                                          |
-| `POST /api/records` `{ type, title, body?, fields?, tags? }`                                                                                            | create a draft (body defaults to the template)                                                                  |
+| `POST /api/records` `{ type, title, body?, fields?, tags?, links? }`                                                                                    | create a draft (body defaults to the template; `links`: up to 20, added with the record)                        |
 | `GET/PUT /api/records/:idOrNumber`                                                                                                                      | read; change `{ title, body, fields, tags, owner, comment, baseVersion }`                                       |
 | `GET /api/records/:id/versions[/:version]`                                                                                                              | versions                                                                                                        |
 | `POST /api/records/:id/transition` `{ action, comment?, supersededBy?, editionKind?, changeSummary?, contentHash? }`                                    | workflow (documents: kind and summary on submit; `contentHash`: refused if the content no longer has this hash) |
@@ -366,7 +367,7 @@ Web UI API (session; changes need the `x-sm-client` header like every other rout
 | `GET /api/link-targets?kind=&q=`, `GET /api/backlinks?kind=&id=`                                                                                        | link picker, backlinks                                                                                          |
 | `GET/POST /api/services`, `GET/PUT /api/services/:id`, `POST /api/services/:id/archive` `{ archived }`, `POST/DELETE /api/services/:id/links[/:linkId]` | service catalogue                                                                                               |
 
-Public read-only API (`/api/v1`, API token, see [API.md](API.md)): `GET /records` (filters `type`, `status`, `tag`, `q`, `workflow`, `reviewStatus`; documents carry `edition`, `reviewStatus`, `nextReviewAt`), `GET /records/{recordId}` (id or number; content, fields, hashes, attachments, links, history; documents: `document` with the current edition and the review status), `GET /records/{recordId}/versions`, `GET /records/{recordId}/editions`, `GET /records/{recordId}/editions/{edition}`, `GET /records/{recordId}/reviews`.
+Public read-only API (`/api/v1`, API token, see [API.md](API.md)): `GET /records` (filters `type`, `status`, `tag`, `q`, `workflow`, `reviewStatus`; documents carry `edition`, `reviewStatus`, `nextReviewAt`), `GET /records/{recordId}` (id or number; content, fields, hashes, attachments, links, history; documents: `document` with the current edition and the review status), `GET /records/{recordId}/versions`, `GET /records/{recordId}/editions`, `GET /records/{recordId}/editions/{edition}`, `GET /records/{recordId}/reviews`, `GET /services/{serviceId}/documents` (the living documents of a service with edition and review status).
 
 ## Service catalogue
 
@@ -382,5 +383,15 @@ _Services_ lists the services your team runs. A service has:
 Keep the real configuration data in your CMDB and link to it. Steward only keeps what it needs to connect its own items to a service.
 
 To create one: _Services → New service_ (designers and administrators), fill in the form, _Save_. On the service page, _Add link_ connects platforms, monitors and so on; records that name the service (e.g. a change request with the note _affected_) appear under _Linked from_, and the record shows the service the same way.
+
+### Documentation of a service
+
+The section _Documentation_ on the service page lists every living document (a type with the workflow _document_) that links to the service or that the service links to: number, title, current edition (or _Draft_ before the first approval), status, review status (current, due soon, overdue, no review planned) and the next review date. Only documents you may read are listed – the others are not mentioned, not even as a number.
+
+To write a new one: _New document_ in that section (designers, operators and administrators). Choose the type if there is more than one document type, enter a title and _Create draft_. Steward creates the draft with the link to the service already set and opens the editor; the rest is as in [Publish the first edition](#publish-the-first-edition). The document page shows the service next to its number and owner (_Services:_), whichever way the link goes.
+
+In the services list, a red badge such as _1 review overdue_ marks a service with an overdue document review (counting only documents you may read).
+
+In the public API: `GET /api/v1/services/{serviceId}/documents` (paginated) returns the same list with `edition`, `reviewStatus`, `nextReviewAt`, `daysLeft` and `linkedFrom` (`record`: the document links to the service; `service`: the service links to the document).
 
 Services are archived, not deleted (_Archive_ on the service page). Archived services disappear from the list and the link picker; their links and history stay. _Show archived services_ lists them, and _Restore_ brings one back.

@@ -239,7 +239,8 @@
     "supersededBy": "Diese Entscheidung wurde ersetzt durch",
     "replacedBy": "Dieses lebende Dokument wurde ersetzt durch",
     "importedStatus": "Aus {{file}} mit dem Status „{{status}}“ importiert. Importierte Dokumente beginnen als Entwurf und brauchen eine Freigabe in Steward.",
-    "noBody": "Noch kein Text."
+    "noBody": "Noch kein Text.",
+    "services": "Services"
   },
   "versions": {
     "title": "Versionen",

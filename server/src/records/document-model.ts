@@ -340,13 +340,20 @@ export function currentApprovedAt(d: DocRow | undefined): string | null {
 export function documentStates(
   now = Date.now(),
   dueSoonDays = reminderSettings().dueSoonDays,
+  /** Only these records (a few hundred at most; more: all documents are read) */
+  ids?: string[],
 ): Map<string, { edition: string | null; review: DocumentReviewState; typeId: string }> {
+  const only = ids && ids.length <= 500 ? ids : undefined;
+  if (only && !only.length) return new Map();
   const rows = db().all<
     DocRow & { approved_at: string | null; owner: string; status: string; type_id: string; workflow: string; type_interval: number | null }
   >(
     `SELECT d.*, e.approved_at AS approved_at, r.owner AS owner, r.status AS status, r.type_id AS type_id, t.workflow AS workflow, t.review_interval_months AS type_interval
      FROM record_documents d JOIN records r ON r.id = d.record_id JOIN record_types t ON t.id = r.type_id
-     LEFT JOIN record_editions e ON e.record_id = d.record_id AND e.edition = d.current_edition`,
+     LEFT JOIN record_editions e ON e.record_id = d.record_id AND e.edition = d.current_edition${
+       only ? ` WHERE d.record_id IN (${only.map(() => '?').join(', ')})` : ''
+     }`,
+    ...(only ?? []),
   );
   const out = new Map<string, { edition: string | null; review: DocumentReviewState; typeId: string }>();
   for (const x of rows) {

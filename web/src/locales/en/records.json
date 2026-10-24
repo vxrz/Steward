@@ -239,7 +239,8 @@
     "supersededBy": "This decision was superseded by",
     "replacedBy": "This document was replaced by",
     "importedStatus": "Imported from {{file}} with the status \"{{status}}\". Imported records start as drafts and need an approval in Steward.",
-    "noBody": "No text yet."
+    "noBody": "No text yet.",
+    "services": "Services"
   },
   "versions": {
     "title": "Versions",

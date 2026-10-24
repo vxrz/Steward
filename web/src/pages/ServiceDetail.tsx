@@ -12,6 +12,7 @@ import { Field, LinksPanel } from '../components/records/common';
 import { fmtDate } from '../format';
 import { CriticalityBadge, ServiceFormModal } from './Services';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
+import { ServiceDocumentsPanel } from '../components/records/ServiceDocuments';
 import { confirmDanger } from '../components/confirm';
 
 export function ServiceDetailPage() {
@@ -74,6 +75,7 @@ export function ServiceDetailPage() {
                 {t('noDescription')}
               </Text>
             )}
+            <ServiceDocumentsPanel service={s} documents={s.documents} />
             <LinksPanel
               links={s.links}
               backlinks={s.backlinks}

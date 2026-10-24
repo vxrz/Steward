@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Documentation section on the service page** (#65): every living document linked to the service either way, with number, title, current edition (or draft), status, review status and next review date – only documents the reader may read, which also holds for every count. _New document_ creates a document with the link to the service already set (choosing the type when there is more than one document type) and opens the editor; `POST /api/records` takes `links` for that (up to 20, same checks and audit entries as adding them later). The document page names its services next to the title, the services list marks services with an overdue document review, and `/api/v1` has `GET /services/{serviceId}/documents`. See [docs/RECORDS.md](docs/RECORDS.md#documentation-of-a-service).
+
 ### Changed
 
 - More consistent sizes in the web app: every page header uses the same small buttons (Platforms, the platform page, the process editor and Settings used larger ones). Headings inside records, documents, services and ticket references are smaller (18 / 16 / 14 px instead of 22 / 18 / 16 px), so content no longer looks larger than the rest of the app. Links inside text take the size of the text around them, and links in tables use the table's size (the control catalogue showed 16 px links in a 14 px table).

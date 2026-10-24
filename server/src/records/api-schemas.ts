@@ -174,7 +174,24 @@ export const RecordVersion = z.object({
   createdAt: ts(),
 });
 
+export const ServiceDocument = z.object({
+  id: z.string(),
+  number: z.string().describe('Record number, e.g. DOC-2026-0001'),
+  title: z.string(),
+  typeKey: z.string().describe('Key of the record type (a type with the workflow "document"), e.g. DOC'),
+  typeName: z.string(),
+  status: status(),
+  edition: z.string().nullable().describe('The edition valid now, e.g. 1.1; null while there is no approved edition (a draft)'),
+  reviewStatus: z.enum(REVIEW_STATUSES).describe('Periodic review status (current, dueSoon, overdue; none: no review planned)'),
+  nextReviewAt: ts().nullable().describe('When the next periodic review is due'),
+  daysLeft: z.number().int().nullable().describe('Whole days until the next review (negative when overdue)'),
+  linkedFrom: z
+    .array(z.enum(['record', 'service']))
+    .describe('How the document and the service are linked: record – the document links to the service; service – the service links to the document'),
+});
+
 export const RECORD_COMPONENTS: Record<string, ZodTypeAny> = {
+  ServiceDocument,
   Record: Record_,
   RecordDetail,
   RecordAttachment,
@@ -204,3 +221,4 @@ export const RecordListQuery = z.object({
 export const RecordVersionsQuery = z.object({ limit, cursor });
 export const RecordEditionsQuery = z.object({ limit, cursor });
 export const RecordReviewsQuery = z.object({ limit, cursor });
+export const ServiceDocumentsQuery = z.object({ limit, cursor });

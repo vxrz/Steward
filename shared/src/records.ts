@@ -644,7 +644,30 @@ export interface ServiceSummary {
   cmdb: { system: string; id: string; url: string } | null;
   archived: boolean;
   linkCount: number;
+  /** Living documents linked to the service (either way) whose review is overdue – only documents the reader may read */
+  overdueDocuments: number;
   updatedAt: string;
+}
+
+/**
+ * A living document (workflow "document") linked to a service: the document links to the service, the
+ * service links to the document, or both. Only documents the reader may read are listed.
+ */
+export interface ServiceDocument {
+  id: string;
+  number: string;
+  title: string;
+  typeKey: string;
+  typeName: string;
+  status: string;
+  /** The edition valid now (null: no approved edition yet, a draft) */
+  edition: string | null;
+  reviewStatus: ReviewStatus;
+  nextReviewAt: string | null;
+  /** Whole days until the next review (negative when overdue) */
+  daysLeft: number | null;
+  /** record: the document links to the service; service: the service links to the document */
+  linkedFrom: ('record' | 'service')[];
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -654,6 +677,8 @@ export interface ServiceDetail extends ServiceSummary {
   updatedBy: string;
   links: ItemLink[];
   backlinks: Backlink[];
+  /** Living documents linked to the service (either way) that the reader may read */
+  documents: ServiceDocument[];
   canEdit: boolean;
 }
 

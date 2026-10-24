@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACCESS_TYPE_ID, LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
+import { LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
@@ -127,9 +127,9 @@ registerLinkKind('dashboard', {
   },
 });
 
-// records: everyone, except access change entries (who may read them: canReadRecordRow)
+// records: who may read them (everyone, except access change entries: canReadRecordRow)
 type RecordLinkRow = { id: string; number: string; title: string; status: string; type_id: string; fields: string; owner: string };
-const recordVisible = (r: RecordLinkRow) => r.type_id !== ACCESS_TYPE_ID || canReadRecordRow(currentUser(), r);
+const recordVisible = (r: RecordLinkRow) => canReadRecordRow(currentUser(), r);
 registerLinkKind('record', {
   resolve(id) {
     const r = db().get<RecordLinkRow>('SELECT id, number, title, status, type_id, fields, owner FROM records WHERE id = ?', id);

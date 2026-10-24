@@ -124,6 +124,8 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
         body: z.string().max(svc.LIMITS.body).optional(),
         fields: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
         tags: z.array(z.string()).max(svc.LIMITS.tags).optional(),
+        // e.g. the service a new document is written for ("New document" on the service page)
+        links: z.array(linkInput).max(20).optional(),
       })
       .strict()
       .parse(req.body);
