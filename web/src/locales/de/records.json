@@ -289,7 +289,21 @@
     "removeConfirm": "Diesen Verweis entfernen?",
     "actions": "Aktionen",
     "backlinks": "Verwiesen von",
-    "noBacklinks": "Noch verweist nichts hierher."
+    "noBacklinks": "Noch verweist nichts hierher.",
+    "external": "Externe Links",
+    "typeGroup": "Links: {{type}}",
+    "linkType": "Typ",
+    "linkTypeNone": "Kein Typ (Sonstiges)",
+    "types": {
+      "runbook": "Runbook",
+      "repository": "Repository",
+      "monitoring": "Monitoring",
+      "vendor-portal": "Herstellerportal",
+      "documentation": "Dokumentation",
+      "ticket-system": "Ticketsystem",
+      "other": "Sonstiges"
+    },
+    "manageTypes": "Verweistypen"
   },
   "attachments": {
     "title": "Anhänge",
@@ -571,5 +585,48 @@
     "newEditionReason": "Warum ist eine neue Fassung nötig?",
     "newEditionSubmit": "Neue Fassung beginnen",
     "freezeNote": "Der Inhalt ist ab jetzt eingefroren. Eine spätere Änderung braucht eine neue Fassung."
+  },
+  "linkTypes": {
+    "title": "Verweistypen",
+    "description": "Typen externer Links – Runbook, Repository, Monitoring und so weiter. Die Verweise werden nach Typ gruppiert angezeigt.",
+    "adminOnly": "Nur Administratoren legen Verweistypen an, benennen sie um und archivieren sie.",
+    "new": "Neuer Verweistyp",
+    "editNamed": "{{name}} bearbeiten",
+    "name": "Name",
+    "key": "Schlüssel",
+    "keyHelp": "Optional: ein fester Schlüssel wie wiki oder sbom (Kleinbuchstaben, Ziffern und Bindestriche). Leer: aus dem Namen gebildet; er lässt sich später nicht ändern.",
+    "keyInvalid": "2–40 Kleinbuchstaben, Ziffern oder Bindestriche, beginnend mit einem Buchstaben",
+    "icon": "Symbol",
+    "origin": "Herkunft",
+    "builtin": "Eingebaut",
+    "own": "Eigener",
+    "archived": "archiviert",
+    "archive": "Archiviert",
+    "archiveHelp": "Archivierte Typen bleiben an bestehenden Links, lassen sich aber für neue nicht mehr wählen.",
+    "actions": "Aktionen",
+    "icons": {
+      "book": "Buch",
+      "git": "Git",
+      "activity": "Aktivität",
+      "building": "Gebäude",
+      "file": "Dokument",
+      "ticket": "Ticket",
+      "link": "Link",
+      "server": "Server",
+      "database": "Datenbank",
+      "cloud": "Cloud",
+      "shield": "Schild",
+      "chart": "Diagramm",
+      "bell": "Glocke",
+      "tool": "Werkzeug",
+      "key": "Schlüssel",
+      "users": "Personen",
+      "message": "Nachricht",
+      "calendar": "Kalender",
+      "folder": "Ordner",
+      "world": "Globus",
+      "code": "Code",
+      "lifebuoy": "Rettungsring"
+    }
   }
 }

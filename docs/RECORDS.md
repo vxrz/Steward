@@ -113,6 +113,7 @@ Everyone who can sign in reads records and services (auditors included) – exce
 | Attach a PDF without the signature check                                                                       | admin                                                                                                                                                                                                                                       |
 | Hand a record over to another owner                                                                            | the owner, admin – not while the record waits for an approval (submitted, proposed, documented, in review): four-eyes is checked against the owner                                                                                          |
 | Manage record types                                                                                            | admin                                                                                                                                                                                                                                       |
+| Add, rename and archive link types                                                                             | admin                                                                                                                                                                                                                                       |
 | Create services                                                                                                | designer, admin                                                                                                                                                                                                                             |
 | Edit and archive a service, change its links                                                                   | designer, admin, and the users and teams named as responsible on the service                                                                                                                                                                |
 
@@ -135,6 +136,26 @@ A record or service links to:
 Every link has an optional note, e.g. _affected_, _implements_, _ServiceNow ticket_. Both sides show the link: the target lists it under _Linked from_ (records and services), and `GET /api/backlinks?kind=platform&id=…` returns the records and services that link to any item. Credentials register entries that name the item under _Used by_ (e.g. a technical user used by a service) are listed there too, for people who may read the entry.
 
 You can only link items you can see. If a reader may not see a linked process, platform or credential, the link shows as "not visible" without its name or id (in the API, `targetId` is `null`), and `GET /api/backlinks` answers 404 for items the reader may not see. The same holds for _superseded by_ and _replaced by_: if the reader may not read that record (an access change entry, say), the record page, the PDF and the API only say that it is not visible (`supersededBy: { visible: false, id: null, number: null, title: null }`). Credentials follow the register's read rules ([CREDENTIALS.md](CREDENTIALS.md#who-may-do-what)): viewers only see entries they own. Links of closed records (_closed_, _cancelled_, _superseded_, _deprecated_) cannot change any more.
+
+### Link types
+
+An external link can have a **type**, so a runbook, a repository and a vendor portal no longer look the same. The _Links_ section lists internal links in a table as before and groups external links by type, each with its icon. Built-in types (names translated):
+
+| Type          | Key             | Icon     |
+| ------------- | --------------- | -------- |
+| Runbook       | `runbook`       | book     |
+| Repository    | `repository`    | git      |
+| Monitoring    | `monitoring`    | activity |
+| Vendor portal | `vendor-portal` | building |
+| Documentation | `documentation` | document |
+| Ticket system | `ticket-system` | ticket   |
+| Other         | `other`         | link     |
+
+The type is optional: choose it under _Type_ in _Add link_. Links without a type – including every external link from before the update – are shown under _Other_. The type is part of the audit entries (`link_added`, `link_removed`: `details.linkType`), of `GET /api/v1/records/{recordId}` (`linkType` and `linkTypeName` of each link), of the evidence pack's `record.json` and of the record PDF (_external · Runbook_). Internal links have no type.
+
+**Your own types**: administrators open _Records → Record types → Link types_ (or search for "Link types") and choose _New link type_: a name and an icon from a fixed set (book, git, activity, building, document, ticket, link, server, database, cloud, shield, chart, bell, tool, key, people, message, calendar, folder, globe, code, lifebuoy). Steward derives a stable key from the name (`Team wiki` → `team-wiki`), or takes the key you enter (lower-case letters, digits and hyphens). The key never changes, so renaming a type renames it on every link. Types are never deleted: an archived type stays on existing links but cannot be chosen for new ones. Built-in types cannot be changed. At most 100 types of your own; names are unique. Changes are audited (`link_type.created`, `link_type.updated`, `link_type.archived`, `link_type.restored`).
+
+The CMDB entry of a service stays its own field (system, ID and link): it is the service's identity in another system, not just a link.
 
 Links are stored generically as `{ kind, id }`. A new kind needs an entry in `LINK_KINDS` (`shared/src/records.ts`) and a resolver registered with `registerLinkKind()` (`server/src/records/links.ts`).
 
@@ -338,7 +359,7 @@ Administrators can attach such a file anyway – for example a scan of a paper s
 
 Every change is in the tamper-evident audit log (entity type `record`, `record_type` or `service`):
 
-`record.created`, `record.imported`, `record.updated` (with the version hash), `record.submit` (documents: with edition kind and change summary), `record.approve`, `record.edition_approved` (documents: edition, kind, content hash, authors, approver and a hash of the edition's metadata), `record.withdraw`, `record.reviewed` (edition, outcome, content hash, next review and a hash of the stored review), `record.review_settings_changed`, `record.review_reminder_sent`, `record.reject`, `record.implement`, `record.close`, `record.cancel`, `record.propose`, `record.accept`, `record.supersede`, `record.deprecate` (all with from/to status and the content hash), `record.revised` (with the previous frozen hash), `record.commented`, `record.link_added`, `record.link_removed`, `record.attachment_added`, `record.attachment_removed`, `record.pdf_generated`, `record.signed_pdf_uploaded`, `record.unverified_pdf_attached`, `record_type.created`, `record_type.updated`, `service.created`, `service.updated`, `service.archived`, `service.restored`, `service.link_added`, `service.link_removed`.
+`record.created`, `record.imported`, `record.updated` (with the version hash), `record.submit` (documents: with edition kind and change summary), `record.approve`, `record.edition_approved` (documents: edition, kind, content hash, authors, approver and a hash of the edition's metadata), `record.withdraw`, `record.reviewed` (edition, outcome, content hash, next review and a hash of the stored review), `record.review_settings_changed`, `record.review_reminder_sent`, `record.reject`, `record.implement`, `record.close`, `record.cancel`, `record.propose`, `record.accept`, `record.supersede`, `record.deprecate` (all with from/to status and the content hash), `record.revised` (with the previous frozen hash), `record.commented`, `record.link_added`, `record.link_removed`, `record.attachment_added`, `record.attachment_removed`, `record.pdf_generated`, `record.signed_pdf_uploaded`, `record.unverified_pdf_attached`, `record_type.created`, `record_type.updated`, `service.created`, `service.updated`, `service.archived`, `service.restored`, `service.link_added`, `service.link_removed`, `link_type.created`, `link_type.updated`, `link_type.archived`, `link_type.restored` (entity type `link_type`).
 
 ## API
 
@@ -357,7 +378,8 @@ Web UI API (session; changes need the `x-sm-client` header like every other rout
 | `PUT /api/records/:id/review-settings` `{ reviewOwner?, intervalMonths?, nextReviewAt? }`                                                               | review owner, interval, earlier date                                                                            |
 | `POST /api/records/:id/revise` `{ comment }`                                                                                                            | new revision                                                                                                    |
 | `POST /api/records/:id/comments` `{ text }`                                                                                                             | comment                                                                                                         |
-| `POST/DELETE /api/records/:id/links[/:linkId]` `{ kind, id, note }` or `{ url, label, note }`                                                           | links                                                                                                           |
+| `POST/DELETE /api/records/:id/links[/:linkId]` `{ kind, id, note }` or `{ url, label, note, linkType? }`                                                | links (`linkType`: key of a link type, or null)                                                                 |
+| `GET /api/link-types`, `POST /api/link-types` `{ name, icon, key? }`, `PUT /api/link-types/:key` `{ name, icon, archived }`                             | link types (admin for changes)                                                                                  |
 | `POST /api/records/:id/attachments` (multipart `file`), `DELETE …/:attId`, `GET …/:attId/download`                                                      | attachments                                                                                                     |
 | `POST /api/records/:id/pdf` `{ lang, timeZone, signers: [{ name, role, email? }] }`                                                                     | generate a PDF                                                                                                  |
 | `POST /api/records/:id/signed[?plain=1]` (multipart `file`)                                                                                             | upload a signed PDF                                                                                             |
@@ -378,7 +400,7 @@ _Services_ lists the services your team runs. A service has:
 - **responsible in Steward**: users and teams (`user:dana`, `team:service desk`) who may edit it in addition to designers and administrators;
 - an optional **criticality**: low, medium, high, critical;
 - the **CMDB entry**: system (e.g. _ServiceNow_), ID and a link that opens the entry;
-- tags and links to platforms, monitors, processes, dashboards, runs and records.
+- tags and links to platforms, monitors, processes, dashboards, runs and records, and external links with a type such as runbook, repository or vendor portal ([Link types](#link-types)).
 
 Keep the real configuration data in your CMDB and link to it. Steward only keeps what it needs to connect its own items to a service.
 

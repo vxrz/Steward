@@ -36,6 +36,13 @@ const en = {
   linkTarget: 'Target',
   linkNote: 'Note',
   external: 'external',
+  lt_runbook: 'Runbook',
+  lt_repository: 'Repository',
+  lt_monitoring: 'Monitoring',
+  'lt_vendor-portal': 'Vendor portal',
+  lt_documentation: 'Documentation',
+  'lt_ticket-system': 'Ticket system',
+  lt_other: 'Other',
   notVisible: '(not visible to the person who generated this PDF)',
   attachments: 'Attached files',
   attachmentsIntro: 'The files are part of the content: their SHA-256 values are included in the content hash.',
@@ -163,6 +170,13 @@ const de: Record<RecordMsgKey, string> = {
   linkTarget: 'Ziel',
   linkNote: 'Hinweis',
   external: 'extern',
+  lt_runbook: 'Runbook',
+  lt_repository: 'Repository',
+  lt_monitoring: 'Monitoring',
+  'lt_vendor-portal': 'Herstellerportal',
+  lt_documentation: 'Dokumentation',
+  'lt_ticket-system': 'Ticketsystem',
+  lt_other: 'Sonstiges',
   notVisible: '(für die Person, die dieses PDF erzeugt hat, nicht sichtbar)',
   attachments: 'Angehängte Dateien',
   attachmentsIntro: 'Die Dateien gehören zum Inhalt: Ihre SHA-256-Werte gehen in den Inhalts-Hash ein.',
@@ -289,7 +303,7 @@ export function recordTexts(lang: ReportLang) {
   const cat = CATALOG[lang] ?? en;
   const t = (key: RecordMsgKey, vars?: Record<string, string | number>) =>
     (cat[key] ?? en[key]).replace(/\{(\w+)\}/g, (_, k: string) => (vars && vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
-  const lookup = (prefix: 'st' | 'act', v: string) => {
+  const lookup = (prefix: 'st' | 'act' | 'lt', v: string) => {
     const key = `${prefix}_${v}` as RecordMsgKey;
     return key in cat ? cat[key] : v;
   };
@@ -303,5 +317,7 @@ export function recordTexts(lang: ReportLang) {
   /** A select value of a built-in field, translated (the stored value is the same in every language). */
   const option = (typeKey: string, f: Pick<RecordFieldDef, 'key'>, v: string) =>
     b && builtinField(typeKey, f)?.options?.includes(v) ? (b.options[f.key]?.[v] ?? v) : v;
-  return { t, status: (s: string) => lookup('st', s), action: (a: string) => lookup('act', a), typeName, fieldLabel, option };
+  /** Name of a built-in link type (runbook, repository, …) */
+  const linkType = (key: string) => lookup('lt', key);
+  return { t, status: (s: string) => lookup('st', s), action: (a: string) => lookup('act', a), linkType, typeName, fieldLabel, option };
 }

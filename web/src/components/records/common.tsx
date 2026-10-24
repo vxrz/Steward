@@ -20,6 +20,7 @@ import {
 } from '@sm/shared';
 import { get, notifyError } from '../../api';
 import { confirmDanger } from '../confirm';
+import { LinkTypeIconView, linkTypeOf, useLinkTypeName, useLinkTypes } from './linkTypes';
 
 export const useRecordTypes = (archived = false) =>
   useQuery({ queryKey: ['record-types', archived], queryFn: () => get<RecordType[]>(`/record-types${archived ? '?archived=1' : ''}`), staleTime: 30_000 });
@@ -44,7 +45,7 @@ export function RecordStatusBadge({ status, size = 'sm' }: { status: string; siz
   );
 }
 
-export type LinkInput = { kind: LinkKind; id: string; note: string } | { url: string; label: string; note: string };
+export type LinkInput = { kind: LinkKind; id: string; note: string } | { url: string; label: string; note: string; linkType: string | null };
 
 /** Links of a record or service, with backlinks from other records and services. */
 export function LinksPanel({
@@ -64,6 +65,34 @@ export function LinksPanel({
 }) {
   const { t } = useTranslation('records');
   const [adding, setAdding] = useState(false);
+  const types = useLinkTypes();
+  const typeName = useLinkTypeName();
+  const internal = links.filter((l) => l.kind !== null);
+  // external links grouped by type, in the order of the types (built-in first); untyped ones under "Other"
+  const groups = new Map<string, { type: ReturnType<typeof linkTypeOf>; links: ItemLink[] }>();
+  for (const l of links.filter((x) => x.kind === null)) {
+    const type = linkTypeOf(types.data, l.linkType);
+    groups.set(type.key, { type, links: [...(groups.get(type.key)?.links ?? []), l] });
+  }
+  const order = (key: string) => {
+    const i = (types.data ?? []).findIndex((x) => x.key === key);
+    return key === 'other' ? Number.MAX_SAFE_INTEGER : i < 0 ? Number.MAX_SAFE_INTEGER - 1 : i;
+  };
+  const external = [...groups.values()].sort((a, b) => order(a.type.key) - order(b.type.key));
+  const removeButton = (l: ItemLink) => (
+    <Tooltip label={t('links.remove')}>
+      <ActionIcon
+        variant="subtle"
+        color="red"
+        aria-label={t('links.removeNamed', { name: l.label || l.url || t('links.notVisible') })}
+        onClick={async () => {
+          if (await confirmDanger({ action: 'remove', message: t('links.removeConfirm') })) await onRemove(l.id).catch(notifyError);
+        }}
+      >
+        <IconTrash size={16} />
+      </ActionIcon>
+    </Tooltip>
+  );
   return (
     <Stack gap="md">
       <Group justify="space-between">
@@ -74,11 +103,12 @@ export function LinksPanel({
           </Button>
         )}
       </Group>
-      {links.length === 0 ? (
+      {links.length === 0 && (
         <Text size="sm" c="dimmed">
           {t('links.empty')}
         </Text>
-      ) : (
+      )}
+      {internal.length > 0 && (
         <div className="table-scroll">
           <Table fz="sm" aria-label={t('links.title')}>
             <Table.Thead>
@@ -90,7 +120,7 @@ export function LinksPanel({
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {links.map((l) => (
+              {internal.map((l) => (
                 <Table.Tr key={l.id}>
                   <Table.Td className="nowrap">{t(`links.kinds.${l.kind ?? 'external'}`)}</Table.Td>
                   <Table.Td style={{ overflowWrap: 'anywhere' }}>
@@ -116,27 +146,51 @@ export function LinksPanel({
                     )}
                   </Table.Td>
                   <Table.Td>{l.note}</Table.Td>
-                  {canEdit && (
-                    <Table.Td>
-                      <Tooltip label={t('links.remove')}>
-                        <ActionIcon
-                          variant="subtle"
-                          color="red"
-                          aria-label={t('links.removeNamed', { name: l.label || l.url || t('links.notVisible') })}
-                          onClick={async () => {
-                            if (await confirmDanger({ action: 'remove', message: t('links.removeConfirm') })) await onRemove(l.id).catch(notifyError);
-                          }}
-                        >
-                          <IconTrash size={16} />
-                        </ActionIcon>
-                      </Tooltip>
-                    </Table.Td>
-                  )}
+                  {canEdit && <Table.Td>{removeButton(l)}</Table.Td>}
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         </div>
+      )}
+      {external.length > 0 && (
+        <Stack gap="sm" data-testid="external-links">
+          <Text fw={600}>{t('links.external')}</Text>
+          {external.map(({ type, links: group }) => {
+            const name = typeName(type);
+            return (
+              <div key={type.key} data-link-type={type.key}>
+                <Group gap={6} mb={4} wrap="nowrap">
+                  <LinkTypeIconView icon={type.icon} />
+                  <Text size="sm" fw={500}>
+                    {name}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    ({group.length})
+                  </Text>
+                </Group>
+                <Stack gap={4} role="list" aria-label={t('links.typeGroup', { type: name })} pl={22}>
+                  {group.map((l) => (
+                    <Group key={l.id} role="listitem" gap={6} wrap="nowrap" justify="space-between">
+                      <Text size="sm" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                        <Anchor href={l.url ?? undefined} target="_blank" rel="noopener noreferrer nofollow" size="sm">
+                          {l.label || l.url} <IconExternalLink size={12} aria-hidden />
+                        </Anchor>
+                        {l.note && (
+                          <Text span size="xs" c="dimmed">
+                            {' '}
+                            · {l.note}
+                          </Text>
+                        )}
+                      </Text>
+                      {canEdit && removeButton(l)}
+                    </Group>
+                  ))}
+                </Stack>
+              </div>
+            );
+          })}
+        </Stack>
       )}
       <div>
         <Text fw={600} mb={4}>
@@ -181,8 +235,11 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
   const [target, setTarget] = useState<string | null>(null);
   const [url, setUrl] = useState('https://');
   const [label, setLabel] = useState('');
+  const [linkType, setLinkType] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const types = useLinkTypes();
+  const typeName = useLinkTypeName();
   const targets = useQuery({
     queryKey: ['link-targets', kind, debounced],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}`),
@@ -196,7 +253,7 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
   const submit = async () => {
     setBusy(true);
     try {
-      await onAdd(kind === 'external' ? { url: url.trim(), label: label.trim(), note: note.trim() } : { kind, id: target!, note: note.trim() });
+      await onAdd(kind === 'external' ? { url: url.trim(), label: label.trim(), note: note.trim(), linkType } : { kind, id: target!, note: note.trim() });
       onClose();
     } catch (e) {
       notifyError(e);
@@ -218,6 +275,23 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
           <>
             <TextInput label={t('links.url')} description={t('links.urlHelp')} value={url} onChange={(e) => setUrl(e.currentTarget.value)} required />
             <TextInput label={t('links.label')} placeholder={t('links.labelPlaceholder')} value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
+            <Select
+              label={t('links.linkType')}
+              placeholder={t('links.linkTypeNone')}
+              data={(types.data ?? []).filter((x) => !x.archived).map((x) => ({ value: x.key, label: typeName(x) }))}
+              value={linkType}
+              onChange={setLinkType}
+              clearable
+              renderOption={({ option }) => {
+                const lt = types.data?.find((x) => x.key === option.value);
+                return (
+                  <Group gap={8} wrap="nowrap">
+                    {lt && <LinkTypeIconView icon={lt.icon} />}
+                    <span>{option.label}</span>
+                  </Group>
+                );
+              }}
+            />
           </>
         ) : (
           <Select

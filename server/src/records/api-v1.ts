@@ -8,6 +8,7 @@ import * as svc from './service.js';
 import * as docs from './documents.js';
 import * as A from './api-schemas.js';
 import * as catalogue from '../catalogue/service.js';
+import { linkTypeByKey } from './link-types.js';
 
 /** Records in the public, read-only API (list, get, versions). Every token owner may read records, as in the UI – access change entries only who may read them there. */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
@@ -72,7 +73,16 @@ const mapDetail = (r: RecordDetail) => ({
   submittedAt: r.submittedAt,
   supersededBy: r.supersededBy,
   attachments: r.attachments.map(({ details: _d, ...a }) => a),
-  links: r.links.map((l) => ({ kind: l.kind, targetId: l.targetId, url: l.url, label: l.label, note: l.note, visible: l.visible })),
+  links: r.links.map((l) => ({
+    kind: l.kind,
+    targetId: l.targetId,
+    url: l.url,
+    linkType: l.linkType,
+    linkTypeName: l.linkType ? (linkTypeByKey(l.linkType)?.name ?? null) : null,
+    label: l.label,
+    note: l.note,
+    visible: l.visible,
+  })),
   events: r.events.map(({ id: _id, ...e }) => e),
   document: r.document
     ? {

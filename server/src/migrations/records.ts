@@ -238,4 +238,21 @@ export const RECORD_MIGRATIONS: NamedMigration[] = [
       ${IMMUTABLE_RECORD_TABLES.map((t) => immutableRowTriggers('postgres', t).create).join('\n      ')}
     `,
   },
+  {
+    // types of external links (runbook, repository, …): existing links keep no type ("Other"); the built-in types
+    // live in code (shared/src/records.ts), administrators' own types in link_types
+    name: 'records-004-link-types',
+    sql: `ALTER TABLE item_links ADD COLUMN link_type TEXT;
+      CREATE TABLE link_types (
+        key TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+    `,
+  },
 ];

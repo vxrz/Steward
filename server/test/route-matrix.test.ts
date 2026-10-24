@@ -369,6 +369,10 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/services/:id': DESIGN,
   'POST /api/services/:id/archive': DESIGN,
   'POST /api/services/:id/links': DESIGN,
+  // types of external links: everyone reads them (the add-link dialog), administrators manage their own
+  'GET /api/link-types': ALL,
+  'POST /api/link-types': ADMIN,
+  'PUT /api/link-types/:key': ADMIN,
   'DELETE /api/services/:id/links/:linkId': DESIGN,
 
   // ---- credentials register ----
@@ -665,7 +669,9 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/services': { name: 'svc x', owners: [] },
   'PUT /api/services/:id': { name: 'svc x', owners: [] },
   'POST /api/services/:id/archive': { archived: true },
-  'POST /api/services/:id/links': { url: 'https://cmdb.example.com/8', label: 'x' },
+  'POST /api/services/:id/links': { url: 'https://cmdb.example.com/8', label: 'x', linkType: 'runbook' },
+  'POST /api/link-types': { name: 'Matrix link type', icon: 'book' },
+  'PUT /api/link-types/:key': { name: 'Matrix link type 2', icon: 'git' },
   'POST /api/credentials': CREDENTIAL,
   'PUT /api/credentials/:id': CREDENTIAL,
   'POST /api/credentials/:id/rotated': { comment: 'x' },

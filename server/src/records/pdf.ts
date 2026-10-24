@@ -27,6 +27,7 @@ import { insertAttachment, writeAttachmentFile } from './attachments.js';
 import { recordTexts } from './pdf-i18n.js';
 import { checkPdfLimits } from './signed.js';
 import { editionAsRecord } from './documents.js';
+import { linkTypeByKey } from './link-types.js';
 
 /**
  * The record as an archival PDF/A-2b document for signing: header with logo,
@@ -380,6 +381,11 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
     { empty: t('none'), size: 7.4 },
   );
 
+  // external links: "external · Runbook" (built-in types translated, administrators' own as named)
+  const linkTypeLabel = (key: string | null) => {
+    const lt = key ? linkTypeByKey(key) : undefined;
+    return lt ? `${t('external')} · ${lt.builtin ? R.linkType(lt.key) : lt.name}` : t('external');
+  };
   section(t('links'));
   w.table(
     [
@@ -388,7 +394,7 @@ export async function renderRecordPdf(o: RenderInput): Promise<{ pdf: Buffer; te
       { header: t('linkNote'), width: 2.2 },
     ],
     rec.links.map((l) => [
-      l.kind ?? t('external'),
+      l.kind ?? linkTypeLabel(l.linkType),
       l.kind ? (l.visible ? l.label : t('notVisible')) : `${l.label && l.label !== l.url ? l.label + ' – ' : ''}${l.url}`,
       l.note,
     ]),

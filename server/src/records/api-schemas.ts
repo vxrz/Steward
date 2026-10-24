@@ -61,6 +61,13 @@ export const RecordLink = z.object({
     .describe('Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL'),
   targetId: z.string().nullable().describe('Id of the internal item – null for an external URL and when the token owner may not see the item'),
   url: z.string().nullable().describe('External http(s) URL'),
+  linkType: z
+    .string()
+    .nullable()
+    .describe(
+      'External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type',
+    ),
+  linkTypeName: z.string().nullable().describe('Name of the link type (built-in types in English); null when the link has no type'),
   label: z.string().describe('Name of the target – empty when the token owner may not see it'),
   note: z.string(),
   visible: z.boolean(),

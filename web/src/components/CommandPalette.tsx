@@ -16,6 +16,7 @@ import {
   IconInfoCircle,
   IconKey,
   IconLayoutGrid,
+  IconLink,
   IconListDetails,
   IconStack2,
   IconMoon,
@@ -122,6 +123,7 @@ export function CommandPalette({ pages }: { pages: PalettePage[] }) {
     const extraPages: PalettePage[] = [
       { to: '/monitors/wall', label: t('palette.pages.monitorWall'), icon: IconLayoutGrid, group: t('groups.operate') },
       { to: '/records/types', label: t('palette.pages.recordTypes'), icon: IconListDetails, group: t('groups.service') },
+      { to: '/records/link-types', label: t('palette.pages.linkTypes'), icon: IconLink, group: t('groups.service') },
       ...(caps.viewAudit ? [{ to: '/settings/status', label: t('palette.pages.systemStatus'), icon: IconActivity, group: t('groups.admin') }] : []),
       { to: '/profile', label: t('items.profile'), icon: IconUser },
       { to: '/about', label: t('palette.pages.about'), icon: IconInfoCircle },

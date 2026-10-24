@@ -117,7 +117,14 @@
       "Offboarding",
       "Onboarding",
       "Snapshot",
-      "Snapshots"
+      "Snapshots",
+      "Runbook",
+      "Repository",
+      "Monitoring",
+      "Git",
+      "Ticket",
+      "Cloud",
+      "Code"
     ]
   }
 }

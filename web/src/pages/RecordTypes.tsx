@@ -19,7 +19,8 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconLink, IconPlus, IconTrash } from '@tabler/icons-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { RECORD_FIELD_KINDS, RECORD_WORKFLOW_KEYS, RECORD_WORKFLOWS, type RecordFieldDef, type RecordType, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
@@ -43,9 +44,14 @@ export function RecordTypesPage() {
         title={t('types.title')}
         description={t('types.description')}
         actions={
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
-            {t('types.new')}
-          </Button>
+          <>
+            <Button size="xs" variant="default" leftSection={<IconLink size={14} />} component={Link} to="/records/link-types">
+              {t('links.manageTypes')}
+            </Button>
+            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setEditing('new')}>
+              {t('types.new')}
+            </Button>
+          </>
         }
       />
       <div className="table-scroll">

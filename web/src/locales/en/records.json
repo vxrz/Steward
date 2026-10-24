@@ -289,7 +289,21 @@
     "removeConfirm": "Remove this link?",
     "actions": "Actions",
     "backlinks": "Linked from",
-    "noBacklinks": "Nothing links here yet."
+    "noBacklinks": "Nothing links here yet.",
+    "external": "External links",
+    "typeGroup": "{{type}} links",
+    "linkType": "Type",
+    "linkTypeNone": "No type (Other)",
+    "types": {
+      "runbook": "Runbook",
+      "repository": "Repository",
+      "monitoring": "Monitoring",
+      "vendor-portal": "Vendor portal",
+      "documentation": "Documentation",
+      "ticket-system": "Ticket system",
+      "other": "Other"
+    },
+    "manageTypes": "Link types"
   },
   "attachments": {
     "title": "Attachments",
@@ -571,5 +585,48 @@
     "newEditionReason": "Why is a new edition needed?",
     "newEditionSubmit": "Start new edition",
     "freezeNote": "The content is frozen from now on. Changing it later needs a new edition."
+  },
+  "linkTypes": {
+    "title": "Link types",
+    "description": "Types of external links – runbook, repository, monitoring and so on. Links sections group external links by type.",
+    "adminOnly": "Only administrators add, rename and archive link types.",
+    "new": "New link type",
+    "editNamed": "Edit {{name}}",
+    "name": "Name",
+    "key": "Key",
+    "keyHelp": "Optional: a stable key such as wiki or sbom (lower-case letters, digits and hyphens). Derived from the name when empty; it cannot change later.",
+    "keyInvalid": "2–40 lower-case letters, digits or hyphens, starting with a letter",
+    "icon": "Icon",
+    "origin": "Origin",
+    "builtin": "Built-in",
+    "own": "Your own",
+    "archived": "archived",
+    "archive": "Archived",
+    "archiveHelp": "Archived types stay on existing links but cannot be chosen for new ones.",
+    "actions": "Actions",
+    "icons": {
+      "book": "Book",
+      "git": "Git",
+      "activity": "Activity",
+      "building": "Building",
+      "file": "Document",
+      "ticket": "Ticket",
+      "link": "Link",
+      "server": "Server",
+      "database": "Database",
+      "cloud": "Cloud",
+      "shield": "Shield",
+      "chart": "Chart",
+      "bell": "Bell",
+      "tool": "Tool",
+      "key": "Key",
+      "users": "People",
+      "message": "Message",
+      "calendar": "Calendar",
+      "folder": "Folder",
+      "world": "Globe",
+      "code": "Code",
+      "lifebuoy": "Lifebuoy"
+    }
   }
 }

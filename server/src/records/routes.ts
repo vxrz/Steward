@@ -11,6 +11,7 @@ import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js'
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
 import * as docs from './documents.js';
+import * as linkTypes from './link-types.js';
 import * as catalogue from '../catalogue/service.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 
@@ -255,6 +256,10 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.query);
     return searchTargets(q.kind, q.q, q.limit);
   });
+  // types of external links: everyone reads them, administrators add, rename and archive their own
+  app.get('/link-types', async () => linkTypes.listLinkTypes());
+  app.post('/link-types', async (req) => linkTypes.createLinkType(linkTypes.linkTypeInput.parse(req.body)));
+  app.put('/link-types/:key', async (req) => linkTypes.updateLinkType(params(req).key!, linkTypes.linkTypeUpdate.parse(req.body)));
   app.get('/backlinks', async (req) => {
     me();
     const q = z.object({ kind: z.enum(LINK_KINDS), id: z.string().min(1).max(200) }).parse(req.query);

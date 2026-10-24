@@ -4535,6 +4535,20 @@
                   ],
                   "description": "External http(s) URL"
                 },
+                "linkType": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+                },
+                "linkTypeName": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Name of the link type (built-in types in English); null when the link has no type"
+                },
                 "label": {
                   "type": "string",
                   "description": "Name of the target – empty when the token owner may not see it"
@@ -4550,6 +4564,8 @@
                 "kind",
                 "targetId",
                 "url",
+                "linkType",
+                "linkTypeName",
                 "label",
                 "note",
                 "visible"
@@ -4901,6 +4917,20 @@
             ],
             "description": "External http(s) URL"
           },
+          "linkType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+          },
+          "linkTypeName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the link type (built-in types in English); null when the link has no type"
+          },
           "label": {
             "type": "string",
             "description": "Name of the target – empty when the token owner may not see it"
@@ -4916,6 +4946,8 @@
           "kind",
           "targetId",
           "url",
+          "linkType",
+          "linkTypeName",
           "label",
           "note",
           "visible"
