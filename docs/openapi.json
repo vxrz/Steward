@@ -6495,6 +6495,384 @@
           "counts"
         ],
         "additionalProperties": false
+      },
+      "ServiceEntry": {
+        "title": "ServiceEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description (Markdown)"
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "business",
+                    "it"
+                  ],
+                  "description": "business: business owner; it: IT operations"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "role",
+                "email",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "People to contact (outside Steward)"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible for the service: user:<name>, team:<name>"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cmdb": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "system": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "http(s) link to the entry, or empty"
+                  }
+                },
+                "required": [
+                  "system",
+                  "id",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry in the CMDB (e.g. ServiceNow); null when none is set"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "linkCount": {
+            "type": "integer",
+            "description": "Links the token owner may see: external links and links to items they may see"
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Living documents linked to the service (either way) that the token owner may read"
+          },
+          "overdueDocuments": {
+            "type": "integer",
+            "description": "Of these, the documents whose periodic review is overdue"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "criticality",
+          "contacts",
+          "owners",
+          "tags",
+          "cmdb",
+          "archived",
+          "linkCount",
+          "documentCount",
+          "overdueDocuments",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceEntryDetail": {
+        "title": "ServiceEntryDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description (Markdown)"
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "business",
+                    "it"
+                  ],
+                  "description": "business: business owner; it: IT operations"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                }
+              },
+              "required": [
+                "role",
+                "email",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "People to contact (outside Steward)"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible for the service: user:<name>, team:<name>"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cmdb": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "system": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "http(s) link to the entry, or empty"
+                  }
+                },
+                "required": [
+                  "system",
+                  "id",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry in the CMDB (e.g. ServiceNow); null when none is set"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "linkCount": {
+            "type": "integer",
+            "description": "Links the token owner may see: external links and links to items they may see"
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Living documents linked to the service (either way) that the token owner may read"
+          },
+          "overdueDocuments": {
+            "type": "integer",
+            "description": "Of these, the documents whose periodic review is overdue"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
+                },
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External http(s) URL"
+                },
+                "linkType": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+                },
+                "linkTypeName": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Name of the link type (built-in types in English); null when the link has no type"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Name of the target – empty when the token owner may not see it"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "url",
+                "linkType",
+                "linkTypeName",
+                "label",
+                "note",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Links of the service: internal items and external URLs. Items the token owner may not see are listed with visible false, without id or name."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "criticality",
+          "contacts",
+          "owners",
+          "tags",
+          "cmdb",
+          "archived",
+          "linkCount",
+          "documentCount",
+          "overdueDocuments",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy",
+          "links"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -11153,6 +11531,183 @@
         }
       }
     },
+    "/services": {
+      "get": {
+        "operationId": "listServices",
+        "summary": "List services",
+        "tags": [
+          "Services"
+        ],
+        "description": "The service catalogue, ordered by name: description, criticality, contacts, responsible users and teams, tags and the CMDB entry. Counts of links and living documents only include what the token owner may see. Archived services are left out unless `archived` says otherwise.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "default": "exclude"
+            },
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "description": "Archived services: left out (default), included, or only these"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of services",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of services",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ServiceEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}": {
+      "get": {
+        "operationId": "getService",
+        "summary": "Get a service with its links",
+        "tags": [
+          "Services"
+        ],
+        "description": "Archived services too. Its living documents: `/services/{serviceId}/documents`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id (svc_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceEntryDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/ticket-references": {
       "get": {
         "operationId": "listTicketReferences",
@@ -12059,6 +12614,10 @@
     {
       "name": "Records",
       "description": "Change requests and decision records: content, versions, approvals and attachments"
+    },
+    {
+      "name": "Services",
+      "description": "The service catalogue: services with contacts, responsible people, criticality, CMDB entry and links"
     },
     {
       "name": "Ticket references",

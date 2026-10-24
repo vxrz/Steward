@@ -706,6 +706,8 @@ export interface ServiceSummary {
   archived: boolean;
   /** Links the reader may see: external URLs and internal links to items they may see (as on the service page) */
   linkCount: number;
+  /** Living documents linked to the service (either way) that the reader may read */
+  documentCount: number;
   /** Living documents linked to the service (either way) whose review is overdue – only documents the reader may read */
   overdueDocuments: number;
   updatedAt: string;

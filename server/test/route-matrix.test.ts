@@ -463,6 +463,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/records/:recordId/editions': ALL,
   'GET /api/v1/records/:recordId/editions/:edition': ALL,
   'GET /api/v1/records/:recordId/reviews': ALL,
+  'GET /api/v1/services': ALL,
+  'GET /api/v1/services/:serviceId': ALL,
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,

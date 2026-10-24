@@ -80,7 +80,7 @@ function cmdbOf(r: ServiceRow): ServiceSummary['cmdb'] {
   return { system: r.cmdb_system ?? '', id: r.cmdb_id ?? '', url: r.cmdb_url ?? '' };
 }
 
-function toSummary(r: ServiceRow, links: number, overdue: number): ServiceSummary {
+function toSummary(r: ServiceRow, links: number, docs: { documents: number; overdue: number }): ServiceSummary {
   return {
     id: r.id,
     name: r.name,
@@ -91,7 +91,8 @@ function toSummary(r: ServiceRow, links: number, overdue: number): ServiceSummar
     cmdb: cmdbOf(r),
     archived: !!r.archived,
     linkCount: links,
-    overdueDocuments: overdue,
+    documentCount: docs.documents,
+    overdueDocuments: docs.overdue,
     updatedAt: r.updated_at,
   };
 }
@@ -170,24 +171,34 @@ export function serviceDocuments(serviceId: string, u: AuthUser | null): Service
     .sort((a, b) => a.number.localeCompare(b.number));
 }
 
-/** Per service: how many documents linked to it (either way) that the user may read have an overdue review. */
-function overdueDocumentCounts(u: AuthUser): Map<string, number> {
-  const overdue = new Set([...documentStates()].filter(([, s]) => s.review.status === 'overdue').map(([id]) => id));
-  const out = new Map<string, number>();
-  if (!overdue.size) return out;
+/**
+ * Per service: the living documents linked to it (either way) that the user may read, and how many of them have an
+ * overdue review. Each linked document is read (in chunks) and checked once, whatever the number of services.
+ */
+function documentCounts(u: AuthUser): Map<string, { documents: number; overdue: number }> {
+  const out = new Map<string, { documents: number; overdue: number }>();
   const pairs = db().all<{ service: string; record: string }>(
     `SELECT to_id AS service, from_id AS record FROM item_links WHERE from_kind = 'record' AND to_kind = 'service'
      UNION SELECT from_id AS service, to_id AS record FROM item_links WHERE from_kind = 'service' AND to_kind = 'record'`,
   );
-  const readable = new Map<string, boolean>();
-  const canRead = (id: string) => {
-    if (!readable.has(id)) {
-      const r = db().get<DocLinkRow>(`${DOC_SELECT} AND r.id = ?`, id);
-      readable.set(id, !!r && canReadRecordRow(u, r));
+  if (!pairs.length) return out;
+  const ids = [...new Set(pairs.map((p) => p.record))];
+  const readable = new Set<string>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    for (const r of db().all<DocLinkRow>(`${DOC_SELECT} AND r.id IN (${chunk.map(() => '?').join(', ')})`, ...chunk)) {
+      if (canReadRecordRow(u, r)) readable.add(r.id);
     }
-    return readable.get(id)!;
-  };
-  for (const p of pairs) if (overdue.has(p.record) && canRead(p.record)) out.set(p.service, (out.get(p.service) ?? 0) + 1);
+  }
+  if (!readable.size) return out;
+  const overdue = new Set([...documentStates(undefined, undefined, [...readable])].filter(([, st]) => st.review.status === 'overdue').map(([id]) => id));
+  for (const p of pairs) {
+    if (!readable.has(p.record)) continue;
+    const c = out.get(p.service) ?? { documents: 0, overdue: 0 };
+    c.documents++;
+    if (overdue.has(p.record)) c.overdue++;
+    out.set(p.service, c);
+  }
   return out;
 }
 
@@ -215,12 +226,23 @@ function visibleLinkCounts(serviceIds: Set<string>): Map<string, number> {
   return out;
 }
 
-export function listServices(o: { archived?: boolean } = {}): ServiceSummary[] {
+function listRows(o: { archived?: boolean }): { r: ServiceRow; s: ServiceSummary }[] {
   const u = me();
   const rows = db().all<ServiceRow>(`SELECT * FROM services${o.archived ? '' : ' WHERE archived = 0'} ORDER BY name`);
   const links = visibleLinkCounts(new Set(rows.map((r) => r.id)));
-  const overdue = overdueDocumentCounts(u);
-  return rows.map((r) => toSummary(r, links.get(r.id) ?? 0, overdue.get(r.id) ?? 0));
+  const docs = documentCounts(u);
+  return rows.map((r) => ({ r, s: toSummary(r, links.get(r.id) ?? 0, docs.get(r.id) ?? { documents: 0, overdue: 0 }) }));
+}
+
+export function listServices(o: { archived?: boolean } = {}): ServiceSummary[] {
+  return listRows(o).map((x) => x.s);
+}
+
+/** A service with its description and creation (the public API's list; the web app's list leaves the description out). */
+export type ServiceEntry = ServiceSummary & Pick<ServiceDetail, 'description' | 'createdAt' | 'createdBy' | 'updatedBy'>;
+
+export function listServiceEntries(o: { archived?: boolean } = {}): ServiceEntry[] {
+  return listRows(o).map(({ r, s }) => ({ ...s, description: r.description, createdAt: r.created_at, createdBy: r.created_by, updatedBy: r.updated_by }));
 }
 
 /** The living documents of a service (404 for an unknown service). */
@@ -234,7 +256,10 @@ export function getService(id: string): ServiceDetail {
   const r = row(id);
   const documents = serviceDocuments(r.id, u);
   const links = listLinks('service', r.id);
-  const s = toSummary(r, links.filter((l) => l.visible).length, documents.filter((d) => d.reviewStatus === 'overdue').length);
+  const s = toSummary(r, links.filter((l) => l.visible).length, {
+    documents: documents.length,
+    overdue: documents.filter((d) => d.reviewStatus === 'overdue').length,
+  });
   return {
     ...s,
     description: r.description,
