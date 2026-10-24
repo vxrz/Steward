@@ -1,0 +1,6 @@
+# Trivy ignore list (see docs/SECURITY-PIPELINE.md). Every entry needs a reason and an expiry date.
+
+# zod 3.25 (runtime): memory exhaustion while validating very large arrays (GHSA-mrhx-c7xc-m3w5).
+# Mitigated: every parsed request body is checked before validation (server/src/bodyShape.ts),
+# anonymous bodies at most 64 KB, webhooks at most 512 KB. No 3.x fix; the fix is the zod 4 upgrade (#63).
+CVE-2023-54404 exp:2026-12-31
