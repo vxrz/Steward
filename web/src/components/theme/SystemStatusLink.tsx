@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 export function SystemStatusLink() {
   const { t } = useTranslation('nav');
   return (
-    <Button component={Link} to="/settings/status" variant="default" leftSection={<IconActivityHeartbeat size={16} />}>
+    <Button component={Link} to="/settings/status" size="xs" variant="default" leftSection={<IconActivityHeartbeat size={14} />}>
       {t('userMenu.systemStatus')}
     </Button>
   );

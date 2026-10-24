@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ActionIcon, Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import {
   IconApi,
   IconBook,
@@ -122,16 +122,16 @@ export function PlatformDetailPage() {
         actions={
           <>
             {canUse && (
-              <Button leftSection={<IconPlugConnected size={16} />} onClick={runTest} loading={testing} variant="light">
+              <Button size="xs" leftSection={<IconPlugConnected size={14} />} onClick={runTest} loading={testing} variant="light">
                 {t('detail.test')}
               </Button>
             )}
             {(canManage || isAdmin) && (
               <Menu position="bottom-end">
                 <Menu.Target>
-                  <ActionIcon variant="default" size="lg" aria-label={t('detail.more')}>
-                    <IconDots size={16} />
-                  </ActionIcon>
+                  <Button size="xs" variant="default" aria-label={t('detail.more')} px={8}>
+                    <IconDots size={14} />
+                  </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
                   {isAdmin && (

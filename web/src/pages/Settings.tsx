@@ -315,7 +315,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
               components={{
                 c: <Code />,
                 hosts: <Code>{'SM_ALLOWED_HOSTS=<hostname>'}</Code>,
-                readme: <Anchor href={`${BRAND.repoUrl}#readme`} target="_blank" />,
+                readme: <Anchor inherit href={`${BRAND.repoUrl}#readme`} target="_blank" />,
               }}
             />
           </Text>

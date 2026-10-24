@@ -117,7 +117,13 @@ export function RecordEditorPage() {
   );
   const previewPane = (
     <Paper withBorder p="md" aria-label={t('editor.preview')} role="region">
-      {draft.body.trim() ? <MarkdownView text={draft.body} /> : <Text c="dimmed">{t('detail.noBody')}</Text>}
+      {draft.body.trim() ? (
+        <MarkdownView text={draft.body} />
+      ) : (
+        <Text c="dimmed" size="sm">
+          {t('detail.noBody')}
+        </Text>
+      )}
     </Paper>
   );
 

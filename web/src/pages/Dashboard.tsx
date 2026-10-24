@@ -64,11 +64,11 @@ export function DashboardPage({ demo }: { demo: boolean }) {
       {data && !data.setup && data.counts.platforms === 0 && (
         <Alert icon={<IconRocket />} title={t('getStarted.title')} mb="md">
           <Text size="sm">
-            <Trans t={t} i18nKey="getStarted.step1" components={{ a: <Anchor component={Link} to="/platforms" /> }} />
+            <Trans t={t} i18nKey="getStarted.step1" components={{ a: <Anchor inherit component={Link} to="/platforms" /> }} />
             <br />
-            <Trans t={t} i18nKey="getStarted.step2" components={{ a: <Anchor component={Link} to="/processes" /> }} />
+            <Trans t={t} i18nKey="getStarted.step2" components={{ a: <Anchor inherit component={Link} to="/processes" /> }} />
             <br />
-            <Trans t={t} i18nKey="getStarted.step3" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
+            <Trans t={t} i18nKey="getStarted.step3" components={{ a: <Anchor inherit component={Link} to="/schedules" /> }} />
           </Text>
         </Alert>
       )}
@@ -141,7 +141,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
               </Title>
               {data.upcoming.length === 0 && (
                 <Text size="sm" c="dimmed">
-                  <Trans t={t} i18nKey="nothingScheduled" components={{ a: <Anchor component={Link} to="/schedules" /> }} />
+                  <Trans t={t} i18nKey="nothingScheduled" components={{ a: <Anchor inherit component={Link} to="/schedules" /> }} />
                 </Text>
               )}
               <Stack gap={8}>

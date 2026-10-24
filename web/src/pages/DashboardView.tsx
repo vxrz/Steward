@@ -154,7 +154,7 @@ export function DashboardViewPage() {
               t={t}
               i18nKey="view.widgetsHint"
               values={{ node: t('editor:steps.publish.label') }}
-              components={{ a: <Anchor component={Link} to="/dashboards" /> }}
+              components={{ a: <Anchor inherit component={Link} to="/dashboards" /> }}
             />
           </Text>
         </Paper>

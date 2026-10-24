@@ -54,11 +54,11 @@ export function PlatformsPage() {
         description={t('description')}
         actions={
           <>
-            <Button variant="default" leftSection={<IconPlug size={16} />} onClick={() => setTypesOpen(true)}>
+            <Button size="xs" variant="default" leftSection={<IconPlug size={14} />} onClick={() => setTypesOpen(true)}>
               {t('types.button')}
             </Button>
             {caps.createPlatforms && (
-              <Button leftSection={<IconPlus size={16} />} onClick={() => setAdding(true)}>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setAdding(true)}>
                 {t('add')}
               </Button>
             )}

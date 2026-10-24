@@ -35,7 +35,7 @@ function inline(nodes: MdInline[], key: string): ReactNode[] {
         return <br key={k} />;
       case 'link':
         return (
-          <Anchor key={k} href={n.href} target="_blank" rel="noopener noreferrer nofollow">
+          <Anchor inherit key={k} href={n.href} target="_blank" rel="noopener noreferrer nofollow">
             {inline(n.c, k)}
           </Anchor>
         );
@@ -54,9 +54,10 @@ function renderBlocks(blocks: MdBlock[], key: string): ReactNode[] {
     const k = `${key}.${i}`;
     switch (b.t) {
       case 'heading':
-        // Record pages already use h2 for the page title: content headings start at h3.
+        // Record pages already use h2 for the page title: content headings start at h3. They stay smaller
+        // than the page's own section titles (18 px) and close to the 14 px text: 18 / 16 / 14 px.
         return (
-          <Title key={k} order={Math.min(6, b.level + 2) as 3} mt="md" mb={6} fz={b.level === 1 ? 'h3' : b.level === 2 ? 'h4' : 'h5'}>
+          <Title key={k} order={Math.min(6, b.level + 2) as 3} mt="md" mb={6} fz={b.level === 1 ? 'lg' : b.level === 2 ? 'md' : 'sm'}>
             {inline(b.c, k)}
           </Title>
         );

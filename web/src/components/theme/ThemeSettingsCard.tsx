@@ -382,7 +382,7 @@ function ThemePreview({ scheme, theme, logoUrl }: { scheme: ColorSchemeName; the
         </Group>
         <Text size="sm">
           {t('theme.sample.text')}{' '}
-          <Anchor href="#" onClick={(e) => e.preventDefault()} tabIndex={-1}>
+          <Anchor inherit href="#" onClick={(e) => e.preventDefault()} tabIndex={-1}>
             {t('theme.sample.link')}
           </Anchor>
         </Text>

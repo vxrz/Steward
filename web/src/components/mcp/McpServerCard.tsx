@@ -60,7 +60,7 @@ export function McpServerCard() {
               />
             </Text>
             <Text size="sm">
-              <Trans t={t} i18nKey="settings.token" components={{ a: <Anchor component={Link} to="/profile" /> }} />
+              <Trans t={t} i18nKey="settings.token" components={{ a: <Anchor inherit component={Link} to="/profile" /> }} />
             </Text>
             <McpClientConfig status={s} />
             <Text size="xs" c="dimmed">

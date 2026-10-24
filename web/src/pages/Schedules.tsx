@@ -133,7 +133,7 @@ export function SchedulesPage() {
                   <Table.Td className="nowrap">{s.enabled && s.nextRunAt ? `${fmtDate(s.nextRunAt)} (${fmtRelative(s.nextRunAt)})` : '–'}</Table.Td>
                   <Table.Td>
                     {s.lastRunId ? (
-                      <Anchor component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+                      <Anchor size="sm" component={Link} to={`/runs/${s.lastRunId}`} underline="never" c="var(--mantine-color-text)">
                         <Group gap={4} wrap="nowrap">
                           {s.lastRunStatus && <StatusBadge status={s.lastRunStatus} size="xs" />}
                           <Text size="xs">{fmtRelative(s.lastRunAt)}</Text>

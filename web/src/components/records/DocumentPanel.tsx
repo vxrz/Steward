@@ -328,7 +328,13 @@ function EditionModal({ rec, edition, onClose }: { rec: RecordDetail; edition: s
               </Stack>
             </Paper>
           )}
-          {e.body.trim() ? <MarkdownView text={e.body} /> : <Text c="dimmed">{t('detail.noBody')}</Text>}
+          {e.body.trim() ? (
+            <MarkdownView text={e.body} />
+          ) : (
+            <Text c="dimmed" size="sm">
+              {t('detail.noBody')}
+            </Text>
+          )}
           {e.attachments.length > 0 && (
             <Stack gap={2}>
               <Text size="sm" fw={600}>

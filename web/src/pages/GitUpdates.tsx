@@ -101,7 +101,7 @@ export function GitUpdatesPage() {
               {list.data.map((u) => (
                 <Table.Tr key={u.id} data-testid="sync-update">
                   <Table.Td>
-                    <Anchor component={Link} to={`/git-updates/${u.id}`} fw={500}>
+                    <Anchor size="sm" component={Link} to={`/git-updates/${u.id}`} fw={500}>
                       {u.entityName ?? u.path.split('/').pop()}
                     </Anchor>
                     <Text size="xs" c="dimmed">

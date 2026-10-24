@@ -220,7 +220,7 @@ export function TriggersPage() {
                   </Table.Td>
                   <Table.Td className="nowrap">
                     {tr.lastRunId ? (
-                      <Anchor component={Link} to={`/runs/${tr.lastRunId}`} underline="never" c="var(--mantine-color-text)">
+                      <Anchor size="sm" component={Link} to={`/runs/${tr.lastRunId}`} underline="never" c="var(--mantine-color-text)">
                         <Stack gap={2} align="flex-start">
                           {tr.lastRunStatus && <StatusBadge status={tr.lastRunStatus} size="xs" />}
                           <Text size="xs">{fmtRelative(tr.lastFiredAt)}</Text>
@@ -653,7 +653,7 @@ function TestModal({ trigger, onClose }: { trigger: WebhookTrigger; onClose: () 
                 {result.response.runId ? (
                   <>
                     {t('test.runStarted')}{' '}
-                    <Anchor component={Link} to={`/runs/${result.response.runId}`}>
+                    <Anchor inherit component={Link} to={`/runs/${result.response.runId}`}>
                       {result.response.runId}
                     </Anchor>
                   </>
