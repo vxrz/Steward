@@ -82,7 +82,7 @@ docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for brows
   - configure single sign-on.
 - `/api/health` (liveness) and `/api/ready` (readiness) are available for orchestrators, see [Health and readiness](#health-and-readiness). `/api/metrics` serves Prometheus metrics.
 - For unattended unlock after restarts, mount the passphrase as a Docker secret and set `SM_MASTER_PASSPHRASE_FILE=/run/secrets/steward_passphrase` (commented example in `docker-compose.yml`).
-- Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=1` (or the proxy's address), `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`.
+- Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=1` (or the proxy's address), `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`. Examples for nginx, Traefik and Caddy, on an own host name or under a path: [Behind a reverse proxy](#behind-a-reverse-proxy).
 - The complete checklist for a work deployment: [SECURITY-HARDENING.md](SECURITY-HARDENING.md).
 - Build information for the About page: `docker build --build-arg SM_BUILD_COMMIT=$(git rev-parse HEAD) --build-arg SM_BUILD_DATE=$(date -u +%FT%TZ) -t steward .` (the container workflow does this). Without it the image reports a "development" build.
 
@@ -222,6 +222,108 @@ The passphrase comes from `SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `-
 Without the master passphrase nothing can be recovered: the credentials and the audit key are encrypted with it. Start from scratch as above and set up the platforms again.
 
 Accounts that sign in with single sign-on have no password. If the identity provider is unavailable, reset the password of a local administrator account (keep one as a break-glass account, see [SECURITY-HARDENING.md](SECURITY-HARDENING.md)).
+
+## Behind a reverse proxy
+
+Colleagues usually reach Steward through a reverse proxy (nginx, Traefik, Caddy, …) that terminates TLS. Steward then listens on a local or internal address only.
+
+### Settings
+
+| Setting            | Value                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SM_PUBLIC_URL`    | The address people open, e.g. `https://steward.corp.example` – or `https://apps.corp.example/steward` under a path                           |
+| `SM_TRUST_PROXY`   | The proxy's address or network (`10.0.0.5`, `10.1.0.0/16`, `loopback`), so `X-Forwarded-For/-Proto/-Host` are believed from it (and only it) |
+| `SM_ALLOWED_HOSTS` | The `Host` header the proxy sends to Steward – the public name when the proxy keeps it (the examples below do)                               |
+| `SM_BASE_PATH`     | Only under a path, and only if you do not set `SM_PUBLIC_URL`: e.g. `/steward`                                                               |
+
+An `https://` `SM_PUBLIC_URL` makes the session cookie `Secure` and turns on HSTS. Steward builds the single sign-on redirect URI and the links in e-mails, Teams cards and the daily summary from it (or from the base URL in _Settings → Notifications_). Register `<SM_PUBLIC_URL>/api/auth/oidc/callback` at the identity provider; _Settings → Single sign-on_ shows the exact URI.
+
+### Recommended: an own (sub)domain
+
+Give Steward its own host name, e.g. `steward.corp.example`. Browsers keep sites apart by origin (scheme, host and port), not by path. With its own host name no other application can read Steward's pages or act with its users' sessions, and the session cookie gets the strongest protection (`__Host-sm_session`: `Secure`, `Path=/`, no `Domain`).
+
+```nginx
+# nginx – steward.corp.example
+server {
+  listen 443 ssl;
+  server_name steward.corp.example;
+  # ssl_certificate …; ssl_certificate_key …;
+  client_max_body_size 60m;              # uploads up to 50 MB
+  location / {
+    proxy_pass http://127.0.0.1:4310;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;   # overwrite, do not append the client's value
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_buffering off;                 # streamed answers (MCP, downloads) arrive right away
+  }
+}
+```
+
+```yaml
+# Traefik (Docker labels)
+labels:
+  - traefik.http.routers.steward.rule=Host(`steward.corp.example`)
+  - traefik.http.routers.steward.tls=true
+  - traefik.http.services.steward.loadbalancer.server.port=4310
+```
+
+```caddyfile
+# Caddy
+steward.corp.example {
+  reverse_proxy 127.0.0.1:4310
+}
+```
+
+Steward: `SM_PUBLIC_URL=https://steward.corp.example`, `SM_ALLOWED_HOSTS=steward.corp.example`, `SM_TRUST_PROXY=<proxy address>` (`loopback` when the proxy runs on the same machine). Traefik and Caddy send `X-Forwarded-*` themselves.
+
+### Under a path: `https://apps.corp.example/steward`
+
+Some companies give only one host name. Steward can run under a path prefix:
+
+- Set `SM_PUBLIC_URL=https://apps.corp.example/steward`. Its path is the base path. (Or set `SM_BASE_PATH=/steward`; when both are set they must agree, otherwise Steward refuses to start.) The base path may only contain letters, digits and `. _ ~ -` in its segments.
+- Everything Steward serves moves below the prefix: the web UI, `/steward/api/…` (including `/api/v1`, `/api/mcp`, webhooks under `/api/hooks/…`, `/api/health`, `/api/ready`, `/api/metrics` and the API documentation), the manifest and the service worker. Requests outside the prefix get `404`; only `/` itself redirects to `/steward/`.
+- **The proxy passes the path on unchanged. It must not strip the prefix.** Steward expects `/steward/api/health`, not `/api/health`. A proxy that strips the prefix makes every request fail with `404`, and Steward logs `request outside the base path … no prefix stripping` (at most once a minute). `X-Forwarded-Prefix` is not used.
+- One web build works under any prefix: Steward writes the base into the page (`<base href="/steward/">`).
+- Health checks, Gatus and Kubernetes probes use the prefix too: `https://apps.corp.example/steward/api/ready`, `httpGet.path: /steward/api/ready`.
+
+```nginx
+# nginx – the prefix stays: proxy_pass WITHOUT a path (no trailing slash)
+location = /steward { return 302 /steward/; }
+location /steward/ {
+  proxy_pass http://127.0.0.1:4310;      # not http://127.0.0.1:4310/ – that would strip /steward
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $remote_addr;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header X-Forwarded-Host $host;
+  proxy_buffering off;
+  client_max_body_size 60m;
+}
+```
+
+```yaml
+# Traefik – PathPrefix router, and NO StripPrefix middleware
+labels:
+  - traefik.http.routers.steward.rule=Host(`apps.corp.example`) && PathPrefix(`/steward`)
+  - traefik.http.routers.steward.tls=true
+  - traefik.http.services.steward.loadbalancer.server.port=4310
+```
+
+```caddyfile
+# Caddy – "handle", not "handle_path" (handle_path strips the prefix)
+apps.corp.example {
+  redir /steward /steward/
+  handle /steward/* {
+    reverse_proxy 127.0.0.1:4310
+  }
+}
+```
+
+Steward: `SM_PUBLIC_URL=https://apps.corp.example/steward`, `SM_ALLOWED_HOSTS=apps.corp.example`, `SM_TRUST_PROXY=<proxy address>`.
+
+> **Security: a path is weaker than an own host name.** Every application on `apps.corp.example` shares Steward's origin. A cross-site scripting flaw in any of them could read Steward's pages and act inside Steward with the signed-in user's session; the cookie path does not stop that. The session cookie is `__Secure-sm_session` with `Path=/steward` (`__Host-` requires `Path=/`): still `Secure`, `HttpOnly`, `SameSite=Strict` and host-only, but no longer protected by the `__Host-` rules. Use a path only when you trust every application on that host name, and prefer an own subdomain. Two Steward installations under different paths of one host also share the browser's storage: signing in to one can sign the other tab out.
+
+The desktop executable is not affected: it always runs on its own local address.
 
 ## Health and readiness
 
