@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { animationsDone } from './axe';
 import { appHref } from './env';
 
 /** Unique, readable names so parallel tests never collide. */
@@ -46,6 +47,8 @@ export async function waitForRun(api: APIRequestContext, runId: string, statuses
 /** Picks an option of a Mantine Select / combobox identified by its label. */
 export async function chooseOption(page: Page, label: string | RegExp, option: string | RegExp): Promise<void> {
   await page.getByRole('textbox', { name: label }).click();
+  // the dropdown (and a dialog that just opened) moves while its transition runs: click once it stands still
+  await animationsDone(page);
   await page.getByRole('option', { name: option }).click();
 }
 
@@ -75,8 +78,18 @@ export function taskRegion(page: Page, opts: { title?: RegExp; runId?: string } 
 
 /** No horizontal page scroll (mobile layout check). */
 export async function expectNoHorizontalScroll(page: Page): Promise<void> {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
-  expect(scrollWidth, `page is ${scrollWidth}px wide on a ${innerWidth}px screen`).toBeLessThanOrEqual(innerWidth);
+  // Retried: right after a viewport change the layout is still settling (the navbar collapses with a
+  // transition); a real overflow still fails once the timeout is over.
+  const measure = () => page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
+  await expect
+    .poll(
+      async () => {
+        const { scrollWidth, innerWidth } = await measure();
+        return scrollWidth - innerWidth;
+      },
+      { message: 'the page must not be wider than the screen', timeout: 5_000 },
+    )
+    .toBeLessThanOrEqual(0);
 }
 
 /** Waits until the app shell (header with the user menu) is rendered. */
