@@ -66,7 +66,7 @@ test('a document created from the service page shows in its documentation sectio
   await expect(adamRow).toContainText('Review current');
   await expect(adamRow.getByRole('cell').last()).not.toHaveText('–');
   await adamRow.getByRole('link', { name: title }).click();
-  await expect(adam).toHaveURL(new RegExp(`/records/${id}$`));
+  await expect(adam).toHaveURL((url) => url.pathname.endsWith(`/records/${id}`));
   await adam.goto(`/services/${svc.id}`);
   await settle(adam);
   await expectAccessible(adam, 'service documentation');
