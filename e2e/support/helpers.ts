@@ -1,4 +1,5 @@
 import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { appHref } from './env';
 
 /** Unique, readable names so parallel tests never collide. */
 export function uniq(prefix: string): string {
@@ -68,7 +69,7 @@ export async function startRunFromDialog(page: Page, opts: { dryRun: boolean; pl
 /** Task panels ("Task: <title>" regions) – on the My tasks page optionally narrowed to one run. */
 export function taskRegion(page: Page, opts: { title?: RegExp; runId?: string } = {}): Locator {
   let l = page.getByRole('region', { name: opts.title ?? /^Task: / });
-  if (opts.runId) l = l.filter({ has: page.locator(`a[href="/runs/${opts.runId}"]`) });
+  if (opts.runId) l = l.filter({ has: page.locator(`a[href="${appHref(`/runs/${opts.runId}`)}"]`) });
   return l;
 }
 

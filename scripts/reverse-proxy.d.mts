@@ -18,4 +18,6 @@ export function startReverseProxy(opts: {
   proto?: string;
   /** Strip this prefix before passing the request on (simulates a misconfigured proxy) */
   stripPrefix?: string;
+  /** Send the target's Host header instead of the client's (nginx's default) */
+  rewriteHost?: boolean;
 }): Promise<ReverseProxy>;

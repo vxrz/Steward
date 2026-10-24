@@ -21,8 +21,22 @@ export type UserKey = keyof typeof USERS;
 /** Storage state (session cookie) of a user, written by the global setup. */
 export const authFile = (user: UserKey) => path.join(AUTH_DIR, `${user}.json`);
 
-/** Base URL of the demo server started by the global setup (port chosen in playwright.config.ts). */
-export const baseURL = () => `http://127.0.0.1:${process.env.SM_E2E_PORT}`;
+/**
+ * E2E_BASE_PATH=/steward runs the UI tests against Steward under a path prefix (SM_BASE_PATH) behind a
+ * reverse proxy (scripts/reverse-proxy.mjs); '' (default) is the root, without a proxy.
+ */
+export const BASE_PATH = (() => {
+  const raw = (process.env.E2E_BASE_PATH ?? '').trim().replace(/\/+$/, '');
+  if (!raw) return '';
+  const p = raw.startsWith('/') ? raw : '/' + raw;
+  if (!/^(\/[A-Za-z0-9._~-]+)+$/.test(p)) throw new Error(`E2E_BASE_PATH: "${raw}" is not a path like /steward`);
+  return p;
+})();
+
+/** Origin the tests talk to (the demo server, or the reverse proxy in front of it; port chosen in playwright.config.ts). */
+export const origin = () => `http://127.0.0.1:${process.env.SM_E2E_PORT}`;
+/** Base URL of Steward for the tests: origin plus base path. */
+export const baseURL = () => origin() + BASE_PATH;
 
 /** Ids of the demo processes created by POST /api/demo/setup (template file name without the number prefix). */
 export const PROCESS = {
@@ -31,3 +45,6 @@ export const PROCESS = {
   healthCheck: 'ih-health-check',
   iemDeviceStatus: 'iem-device-status',
 } as const;
+
+/** A link as the web app renders it (href attribute): the app path below the base path. */
+export const appHref = (path: string) => BASE_PATH + path;

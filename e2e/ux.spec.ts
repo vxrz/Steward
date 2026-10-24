@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { PROCESS, authFile } from './support/env';
+import { PROCESS, authFile, appHref } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json, startRunApi, uniq } from './support/helpers';
 import { BRAND } from '../shared/src/brand';
@@ -96,15 +96,17 @@ test.describe('lists, dialogs and help (admin)', () => {
       'Waiting on vendors',
     ]);
     for (const n of names) expect(n).toMatch(/^[^:]+: \d+ – .+/);
-    expect(await links.evaluateAll((l) => l.map((a) => a.getAttribute('href')))).toEqual([
-      '/tasks',
-      '/runs?status=failed&within=24h',
-      '/monitors?status=down,degraded',
-      '/credentials?status=expired,overdue,dueSoon',
-      '/compliance/reconciliation?findings=open',
-      '/records?workflow=document&review=overdue,dueSoon',
-      '/tickets?waiting=vendor',
-    ]);
+    expect(await links.evaluateAll((l) => l.map((a) => a.getAttribute('href')))).toEqual(
+      [
+        '/tasks',
+        '/runs?status=failed&within=24h',
+        '/monitors?status=down,degraded',
+        '/credentials?status=expired,overdue,dueSoon',
+        '/compliance/reconciliation?findings=open',
+        '/records?workflow=document&review=overdue,dueSoon',
+        '/tickets?waiting=vendor',
+      ].map(appHref),
+    );
     const vendor = tiles.getByRole('link', { name: /^Waiting on vendors: [1-9]\d* – oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order

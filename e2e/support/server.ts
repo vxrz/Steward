@@ -2,7 +2,8 @@ import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { MASTER_PASSPHRASE, ROOT, USERS } from './env';
+import { startReverseProxy, type ReverseProxy } from '../../scripts/reverse-proxy.mjs';
+import { BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS } from './env';
 
 /**
  * A separate, empty server for tests that change global state (e.g. the theme),
@@ -35,7 +36,9 @@ function freePort(): number {
 export async function startIsolatedServer(): Promise<IsolatedServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-iso-'));
   const port = freePort();
-  const baseURL = `http://127.0.0.1:${port}`;
+  // E2E_BASE_PATH: under the prefix, behind its own reverse proxy (like the shared demo server, see global-setup.ts)
+  const proxy: ReverseProxy | undefined = BASE_PATH ? await startReverseProxy({ target: `http://127.0.0.1:${port}` }) : undefined;
+  const baseURL = `${proxy?.url ?? `http://127.0.0.1:${port}`}${BASE_PATH}`;
   const logFile = path.join(dataDir, 'server.log');
   const log = fs.createWriteStream(logFile);
   let child: ChildProcess;
@@ -49,6 +52,7 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
         SM_DATA_DIR: dataDir,
         SM_PORT: String(port),
         SM_HOST: '127.0.0.1',
+        ...(BASE_PATH ? { SM_BASE_PATH: BASE_PATH, SM_TRUST_PROXY: '127.0.0.1' } : {}),
         SM_DEMO: '',
         SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
         SM_LOG_LEVEL: 'warn',
@@ -71,6 +75,7 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
   };
   const stop = async () => {
     await kill();
+    await proxy?.close();
     log.end();
     fs.rmSync(dataDir, { recursive: true, force: true });
   };
@@ -137,7 +142,7 @@ export function sessionState(baseURL: string, cookie: string, keys: { sessionKey
     cookies: [{ name: name!, value: v.join('='), domain: '127.0.0.1', path: '/', expires: -1, httpOnly: true, secure: false, sameSite: 'Strict' as const }],
     origins: [
       {
-        origin: baseURL,
+        origin: new URL(baseURL).origin,
         localStorage: [
           ...(keys.sessionKey ? [{ name: 'sm.sessionKey', value: keys.sessionKey }] : []),
           ...(keys.linkKey ? [{ name: 'sm.linkKey', value: keys.linkKey }] : []),

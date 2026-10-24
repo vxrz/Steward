@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { test, expect } from './support/fixtures';
-import { ROOT, authFile } from './support/env';
+import { ROOT, authFile, appHref } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { BRAND } from '../shared/src/brand';
 
@@ -25,7 +25,7 @@ test.describe('About page', () => {
     // footer: version and link back here
     const footer = page.locator('footer');
     await expect(footer).toContainText(`${BRAND.name} ${VERSION}`);
-    await expect(footer.getByRole('link', { name: `About ${BRAND.name}` })).toHaveAttribute('href', '/about');
+    await expect(footer.getByRole('link', { name: `About ${BRAND.name}` })).toHaveAttribute('href', appHref('/about'));
 
     await page.getByRole('button', { name: 'Show the list' }).click();
     const table = page.getByRole('table').filter({ hasText: 'Package' });
@@ -54,7 +54,7 @@ test.describe('System status', () => {
     await expect(page.getByRole('heading', { name: 'System status', level: 2 })).toBeVisible();
     await expect(page.getByTestId('readiness')).toHaveText('ready');
     await expect(page.getByText(/\/api\/health$/)).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Copy http:\/\/127\.0\.0\.1:\d+\/api\/ready$/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: new RegExp(`^Copy http://127\\.0\\.0\\.1:\\d+${appHref('/api/ready')}$`) })).toBeVisible();
     await expect(page.getByRole('rowheader', { name: 'Data folder' })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'SQLite', exact: true }).or(page.getByRole('cell', { name: 'PostgreSQL', exact: true }))).toBeVisible();
     await expectAccessible(page, 'system status');

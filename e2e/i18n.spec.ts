@@ -1,6 +1,6 @@
 import { request as pwRequest, type APIRequestContext, type Browser, type Page } from '@playwright/test';
 import { test, expect } from './support/fixtures';
-import { baseURL } from './support/env';
+import { baseURL, origin } from './support/env';
 import { json, uniq } from './support/helpers';
 
 /**
@@ -113,7 +113,7 @@ async function germanAdmin(browser: Browser, admin: APIRequestContext): Promise<
       cookies,
       origins: [
         {
-          origin: baseURL(),
+          origin: origin(),
           localStorage: [
             { name: 'sm.sessionKey', value: sessionKey },
             { name: 'sm.linkKey', value: linkKey },

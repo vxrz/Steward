@@ -7,7 +7,8 @@
  * - passes the path on unchanged (like `proxy_pass http://steward:4310;` without a trailing slash) –
  *   or, with `stripPrefix`, strips it like a misconfigured proxy (to test that this fails clearly);
  * - sets X-Forwarded-For (appended), X-Forwarded-Proto and X-Forwarded-Host (the Host the client used);
- * - sends Host: <target host> upstream (nginx's default $proxy_host);
+ * - keeps the client's Host header (Traefik's and Caddy's default, nginx with `proxy_set_header Host $host`,
+ *   as in docs/INSTALL.md), or with `rewriteHost` sends the target's (nginx's default $proxy_host);
  * - streams request and response bodies (Server-Sent Events, downloads) and leaves responses unchanged.
  *
  *   node scripts/reverse-proxy.mjs --target http://127.0.0.1:4310 [--port 8080] [--proto https]
@@ -19,7 +20,7 @@ import { pathToFileURL } from 'node:url';
 const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
 
 /**
- * @param {{ target: string, port?: number, host?: string, proto?: string, stripPrefix?: string }} opts
+ * @param {{ target: string, port?: number, host?: string, proto?: string, stripPrefix?: string, rewriteHost?: boolean }} opts
  * @returns {Promise<{ url: string, port: number, requests: { method: string, path: string, status: number }[], close: () => Promise<void> }>}
  */
 export async function startReverseProxy(opts) {
@@ -37,7 +38,7 @@ export async function startReverseProxy(opts) {
     headers['x-forwarded-for'] = xff ? `${xff}, ${peer}` : peer;
     headers['x-forwarded-proto'] = opts.proto ?? 'http';
     headers['x-forwarded-host'] = req.headers.host ?? '';
-    headers.host = target.host;
+    if (opts.rewriteHost || !req.headers.host) headers.host = target.host;
     const upstream = http.request({ hostname: target.hostname, port: target.port, method: req.method, path, headers }, (up) => {
       requests.push({ method: req.method ?? 'GET', path: req.url ?? '/', status: up.statusCode ?? 0 });
       /** @type {Record<string, string | string[]>} */

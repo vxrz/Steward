@@ -1,5 +1,5 @@
 import { test, expect, pageSessionHeaders } from './support/fixtures';
-import { PROCESS } from './support/env';
+import { PROCESS, appHref } from './support/env';
 import { json, startRunFromDialog, taskRegion, waitForRun } from './support/helpers';
 
 const ACCESS_REVIEW_1 = 'Insights Hub – Access review 1: flag inactive users';
@@ -59,7 +59,7 @@ test.describe('human in the loop', () => {
     await audrey.goto('/audit');
     const row = audrey
       .getByRole('row')
-      .filter({ has: audrey.locator(`a[href="/runs/${runId}"]`) })
+      .filter({ has: audrey.locator(`a[href="${appHref(`/runs/${runId}`)}"]`) })
       .filter({ hasText: 'task.completed' });
     await expect(row).toBeVisible();
     await expect(row).toContainText('adam');

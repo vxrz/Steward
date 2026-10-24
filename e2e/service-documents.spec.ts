@@ -1,5 +1,5 @@
 import { test, expect } from './support/fixtures';
-import { authFile } from './support/env';
+import { authFile, appHref } from './support/env';
 import { expectAccessible, settle } from './support/axe';
 import { expectNoHorizontalScroll, json, uniq } from './support/helpers';
 
@@ -34,7 +34,7 @@ test('a document created from the service page shows in its documentation sectio
   // the document page names the service next to the title
   const services = page.getByTestId('record-services');
   await expect(services).toContainText('Services:');
-  await expect(services.getByRole('link', { name })).toHaveAttribute('href', `/services/${svc.id}`);
+  await expect(services.getByRole('link', { name })).toHaveAttribute('href', appHref(`/services/${svc.id}`));
 
   // still a draft: listed without an edition
   await page.goto(`/services/${svc.id}`);

@@ -7,11 +7,12 @@ import { setup, startTestServer, type TestServer } from './helpers.js';
 // come from X-Forwarded-Proto/-Host of the trusted proxy (SM_TRUST_PROXY) plus the base path.
 let s: TestServer;
 let proxy: ReverseProxy;
-const ENV = ['SM_BASE_PATH', 'SM_TRUST_PROXY'];
+const ENV = ['SM_BASE_PATH', 'SM_TRUST_PROXY', 'SM_ALLOWED_HOSTS'];
 
 beforeAll(async () => {
   process.env.SM_BASE_PATH = 'steward/';
   process.env.SM_TRUST_PROXY = '127.0.0.1';
+  process.env.SM_ALLOWED_HOSTS = 'apps.example.com';
   s = await startTestServer();
   await setup(s);
   proxy = await startReverseProxy({ target: new URL(s.base).origin, proto: 'https' });
@@ -77,6 +78,10 @@ describe('base path from SM_BASE_PATH, addresses from the trusted proxy', () => 
     expect(root.headers.location).toBe('/steward/');
     expect((await viaProxy('/api/health')).status).toBe(404);
     expect((await viaProxy('/steward/api/health')).status).toBe(200);
+  });
+
+  it('the host allow-list sees the Host the proxy passes on', async () => {
+    expect((await viaProxy('/steward/api/health', { headers: { host: 'evil.example' } })).status).toBe(403);
   });
 
   it('falls back to this server below the base path for links without a public URL', async () => {

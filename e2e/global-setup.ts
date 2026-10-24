@@ -5,14 +5,19 @@
  * and stores a signed-in session (storage state) for the admin and every demo user.
  * The returned function is the global teardown (kills the server, removes the data dir).
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
-import { AUTH_DIR, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, type UserKey } from './support/env';
+import { startReverseProxy, type ReverseProxy } from '../scripts/reverse-proxy.mjs';
+import { AUTH_DIR, BASE_PATH, MASTER_PASSPHRASE, ROOT, USERS, authFile, baseURL, origin, type UserKey } from './support/env';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function freePort(): string {
+  const script = "const s=require('net').createServer();s.listen(0,'127.0.0.1',()=>{process.stdout.write(String(s.address().port));s.close()})";
+  return execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' }).trim();
+}
 const tail = (file: string, lines = 25) => {
   try {
     return fs.readFileSync(file, 'utf8').trimEnd().split('\n').slice(-lines).join('\n');
@@ -60,7 +65,7 @@ function writeStorageState(user: UserKey, session: Session) {
     cookies: [{ name, value: v.join('='), domain: '127.0.0.1', path: '/', expires: -1, httpOnly: true, secure: false, sameSite: 'Strict' as const }],
     origins: [
       {
-        origin: baseURL(),
+        origin: origin(),
         localStorage: [
           { name: 'sm.lastUser', value: USERS[user].username },
           { name: 'sm.sessionKey', value: session.sessionKey },
@@ -86,12 +91,15 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   const logFile = path.join(AUTH_DIR, 'server.log');
   const log = fs.createWriteStream(logFile);
 
+  // E2E_BASE_PATH: Steward on its own port under the prefix, the tests talk to a reverse proxy on SM_E2E_PORT
+  const serverPort = BASE_PATH ? freePort() : process.env.SM_E2E_PORT!;
   const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
     cwd: path.join(ROOT, 'server'),
     env: {
       ...process.env,
       SM_DATA_DIR: dataDir,
-      SM_PORT: process.env.SM_E2E_PORT,
+      SM_PORT: serverPort,
+      ...(BASE_PATH ? { SM_BASE_PATH: BASE_PATH, SM_TRUST_PROXY: '127.0.0.1' } : {}),
       SM_HOST: '127.0.0.1',
       SM_DEMO: '1',
       SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
@@ -108,9 +116,19 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
   child.on('close', (code) => (exited = code));
   const killOnExit = () => child.kill('SIGKILL');
   process.on('exit', killOnExit);
+  let proxy: ReverseProxy | undefined;
+  if (BASE_PATH) {
+    proxy = await startReverseProxy({
+      target: `http://127.0.0.1:${serverPort}`,
+      port: Number(process.env.SM_E2E_PORT),
+      proto: process.env.E2E_PROXY_PROTO || 'http',
+    });
+    console.log(`[e2e] Steward under ${BASE_PATH} on port ${serverPort}, reverse proxy at ${proxy.url}`);
+  }
 
   const teardown = async () => {
     process.off('exit', killOnExit);
+    await proxy?.close();
     if (exited === undefined) {
       child.kill('SIGTERM');
       for (let i = 0; i < 50 && exited === undefined; i++) await sleep(100);
