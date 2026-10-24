@@ -75,3 +75,22 @@ export interface SystemStatus {
     pid?: number;
   };
 }
+
+/**
+ * GET /api/system/update-notice (administrators only): the last update of the app, until the
+ * administrator dismisses it or a newer update replaces it. Contains the path of the backup copy.
+ */
+export interface UpdateNotice {
+  id: string;
+  /** The version before the update (null: before versions were recorded, v0.1.0) */
+  fromVersion: string | null;
+  toVersion: string;
+  /** Migrations applied ("core 6", then names) */
+  migrations: string[];
+  /** SQLite: copies of the database made before migrating */
+  backups: string[];
+  /** No copy: 'notNeeded' (no schema changes), 'postgres' (back up with pg_dump), 'disabled' (SM_UPGRADE_BACKUPS=0) */
+  noBackupReason: 'notNeeded' | 'postgres' | 'disabled' | null;
+  /** When the update was applied (ISO) */
+  at: string;
+}

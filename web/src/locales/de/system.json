@@ -260,5 +260,22 @@
       "localOnly": "nur localhost",
       "proxy": "Ausgehender Proxy (Umgebung)"
     }
+  },
+  "updateNotice": {
+    "title": "{{brand}} wurde auf {{to}} aktualisiert",
+    "titleFrom": "{{brand}} wurde von {{from}} auf {{to}} aktualisiert",
+    "migrations_one": "Aktualisiert am {{when}}. 1 Datenbankmigration wurde angewendet:",
+    "migrations_other": "Aktualisiert am {{when}}. {{count}} Datenbankmigrationen wurden angewendet:",
+    "noMigrations": "Aktualisiert am {{when}}. An der Datenbank war nichts zu ändern.",
+    "moreMigrations": "und {{count}} weitere (siehe Audit-Log, „system.upgraded“)",
+    "backup_one": "Kopie der Datenbank von vor dem Update:",
+    "backup_other": "Kopien der Datenbank von vor dem Update:",
+    "noBackup": {
+      "notNeeded": "Eine Kopie der Datenbank war nicht nötig.",
+      "postgres": "Steward kopiert eine PostgreSQL-Datenbank nicht selbst. Sichern Sie sie vor jedem Update mit pg_dump.",
+      "disabled": "Es wurde keine Kopie der Datenbank angelegt: Automatische Kopien sind ausgeschaltet (SM_UPGRADE_BACKUPS=0)."
+    },
+    "releaseNotes": "Versionshinweise zu {{version}}",
+    "dismiss": "Hinweis zum Update ausblenden"
   }
 }

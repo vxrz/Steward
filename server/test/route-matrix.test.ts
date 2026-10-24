@@ -72,6 +72,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/auth/password': ALL,
   'GET /api/about': ALL,
   'GET /api/system/status': ADMIN_AUDITOR,
+  'GET /api/system/update-notice': ADMIN,
+  'POST /api/system/update-notice/dismiss': ADMIN,
   'GET /api/metrics': ADMIN_AUDITOR,
   'GET /api/public-api': ALL,
 

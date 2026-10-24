@@ -17,6 +17,11 @@ export interface IsolatedServer {
   linkKey: string;
   /** JSON API call as the admin */
   api: (method: string, url: string, body?: unknown) => Promise<any>;
+  /**
+   * Stops the server, runs `between` on the data folder (e.g. to make the database look older) and
+   * starts it again on the same data; the vault unlocks from the environment, sessions stay valid.
+   */
+  restart: (between?: (dataDir: string) => void) => Promise<void>;
   stop: () => Promise<void>;
 }
 
@@ -33,35 +38,43 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
   const baseURL = `http://127.0.0.1:${port}`;
   const logFile = path.join(dataDir, 'server.log');
   const log = fs.createWriteStream(logFile);
-  const child: ChildProcess = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
-    cwd: path.join(ROOT, 'server'),
-    env: {
-      ...process.env,
-      SM_DATA_DIR: dataDir,
-      SM_PORT: String(port),
-      SM_HOST: '127.0.0.1',
-      SM_DEMO: '',
-      SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
-      SM_LOG_LEVEL: 'warn',
-      OTEL_EXPORTER_OTLP_ENDPOINT: '',
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  child.stdout!.pipe(log);
-  child.stderr!.pipe(log);
+  let child: ChildProcess;
   let exited: number | null | undefined;
-  child.on('close', (code) => (exited = code));
-  const stop = async () => {
+  const spawnServer = () => {
+    exited = undefined;
+    child = spawn(process.execPath, ['--import', 'tsx', 'src/index.ts'], {
+      cwd: path.join(ROOT, 'server'),
+      env: {
+        ...process.env,
+        SM_DATA_DIR: dataDir,
+        SM_PORT: String(port),
+        SM_HOST: '127.0.0.1',
+        SM_DEMO: '',
+        SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
+        SM_LOG_LEVEL: 'warn',
+        OTEL_EXPORTER_OTLP_ENDPOINT: '',
+        OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout!.pipe(log, { end: false });
+    child.stderr!.pipe(log, { end: false });
+    child.on('close', (code) => (exited = code));
+  };
+  const kill = async () => {
     if (exited === undefined) {
       child.kill('SIGTERM');
       for (let i = 0; i < 50 && exited === undefined; i++) await sleep(100);
       if (exited === undefined) child.kill('SIGKILL');
+      for (let i = 0; i < 50 && exited === undefined; i++) await sleep(100);
     }
+  };
+  const stop = async () => {
+    await kill();
     log.end();
     fs.rmSync(dataDir, { recursive: true, force: true });
   };
-  try {
+  const waitUp = async () => {
     const started = Date.now();
     for (;;) {
       if (exited !== undefined) throw new Error(`server exited with code ${exited}: ${fs.readFileSync(logFile, 'utf8').slice(-2000)}`);
@@ -73,6 +86,18 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
       if (Date.now() - started > 60_000) throw new Error('server did not start within 60 s');
       await sleep(200);
     }
+  };
+  const restart = async (between?: (dataDir: string) => void) => {
+    await kill();
+    between?.(dataDir);
+    spawnServer();
+    await waitUp();
+    // the vault unlocks from SM_MASTER_PASSPHRASE after the server listens: ready (200) once it is open
+    for (let i = 0; i < 300 && (await fetch(`${baseURL}/api/ready`)).status !== 200; i++) await sleep(200);
+  };
+  spawnServer();
+  try {
+    await waitUp();
     const res = await fetch(`${baseURL}/api/auth/setup`, {
       method: 'POST',
       headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
@@ -98,7 +123,7 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
       if (!r.ok) throw new Error(`${method} ${url} → HTTP ${r.status}: ${text}`);
       return text ? JSON.parse(text) : null;
     };
-    return { baseURL, adminCookie, sessionKey, linkKey, api, stop };
+    return { baseURL, adminCookie, sessionKey, linkKey, api, restart, stop };
   } catch (e) {
     await stop();
     throw e;

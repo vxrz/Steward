@@ -326,6 +326,7 @@
     "SYNC_SOURCE_NOT_FOUND": "Git sync source not found.",
     "SYNC_TOKEN_INVALID": "The token must not contain spaces.",
     "SYNC_UPDATE_NOT_FOUND": "Update not found.",
+    "UPDATE_NOTICE_NOT_FOUND": "This update notice no longer exists – a newer update replaced it.",
     "SYNC_UPDATE_DECIDED": "This update was already decided or replaced by a newer one.",
     "SYNC_ITEM_GONE": "The item no longer exists in Steward. Fetch again to stage it as a new item.",
     "SYNC_CONFLICT": "The item in Steward differs from what was last synced. Review the difference and accept anyway to overwrite it.",
