@@ -302,6 +302,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/records/:id/comments': ACTIVE,
   'GET /api/records/:id/export': ALL,
   'POST /api/records/:id/links': RUN,
+  // editing a link (label, type, note): the same people who add and remove links
+  'PATCH /api/records/:id/links/:linkId': RUN,
   'DELETE /api/records/:id/links/:linkId': RUN,
   'POST /api/records/:id/attachments': RUN,
   'DELETE /api/records/:id/attachments/:attId': RUN,
@@ -373,6 +375,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/link-types': ALL,
   'POST /api/link-types': ADMIN,
   'PUT /api/link-types/:key': ADMIN,
+  'PATCH /api/services/:id/links/:linkId': DESIGN,
   'DELETE /api/services/:id/links/:linkId': DESIGN,
 
   // ---- credentials register ----
@@ -670,6 +673,8 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/services/:id': { name: 'svc x', owners: [] },
   'POST /api/services/:id/archive': { archived: true },
   'POST /api/services/:id/links': { url: 'https://cmdb.example.com/8', label: 'x', linkType: 'runbook' },
+  'PATCH /api/records/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
+  'PATCH /api/services/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
   'POST /api/link-types': { name: 'Matrix link type', icon: 'book' },
   'PUT /api/link-types/:key': { name: 'Matrix link type 2', icon: 'git' },
   'POST /api/credentials': CREDENTIAL,

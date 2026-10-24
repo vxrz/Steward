@@ -5,7 +5,7 @@ import { HttpError } from '../util.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
 import * as types from './types.js';
-import { addLink, linkInput, listBacklinks, removeLink, searchTargets, targetVisible } from './links.js';
+import { addLink, linkInput, linkUpdate, listBacklinks, removeLink, searchTargets, targetVisible, updateLink } from './links.js';
 import { addAttachment, ATTACHMENT_EXTENSIONS, attachmentForDownload, contentDisposition, MAX_ATTACHMENT_BYTES, removeAttachment } from './attachments.js';
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
@@ -212,6 +212,12 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     svc.touch(r.id);
     return link;
   });
+  app.patch('/records/:id/links/:linkId', async (req) => {
+    const { r } = svc.requireEditable(params(req).id!, 'change the links of this record', { notTerminal: true });
+    const { link, changed } = updateLink('record', r.id, params(req).linkId!, linkUpdate.parse(req.body), r.number);
+    if (changed) svc.touch(r.id);
+    return link;
+  });
   app.delete('/records/:id/links/:linkId', async (req) => {
     const { r } = svc.requireEditable(params(req).id!, 'change the links of this record', { notTerminal: true });
     removeLink('record', r.id, params(req).linkId!, r.number);
@@ -277,6 +283,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     catalogue.setArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );
   app.post('/services/:id/links', async (req) => catalogue.addServiceLink(params(req).id!, linkInput.parse(req.body)));
+  app.patch('/services/:id/links/:linkId', async (req) => catalogue.updateServiceLink(params(req).id!, params(req).linkId!, linkUpdate.parse(req.body)));
   app.delete('/services/:id/links/:linkId', async (req) => {
     catalogue.removeServiceLink(params(req).id!, params(req).linkId!);
     return { ok: true };

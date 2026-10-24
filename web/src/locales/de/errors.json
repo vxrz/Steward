@@ -163,6 +163,7 @@
     "LINK_TARGET_NOT_FOUND": "Das Ziel des Verweises wurde nicht gefunden ({{kind}} {{id}}).",
     "LINK_EXISTS": "Diesen Verweis gibt es bereits.",
     "LINK_NOT_FOUND": "Verweis nicht gefunden.",
+    "LINK_INTERNAL_FIELDS": "Interne Verweise haben nur eine Notiz – ihre Bezeichnung kommt vom verknüpften Eintrag, und sie haben keinen Typ.",
     "LINK_TYPE_UNKNOWN": "Unbekannter Verweistyp: {{type}}.",
     "LINK_TYPE_ARCHIVED": "Der Verweistyp {{type}} ist archiviert – wählen Sie einen anderen.",
     "LINK_TYPE_LIMIT": "Höchstens {{max}} eigene Verweistypen.",

@@ -4,7 +4,7 @@ import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, 
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { IconExternalLink, IconLink, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconExternalLink, IconLink, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   ACCESS_RECORD_TYPE,
@@ -46,6 +46,8 @@ export function RecordStatusBadge({ status, size = 'sm' }: { status: string; siz
 }
 
 export type LinkInput = { kind: LinkKind; id: string; note: string } | { url: string; label: string; note: string; linkType: string | null };
+/** Changes to an existing link: internal links only take a note. */
+export type LinkUpdate = { note: string } | { label?: string; note: string; linkType: string | null };
 
 /** Links of a record or service, with backlinks from other records and services. */
 export function LinksPanel({
@@ -53,6 +55,7 @@ export function LinksPanel({
   backlinks,
   canEdit,
   onAdd,
+  onUpdate,
   onRemove,
   self,
 }: {
@@ -60,11 +63,14 @@ export function LinksPanel({
   backlinks: Backlink[];
   canEdit: boolean;
   onAdd: (l: LinkInput) => Promise<void>;
+  /** Without it, links cannot be edited (only added and removed). */
+  onUpdate?: (id: string, l: LinkUpdate) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
   self?: { kind: LinkKind; id: string };
 }) {
   const { t } = useTranslation('records');
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<ItemLink | null>(null);
   const types = useLinkTypes();
   const typeName = useLinkTypeName();
   const internal = links.filter((l) => l.kind !== null);
@@ -79,12 +85,29 @@ export function LinksPanel({
     return key === 'other' ? Number.MAX_SAFE_INTEGER : i < 0 ? Number.MAX_SAFE_INTEGER - 1 : i;
   };
   const external = [...groups.values()].sort((a, b) => order(a.type.key) - order(b.type.key));
+  const linkName = (l: ItemLink) => l.label || l.url || t('links.notVisible');
+  // links to items the reader cannot see can be removed, not edited
+  const editButton = (l: ItemLink) =>
+    onUpdate &&
+    (l.kind === null || l.visible) && (
+      <Tooltip label={t('links.edit')}>
+        <ActionIcon variant="subtle" color="gray" aria-label={t('links.editNamed', { name: linkName(l) })} onClick={() => setEditing(l)}>
+          <IconPencil size={16} />
+        </ActionIcon>
+      </Tooltip>
+    );
+  const actions = (l: ItemLink) => (
+    <Group gap={2} wrap="nowrap">
+      {editButton(l)}
+      {removeButton(l)}
+    </Group>
+  );
   const removeButton = (l: ItemLink) => (
     <Tooltip label={t('links.remove')}>
       <ActionIcon
         variant="subtle"
         color="red"
-        aria-label={t('links.removeNamed', { name: l.label || l.url || t('links.notVisible') })}
+        aria-label={t('links.removeNamed', { name: linkName(l) })}
         onClick={async () => {
           if (await confirmDanger({ action: 'remove', message: t('links.removeConfirm') })) await onRemove(l.id).catch(notifyError);
         }}
@@ -146,7 +169,7 @@ export function LinksPanel({
                     )}
                   </Table.Td>
                   <Table.Td>{l.note}</Table.Td>
-                  {canEdit && <Table.Td>{removeButton(l)}</Table.Td>}
+                  {canEdit && <Table.Td>{actions(l)}</Table.Td>}
                 </Table.Tr>
               ))}
             </Table.Tbody>
@@ -183,7 +206,7 @@ export function LinksPanel({
                           </Text>
                         )}
                       </Text>
-                      {canEdit && removeButton(l)}
+                      {canEdit && actions(l)}
                     </Group>
                   ))}
                 </Stack>
@@ -222,38 +245,63 @@ export function LinksPanel({
           </Stack>
         )}
       </div>
-      {adding && <AddLinkModal self={self} onClose={() => setAdding(false)} onAdd={onAdd} />}
+      {adding && <LinkModal self={self} onClose={() => setAdding(false)} onSave={(l) => onAdd(l as LinkInput)} />}
+      {editing && onUpdate && <LinkModal link={editing} onClose={() => setEditing(null)} onSave={(l) => onUpdate(editing.id, l)} />}
     </Stack>
   );
 }
 
-function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l: LinkInput) => Promise<void>; self?: { kind: LinkKind; id: string } }) {
+/**
+ * Adds a link, or edits one (`link`): the kind and the target (URL or item) stay as they are; external
+ * links take label, type and note, internal links only the note.
+ */
+function LinkModal({
+  link,
+  onClose,
+  onSave,
+  self,
+}: {
+  link?: ItemLink;
+  onClose: () => void;
+  onSave: (l: LinkInput | LinkUpdate) => Promise<void>;
+  self?: { kind: LinkKind; id: string };
+}) {
   const { t } = useTranslation(['records', 'common']);
-  const [kind, setKind] = useState<LinkKind | 'external'>('service');
+  const editing = !!link;
+  const [kind, setKind] = useState<LinkKind | 'external'>(link ? (link.kind ?? 'external') : 'service');
   const [q, setQ] = useState('');
   const [debounced] = useDebouncedValue(q, 250);
   const [target, setTarget] = useState<string | null>(null);
-  const [url, setUrl] = useState('https://');
-  const [label, setLabel] = useState('');
-  const [linkType, setLinkType] = useState<string | null>(null);
-  const [note, setNote] = useState('');
+  const [url, setUrl] = useState(link?.url ?? 'https://');
+  // the stored label of an external link (the panel shows the URL when it is empty)
+  const initialLabel = link && link.kind === null && link.label !== link.url ? link.label : '';
+  const [label, setLabel] = useState(initialLabel);
+  const [linkType, setLinkType] = useState<string | null>(link?.linkType ?? null);
+  const [note, setNote] = useState(link?.note ?? '');
   const [busy, setBusy] = useState(false);
   const types = useLinkTypes();
   const typeName = useLinkTypeName();
   const targets = useQuery({
     queryKey: ['link-targets', kind, debounced],
     queryFn: () => get<LinkTarget[]>(`/link-targets?kind=${kind}&q=${encodeURIComponent(debounced)}`),
-    enabled: kind !== 'external',
+    enabled: kind !== 'external' && !editing,
   });
   useEffect(() => setTarget(null), [kind]);
   const options = (targets.data ?? [])
     .filter((x) => !(self && x.kind === self.kind && x.id === self.id))
     .map((x) => ({ value: x.id, label: x.detail ? `${x.label} (${x.detail})` : x.label }));
-  const valid = kind === 'external' ? /^https?:\/\/\S+\.\S+/.test(url) : !!target;
+  // archived types cannot be chosen, but a link keeps the one it has
+  const typeOptions = (types.data ?? [])
+    .filter((x) => !x.archived || x.key === link?.linkType)
+    .map((x) => ({ value: x.key, label: x.archived ? t('links.linkTypeArchived', { type: typeName(x) }) : typeName(x) }));
+  const valid = editing || (kind === 'external' ? /^https?:\/\/\S+\.\S+/.test(url) : !!target);
   const submit = async () => {
     setBusy(true);
     try {
-      await onAdd(kind === 'external' ? { url: url.trim(), label: label.trim(), note: note.trim(), linkType } : { kind, id: target!, note: note.trim() });
+      // the label only when it changed (an unchanged one may be the URL itself, see above)
+      if (editing)
+        await onSave(kind === 'external' ? { ...(label !== initialLabel ? { label: label.trim() } : {}), note: note.trim(), linkType } : { note: note.trim() });
+      else await onSave(kind === 'external' ? { url: url.trim(), label: label.trim(), note: note.trim(), linkType } : { kind, id: target!, note: note.trim() });
       onClose();
     } catch (e) {
       notifyError(e);
@@ -262,7 +310,7 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
     }
   };
   return (
-    <Modal opened onClose={onClose} title={t('links.add')}>
+    <Modal opened onClose={onClose} title={editing ? t('links.edit') : t('links.add')}>
       <Stack gap="sm">
         <Select
           label={t('links.kind')}
@@ -270,15 +318,26 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
           value={kind}
           onChange={(v) => v && setKind(v as LinkKind | 'external')}
           allowDeselect={false}
+          disabled={editing}
         />
         {kind === 'external' ? (
           <>
-            <TextInput label={t('links.url')} description={t('links.urlHelp')} value={url} onChange={(e) => setUrl(e.currentTarget.value)} required />
-            <TextInput label={t('links.label')} placeholder={t('links.labelPlaceholder')} value={label} onChange={(e) => setLabel(e.currentTarget.value)} />
+            {editing ? (
+              <TextInput label={t('links.url')} value={url} readOnly disabled />
+            ) : (
+              <TextInput label={t('links.url')} description={t('links.urlHelp')} value={url} onChange={(e) => setUrl(e.currentTarget.value)} required />
+            )}
+            <TextInput
+              label={t('links.label')}
+              placeholder={t('links.labelPlaceholder')}
+              value={label}
+              onChange={(e) => setLabel(e.currentTarget.value)}
+              maxLength={200}
+            />
             <Select
               label={t('links.linkType')}
               placeholder={t('links.linkTypeNone')}
-              data={(types.data ?? []).filter((x) => !x.archived).map((x) => ({ value: x.key, label: typeName(x) }))}
+              data={typeOptions}
               value={linkType}
               onChange={setLinkType}
               clearable
@@ -293,6 +352,8 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
               }}
             />
           </>
+        ) : editing ? (
+          <TextInput label={t('links.target')} value={link.label} readOnly disabled />
         ) : (
           <Select
             label={t('links.target')}
@@ -319,7 +380,7 @@ function AddLinkModal({ onClose, onAdd, self }: { onClose: () => void; onAdd: (l
             {t('common:cancel')}
           </Button>
           <Button onClick={submit} loading={busy} disabled={!valid}>
-            {t('links.add')}
+            {editing ? t('common:save') : t('links.add')}
           </Button>
         </Group>
       </Stack>

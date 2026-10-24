@@ -57,7 +57,7 @@ import {
   type RecordsMeta,
   type SignedPdfDetails,
 } from '@sm/shared';
-import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
+import { api, apiUrl, del, get, notifyError, notifyOk, patch, post } from '../api';
 import { DetailState, PageHeader } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
@@ -267,6 +267,10 @@ export function RecordDetailPage() {
             self={{ kind: 'record', id: rec.id }}
             onAdd={async (l: LinkInput) => {
               await post(`/records/${rec.id}/links`, l);
+              refresh();
+            }}
+            onUpdate={async (lid, l) => {
+              await patch(`/records/${rec.id}/links/${lid}`, l);
               refresh();
             }}
             onRemove={async (lid) => {

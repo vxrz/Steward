@@ -163,6 +163,7 @@
     "LINK_TARGET_NOT_FOUND": "The link target was not found ({{kind}} {{id}}).",
     "LINK_EXISTS": "This link exists already.",
     "LINK_NOT_FOUND": "Link not found.",
+    "LINK_INTERNAL_FIELDS": "Internal links only have a note – their label comes from the linked item, and they have no type.",
     "LINK_TYPE_UNKNOWN": "Unknown link type: {{type}}.",
     "LINK_TYPE_ARCHIVED": "The link type {{type}} is archived – choose another one.",
     "LINK_TYPE_LIMIT": "At most {{max}} link types of your own.",

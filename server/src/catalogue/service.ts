@@ -5,7 +5,7 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreateServices, canEditService, canReadRecordRow, forbid, me } from '../records/access.js';
-import { addLink, httpUrl, listBacklinks, listLinks, removeLink, type LinkInput } from '../records/links.js';
+import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { documentStates } from '../records/document-model.js';
 
 /**
@@ -339,6 +339,12 @@ export function addServiceLink(id: string, input: LinkInput) {
   const cur = row(id);
   if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
   return addLink('service', id, input, `service "${cur.name}"`);
+}
+
+export function updateServiceLink(id: string, linkId: string, input: LinkUpdate) {
+  const cur = row(id);
+  if (!canEditService(currentUser(), parseJson(cur.owners, []))) forbid('change the links of this service', 'changeService');
+  return updateLink('service', id, linkId, input, `service "${cur.name}"`).link;
 }
 
 export function removeServiceLink(id: string, linkId: string): void {

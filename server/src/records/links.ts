@@ -228,6 +228,20 @@ export const linkInput = z.union([
 ]);
 export type LinkInput = z.infer<typeof linkInput>;
 
+/**
+ * Changes to an existing link (Edit in the Links section): external links take label, note and type,
+ * internal links only a note. The target (URL, item) never changes – that is a new link.
+ */
+export const linkUpdate = z
+  .object({
+    label: z.string().trim().max(200).optional(),
+    note: z.string().trim().max(200).optional(),
+    /** Key of a link type; null: no type ("Other"); missing: unchanged */
+    linkType: linkTypeKey.nullable().optional(),
+  })
+  .strict();
+export type LinkUpdate = z.infer<typeof linkUpdate>;
+
 // ---------- read ----------
 
 interface LinkRow {
@@ -379,6 +393,56 @@ export function addLink(from: LinkSource, fromId: string, input: LinkInput, enti
     });
   }
   return toLink(db().get<LinkRow>('SELECT * FROM item_links WHERE id = ?', id)!);
+}
+
+/**
+ * Changes label, note and type of a link (the caller checked that the user may change the source).
+ * Same rules as for new links: an unknown type is refused, an archived one cannot be newly chosen
+ * (a link keeps the archived type it has). Links to items the user cannot see cannot be edited (404, no
+ * hint at the hidden item; they can still be removed). An edit that changes nothing writes nothing.
+ */
+export function updateLink(from: LinkSource, fromId: string, linkId: string, input: LinkUpdate, entityLabel: string): { link: ItemLink; changed: boolean } {
+  const r = db().get<LinkRow>('SELECT * FROM item_links WHERE id = ? AND from_kind = ? AND from_id = ?', linkId, from, fromId);
+  if (!r) throw new HttpError(404, 'Link not found', 'LINK_NOT_FOUND');
+  type Values = { label: string; note: string; linkType: string | null };
+  const before: Values = { label: r.label, note: r.note, linkType: r.link_type ?? null };
+  const after: Values = { ...before, ...(input.note !== undefined ? { note: input.note } : {}) };
+  let target: string | null = null;
+  if (r.to_kind) {
+    if (input.label !== undefined || input.linkType !== undefined)
+      throw new HttpError(400, 'Internal links only have a note (no label or type)', 'LINK_INTERNAL_FIELDS');
+    target = RESOLVERS.get(r.to_kind)?.resolve(r.to_id!)?.label ?? null;
+    if (target === null) throw new HttpError(404, 'Link not found', 'LINK_NOT_FOUND');
+  } else {
+    if (input.label !== undefined) after.label = input.label;
+    // keeping the type the link has is fine (also an archived one); a different one must be known and not archived
+    if (input.linkType !== undefined && (input.linkType ?? null) !== before.linkType) after.linkType = checkLinkType(input.linkType);
+  }
+  const changes = (Object.keys(after) as (keyof Values)[]).filter((k) => after[k] !== before[k]);
+  if (!changes.length) return { link: toLink(r), changed: false };
+  const pick = (v: Values) => Object.fromEntries(changes.map((k) => [k, v[k]]));
+  const typeName = (key: string | null) => (key ? (linkTypeByKey(key)?.name ?? key) : 'none');
+  db().tx(() => {
+    db().run('UPDATE item_links SET label = ?, note = ?, link_type = ? WHERE id = ?', after.label, after.note, after.linkType, linkId);
+    audit({
+      action: `${from}.link_updated`,
+      entityType: from,
+      entityId: fromId,
+      summary: r.to_kind
+        ? `Link from ${entityLabel} to ${r.to_kind} "${target}" changed (${changes.join(', ')})`
+        : `External link from ${entityLabel} changed (${changes.join(', ')}${
+            changes.includes('linkType') ? `: ${typeName(before.linkType)} → ${typeName(after.linkType)}` : ''
+          }): ${r.url}`,
+      details: {
+        linkId,
+        ...(r.to_kind ? { kind: r.to_kind, targetId: r.to_id } : { url: r.url }),
+        changes,
+        old: pick(before),
+        new: pick(after),
+      },
+    });
+  });
+  return { link: toLink(db().get<LinkRow>('SELECT * FROM item_links WHERE id = ?', linkId)!), changed: true };
 }
 
 export function removeLink(from: LinkSource, fromId: string, linkId: string, entityLabel: string): void {

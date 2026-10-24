@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ServiceDetail } from '@sm/shared';
-import { del, get, notifyError, post } from '../api';
+import { del, get, notifyError, patch, post } from '../api';
 import { DetailState, PageHeader, subjectLabel } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { Field, LinksPanel } from '../components/records/common';
@@ -83,6 +83,10 @@ export function ServiceDetailPage() {
               self={{ kind: 'service', id: s.id }}
               onAdd={async (l) => {
                 await post(`/services/${s.id}/links`, l);
+                refresh();
+              }}
+              onUpdate={async (lid, l) => {
+                await patch(`/services/${s.id}/links/${lid}`, l);
                 refresh();
               }}
               onRemove={async (lid) => {
