@@ -425,7 +425,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
     `<!doctype html><html><head><title>Demo Portal</title><style>body{font-family:sans-serif;margin:40px}input{display:block;margin:6px 0 12px;padding:6px}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:6px}</style></head><body>${body}</body></html>`;
   app.get('/portal/login', async (_req, reply) =>
     reply.type('text/html').send(
-      html(`<h1>Demo Portal – Sign in</h1><form method="post" action="/mock/portal/login">
+      html(`<h1>Demo Portal – Sign in</h1><form method="post" action="${config.basePath}/mock/portal/login">
 <label>E-mail<input id="email" name="email"/></label><label>Password<input id="password" type="password" name="password"/></label>
 <button id="signin" type="submit">Sign in</button></form>`),
     ),
