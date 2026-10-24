@@ -79,7 +79,8 @@
       "monitorWall": "Statuswand der Monitore",
       "recordTypes": "Dokumentarten",
       "systemStatus": "Systemstatus",
-      "about": "Über"
+      "about": "Über",
+      "linkTypes": "Verweistypen"
     },
     "create": {
       "monitor": "Neuer Monitor",

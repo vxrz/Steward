@@ -101,6 +101,8 @@ export function RecordDetailPage() {
   // the changelog tab exists for living documents only
   const tab: Tab = wanted === 'changelog' && !doc ? 'content' : wanted;
   const visibleActions = rec.actions.filter((a) => a.allowed || (a.approval && meta.data?.canApprove));
+  // living documents: the services the document belongs to, linked either way
+  const services = doc ? linkedServices(rec) : [];
 
   return (
     <>
@@ -118,6 +120,22 @@ export function RecordDetailPage() {
           <>
             <span className="mono">{rec.number}</span> · {typeName(rec.type, rec.typeName)} · {t('detail.owner', { owner: rec.owner })} ·{' '}
             {t('detail.revisionVersion', { revision: rec.revision, version: rec.version })}
+            {services.length > 0 && (
+              <>
+                {' · '}
+                <span data-testid="record-services">
+                  {t('detail.services')}:{' '}
+                  {services.map((x, i) => (
+                    <span key={x.id}>
+                      {i > 0 && ', '}
+                      <Anchor component={Link} to={x.path} size="sm">
+                        {x.label}
+                      </Anchor>
+                    </span>
+                  ))}
+                </span>
+              </>
+            )}
           </>
         }
         actions={
@@ -283,6 +301,15 @@ export function RecordDetailPage() {
       )}
     </>
   );
+}
+
+/** Services a record links to or that link to it (visible ones only), once each. */
+function linkedServices(rec: RecordDetail): { id: string; label: string; path: string }[] {
+  const out = new Map<string, { id: string; label: string; path: string }>();
+  for (const l of rec.links)
+    if (l.kind === 'service' && l.visible && l.targetId && l.path) out.set(l.targetId, { id: l.targetId, label: l.label, path: l.path });
+  for (const b of rec.backlinks) if (b.kind === 'service' && !out.has(b.id)) out.set(b.id, { id: b.id, label: b.label, path: b.path });
+  return [...out.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 
 function fieldValue(typeKey: string, f: RecordFieldDef, v: string | undefined): string {

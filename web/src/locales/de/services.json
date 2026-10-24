@@ -51,5 +51,21 @@
     "text": "Administratoren oder Designer legen die Services an, die Ihr Team betreibt.",
     "textCreate": "Legen Sie die Services an, die Ihr Team betreibt, und verknüpfen Sie deren Plattformen, Monitore und Dokumente.",
     "action": "Ersten Service anlegen"
-  }
+  },
+  "documents": {
+    "title": "Dokumentation",
+    "new": "Neues Dokument",
+    "newTitle": "Neues Dokument für {{name}}",
+    "linkNote": "Das Dokument verweist auf {{name}}. Danach öffnet sich der Editor.",
+    "noType": "Es gibt keine Dokumentart für lebende Dokumente. Ein Administrator kann eine unter Dokumente → Dokumentarten anlegen.",
+    "empty": "Noch keine Dokumente für diesen Service.",
+    "document": "Dokument",
+    "edition": "Fassung",
+    "draft": "Entwurf",
+    "status": "Status",
+    "review": "Überprüfung",
+    "nextReview": "Nächste Überprüfung"
+  },
+  "overdueBadge_one": "{{count}} Überprüfung überfällig",
+  "overdueBadge_other": "{{count}} Überprüfungen überfällig"
 }

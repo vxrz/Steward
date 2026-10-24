@@ -60,6 +60,7 @@ const RecordsPage = page(() => import('./pages/Records'), 'RecordsPage');
 const RecordDetailPage = page(() => import('./pages/RecordDetail'), 'RecordDetailPage');
 const RecordEditorPage = page(() => import('./pages/RecordEditor'), 'RecordEditorPage');
 const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPage');
+const LinkTypesPage = page(() => import('./pages/LinkTypes'), 'LinkTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
@@ -210,6 +211,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/platforms/:id" element={<PlatformDetailPage />} />
                 <Route path="/records" element={<RecordsPage />} />
                 <Route path="/records/types" element={<RecordTypesPage />} />
+                <Route path="/records/link-types" element={<LinkTypesPage />} />
                 <Route path="/records/:id" element={<RecordDetailPage />} />
                 <Route path="/records/:id/edit" element={<RecordEditorPage />} />
                 <Route path="/services" element={<ServicesPage />} />

@@ -112,6 +112,9 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
     await api('POST', `/records/${doc.id}/transition`, { action: 'approve' });
     await api('POST', `/records/${doc.id}/review`, { outcome: 'no_change', comment: 'Still right' });
     await signIn('admin', 'Admin-password-1');
+    // a link type of the administrators' own on a typed external link (column and table added by records-004)
+    const wiki = await api('POST', '/link-types', { name: 'Copied wiki', icon: 'book' });
+    await api('POST', `/records/${doc.id}/links`, { url: 'https://wiki.example.com/copied', label: 'Wiki', linkType: wiki.key });
     const before = {
       runs: (await api('GET', '/runs')).length,
       audit: (await api('GET', '/audit?limit=5000')).length,
@@ -139,6 +142,8 @@ describe.skipIf(!PG_TEST_URL)('db:copy', () => {
     const copied = (await api('GET', `/records/${doc.id}`)).document;
     expect(copied.editions.map((e: any) => [e.edition, e.intact])).toEqual([['1.0', true]]);
     expect(copied.reviews.map((r: any) => [r.outcome, r.intact])).toEqual([['no_change', true]]);
+    expect((await api('GET', `/records/${doc.id}`)).links.map((l: any) => [l.url, l.linkType])).toEqual([['https://wiki.example.com/copied', wiki.key]]);
+    expect((await api('GET', '/link-types')).find((x: any) => x.key === wiki.key)).toMatchObject({ name: 'Copied wiki', icon: 'book', builtin: false });
     expect((await api('GET', '/audit/verify')).ok).toBe(true);
     const ready = await api('GET', '/ready');
     expect(ready.checks.database.ok).toBe(true);

@@ -381,12 +381,73 @@ export interface DocumentChangelogRow {
 export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
+/**
+ * Icons a link type can have: a fixed set (the web app maps each name to a Tabler icon), so administrators
+ * choose from a list and never enter markup or a file.
+ */
+export const LINK_TYPE_ICONS = [
+  'book',
+  'git',
+  'activity',
+  'building',
+  'file',
+  'ticket',
+  'link',
+  'server',
+  'database',
+  'cloud',
+  'shield',
+  'chart',
+  'bell',
+  'tool',
+  'key',
+  'users',
+  'message',
+  'calendar',
+  'folder',
+  'world',
+  'code',
+  'lifebuoy',
+] as const;
+export type LinkTypeIcon = (typeof LINK_TYPE_ICONS)[number];
+
+/** Stable keys: built-ins are fixed; administrators' own types get a key on creation that never changes (renaming changes the name only). */
+export const LINK_TYPE_KEY_RE = /^[a-z][a-z0-9-]{1,39}$/;
+
+/** Built-in types of external links (names translated in the UI and the PDF; they cannot be changed or archived). */
+export const BUILTIN_LINK_TYPES: readonly { key: string; name: string; icon: LinkTypeIcon }[] = [
+  { key: 'runbook', name: 'Runbook', icon: 'book' },
+  { key: 'repository', name: 'Repository', icon: 'git' },
+  { key: 'monitoring', name: 'Monitoring', icon: 'activity' },
+  { key: 'vendor-portal', name: 'Vendor portal', icon: 'building' },
+  { key: 'documentation', name: 'Documentation', icon: 'file' },
+  { key: 'ticket-system', name: 'Ticket system', icon: 'ticket' },
+  { key: 'other', name: 'Other', icon: 'link' },
+];
+/** Links without a type are shown as this one. */
+export const DEFAULT_LINK_TYPE = 'other';
+
+export interface LinkType {
+  key: string;
+  name: string;
+  icon: LinkTypeIcon;
+  builtin: boolean;
+  /** Archived types stay on existing links but cannot be chosen for new ones */
+  archived: boolean;
+  createdAt: string | null;
+  createdBy: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
 export interface ItemLink {
   id: string;
   /** Internal target, or null for an external URL */
   kind: LinkKind | null;
   targetId: string | null;
   url: string | null;
+  /** External links: the key of the link type (null: no type, shown as "Other") */
+  linkType: string | null;
   /** Label: the target's name (when visible) or the given text for external links */
   label: string;
   /** Free text such as "affected", "implements", "ServiceNow ticket" */
@@ -644,7 +705,30 @@ export interface ServiceSummary {
   cmdb: { system: string; id: string; url: string } | null;
   archived: boolean;
   linkCount: number;
+  /** Living documents linked to the service (either way) whose review is overdue – only documents the reader may read */
+  overdueDocuments: number;
   updatedAt: string;
+}
+
+/**
+ * A living document (workflow "document") linked to a service: the document links to the service, the
+ * service links to the document, or both. Only documents the reader may read are listed.
+ */
+export interface ServiceDocument {
+  id: string;
+  number: string;
+  title: string;
+  typeKey: string;
+  typeName: string;
+  status: string;
+  /** The edition valid now (null: no approved edition yet, a draft) */
+  edition: string | null;
+  reviewStatus: ReviewStatus;
+  nextReviewAt: string | null;
+  /** Whole days until the next review (negative when overdue) */
+  daysLeft: number | null;
+  /** record: the document links to the service; service: the service links to the document */
+  linkedFrom: ('record' | 'service')[];
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -654,6 +738,8 @@ export interface ServiceDetail extends ServiceSummary {
   updatedBy: string;
   links: ItemLink[];
   backlinks: Backlink[];
+  /** Living documents linked to the service (either way) that the reader may read */
+  documents: ServiceDocument[];
   canEdit: boolean;
 }
 

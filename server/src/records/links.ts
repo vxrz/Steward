@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ACCESS_TYPE_ID, LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
+import { LINK_KINDS, type Backlink, type ItemLink, type LinkKind, type LinkTarget, type PlatformPermission, type AclEntry } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
@@ -9,11 +9,13 @@ import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { likeEscape } from '../database/sql.js';
 import { credentialPermissions, credentialsLinkingTo, type CredentialRow } from '../credentials/service.js';
 import { canReadRecordRow } from './access.js';
+import { checkLinkType, linkTypeByKey, linkTypeKey } from './link-types.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 
 /**
  * Generic links from a record or service to an internal item ({ kind, id })
- * or an external http(s) URL (CMDB entry, ticket, wiki page). A link is shown
+ * or an external http(s) URL (CMDB entry, ticket, wiki page; optionally typed: runbook, repository, …,
+ * see link-types.ts). A link is shown
  * with the target's name only when the current user may see the target, so a
  * link never discloses a process or platform the reader has no access to.
  *
@@ -127,9 +129,9 @@ registerLinkKind('dashboard', {
   },
 });
 
-// records: everyone, except access change entries (who may read them: canReadRecordRow)
+// records: who may read them (everyone, except access change entries: canReadRecordRow)
 type RecordLinkRow = { id: string; number: string; title: string; status: string; type_id: string; fields: string; owner: string };
-const recordVisible = (r: RecordLinkRow) => r.type_id !== ACCESS_TYPE_ID || canReadRecordRow(currentUser(), r);
+const recordVisible = (r: RecordLinkRow) => canReadRecordRow(currentUser(), r);
 registerLinkKind('record', {
   resolve(id) {
     const r = db().get<RecordLinkRow>('SELECT id, number, title, status, type_id, fields, owner FROM records WHERE id = ?', id);
@@ -214,7 +216,15 @@ export const httpUrl = z
 
 export const linkInput = z.union([
   z.object({ kind: z.enum(LINK_KINDS), id: z.string().trim().min(1).max(200), note: z.string().trim().max(200).default('') }).strict(),
-  z.object({ url: httpUrl, label: z.string().trim().max(200).default(''), note: z.string().trim().max(200).default('') }).strict(),
+  z
+    .object({
+      url: httpUrl,
+      label: z.string().trim().max(200).default(''),
+      note: z.string().trim().max(200).default(''),
+      /** Key of a link type (runbook, repository, …); null or missing: no type ("Other") */
+      linkType: linkTypeKey.nullable().optional(),
+    })
+    .strict(),
 ]);
 export type LinkInput = z.infer<typeof linkInput>;
 
@@ -229,6 +239,7 @@ interface LinkRow {
   url: string | null;
   label: string;
   note: string;
+  link_type: string | null;
   created_at: string;
   created_by: string;
 }
@@ -240,6 +251,7 @@ function toLink(r: LinkRow): ItemLink {
       kind: null,
       targetId: null,
       url: r.url,
+      linkType: r.link_type ?? null,
       label: r.label || r.url || '',
       note: r.note,
       visible: true,
@@ -255,6 +267,7 @@ function toLink(r: LinkRow): ItemLink {
     // ids can carry names (process ids are slugs of the name): only for targets the reader may see
     targetId: target ? r.to_id : null,
     url: null,
+    linkType: null,
     label: target?.label ?? '',
     note: r.note,
     visible: !!target,
@@ -342,15 +355,17 @@ export function addLink(from: LinkSource, fromId: string, input: LinkInput, enti
       });
     });
   } else {
+    const linkType = checkLinkType(input.linkType);
     db().tx(() => {
       db().run(
-        'INSERT INTO item_links (id, from_kind, from_id, to_kind, to_id, url, label, note, created_at, created_by) VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?)',
+        'INSERT INTO item_links (id, from_kind, from_id, to_kind, to_id, url, label, note, link_type, created_at, created_by) VALUES (?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)',
         id,
         from,
         fromId,
         input.url,
         input.label,
         input.note,
+        linkType,
         now,
         actor,
       );
@@ -358,8 +373,8 @@ export function addLink(from: LinkSource, fromId: string, input: LinkInput, enti
         action: `${from}.link_added`,
         entityType: from,
         entityId: fromId,
-        summary: `External link from ${entityLabel} added: ${input.url}`,
-        details: { linkId: id, url: input.url, label: input.label, note: input.note },
+        summary: `External link from ${entityLabel} added${linkType ? ` (${linkTypeByKey(linkType)?.name ?? linkType})` : ''}: ${input.url}`,
+        details: { linkId: id, url: input.url, label: input.label, note: input.note, linkType },
       });
     });
   }
@@ -376,7 +391,7 @@ export function removeLink(from: LinkSource, fromId: string, linkId: string, ent
       entityType: from,
       entityId: fromId,
       summary: `Link from ${entityLabel} to ${r.to_kind ? `${r.to_kind} ${r.to_id}` : r.url} removed`,
-      details: { linkId, kind: r.to_kind, targetId: r.to_id, url: r.url },
+      details: { linkId, kind: r.to_kind, targetId: r.to_id, url: r.url, ...(r.to_kind ? {} : { linkType: r.link_type ?? null }) },
     });
   });
 }

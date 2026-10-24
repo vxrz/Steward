@@ -44,7 +44,7 @@ import {
 } from './access.js';
 import { attachmentRows, contentHash, recordRow, requireRecordRow, toAttachment, versionHash, type Content, type RecordRow } from './model.js';
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
-import { addLink, listBacklinks, listLinks } from './links.js';
+import { addLink, listBacklinks, listLinks, type LinkInput } from './links.js';
 import { emit } from '../events.js';
 import {
   DOC_LIMITS,
@@ -647,6 +647,8 @@ export interface CreateInput {
   lenientFields?: boolean;
   /** Steward's own compliance code (automatic entries of runs, documenting a finding): may set the reserved fields of access change entries */
   internal?: boolean;
+  /** Links the new record starts with (e.g. the service a new document is written for); added in the same transaction */
+  links?: LinkInput[];
 }
 
 /**
@@ -716,6 +718,8 @@ export function createRecord(input: CreateInput): RecordDetail {
       summary: `${t.name} ${number} "${title}" ${input.importMeta ? 'imported' : 'created'}`,
       details: { number, type: t.key, versionHash: hash, ...(input.importMeta ? { import: input.importMeta } : {}) },
     });
+    // same checks as adding them later (visible targets only, no duplicates); any refusal rolls the record back
+    for (const l of input.links ?? []) addLink('record', id, l, number);
   });
   return getRecord(id);
 }

@@ -7,6 +7,8 @@ import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
 import * as docs from './documents.js';
 import * as A from './api-schemas.js';
+import * as catalogue from '../catalogue/service.js';
+import { linkTypeByKey } from './link-types.js';
 
 /** Records in the public, read-only API (list, get, versions). Every token owner may read records, as in the UI – access change entries only who may read them there. */
 type Get = <R>(url: string, op: Op, handler: (req: FastifyRequest, reply: FastifyReply) => Promise<R> | R) => unknown;
@@ -71,7 +73,16 @@ const mapDetail = (r: RecordDetail) => ({
   submittedAt: r.submittedAt,
   supersededBy: r.supersededBy,
   attachments: r.attachments.map(({ details: _d, ...a }) => a),
-  links: r.links.map((l) => ({ kind: l.kind, targetId: l.targetId, url: l.url, label: l.label, note: l.note, visible: l.visible })),
+  links: r.links.map((l) => ({
+    kind: l.kind,
+    targetId: l.targetId,
+    url: l.url,
+    linkType: l.linkType,
+    linkTypeName: l.linkType ? (linkTypeByKey(l.linkType)?.name ?? null) : null,
+    label: l.label,
+    note: l.note,
+    visible: l.visible,
+  })),
   events: r.events.map(({ id: _id, ...e }) => e),
   document: r.document
     ? {
@@ -209,6 +220,29 @@ export async function recordApiRoutes(_app: FastifyInstance, get: Get): Promise<
       if (!EDITION_RE.test(edition)) throw new ProblemError(404, { type: 'not-found', title: 'Not found', detail: `Edition ${edition} not found` });
       const e: RecordEdition = found(() => docs.getEdition(recordId, edition), `Edition ${edition} of ${recordId}`);
       return { ...mapEdition(e), body: e.body, fields: e.fields, attachments: e.attachments };
+    },
+  );
+
+  get(
+    '/services/:serviceId/documents',
+    {
+      operationId: 'listServiceDocuments',
+      tag: 'Records',
+      summary: 'Living documents of a service',
+      description:
+        'Records of the workflow "document" that link to the service or that the service links to, ordered by number, each with its current edition and review status. Documents the token owner may not read are left out.',
+      params: { serviceId: 'Service id' },
+      query: A.ServiceDocumentsQuery,
+      paginated: true,
+      response: pageOf('ServiceDocument', 'A page of documents'),
+    },
+    async (req, reply) => {
+      const id = params(req).serviceId!;
+      const q = req.query as { cursor?: string; limit: number };
+      const list = found(() => catalogue.getServiceDocuments(id), `Service ${id}`);
+      const page = pageArray(list, (d) => [d.number, d.id], q, { ...q, id });
+      linkNext(req, reply, page.nextCursor);
+      return page;
     },
   );
 

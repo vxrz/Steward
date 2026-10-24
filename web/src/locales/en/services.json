@@ -51,5 +51,21 @@
     "text": "Your administrators or designers add the services your team runs.",
     "textCreate": "Add the services your team runs and link their platforms, monitors and records.",
     "action": "Add your first service"
-  }
+  },
+  "documents": {
+    "title": "Documentation",
+    "new": "New document",
+    "newTitle": "New document for {{name}}",
+    "linkNote": "The document links to {{name}}. The editor opens next.",
+    "noType": "There is no record type for living documents. An administrator can add one under Records → Record types.",
+    "empty": "No documents for this service yet.",
+    "document": "Document",
+    "edition": "Edition",
+    "draft": "Draft",
+    "status": "Status",
+    "review": "Review",
+    "nextReview": "Next review"
+  },
+  "overdueBadge_one": "{{count}} review overdue",
+  "overdueBadge_other": "{{count}} reviews overdue"
 }

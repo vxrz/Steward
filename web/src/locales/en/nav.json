@@ -79,7 +79,8 @@
       "monitorWall": "Monitor status wall",
       "recordTypes": "Record types",
       "systemStatus": "System status",
-      "about": "About"
+      "about": "About",
+      "linkTypes": "Link types"
     },
     "create": {
       "monitor": "New monitor",
