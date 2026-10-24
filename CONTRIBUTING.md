@@ -123,7 +123,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 - **Dependencies:**
   - Add them only with a good reason. Prefer Node.js built-ins.
   - Pin to a minor range (`~x.y.z`) and pick releases that are at least a couple of weeks old.
-  - Check `npm audit --omit=dev`. CI also runs OSV-Scanner and Trivy.
+  - Check `node scripts/security/npm-audit.mjs` (`npm audit --omit=dev` with the accepted risks from `osv-scanner.toml`). CI also runs OSV-Scanner and Trivy.
 - **Docs:** plain English, short sentences, task-oriented.
 
 ### Tests

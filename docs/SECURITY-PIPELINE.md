@@ -8,9 +8,9 @@ what to do with a finding. The vulnerability disclosure policy is in
 
 | Workflow        | Job          | Tool                                                                                                                                   | When                                            | Fails the build on                                                               |
 | --------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------- |
-| `ci.yml`        | build-test   | `npm audit --omit=dev --audit-level=moderate`                                                                                          | push, PR                                        | moderate+ advisory in a production dependency                                    |
+| `ci.yml`        | build-test   | `scripts/security/npm-audit.mjs --audit-level=moderate` (`npm audit --omit=dev` + accepted risks)                                      | push, PR                                        | moderate+ advisory in a production dependency                                    |
 | `security.yml`  | secrets      | [gitleaks](https://github.com/gitleaks/gitleaks) over the **full git history**                                                         | push, PR, weekly                                | any secret not allow-listed in `.gitleaks.toml`                                  |
-|                 | dependencies | `npm audit --omit=dev --audit-level=high`                                                                                              | push, PR, weekly                                | high/critical advisory in a production dependency                                |
+|                 | dependencies | `scripts/security/npm-audit.mjs --audit-level=high`                                                                                    | push, PR, weekly                                | high/critical advisory in a production dependency                                |
 |                 |              | [OSV-Scanner](https://google.github.io/osv-scanner/) on `package-lock.json`                                                            | push, PR, weekly                                | any known vulnerability (dev dependencies too) not ignored in `osv-scanner.toml` |
 |                 | semgrep      | [Semgrep](https://semgrep.dev) OSS, rule sets `p/default`, `p/typescript`, `p/nodejs`, `p/secrets`, `p/github-actions`, `p/dockerfile` | push, PR, weekly                                | `ERROR`/`HIGH`/`CRITICAL` findings (warnings are reported only)                  |
 |                 | trivy-fs     | [Trivy](https://trivy.dev) `fs` (vulnerabilities, misconfiguration, secrets) and `config`                                              | push, PR, weekly                                | high/critical with a fix available; high/critical misconfiguration               |
@@ -88,17 +88,17 @@ with a notice; the full-history scan in CI still runs.
 3. **Not real, or accepted risk → suppress it where it belongs, with a reason**,
    as narrowly as possible, and with an expiry where the tool supports one:
 
-   | Tool        | How to suppress                                                                                                                          |
-   | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-   | gitleaks    | exact value + path regex in `.gitleaks.toml` (never whole folders)                                                                       |
-   | OSV-Scanner | `[[IgnoredVulns]]` with `reason` and `ignoreUntil` in `osv-scanner.toml`                                                                 |
-   | npm audit   | no per-advisory ignore: fix it, or use an `overrides` entry in `package.json`                                                            |
-   | Semgrep     | `// nosemgrep: <full rule id> -- <reason>` on the first line of the finding or the line above it (see [Semgrep triage](#semgrep-triage)) |
-   | Trivy       | `.trivyignore` (`CVE-… exp:2026-12-31` plus a comment)                                                                                   |
-   | Grype       | `.grype.yaml` `ignore:` entry (vulnerability + package) with a comment                                                                   |
-   | hadolint    | `# hadolint ignore=DL3008` above the instruction, with a reason                                                                          |
-   | zizmor      | `# zizmor: ignore[<audit>]` on the line, with a reason                                                                                   |
-   | CodeQL      | dismiss the alert in code scanning with the reason ("false positive", "used in tests", "won't fix")                                      |
+   | Tool        | How to suppress                                                                                                                                       |
+   | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | gitleaks    | exact value + path regex in `.gitleaks.toml` (never whole folders)                                                                                    |
+   | OSV-Scanner | `[[IgnoredVulns]]` with `reason` and `ignoreUntil` in `osv-scanner.toml`                                                                              |
+   | npm audit   | accept it in `osv-scanner.toml` (as for OSV-Scanner): `scripts/security/npm-audit.mjs` runs `npm audit` and lets only unexpired entries there through |
+   | Semgrep     | `// nosemgrep: <full rule id> -- <reason>` on the first line of the finding or the line above it (see [Semgrep triage](#semgrep-triage))              |
+   | Trivy       | `.trivyignore` (`CVE-… exp:2026-12-31` plus a comment)                                                                                                |
+   | Grype       | `.grype.yaml` `ignore:` entry (vulnerability + package) with a comment                                                                                |
+   | hadolint    | `# hadolint ignore=DL3008` above the instruction, with a reason                                                                                       |
+   | zizmor      | `# zizmor: ignore[<audit>]` on the line, with a reason                                                                                                |
+   | CodeQL      | dismiss the alert in code scanning with the reason ("false positive", "used in tests", "won't fix")                                                   |
 
 4. Mention the decision in the pull request, so the reviewer sees it.
 
