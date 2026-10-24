@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { config } from '../config.js';
+import { loopbackUrl } from '../config.js';
 import { mockGatusMetrics } from './mockGatusMetrics.js';
 
 /**
@@ -53,7 +53,7 @@ const MAX_RESULTS = 100;
 const INTERVAL_MS = 5 * 60000;
 
 function seed(): Endpoint[] {
-  const base = `http://127.0.0.1:${config.port}`;
+  const base = loopbackUrl();
   const now = Date.now() - 60000;
   const mk = (
     group: string,

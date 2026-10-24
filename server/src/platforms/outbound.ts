@@ -65,10 +65,19 @@ function isOwnServerApi(u: URL): boolean {
   const h = unmap(u.hostname).toLowerCase();
   const loopback = h === '127.0.0.1' || h === 'localhost' || h === '::1' || h.startsWith('127.');
   if (!loopback) return false;
+  // Decoded (the router decodes too: /%61pi/… is /api/…) and below the base path (SM_BASE_PATH), where the API lives then.
+  let p = u.pathname;
+  try {
+    p = decodeURIComponent(p);
+  } catch {
+    return true; // malformed escapes: refuse rather than guess what the server would route
+  }
+  const base = config.basePath;
+  if (base && (p === base || p.startsWith(base + '/'))) p = p.slice(base.length) || '/';
   // The public liveness/readiness endpoints expose nothing and are legitimate to monitor;
   // everything else under /api (and /metrics) is the self-SSRF surface and stays blocked.
-  if (/^\/api\/(health|ready)\/?$/i.test(u.pathname)) return false;
-  return /^\/(api|metrics)(\/|$)/i.test(u.pathname);
+  if (/^\/api\/(health|ready)\/?$/i.test(p)) return false;
+  return /^\/+(api|metrics)(\/|$)/i.test(p);
 }
 
 // ---------------------------------------------------------------------------

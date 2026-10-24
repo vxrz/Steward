@@ -5,8 +5,13 @@ import type { SessionKeys } from './users.js';
 /**
  * Over HTTPS the cookie has the __Host- prefix: the browser then only accepts it with Secure, Path=/ and
  * without Domain, so a neighbouring (sub)domain cannot plant or overwrite it (OWASP ASVS V3.4.4).
+ * Under a path prefix (SM_BASE_PATH) __Host- is impossible (it requires Path=/): the cookie is then
+ * __Secure-sm_session with Path=<base path> – still Secure and host-only, but other applications on the
+ * same host share Steward's origin (docs/INSTALL.md recommends an own subdomain).
  */
-export const SESSION_COOKIE = config.secureCookies ? '__Host-sm_session' : 'sm_session';
+export const SESSION_COOKIE = config.secureCookies ? (config.basePath ? '__Secure-sm_session' : '__Host-sm_session') : 'sm_session';
+/** Path attribute of Steward's cookies: the base path, or / at the root. */
+export const COOKIE_PATH = config.basePath || '/';
 /** Header with the per-session key (see users.ts SessionBinding). */
 export const SESSION_HEADER = 'x-sm-session';
 /** Query parameter with the link key on download links and images (GET only). */
@@ -37,8 +42,8 @@ export function readCookie(header: string | undefined, name: string): string | u
 export function sessionCookie(token: string | null): string {
   const secure = config.secureCookies ? '; Secure' : '';
   return token
-    ? `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=${Math.round(config.session.maxMs / 1000)}`
-    : `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict${secure}; Max-Age=0`;
+    ? `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=${COOKIE_PATH}; HttpOnly; SameSite=Strict${secure}; Max-Age=${Math.round(config.session.maxMs / 1000)}`
+    : `${SESSION_COOKIE}=; Path=${COOKIE_PATH}; HttpOnly; SameSite=Strict${secure}; Max-Age=0`;
 }
 
 /** Hands the session key and link key to the web app (response headers, read by web/src/api.ts). */

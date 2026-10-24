@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
+import { config } from '../config.js';
 
 /**
  * Minimal OpenID Connect provider for demo mode and tests ("simulated Entra ID").
@@ -28,7 +29,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     { identity: (typeof DEMO_IDENTITIES)[number]; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }
   >();
 
-  const issuerOf = (host: string | undefined) => `http://${host}/mock/oidc`;
+  const issuerOf = (host: string | undefined) => `http://${host}${config.basePath}/mock/oidc`;
 
   app.get('/oidc/.well-known/openid-configuration', async (req) => {
     const iss = issuerOf(req.headers.host);

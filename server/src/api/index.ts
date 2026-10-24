@@ -128,7 +128,8 @@ function finalizeDocument(doc: Doc): Doc {
   return doc;
 }
 
-const swaggerOptions = {
+/** `basePath`: the server's path prefix (SM_BASE_PATH) – the committed docs/openapi.json is the root variant. */
+const swaggerOptions = (basePath: string) => ({
   openapi: {
     openapi: '3.1.0',
     info: {
@@ -140,13 +141,13 @@ const swaggerOptions = {
       contact: { name: BRAND.name, url: BRAND.repoUrl },
     },
     externalDocs: { description: 'API guide (docs/API.md)', url: `${BRAND.repoUrl}/blob/main/docs/API.md` },
-    servers: [{ url: '/api/v1', description: 'This server' }],
+    servers: [{ url: `${basePath}/api/v1`, description: 'This server' }],
     tags: TAGS,
   },
   hideUntagged: true,
   refResolver: { buildLocalReference: (json: { $id?: string }, _base: unknown, _frag: unknown, i: number) => json.$id ?? `def-${i}` },
   transformObject: ({ openapiObject }: { openapiObject?: Doc }) => finalizeDocument(openapiObject as Doc),
-};
+});
 
 /** Swagger UI assets: unpacked next to the web UI in the desktop executable, else from node_modules. */
 function swaggerUiDir(): string | null {
@@ -170,7 +171,7 @@ async function docsGuard(req: FastifyRequest, reply: FastifyReply): Promise<void
       .code(401)
       .type('text/html; charset=utf-8')
       .send(
-        `<!doctype html><meta charset="utf-8"><title>${BRAND.name} API</title><p>Sign in to <a href="/">${BRAND.name}</a> first to read the API documentation.</p>`,
+        `<!doctype html><meta charset="utf-8"><title>${BRAND.name} API</title><p>Sign in to <a href="${config.basePath}/">${BRAND.name}</a> first to read the API documentation.</p>`,
       );
   }
   return void sendProblem(req, reply, 401, { type: 'token-required', title: 'Unauthorized', detail: 'Sign in to the web UI to read the API documentation' });
@@ -231,13 +232,14 @@ async function v1Scope(app: FastifyInstance, opts: { spec: () => Doc }): Promise
   await app.register(v1Routes, { spec: opts.spec });
 }
 
-/** The plugin; register with `{ prefix: '/api' }`. */
-export async function publicApi(app: FastifyInstance): Promise<void> {
+/** The plugin; register with `{ prefix: '/api' }`. `basePath` defaults to the configured one (SM_BASE_PATH). */
+export async function publicApi(app: FastifyInstance, opts: { basePath?: string } = {}): Promise<void> {
+  const basePath = opts.basePath ?? config.basePath;
   // Mark every route of this scope so the app's session-based preHandler leaves them alone.
   app.addHook('onRoute', (route) => {
     route.config = { ...(route.config ?? {}), smPublicApi: true };
   });
-  await app.register(swagger, swaggerOptions as never);
+  await app.register(swagger, swaggerOptions(basePath) as never);
   for (const s of componentSchemas()) app.addSchema(s);
 
   let cached: Doc | null = null;
@@ -264,12 +266,12 @@ export async function publicApi(app: FastifyInstance): Promise<void> {
     await docs.register(swaggerUi as unknown as FastifyPluginAsync<FastifySwaggerUiOptions>, {
       routePrefix: DOCS_BASE.replace(/^\/api/, ''),
       // absolute asset URLs in the page when it is opened without a trailing slash
-      indexPrefix: '/api',
+      indexPrefix: `${basePath}/api`,
       baseDir: dir,
       logo: {
         type: 'image/svg+xml',
         content: logoFile ? fs.readFileSync(logoFile) : Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
-        href: '/',
+        href: `${basePath}/`,
         target: '_self',
       },
       theme: { title: `${BRAND.name} API` },
@@ -296,7 +298,7 @@ export async function buildOpenApiDocument(): Promise<Doc> {
   let doc: Doc | null = null;
   await app.register(
     async (api) => {
-      await publicApi(api);
+      await publicApi(api, { basePath: '' });
       api.addHook('onReady', async () => {
         doc = api.swagger() as unknown as Doc;
       });

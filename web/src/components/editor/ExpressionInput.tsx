@@ -8,6 +8,7 @@ import { useExprContext } from './ExprContext';
 import { compactJson, filterSuggestions, tokenAt, type Suggestion } from './exprAssist';
 import { evaluateExpression, isNotFound } from './editorApi';
 import { errorText } from '../../i18n/errors';
+import { withBase } from '../../basePath';
 
 const KIND_COLOR: Record<Suggestion['kind'], string> = {
   input: 'blue',
@@ -345,7 +346,7 @@ export function ExprPreview({ expression, template }: { expression: string; temp
               t={t}
               i18nKey="expr.usingRun"
               values={{ id: r.runId }}
-              components={{ a: <Anchor href={`/runs/${r.runId}`} target="_blank" size="10px" className="mono" /> }}
+              components={{ a: <Anchor href={withBase(`/runs/${r.runId}`)} target="_blank" size="10px" className="mono" /> }}
             />
           ) : r ? (
             t('expr.noRun')

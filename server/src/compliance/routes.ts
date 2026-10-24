@@ -10,7 +10,7 @@ import {
   type ControlTagKind,
   type ControlsMeta,
 } from '@sm/shared';
-import { config } from '../config.js';
+import { config, loopbackUrl } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { on } from '../events.js';
@@ -144,9 +144,9 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
     const c = rec.getCheck(b.accessCheckId);
     if (c.source !== 'insights-hub') throw new HttpError(400, 'The simulation works with Insights Hub checks of the demo platform', 'DEMO_CHECK_ONLY');
     const p = db().get<{ base_url: string }>('SELECT base_url FROM platforms WHERE id = ?', c.platformId);
-    if (!p || !p.base_url.startsWith(`http://127.0.0.1:${config.port}/mock/ih`))
+    if (!p || !p.base_url.startsWith(`${loopbackUrl()}/mock/ih`))
       throw new HttpError(400, 'The check does not use the simulated Insights Hub', 'DEMO_CHECK_ONLY');
-    const res = await fetch(`http://127.0.0.1:${config.port}/mock/ih/demo/grant-admin`, { method: 'POST', signal: AbortSignal.timeout(10000) });
+    const res = await fetch(`${loopbackUrl()}/mock/ih/demo/grant-admin`, { method: 'POST', signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new HttpError(409, 'Every demo user is a tenant administrator already – reset the demo (restart) to try again', 'DEMO_ALL_ADMINS');
     const granted = (await res.json()) as { userName: string; role: string };
     audit({

@@ -2,6 +2,7 @@ import { notifications } from '@mantine/notifications';
 import type { ErrorParams } from '@sm/shared';
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
+import { BASE_PATH } from './basePath';
 
 export class ApiError extends Error {
   constructor(
@@ -58,16 +59,16 @@ export function authHeaders(): Record<string, string> {
   return { 'x-sm-client': '1', ...(key ? { 'x-sm-session': key } : {}) };
 }
 
-/** URL of an API resource for links, downloads and images (GET only): "/api" + path + the link key. */
+/** URL of an API resource for links, downloads and images (GET only): base path + "/api" + path + the link key. */
 export function apiUrl(path: string): string {
   const key = readKey(LINK_KEY);
-  if (!key) return '/api' + path;
-  return `/api${path}${path.includes('?') ? '&' : '?'}_sk=${encodeURIComponent(key)}`;
+  if (!key) return BASE_PATH + '/api' + path;
+  return `${BASE_PATH}/api${path}${path.includes('?') ? '&' : '?'}_sk=${encodeURIComponent(key)}`;
 }
 
 export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
   const isForm = body instanceof FormData;
-  const res = await fetch('/api' + url, {
+  const res = await fetch(BASE_PATH + '/api' + url, {
     method,
     credentials: 'same-origin',
     headers: {

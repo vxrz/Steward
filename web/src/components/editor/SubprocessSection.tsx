@@ -6,6 +6,7 @@ import { asText, fromText } from '../common';
 import { ExpressionInput } from './ExpressionInput';
 import { ExprKeyValueEditor } from './fields';
 import { useProcessVersion } from './editorApi';
+import { withBase } from '../../basePath';
 
 type SubNode = NodeOf<'subprocess'>;
 
@@ -45,7 +46,7 @@ export function SubprocessSection({
   }
 
   const openLink = (
-    <Anchor href={`/processes/${encodeURIComponent(node.process)}`} target="_blank" size="xs" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+    <Anchor href={withBase(`/processes/${encodeURIComponent(node.process)}`)} target="_blank" size="xs" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
       <Group gap={4} wrap="nowrap">
         <IconExternalLink size={12} />
         {t('sub.open')}

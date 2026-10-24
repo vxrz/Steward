@@ -34,6 +34,7 @@ import { useMe } from '../../auth';
 import { Hint } from '../common';
 import i18n from '../../i18n';
 import { errorText } from '../../i18n/errors';
+import { appUrl } from '../../basePath';
 
 const CHANNELS: NotificationChannel[] = ['inApp', 'email', 'teams', 'webhook'];
 
@@ -216,7 +217,7 @@ export function NotificationSettingsCard() {
           label={t('notify.baseUrl')}
           description={t('notify.baseUrlHint', { example: 'https://steward.example.com' })}
           classNames={{ input: 'mono' }}
-          placeholder={typeof window !== 'undefined' ? window.location.origin : ''}
+          placeholder={appUrl()}
           value={d.baseUrl}
           onChange={(e) => setD({ ...d, baseUrl: e.currentTarget.value })}
         />

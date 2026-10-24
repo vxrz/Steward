@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { config } from '../config.js';
 import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
 import { mockGatus } from './mockGatus.js';
@@ -432,7 +433,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   app.post('/portal/login', async (req, reply) => {
     const b = req.body as { email?: string; password?: string };
     if (b?.email === DEMO_IEM_USER.username && b?.password === DEMO_IEM_USER.password) {
-      return reply.header('set-cookie', 'demo_session=1; Path=/mock/portal; HttpOnly').redirect('/mock/portal/home');
+      return reply.header('set-cookie', `demo_session=1; Path=${config.basePath}/mock/portal; HttpOnly`).redirect('/mock/portal/home');
     }
     return reply.type('text/html').code(401).send(html('<h1>Sign in failed</h1><p class="error">Invalid credentials</p>'));
   });

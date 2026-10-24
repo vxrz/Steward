@@ -15,6 +15,7 @@ import { initPwa } from './pwa';
 import { initErrorReporting } from './errorReporting';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemedMantineProvider } from './theme';
+import { BASE_PATH } from './basePath';
 
 document.title = BRAND.name;
 initPwa();
@@ -32,7 +33,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Notifications position="top-right" />
         {/* confirmation dialogs (components/confirm.tsx) */}
         <ModalsProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={BASE_PATH || undefined}>
             <ErrorBoundary>
               {/* Suspends while the language files of a non-English UI load. */}
               <Suspense

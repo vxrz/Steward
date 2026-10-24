@@ -32,6 +32,7 @@ import { MONITOR_COLORS, MonitorStatusBadge, causeText, fmtUptime, monitorStatus
 import { CopyBlock, ImportModal, InstantiateModal, SecretsModal, gatewayCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
 import { DataTable, type DataColumn } from '../components/DataTable';
+import { appUrl } from '../basePath';
 
 export function MonitorsPage() {
   const { t } = useTranslation(['monitors', 'common']);
@@ -462,7 +463,7 @@ function GatewaysTab() {
               {t('gateways.copyNowText')}
             </Alert>
             <CopyBlock label={t('secrets.secret')} text={secret.secret} />
-            <CopyBlock label={t('secrets.url')} text={`${window.location.origin}/api/hooks/monitors`} />
+            <CopyBlock label={t('secrets.url')} text={appUrl('/api/hooks/monitors')} />
             <CopyBlock label={t('gateways.manyInOneCall')} text={gatewayCurl(secret.gateway.allowedKeys.map((k) => k.replace(/\*/g, 'example')))} />
             <Hint>{t('gateways.reportFormat')}</Hint>
             <Group justify="flex-end">

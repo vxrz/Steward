@@ -43,6 +43,7 @@ import { fmtDate } from '../format';
 import { currentLanguage } from '../i18n';
 import { LANGUAGES } from '../i18n/languages';
 import { useAppTheme } from '../theme';
+import { withBase } from '../basePath';
 
 interface ThirdPartyPackage {
   name: string;
@@ -209,7 +210,7 @@ export function AboutPage() {
               {t('about.links.license', { license: BRAND.license })}
             </LinkItem>
             {publicApi.data?.docsUrl && (
-              <Anchor href={publicApi.data.docsUrl} target="_blank" rel="noopener" size="sm">
+              <Anchor href={withBase(publicApi.data.docsUrl)} target="_blank" rel="noopener" size="sm">
                 <Group gap={6} wrap="nowrap" component="span">
                   <IconApi size={16} aria-hidden />
                   <span>{t('about.links.apiDocs')}</span>
@@ -264,7 +265,7 @@ function ThirdPartyCard() {
     enabled: open,
     staleTime: Infinity,
     queryFn: async () => {
-      const res = await fetch('/third-party-licenses.json', { credentials: 'same-origin' });
+      const res = await fetch(withBase('/third-party-licenses.json'), { credentials: 'same-origin' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as ThirdPartyPackage[];
     },

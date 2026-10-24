@@ -16,6 +16,16 @@ import { fileURLToPath } from 'node:url';
 import { BRAND } from '@sm/shared';
 import { EXIT_FAILURE, EXIT_OK, UsageError, parseCli, usageFailure } from '../cli/args.js';
 import { verifyInstanceAt } from '../instance-proof.js';
+import { parseBasePath } from '../basePath.js';
+
+/** SM_BASE_PATH of a local Steward for the default URL (an invalid value: the root – the server refuses to start with it anyway). */
+function localBasePath(): string {
+  try {
+    return parseBasePath(process.env.SM_BASE_PATH);
+  } catch {
+    return '';
+  }
+}
 
 const help = (command: string) => `MCP stdio bridge for ${BRAND.name}: connects a desktop MCP client to a running ${BRAND.name}.
 
@@ -23,7 +33,7 @@ Usage:
   ${command} [options]
 
 Options:
-  --url <url>             ${BRAND.name} address (default: $STEWARD_URL or http://127.0.0.1:$SM_PORT, port 4310)
+  --url <url>             ${BRAND.name} address (default: $STEWARD_URL or http://127.0.0.1:$SM_PORT$SM_BASE_PATH, port 4310)
   --api-key-file <file>   File with the MCP token (scope "MCP client"); default: $STEWARD_API_KEY
   --data-dir <path>       Data folder of a local ${BRAND.name}, to check that the URL really is it
                           (default: $SM_DATA_DIR or the per-user folder)
@@ -122,7 +132,7 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
   let waitMs = 10_000;
   try {
     token = readToken(values['api-key-file']);
-    const raw = (values.url ?? process.env.STEWARD_URL ?? `http://127.0.0.1:${process.env.SM_PORT ?? 4310}`).trim();
+    const raw = (values.url ?? process.env.STEWARD_URL ?? `http://127.0.0.1:${process.env.SM_PORT ?? 4310}${localBasePath()}`).trim();
     let base: URL;
     try {
       base = new URL(raw);
@@ -163,7 +173,7 @@ export async function runBridge(argv: string[], command = `${BRAND.slug} mcp`): 
   const proveInstance = async (): Promise<string | null> => {
     const deadline = Date.now() + waitMs;
     for (;;) {
-      const check = await verifyInstanceAt(endpoint.origin, instancePath);
+      const check = await verifyInstanceAt(endpoint.href.replace(/\/api\/mcp$/, ''), instancePath);
       if (check === 'ok') return null;
       if (Date.now() >= deadline) {
         return check === 'no-file'

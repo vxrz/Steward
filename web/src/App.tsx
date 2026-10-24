@@ -23,6 +23,7 @@ import { HelpMenu } from './components/HelpMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { currentLanguage, setLanguage } from './i18n';
 import { useAppName } from './theme';
+import { withBase } from './basePath';
 
 // Pages are loaded on demand to keep the first download small.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,7 +143,7 @@ function Shell({ status }: { status: AuthStatus }) {
           <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label={t('toggleNavigation')} />
             <a
-              href="/"
+              href={withBase('/')}
               onClick={(e) => (e.preventDefault(), navigate('/'))}
               style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', color: 'inherit', minWidth: 0 }}
             >

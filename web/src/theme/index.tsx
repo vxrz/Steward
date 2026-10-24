@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 // Direct imports: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../../shared/src/brand';
 import { THEME_COLOR_NAMES, THEME_DEFAULTS, generatePalette, themeCssVariables, type PublicTheme } from '../../../shared/src/theme';
+import { withBase } from '../basePath';
 
 /**
  * The admin-configured theme (Settings → Appearance), applied to every page
@@ -46,7 +47,7 @@ function writeCache(t: PublicTheme) {
 
 export async function fetchTheme(): Promise<PublicTheme> {
   // the browser revalidates with If-None-Match (304 when unchanged)
-  const res = await fetch('/api/theme', { credentials: 'same-origin', cache: 'no-cache' });
+  const res = await fetch(withBase('/api/theme'), { credentials: 'same-origin', cache: 'no-cache' });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return { ...DEFAULT_THEME, ...((await res.json()) as Partial<PublicTheme>) };
 }

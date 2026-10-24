@@ -32,6 +32,7 @@ import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { appUrl } from '../basePath';
 
 type Draft = SyncSourceSettings & { id?: string; token?: string; hasToken?: boolean; removeToken?: boolean };
 
@@ -369,7 +370,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
 
 function SecretDialog({ path, secret, onClose }: { path: string; secret: string; onClose: () => void }) {
   const { t } = useTranslation('gitSync');
-  const url = `${window.location.origin}${path}`;
+  const url = appUrl(path);
   const copyRow = (label: string, value: string) => (
     <Stack gap={2}>
       <Text size="sm" fw={500}>

@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { BRAND } from '../../../../shared/src/brand';
 import { api, getOptional, notifyError, notifyOk, put, apiUrl, authHeaders } from '../../api';
 import { browserTimeZone, reportLangName } from './RunReports';
+import { withBase } from '../../basePath';
 
 type Draft = Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>;
 
@@ -82,7 +83,7 @@ export function ReportBrandingCard() {
   const preview = async (lang: ReportLang) => {
     setBusy(`preview-${lang}`);
     try {
-      const res = await fetch('/api/reports/branding/preview', {
+      const res = await fetch(withBase('/api/reports/branding/preview'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: { ...authHeaders(), 'content-type': 'application/json' },

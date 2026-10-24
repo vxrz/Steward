@@ -1,4 +1,4 @@
-import { config } from '../config.js';
+import { loopbackUrl } from '../config.js';
 import { logger } from '../log.js';
 import { db } from '../db.js';
 import { addSpec, createPlatform } from '../platforms/service.js';
@@ -58,7 +58,7 @@ export async function setupDemo(): Promise<{
   runs: number;
   monitors: number;
 }> {
-  const base = `http://127.0.0.1:${config.port}/mock`;
+  const base = `${loopbackUrl()}/mock`;
   const existing = new Set(
     db()
       .all<{ name: string }>('SELECT name FROM platforms')

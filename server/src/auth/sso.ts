@@ -10,6 +10,7 @@ import { checkMac, configMac } from '../integrity.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { createSession, findUserByName, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
 import { BRAND } from '@sm/shared';
+import { config as appConfig } from '../config.js';
 
 /**
  * Single sign-on with OpenID Connect (authorization code flow + PKCE).
@@ -435,7 +436,8 @@ function syncRolesAndTeams(
 }
 
 /** Redirect URI to register at the identity provider. */
-export function redirectUriFor(req: { protocol: string; headers: Record<string, string | string[] | undefined> }): string {
-  const base = process.env.SM_PUBLIC_URL?.replace(/\/+$/, '') ?? `${req.protocol}://${req.headers.host}`;
+export function redirectUriFor(req: { protocol: string; host: string }): string {
+  // SM_PUBLIC_URL includes the base path; without it the request's address (X-Forwarded-Proto/-Host only from SM_TRUST_PROXY)
+  const base = appConfig.publicUrl ?? `${req.protocol}://${req.host}${appConfig.basePath}`;
   return `${base}/api/auth/oidc/callback`;
 }

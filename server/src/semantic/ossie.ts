@@ -575,8 +575,8 @@ export function semanticModel(version: OssieVersion = DEFAULT_OSSIE_VERSION): Re
     custom_extensions: ext({
       product: 'Steward',
       serverVersion: config.version,
-      apiBase: '/api/v1',
-      openapi: '/api/v1/openapi.json',
+      apiBase: `${config.basePath}/api/v1`,
+      openapi: `${config.basePath}/api/v1/openapi.json`,
       documentation: 'docs/SEMANTIC-MODEL.md',
     }),
   };

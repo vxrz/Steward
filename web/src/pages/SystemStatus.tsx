@@ -10,6 +10,7 @@ import { PageHeader } from '../components/common';
 import { shortCommit } from '../buildInfo';
 import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
 import { errorText } from '../i18n/errors';
+import { appUrl } from '../basePath';
 
 const doc = (p: string) => `${BRAND.repoUrl}/blob/HEAD/docs/${p}`;
 
@@ -66,7 +67,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 function Endpoint({ path, label }: { path: string; label: string }) {
   const { t } = useTranslation('system');
-  const url = `${window.location.origin}${path}`;
+  const url = appUrl(path);
   return (
     <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
       <Text size="sm" fw={500} w={64} style={{ flexShrink: 0 }}>
