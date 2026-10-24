@@ -51,7 +51,7 @@ for c in $CHECKS; do
       if have gitleaks; then run gitleaks gitleaks git . --config .gitleaks.toml --redact --no-banner --report-format json --report-path "$REPORTS/gitleaks.json"
       else skip gitleaks "gitleaks not installed"; fi ;;
     audit)
-      if have npm; then run audit npm audit --omit=dev --audit-level=high; else skip audit "npm not installed"; fi ;;
+      if have npm; then run audit node scripts/security/npm-audit.mjs --audit-level=high; else skip audit "npm not installed"; fi ;;
     osv)
       # OSV_SCANNER_FLAGS="--offline-vulnerabilities --download-offline-databases" works without api.osv.dev
       # shellcheck disable=SC2086

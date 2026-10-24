@@ -67,7 +67,13 @@ export function ServiceDetailPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
-            {s.description.trim() ? <MarkdownView text={s.description} /> : <Text c="dimmed">{t('noDescription')}</Text>}
+            {s.description.trim() ? (
+              <MarkdownView text={s.description} />
+            ) : (
+              <Text c="dimmed" size="sm">
+                {t('noDescription')}
+              </Text>
+            )}
             <LinksPanel
               links={s.links}
               backlinks={s.backlinks}

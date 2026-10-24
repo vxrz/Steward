@@ -358,7 +358,7 @@ export function RunDetailPage() {
               {Object.entries(r.bindings).map(([slot, b]) => (
                 <Text size="sm" key={slot}>
                   <b>{slot}</b> →{' '}
-                  <Anchor component={Link} to={`/platforms/${b.platformId}`}>
+                  <Anchor inherit component={Link} to={`/platforms/${b.platformId}`}>
                     {b.platformName}
                   </Anchor>{' '}
                   <span className="mono">{b.baseUrl}</span>

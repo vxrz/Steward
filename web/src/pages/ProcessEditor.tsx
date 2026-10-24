@@ -159,22 +159,22 @@ export function ProcessEditorPage() {
               </UnstyledButton>
             )}
             <Button
-              size="sm"
+              size="xs"
               variant="default"
               component="a"
               href={apiUrl(`/processes/${p.id}/export`)}
-              leftSection={<IconDownload size={16} />}
+              leftSection={<IconDownload size={14} />}
               visibleFrom="xs"
             >
               {t('page.exportYaml')}
             </Button>
             {p.permissions.includes('run') && (
-              <Button size="sm" variant="light" leftSection={<IconPlayerPlay size={16} />} onClick={onRun}>
+              <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} onClick={onRun}>
                 {t('page.run')}
               </Button>
             )}
             {canEdit ? (
-              <Button size="sm" leftSection={<IconDeviceFloppy size={16} />} disabled={!dirty} onClick={() => setSaveOpen(true)}>
+              <Button size="xs" leftSection={<IconDeviceFloppy size={14} />} disabled={!dirty} onClick={() => setSaveOpen(true)}>
                 {t('common:save')}
               </Button>
             ) : (

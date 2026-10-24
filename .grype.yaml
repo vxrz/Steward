@@ -1,0 +1,12 @@
+# Grype configuration (see docs/SECURITY-PIPELINE.md). Every ignore needs a reason; remove it when the fix lands.
+ignore:
+  # zod 3.25 (runtime): memory exhaustion while validating very large arrays. Mitigated by the request body
+  # shape limits (server/src/bodyShape.ts); no 3.x fix, the fix is the zod 4 upgrade (#63). Remove by 2026-12-31.
+  - vulnerability: GHSA-mrhx-c7xc-m3w5
+    package:
+      name: zod
+      type: npm
+  - vulnerability: CVE-2023-54404
+    package:
+      name: zod
+      type: npm

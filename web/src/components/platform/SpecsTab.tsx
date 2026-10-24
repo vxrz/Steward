@@ -302,7 +302,10 @@ export function SpecsTab({
       </Modal>
       {ops.data?.length === 0 && specs.data && specs.data.length > 0 && (
         <Text size="sm" c="dimmed">
-          {t('specs.noOperations')} <Anchor onClick={() => refresh()}>{t('specs.reload')}</Anchor>
+          {t('specs.noOperations')}{' '}
+          <Anchor inherit onClick={() => refresh()}>
+            {t('specs.reload')}
+          </Anchor>
         </Text>
       )}
     </Stack>

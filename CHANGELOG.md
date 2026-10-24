@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- More consistent sizes in the web app: every page header uses the same small buttons (Platforms, the platform page, the process editor and Settings used larger ones). Headings inside records, documents, services and ticket references are smaller (18 / 16 / 14 px instead of 22 / 18 / 16 px), so content no longer looks larger than the rest of the app. Links inside text take the size of the text around them, and links in tables use the table's size (the control catalogue showed 16 px links in a 14 px table).
+
 ## [0.1.1] - 2026-10-23
 
 Safe in-place updates, living documents for service documentation, and security fixes (some also affect v0.1.0 installations – updating is recommended).

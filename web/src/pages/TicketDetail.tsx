@@ -110,7 +110,13 @@ export function TicketDetailPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
-            {x.note.trim() ? <MarkdownView text={x.note} /> : <Text c="dimmed">{t('detail.noNote')}</Text>}
+            {x.note.trim() ? (
+              <MarkdownView text={x.note} />
+            ) : (
+              <Text c="dimmed" size="sm">
+                {t('detail.noNote')}
+              </Text>
+            )}
             <div>
               <Text fw={600} mb={4}>
                 {t('fields.affected')}

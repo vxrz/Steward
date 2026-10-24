@@ -180,9 +180,11 @@ export function MonitorDetailPage() {
                 {c.hidden ? (
                   causeText(c, m.id)
                 ) : c.monitorId === m.id ? (
-                  <Anchor onClick={() => select(c.checkId)}>{c.checkName}</Anchor>
+                  <Anchor inherit onClick={() => select(c.checkId)}>
+                    {c.checkName}
+                  </Anchor>
                 ) : (
-                  <Anchor component={Link} to={`/monitors/${c.monitorId}?check=${encodeURIComponent(c.checkId)}`}>
+                  <Anchor inherit component={Link} to={`/monitors/${c.monitorId}?check=${encodeURIComponent(c.checkId)}`}>
                     {causeText(c, m.id)}
                   </Anchor>
                 )}

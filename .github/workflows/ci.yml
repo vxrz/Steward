@@ -74,7 +74,7 @@ jobs:
         run: node scripts/build-exe.mjs --bundle-only
       - name: Dependency audit (production dependencies)
         if: matrix.node == 24
-        run: npm audit --omit=dev --audit-level=moderate
+        run: node scripts/security/npm-audit.mjs --audit-level=moderate
 
   test-postgres:
     # The same test suite on PostgreSQL (every test server gets its own schema)

@@ -226,7 +226,7 @@ function CoverageTable({
                 </Table.Td>
               )}
               <Table.Td>
-                <Anchor component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
+                <Anchor size="sm" component={Link} to={link(c)} onClick={() => onOpen(c.control.id)} fw={500}>
                   <Text span className="mono" size="sm">
                     {c.control.ref}
                   </Text>{' '}

@@ -205,7 +205,7 @@ export function RecordDetailPage() {
         <Alert color="orange" mb="sm">
           {rec.document ? t('detail.replacedBy') : t('detail.supersededBy')}{' '}
           {rec.supersededBy.visible && rec.supersededBy.id ? (
-            <Anchor component={Link} to={`/records/${rec.supersededBy.id}`}>
+            <Anchor inherit component={Link} to={`/records/${rec.supersededBy.id}`}>
               {rec.supersededBy.number} {rec.supersededBy.title}
             </Anchor>
           ) : (
@@ -332,7 +332,13 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
         </Grid.Col>
       )}
       <Grid.Col span={{ base: 12, md: rec.fieldDefs.length ? 8 : 12 }} order={{ base: 2, md: 1 }}>
-        {rec.body.trim() ? <MarkdownView text={rec.body} /> : <Text c="dimmed">{t('detail.noBody')}</Text>}
+        {rec.body.trim() ? (
+          <MarkdownView text={rec.body} />
+        ) : (
+          <Text c="dimmed" size="sm">
+            {t('detail.noBody')}
+          </Text>
+        )}
         <Text size="xs" c="dimmed" mt="md" className="mono" style={{ overflowWrap: 'anywhere' }}>
           {t('detail.contentHash', { hash: rec.contentHash })}
         </Text>
@@ -942,7 +948,7 @@ function PdfModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () => 
       {created ? (
         <Stack gap="sm">
           <Alert color="green">{t('pdf.created')}</Alert>
-          <Anchor href={apiUrl(`/records/${rec.id}/attachments/${created.id}/download`)}>
+          <Anchor size="sm" href={apiUrl(`/records/${rec.id}/attachments/${created.id}/download`)}>
             <IconDownload size={14} aria-hidden /> {created.filename}
           </Anchor>
           <Text size="xs" c="dimmed">

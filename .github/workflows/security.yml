@@ -68,7 +68,8 @@ jobs:
           package-manager-cache: false
       - name: npm audit (production dependencies, high and critical)
         # ci.yml additionally fails on moderate findings; this job also runs weekly on an unchanged lockfile
-        run: npm audit --omit=dev --audit-level=high
+        # accepted risks (with reason and expiry) come from osv-scanner.toml, see scripts/security/npm-audit.mjs
+        run: node scripts/security/npm-audit.mjs --audit-level=high
       - name: Install OSV-Scanner
         if: ${{ !cancelled() }}
         run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" osv-scanner && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
