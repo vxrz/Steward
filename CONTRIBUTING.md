@@ -137,11 +137,12 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 
 ## Releasing (maintainers)
 
-1. Move the **Unreleased** entries in `CHANGELOG.md` to a new version section and update `version` in the root `package.json` and `server/src/config.ts` ([Semantic Versioning](https://semver.org/)).
+1. Move the **Unreleased** entries in `CHANGELOG.md` to a new version section and update `version` in the root `package.json` and `server/src/config.ts` ([Semantic Versioning](https://semver.org/)), and the image tag (`ghcr.io/vxrz/steward:<version>`) in `docker-compose.yml` and `docker-compose.postgres.yml` (a test checks that they match).
 2. Commit: `chore(release): v0.2.0`.
 3. Tag and push: `git tag -a v0.2.0 -m v0.2.0 && git push --tags`.
    - The **Release** workflow builds the desktop executables for Windows, macOS and Linux, smoke-tests them, adds SBOMs and checksums, and publishes a GitHub release.
    - A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release.
+   - The **Container** workflow builds the image for linux/amd64 and linux/arm64 (with and without Chromium), scans it, and only then pushes the scanned images to `ghcr.io/vxrz/steward` (`0.2.0`, `0.2`, `latest`, and the same with `-browser`; a pre-release only gets its own tag), signs them with cosign and attests provenance and SBOMs. To try this before a release: _Actions → Container → Run workflow_ with _push_ (pushes only `test-<commit sha>`). Details: [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#publishing-to-ghcrio).
    - On the Forgejo mirror, Woodpecker pushes the container image to Harbor (`0.2.0`, `0.2`, `0`, `latest`), sends the SBOMs to Dependency-Track and builds the Linux executable (optionally as a Forgejo release); see [docs/WOODPECKER.md](docs/WOODPECKER.md#9-releases).
 
 ## Questions

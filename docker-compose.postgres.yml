@@ -7,8 +7,9 @@
 # live there. Back up both volumes (see docs/INSTALL.md, "Database").
 services:
   steward:
-    build: .
-    image: steward:latest
+    # Signed release image (with Chromium: …:0.1.2-browser); to build from this checkout instead,
+    # replace the line with "build: ." and "image: steward:local"
+    image: ghcr.io/vxrz/steward:0.1.2
     restart: unless-stopped
     depends_on:
       postgres:

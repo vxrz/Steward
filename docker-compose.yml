@@ -1,8 +1,14 @@
 # docker compose up -d   →   http://localhost:4310
+# Update: set the new version below, then  docker compose pull && docker compose up -d  (docs/INSTALL.md)
 services:
   steward:
-    build: .
-    image: steward:latest
+    # Signed release image (verify: docs/SECURITY-HARDENING.md#verifying-downloads).
+    # With Chromium for browser steps: ghcr.io/vxrz/steward:0.1.2-browser
+    image: ghcr.io/vxrz/steward:0.1.2
+    # Or build it from this checkout instead: replace the image line with these two
+    # (update with "git pull && docker compose build --pull && docker compose up -d")
+    # build: .
+    # image: steward:local
     restart: unless-stopped
     ports:
       - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)
