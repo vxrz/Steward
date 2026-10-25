@@ -188,6 +188,27 @@ describe('emergency access', () => {
     expect((await again.json()).code).toBe('EMERGENCY_CODE_INVALID');
   });
 
+  it('flags entries that name the person of the emergency session as the actor explicitly, not those of others', async () => {
+    const { runAs } = await import('../src/auth/context.js');
+    const { audit } = await import('../src/audit.js');
+    const user = {
+      id: 'u',
+      username: ADMIN.username,
+      displayName: 'Admin',
+      roles: ['admin' as const],
+      teams: [],
+      emergency: { grantId: 'eag_x', expiresAt: 'later' },
+    };
+    const own = runAs(user, () => audit({ action: 'test.explicit', entityType: 'test', actor: ADMIN.username, summary: 'Check run' }));
+    const implicit = runAs(user, () => audit({ action: 'test.implicit', entityType: 'test', summary: 'Settings' }));
+    const other = runAs(user, () => audit({ action: 'test.system', entityType: 'test', actor: 'system', summary: 'Scheduler' }));
+    expect(own.summary).toBe('[Emergency access] Check run');
+    expect(own.details).toMatchObject({ emergencyAccess: 'eag_x' });
+    expect(implicit.summary).toBe('[Emergency access] Settings');
+    expect(other.summary).toBe('Scheduler');
+    expect(JSON.stringify(other.details ?? null)).not.toContain('emergencyAccess');
+  });
+
   it('works for single sign-on accounts too', async () => {
     const g = await grant('max@contoso.example');
     const c = await emergencySignIn(g.code);

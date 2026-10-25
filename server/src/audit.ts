@@ -114,8 +114,10 @@ function flagEmergency(input: AuditInput, grantId: string): AuditInput {
 }
 
 export function audit(input: AuditInput): AuditEntry {
-  // only entries attributed to the signed-in person (no explicit actor such as "system")
-  const emergency = input.actor === undefined ? currentUser()?.emergency : undefined;
+  // entries attributed to the person signed in with emergency access – also when a service names them as the actor
+  // explicitly (a check run, a report); entries of someone else (such as "system") stay unflagged
+  const user = currentUser();
+  const emergency = user?.emergency && (input.actor === undefined || input.actor === user.username) ? user.emergency : undefined;
   const c = capped(emergency ? flagEmergency(input, emergency.grantId) : input);
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
