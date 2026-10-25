@@ -582,11 +582,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(req.body);
     const { provider, ...patch } = b;
-    if (provider) {
-      const p = claimingProvider(provider);
-      users.bindToProvider(params(req).id!, p.id, p.displayName);
-    }
-    return Object.keys(patch).length || !provider ? users.updateUser(params(req).id!, patch) : users.getUser(params(req).id!);
+    const id = params(req).id!;
+    // one transaction: a binding is not kept when the rest of the change is refused
+    return db().tx(() => {
+      if (provider) {
+        const p = claimingProvider(provider);
+        users.bindToProvider(id, p.id, p.displayName);
+      }
+      return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
+    });
   });
   app.post('/users/:id/reset-password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
