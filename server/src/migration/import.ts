@@ -548,10 +548,12 @@ export function resolveMapping(m: Manifest, mapping: MigrationMapping, importer:
       else if (usedAliases.has(lower(username))) problems.push(`"${username}" is the former name of an imported account`);
       creating.add(lower(username));
     }
-    // a source name that belongs to another account here would grant that account what the source user had
+    // A source name that is an account here must be that account: otherwise the former name would become an alias of
+    // another account and match "user:<name>" everywhere – the existing account's grants, now and in future content.
+    // (No exception for administrators: an alias equal to an existing name is never created.)
     const clash = byName.get(lower(u.username));
-    if (clash && lower(clash.username) !== lower(username) && !clash.roles.includes('admin')) {
-      problems.push(`"${u.username}" exists here as another person's account – map "${u.username}" to it, or rename that account first`);
+    if (clash && lower(clash.username) !== lower(username)) {
+      problems.push(`"${u.username}" is the name of an account here – map "${u.username}" to that account`);
     }
     if (usedAliases.has(lower(u.username))) problems.push(`"${u.username}" is the former name of an account imported earlier`);
     // mapping to the importing administrator is fine: that account is never changed (no roles, no teams)

@@ -51,7 +51,7 @@ Rules:
 
 - Every user and every team needs a decision.
 - Decisions for **administrators of the source**, and mappings **to an administrator of the target**, must be confirmed (a tick in the UI, `"confirm": true` in a mapping file).
-- A source user name that is another person's account on the target is refused (map the user to that account, or rename the account first) – the name would otherwise mean two people. Administrator accounts of the same name are allowed (an administrator has all rights anyway).
+- A source user name that is an account on the target must be mapped to that very account – also for administrators. Otherwise the former name would become an alias of another account and match `user:<name>` everywhere, including what the existing account gets in future. If they are different people, give the target account another name before the import (or create it under another name).
 - A team name that exists on the target must be mapped to that team.
 
 **Who owns something or may do something** follows the mapping: owners of processes, schedules, dashboards, monitors, triggers, report schedules, access checks, records and services, access lists, assignees of decisions, responsible people of ticket references, credential owners, report recipients and monitor subscribers.

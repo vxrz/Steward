@@ -366,7 +366,7 @@ describe('import into SQLite through the web API', () => {
     expect(plan.history.ok).toBe(true);
     expect(plan.history.entries).toBe(source.auditEntries);
     const admin = plan.users.find((u: any) => u.username === 'admin');
-    // a local "admin" exists here as well – an administrator, so a clash is allowed, but needs a decision
+    // a local "admin" exists here as well: the source's "admin" can only become that account
     expect(admin.clash).toEqual({ username: 'admin', admin: true });
     expect(admin.suggestion).toMatchObject({ action: 'map', to: 'admin', confirm: false });
     expect(plan.paused.map((p: any) => p.label)).toEqual(expect.arrayContaining(['schedules']));
@@ -381,6 +381,12 @@ describe('import into SQLite through the web API', () => {
     const teams = Object.fromEntries(plan.teams.map((t: any) => [t.name, t.suggestion]));
     const unconfirmed = await apply({ mapping: { users, teams }, confirmFingerprint: plan.source.fingerprint });
     expect(unconfirmed.body).toContain('confirm the decision');
+    // the name "admin" is an account here: it cannot become an alias of another account (not even of an administrator)
+    const shadow = await apply({
+      mapping: { users: { ...users, admin: { action: 'map', to: 'max@contoso.example', confirm: true } }, teams },
+      confirmFingerprint: plan.source.fingerprint,
+    });
+    expect(shadow.body).toContain('is the name of an account here');
     const fp = await apply({ mapping: { users, teams }, confirmFingerprint: '0000:1111' });
     expect(fp.body).toContain('MIGRATION_FINGERPRINT_MISMATCH');
     // still staged after refused attempts
@@ -390,7 +396,7 @@ describe('import into SQLite through the web API', () => {
   it('imports with the mapping, audited, with the history verifiable', async () => {
     const users: Record<string, unknown> = {};
     for (const u of plan.users) users[u.username] = { action: 'create-sso', username: `${u.username}@contoso.example` };
-    users.admin = { action: 'map', to: 'max@contoso.example', confirm: true }; // the laptop's admin is Max now
+    users.admin = { action: 'map', to: 'admin', confirm: true };
     users.olivia = { action: 'create-local' };
     users.adam = { action: 'archive' };
     const teams = Object.fromEntries(plan.teams.map((t: any) => [t.name, { action: 'create' }]));
@@ -426,14 +432,16 @@ describe('import into SQLite through the web API', () => {
     const [entry] = await max('GET', '/audit?action=instance.imported&limit=1');
     expect(entry.actor).toBe('max@contoso.example');
     expect(entry.details.packageSha256).toBe(sha(fs.readFileSync(pkgFile)));
-    expect(entry.details.mapping).toEqual(expect.arrayContaining(['user admin → map max@contoso.example', 'user adam → archive adam']));
+    expect(entry.details.mapping).toEqual(
+      expect.arrayContaining(['user admin → map admin', 'user dana → create-sso dana@contoso.example', 'user adam → archive adam']),
+    );
     // the import record and the imported history verify
     const imp = await max('GET', `/migration/imports/${importId}`);
     expect(imp.verification.ok, JSON.stringify(imp.verification)).toBe(true);
-    expect(imp.mapping.find((m: any) => m.source === 'admin')).toMatchObject({ action: 'map', target: 'max@contoso.example', sourceKind: 'local' });
+    expect(imp.mapping.find((m: any) => m.source === 'dana')).toMatchObject({ action: 'create-sso', target: 'dana@contoso.example', sourceKind: 'local' });
     const history = await max('GET', `/migration/imports/${importId}/history?limit=500`);
-    const fromAdmin = history.find((h: any) => h.actor === 'admin');
-    expect(fromAdmin.actorNow).toBe('max@contoso.example');
+    const fromDana = history.find((h: any) => h.actor === 'dana');
+    expect(fromDana.actorNow).toBe('dana@contoso.example');
     // evidence that moved stays verifiable: the run protocol's seal is in the imported history
     const token = await max('POST', '/me/tokens', { name: 'check', scope: 'read' });
     const run = await (await fetch(`${child.base}/api/v1/runs/${source.runId}`, { headers: { authorization: `Bearer ${token.token}` } })).json();
