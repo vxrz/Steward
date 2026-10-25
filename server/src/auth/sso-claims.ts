@@ -36,8 +36,9 @@ export function claimAt(claims: Claims, path: string): unknown {
   return cur;
 }
 
+// control characters, line separators and bidi controls (they could reorder text in the audit log or the UI)
 // eslint-disable-next-line no-control-regex -- control characters are what this removes
-const CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/g;
 
 /** A claim value as text: strings, numbers, booleans, lists of them (joined with ", "). Control characters become spaces; bounded. */
 export function claimText(v: unknown, max: number): string | undefined {
@@ -151,7 +152,8 @@ export function identityKeys(
   const complete = parts.every((p) => p.value !== null);
   return {
     key: complete ? build((parts as { name: string; value: string }[]).map((p) => ({ ...p, numeric: numeric.has(p.name) }))) : undefined,
-    subKey: build([{ name: 'sub', value: sub }]),
+    // marked like the stable id would mark it, so a (non-standard) numeric sub gives the same link either way
+    subKey: build([{ name: 'sub', value: sub, numeric: typeof claims.sub === 'number' }]),
     legacyKey: `${providerId}:${sub}`,
     issuer,
     parts,

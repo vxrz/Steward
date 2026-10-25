@@ -35,6 +35,8 @@ describe('claims', () => {
     expect(claimText({ a: 1 }, 50)).toBeUndefined();
     expect(claimText('', 50)).toBeUndefined();
     expect(claimText('abcdef', 3)).toBe('abc');
+    // bidi controls would reorder text in the audit log and the UI
+    expect(claimText('ab\u202ecd\u2066e\u200f', 50)).toBe('ab cd e');
     expect(claimList('a b,c')).toEqual(['a', 'b', 'c']);
     expect(claimList(['x', 2, { y: 1 }])).toEqual(['x', '2']);
   });
@@ -85,6 +87,10 @@ describe('claims', () => {
     expect(keyIssuer(k.key!, 'idp_1')).toBe('https://idp.example');
     expect(withIssuer(k.key!, 'idp_1', 'https://new.example/')).toBe('idp_1#iss=https%3A%2F%2Fnew.example#tid=t#oid=o');
     expect(identityKeys('idp_1', { iss: 'x', sub: 's' }, ['oid']).key).toBeUndefined();
+    // a (non-standard) numeric sub gives the same link as the stable id ['sub'] and the recorded issuer + sub
+    const numericSub = identityKeys('idp_1', { iss: 'x', sub: 123 }, ['sub']);
+    expect(numericSub.subKey).toBe(numericSub.key);
+    expect(numericSub.subKey).not.toBe(identityKeys('idp_1', { iss: 'x', sub: '123' }, ['sub']).subKey);
     // values exactly as sent: what claimText would trim, join or cut never makes two values the same
     const keyOf = (oid: unknown) => identityKeys('idp_1', { iss: 'x', sub: 's', oid }, ['oid']).key;
     expect(keyOf(' v ')).not.toBe(keyOf('v'));
