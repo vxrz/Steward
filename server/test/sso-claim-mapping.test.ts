@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, withRefusalReason, type Client, type TestServer } from './helpers.js';
 
 /**
  * How claims become an account (#77), with the mock identity provider emitting configurable claims: the stable
@@ -51,7 +51,7 @@ async function signIn(login: string, opts: { provider?: string; host?: string } 
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
   const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
-  if (res.status !== 200) return { error: decodeURIComponent(res.headers.get('location') ?? String(res.status)) };
+  if (res.status !== 200) return { error: await withRefusalReason(s, res.headers.get('location') ?? String(res.status)) };
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
   const client = (async (method: string, url: string, body?: unknown) => {
@@ -157,6 +157,28 @@ describe('defaults and existing providers', () => {
     expect(twice.message).toContain('SSO_PROFILE_FIELD_TWICE');
     const empty = await configure({ requiredClaims: [{ claim: 'hd', values: [] }] }).catch((e) => e);
     expect(empty.message).toContain('accepted value');
+    // stripping domains needs the list of domains
+    const noDomains = await configure({ usernameTransform: 'stripDomain', stripDomains: [] }).catch((e) => e);
+    expect(noDomains.message).toContain('SSO_STRIP_DOMAINS_REQUIRED');
+    const badDomain = await configure({ usernameTransform: 'stripDomain', stripDomains: ['not a domain'] }).catch((e) => e);
+    expect(badDomain.message).toContain('400');
+  });
+
+  it('refuses a stable identifier many people share (tid, groups …) unless a subject claim is in it or it is confirmed', async () => {
+    for (const claims of [['tid'], ['tid', 'groups'], ['hd'], ['iss', 'aud']]) {
+      const e = await configure({ stableIdClaims: claims }).catch((x) => x);
+      expect(e.message, claims.join('+')).toContain('SSO_STABLE_ID_NOT_UNIQUE');
+      // a confirmation does not make shared claims unique
+      const confirmed = await configure({ stableIdClaims: claims, stableIdConfirmedUnique: true }).catch((x) => x);
+      expect(confirmed.message, claims.join('+')).toContain('SSO_STABLE_ID_NOT_UNIQUE');
+    }
+    // a custom claim needs the administrator's confirmation (audited); a subject claim does not
+    expect((await configure({ stableIdClaims: ['employeeId'] }).catch((x) => x)).message).toContain('SSO_STABLE_ID_NOT_UNIQUE');
+    const custom = await configure({ stableIdClaims: ['tid', 'employeeId'], stableIdConfirmedUnique: true });
+    expect(custom.stableIdClaims).toEqual(['tid', 'employeeId']);
+    expect((await lastAudit('sso.provider_updated')).details.changed).toEqual(expect.arrayContaining(['stableIdClaims', 'stableIdConfirmedUnique']));
+    expect((await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedUnique: false })).stableIdClaims).toEqual(['tid', 'oid']);
+    await configure({ stableIdClaims: ['sub'] });
   });
 });
 
@@ -208,11 +230,43 @@ describe('the stable identifier', () => {
     await configure({ stableIdClaims: ['sub'] });
   });
 
+  it('records issuer + sub only when an identity is linked: a shared identifier cannot move an account to the last signer', async () => {
+    // an administrator confirmed a claim that turns out to be shared (Max and Nina both send employeeId E1)
+    await configure({ stableIdClaims: ['employeeId'], stableIdConfirmedUnique: true });
+    mock.setMockIdentity('a1f3', { idToken: { employeeId: 'E1' } });
+    mock.setMockIdentity('e5b7', { idToken: { employeeId: 'E1' } });
+    const max = await meOf((await signIn('a1f3')).client!);
+    const maxSub = row('max@contoso.example')!.external_sub;
+    expect(maxSub).toMatch(/#sub=a1f3$/);
+    // Nina gets Max's account (that is what the confirmed claim says) – but its recorded issuer + sub stays Max's
+    expect((await meOf((await signIn('e5b7')).client!)).id).toBe(max.id);
+    expect(row('max@contoso.example')!.external_sub).toBe(maxSub);
+    // back to an identifier that names one person: Nina does not get Max's account, Max does
+    await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedUnique: false });
+    const nina = await signIn('e5b7');
+    expect(nina.client ? (await meOf(nina.client)).id : nina.error).not.toBe(max.id);
+    expect((await meOf((await signIn('a1f3')).client!)).id).toBe(max.id);
+    await configure({ stableIdClaims: ['sub'] });
+    expect((await meOf((await signIn('a1f3')).client!)).id).toBe(max.id);
+  });
+
+  it('takes identifier values exactly as sent: no trimming, joining or cutting', async () => {
+    await configure({ stableIdClaims: ['sub', 'employeeId'] });
+    for (const bad of [['E1'], { id: 'E1' }, '', 'x'.repeat(257), true]) {
+      mock.setMockIdentity('vic', { preferred_username: 'vic@contoso.example', idToken: { employeeId: bad } });
+      expect((await signIn('vic')).error, JSON.stringify(bad)).toContain('usable values');
+    }
+    mock.setMockIdentity('vic', { preferred_username: 'vic@contoso.example', idToken: { employeeId: ' E1 ' } });
+    await signIn('vic');
+    expect(row('vic@contoso.example')!.external_id).toContain('#employeeId=%20E1%20');
+    await configure({ stableIdClaims: ['sub'] });
+  });
+
   it('refuses a sign-in without the claims that identify the person', async () => {
     await configure({ stableIdClaims: ['oid'] });
     mock.setMockIdentity('d4c6', { idToken: { oid: null } });
     const r = await signIn('d4c6');
-    expect(r.error).toContain('did not send the claims that identify you (oid)');
+    expect(r.error).toContain('did not send usable values for the claims that identify you (oid)');
     await configure({ stableIdClaims: ['sub'] });
   });
 
@@ -232,6 +286,21 @@ describe('the stable identifier', () => {
     expect((await lastAudit('sso.provider_updated')).summary).toContain('moved to the new issuer');
     expect((await meOf((await signIn('a1f3')).client!)).id).toBe(max.id);
     await configure({ issuer, keepLinksOnIssuerChange: true });
+  });
+
+  it('keeps hashed (long) links when the issuer moves, re-linked through issuer + sub', async () => {
+    const issuer = `${s.base}/mock/oidc`;
+    const other = issuer.replace('127.0.0.1', 'localhost');
+    await configure({ stableIdClaims: ['sub', 'badge'] });
+    mock.setMockIdentity('hank', { preferred_username: 'hank@contoso.example', idToken: { badge: 'é'.repeat(250) } });
+    const hank = await meOf((await signIn('hank')).client!);
+    expect(row('hank@contoso.example')!.external_id).toMatch(/#h#sub%2Cbadge#[0-9a-f]{64}$/);
+    await configure({ issuer: other, keepLinksOnIssuerChange: true });
+    expect(row('hank@contoso.example')!.external_id).toContain('#moved=');
+    expect((await meOf((await signIn('hank')).client!)).id).toBe(hank.id);
+    expect((await lastAudit('user.sso_relinked')).entityId).toBe(hank.id);
+    expect(row('hank@contoso.example')!.external_id).toMatch(/#h#sub%2Cbadge#/);
+    await configure({ issuer, keepLinksOnIssuerChange: true, stableIdClaims: ['sub'] });
   });
 });
 
@@ -309,17 +378,19 @@ describe('names, profile fields and sync rules', () => {
 
 describe('user name rules', () => {
   it('strips the domain or keeps the case, and reports collisions', async () => {
-    await configure({ usernameTransform: 'stripDomain' });
+    await configure({ usernameTransform: 'stripDomain', stripDomains: ['contoso.example'] });
     mock.setMockIdentity('ulla', { preferred_username: 'Ulla@Contoso.example' });
     expect((await meOf((await signIn('ulla')).client!)).username).toBe('ulla');
-    // the same name at another domain: the account belongs to the first identity
+    // a domain that is not listed: refused, whatever the name
     mock.setMockIdentity('ulla2', { preferred_username: 'ulla@fabrikam.example' });
+    expect((await signIn('ulla2')).error).toContain('not of a domain this provider strips');
+    // a listed domain with the same name: the account belongs to the first identity
+    await configure({ stripDomains: ['contoso.example', 'fabrikam.example'] });
     expect((await signIn('ulla2')).error).toContain('linked to another');
     await configure({ usernameTransform: 'none' });
     mock.setMockIdentity('Ken', { preferred_username: 'Ken.Keep@Contoso.example' });
     expect((await meOf((await signIn('Ken')).client!)).username).toBe('Ken.Keep@Contoso.example');
     // two accounts of this provider that would get the same name: reported with the provider
-    await configure({ usernameTransform: 'stripDomain' });
     mock.setMockIdentity('ken2', { preferred_username: 'ken.keep@fabrikam.example' });
     await configure({ usernameTransform: 'lowercase' });
     await signIn('ken2');
@@ -328,6 +399,28 @@ describe('user name rules', () => {
     expect(JSON.stringify(saved.warnings)).toContain('ken.keep ←');
     expect(saved.warnings).toContainEqual({ code: 'STRIP_DOMAIN' });
     await configure({ usernameTransform: 'lowercase' });
+  });
+
+  it('never lets a foreign domain claim an account when stripping domains (not even a bound administrator)', async () => {
+    await configure({ usernameTransform: 'stripDomain', stripDomains: ['contoso.example'] });
+    const { user } = await s.api('POST', '/users', { username: 'boss', roles: ['admin'], provider: p });
+    mock.setMockIdentity('evil1', { preferred_username: 'boss@evil.example' });
+    expect((await signIn('evil1')).error).toContain('not of a domain this provider strips');
+    expect(row('boss')).toMatchObject({ id: user.id, external_id: null });
+    mock.setMockIdentity('boss1', { preferred_username: 'boss@contoso.example', idToken: { roles: ['SM.Admins'] } });
+    expect((await meOf((await signIn('boss1')).client!)).id).toBe(user.id);
+    await configure({ usernameTransform: 'lowercase' });
+  });
+
+  it('normalises user names (NFKC) and refuses characters local user names cannot have', async () => {
+    mock.setMockIdentity('fw', { preferred_username: 'ｆｕｌｌ＠contoso.example' });
+    expect((await meOf((await signIn('fw')).client!)).username).toBe('full@contoso.example');
+    mock.setMockIdentity('kelvin', { preferred_username: '\u212Aelvin@contoso.example' });
+    expect((await meOf((await signIn('kelvin')).client!)).username).toBe('kelvin@contoso.example');
+    for (const name of ['max\u202E@contoso.example', 'a b@contoso.example', 'x', 'é@contoso.example', 'a'.repeat(129)]) {
+      mock.setMockIdentity('odd', { preferred_username: name });
+      expect((await signIn('odd')).error, name).toContain('is not usable');
+    }
   });
 });
 
@@ -345,12 +438,87 @@ describe('e-mail confirmation', () => {
     expect(trusted.warnings).toContainEqual({ code: 'EMAIL_TRUSTED' });
     expect((await meOf((await signIn('ewa')).client!)).username).toBe('ewa@contoso.example');
     // also when the e-mail claim is (part of) the stable identifier
-    await configure({ usernameClaim: 'preferred_username', emailVerifiedByProvider: false, stableIdClaims: ['email'] });
+    await configure({ usernameClaim: 'preferred_username', emailVerifiedByProvider: false, stableIdClaims: ['email'], stableIdConfirmedUnique: true });
     mock.setMockIdentity('eli', { preferred_username: 'eli@contoso.example' });
     expect((await signIn('eli')).error).toContain('email_verified');
     expect((await provider()).stableIdClaims).toEqual(['email']);
     expect((await s.api('GET', '/sso/providers'))[0].warnings).toContainEqual({ code: 'MUTABLE_STABLE_ID', params: { claims: ['email'] } });
-    await configure({ stableIdClaims: ['sub'] });
+    await configure({ stableIdClaims: ['sub'], stableIdConfirmedUnique: false });
+  });
+
+  it('takes email_verified from where the e-mail address came from (ID token or userinfo)', async () => {
+    await configure({ usernameClaim: 'email', useUserinfo: true });
+    // the ID token confirms nothing it does not carry: the address only comes from userinfo, which does not confirm it
+    mock.setMockIdentity('mix', {
+      preferred_username: 'mix@contoso.example',
+      idToken: { email: null, email_verified: true },
+      userinfo: { email: 'mix@contoso.example', email_verified: false },
+    });
+    expect((await signIn('mix')).error).toContain('email_verified');
+    mock.setMockIdentity('mix', {
+      preferred_username: 'mix@contoso.example',
+      idToken: { email: null },
+      userinfo: { email: 'mix@contoso.example', email_verified: true },
+    });
+    expect((await meOf((await signIn('mix')).client!)).username).toBe('mix@contoso.example');
+    await configure({ usernameClaim: 'preferred_username', useUserinfo: false });
+  });
+
+  it('names providers from before whose sign-ins need email_verified now (editor, startup log)', async () => {
+    const created = await s.api('POST', '/sso/providers', { ...(await provider()), displayName: 'Old e-mail', usernameClaim: 'email', clientSecret: 'x' });
+    const stored = JSON.parse(db().get<{ config: string }>('SELECT config FROM identity_providers WHERE id = ?', created.id)!.config);
+    delete stored.emailVerifiedByProvider;
+    const { configMac } = await import('../src/integrity.js');
+    const { vault } = await import('../src/vault.js');
+    const r = db().get<{ secret: string }>('SELECT secret FROM identity_providers WHERE id = ?', created.id)!;
+    const secret = crypto
+      .createHash('sha256')
+      .update(JSON.stringify(vault().decrypt(r.secret)))
+      .digest('hex');
+    db().run(
+      'UPDATE identity_providers SET config = ?, config_mac = ? WHERE id = ?',
+      JSON.stringify(stored),
+      configMac('sso', created.id, { v: 1, config: stored, enabled: true, secret }),
+      created.id,
+    );
+    const listed = (await s.api('GET', '/sso/providers')).find((x: { id: string }) => x.id === created.id);
+    expect(listed.warnings).toContainEqual({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: 'email' } });
+    const { logger } = await import('../src/log.js');
+    const warned: string[] = [];
+    const original = logger.warn.bind(logger);
+    (logger as { warn: unknown }).warn = (o: { name?: string }, msg: string) => warned.push(`${o.name}: ${msg}`);
+    try {
+      (await import('../src/auth/sso.js')).warnEmailVerifiedProviders();
+    } finally {
+      (logger as { warn: unknown }).warn = original;
+    }
+    expect(warned.some((w) => w.startsWith('Old e-mail:') && w.includes('email_verified'))).toBe(true);
+    await s.api('DELETE', `/sso/providers/${created.id}`);
+  });
+});
+
+describe('cost of the provider and user lists', () => {
+  it('the sign-in page reads no accounts; the user list reads each provider’s sync rules once', async () => {
+    const d = db();
+    const all = d.all.bind(d);
+    const get = d.get.bind(d);
+    const seen: string[] = [];
+    (d as { all: unknown }).all = (sql: string, ...a: unknown[]) => (seen.push(sql), all(sql, ...(a as [])));
+    (d as { get: unknown }).get = (sql: string, ...a: unknown[]) => (seen.push(sql), get(sql, ...(a as [])));
+    try {
+      const sso = await import('../src/auth/sso.js');
+      sso.publicProviders();
+      expect(seen.filter((q) => /FROM users/.test(q))).toEqual([]);
+      seen.length = 0;
+      const { listUsers } = await import('../src/auth/users.js');
+      const users = listUsers();
+      const providerReads = seen.filter((q) => /FROM identity_providers/.test(q)).length;
+      expect(users.length).toBeGreaterThan(5);
+      expect(providerReads).toBeLessThanOrEqual(new Set(users.map((u) => u.authSource).filter((x) => x !== 'local')).size);
+    } finally {
+      (d as { all: unknown }).all = all;
+      (d as { get: unknown }).get = get;
+    }
   });
 });
 
@@ -486,11 +654,12 @@ describe('test sign-in', () => {
       firstName: 'Tess',
       lastName: 'Ter',
       profile: [{ key: 'city', value: 'Nürnberg' }],
-      groups: { claim: 'roles', matched: ['SM.Operators'], overage: true },
+      // the groups were left out, but the configured claim is roles (app roles): no overage
+      groups: { claim: 'roles', matched: ['SM.Operators'], overage: false },
       roles: ['viewer', 'operator'],
       teams: ['Service Desk'],
     });
-    expect(result.preview.notes).toContainEqual({ code: 'GROUPS_OVERAGE', params: { claim: 'roles' } });
+    expect(result.preview.notes.map((n: { code: string }) => n.code)).not.toContain('GROUPS_OVERAGE');
     expect(result.preview.notes).toContainEqual({ code: 'USERNAME_TRANSFORMED', params: { from: 'Tess@Contoso.example', to: 'tess@contoso.example' } });
     // never a token or the client secret
     const text = JSON.stringify(result);

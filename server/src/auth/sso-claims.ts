@@ -58,16 +58,29 @@ export function claimList(v: unknown): string[] {
     .map((x) => x.slice(0, 500));
 }
 
-/** The user name from the user name claim's value. */
-export function transformUsername(raw: string, how: SsoUsernameTransform): string {
-  const s = raw.trim();
+/**
+ * The user name from the user name claim's value: NFKC-normalised first (a Kelvin sign or full-width letters become
+ * the ASCII letters they stand for, before anything compares them). With "stripDomain" only the listed domains are
+ * removed – a name of any other domain gives null (refused): otherwise boss@evil.example would claim the account "boss".
+ */
+export function transformUsername(raw: string, how: SsoUsernameTransform, stripDomains: readonly string[] = []): string | null {
+  const s = raw.normalize('NFKC').trim();
   if (how === 'none') return s;
   if (how === 'stripDomain') {
     const at = s.lastIndexOf('@');
-    return (at > 0 ? s.slice(0, at) : s).toLowerCase();
+    if (at < 0) return s.toLowerCase();
+    const domain = s.slice(at + 1).toLowerCase();
+    if (at === 0 || !stripDomains.some((d) => d.toLowerCase() === domain)) return null;
+    return s.slice(0, at).toLowerCase();
   }
   return s.toLowerCase();
 }
+
+/**
+ * User names single sign-on may give: ASCII letters, digits and . _ @ + - (e-mail-shaped names such as
+ * max@contoso.example), 2–128 characters – after NFKC, so no look-alike, invisible or bidi characters.
+ */
+export const SSO_USERNAME = /^[A-Za-z0-9._@+-]{2,128}$/;
 
 /** "{given_name} {family_name}" → "Max Admin" (missing claims are left out; spaces collapsed). */
 export function renderTemplate(template: string, claims: Claims, max = 100): string {
@@ -80,15 +93,15 @@ export function renderTemplate(template: string, claims: Claims, max = 100): str
 }
 
 /**
- * The token says it left out the groups (too many): Entra ID's "_claim_names" / "_claim_sources" pointing to the
- * groups (or the configured claim), or "hasgroups". Then the groups claim is missing or incomplete.
+ * The token says it left out the configured groups claim (too many groups): Entra ID's "_claim_names" /
+ * "_claim_sources" naming that claim, or "hasgroups" for the groups claim. Then the claim is missing or incomplete.
  */
 export function groupOverage(claims: Claims, groupsClaim: string): boolean {
+  if (!groupsClaim) return false;
   const names = claims._claim_names;
-  if (names && typeof names === 'object' && !Array.isArray(names)) {
-    if (Object.hasOwn(names, 'groups') || (groupsClaim && Object.hasOwn(names, groupsClaim))) return true;
-  }
-  return claims.hasgroups === true || claims.hasgroups === 'true';
+  // only the configured claim: Entra's group overage says nothing about app roles in "roles"
+  if (names && typeof names === 'object' && !Array.isArray(names) && Object.hasOwn(names, groupsClaim)) return true;
+  return groupsClaim === 'groups' && (claims.hasgroups === true || claims.hasgroups === 'true');
 }
 
 export const emailVerified = (claims: Claims): boolean | null =>
@@ -117,7 +130,7 @@ export function identityKeys(
   // without trailing slashes: the stored issuer has none, Authentik's tokens name one
   const issuer = String(claims.iss ?? '').replace(/\/+$/, '');
   const sub = String(claims.sub ?? '');
-  const parts = stableIdClaims.map((name) => ({ name, value: claimText(claimAt(claims, name), ID_VALUE_MAX) ?? null }));
+  const parts = stableIdClaims.map((name) => ({ name, value: identityValue(claimAt(claims, name)) }));
   const build = (pairs: { name: string; value: string }[]) => {
     const k = `${providerId}#iss=${enc(issuer)}${pairs.map((p) => `#${enc(p.name)}=${enc(p.value)}`).join('')}`;
     // a long one is hashed, with the claim names kept readable (keyClaimNames)
@@ -131,6 +144,17 @@ export function identityKeys(
     issuer,
     parts,
   };
+}
+
+/**
+ * A claim value as part of the stable identifier: exactly as sent – a non-empty string of at most 256 characters or a
+ * finite number. Nothing is trimmed, cut, joined or replaced (that would make different values the same); anything
+ * else (lists, objects, booleans, empty or oversized strings) is no identifier.
+ */
+export function identityValue(v: unknown): string | null {
+  if (typeof v === 'string') return v.length > 0 && v.length <= ID_VALUE_MAX ? v : null;
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return null;
 }
 
 /** The issuer a stored link names (null: a legacy or hashed link). */
@@ -150,11 +174,18 @@ export function withIssuer(stored: string, providerId: string, issuer: string): 
   return `${providerId}#iss=${enc(issuer.replace(/\/+$/, ''))}${stored.slice(providerId.length + 5 + seg.length)}`;
 }
 
-/** The claim names a stored link was built from ('legacy' for `<provider>:<sub>`, null when it is not one of this provider). */
-export function keyClaimNames(stored: string, providerId: string): string[] | 'legacy' | null {
+/**
+ * The claim names a stored link was built from ('legacy' for `<provider>:<sub>`, 'moved' for a hashed link whose
+ * issuer the administrator moved, null when it is not one of this provider or retired).
+ */
+export function keyClaimNames(stored: string, providerId: string): string[] | 'legacy' | 'moved' | null {
   if (stored.startsWith(`${providerId}:`)) return 'legacy';
   if (!stored.startsWith(`${providerId}#`)) return null;
   const segments = stored.slice(providerId.length + 1).split('#');
+  // a hashed link whose issuer was moved: re-linked through its issuer + sub at the next sign-in
+  if (segments[0]!.startsWith('moved=')) return 'moved';
+  // a retired link matches nobody
+  if (segments[0]!.startsWith('retired=')) return null;
   try {
     if (segments[0] === 'h') return decodeURIComponent(segments[1] ?? '').split(',');
     return segments.slice(1).map((s) => decodeURIComponent(s.slice(0, Math.max(0, s.indexOf('=')))));
@@ -185,6 +216,8 @@ export function withDefaults(c: Partial<ProviderConfig> & Pick<ProviderConfig, '
     sync: { ...DEFAULT_SSO_SYNC, ...c.sync },
     groupValues: c.groupValues ?? 'names',
     linkExisting: c.linkExisting ?? 'byName',
+    stripDomains: c.stripDomains ?? [],
+    stableIdConfirmedUnique: c.stableIdConfirmedUnique ?? false,
     emailVerifiedByProvider: c.emailVerifiedByProvider ?? false,
     useUserinfo: c.useUserinfo ?? false,
     requiredClaims: c.requiredClaims ?? [],

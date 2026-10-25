@@ -11,7 +11,9 @@ import {
   SSO_PROFILE_KEY,
   SSO_SYNC_RULES,
   SSO_USERNAME_TRANSFORMS,
+  SSO_DOMAIN,
   emailIdentifies,
+  stableIdProblem,
   ssoConfigWarnings,
   type ErrorParams,
   type Role,
@@ -41,6 +43,7 @@ import {
   claimList,
   claimText,
   emailVerified,
+  SSO_USERNAME,
   groupOverage,
   identityKeys,
   keyClaimNames,
@@ -101,6 +104,8 @@ const providerSchema = z.object({
   preset: z.enum(SSO_PRESETS).optional(),
   stableIdClaims: z.array(claimName.min(1)).min(1).max(SSO_LIMITS.stableIdClaims).optional(),
   usernameTransform: z.enum(SSO_USERNAME_TRANSFORMS).optional(),
+  stripDomains: z.array(z.string().trim().toLowerCase().max(253).regex(SSO_DOMAIN, 'A domain such as contoso.com')).max(SSO_LIMITS.stripDomains).optional(),
+  stableIdConfirmedUnique: z.boolean().optional(),
   displayNameTemplate: z.string().trim().max(SSO_LIMITS.template).optional(),
   firstNameClaim: claimName.optional(),
   lastNameClaim: claimName.optional(),
@@ -185,23 +190,46 @@ function requireIntactProvider(p: SsoProvider): void {
   }
 }
 
-function toProvider(r: ProviderRow): SsoProvider {
+/** `warnings`: only for administrators (they read the accounts – never for the sign-in page or a sign-in). */
+function toProvider(r: ProviderRow, warnings = false): SsoProvider {
   // settings a provider was saved without (it stays sealed as stored) are read with today's behaviour
-  const c = withDefaults(parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig));
+  const stored = parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig);
+  const c = withDefaults(stored);
   const p = { ...c, id: r.id, enabled: !!r.enabled, hasClientSecret: !!r.secret, createdAt: r.created_at, updatedAt: r.updated_at };
-  return { ...p, warnings: providerWarnings(p) };
+  return { ...p, warnings: warnings ? providerWarnings(p, stored) : [] };
+}
+
+/**
+ * Providers saved before #77 whose sign-ins now need email_verified (the e-mail claim names or identifies accounts):
+ * at a provider that never sends it, everyone is refused until an administrator decides (see the startup log).
+ */
+function emailNowRequired(p: ProviderConfig, stored: Partial<ProviderConfig>): boolean {
+  return !Object.hasOwn(stored, 'emailVerifiedByProvider') && emailIdentifies(p);
+}
+
+/** Startup: name the providers whose sign-ins need email_verified since this version. */
+export function warnEmailVerifiedProviders(): void {
+  for (const r of db().all<ProviderRow>('SELECT * FROM identity_providers')) {
+    const stored = parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig);
+    if (emailNowRequired(withDefaults(stored), stored)) {
+      logger.warn(
+        { provider: r.id, name: stored.displayName },
+        'single sign-on: the e-mail claim names or identifies accounts of this provider – its sign-ins need email_verified=true now; if the provider never sends it but verifies every address, set "This provider verifies e-mail addresses" (docs/SSO.md#e-mail-confirmation)',
+      );
+    }
+  }
 }
 
 /**
  * Accounts of this provider whose user names would be the same after the user name rule: a new identity with such a
  * name is refused (the account is linked to another identity) – the editor shows them after saving.
  */
-function usernameCollisions(id: string, how: ProviderConfig['usernameTransform']): string[] {
+function usernameCollisions(id: string, how: ProviderConfig['usernameTransform'], domains: string[]): string[] {
   if (how !== 'stripDomain') return []; // user names are unique ignoring case already
   const seen = new Map<string, string[]>();
   for (const u of db().all<{ username: string }>('SELECT username FROM users WHERE auth_source = ?', id)) {
-    const k = transformUsername(u.username, how);
-    seen.set(k, [...(seen.get(k) ?? []), u.username]);
+    const k = transformUsername(u.username, how, domains);
+    if (k !== null) seen.set(k, [...(seen.get(k) ?? []), u.username]);
   }
   return [...seen.entries()]
     .filter(([, names]) => names.length > 1)
@@ -209,20 +237,26 @@ function usernameCollisions(id: string, how: ProviderConfig['usernameTransform']
     .slice(0, 10);
 }
 
-function providerWarnings(p: Omit<SsoProvider, 'warnings'>): SsoConfigWarning[] {
+function providerWarnings(p: Omit<SsoProvider, 'warnings'>, stored: Partial<ProviderConfig>): SsoConfigWarning[] {
   const out = ssoConfigWarnings(p);
-  const collisions = usernameCollisions(p.id, p.usernameTransform);
+  if (emailNowRequired(p, stored)) out.push({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: p.emailClaim } });
+  const collisions = usernameCollisions(p.id, p.usernameTransform, p.stripDomains);
   if (collisions.length) out.push({ code: 'USERNAME_COLLISIONS', params: { names: collisions, count: collisions.length } });
   return out;
 }
 
+/** For administrators: with the warnings (they look at the accounts of each provider). */
 export function listProviders(): SsoProvider[] {
-  return db().all<ProviderRow>('SELECT * FROM identity_providers ORDER BY created_at').map(toProvider);
+  return db()
+    .all<ProviderRow>('SELECT * FROM identity_providers ORDER BY created_at')
+    .map((r) => toProvider(r, true));
 }
 
+/** The sign-in page's buttons (unauthenticated): no warnings, no account reads. */
 export function publicProviders(): SsoProviderPublic[] {
-  return listProviders()
-    .filter((p) => p.enabled)
+  return db()
+    .all<ProviderRow>('SELECT * FROM identity_providers WHERE enabled = 1 ORDER BY created_at')
+    .map((r) => toProvider(r))
     .map((p) => ({ id: p.id, displayName: p.displayName, type: p.type }));
 }
 
@@ -252,6 +286,7 @@ const CONFIG_KEYS: (keyof ProviderConfig)[] = [
   'scopes',
   'usernameClaim',
   'usernameTransform',
+  'stripDomains',
   'displayNameClaim',
   'displayNameTemplate',
   'firstNameClaim',
@@ -259,6 +294,7 @@ const CONFIG_KEYS: (keyof ProviderConfig)[] = [
   'emailClaim',
   'emailVerifiedByProvider',
   'stableIdClaims',
+  'stableIdConfirmedUnique',
   'profileFields',
   'sync',
   'groupsClaim',
@@ -288,6 +324,20 @@ function configFrom(parsed: ParsedInput, before?: ProviderConfig): ProviderConfi
   for (const f of c.profileFields) {
     if (keys.has(f.key.toLowerCase())) throw new HttpError(400, `The profile field "${f.key}" is listed twice`, 'SSO_PROFILE_FIELD_TWICE', { key: f.key });
     keys.add(f.key.toLowerCase());
+  }
+  // stripping a domain anyone can have would let boss@evil.example claim "boss": only listed domains
+  c.stripDomains = [...new Set(c.stripDomains)];
+  if (c.usernameTransform === 'stripDomain' && !c.stripDomains.length) {
+    throw new HttpError(400, 'Name the domains to strip from user names (e.g. contoso.com)', 'SSO_STRIP_DOMAINS_REQUIRED');
+  }
+  // every person needs an identifier of their own: a claim many people share (tid, groups …) would give them one account
+  if (stableIdProblem(c.stableIdClaims, c.stableIdConfirmedUnique)) {
+    throw new HttpError(
+      400,
+      `The stable identifier (${c.stableIdClaims.join(', ')}) must name one person: include sub or oid, or confirm that the claims are unique per person`,
+      'SSO_STABLE_ID_NOT_UNIQUE',
+      { claims: c.stableIdClaims },
+    );
   }
   return Object.fromEntries(CONFIG_KEYS.map((k) => [k, c[k]])) as ProviderConfig;
 }
@@ -345,7 +395,7 @@ export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider 
     }
   });
   configCache.delete(pid);
-  return getProvider(pid);
+  return toProvider(db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', pid)!, true);
 }
 
 /**
@@ -381,8 +431,11 @@ function moveLinksToIssuer(providerId: string, formerIssuer: string, issuer: str
     providerId,
   )) {
     const move = (k: string | null) => (k && keyIssuer(k, providerId) === former ? withIssuer(k, providerId, issuer) : k);
-    const id = move(u.external_id);
     const sub = move(u.external_sub);
+    // a hashed link names its issuer only inside the hash: it is re-linked at the next sign-in through the moved issuer +
+    // sub (audited as user.sso_relinked) – a marker that matches nothing else
+    const hashed = !!u.external_id?.startsWith(`${providerId}#h#`) && sub !== u.external_sub;
+    const id = hashed ? `${providerId}#moved=${crypto.randomBytes(9).toString('base64url')}` : move(u.external_id);
     if (id === u.external_id && sub === u.external_sub) continue;
     if (id !== u.external_id && db().get('SELECT 1 FROM users WHERE external_id = ?', id)) continue; // linked there already
     db().run('UPDATE users SET external_id = ?, external_sub = ? WHERE id = ?', id, sub, u.id);
@@ -554,8 +607,15 @@ async function receiveClaims(p: SsoProvider, flow: Pending, state: string, curre
 }
 
 /** The claims a decision uses: the ID token's, completed by userinfo when the provider is set to read it (the ID token wins). */
-const mergedClaims = (c: Pick<ProviderConfig, 'useUserinfo'>, r: ReceivedClaims): Claims =>
-  c.useUserinfo && r.userinfo ? { ...r.userinfo, ...r.idToken } : r.idToken;
+function mergedClaims(c: Pick<ProviderConfig, 'useUserinfo' | 'emailClaim'>, r: ReceivedClaims): Claims {
+  if (!c.useUserinfo || !r.userinfo) return r.idToken;
+  const merged: Claims = { ...r.userinfo, ...r.idToken };
+  // the confirmation belongs to the address it was given for: email_verified from the source of the e-mail claim
+  const source = claimAt(r.idToken, c.emailClaim) !== undefined ? r.idToken : claimAt(r.userinfo, c.emailClaim) !== undefined ? r.userinfo : r.idToken;
+  if (source.email_verified === undefined) delete merged.email_verified;
+  else merged.email_verified = source.email_verified;
+  return merged;
+}
 
 export type CallbackResult = ({ kind: 'session'; returnTo: string; username: string } & CreatedSession) | { kind: 'test'; ok: boolean; locale: string | null };
 
@@ -618,7 +678,8 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
       : email
         ? { claim: p.emailClaim, value: email }
         : { claim: 'sub', value: String(claims.sub) };
-  const username = transformUsername(usernameFrom.value, p.usernameTransform);
+  const transformed = transformUsername(usernameFrom.value, p.usernameTransform, p.stripDomains);
+  const username = transformed ?? usernameFrom.value.normalize('NFKC').trim().toLowerCase();
   const notes: SsoSignInPreview['notes'] = [];
   if (ownName === undefined) notes.push({ code: 'USERNAME_FALLBACK', params: { claim: p.usernameClaim, from: usernameFrom.claim } });
   if (username !== usernameFrom.value) notes.push({ code: 'USERNAME_TRANSFORMED', params: { from: usernameFrom.value, to: username } });
@@ -670,6 +731,13 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     return d;
   };
 
+  if (stableIdProblem(p.stableIdClaims, p.stableIdConfirmedUnique)) {
+    return refuse({
+      code: 'SSO_STABLE_ID_NOT_UNIQUE',
+      message: `The stable identifier of ${p.displayName} (${p.stableIdClaims.join(', ')}) does not name one person – an administrator has to fix it`,
+      params: { claims: p.stableIdClaims },
+    });
+  }
   for (const rule of p.requiredClaims) {
     const v = claimAt(claims, rule.claim);
     const got = (Array.isArray(v) ? claimList(v) : [claimText(v, 500)]).filter((x): x is string => !!x).map((x) => x.toLowerCase());
@@ -683,14 +751,20 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
       });
     }
   }
-  if (!username || username.length > MAX_USERNAME) {
+  if (transformed === null) {
+    return refuse({
+      code: 'SSO_USERNAME_DOMAIN',
+      message: `The user name "${usernameFrom.value}" is not of a domain this provider strips (${p.stripDomains.join(', ')})`,
+      params: { claim: usernameFrom.claim, domains: p.stripDomains },
+    });
+  }
+  // the same characters as local user names (plus "+"), after NFKC: no look-alikes that the database's case-insensitive
+  // comparison would match with another account, no invisible or bidi characters
+  if (!SSO_USERNAME.test(username)) {
     return refuse({
       code: 'SSO_USERNAME_INVALID',
-      message: `The user name from claim "${usernameFrom.claim}" is empty or longer than ${MAX_USERNAME} characters`,
-      params: {
-        claim: usernameFrom.claim,
-        max: MAX_USERNAME,
-      },
+      message: `The user name from claim "${usernameFrom.claim}" is not usable: 2–${MAX_USERNAME} characters, letters, digits and . _ @ + - only`,
+      params: { claim: usernameFrom.claim, max: MAX_USERNAME },
     });
   }
   if (verificationRequired && verified !== true) {
@@ -704,7 +778,7 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     const missing = keys.parts.filter((x) => x.value === null).map((x) => x.name);
     return refuse({
       code: 'SSO_STABLE_ID_MISSING',
-      message: `The identity provider did not send the claims that identify you (${missing.join(', ')})`,
+      message: `The identity provider did not send usable values for the claims that identify you (${missing.join(', ')}): one string of at most 256 characters or a number each`,
       params: { claims: missing },
     });
   }
@@ -735,6 +809,8 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
       .filter((r) => {
         const names = r.external_id ? keyClaimNames(r.external_id, p.id) : null;
         if (names === 'legacy') return r.external_id === keys.legacyKey;
+        // a hashed link whose issuer the administrator moved: only through the issuer + sub recorded at linking
+        if (names === 'moved') return r.external_sub === keys.subKey;
         return names !== null && !sameSet(names, p.stableIdClaims);
       });
     if (candidates.length > 1) {
@@ -838,15 +914,18 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
     });
   }
   if (v.outcome === 'refuse') {
+    // the person gets a reference, not the reason: the reason would tell whether an account exists, is an administrator,
+    // is linked … – administrators find it in the audit log by the reference (and in the test sign-in)
+    const ref = crypto.randomBytes(4).toString('hex');
     audit({
       actor,
       action: 'auth.login_failed',
       entityType: 'sso',
       entityId: p.id,
-      summary: `Single sign-on of "${actor}" via ${p.displayName} denied: ${v.refusal!.message}`,
-      details: { code: v.refusal!.code },
+      summary: `Single sign-on of "${actor}" via ${p.displayName} denied (reference ${ref}): ${v.refusal!.message}`,
+      details: { code: v.refusal!.code, reference: ref },
     });
-    throw new HttpError(403, v.refusal!.message);
+    throw new HttpError(403, `Your sign-in was refused – ask an administrator (reference ${ref})`, 'SSO_SIGN_IN_REFUSED', { reference: ref });
   }
 
   let userId = d.account?.id ?? '';
@@ -862,6 +941,7 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
         entityType: 'user',
         entityId: userId,
         summary: `Account "${d.account!.username}" re-linked to ${p.displayName} by its stable identifier (${p.stableIdClaims.join(' + ')}), found by its earlier link (${v.relinkFrom === 'legacy' ? 'provider + sub' : 'issuer + sub'})`,
+
         details: { from: v.relinkFrom, stableIdClaims: p.stableIdClaims },
       });
     } else if (v.outcome === 'link') {
@@ -875,6 +955,8 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
         ts,
         userId,
       );
+      // like binding it: the account's sessions (password sessions of a local account) end; the new one comes after this
+      db().run('DELETE FROM sessions WHERE user_id = ?', userId);
       audit({
         action: 'user.linked_sso',
         entityType: 'user',
@@ -906,11 +988,10 @@ function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
         summary: `User "${v.username}" created on first sign-in via ${p.displayName}`,
         details: { claimValues: v.groups.matched },
       });
-    } else if (d.account!.external_sub !== d.subKey) {
-      db().run('UPDATE users SET external_sub = ? WHERE id = ?', d.subKey, userId);
     }
-    // issuer + sub belongs to this identity only: an older record on another account (linked anew since) is dropped
-    db().run('UPDATE users SET external_sub = NULL WHERE external_sub = ? AND id <> ?', d.subKey, userId);
+    // issuer + sub is recorded when an identity is linked (created, linked, re-linked) – never on a plain sign-in, so a
+    // later sign-in cannot move an account's earlier link to whoever signed in last; it belongs to this identity only
+    if (v.outcome !== 'signIn') db().run('UPDATE users SET external_sub = NULL WHERE external_sub = ? AND id <> ?', d.subKey, userId);
 
     const current = db().get<{ profile: string | null }>('SELECT profile FROM users WHERE id = ?', userId);
     const set = (field: keyof ProviderConfig['sync']) => fresh || p.sync[field] === 'always';

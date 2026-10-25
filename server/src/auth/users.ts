@@ -50,7 +50,7 @@ function teamsOf(userId: string): string[] {
     .map((r) => r.name);
 }
 
-function toInfo(r: UserRow): UserInfo {
+function toInfo(r: UserRow, managed: (authSource: string) => UserInfo['managedFields'] = managedFields): UserInfo {
   return {
     id: r.id,
     username: r.username,
@@ -68,7 +68,7 @@ function toInfo(r: UserRow): UserInfo {
     ...(r.first_name ? { firstName: r.first_name } : {}),
     ...(r.last_name ? { lastName: r.last_name } : {}),
     profile: profileOf(r.profile),
-    managedFields: managedFields(r.auth_source ?? 'local'),
+    managedFields: managed(r.auth_source ?? 'local'),
   };
 }
 
@@ -133,7 +133,15 @@ export function countUsers(): number {
 }
 
 export function listUsers(): UserInfo[] {
-  return db().all<UserRow>('SELECT * FROM users ORDER BY username').map(toInfo);
+  // the sync rules once per provider, not once per account
+  const perProvider = new Map<string, UserInfo['managedFields']>();
+  const managed = (source: string) => {
+    if (!perProvider.has(source)) perProvider.set(source, managedFields(source));
+    return perProvider.get(source)!;
+  };
+  return db()
+    .all<UserRow>('SELECT * FROM users ORDER BY username')
+    .map((r) => toInfo(r, managed));
 }
 
 export function getUser(id: string): UserInfo {

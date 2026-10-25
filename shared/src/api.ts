@@ -107,6 +107,10 @@ export interface SsoProvider {
   /** Claims that identify a person for good, together with the issuer (default: sub; Entra ID: tid + oid) */
   stableIdClaims: string[];
   usernameTransform: SsoUsernameTransform;
+  /** With usernameTransform "stripDomain": the only domains removed; a user name of any other domain is refused */
+  stripDomains: string[];
+  /** The stable id claims hold no subject claim (sub, oid): the administrator confirmed they are unique per person */
+  stableIdConfirmedUnique: boolean;
   /** Display name from claims, e.g. "{given_name} {family_name}"; empty: the display name claim */
   displayNameTemplate: string;
   firstNameClaim: string;
@@ -137,6 +141,8 @@ type SsoProviderLaterFields =
   | 'preset'
   | 'stableIdClaims'
   | 'usernameTransform'
+  | 'stripDomains'
+  | 'stableIdConfirmedUnique'
   | 'displayNameTemplate'
   | 'firstNameClaim'
   | 'lastNameClaim'

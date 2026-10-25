@@ -31,6 +31,7 @@ export type SsoGroupValues = (typeof SSO_GROUP_VALUES)[number];
 /** Limits of the claim settings (also checked by the server). */
 export const SSO_LIMITS = {
   stableIdClaims: 3,
+  stripDomains: 20,
   profileFields: 20,
   profileValueLength: 500,
   requiredClaims: 10,
@@ -75,6 +76,8 @@ export type SsoClaimSettings = Pick<
   | 'preset'
   | 'stableIdClaims'
   | 'usernameTransform'
+  | 'stripDomains'
+  | 'stableIdConfirmedUnique'
   | 'displayNameTemplate'
   | 'firstNameClaim'
   | 'lastNameClaim'
@@ -112,7 +115,9 @@ const base = {
   lastNameClaim: 'family_name',
   displayNameTemplate: '',
   usernameTransform: 'lowercase' as const,
+  stripDomains: [] as string[],
   stableIdClaims: ['sub'],
+  stableIdConfirmedUnique: false,
   profileFields: [] as SsoProfileField[],
   sync: { ...DEFAULT_SSO_SYNC },
   groupValues: 'names' as const,
@@ -202,6 +207,83 @@ export const SSO_PRESET_INFO: Record<SsoPreset, SsoPresetInfo> = {
   },
 };
 
+// ---------- the stable identifier must name one person ----------
+
+/** Claims that name one person (per issuer). */
+export const SSO_SUBJECT_CLAIMS = ['sub', 'oid'] as const;
+
+/**
+ * Claims many people share (tenant, audience, groups, authentication details, names …): never an identifier on their
+ * own – only together with a subject claim.
+ */
+export const SSO_NON_UNIQUE_CLAIMS = new Set([
+  'tid',
+  'iss',
+  'aud',
+  'azp',
+  'appid',
+  'appidacr',
+  'idp',
+  'amr',
+  'acr',
+  'ver',
+  'hd',
+  'groups',
+  'roles',
+  'wids',
+  'scp',
+  'scope',
+  'email_verified',
+  'phone_number_verified',
+  'nonce',
+  'auth_time',
+  'iat',
+  'exp',
+  'nbf',
+  'at_hash',
+  'c_hash',
+  'sid',
+  'jti',
+  'ipaddr',
+  'ctry',
+  'tenant_ctry',
+  'tenant_region_scope',
+  'xms_tpl',
+  'realm_access',
+  'resource_access',
+  'name',
+  'given_name',
+  'family_name',
+  'middle_name',
+  'nickname',
+  'locale',
+  'zoneinfo',
+  'gender',
+  'birthdate',
+  'picture',
+  'website',
+  'profile',
+  'updated_at',
+  'department',
+  'jobTitle',
+  'company',
+  'country',
+]);
+
+/** A domain to strip from user names (lower case, e.g. contoso.com). */
+export const SSO_DOMAIN = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
+
+/**
+ * Why these stable id claims cannot identify one person, or null. They must include a subject claim (sub, oid) or a
+ * claim the administrator confirmed as unique per person; claims many people share never count.
+ */
+export function stableIdProblem(claims: readonly string[], confirmedUnique: boolean): 'NONE' | 'NOT_UNIQUE' | null {
+  if (!claims.length) return 'NONE';
+  if (claims.some((c) => (SSO_SUBJECT_CLAIMS as readonly string[]).includes(c))) return null;
+  const custom = claims.filter((c) => !SSO_NON_UNIQUE_CLAIMS.has(c));
+  return custom.length && confirmedUnique ? null : 'NOT_UNIQUE';
+}
+
 // ---------- warnings about a configuration ----------
 
 export type SsoConfigWarningCode =
@@ -213,7 +295,8 @@ export type SsoConfigWarningCode =
   | 'STRIP_DOMAIN'
   | 'NO_DOMAIN_RESTRICTION'
   | 'EMAIL_TRUSTED'
-  | 'USERNAME_COLLISIONS';
+  | 'USERNAME_COLLISIONS'
+  | 'EMAIL_VERIFIED_NOW_REQUIRED';
 
 export interface SsoConfigWarning {
   code: SsoConfigWarningCode;

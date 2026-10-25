@@ -20,6 +20,7 @@ import { listPlatforms, getSecretsUnchecked } from './platforms/service.js';
 import { secretValues } from './platforms/http.js';
 import { startAuditJobs, stopAuditJobs } from './audit-anchor.js';
 import { removeInstanceFile, writeInstanceFile } from './instance.js';
+import { warnEmailVerifiedProviders } from './auth/sso.js';
 import { flushFailedLoginAudit } from './auth/login-audit.js';
 
 /** All platform secret values (and cached access tokens) – never part of an error report. */
@@ -55,6 +56,8 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
       'SM_PASSWORD_LOGIN=none is not in effect yet: administrators can still sign in with a password until one of them signs in with single sign-on',
     );
   }
+  // providers whose sign-ins need email_verified since #77 (named, so the administrator can decide)
+  warnEmailVerifiedProviders();
   const tracing = initTelemetry();
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });

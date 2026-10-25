@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ssoConfigWarnings, SSO_PRESET_INFO, SSO_PRESETS } from '@sm/shared';
+import { ssoConfigWarnings, stableIdProblem, SSO_PRESET_INFO, SSO_PRESETS } from '@sm/shared';
 import {
   claimAt,
   claimList,
@@ -41,9 +41,16 @@ describe('claims', () => {
 
   it('applies the user name rule', () => {
     expect(transformUsername(' Max@Contoso.com ', 'lowercase')).toBe('max@contoso.com');
-    expect(transformUsername('Max@Contoso.com', 'stripDomain')).toBe('max');
-    expect(transformUsername('@x', 'stripDomain')).toBe('@x');
-    expect(transformUsername('a@b@c', 'stripDomain')).toBe('a@b');
+    expect(transformUsername('Max@Contoso.com', 'stripDomain', ['contoso.com'])).toBe('max');
+    // only listed domains: any other is refused (null), so boss@evil.example never becomes "boss"
+    expect(transformUsername('boss@evil.example', 'stripDomain', ['contoso.com'])).toBeNull();
+    expect(transformUsername('Max@Contoso.com', 'stripDomain')).toBeNull();
+    expect(transformUsername('@contoso.com', 'stripDomain', ['contoso.com'])).toBeNull();
+    expect(transformUsername('a@b@c.com', 'stripDomain', ['c.com'])).toBe('a@b');
+    expect(transformUsername('max', 'stripDomain', ['c.com'])).toBe('max');
+    // NFKC first: look-alikes become the letters they stand for
+    expect(transformUsername('\u212Aate', 'lowercase')).toBe('kate');
+    expect(transformUsername('ｂｏｂ', 'none')).toBe('bob');
     expect(transformUsername('Max@Contoso.com', 'none')).toBe('Max@Contoso.com');
   });
 
@@ -55,7 +62,10 @@ describe('claims', () => {
   });
 
   it('recognises group overage indicators', () => {
-    expect(groupOverage({ _claim_names: { groups: 'src1' }, _claim_sources: {} }, 'roles')).toBe(true);
+    expect(groupOverage({ _claim_names: { groups: 'src1' }, _claim_sources: {} }, 'groups')).toBe(true);
+    // only the configured claim counts: left-out groups say nothing about app roles
+    expect(groupOverage({ _claim_names: { groups: 'src1' }, _claim_sources: {} }, 'roles')).toBe(false);
+    expect(groupOverage({ hasgroups: true }, 'roles')).toBe(false);
     expect(groupOverage({ _claim_names: { wids: 'src1' } }, 'wids')).toBe(true);
     expect(groupOverage({ hasgroups: true }, 'groups')).toBe(true);
     expect(groupOverage({ hasgroups: 'true' }, 'groups')).toBe(true);
@@ -73,6 +83,14 @@ describe('claims', () => {
     expect(keyIssuer(k.key!, 'idp_1')).toBe('https://idp.example');
     expect(withIssuer(k.key!, 'idp_1', 'https://new.example/')).toBe('idp_1#iss=https%3A%2F%2Fnew.example#tid=t#oid=o');
     expect(identityKeys('idp_1', { iss: 'x', sub: 's' }, ['oid']).key).toBeUndefined();
+    // values exactly as sent: what claimText would trim, join or cut never makes two values the same
+    const keyOf = (oid: unknown) => identityKeys('idp_1', { iss: 'x', sub: 's', oid }, ['oid']).key;
+    expect(keyOf(' v ')).not.toBe(keyOf('v'));
+    for (const bad of [['v'], ['a', 'b'], { v: 1 }, '', true, null, 'x'.repeat(257), Number.NaN]) expect(keyOf(bad)).toBeUndefined();
+    expect(keyOf(42)).toBe('idp_1#iss=x#oid=42');
+    expect(keyOf('x'.repeat(256))).toBeDefined();
+    expect(keyClaimNames('idp_1#moved=abc', 'idp_1')).toBe('moved');
+    expect(keyClaimNames('idp_1#retired=abc', 'idp_1')).toBeNull();
     // long values: hashed, the claim names stay readable
     const long = identityKeys('idp_1', { iss: 'x', sub: 's', a: 'é'.repeat(250), b: 'é'.repeat(250) }, ['a', 'b']);
     expect(long.key).toMatch(/^idp_1#h#a%2Cb#[0-9a-f]{64}$/);
@@ -90,6 +108,19 @@ describe('claims', () => {
   it('keeps today’s behaviour for settings a provider was saved without', () => {
     const c = withDefaults({ type: 'entra' } as never);
     expect(c).toMatchObject({ preset: 'entra', linkExisting: 'byName', stableIdClaims: ['sub'], usernameTransform: 'lowercase', groupValues: 'names' });
+  });
+});
+
+describe('stable identifier claims', () => {
+  it('must name one person', () => {
+    expect(stableIdProblem(['sub'], false)).toBeNull();
+    expect(stableIdProblem(['tid', 'oid'], false)).toBeNull();
+    expect(stableIdProblem(['tid'], false)).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['tid'], true)).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['groups', 'roles', 'hd'], true)).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['employeeId'], false)).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['employeeId'], true)).toBeNull();
+    expect(stableIdProblem([], true)).toBe('NONE');
   });
 });
 

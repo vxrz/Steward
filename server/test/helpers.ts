@@ -145,3 +145,15 @@ export async function quiesce(timeoutMs = 60000): Promise<void> {
   const { flushNotifications } = await import('../src/notifications/service.js');
   await flushNotifications();
 }
+
+/**
+ * A refused single sign-on shows the person only a reference (?sso_error=… "reference abcd1234"); the reason is in
+ * the audit entry with that reference. Returns the redirect text followed by that entry's summary.
+ */
+export async function withRefusalReason(s: TestServer, location: string): Promise<string> {
+  const text = decodeURIComponent(location);
+  const ref = /reference ([0-9a-f]{8})/.exec(text)?.[1];
+  if (!ref) return text;
+  const entries = (await s.api('GET', '/audit?action=auth.login_failed&limit=50')) as { summary: string }[];
+  return `${text} | ${entries.find((e) => e.summary.includes(`reference ${ref}`))?.summary ?? 'no audit entry'}`;
+}
