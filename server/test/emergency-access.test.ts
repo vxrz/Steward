@@ -233,6 +233,16 @@ describe('emergency access', () => {
     const first = await grant(ADMIN.username);
     await grant(ADMIN.username); // a newer window replaces the older one
     expect((await post('/auth/emergency', { code: first.code })).status).toBe(401);
+    // one open window per administrator: the window of another administrator stays open
+    const other = await grant('max@contoso.example');
+    const mine = await grant(ADMIN.username);
+    const { openGrants } = await import('../src/auth/emergency.js');
+    expect(openGrants().size).toBe(2);
+    const revoked = db()
+      .all<{ id: string }>('SELECT id FROM emergency_access_grants WHERE revoked_at IS NOT NULL')
+      .map((r) => r.id);
+    expect(revoked).not.toContain(other.id);
+    expect(revoked).not.toContain(mine.id);
     await expect(grant('vera')).rejects.toThrow(/not an administrator/);
     await expect(grant('nobody')).rejects.toThrow(/No account/);
     await expect(grant(ADMIN.username, 24 * 60 + 1)).rejects.toThrow(/1 to 1440 minutes/);
