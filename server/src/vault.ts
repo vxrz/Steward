@@ -343,6 +343,14 @@ export class Vault {
     return { keyId, rotated: rotate };
   }
 
+  /** Whether `passphrase` opens this vault (a re-check for sensitive actions; the vault stays as it is). */
+  async verifyPassphrase(passphrase: string): Promise<boolean> {
+    if (!this.initialized) return false;
+    const vf = this.read();
+    if (vf.version !== 2) return false;
+    return (await this.open(vf, passphrase)) !== null;
+  }
+
   lock(): void {
     this.keys = null;
   }

@@ -72,13 +72,13 @@ const OPTIONS = {
   help: { type: 'boolean', short: 'h' },
 } as const;
 
-class Failure extends Error {}
+export class Failure extends Error {}
 
 /** Set once the database is open, so it is closed again (PostgreSQL: releases the lock). */
 let closeDb: (() => void) | undefined;
 
 /** Reads a line without echoing it (the terminal shows nothing while typing). */
-function promptHidden(question: string): Promise<string> {
+export function promptHidden(question: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stderr, terminal: true });
     const out = rl as unknown as { _writeToOutput: (s: string) => void };
@@ -101,7 +101,7 @@ function promptHidden(question: string): Promise<string> {
   });
 }
 
-async function readStdin(): Promise<string> {
+export async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const c of process.stdin) chunks.push(c as Buffer);
   return Buffer.concat(chunks)
@@ -109,7 +109,7 @@ async function readStdin(): Promise<string> {
     .replace(/\r?\n$/, '');
 }
 
-function alive(pid: number): boolean {
+export function alive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -119,7 +119,7 @@ function alive(pid: number): boolean {
 }
 
 /** The OS account and machine, recorded as the actor in the audit log. */
-function actor(): string {
+export function actor(): string {
   let user = 'unknown';
   try {
     user = os.userInfo().username;

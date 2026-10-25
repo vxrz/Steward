@@ -11,6 +11,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { createSession, findUserByName, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
 import { BRAND } from '@sm/shared';
 import { config as appConfig } from '../config.js';
+import { aliasTarget } from './aliases.js';
 
 /**
  * Single sign-on with OpenID Connect (authorization code flow + PKCE).
@@ -341,6 +342,8 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   const existing = linked ? undefined : findUserByName(username);
   if (existing && existing.authSource !== 'local' && existing.authSource !== p.id) deny(`The user name "${username}" belongs to another sign-in provider`);
   if (!linked && !existing && !p.autoProvision) deny(`No ${BRAND.name} account exists for "${username}" – ask an administrator`);
+  // a former name of an imported account (aliases.ts) must not become a new account: it would inherit that account's grants
+  if (!linked && !existing && aliasTarget(username)) deny(`"${username}" is the former name of an imported account – ask an administrator`);
   if ((linked && !linked.active) || (existing && !existing.active)) deny(`Your ${BRAND.name} account is disabled`);
 
   // ----- apply -----

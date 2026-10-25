@@ -52,6 +52,7 @@ import { recordRoutes } from '../records/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
+import { migrationRoutes } from '../migration/routes.js';
 import { findingAttention, startAccessChecks } from '../compliance/reconciliation.js';
 import { monitorAttention } from '../monitors/service.js';
 import { dueAttention } from '../credentials/service.js';
@@ -1168,6 +1169,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await ticketRoutes(app);
   await dailySummaryRoutes(app);
   await complianceRoutes(app);
+  await migrationRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {

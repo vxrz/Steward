@@ -3,7 +3,7 @@
  * app window (Edge/Chrome "--app" mode, falling back to the default browser).
  * Running it again while it is already running just opens the window.
  */
-import { adminArgv, args, evidenceArgv, inExecutable, mcpArgv, usageError } from './env.js';
+import { adminArgv, args, evidenceArgv, inExecutable, mcpArgv, migrateArgv, usageError } from './env.js';
 import { EXIT_FAILURE, EXIT_OK, UsageError, usageFailure } from '../cli/args.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -28,6 +28,7 @@ Options:
   --autostart on|off   Start automatically when you sign in (for schedules), then exit
   --send-test-error    Send a test event to the error tracker ($SM_SENTRY_DSN) and exit
   admin …              Account recovery, e.g. 'admin reset-password <user>' (see 'admin --help')
+  migrate …            Move this instance to another one: 'migrate export --out <file>' (see 'migrate --help')
   mcp …                MCP stdio bridge for desktop AI clients (see 'mcp --help')
   evidence verify …    Check an audit evidence pack offline (see 'evidence verify --help')
   -V, --version        Print the version
@@ -159,6 +160,10 @@ async function main(): Promise<number> {
   if (adminArgv) {
     const { runAdmin } = await import('../cli/admin.js');
     return runAdmin(adminArgv, `${BRAND.slug} admin`);
+  }
+  if (migrateArgv) {
+    const { runMigrate } = await import('../cli/migrate.js');
+    return runMigrate(migrateArgv, `${BRAND.slug} migrate`);
   }
   if (mcpArgv) {
     const { runBridge } = await import('../mcp/bridge.js');

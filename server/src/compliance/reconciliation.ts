@@ -18,6 +18,7 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
+import { sameIdentity } from '../auth/aliases.js';
 import { findUserByName, listTeams, listUsers, toAuthUser } from '../auth/users.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { permissionsFor } from '../processes/service.js';
@@ -951,7 +952,7 @@ const subjectOfFinding = (u: AuthUser | null, f: FindingRow) => !!u && isSubject
 /** Dismiss (or, with four-eyes dismissals, ask to dismiss or confirm the dismissal of) a finding: the owner of the check or an administrator – never its subject, and not twice the same person. */
 function mayDismiss(u: AuthUser | null, f: FindingRow, c: CheckRow): boolean {
   if (!u || !canDismissFinding(u, c) || subjectOfFinding(u, f)) return false;
-  return !(fourEyesDismissals() && f.dismiss_requested_by && f.dismiss_requested_by.toLowerCase() === u.username.toLowerCase());
+  return !(fourEyesDismissals() && f.dismiss_requested_by && sameIdentity(f.dismiss_requested_by, u));
 }
 
 function findingRowsOf(f: { checkId?: string; platformId?: string; snapshotId?: string; from?: string; to?: string }): FindingRow[] {
@@ -1138,7 +1139,7 @@ export function dismissFinding(id: string, comment: string): AccessFinding {
   if (effectiveStatus(f) !== 'open') throw new HttpError(409, 'This finding is not open any more', 'FINDING_CLOSED');
   if (subjectOfFinding(u, f)) subjectSelf();
   const requested = fourEyesDismissals() ? f.dismiss_requested_by : null;
-  if (requested && requested.toLowerCase() === u.username.toLowerCase())
+  if (requested && sameIdentity(requested, u))
     throw new HttpError(403, 'Four-eyes principle: another person confirms the dismissal you asked for', 'FOUR_EYES_DISMISS');
   const why = (requested ? f.comment : comment).trim();
   if (!why) throw new HttpError(400, 'Please say why this change needs no access change entry', 'FINDING_REASON_REQUIRED');

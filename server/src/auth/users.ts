@@ -8,6 +8,7 @@ import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
+import { aliasTarget, invalidateAliases } from './aliases.js';
 
 interface UserRow {
   id: string;
@@ -113,6 +114,8 @@ export function createUser(input: {
   const username = input.username.trim();
   if (!USERNAME.test(username)) throw new HttpError(400, 'Username: 2–64 characters, letters, digits and . _ @ - only');
   if (findUserByName(username)) throw new HttpError(409, `User "${username}" already exists`);
+  // a former name of an imported account still stands for that account in imported content (aliases.ts)
+  if (aliasTarget(username)) throw new HttpError(409, `"${username}" is the former name of an imported account`, 'USERNAME_IS_ALIAS', { username });
   let password = input.password;
   let temp: string | undefined;
   if (input.noPassword) {
@@ -339,6 +342,7 @@ export function saveTeam(input: { name: string; description?: string; members?: 
       db().run('DELETE FROM team_members WHERE team_id = ?', tid);
       for (const uid of memberIds) db().run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?)', tid, uid);
     }
+    invalidateAliases();
     audit({
       action: id ? 'team.updated' : 'team.created',
       entityType: 'team',
@@ -355,6 +359,7 @@ export function deleteTeam(id: string): void {
   if (!t) throw new HttpError(404, 'Team not found');
   db().tx(() => {
     db().run('DELETE FROM teams WHERE id = ?', id);
+    invalidateAliases();
     audit({ action: 'team.deleted', entityType: 'team', entityId: id, summary: `Team "${t.name}" deleted` });
   });
 }

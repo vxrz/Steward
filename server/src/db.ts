@@ -20,6 +20,7 @@ import { TICKET_MIGRATIONS } from './migrations/tickets.js';
 import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
 import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
 import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
+import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -48,6 +49,14 @@ export interface DbOptions {
   appVersion?: string;
   /** Tests: named migrations run after the built-in ones. */
   extraMigrations?: NamedMigration[];
+  /**
+   * Only bring the schema up to an older state: the first `core` core migrations and the named migrations
+   * listed (in their usual order). Used to load a migration package of an older version exactly as that
+   * version wrote it, before the remaining migrations run on it (server/src/migration).
+   */
+  upTo?: { core: number; named: string[] };
+  /** A temporary database (staging of a migration package): no warning about a missing backup. */
+  quiet?: boolean;
 }
 
 /** Settings rows the migration code maintains ("system." keys are internal, see settings.ts). */
@@ -78,6 +87,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...DAILY_SUMMARY_MIGRATIONS,
   ...COMPLIANCE_MIGRATIONS,
   ...SIGN_IN_MIGRATIONS,
+  ...MOVE_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [
@@ -413,13 +423,14 @@ export class Db {
         throw new Error(`Could not create the case-insensitive collation (PostgreSQL with ICU support is required): ${(e as Error).message}`);
       }
     }
-    const core = coreMigrations(this.dialect);
+    const allCore = coreMigrations(this.dialect);
+    const core = this.opts.upTo ? allCore.slice(0, this.opts.upTo.core) : allCore;
     // Feature migrations by name (applied once, in list order, after the core list): feature
     // modules own their lists, so parallel work never collides on numbers.
     const named = [
       ...namedMigrations(this.dialect),
       ...(this.opts.extraMigrations ?? []).map((m) => ({ name: m.name, sql: this.dialect === 'sqlite' ? m.sql : (m.pg ?? pgDdl(m.sql)) })),
-    ];
+    ].filter((m) => !this.opts.upTo || this.opts.upTo.named.includes(m.name));
     this.exec('CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)');
     this.exec('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)');
     const row = this.get<{ version: number }>('SELECT version FROM schema_version');
@@ -432,7 +443,7 @@ export class Db {
     const existing = from > 0;
     const pending = from < core.length || pendingNamed.length > 0;
     const backup = existing && pending ? this.backupBeforeMigrating() : null;
-    if (existing && pending && !backup) {
+    if (existing && pending && !backup && !this.opts.quiet) {
       const count = core.length - from + pendingNamed.length;
       if (this.dialect === 'postgres')
         logger.warn(

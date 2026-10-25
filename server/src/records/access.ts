@@ -2,6 +2,7 @@ import { ACCESS_TYPE_ID, type RecordFieldDef, type Role } from '@sm/shared';
 import type { AuthUser } from '../auth/context.js';
 import { currentUser } from '../auth/context.js';
 import { isAdmin, matches } from '../auth/permissions.js';
+import { sameIdentity } from '../auth/aliases.js';
 import { canReadAccessEntry } from '../compliance/access.js';
 import { HttpError, parseJson, type ErrorParam } from '../util.js';
 
@@ -55,11 +56,12 @@ export const canCommentRecord = (u: AuthUser | null, r: Pick<RecordRoleInfo, 'ow
  * removed file) cannot approve or reject it.
  */
 export function fourEyesReason(u: AuthUser, r: RecordRoleInfo, authors: string[]): ActionReason | null {
-  if (same(r.owner, u.username)) return { code: 'FOUR_EYES_OWNER', message: 'Four-eyes principle: the owner of a record cannot approve or reject it' };
-  if (same(r.created_by, u.username)) return { code: 'FOUR_EYES_AUTHOR', message: 'Four-eyes principle: the author of a record cannot approve or reject it' };
-  if (same(r.submitted_by, u.username))
+  // former names of imported accounts count as the same person (auth/aliases.ts)
+  if (sameIdentity(r.owner, u)) return { code: 'FOUR_EYES_OWNER', message: 'Four-eyes principle: the owner of a record cannot approve or reject it' };
+  if (sameIdentity(r.created_by, u)) return { code: 'FOUR_EYES_AUTHOR', message: 'Four-eyes principle: the author of a record cannot approve or reject it' };
+  if (sameIdentity(r.submitted_by, u))
     return { code: 'FOUR_EYES_SUBMITTER', message: 'Four-eyes principle: the person who submitted a record cannot approve or reject it' };
-  if (authors.some((a) => same(a, u.username)))
+  if (authors.some((a) => sameIdentity(a, u)))
     return {
       code: 'FOUR_EYES_CONTENT_AUTHOR',
       message: 'Four-eyes principle: an author of the content (text, fields or attached files) cannot approve or reject it',

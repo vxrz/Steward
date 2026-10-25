@@ -34,6 +34,7 @@
     "desktop": "tsx server/src/desktop/launcher.ts",
     "contract": "tsx server/src/cli/contract.ts",
     "admin": "tsx server/src/cli/admin.ts",
+    "migrate": "tsx server/src/cli/migrate.ts",
     "mcp": "tsx server/src/cli/mcp.ts",
     "audit:verify-export": "tsx server/src/cli/audit-verify-export.ts",
     "evidence:verify": "tsx server/src/cli/evidence-verify.ts",
