@@ -31,6 +31,14 @@ test.describe('migration: export and import with the identity mapping (own serve
       password: 'Erika-password-1',
     });
     await source.api('POST', '/teams', { name: 'Plant team', members: ['erika'] });
+    // new single sign-on accounts belong to a provider of the target
+    await target.api('POST', '/sso/providers', {
+      displayName: 'Corp sign-in',
+      type: 'oidc',
+      issuer: 'https://login.corp.example',
+      clientId: 'steward',
+      clientAuth: 'none',
+    });
   });
   test.afterAll(async () => {
     for (const c of contexts) await c.close().catch(() => undefined);

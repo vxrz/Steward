@@ -409,6 +409,9 @@ function suggestUser(u: PackageUser, targets: TargetUser[], providers: { id: str
   const parts = active.filter((t) => localPart(t.username) === localPart(u.username) || (t.email && localPart(t.email) === localPart(u.username)));
   if (parts.length === 1) return pick(parts[0]!, 'localPart');
   if (!u.active) return { suggestion: { action: 'archive', ...(confirm !== undefined ? { confirm } : {}) }, suggestedBy: 'none' };
+  // without a provider here a single sign-on account could not be bound to one: a local account (with a one-time password)
+  if (!providers.length && passwordLoginMode() !== 'none')
+    return { suggestion: { action: 'create-local', ...(confirm !== undefined ? { confirm } : {}) }, suggestedBy: 'none' };
   return {
     suggestion: {
       action: 'create-sso',
