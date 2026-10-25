@@ -46,7 +46,8 @@ Steward limits how many requests one client can send, so a script or a stuck bro
 ## Request body limits
 
 - **Size:** 25 MB per request for signed-in users (platform OpenAPI specs up to 20 MB arrive as JSON); some routes have lower limits (sign-in 16 KB, MCP 64 KB, inbound webhooks 64–512 KB). Requests without a session or token may send at most 64 KB and must give a `Content-Length`.
-- **Shape:** before a route validates a JSON body, Steward counts its contents: at most 10,000 items in one list, 10,000 fields in one object, 200,000 values in all and 100 levels of nesting (imports of bundles, connector types and monitors: 50,000 items or fields and 1,000,000 values). Above that: `413` with the error code `BODY_TOO_COMPLEX`. The count is linear and stops at the first limit, so validation can't be made to allocate memory per list item ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) in zod).
+- **Shape:** before a route validates a JSON body, Steward counts its contents: at most 10,000 items in one list, 10,000 fields in one object, 200,000 values in all and 100 levels of nesting (imports of bundles, connector types and monitors: 50,000 items or fields and 1,000,000 values). Above that: `413` with the error code `BODY_TOO_COMPLEX`. The count is linear and stops at the first limit.
+- **Lists and maps in the schemas:** every list a route, an import, a webhook mapping, an MCP tool or a process definition accepts has its own maximum length, and every map (inputs, headers, fields …) a maximum number of keys. Validation (zod 4) checks the length first and stops there, so a long list can't make it allocate memory per item ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), fixed in zod 4.6.6). The shape limits above stay as a second line of defence; a test checks that no schema leaves out a limit.
 
 ## Sign-in
 
