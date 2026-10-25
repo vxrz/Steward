@@ -34,16 +34,18 @@ Runs that are still running, queued or waiting for a decision on the source arri
 
 Every user of the source becomes one of:
 
-| Choice                       | What happens                                                                                                                                                                        |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An existing account here     | E.g. the user's single sign-on account. Its roles stay as they are on the target.                                                                                                   |
-| A new single sign-on account | An account without a password, with the source user's roles. It is linked at the first single sign-on with exactly this user name (the e-mail or UPN your identity provider sends). |
-| A new local account          | With the source user's roles and a one-time password (shown once). Not offered while password sign-in is off.                                                                       |
-| A former user                | An inactive account without roles: the history stays readable, nobody can sign in with it.                                                                                          |
+| Choice                       | What happens                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An existing account here     | E.g. the user's single sign-on account. Its roles stay as they are on the target.                                                                                                                                                                                                                                                     |
+| A new single sign-on account | An account without a password, with the source user's roles, bound to **one** single sign-on provider (chosen in the mapping; the only enabled one by default). It is linked at the first sign-in through that provider with exactly this user name (the UPN or e-mail your identity provider sends); no other provider can claim it. |
+| A new local account          | With the source user's roles and a one-time password (shown once). Not offered while password sign-in is off.                                                                                                                                                                                                                         |
+| A former user                | An inactive account without roles: the history stays readable, nobody can sign in with it.                                                                                                                                                                                                                                            |
 
 Every team becomes an existing team, a new team, or is dropped. Team memberships follow the mapping. The importing administrator's own account is never changed.
 
-The dry run suggests a choice for everyone: an account with the same e-mail address, the same user name, or the same name before the `@`; otherwise a new single sign-on account (or a former user for deactivated accounts).
+The dry run suggests a choice for everyone: an account with the same e-mail address, the same user name, or the same name before the `@`; otherwise a new single sign-on account (or a former user for deactivated accounts). A match by e-mail address or by the name before the `@` is a guess – the address of a single sign-on account comes from the identity provider – so mapping a user to such a match needs a confirmation like an administrator does.
+
+Until its first sign-in, a new single sign-on account is claimed by whoever the provider names with that user name, with the roles from the package. Choose the user names carefully (the UPN, not an address users can change), keep the decisions for administrators confirmed, and prefer role mappings from the identity provider: with _Synchronise roles_ the provider's groups replace the imported roles at the first sign-in.
 
 Rules:
 

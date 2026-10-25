@@ -285,7 +285,10 @@
         "map": "Ein vorhandenes Team hier",
         "create": "Ein neues Team",
         "drop": "Entfällt"
-      }
+      },
+      "provider": "Single-Sign-on-Anbieter",
+      "providerHint": "Nur dieser Anbieter kann das neue Konto bei der ersten Anmeldung übernehmen.",
+      "confirmGuess": "Ich bestätige, dass es dieselbe Person ist (nur über E-Mail-Adresse oder Namen zugeordnet)"
     },
     "imports": {
       "title": "Importe in diese Instanz",

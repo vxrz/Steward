@@ -201,3 +201,13 @@ describe('unfinished runs in a migration package', () => {
     }
   });
 });
+
+describe('identity mapping suggestions', () => {
+  it('treat a match by e-mail address or by the name before "@" as a guess that needs a confirmation', async () => {
+    const { guessedMatch } = await import('../src/migration/import.js');
+    expect(guessedMatch({ username: 'arvid', email: 'arvid@corp.example' }, { username: 'arvid', email: null })).toBe(false);
+    expect(guessedMatch({ username: 'arvid', email: null }, { username: 'arvid@corp.example', email: null })).toBe(true);
+    expect(guessedMatch({ username: 'au', email: 'arvid@corp.example' }, { username: 'x@corp.example', email: 'arvid@corp.example' })).toBe(true);
+    expect(guessedMatch({ username: 'au', email: null }, { username: 'bob@corp.example', email: 'bob@corp.example' })).toBe(false);
+  });
+});

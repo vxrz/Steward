@@ -423,6 +423,18 @@ function PlanSummary({ plan }: { plan: MigrationPlan }) {
 
 const USER_ACTIONS: UserAction[] = ['map', 'create-sso', 'create-local', 'archive'];
 
+const low = (s: string) => s.trim().toLowerCase();
+const before = (s: string) => low(s).split('@')[0]!;
+/** Same rule as the server (migration/import.ts guessedMatch): a match by e-mail or local part needs a confirmation. */
+function guessedMatch(u: { username: string; email: string | null }, t: { username: string; email: string | null }): boolean {
+  if (low(t.username) === low(u.username)) return false;
+  return (
+    (!!u.email && !!t.email && low(t.email) === low(u.email)) ||
+    before(t.username) === before(u.username) ||
+    (!!t.email && before(t.email) === before(u.username))
+  );
+}
+
 function MappingEditor({ plan, decisions, onChange }: { plan: MigrationPlan; decisions: Decisions; onChange: (d: Decisions) => void }) {
   const { t } = useTranslation('settings');
   const setUser = (name: string, d: UserDecision) => onChange({ ...decisions, users: { ...decisions.users, [name]: d } });
@@ -460,12 +472,21 @@ function UserRow({
   onChange: (d: UserDecision) => void;
 }) {
   const { t } = useTranslation(['settings', 'common']);
-  const targetAdmin = decision.action === 'map' && plan.targetUsers.find((x) => x.username === decision.to)?.roles.includes('admin');
-  const needsConfirm = user.roles.includes('admin') || !!targetAdmin;
+  const mappedTo = decision.action === 'map' ? plan.targetUsers.find((x) => x.username === decision.to) : undefined;
+  const targetAdmin = !!mappedTo?.roles.includes('admin');
+  // a match by e-mail address or by the name before "@" is a guess (the server asks for the same confirmation)
+  const guessed = !!mappedTo && guessedMatch(user, mappedTo);
+  const needsConfirm = user.roles.includes('admin') || targetAdmin || guessed;
   const change = (action: UserAction) => {
     const keep = decision.confirm;
     if (action === 'map') onChange({ action, to: plan.targetUsers.find((x) => x.active)?.username ?? '', confirm: keep });
-    else if (action === 'create-sso') onChange({ action, username: (user.email ?? user.username).toLowerCase(), confirm: keep });
+    else if (action === 'create-sso')
+      onChange({
+        action,
+        username: (user.email ?? user.username).toLowerCase(),
+        ...(plan.providers.length === 1 ? { provider: plan.providers[0]!.id } : {}),
+        confirm: keep,
+      });
     else onChange({ action, confirm: keep });
   };
   const target =
@@ -544,6 +565,17 @@ function UserRow({
             />
           )}
         </SimpleGrid>
+        {decision.action === 'create-sso' && plan.providers.length > 1 && (
+          <Select
+            label={t('migration.mapping.provider')}
+            description={t('migration.mapping.providerHint')}
+            data={plan.providers.map((p) => ({ value: p.id, label: p.displayName }))}
+            value={decision.provider ?? null}
+            onChange={(v) => onChange({ ...decision, provider: v ?? undefined })}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+          />
+        )}
         <Text size="sm" data-testid={`map-preview-${user.username}`}>
           {t('migration.mapping.preview', {
             kind: user.kind === 'sso' ? 'SSO' : t('migration.mapping.local'),
@@ -556,7 +588,13 @@ function UserRow({
           <Checkbox
             checked={decision.confirm === true}
             onChange={(e) => onChange({ ...decision, confirm: e.currentTarget.checked })}
-            label={user.roles.includes('admin') ? t('migration.mapping.confirmSourceAdmin') : t('migration.mapping.confirmTargetAdmin')}
+            label={
+              user.roles.includes('admin')
+                ? t('migration.mapping.confirmSourceAdmin')
+                : targetAdmin
+                  ? t('migration.mapping.confirmTargetAdmin')
+                  : t('migration.mapping.confirmGuess')
+            }
           />
         )}
       </Stack>

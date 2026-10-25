@@ -11,6 +11,7 @@ import {
   Modal,
   MultiSelect,
   PasswordInput,
+  Select,
   SimpleGrid,
   Stack,
   Switch,
@@ -346,6 +347,14 @@ function UserModal({
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const passwordsOff = usePasswordsOff();
+  // who may claim an account without a password: one provider (none chosen with several = refused by the server)
+  const providers = (useSsoProviders().data ?? []).filter((p) => p.enabled);
+  const local = !user || !user.authSource || user.authSource === 'local';
+  const [provider, setProvider] = useState<string>(passwordsOff && providers.length === 1 ? providers[0]!.id : '');
+  const signInOptions = [
+    ...(passwordsOff && !user ? [] : [{ value: '', label: t('userModal.signInPassword') }]),
+    ...providers.map((p) => ({ value: p.id, label: t('userModal.signInProvider', { name: p.displayName }) })),
+  ];
 
   const v = useFieldErrors({ username: !username.trim() && t('common:validation.required') });
   const save = async () => {
@@ -353,7 +362,7 @@ function UserModal({
     setBusy(true);
     try {
       if (user) {
-        await put(`/users/${user.id}`, { displayName, email: email || undefined, roles });
+        await put(`/users/${user.id}`, { displayName, email: email || undefined, roles, ...(local && provider ? { provider } : {}) });
         notifyOk(t('userModal.updated', { user: user.username }));
         onSaved(undefined, user.username);
       } else {
@@ -362,7 +371,8 @@ function UserModal({
           displayName: displayName.trim() || undefined,
           email: email.trim() || undefined,
           roles,
-          password: (!passwordsOff && password) || undefined,
+          password: (!passwordsOff && !provider && password) || undefined,
+          ...(provider ? { provider } : {}),
         });
         notifyOk(t('userModal.created', { user: r.user.username }));
         onSaved(r.temporaryPassword, r.user.username);
@@ -393,7 +403,19 @@ function UserModal({
             {passwordsOff ? t('userModal.noPasswordHint') : t('userModal.ssoHint')}
           </Text>
         )}
-        {!user && !passwordsOff && (
+        {local && providers.length > 0 && (
+          <Select
+            label={t('userModal.signIn')}
+            description={user ? t('userModal.signInBindHint') : t('userModal.signInHint')}
+            data={signInOptions}
+            value={provider}
+            onChange={(v) => setProvider(v ?? '')}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+            data-testid="user-sign-in"
+          />
+        )}
+        {!user && !passwordsOff && !provider && (
           <PasswordInput
             label={t('userModal.initialPassword')}
             description={t('userModal.initialPasswordHint')}

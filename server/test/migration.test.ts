@@ -409,6 +409,8 @@ describe('import into SQLite through the web API', () => {
     const list = await max('GET', '/users');
     const byName = (n: string) => list.find((u: any) => u.username === n);
     expect(byName('dana@contoso.example')).toMatchObject({ active: true, mustChangePassword: false, roles: ['designer'] });
+    // a new single sign-on account belongs to the (only) provider here – no other provider can claim it
+    expect(byName('dana@contoso.example').authSource).toBe((await max('GET', '/sso/providers'))[0].id);
     expect(byName('olivia')).toMatchObject({ active: true, mustChangePassword: true });
     expect(byName('adam')).toMatchObject({ active: false, roles: [] });
     expect(byName('max@contoso.example').roles).toEqual(['admin']);

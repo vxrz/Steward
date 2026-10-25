@@ -463,7 +463,10 @@
     "MIGRATION_IMPORT_NOT_FOUND": "Import not found.",
     "TRANSFER_PASSPHRASE_REQUIRED": "Enter the transfer passphrase.",
     "TRANSFER_PASSPHRASE_TOO_SHORT": "The transfer passphrase must have at least {{count}} characters.",
-    "USERNAME_IS_ALIAS": "\"{{username}}\" is the former name of an imported account."
+    "USERNAME_IS_ALIAS": "\"{{username}}\" is the former name of an imported account.",
+    "SSO_PROVIDER_UNKNOWN": "Choose an enabled single sign-on provider.",
+    "SSO_PROVIDER_CHOICE_REQUIRED": "Choose the single sign-on provider the account signs in with.",
+    "SSO_ALREADY_BOUND": "This account signs in with single sign-on already."
   },
   "boundary": {
     "title": "Something went wrong on this page",

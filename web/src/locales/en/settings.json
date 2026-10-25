@@ -285,7 +285,10 @@
         "map": "An existing team here",
         "create": "A new team",
         "drop": "Dropped"
-      }
+      },
+      "provider": "Single sign-on provider",
+      "providerHint": "Only this provider can claim the new account at the first sign-in.",
+      "confirmGuess": "I confirm that this is the same person (matched by e-mail address or name only)"
     },
     "imports": {
       "title": "Imports into this instance",

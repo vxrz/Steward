@@ -4,8 +4,11 @@
 export type UserDecision =
   /** an existing user of this instance (e.g. their single sign-on account) */
   | { action: 'map'; to: string; confirm?: boolean }
-  /** a new account without a password, linked at the first single sign-on with exactly this user name */
-  | { action: 'create-sso'; username: string; confirm?: boolean }
+  /**
+   * a new account without a password, linked at the first single sign-on with exactly this user name – through
+   * `provider` only (an enabled provider's id; may be left out when exactly one is enabled)
+   */
+  | { action: 'create-sso'; username: string; provider?: string; confirm?: boolean }
   /** a new local account with a one-time password (only while password sign-in is allowed) */
   | { action: 'create-local'; username?: string; confirm?: boolean }
   /** a former user: an inactive account that keeps the history readable and cannot sign in */
@@ -71,6 +74,8 @@ export interface MigrationPlan {
   /** Reasons the import cannot run (target not empty, newer package, …) */
   blocking: string[];
   warnings: string[];
+  /** Enabled single sign-on providers here (a new single sign-on account is bound to one of them) */
+  providers: { id: string; displayName: string }[];
   /** Password sign-in on this instance (create-local is not offered with 'none') */
   passwordLogin: 'all' | 'adminsOnly' | 'none';
 }

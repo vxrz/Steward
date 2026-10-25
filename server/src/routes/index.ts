@@ -541,15 +541,34 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
         password: z.string().max(1024).optional(),
+        /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
+        provider: z.string().max(100).optional(),
       })
       .parse(req.body);
+    const { provider, ...input } = b;
     // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
-    if (passwordLoginMode() === 'none') {
+    if (provider || passwordLoginMode() === 'none') {
       if (b.password) users.requirePasswordLogin('setting a password');
-      return users.createUser({ ...b, noPassword: true });
+      return users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
     }
-    return users.createUser({ ...b, mustChangePassword: true });
+    return users.createUser({ ...input, mustChangePassword: true });
   });
+  /**
+   * The provider that may claim a new account without a password: the one chosen, or the only enabled one. With several
+   * enabled providers the choice is required – otherwise any of them could hand the account (and its roles) to whoever
+   * has that user name there.
+   */
+  function claimingProvider(id: string | undefined): { id: string; displayName: string } {
+    const enabled = sso.publicProviders();
+    if (id) {
+      const p = enabled.find((x) => x.id === id);
+      if (!p) throw new HttpError(400, 'Choose an enabled single sign-on provider', 'SSO_PROVIDER_UNKNOWN');
+      return p;
+    }
+    if (enabled.length === 1) return enabled[0]!;
+    if (!enabled.length) throw new HttpError(400, 'Enable a single sign-on provider first', 'SSO_PROVIDER_REQUIRED');
+    throw new HttpError(400, 'Choose the single sign-on provider the account signs in with', 'SSO_PROVIDER_CHOICE_REQUIRED');
+  }
   app.put('/users/:id', async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
@@ -558,9 +577,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
         active: z.boolean().optional(),
+        /** Bind a local account to a single sign-on provider (removes its password) */
+        provider: z.string().max(100).optional(),
       })
       .parse(req.body);
-    return users.updateUser(params(req).id!, b);
+    const { provider, ...patch } = b;
+    if (provider) {
+      const p = claimingProvider(provider);
+      users.bindToProvider(params(req).id!, p.id, p.displayName);
+    }
+    return Object.keys(patch).length || !provider ? users.updateUser(params(req).id!, patch) : users.getUser(params(req).id!);
   });
   app.post('/users/:id/reset-password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');

@@ -107,6 +107,8 @@ export function createUser(input: {
   mustChangePassword?: boolean;
   /** No password at all: the account signs in with single sign-on (linked by its user name at the first sign-in) */
   noPassword?: boolean;
+  /** With noPassword: the single sign-on provider (id) that may claim the account – no other provider can */
+  provider?: string;
 }): {
   user: UserInfo;
   temporaryPassword?: string;
@@ -131,8 +133,8 @@ export function createUser(input: {
   const roles = cleanRoles(input.roles);
   db().tx(() => {
     db().run(
-      `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+      `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       id,
       username,
       input.displayName?.trim() || username,
@@ -142,13 +144,14 @@ export function createUser(input: {
       !input.noPassword && (temp || input.mustChangePassword) ? 1 : 0,
       ts,
       ts,
+      input.noPassword && input.provider ? input.provider : 'local',
     );
     audit({
       action: 'user.created',
       entityType: 'user',
       entityId: id,
-      summary: `User "${username}" created (${roles.join(', ') || 'no roles'})${input.noPassword ? ' without a password (single sign-on)' : ''}`,
-      details: { roles, ...(input.noPassword ? { password: false } : {}) },
+      summary: `User "${username}" created (${roles.join(', ') || 'no roles'})${input.noPassword ? ` without a password (single sign-on${input.provider ? ` via ${input.provider}` : ''})` : ''}`,
+      details: { roles, ...(input.noPassword ? { password: false, provider: input.provider ?? null } : {}) },
     });
   });
   return { user: getUser(id), temporaryPassword: temp };
@@ -224,6 +227,33 @@ export function updateProfile(id: string, patch: { displayName?: string; email?:
 function ensureAnotherAdmin(exceptId: string): void {
   const admins = listUsers().filter((u) => u.active && u.roles.includes('admin') && u.id !== exceptId);
   if (!admins.length) throw new HttpError(409, 'At least one active administrator is required', 'LAST_ADMIN');
+}
+
+/**
+ * Binds a local account to a single sign-on provider (an administrator's decision): the password is removed, its
+ * sessions end, and only that provider can claim the account at the next sign-in (by its user name).
+ */
+export function bindToProvider(id: string, providerId: string, providerName: string): UserInfo {
+  const u = getUser(id);
+  if (u.authSource !== 'local') throw new HttpError(409, 'This account signs in with single sign-on already', 'SSO_ALREADY_BOUND');
+  db().tx(() => {
+    db().run(
+      'UPDATE users SET auth_source = ?, external_id = NULL, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?',
+      providerId,
+      NO_PASSWORD,
+      nowIso(),
+      id,
+    );
+    db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    audit({
+      action: 'user.sso_bound',
+      entityType: 'user',
+      entityId: id,
+      summary: `"${u.username}" now signs in with ${providerName} (password removed, sessions ended)`,
+      details: { provider: providerId },
+    });
+  });
+  return getUser(id);
 }
 
 export function resetPassword(id: string): string {

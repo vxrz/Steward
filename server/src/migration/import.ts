@@ -30,6 +30,7 @@ import { quoteIdent } from '../database/sql.js';
 import { verifyExport } from '../cli/audit-verify-export.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, pathInside, rasterImageType, sha256 } from '../util.js';
 import { passwordLoginMode } from '../settings.js';
+import { publicProviders } from '../auth/sso.js';
 import { checkedLogo, checkedThemeSettings } from '../theme/service.js';
 import { checkedBranding } from '../reports/branding.js';
 import { sniff } from '../records/attachments.js';
@@ -304,10 +305,27 @@ const targetTeams = () => db().all<{ id: string; name: string }>('SELECT id, nam
 const lower = (s: string) => s.trim().toLowerCase();
 const localPart = (s: string) => lower(s).split('@')[0]!;
 
-function suggestUser(u: PackageUser, targets: TargetUser[]): Pick<MigrationPlanUser, 'suggestion' | 'suggestedBy'> {
+/**
+ * A match by e-mail address or by the name before the "@" is a guess: the address of a single sign-on account comes
+ * from the identity provider's claims. Mapping a user to such a match needs an explicit confirmation.
+ */
+export function guessedMatch(u: Pick<PackageUser, 'username' | 'email'>, t: Pick<TargetUser, 'username' | 'email'>): boolean {
+  if (lower(t.username) === lower(u.username)) return false;
+  return (
+    (!!u.email && !!t.email && lower(t.email) === lower(u.email)) ||
+    localPart(t.username) === localPart(u.username) ||
+    (!!t.email && localPart(t.email) === localPart(u.username))
+  );
+}
+
+function suggestUser(u: PackageUser, targets: TargetUser[], providers: { id: string }[]): Pick<MigrationPlanUser, 'suggestion' | 'suggestedBy'> {
   const confirm = u.roles.includes('admin') ? false : undefined;
   const pick = (t: TargetUser, by: MigrationPlanUser['suggestedBy']) => ({
-    suggestion: { action: 'map' as const, to: t.username, ...(confirm !== undefined || t.roles.includes('admin') ? { confirm: false } : {}) },
+    suggestion: {
+      action: 'map' as const,
+      to: t.username,
+      ...(confirm !== undefined || t.roles.includes('admin') || guessedMatch(u, t) ? { confirm: false } : {}),
+    },
     suggestedBy: by,
   });
   const active = targets.filter((t) => t.active);
@@ -321,7 +339,12 @@ function suggestUser(u: PackageUser, targets: TargetUser[]): Pick<MigrationPlanU
   if (parts.length === 1) return pick(parts[0]!, 'localPart');
   if (!u.active) return { suggestion: { action: 'archive', ...(confirm !== undefined ? { confirm } : {}) }, suggestedBy: 'none' };
   return {
-    suggestion: { action: 'create-sso', username: (u.email ?? u.username).toLowerCase(), ...(confirm !== undefined ? { confirm } : {}) },
+    suggestion: {
+      action: 'create-sso',
+      username: (u.email ?? u.username).toLowerCase(),
+      ...(providers.length === 1 ? { provider: providers[0]!.id } : {}),
+      ...(confirm !== undefined ? { confirm } : {}),
+    },
     suggestedBy: 'none',
   };
 }
@@ -370,6 +393,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
   if (db().get('SELECT 1 FROM instance_imports LIMIT 1')) blocking.push('This instance already holds an imported package.');
   const targets = targetUsers();
   const tTeams = targetTeams();
+  const providers = publicProviders();
   const users: MigrationPlanUser[] = m.users.map((u) => {
     const clashUser = targets.find((t) => lower(t.username) === lower(u.username));
     return {
@@ -382,7 +406,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
       provider: u.provider,
       teams: u.teams,
       lastLoginAt: u.lastLoginAt,
-      ...suggestUser(u, targets),
+      ...suggestUser(u, targets, providers),
       clash: clashUser ? { username: clashUser.username, admin: clashUser.roles.includes('admin') } : null,
     };
   });
@@ -421,6 +445,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
       .map(([what, why]) => ({ what, why })),
     blocking,
     warnings,
+    providers: providers.map((p) => ({ id: p.id, displayName: p.displayName })),
     passwordLogin: passwordLoginMode(),
   };
 }
@@ -432,7 +457,7 @@ const TEAM_NAME = /^[\w .@-]{2,64}$/;
 const confirmField = z.boolean().optional();
 const userDecision = z.discriminatedUnion('action', [
   z.object({ action: z.literal('map'), to: z.string().min(1).max(100), confirm: confirmField }),
-  z.object({ action: z.literal('create-sso'), username: z.string().min(1).max(100), confirm: confirmField }),
+  z.object({ action: z.literal('create-sso'), username: z.string().min(1).max(100), provider: z.string().max(100).optional(), confirm: confirmField }),
   z.object({ action: z.literal('create-local'), username: z.string().max(100).optional(), confirm: confirmField }),
   z.object({ action: z.literal('archive'), username: z.string().max(100).optional(), confirm: confirmField }),
 ]);
@@ -453,6 +478,8 @@ interface ResolvedUser {
   /** The account on this instance (existing or to create) */
   username: string;
   existingId: string | null;
+  /** create-sso: the provider that may claim the new account */
+  provider?: string;
 }
 interface ResolvedTeam {
   source: PackageTeam;
@@ -474,6 +501,7 @@ export function resolveMapping(m: Manifest, mapping: MigrationMapping, importer:
   for (const k of Object.keys(mapping.teams)) if (!teamNames.has(k)) problems.push(`The mapping names team "${k}", which is not in the package`);
   const creating = new Set<string>();
   const users: ResolvedUser[] = [];
+  const providers = publicProviders();
   const usedAliases = new Set(
     db()
       .all<{ alias: string }>("SELECT alias FROM identity_aliases WHERE kind = 'user'")
@@ -489,17 +517,29 @@ export function resolveMapping(m: Manifest, mapping: MigrationMapping, importer:
     if (isSourceAdmin && d.confirm !== true) problems.push(`"${u.username}" is an administrator on the source – confirm the decision for this account`);
     let username = u.username;
     let existingId: string | null = null;
+    let provider: string | undefined;
     if (d.action === 'map') {
       const t = byName.get(lower(d.to));
       if (!t) problems.push(`"${u.username}" is mapped to "${d.to}", who does not exist here`);
       else {
         if (!t.active) problems.push(`"${u.username}" is mapped to "${t.username}", whose account is deactivated`);
         if (t.roles.includes('admin') && d.confirm !== true) problems.push(`"${u.username}" is mapped to the administrator "${t.username}" – confirm it`);
+        else if (guessedMatch(u, t) && d.confirm !== true)
+          problems.push(`"${u.username}" is mapped to "${t.username}" by e-mail address or name only – confirm that it is the same person`);
         username = t.username;
         existingId = t.id;
       }
     } else {
       username = (d.action === 'create-sso' ? d.username : (d.username ?? u.username)).trim();
+      if (d.action === 'create-sso') {
+        // bound to one provider: no other provider can hand the account (and its roles) to someone with that name
+        if (d.provider) {
+          if (!providers.some((p) => p.id === d.provider)) problems.push(`"${u.username}": "${d.provider}" is not an enabled single sign-on provider here`);
+          else provider = d.provider;
+        } else if (providers.length === 1) provider = providers[0]!.id;
+        else if (!providers.length) problems.push(`"${u.username}": no single sign-on provider is enabled here – set one up first`);
+        else problems.push(`"${u.username}": choose the single sign-on provider the new account signs in with`);
+      }
       if (d.action === 'create-local' && passwordLoginMode() === 'none')
         problems.push(`"${u.username}": password sign-in is turned off here – choose a single sign-on account instead`);
       if (!USERNAME.test(username)) problems.push(`"${username}" is not a valid user name (2–64 characters, letters, digits and . _ @ -)`);
@@ -516,7 +556,7 @@ export function resolveMapping(m: Manifest, mapping: MigrationMapping, importer:
     if (usedAliases.has(lower(u.username))) problems.push(`"${u.username}" is the former name of an account imported earlier`);
     // mapping to the importing administrator is fine: that account is never changed (no roles, no teams)
     void importer;
-    users.push({ source: u, decision: d, username, existingId });
+    users.push({ source: u, decision: d, username, existingId, provider });
   }
   const teams: ResolvedTeam[] = [];
   const newTeams = new Set<string>();
@@ -989,8 +1029,8 @@ function copyIntoTarget(
           temporaryPasswords.push({ username: u.username, password: pw });
         }
         d.run(
-          `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           u.username,
           u.source.displayName || u.username,
@@ -1001,6 +1041,8 @@ function copyIntoTarget(
           u.decision.action === 'create-local' ? 1 : 0,
           ts,
           ts,
+          // a new single sign-on account belongs to the chosen provider until its first sign-in links it
+          u.provider ?? 'local',
         );
       }
       userIds.set(u.source.id, id!);
