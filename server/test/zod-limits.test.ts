@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { boundedRecord, validateProcess } from '@sm/shared';
+import { DEFAULT_BODY_SHAPE } from '../src/bodyShape.js';
+import { authHeaders, loginCookie, setup, startTestServer, ADMIN, type TestServer } from './helpers.js';
 
 /**
  * Zod keeps one issue per failing array element or record value (GHSA-mrhx-c7xc-m3w5). Since zod
@@ -118,5 +120,42 @@ describe('zod length limits', () => {
     expect(schema.parse({ inputs: { a: 'b' } })).toEqual({ inputs: { a: 'b' } });
     // arrays are not records
     expect(schema.safeParse({ inputs: ['a'] }).success).toBe(false);
+  });
+});
+
+describe('length limits of request bodies', () => {
+  let s: TestServer;
+  let admin: Record<string, string>;
+  beforeAll(async () => {
+    s = await startTestServer();
+    await setup(s);
+    admin = authHeaders(await loginCookie(s.base, ADMIN.username, ADMIN.password));
+  });
+  afterAll(async () => {
+    await s?.app.close();
+  });
+  const post = async (url: string, body: unknown) => {
+    const res = await fetch(s.base + '/api' + url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-sm-client': '1', ...admin },
+      body: JSON.stringify(body),
+    });
+    return { status: res.status, body: (await res.json()) as { code?: string; error?: string; params?: { details?: string } } };
+  };
+
+  it('refuses a list longer than its limit with one issue, not one per item', async () => {
+    // within the body shape limits (bodyShape.ts), so only the schema stops it
+    const tags = Array.from({ length: DEFAULT_BODY_SHAPE.arrayItems - 1 }, (_, i) => i);
+    const r = await post('/records', { type: 'CR', title: 'x', tags });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe('INVALID_INPUT');
+    expect(r.body.params?.details).toBe('tags: Too big: expected array to have <=30 items');
+  });
+
+  it('refuses a map with more keys than its limit with one issue, not one per value', async () => {
+    const inputs = Object.fromEntries(Array.from({ length: DEFAULT_BODY_SHAPE.objectKeys - 1 }, (_, i) => [`k${i}`, i]));
+    const r = await post('/schedules', { name: 'x', processId: 'p', cron: '0 * * * *', inputs, bindings: inputs });
+    expect(r.status).toBe(400);
+    expect(r.body.params?.details).toBe('inputs: Too big: expected object to have <=200 entries; bindings: Too big: expected object to have <=100 entries');
   });
 });
