@@ -160,11 +160,13 @@ jobs:
           persist-credentials: false
       - name: Install Trivy
         run: scripts/security/install-tools.sh --dir "$RUNNER_TEMP/bin" trivy && echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Trivy vulnerability database (with retries)
+        run: scripts/security/trivy-db.sh
       - name: Trivy filesystem scan
         run: |
-          trivy fs --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
+          trivy fs --skip-db-update --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
             --format sarif --output trivy-fs.sarif .
-          trivy fs --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
+          trivy fs --skip-db-update --scanners vuln,misconfig,secret --ignore-unfixed --severity HIGH,CRITICAL \
             --exit-code 1 --format table .
       - name: Trivy configuration scan (Dockerfile, Compose, …)
         if: ${{ !cancelled() }}
