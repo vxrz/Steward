@@ -227,7 +227,7 @@ Accounts that sign in with single sign-on have no password. If the identity prov
 
 ### Locked out of single sign-on
 
-With _Settings → Sign-in → Single sign-on only_ (or `SM_PASSWORD_LOGIN=none`) nobody signs in with a password. When the identity provider fails – an expired client secret, a tenant change, an outage – an administrator gets in with **emergency access** from the server's command line:
+With _Settings → Sign-in → Single sign-on only_ (or `SM_PASSWORD_LOGIN=none`) nobody signs in with a password. `SM_PASSWORD_LOGIN=none` on a new installation waits until single sign-on works: until an administrator has signed in through an enabled provider, administrators sign in with their password (as with `adminsOnly`), so you can set Steward up and configure the provider; from that sign-in on (audit entry `settings.password_login_effective`) it applies for good – disabling the provider later does not bring passwords back. _Settings → Sign-in_ and _System status_ show while it waits. When the identity provider fails – an expired client secret, a tenant change, an outage – an administrator gets in with **emergency access** from the server's command line:
 
 ```bash
 steward admin emergency-access alice               # 60 minutes by default

@@ -266,6 +266,7 @@
         "none": "off (single sign-on only)"
       },
       "fromEnv": "set by {{name}}",
+      "pendingNone": "{{name}}=none takes effect after the first single sign-on of an administrator",
       "emergencyWindows": "Open emergency access windows"
     }
   },

@@ -7,6 +7,7 @@
     "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams.",
     "question": "Who may sign in with a password?",
     "fromEnv": "Set on the server with <c>{{name}}</c> – change it there.",
+    "pendingNone": "<c>{{name}}=none</c> takes effect once an administrator has signed in with single sign-on. Until then administrators sign in with their password – so this installation can be set up.",
     "mode": {
       "all": "Password and single sign-on",
       "allHint": "Users sign in with a local password or, if configured, with single sign-on.",

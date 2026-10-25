@@ -168,6 +168,12 @@ describe('admin recovery CLI', () => {
     const env = admin(['password-login', 'all', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
     expect(env.code).toBe(1);
     expect(env.stderr).toContain('SM_PASSWORD_LOGIN');
+    // SM_PASSWORD_LOGIN=none waits for an administrator's single sign-on: until then administrators use passwords
+    const pending = admin(['list-admins', '--json', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
+    expect(JSON.parse(pending.stdout)).toMatchObject({ passwordLogin: 'adminsOnly', passwordLoginPending: 'none' });
+    setDb(new Db(databaseTarget()));
+    db().run("INSERT INTO settings (key, value) VALUES ('security.ssoOnlyReadyAt', '\"2026-01-01T00:00:00.000Z\"')");
+    db().close();
     // with password sign-in off a password reset is pointless: the command says what to do instead
     const reset = admin(['reset-password', 'admin', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
     expect(reset.code).toBe(1);

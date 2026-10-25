@@ -322,7 +322,9 @@ export function SystemStatusPage() {
                 <Row label={t('status.security.passwordLogin')}>
                   <span data-testid="status-password-login">
                     {t(`status.security.passwordLoginModes.${s.security.passwordLogin}`)}
-                    {s.security.passwordLoginFromEnv ? ` (${t('status.security.fromEnv', { name: 'SM_PASSWORD_LOGIN' })})` : ''}
+                    {s.security.passwordLoginFromEnv
+                      ? ` (${t(s.security.passwordLoginPending ? 'status.security.pendingNone' : 'status.security.fromEnv', { name: 'SM_PASSWORD_LOGIN' })})`
+                      : ''}
                   </span>
                 </Row>
               )}

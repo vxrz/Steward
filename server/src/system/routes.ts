@@ -108,6 +108,7 @@ export function systemStatus(full: boolean): SystemStatus {
       tls: !!config.tls,
       passwordLogin: settings.passwordLogin,
       passwordLoginFromEnv: !!passwordLoginFromEnv(),
+      ...(settings.passwordLoginPending ? { passwordLoginPending: settings.passwordLoginPending } : {}),
       ...(full
         ? {
             allowedHosts: extraHosts,

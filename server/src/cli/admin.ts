@@ -296,6 +296,7 @@ async function execute(sub: Command, username: string | undefined, values: Value
         JSON.stringify({
           ok: true,
           passwordLogin: mode,
+          ...(settings.passwordLoginPending() ? { passwordLoginPending: 'none' } : {}),
           admins: admins.map((u) => ({
             username: u.username,
             displayName: u.displayName,
@@ -311,7 +312,15 @@ async function execute(sub: Command, username: string | undefined, values: Value
     } else if (!admins.length) {
       process.stdout.write('No administrator accounts.\n');
     } else {
-      process.stdout.write(`Password sign-in: ${mode}${settings.passwordLoginFromEnv() ? ' (set by SM_PASSWORD_LOGIN)' : ''}\n`);
+      process.stdout.write(
+        `Password sign-in: ${mode}${
+          settings.passwordLoginPending()
+            ? ' (SM_PASSWORD_LOGIN=none takes effect once an administrator signed in with single sign-on)'
+            : settings.passwordLoginFromEnv()
+              ? ' (set by SM_PASSWORD_LOGIN)'
+              : ''
+        }\n`,
+      );
       for (const u of admins) {
         const p = providers.get(u.authSource);
         const how = !u.active

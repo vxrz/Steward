@@ -7,6 +7,7 @@
     "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten.",
     "question": "Wer darf sich mit Passwort anmelden?",
     "fromEnv": "Auf dem Server mit <c>{{name}}</c> festgelegt – dort ändern.",
+    "pendingNone": "<c>{{name}}=none</c> gilt, sobald sich ein Administrator per Single Sign-on angemeldet hat. Bis dahin melden sich Administratoren mit ihrem Passwort an – damit sich diese Installation einrichten lässt.",
     "mode": {
       "all": "Passwort und Single Sign-on",
       "allHint": "Benutzer melden sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on an.",

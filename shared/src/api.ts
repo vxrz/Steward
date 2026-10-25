@@ -655,6 +655,11 @@ export interface Settings {
   passwordLogin: PasswordLogin;
   /** Read-only: passwordLogin comes from SM_PASSWORD_LOGIN and cannot be changed in the UI */
   passwordLoginFromEnv?: boolean;
+  /**
+   * Read-only: SM_PASSWORD_LOGIN=none is set, but administrators still sign in with a password (passwordLogin is
+   * 'adminsOnly') until an administrator signed in with single sign-on – then it takes effect for good
+   */
+  passwordLoginPending?: 'none';
   browserHeadless: boolean;
   /** Delete runs (journal, logs, evidence files) older than this many days; 0 = keep forever. The audit log is never pruned. */
   retentionRunDays: number;

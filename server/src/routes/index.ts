@@ -337,7 +337,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     runAs(users.toAuthUser(user), () =>
       audit({ action: 'vault.initialized', entityType: 'vault', summary: `${BRAND.name} set up by ${user.username} (first administrator)` }),
     );
-    // the first administrator's session (directly: SM_PASSWORD_LOGIN=none must not lock out the setup itself)
+    // the first administrator's session (SM_PASSWORD_LOGIN=none waits for an administrator's single sign-on, see ssoOnlyReady)
     const session = users.createSession(user.id, user.username, { ip: req.ip, userAgent: req.headers['user-agent'] }, 'password');
     reply.header('set-cookie', sessionCookie(session.token));
     sendSessionKeys(reply, session);
@@ -654,7 +654,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const envLogin = passwordLoginFromEnv();
     if (b.passwordLogin !== undefined && envLogin) {
       // SM_PASSWORD_LOGIN decides; the stored value is not touched (the UI shows the field read-only)
-      if (b.passwordLogin !== envLogin)
+      if (b.passwordLogin !== envLogin && b.passwordLogin !== before)
         throw new HttpError(409, `Password sign-in is set by SM_PASSWORD_LOGIN=${envLogin} on the server`, 'PASSWORD_LOGIN_FROM_ENV', { value: envLogin });
       delete b.passwordLogin;
     }

@@ -266,6 +266,7 @@
         "none": "aus (nur Single Sign-on)"
       },
       "fromEnv": "festgelegt durch {{name}}",
+      "pendingNone": "{{name}}=none gilt nach der ersten Single-Sign-on-Anmeldung eines Administrators",
       "emergencyWindows": "Offene Notfallzugangs-Fenster"
     }
   },

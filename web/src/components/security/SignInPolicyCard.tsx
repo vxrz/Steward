@@ -57,6 +57,13 @@ export function SignInPolicyCard({
             ))}
           </Stack>
         </Radio.Group>
+        {settings.passwordLoginPending && (
+          <Alert color="blue" variant="light" p="xs" data-testid="password-login-pending">
+            <Text size="sm">
+              <Trans t={t} i18nKey="signIn.pendingNone" values={{ name: 'SM_PASSWORD_LOGIN' }} components={{ c: <Code /> }} />
+            </Text>
+          </Alert>
+        )}
         {!fromEnv && noneBlocked && (
           <Text size="sm" c="dimmed" data-testid="password-login-none-blocked">
             {!providers.length ? t('signIn.noneNeedsProvider') : t('signIn.noneNeedsSsoAdmin')}
