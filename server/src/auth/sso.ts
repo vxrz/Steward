@@ -11,6 +11,7 @@ import { readSetting, writeSetting } from '../settings.js';
 import { createSession, findUserByName, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
 import { BRAND } from '@sm/shared';
 import { config as appConfig } from '../config.js';
+import { aliasTarget } from './aliases.js';
 
 /**
  * Single sign-on with OpenID Connect (authorization code flow + PKCE).
@@ -312,7 +313,10 @@ export async function finishSignIn(
 
 function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   const externalId = `${p.id}:${String(claims.sub)}`;
-  const username = String(claims[p.usernameClaim] ?? claims[p.emailClaim] ?? claims.sub)
+  const own = claims[p.usernameClaim];
+  // without the user name claim the e-mail claim names the account – only when the provider confirmed the address
+  const fromEmail = (own === undefined || own === null || own === '') && !!claims[p.emailClaim];
+  const username = String((fromEmail ? undefined : own) ?? claims[p.emailClaim] ?? claims.sub)
     .trim()
     .toLowerCase();
   const displayName = String(claims[p.displayNameClaim] ?? username);
@@ -329,6 +333,9 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
     });
     throw new HttpError(403, reason);
   };
+  if (fromEmail && claims.email_verified !== true) {
+    deny(`The identity provider did not confirm the e-mail address the user name comes from (claim "email_verified")`);
+  }
   if (p.requireMapping && matched.length === 0) {
     deny(`Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")`);
   }
@@ -340,7 +347,17 @@ function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
   const linked = db().get<{ id: string; active: number }>('SELECT id, active FROM users WHERE external_id = ?', externalId);
   const existing = linked ? undefined : findUserByName(username);
   if (existing && existing.authSource !== 'local' && existing.authSource !== p.id) deny(`The user name "${username}" belongs to another sign-in provider`);
+  // an account of this provider that is linked already belongs to that identity, not to whoever has the name now
+  const linkedTo = existing ? db().get<{ external_id: string | null }>('SELECT external_id FROM users WHERE id = ?', existing.id)?.external_id : null;
+  if (existing && existing.authSource === p.id && linkedTo && linkedTo !== externalId)
+    deny(`The account "${username}" is linked to another ${p.displayName} identity`);
+  // a local administrator is never taken over by a name: an administrator binds it to this provider first (Users & teams)
+  if (existing && existing.authSource === 'local' && existing.roles.includes('admin')) {
+    deny(`"${username}" is a local administrator account – an administrator has to bind it to ${p.displayName} first`);
+  }
   if (!linked && !existing && !p.autoProvision) deny(`No ${BRAND.name} account exists for "${username}" – ask an administrator`);
+  // a former name of an imported account (aliases.ts) must not become a new account: it would inherit that account's grants
+  if (!linked && !existing && aliasTarget(username)) deny(`"${username}" is the former name of an imported account – ask an administrator`);
   if ((linked && !linked.active) || (existing && !existing.active)) deny(`Your ${BRAND.name} account is disabled`);
 
   // ----- apply -----

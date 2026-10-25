@@ -186,7 +186,9 @@ docker compose up -d
 
 **PostgreSQL.** The app does not back up PostgreSQL itself: a copy of a live server database is best made with the server's own tools. Before every update, run `pg_dump` (see [Backup](#5-database-sqlite-or-postgresql)) and back up the data folder. When an update migrates the database, the log says so with the warning `PostgreSQL: migrating the database without an automatic backup`. PostgreSQL rolls back a failed migration as well; to go back, restore the dump with `pg_restore --clean` and start the previous version.
 
-**Moving to a deployed instance.** Copy the data folder of the desktop app to the server, start the same or a newer version there, and – for PostgreSQL – move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
+**Moving from a local to a deployed instance.** To move the desktop app to a server with PostgreSQL and single sign-on, use a **migration package**: export it on the laptop (_Settings → Migration_ or `steward migrate export`), set up the server with its own master passphrase, administrator and single sign-on, then import the package there with a mapping of every local user to an account on the server (for example their single sign-on account). Everything important moves, credentials are re-encrypted for the server's vault, the audit log stays verifiable, and the mapping is recorded in the audit log. Step by step: [MIGRATION.md](MIGRATION.md).
+
+To move an instance 1:1 instead – the same accounts, the same master passphrase – copy the data folder to the server, start the same or a newer version there, and for PostgreSQL move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
 
 ## Resetting a demo and recovering access
 
@@ -209,7 +211,7 @@ Keep demos in their own folder so they never mix with real data: `steward --demo
 The recovery command sets a one-time password for a local account on the server itself. It needs access to the data folder **and** the master passphrase, so it gives no more than someone who can already unlock the vault. Steward must be stopped (the command refuses otherwise). It signs out all sessions of the account, and the next sign-in asks for a new password. The reset is written to the audit log with the operating-system account that ran it (`cli:<user>@<host>`).
 
 ```bash
-steward admin list-admins                      # which administrator accounts exist
+steward admin list-admins                      # administrator accounts and how they can sign in
 steward admin reset-password admin             # prompts for the master passphrase
 steward admin reset-password alice --activate  # also reactivates a deactivated account
 npm run admin -- reset-password admin          # from the source tree
@@ -221,7 +223,46 @@ The passphrase comes from `SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `-
 
 Without the master passphrase nothing can be recovered: the credentials and the audit key are encrypted with it. Start from scratch as above and set up the platforms again.
 
-Accounts that sign in with single sign-on have no password. If the identity provider is unavailable, reset the password of a local administrator account (keep one as a break-glass account, see [SECURITY-HARDENING.md](SECURITY-HARDENING.md)).
+Accounts that sign in with single sign-on have no password. If the identity provider is unavailable, use [emergency access](#locked-out-of-single-sign-on), or reset the password of a local administrator account while password sign-in is allowed for administrators (see [SECURITY-HARDENING.md](SECURITY-HARDENING.md)). With password sign-in turned off (_single sign-on only_), `reset-password` refuses and points to `emergency-access`.
+
+### Locked out of single sign-on
+
+With _Settings → Sign-in → Single sign-on only_ (or `SM_PASSWORD_LOGIN=none`) nobody signs in with a password. `SM_PASSWORD_LOGIN=none` on a new installation waits until single sign-on works: until an administrator has signed in through an enabled provider, administrators sign in with their password (as with `adminsOnly`), so you can set Steward up and configure the provider; from that sign-in on (audit entry `settings.password_login_effective`) it applies for good – disabling the provider later does not bring passwords back. _Settings → Sign-in_ and _System status_ show while it waits. When the identity provider fails – an expired client secret, a tenant change, an outage – an administrator gets in with **emergency access** from the server's command line:
+
+```bash
+steward admin emergency-access alice               # 60 minutes by default
+steward admin emergency-access alice --minutes 30  # at most 1440 (24 hours)
+```
+
+What it does and needs:
+
+- It runs **on the server**, needs the **data folder** and the **master passphrase** (`SM_MASTER_PASSPHRASE_FILE`/`SM_MASTER_PASSPHRASE`, `--passphrase-stdin` or a prompt) – the same rules as `reset-password`. It cannot be used from another machine.
+- It prints a **one-time link**, `<address>/emergency-access#code=…`. The address is `SM_PUBLIC_URL` when set (with the base path), otherwise the address Steward runs at on the server. The code is in the part after `#`, which browsers do not send to the server or a proxy log. Open the link in a browser that reaches Steward, or open `/emergency-access` and paste the code.
+- The link works **once**, for that **administrator** only (a local or a single sign-on account), until the window ends. Each administrator account has at most one open link: a new command for the same account replaces the older one (other administrators can have their own at the same time; `list-admins` shows the open windows). Only a hash of the code is stored.
+- The session is marked as **emergency access**: a banner at the top of every page (_Emergency access – fix the sign-in, then sign out_), at most **one hour**, no forced password change, no new API tokens. Every action of the session is flagged in the audit log (`[Emergency access]`). Password sign-in itself stays off.
+- Audit entries: `auth.emergency_access_granted` (the operating-system account and host as `cli:<user>@<host>`, the account, the window) when the command runs; `auth.emergency_sign_in` at the sign-in; `auth.emergency_sign_in_failed` for wrong, used or expired codes.
+- All other administrators are notified at the sign-in (in the app, by e-mail and in Teams, as far as these are set up – _Settings → Notifications_, event _Emergency access_), so nobody can use it unnoticed.
+
+It works **while Steward runs** and while it is stopped:
+
+- **Running:** the command signs the request with the installation's key from the vault (which needs `vault.json` and the master passphrase) and hands it to Steward on this machine (`instance.json` in the data folder tells it where). Steward checks the signature, that the request is fresh, that it is meant for this running instance and that it came directly over the loopback interface (not through a proxy). This also works while the vault is locked. The command only sends to a loopback address: if Steward listens on one specific network address (`SM_HOST=10.0.0.5`), stop it first.
+- **Stopped:** the command writes the grant into the database; start Steward, then open the link.
+
+Step by step:
+
+1. **Desktop executable.** Open a terminal on the computer where Steward runs and run `steward admin emergency-access <your user name>` (Windows: `steward.exe admin …`; add `--data-dir` if you use your own data folder). Enter the master passphrase. Open the printed link.
+2. **Node.js.** In the project folder, as the account that runs Steward: `npm run admin -- emergency-access <your user name>`. Use the same `SM_DATA_DIR`, `SM_DATABASE_URL` and `SM_PUBLIC_URL` as the service.
+3. **Container.** While it runs: `docker compose exec steward node --import tsx server/src/cli/admin.ts emergency-access alice` (with `SM_MASTER_PASSPHRASE_FILE` set in the compose file the command reads the passphrase from the secret, otherwise it asks for it). If it does not run: `docker compose run --rm steward node --import tsx server/src/cli/admin.ts emergency-access alice`, then `docker compose up -d`.
+4. Sign in with the link, repair the sign-in (_Users & teams → Single sign-on_: client secret, issuer, mappings), check that a single sign-on administrator gets in again, and **sign out**.
+
+If the provider stays down for longer, switch password sign-in back on from the emergency session (_Settings → Sign-in_) or on the server with Steward stopped:
+
+```bash
+steward admin password-login adminsOnly   # or all; none needs an enabled provider and an administrator who signs in with it
+steward admin list-admins                 # how each administrator can sign in right now
+```
+
+`password-login` is audited like the setting and signs out the password sessions the new mode refuses. When `SM_PASSWORD_LOGIN` is set, it wins: change the variable instead.
 
 ## Behind a reverse proxy
 

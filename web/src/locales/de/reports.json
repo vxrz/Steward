@@ -69,6 +69,8 @@
     "generated": "Erstellt",
     "generatedLine": "{{date}} von {{user}} · Audit-Eintrag #{{seq}}",
     "recordedHash": "Eingetragener SHA-256",
+    "verifiedAgainst": "Geprüft gegen",
+    "importedHistory": "das importierte Audit-Protokoll der Instanz mit dem Schlüssel-Fingerabdruck {{fingerprint}} (mit einem Migrationspaket hierher umgezogen) – nicht das eigene Audit-Protokoll dieser Instanz",
     "archive": "Archiv",
     "archiveRemoved": "Die gespeicherte Kopie wurde durch die Aufbewahrungsregel gelöscht; das Audit-Log belegt den Inhalt weiterhin.",
     "chain": "Audit-Kette: {{result}}",

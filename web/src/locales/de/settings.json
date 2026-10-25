@@ -4,11 +4,27 @@
   "saved": "Einstellungen gespeichert",
   "signIn": {
     "title": "Anmeldung",
-    "all": "Passwort und SSO",
-    "adminsOnly": "Nur SSO",
-    "adminsOnlyHint": "Alle melden sich per Single Sign-on an. Lokale Administratorkonten können weiterhin ihr Passwort verwenden – mindestens eines als Notfallzugang behalten, falls der Identity Provider nicht erreichbar ist.",
-    "allHint": "Benutzer können sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on anmelden.",
-    "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten."
+    "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten.",
+    "question": "Wer darf sich mit Passwort anmelden?",
+    "fromEnv": "Auf dem Server mit <c>{{name}}</c> festgelegt – dort ändern.",
+    "pendingNone": "<c>{{name}}=none</c> gilt, sobald sich ein Administrator per Single Sign-on angemeldet hat. Bis dahin melden sich Administratoren mit ihrem Passwort an – damit sich diese Installation einrichten lässt.",
+    "mode": {
+      "all": "Passwort und Single Sign-on",
+      "allHint": "Benutzer melden sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on an.",
+      "adminsOnly": "Single Sign-on, Administratoren auch mit Passwort",
+      "adminsOnlyHint": "Alle melden sich per Single Sign-on an. Lokale Administratorkonten können ihr Passwort weiterhin als Notfallzugang verwenden.",
+      "none": "Nur Single Sign-on",
+      "noneHint": "Niemand meldet sich mit Passwort an. Fällt der Identity Provider aus, kommt ein Administrator über den Notfallzugang auf der Kommandozeile des Servers hinein."
+    },
+    "noneNeedsProvider": "Nur Single Sign-on setzt einen aktivierten Single-Sign-on-Anbieter voraus (Benutzer & Teams).",
+    "noneNeedsSsoAdmin": "Um nur Single Sign-on einzuschalten, zuerst als Administrator per Single Sign-on anmelden – dann ist sicher, dass mindestens ein Administrator weiterhin hineinkommt.",
+    "emergencyTitle": "Der Notfallzugang braucht den Server",
+    "emergencyHint": "Fällt Single Sign-on aus, auf dem Server <c>steward admin emergency-access</c> mit dem Benutzernamen eines Administrators ausführen. Der Befehl braucht den Datenordner und die Master-Passphrase und gibt einen einmaligen Anmeldelink aus. Beides sollte mindestens zwei Personen zur Verfügung stehen.",
+    "sessionsEnd": "Beim Speichern werden Passwort-Sitzungen abgemeldet, die diese Einstellung nicht mehr erlaubt. API-Tokens funktionieren weiter.",
+    "confirm": {
+      "adminsOnly": "Nur noch Administratoren können sich mit Passwort anmelden. Die Passwort-Sitzungen aller anderen werden jetzt abgemeldet.",
+      "none": "Niemand kann sich mehr mit Passwort anmelden. Passwort-Sitzungen werden jetzt abgemeldet, und Passwörter lassen sich nicht mehr zurücksetzen. Fällt Single Sign-on aus, hilft nur noch der Notfallzugang auf der Kommandozeile des Servers."
+    }
   },
   "language": {
     "title": "Sprache",
@@ -181,5 +197,116 @@
     "lastSent": "Zuletzt gesendet",
     "never": "noch nicht",
     "whenValue": "{{time}} Uhr ({{timeZone}}), {{days}}"
+  },
+  "migration": {
+    "title": "Umzug",
+    "card": "Diese Instanz auf eine andere umziehen – zum Beispiel von der Desktop-App auf einen Server mit PostgreSQL und Single Sign-on – oder eine umgezogene Instanz übernehmen, mit einer Zuordnung jedes Benutzers und Teams.",
+    "open": "Umzug öffnen",
+    "adminsOnly": "Nur Administratoren können Instanzen umziehen.",
+    "intro": "Ein Umzugspaket dieser Instanz exportieren oder eines von einer anderen Instanz importieren. Alles Wichtige zieht mit: Daten, gespeicherte Dateien und das Audit-Log. Jeder Benutzer und jedes Team des Pakets wird einem Konto und Team hier zugeordnet, und die Zuordnung wird im Audit-Log festgehalten.",
+    "fingerprint": "Fingerabdruck des Quellschlüssels",
+    "export": {
+      "title": "Diese Instanz exportieren",
+      "intro": "Schreibt eine Datei mit allen Daten, gespeicherten Dateien und dem Audit-Log. Sie ist mit einer Transfer-Passphrase verschlüsselt und mit dem Schlüssel dieser Instanz signiert. Zugangsdaten werden für das Ziel erneut verschlüsselt. Sitzungen, API-Tokens und die Anmeldeeinrichtung ziehen nicht mit.",
+      "passphrase": "Master-Passphrase dieser Instanz",
+      "passphraseHint": "Das Paket enthält alle Zugangsdaten, darum wird die Master-Passphrase erneut abgefragt.",
+      "transfer": "Transfer-Passphrase",
+      "transferHint": "Mindestens {{count}} Zeichen. Das Ziel braucht sie zum Öffnen des Pakets – getrennt von der Datei weitergeben.",
+      "transferRepeat": "Transfer-Passphrase wiederholen",
+      "tooShort": "Mindestens {{count}} Zeichen.",
+      "differ": "Die Transfer-Passphrasen sind verschieden.",
+      "submit": "Paket exportieren",
+      "done": "Umzugspaket bereit",
+      "readyTitle": "Paket bereit",
+      "ready": "{{rows}} Zeilen in {{tables}} Tabellen, {{files}} Dateien und {{entries}} Audit-Einträge – {{size}}.",
+      "undecryptable_one": "{{count}} Zugangsdatum ließ sich hier nicht entschlüsseln und zieht leer mit.",
+      "undecryptable_other": "{{count}} Zugangsdaten ließen sich hier nicht entschlüsseln und ziehen leer mit.",
+      "download": "{{name}} herunterladen",
+      "once": "Der Download funktioniert einmal, innerhalb von 30 Minuten. Den Fingerabdruck notieren: Das Ziel zeigt ihn zur Bestätigung an."
+    },
+    "import": {
+      "title": "Ein Paket importieren",
+      "intro": "In eine neue Instanz: zuerst den Administrator und Single Sign-on einrichten. Das Paket wird geprüft, bevor sich etwas ändert (Probelauf).",
+      "file": "Umzugspaket (.smig)",
+      "filePlaceholder": "Datei auswählen",
+      "check": "Paket prüfen",
+      "fingerprintLabel": "Fingerabdruck des Signaturschlüssels der Quelle",
+      "fingerprintHint": "Auf der Quelle ablesen, nicht hier: Die Quelle hat ihn beim Export des Pakets angezeigt (auch unter Audit-Log → Verankerung außerhalb der Datenbank → Fingerabdruck des Signaturschlüssels). Alle {{min}} Zeichen eingeben; die Doppelpunkte sind optional.",
+      "submit": "Importieren",
+      "discard": "Verwerfen",
+      "problems": "Der Import wurde abgelehnt",
+      "done": "Paket importiert",
+      "doneTitle": "Importiert",
+      "doneText": "{{rows}} Zeilen, {{files}} Dateien und {{entries}} Audit-Einträge der Quelle sind jetzt hier.",
+      "temporaryPasswords": "Einmalpasswörter der neuen lokalen Konten (werden einmal angezeigt):"
+    },
+    "plan": {
+      "title": "Probelauf",
+      "source": "Von Steward {{version}} ({{db}}), exportiert am {{at}} von {{by}}.",
+      "content": "{{rows}} Zeilen in {{tables}} Tabellen, {{files}} Dateien ({{size}}).",
+      "migrations_one": "Beim Import wird {{count}} Datenbankmigration angewendet.",
+      "migrations_other": "Beim Import werden {{count}} Datenbankmigrationen angewendet.",
+      "historyOk": "Audit-Log verifiziert",
+      "historyBad": "Audit-Log nicht verifiziert",
+      "paused": "Pausiert importiert (nach einer Prüfung einschalten): {{list}}.",
+      "details": "Was nicht mitzieht",
+      "notApplied": "Einstellungen der Quelle, die nicht übernommen werden"
+    },
+    "mapping": {
+      "users": "Benutzer",
+      "usersHint": "Für jeden Benutzer der Quelle entscheiden, wer er hier ist. Besitz und Zugriff folgen der Entscheidung; die Historie behält die Namen der Quelle und zeigt, wer sie jetzt sind.",
+      "teams": "Teams",
+      "local": "lokal",
+      "inactive": "deaktiviert",
+      "clash": "Hier gibt es ein Konto „{{name}}“: ihm zuordnen, sonst stünde der Name für zwei Personen.",
+      "becomes": "Wird",
+      "account": "Konto hier",
+      "username": "Benutzername hier",
+      "ssoHint": "Genau der Benutzername, den Single Sign-on liefert (z. B. E-Mail / UPN); bei der ersten Anmeldung verknüpft.",
+      "team": "Team hier",
+      "teamName": "Teamname hier",
+      "members_one": "{{count}} Mitglied",
+      "members_other": "{{count}} Mitglieder",
+      "preview": "{{kind}}: {{source}} → {{target}} ({{what}})",
+      "confirmSourceAdmin": "Ich bestätige die Entscheidung für diesen Administrator der Quelle",
+      "confirmTargetAdmin": "Ich bestätige die Zuordnung zu einem Administrator dieser Instanz",
+      "action": {
+        "map": "Ein vorhandenes Konto hier",
+        "create-sso": "Ein neues Single-Sign-on-Konto",
+        "create-local": "Ein neues lokales Konto",
+        "archive": "Ein ehemaliger Benutzer (kann sich nicht anmelden)"
+      },
+      "result": {
+        "map": "vorhandenes Konto",
+        "create-sso": "neues Single-Sign-on-Konto",
+        "create-local": "neues lokales Konto",
+        "archive": "ehemaliger Benutzer"
+      },
+      "teamAction": {
+        "map": "Ein vorhandenes Team hier",
+        "create": "Ein neues Team",
+        "drop": "Entfällt"
+      },
+      "provider": "Single-Sign-on-Anbieter",
+      "providerHint": "Nur dieser Anbieter kann das neue Konto bei der ersten Anmeldung übernehmen.",
+      "confirmGuess": "Ich bestätige, dass es dieselbe Person ist (nur über E-Mail-Adresse oder Namen zugeordnet)"
+    },
+    "imports": {
+      "title": "Importe in diese Instanz",
+      "none": "In diese Instanz wurde nichts importiert.",
+      "summary": "Importiert am {{at}} von {{by}} – von Steward {{version}}, exportiert am {{exportedAt}}.",
+      "verified": "Verifiziert",
+      "notVerified": "Nicht verifiziert",
+      "mapping": "Zuordnung der Identitäten",
+      "source": "Auf der Quelle",
+      "now": "Hier",
+      "team": "Team: {{name}}",
+      "showHistory_one": "Importierte Audit-Historie anzeigen ({{count}} Eintrag)",
+      "showHistory_other": "Importierte Audit-Historie anzeigen ({{count}} Einträge)",
+      "hideHistory": "Importierte Audit-Historie ausblenden",
+      "search": "Importierte Historie durchsuchen",
+      "noEntries": "Keine Einträge.",
+      "actorNow": "{{actor}} → {{now}}"
+    }
   }
 }

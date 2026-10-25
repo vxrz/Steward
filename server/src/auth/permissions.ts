@@ -9,6 +9,7 @@ import {
 } from '@sm/shared';
 import { HttpError, type ErrorParams } from '../util.js';
 import type { AuthUser } from './context.js';
+import { aliasSubjects, sameIdentity } from './aliases.js';
 
 /**
  * Access model
@@ -37,7 +38,13 @@ const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
 };
 
 export function subjectsOf(u: AuthUser): Set<string> {
-  return new Set([`user:${u.username.toLowerCase()}`, ...u.teams.map((t) => `team:${t.toLowerCase()}`), ...u.roles.map((r) => `role:${r}`)]);
+  return new Set([
+    `user:${u.username.toLowerCase()}`,
+    ...u.teams.map((t) => `team:${t.toLowerCase()}`),
+    ...u.roles.map((r) => `role:${r}`),
+    // former names from an imported migration package (aliases.ts)
+    ...aliasSubjects(u),
+  ]);
 }
 
 export function matches(u: AuthUser, subject: string): boolean {
@@ -118,7 +125,7 @@ export function decisionCheck(
 ): { ok: boolean; reason?: string; code?: string; params?: ErrorParams } {
   if (!u) return { ok: false, reason: 'Not signed in', code: 'NOT_SIGNED_IN' };
   if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}`, code: 'TASK_CLOSED' };
-  if (task.fourEyes && run.actor.toLowerCase() === u.username.toLowerCase()) {
+  if (task.fourEyes && sameIdentity(run.actor, u)) {
     return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide', code: 'FOUR_EYES_RUN' };
   }
   if (task.assignees.length) {

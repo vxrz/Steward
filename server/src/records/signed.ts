@@ -1,6 +1,6 @@
-import { isEditableStatus, type ErrorParams, type RecordAttachment, type SignatureInfo, type SignedPdfDetails } from '@sm/shared';
+import { isEditableStatus, type ErrorParams, type ImportedHistoryRef, type RecordAttachment, type SignatureInfo, type SignedPdfDetails } from '@sm/shared';
 import { db } from '../db.js';
-import { audit, authenticRows } from '../audit.js';
+import { audit, authenticRows, importedSourceOf } from '../audit.js';
 import { isAdmin } from '../auth/permissions.js';
 import { HttpError, newId, parseJson, sha256 } from '../util.js';
 import { canApproveRecords, canEditRecord, forbid, me } from './access.js';
@@ -191,7 +191,7 @@ export function findSignatures(data: Buffer, from = 0): SignatureInfo[] {
 }
 
 /** Generated PDF of the record that the upload starts with, or null. */
-function derivedFrom(recordId: string, data: Buffer): AttachmentRow | null {
+function derivedFrom(recordId: string, data: Buffer): (AttachmentRow & { importedHistory?: ImportedHistoryRef }) | null {
   for (const g of attachmentRows(recordId, 'generated')) {
     const size = Number(g.size);
     if (size >= data.length) continue;
@@ -209,7 +209,10 @@ function derivedFrom(recordId: string, data: Buffer): AttachmentRow | null {
       [recordId, g.sha256],
       { limit: 5 },
     );
-    if (rows.length) return { ...g, details: rows[0]!.details };
+    if (rows.length) {
+      const from = importedSourceOf(rows[0]);
+      return { ...g, details: rows[0]!.details, ...(from ? { importedHistory: from } : {}) };
+    }
   }
   return null;
 }
@@ -244,6 +247,8 @@ export interface SignedCheck {
   generated: AttachmentRow | null;
   signatures: SignatureInfo[];
   exactCopy: boolean;
+  /** The generated PDF's audit entry is in history imported from another instance (verified against the source's key) */
+  importedHistory?: ImportedHistoryRef;
 }
 
 /** Checks a signed upload without storing it. */
@@ -283,7 +288,16 @@ export function checkSignedPdf(recordId: string, data: Buffer): SignedCheck {
       exactCopy: false,
       code: 'PDF_BAD_SIGNATURE',
     };
-  return { ok: true, message: `Derived from ${g.filename}; ${signatures.length} signature(s) found`, generated: g, signatures, exactCopy: false };
+  const imported = g.importedHistory ? { importedHistory: g.importedHistory } : {};
+  const via = g.importedHistory ? ` (its generation verified against the imported audit history of ${g.importedHistory.sourceFingerprint})` : '';
+  return {
+    ok: true,
+    message: `Derived from ${g.filename}${via}; ${signatures.length} signature(s) found`,
+    generated: g,
+    signatures,
+    exactCopy: false,
+    ...imported,
+  };
 }
 
 /**
@@ -326,6 +340,7 @@ export function uploadSignedPdf(
         originalSize: Number(check.generated!.size),
         signatures: check.signatures,
         validation: 'structure',
+        ...(check.importedHistory ? { importedHistory: check.importedHistory } : {}),
       }
     : { derivedFrom: '', derivedFromFilename: '', originalSha256: '', originalSize: 0, signatures: findSignatures(data), validation: 'none', plain: true };
   const rel = writeAttachmentFile(r.id, id, name, data);
@@ -349,7 +364,7 @@ export function uploadSignedPdf(
       entityType: 'record',
       entityId: r.id,
       summary: check.ok
-        ? `Signed PDF ${name} uploaded to ${r.number}: derived from ${check.generated!.filename}, ${check.signatures.length} signature(s) (claimed signers: ${check.signatures.map((s) => s.name ?? '?').join(', ')}) – structure checked, not cryptographically validated`
+        ? `Signed PDF ${name} uploaded to ${r.number}: derived from ${check.generated!.filename}${check.importedHistory ? ` (generation verified against the imported audit history of ${check.importedHistory.sourceFingerprint})` : ''}, ${check.signatures.length} signature(s) (claimed signers: ${check.signatures.map((s) => s.name ?? '?').join(', ')}) – structure checked, not cryptographically validated`
         : `PDF ${name} attached to ${r.number} without verification by an administrator: ${check.message}`,
       details: { number: r.number, attachmentId: id, filename: name, sha256: hash, size: data.length, ...details },
     });

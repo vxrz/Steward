@@ -202,6 +202,7 @@
     "chainOk_one": "{{count}} snapshot verified",
     "chainOk_other": "{{count}} snapshots verified",
     "chainBroken": "The history does not verify",
+    "importedHistory": "Snapshots from before the move were verified against the imported audit history of the instance with key fingerprint {{fingerprint}} (moved here with a migration package).",
     "takenAt": "Taken at",
     "subjects": "Subjects",
     "assignments": "Assignments",

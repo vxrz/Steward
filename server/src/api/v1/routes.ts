@@ -9,7 +9,7 @@ import type { DatasetRow, ProcessPermission, TaskRecord } from '@sm/shared';
 import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { db } from '../../db.js';
-import { audit, queryAudit, sealedProtocolHash } from '../../audit.js';
+import { audit, queryAudit, sealedProtocol } from '../../audit.js';
 import { createCheckpoint, verificationResult, verifyWithAnchors } from '../../audit-anchor.js';
 import { currentUser } from '../../auth/context.js';
 import { capabilities, decisionCheck, requireCapability } from '../../auth/permissions.js';
@@ -537,7 +537,8 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
       viewableRun(id);
       const d = store.getRunDetail(id);
       const counts = store.stepStatusCounts(id);
-      const recordedHash = sealedProtocolHash(id);
+      const sealed = sealedProtocol(id);
+      const recordedHash = sealed?.hash ?? null;
       const hash = store.protocolHash(id);
       return {
         ...mapRun(d),
@@ -560,7 +561,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
           createdAt: t.createdAt,
         })),
         checks: store.listChecks(id),
-        protocol: { hash, recordedHash, intact: recordedHash ? recordedHash === hash : null },
+        protocol: { hash, recordedHash, intact: recordedHash ? recordedHash === hash : null, importedHistory: sealed?.importedHistory ?? null },
         children: (d.children ?? [])
           .filter((c) => processes.permissionsFor(c.processId).includes('view'))
           .map((c) => ({ ...c, finishedAt: c.finishedAt ?? null })),

@@ -164,6 +164,10 @@ export function securityWarnings(
   if (passphraseFromEnvironment) {
     out.push('The master passphrase comes from SM_MASTER_PASSPHRASE – prefer SM_MASTER_PASSPHRASE_FILE (a secret file only the service account can read)');
   }
+  const login = env.SM_PASSWORD_LOGIN?.trim();
+  if (login && !['all', 'adminsOnly', 'none'].includes(login)) {
+    out.push(`SM_PASSWORD_LOGIN="${login.slice(0, 40)}" is not one of all, adminsOnly, none – it is ignored and the setting in the UI applies`);
+  }
   if (env.SM_METRICS_PUBLIC === '1') out.push('SM_METRICS_PUBLIC=1: /api/metrics answers without signing in (counts of runs, checks and platforms)');
   if (config.session.maxMs > 12 * 3_600_000 || config.session.idleMs > 30 * 60_000) {
     out.push('Sessions last longer than OWASP ASVS level 2 allows (12 h after sign-in, 30 min idle) – see SM_SESSION_MAX_HOURS / SM_SESSION_IDLE_MINUTES');

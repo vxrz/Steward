@@ -55,6 +55,14 @@ export interface SystemStatus {
   };
   security: {
     tls: boolean;
+    /** Who may sign in with a password (see Settings.passwordLogin) */
+    passwordLogin?: 'all' | 'adminsOnly' | 'none';
+    /** passwordLogin is set by SM_PASSWORD_LOGIN */
+    passwordLoginFromEnv?: boolean;
+    /** SM_PASSWORD_LOGIN=none waits for an administrator's first single sign-on (see Settings.passwordLoginPending) */
+    passwordLoginPending?: 'none';
+    /** full view: emergency access windows that are open (granted from the command line, not used yet) */
+    emergencyWindowsOpen?: number;
     /** full view: extra host names accepted (SM_ALLOWED_HOSTS) */
     allowedHosts?: string[];
     /** full view: an outbound HTTP(S) proxy is configured in the environment */

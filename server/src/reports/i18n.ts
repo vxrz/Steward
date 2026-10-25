@@ -138,6 +138,8 @@ const en = {
 
   integrity: 'Integrity and verification',
   sealedHash: 'Sealed protocol hash (recorded when the run finished)',
+  sealVerifiedAgainst: 'Seal verified against',
+  importedHistoryOf: 'the imported audit history of the instance with key fingerprint {fingerprint} (moved here with a migration package)',
   currentHash: 'Protocol hash at report generation',
   integrityStatus: 'Journal integrity',
   intact: 'Intact – unchanged since the run finished',
@@ -354,6 +356,8 @@ const de: Record<MsgKey, string> = {
 
   integrity: 'Integrität und Prüfung',
   sealedHash: 'Versiegelter Protokoll-Hash (bei Abschluss eingetragen)',
+  sealVerifiedAgainst: 'Siegel geprüft gegen',
+  importedHistoryOf: 'das importierte Audit-Protokoll der Instanz mit dem Schlüssel-Fingerabdruck {fingerprint} (mit einem Migrationspaket hierher umgezogen)',
   currentHash: 'Protokoll-Hash bei Berichtserstellung',
   integrityStatus: 'Integrität des Journals',
   intact: 'Unverändert seit Abschluss der Ausführung',

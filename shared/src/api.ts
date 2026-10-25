@@ -129,7 +129,16 @@ export interface Capabilities {
 export interface Me {
   user: UserInfo;
   capabilities: Capabilities;
+  /** Set when this session was opened with an emergency access code from the server's command line */
+  emergency?: { expiresAt: string };
 }
+
+/**
+ * Who may sign in with a password: everyone, administrators only (break-glass), or nobody (single
+ * sign-on only; emergency access from the server's command line still works).
+ */
+export const PASSWORD_LOGIN_MODES = ['all', 'adminsOnly', 'none'] as const;
+export type PasswordLogin = (typeof PASSWORD_LOGIN_MODES)[number];
 
 export interface AuthStatus {
   /** Vault (master passphrase) exists */
@@ -140,8 +149,8 @@ export interface AuthStatus {
   me: Me | null;
   /** Enabled single sign-on providers (buttons on the sign-in page) */
   ssoProviders: SsoProviderPublic[];
-  /** 'adminsOnly': password sign-in is limited to administrators (break-glass) */
-  passwordLogin: 'all' | 'adminsOnly';
+  /** 'adminsOnly': password sign-in is limited to administrators (break-glass); 'none': single sign-on only */
+  passwordLogin: PasswordLogin;
   demo: boolean;
   version: string;
   browserAvailable: boolean;
@@ -577,6 +586,16 @@ export interface Schedule {
 
 // ---------- Audit ----------
 
+/**
+ * A check that relied on audit history imported from another instance (moving an instance, docs/MIGRATION.md):
+ * that history verified against the source's signed checkpoint and key, not against this instance's own key.
+ */
+export interface ImportedHistoryRef {
+  importId: string;
+  /** SHA-256 fingerprint of the source instance's signing key */
+  sourceFingerprint: string;
+}
+
 export interface AuditEntry {
   seq: number;
   ts: string;
@@ -642,8 +661,15 @@ export interface AuditAnchoring {
 export type VaultStatus = AuthStatus & { operator?: string };
 
 export interface Settings {
-  /** 'adminsOnly' limits password sign-in to administrators once SSO is in place */
-  passwordLogin: 'all' | 'adminsOnly';
+  /** 'adminsOnly' limits password sign-in to administrators once SSO is in place; 'none' turns it off (SM_PASSWORD_LOGIN overrides it) */
+  passwordLogin: PasswordLogin;
+  /** Read-only: passwordLogin comes from SM_PASSWORD_LOGIN and cannot be changed in the UI */
+  passwordLoginFromEnv?: boolean;
+  /**
+   * Read-only: SM_PASSWORD_LOGIN=none is set, but administrators still sign in with a password (passwordLogin is
+   * 'adminsOnly') until an administrator signed in with single sign-on – then it takes effect for good
+   */
+  passwordLoginPending?: 'none';
   browserHeadless: boolean;
   /** Delete runs (journal, logs, evidence files) older than this many days; 0 = keep forever. The audit log is never pruned. */
   retentionRunDays: number;

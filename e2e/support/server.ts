@@ -24,6 +24,8 @@ export interface IsolatedServer {
    */
   restart: (between?: (dataDir: string) => void) => Promise<void>;
   stop: () => Promise<void>;
+  /** The server's data folder (e.g. for the admin command line) */
+  dataDir: string;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -33,7 +35,8 @@ function freePort(): number {
   return Number(execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' }).trim());
 }
 
-export async function startIsolatedServer(): Promise<IsolatedServer> {
+/** `demo`: SM_DEMO=1 (mock platforms and the mock identity provider under /mock). */
+export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promise<IsolatedServer> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-e2e-iso-'));
   const port = freePort();
   // E2E_BASE_PATH: under the prefix, behind its own reverse proxy (like the shared demo server, see global-setup.ts)
@@ -53,7 +56,7 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
         SM_PORT: String(port),
         SM_HOST: '127.0.0.1',
         ...(BASE_PATH ? { SM_BASE_PATH: BASE_PATH, SM_TRUST_PROXY: '127.0.0.1' } : {}),
-        SM_DEMO: '',
+        SM_DEMO: opts.demo ? '1' : '',
         SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
         SM_LOG_LEVEL: 'warn',
         OTEL_EXPORTER_OTLP_ENDPOINT: '',
@@ -128,7 +131,7 @@ export async function startIsolatedServer(): Promise<IsolatedServer> {
       if (!r.ok) throw new Error(`${method} ${url} → HTTP ${r.status}: ${text}`);
       return text ? JSON.parse(text) : null;
     };
-    return { baseURL, adminCookie, sessionKey, linkKey, api, restart, stop };
+    return { baseURL, adminCookie, sessionKey, linkKey, api, restart, stop, dataDir };
   } catch (e) {
     await stop();
     throw e;

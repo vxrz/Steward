@@ -38,6 +38,9 @@ function userArgv(): string[] {
 /** `steward admin …`: the recovery commands (cli/admin.ts) instead of the server. */
 export const adminArgv: string[] | undefined = userArgv()[0] === 'admin' ? userArgv().slice(1) : undefined;
 
+/** `steward migrate …`: moving an instance (cli/migrate.ts) instead of the server. */
+export const migrateArgv: string[] | undefined = userArgv()[0] === 'migrate' ? userArgv().slice(1) : undefined;
+
 /** `steward mcp …`: the MCP stdio bridge (mcp/bridge.ts) instead of the server – it never opens the database. */
 export const mcpArgv: string[] | undefined = userArgv()[0] === 'mcp' ? userArgv().slice(1) : undefined;
 
@@ -49,7 +52,7 @@ export let usageError: UsageError | undefined;
 
 function parse(): DesktopArgs {
   const fallback: DesktopArgs = { open: true, help: false, version: false, sendTestError: false, demo: false };
-  if (adminArgv || mcpArgv || evidenceArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
+  if (adminArgv || migrateArgv || mcpArgv || evidenceArgv) return fallback; // cli/admin.ts and mcp/bridge.ts parse their own options
   try {
     const { values } = parseCli(userArgv(), {
       port: { type: 'string' },

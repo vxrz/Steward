@@ -83,6 +83,12 @@
         "label": "Document review due",
         "info": "A living document you review is due for its periodic review soon (or is overdue)"
       }
+    },
+    "security": {
+      "emergency": {
+        "label": "Emergency access",
+        "info": "Someone signed in with emergency access from the server command line (administrators)"
+      }
     }
   }
 }

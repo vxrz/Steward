@@ -201,6 +201,12 @@ export const RunDetail = Run.extend({
       hash: z.string().describe('SHA-256 fingerprint of everything recorded for the run'),
       recordedHash: z.string().nullable().describe('Fingerprint sealed in the audit log when the run finished'),
       intact: z.boolean().nullable().describe('hash = recordedHash; null while the run is not finished'),
+      importedHistory: z
+        .object({ importId: z.string(), sourceFingerprint: z.string().describe("SHA-256 fingerprint of the source instance's signing key") })
+        .nullable()
+        .describe(
+          "Set when the sealing audit entry is in history imported from another instance (moved with a migration package): recordedHash is then verified against that history and the source's key",
+        ),
     })
     .describe('Tamper evidence of the run protocol'),
   children: z.array(RunChild).describe('Sub-process runs started by this run (only those you may view)'),

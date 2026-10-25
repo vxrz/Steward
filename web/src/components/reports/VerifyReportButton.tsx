@@ -98,6 +98,14 @@ export function VerifyReportButton() {
                         {t('verify.generatedLine', { date: fmtDate(v.report.generatedAt), user: v.report.generatedBy, seq: v.report.auditSeq })}
                       </Table.Td>
                     </Table.Tr>
+                    {v.importedHistory && (
+                      <Table.Tr data-testid="verify-imported-history">
+                        <Table.Td c="dimmed">{t('verify.verifiedAgainst')}</Table.Td>
+                        <Table.Td style={{ wordBreak: 'break-word' }}>
+                          {t('verify.importedHistory', { fingerprint: v.importedHistory.sourceFingerprint })}
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
                     <Table.Tr>
                       <Table.Td c="dimmed">{t('verify.recordedHash')}</Table.Td>
                       <Table.Td className="mono" style={{ wordBreak: 'break-all' }}>

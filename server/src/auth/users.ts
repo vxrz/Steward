@@ -6,8 +6,9 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verifyPasswordAsync } from './passwords.js';
 import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser } from './context.js';
-import { getSettings } from '../settings.js';
+import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
+import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 
 interface UserRow {
   id: string;
@@ -53,9 +54,25 @@ function toInfo(r: UserRow): UserInfo {
   };
 }
 
-export function toAuthUser(u: UserInfo): AuthUser {
-  return { id: u.id, username: u.username, displayName: u.displayName, roles: u.roles, teams: u.teams };
+/** A signed-in user as sessionUser returns it: the account plus how the session was opened. */
+export type SessionInfo = UserInfo & { emergency?: AuthUser['emergency'] };
+
+export function toAuthUser(u: UserInfo | SessionInfo): AuthUser {
+  const out: AuthUser = { id: u.id, username: u.username, displayName: u.displayName, roles: u.roles, teams: u.teams };
+  const emergency = (u as SessionInfo).emergency;
+  if (emergency) out.emergency = emergency;
+  return out;
 }
+
+/** Password sign-in, password resets and new passwords are refused while it is turned off (Settings → Sign-in, SM_PASSWORD_LOGIN). */
+export function requirePasswordLogin(what: string): void {
+  if (passwordLoginMode() === 'none') {
+    throw new HttpError(409, `Password sign-in is turned off (single sign-on only) – ${what} is not possible`, 'PASSWORD_LOGIN_OFF', { what });
+  }
+}
+
+/** Password hash of accounts without a password (never matches: verifyPassword needs "scrypt$…"); linked on the first single sign-on. */
+export const NO_PASSWORD = '!none';
 
 export function countUsers(): number {
   return db().get<{ n: number }>('SELECT COUNT(*) AS n FROM users')!.n;
@@ -81,16 +98,31 @@ function cleanRoles(roles: unknown): Role[] {
   return [...new Set(list.filter((r): r is Role => (ROLES as readonly string[]).includes(String(r))))];
 }
 
-export function createUser(input: { username: string; displayName?: string; email?: string; roles: Role[]; password?: string; mustChangePassword?: boolean }): {
+export function createUser(input: {
+  username: string;
+  displayName?: string;
+  email?: string;
+  roles: Role[];
+  password?: string;
+  mustChangePassword?: boolean;
+  /** No password at all: the account signs in with single sign-on (linked by its user name at the first sign-in) */
+  noPassword?: boolean;
+  /** With noPassword: the single sign-on provider (id) that may claim the account – no other provider can */
+  provider?: string;
+}): {
   user: UserInfo;
   temporaryPassword?: string;
 } {
   const username = input.username.trim();
   if (!USERNAME.test(username)) throw new HttpError(400, 'Username: 2–64 characters, letters, digits and . _ @ - only');
   if (findUserByName(username)) throw new HttpError(409, `User "${username}" already exists`);
+  // a former name of an imported account still stands for that account in imported content (aliases.ts)
+  if (aliasTarget(username)) throw new HttpError(409, `"${username}" is the former name of an imported account`, 'USERNAME_IS_ALIAS', { username });
   let password = input.password;
   let temp: string | undefined;
-  if (!password) {
+  if (input.noPassword) {
+    if (password) throw new HttpError(400, 'An account without a password cannot have a password', 'PASSWORD_LOGIN_OFF');
+  } else if (!password) {
     password = temp = temporaryPassword();
   } else {
     const err = checkPasswordPolicy(password);
@@ -101,24 +133,25 @@ export function createUser(input: { username: string; displayName?: string; emai
   const roles = cleanRoles(input.roles);
   db().tx(() => {
     db().run(
-      `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+      `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       id,
       username,
       input.displayName?.trim() || username,
       input.email ?? null,
-      hashPassword(password),
+      input.noPassword ? NO_PASSWORD : hashPassword(password!),
       JSON.stringify(roles),
-      temp || input.mustChangePassword ? 1 : 0,
+      !input.noPassword && (temp || input.mustChangePassword) ? 1 : 0,
       ts,
       ts,
+      input.noPassword && input.provider ? input.provider : 'local',
     );
     audit({
       action: 'user.created',
       entityType: 'user',
       entityId: id,
-      summary: `User "${username}" created (${roles.join(', ') || 'no roles'})`,
-      details: { roles },
+      summary: `User "${username}" created (${roles.join(', ') || 'no roles'})${input.noPassword ? ` without a password (single sign-on${input.provider ? ` via ${input.provider}` : ''})` : ''}`,
+      details: { roles, ...(input.noPassword ? { password: false, provider: input.provider ?? null } : {}) },
     });
   });
   return { user: getUser(id), temporaryPassword: temp };
@@ -196,9 +229,37 @@ function ensureAnotherAdmin(exceptId: string): void {
   if (!admins.length) throw new HttpError(409, 'At least one active administrator is required', 'LAST_ADMIN');
 }
 
+/**
+ * Binds a local account to a single sign-on provider (an administrator's decision): the password is removed, its
+ * sessions end, and only that provider can claim the account at the next sign-in (by its user name).
+ */
+export function bindToProvider(id: string, providerId: string, providerName: string): UserInfo {
+  const u = getUser(id);
+  if (u.authSource !== 'local') throw new HttpError(409, 'This account signs in with single sign-on already', 'SSO_ALREADY_BOUND');
+  db().tx(() => {
+    db().run(
+      'UPDATE users SET auth_source = ?, external_id = NULL, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?',
+      providerId,
+      NO_PASSWORD,
+      nowIso(),
+      id,
+    );
+    db().run('DELETE FROM sessions WHERE user_id = ?', id);
+    audit({
+      action: 'user.sso_bound',
+      entityType: 'user',
+      entityId: id,
+      summary: `"${u.username}" now signs in with ${providerName} (password removed, sessions ended)`,
+      details: { provider: providerId },
+    });
+  });
+  return getUser(id);
+}
+
 export function resetPassword(id: string): string {
   const u = getUser(id);
   if (u.authSource !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
+  requirePasswordLogin('resetting a password');
   const temp = temporaryPassword();
   db().tx(() => {
     db().run('UPDATE users SET password_hash = ?, must_change_password = 1, updated_at = ? WHERE id = ?', hashPassword(temp), nowIso(), id);
@@ -242,6 +303,7 @@ export async function changePassword(id: string, current: string, next: string, 
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', id);
   if (!r) throw new HttpError(404, 'User not found');
   if (r.auth_source !== 'local') throw new HttpError(400, 'This account signs in with single sign-on and has no password');
+  requirePasswordLogin('changing a password');
   // Someone holding a session must not be able to guess the password behind it (same limits as sign-in).
   const tries = recent(passwordChangeFailures, id);
   if (tries.length >= PASSWORD_CHANGE_MAX_FAILURES) {
@@ -293,6 +355,9 @@ export function saveTeam(input: { name: string; description?: string; members?: 
   const name = input.name.trim();
   if (!/^[\w .@-]{2,64}$/.test(name)) throw new HttpError(400, 'Team name: 2–64 characters');
   const tid = id ?? newId('team_');
+  // a former team name of an imported team still stands for that team in imported content (aliases.ts)
+  const former = teamAliasTarget(name);
+  if (former && former !== tid) throw new HttpError(409, `"${name}" is the former name of an imported team`, 'TEAM_NAME_IS_ALIAS', { name });
   const memberIds = (input.members ?? []).map((m) => {
     const u = findUserByName(m);
     if (!u) throw new HttpError(400, `Unknown user "${m}"`);
@@ -310,6 +375,7 @@ export function saveTeam(input: { name: string; description?: string; members?: 
       db().run('DELETE FROM team_members WHERE team_id = ?', tid);
       for (const uid of memberIds) db().run('INSERT INTO team_members (team_id, user_id) VALUES (?, ?)', tid, uid);
     }
+    invalidateAliases();
     audit({
       action: id ? 'team.updated' : 'team.created',
       entityType: 'team',
@@ -326,6 +392,7 @@ export function deleteTeam(id: string): void {
   if (!t) throw new HttpError(404, 'Team not found');
   db().tx(() => {
     db().run('DELETE FROM teams WHERE id = ?', id);
+    invalidateAliases();
     audit({ action: 'team.deleted', entityType: 'team', entityId: id, summary: `Team "${t.name}" deleted` });
   });
 }
@@ -380,6 +447,15 @@ export async function login(username: string, password: string, meta: { ip?: str
   if (byAddress.length >= ADDRESS_MAX_FAILURES)
     throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
   const r = db().get<UserRow>('SELECT * FROM users WHERE username = ?', username);
+  const mode = passwordLoginMode();
+  if (mode === 'none') {
+    // Single sign-on only: every attempt gets the usual answer, without checking the password (no oracle, no hashing
+    // cost). It still counts against the limits and is audited like a wrong password.
+    remember(accountFailures, account, byAccount);
+    remember(addressFailures, address, byAddress);
+    recordFailedLogin({ username, account: r ? { id: r.id, username: r.username, disabled: !r.active } : null, ip: meta.ip });
+    throw new HttpError(401, 'Wrong user name or password', 'WRONG_CREDENTIALS');
+  }
   // One hash per attempt for known and unknown user names alike (same timing; the dummy hash is computed once).
   const ok = await verifyPasswordAsync(password, r?.password_hash && r.password_hash.startsWith('scrypt$') ? r.password_hash : dummyHash());
   if (!r || !ok || !r.active) {
@@ -394,7 +470,7 @@ export async function login(username: string, password: string, meta: { ip?: str
   failures.delete(key);
   accountFailures.delete(account);
   const roles = parseJson<Role[]>(r.roles, []);
-  if (getSettings().passwordLogin === 'adminsOnly' && !roles.includes('admin')) {
+  if (mode === 'adminsOnly' && !roles.includes('admin')) {
     throw new HttpError(403, 'Password sign-in is disabled – please use single sign-on', 'PASSWORD_LOGIN_DISABLED');
   }
   const session = createSession(r.id, r.username, meta, 'password');
@@ -404,36 +480,81 @@ export async function login(username: string, password: string, meta: { ip?: str
 /** The link key belonging to a binding (derived, so it needs no storage of its own). */
 const linkKeyOf = (binding: string) => crypto.createHmac('sha256', Buffer.from(binding, 'hex')).update('steward-link-v1').digest('base64url');
 
-/** Create a session for an authenticated user and record the sign-in. Returns the cookie token and the binding keys. */
-export function createSession(userId: string, username: string, meta: { ip?: string; userAgent?: string }, method: string): CreatedSession {
+/** Longest life of a session opened with emergency access (whatever SM_SESSION_MAX_HOURS says). */
+export const EMERGENCY_SESSION_MS = 60 * 60_000;
+
+/** How long a session may live at most. */
+const sessionMaxMs = (emergency: boolean) => (emergency ? Math.min(EMERGENCY_SESSION_MS, config.session.maxMs) : config.session.maxMs);
+
+/**
+ * Create a session for an authenticated user and record the sign-in. Returns the cookie token and the binding keys.
+ * `method`: 'password', 'emergency' or the single sign-on provider's name. `emergencyGrantId`: the emergency
+ * access grant that opened it (no auth.login entry then: the caller writes auth.emergency_sign_in).
+ */
+export function createSession(
+  userId: string,
+  username: string,
+  meta: { ip?: string; userAgent?: string },
+  method: string,
+  opts: { emergencyGrantId?: string } = {},
+): CreatedSession {
   const token = crypto.randomBytes(32).toString('base64url');
   const sessionKey = crypto.randomBytes(32).toString('base64url');
   const binding = hashToken(sessionKey);
   const ts = nowIso();
+  const emergency = !!opts.emergencyGrantId;
   db().tx(() => {
     db().run(
-      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding, method, emergency_grant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       hashToken(token),
       userId,
       ts,
-      new Date(Date.now() + Math.min(config.session.idleMs, config.session.maxMs)).toISOString(),
+      new Date(Date.now() + Math.min(config.session.idleMs, sessionMaxMs(emergency))).toISOString(),
       ts,
       meta.ip ?? null,
       meta.userAgent?.slice(0, 200) ?? null,
       binding,
+      // how the session was opened decides what the sign-in mode allows (sessionUser): password, sso or emergency
+      emergency ? 'emergency' : method === 'password' ? 'password' : 'sso',
+      opts.emergencyGrantId ?? null,
     );
     db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
     db().run('DELETE FROM sessions WHERE expires_at < ?', ts);
-    audit({
-      actor: username,
-      action: 'auth.login',
-      entityType: 'user',
-      entityId: userId,
-      summary: `${username} signed in${method === 'password' ? '' : ` via ${method}`}`,
-      details: { ip: meta.ip, method },
-    });
+    if (!emergency) {
+      audit({
+        actor: username,
+        action: 'auth.login',
+        entityType: 'user',
+        entityId: userId,
+        summary: `${username} signed in${method === 'password' ? '' : ` via ${method}`}`,
+        details: { ip: meta.ip, method },
+      });
+    }
   });
   return { token, sessionKey, linkKey: linkKeyOf(binding) };
+}
+
+/**
+ * Signs out the sessions the new password sign-in setting no longer allows (they would be refused at their next
+ * request anyway, see sessionUser): 'none' – every password session; 'adminsOnly' – password sessions of other
+ * accounts than administrators. Emergency sessions and `keep` (the session of the person changing it) stay.
+ */
+export function endPasswordSessions(mode: 'all' | 'adminsOnly' | 'none', keepToken?: string): number {
+  if (mode === 'all') return 0;
+  const keep = keepToken ? hashToken(keepToken) : '';
+  // by how the session was opened (an account linked to single sign-on later may still hold a password session);
+  // sessions from before the method was recorded count as password sessions
+  const rows = db().all<{ id: string; roles: string }>(
+    `SELECT s.id, u.roles FROM sessions s JOIN users u ON u.id = s.user_id
+     WHERE (s.method IS NULL OR s.method = 'password') AND s.emergency_grant_id IS NULL AND s.id <> ?`,
+    keep,
+  );
+  let n = 0;
+  for (const r of rows) {
+    if (mode === 'adminsOnly' && parseJson<Role[]>(r.roles, []).includes('admin')) continue;
+    n += db().run('DELETE FROM sessions WHERE id = ?', r.id).changes;
+  }
+  return n;
 }
 
 /**
@@ -459,31 +580,54 @@ function bindingMatches(stored: string | null, b: SessionBinding): boolean {
   return false;
 }
 
-export function sessionUser(token: string | undefined, binding: SessionBinding): UserInfo | null {
+export function sessionUser(token: string | undefined, binding: SessionBinding): SessionInfo | null {
   if (!token) return null;
   const id = hashToken(token);
-  const s = db().get<{ user_id: string; created_at: string; expires_at: string; last_seen_at: string; binding: string | null }>(
-    'SELECT * FROM sessions WHERE id = ?',
-    id,
-  );
+  const s = db().get<{
+    user_id: string;
+    created_at: string;
+    expires_at: string;
+    last_seen_at: string;
+    binding: string | null;
+    emergency_grant_id: string | null;
+    method: string | null;
+  }>('SELECT * FROM sessions WHERE id = ?', id);
   if (!s) return null;
   const now = Date.now();
-  if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + config.session.maxMs < now) {
+  const emergency = !!s.emergency_grant_id;
+  const maxMs = sessionMaxMs(emergency);
+  if (Date.parse(s.expires_at) < now || Date.parse(s.created_at) + maxMs < now) {
     db().run('DELETE FROM sessions WHERE id = ?', id);
     return null;
   }
   if (!bindingMatches(s.binding, binding)) return null;
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ? AND active = 1', s.user_id);
   if (!r) return null;
+  // The sign-in policy applies to open sessions too: password sessions end when password sign-in is turned off. It goes
+  // by how the session was opened, not by the account (which may have been linked to single sign-on since); sessions
+  // from before the method was recorded count as password sessions.
+  if (!emergency && (s.method === null || s.method === 'password')) {
+    const mode = passwordLoginMode();
+    if (mode === 'none' || (mode === 'adminsOnly' && !parseJson<Role[]>(r.roles, []).includes('admin'))) {
+      db().run('DELETE FROM sessions WHERE id = ?', id);
+      return null;
+    }
+  }
   if (now - Date.parse(s.last_seen_at) > 60000) {
     db().run(
       'UPDATE sessions SET last_seen_at = ?, expires_at = ? WHERE id = ?',
       new Date(now).toISOString(),
-      new Date(Math.min(now + config.session.idleMs, Date.parse(s.created_at) + config.session.maxMs)).toISOString(),
+      new Date(Math.min(now + config.session.idleMs, Date.parse(s.created_at) + maxMs)).toISOString(),
       id,
     );
   }
-  return toInfo(r);
+  const info: SessionInfo = toInfo(r);
+  if (emergency) {
+    // An emergency session is for fixing sign-in: no forced password change in between.
+    info.mustChangePassword = false;
+    info.emergency = { grantId: s.emergency_grant_id!, expiresAt: new Date(Date.parse(s.created_at) + maxMs).toISOString() };
+  }
+  return info;
 }
 
 export function logout(token: string | undefined): void {

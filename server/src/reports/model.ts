@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { ReportLang, RunStats, RunStatus, TaskRecord } from '@sm/shared';
 import { db } from '../db.js';
 import * as store from '../engine/store.js';
-import { allAuditAscending, sealedProtocolHash } from '../audit.js';
+import { allAuditAscending, sealedProtocol, sealedProtocolHash } from '../audit.js';
 import { findUserByName } from '../auth/users.js';
 import { getProcess } from '../processes/service.js';
 import { canonicalJson, sha256 } from '../util.js';
@@ -90,7 +90,13 @@ export interface RunReportModel extends ReportContext {
   sections: { title: string; text: string | null; columns: string[]; rows: string[][]; rowsOmitted: number }[];
   evidence: { id: string; name: string; stepKey: string; kind: string; mime: string; sha256: string; size: number; createdAt: string }[];
   errors: { at: string | null; where: string; message: string }[];
-  integrity: { sealedHash: string | null; currentHash: string; intact: boolean | null };
+  integrity: {
+    sealedHash: string | null;
+    currentHash: string;
+    intact: boolean | null;
+    /** The seal is in audit history imported from another instance: the fingerprint of that instance's key */
+    importedFrom?: string;
+  };
   audit: { seq: number; ts: string; actor: string; action: string; summary: string; hash: string }[];
   auditOmitted: number;
 }
@@ -258,7 +264,8 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
     errors.push({ at: l.ts, where: l.stepKey ?? '', message: short(l.message, 600) });
   }
 
-  const sealedHash = finished ? sealedProtocolHash(runId) : null;
+  const sealed = finished ? sealedProtocol(runId) : null;
+  const sealedHash = sealed?.hash ?? null;
   const currentHash = store.protocolHash(runId);
   const auditAll = allAuditAscending(runId);
 
@@ -292,7 +299,12 @@ export function buildRunModel(runId: string, ctx: ReportContext): RunReportModel
     sections,
     evidence,
     errors,
-    integrity: { sealedHash, currentHash, intact: sealedHash ? sealedHash === currentHash : null },
+    integrity: {
+      sealedHash,
+      currentHash,
+      intact: sealedHash ? sealedHash === currentHash : null,
+      ...(sealed?.importedHistory ? { importedFrom: sealed.importedHistory.sourceFingerprint } : {}),
+    },
     audit: auditAll.slice(-LIMITS.audit).map((a) => ({ seq: a.seq, ts: a.ts, actor: a.actor, action: a.action, summary: short(a.summary, 300), hash: a.hash })),
     auditOmitted: Math.max(0, auditAll.length - LIMITS.audit),
   };

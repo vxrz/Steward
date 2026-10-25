@@ -40,7 +40,9 @@ import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
-import { confirmDanger } from '../components/confirm';
+import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
+import { confirmDanger, confirmDialog } from '../components/confirm';
+import { SignInPolicyCard } from '../components/security/SignInPolicyCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
   const { t } = useTranslation(['settings', 'common']);
@@ -49,7 +51,6 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   // Settings are admin-only on the server; other users just see a note.
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => get<Settings>('/settings'), enabled: caps.manageSettings });
   const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
-  const ssoCount = auth.data?.ssoProviders?.length ?? 0;
   const readOnly = !caps.manageSettings;
   const publicApi = usePublicApi();
   const [s, setS] = useState<Settings | null>(null);
@@ -62,31 +63,13 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
     <>
       <PageHeader title={t('title')} description={readOnly ? t('readOnly') : undefined} actions={<SystemStatusLink />} />
       <Stack maw={760}>
-        <Card withBorder>
-          <Title order={5} mb="sm">
-            {t('signIn.title')}
-          </Title>
-          <Stack gap="xs">
-            <SegmentedControl
-              disabled={readOnly}
-              fullWidth
-              value={s.passwordLogin ?? 'all'}
-              onChange={(v) => setS({ ...s, passwordLogin: v as Settings['passwordLogin'] })}
-              data={[
-                { value: 'all', label: t('signIn.all') },
-                { value: 'adminsOnly', label: t('signIn.adminsOnly') },
-              ]}
-            />
-            <Text size="xs" c="dimmed">
-              {(s.passwordLogin ?? 'all') === 'adminsOnly' ? t('signIn.adminsOnlyHint') : t('signIn.allHint')}
-            </Text>
-            {ssoCount === 0 && (s.passwordLogin ?? 'all') === 'adminsOnly' && (
-              <Alert color="orange" variant="light" p="xs">
-                {t('signIn.noProvider')}
-              </Alert>
-            )}
-          </Stack>
-        </Card>
+        <SignInPolicyCard
+          settings={s}
+          saved={settings.data?.passwordLogin}
+          auth={auth.data}
+          readOnly={readOnly}
+          onChange={(v) => setS({ ...s, passwordLogin: v })}
+        />
         <Card withBorder>
           <Group gap="xs" mb="sm" wrap="nowrap">
             <IconLanguage size={18} />
@@ -281,6 +264,9 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
           <Group>
             <Button
               onClick={async () => {
+                const mode = s.passwordLogin;
+                const turningOff = mode !== 'all' && mode !== settings.data?.passwordLogin && !s.passwordLoginFromEnv;
+                if (turningOff && !(await confirmDialog({ action: 'confirm', message: t(`signIn.confirm.${mode}`) }))) return;
                 try {
                   await put('/settings', s);
                   notifyOk(t('saved'));
@@ -304,6 +290,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
         {!readOnly && <GitSyncSettingsCard />}
+        {!readOnly && <MigrationSettingsCard />}
         <Card withBorder>
           <Title order={5} mb="xs">
             {t('unattended.title')}

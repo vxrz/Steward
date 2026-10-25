@@ -1,3 +1,4 @@
+import type { ImportedHistoryRef } from './api.js';
 /** Archived PDF reports (run reports and periodic summaries) and their branding. */
 
 export const REPORT_LANGS = ['en', 'de'] as const;
@@ -103,4 +104,9 @@ export interface ReportVerification {
   auditChain?: { ok: boolean; checked: number; message: string };
   /** Rows claiming to record this file that failed the HMAC/chain check (inserted outside the application) */
   forgedEntries?: number;
+  /**
+   * The report.generated entry is in audit history imported from another instance (docs/MIGRATION.md): the match is
+   * verified against that history and the source's key, not this instance's own chain
+   */
+  importedHistory?: ImportedHistoryRef;
 }

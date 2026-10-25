@@ -65,6 +65,19 @@ const EXPECT: Record<string, Access> = {
   'GET /api/vault/status': PUBLIC,
   'POST /api/auth/setup': PUBLIC,
   'POST /api/auth/login': PUBLIC,
+  // emergency access: the one-time code (auth/emergency.ts), and the signed grant of the command line (loopback only)
+  'POST /api/auth/emergency': PUBLIC,
+  'POST /api/auth/emergency/grant': PUBLIC,
+  // moving an instance (server/src/migration): administrators, sessions only
+  'POST /api/migration/export': ADMIN,
+  'GET /api/migration/exports/:id/download': ADMIN,
+  'POST /api/migration/imports/upload': ADMIN,
+  'GET /api/migration/imports/staged/:id': ADMIN,
+  'DELETE /api/migration/imports/staged/:id': ADMIN,
+  'POST /api/migration/imports/staged/:id/apply': ADMIN,
+  'GET /api/migration/imports': ADMIN,
+  'GET /api/migration/imports/:id': ADMIN,
+  'GET /api/migration/imports/:id/history': ADMIN,
   'GET /api/auth/oidc/:id/start': PUBLIC,
   'GET /api/auth/oidc/callback': PUBLIC,
   'POST /api/auth/logout': ALL,
@@ -531,6 +544,15 @@ const SESSION_ONLY = [
   'PUT /api/sync-sources/:id',
   'DELETE /api/sync-sources/:id',
   'POST /api/sync-sources/:id/rotate-webhook-secret',
+  'POST /api/migration/export',
+  'GET /api/migration/exports/:id/download',
+  'POST /api/migration/imports/upload',
+  'GET /api/migration/imports/staged/:id',
+  'DELETE /api/migration/imports/staged/:id',
+  'POST /api/migration/imports/staged/:id/apply',
+  'GET /api/migration/imports',
+  'GET /api/migration/imports/:id',
+  'GET /api/migration/imports/:id/history',
 ];
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
@@ -548,6 +570,10 @@ const NO_POSITIVE = new Set([
   'GET /api/theme/logo',
   'GET /api/docs/*', // no such asset
   'GET /api/docs/static/*',
+  'GET /api/migration/exports/:id/download', // no package exported
+  'GET /api/migration/imports/staged/:id', // no package uploaded
+  'GET /api/migration/imports/:id', // nothing imported
+  'GET /api/migration/imports/:id/history',
 ]);
 
 type Fx = Record<string, string>;

@@ -202,6 +202,7 @@
     "chainOk_one": "{{count}} Snapshot geprüft",
     "chainOk_other": "{{count}} Snapshots geprüft",
     "chainBroken": "Die Historie ist nicht intakt",
+    "importedHistory": "Snapshots von vor dem Umzug wurden gegen das importierte Audit-Protokoll der Instanz mit dem Schlüssel-Fingerabdruck {{fingerprint}} geprüft (mit einem Migrationspaket hierher umgezogen).",
     "takenAt": "Erstellt am",
     "subjects": "Subjekte",
     "assignments": "Zuweisungen",

@@ -9,16 +9,18 @@ const PASSPHRASE = 'correct horse battery';
 
 let s: TestServer;
 
-function cliEnv(): Record<string, string | undefined> {
-  const env: Record<string, string | undefined> = { ...process.env, NO_COLOR: '1', SM_DATA_DIR: s.dataDir };
+function cliEnv(extra: Record<string, string> = {}): Record<string, string | undefined> {
+  const env: Record<string, string | undefined> = { ...process.env, NO_COLOR: '1', SM_DATA_DIR: s.dataDir, ...extra };
   delete env.SM_MASTER_PASSPHRASE;
   delete env.SM_MASTER_PASSPHRASE_FILE;
+  delete env.SM_PUBLIC_URL;
+  if (!extra.SM_PASSWORD_LOGIN) delete env.SM_PASSWORD_LOGIN;
   return env;
 }
 const CLI = path.join(ROOT, 'server/src/cli/admin.ts');
 
-function admin(args: string[], input?: string) {
-  const r = spawnSync(TSX, [CLI, ...args], { cwd: ROOT, encoding: 'utf8', input, env: cliEnv(), timeout: 60000 });
+function admin(args: string[], input?: string, extraEnv: Record<string, string> = {}) {
+  const r = spawnSync(TSX, [CLI, ...args], { cwd: ROOT, encoding: 'utf8', input, env: cliEnv(extraEnv), timeout: 60000 });
   return { code: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
@@ -56,6 +58,45 @@ describe('admin recovery CLI', () => {
     expect(u.stderr).toContain("unknown command 'reset-pasword'");
     expect(admin(['reset-password']).code).toBe(2);
     expect(admin(['list-admins', '--activate']).code).toBe(2);
+    expect(admin(['emergency-access']).code).toBe(2);
+    expect(admin(['emergency-access', 'admin', '--minutes', '0']).code).toBe(2);
+    expect(admin(['emergency-access', 'admin', '--minutes', '1441']).code).toBe(2);
+    expect(admin(['reset-password', 'admin', '--minutes', '5']).code).toBe(2);
+    expect(admin(['password-login', 'some']).code).toBe(2);
+    expect(admin(['--help']).stdout).toContain('emergency-access <username>');
+  });
+
+  it('grants emergency access through the running server (signed, over loopback) and refuses the other commands', async () => {
+    const { writeInstanceFile, removeInstanceFile } = await import('../src/instance.js');
+    writeInstanceFile(s.base);
+    try {
+      const pl = await adminAsync(['password-login', 'all', '--passphrase-stdin'], PASSPHRASE);
+      expect(pl.code).toBe(1);
+      expect(pl.stderr).toContain('stop it first');
+      const wrong = await adminAsync(['emergency-access', 'admin', '--passphrase-stdin'], 'not the passphrase');
+      expect(wrong.code).toBe(1);
+      expect(wrong.stderr).toContain('wrong master passphrase');
+      const notAdmin = await adminAsync(['emergency-access', 'bob', '--passphrase-stdin'], PASSPHRASE);
+      expect(notAdmin.code).toBe(1);
+      expect(notAdmin.stderr).toContain('not an administrator');
+      const r = await adminAsync(['emergency-access', 'admin', '--minutes', '20', '--json', '--passphrase-stdin'], PASSPHRASE);
+      expect(r.code, r.stderr).toBe(0);
+      const out = JSON.parse(r.stdout) as { link: string; minutes: number; mode: string };
+      expect(out.mode).toBe('running');
+      expect(out.minutes).toBe(20);
+      expect(out.link.startsWith(`${s.base}/emergency-access#code=`)).toBe(true);
+      const code = out.link.split('#code=')[1];
+      const res = await fetch(`${s.base}/api/auth/emergency`, {
+        method: 'POST',
+        headers: { 'x-sm-client': '1', 'content-type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      expect(res.status).toBe(200);
+      const [entry] = await s.api('GET', '/audit?action=auth.emergency_access_granted&limit=1');
+      expect(entry.actor).toMatch(/^cli:/);
+    } finally {
+      removeInstanceFile();
+    }
   });
 
   it('refuses while Steward is running on the data folder', async () => {
@@ -115,5 +156,57 @@ describe('admin recovery CLI', () => {
     // the CLI continued the hash chain
     const before = db().get<{ hash: string }>('SELECT hash FROM audit_log WHERE seq = ?', Number(entries[0]!.seq) - 1)!;
     expect(entries[0]!.prev_hash).toBe(before.hash);
+    db().close();
+  });
+
+  it('switches password sign-in, grants emergency access with Steward stopped and shows it in list-admins', async () => {
+    const { db, setDb, Db, databaseTarget } = await import('../src/db.js');
+    // no single sign-on provider: password sign-in stays on
+    const none = admin(['password-login', 'none', '--passphrase-stdin'], PASSPHRASE);
+    expect(none.code).toBe(1);
+    expect(none.stderr).toContain('no single sign-on provider');
+    const env = admin(['password-login', 'all', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
+    expect(env.code).toBe(1);
+    expect(env.stderr).toContain('SM_PASSWORD_LOGIN');
+    // SM_PASSWORD_LOGIN=none waits for an administrator's single sign-on: until then administrators use passwords
+    const pending = admin(['list-admins', '--json', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
+    expect(JSON.parse(pending.stdout)).toMatchObject({ passwordLogin: 'adminsOnly', passwordLoginPending: 'none' });
+    setDb(new Db(databaseTarget()));
+    db().run("INSERT INTO settings (key, value) VALUES ('security.ssoOnlyReadyAt', '\"2026-01-01T00:00:00.000Z\"')");
+    db().close();
+    // with password sign-in off a password reset is pointless: the command says what to do instead
+    const reset = admin(['reset-password', 'admin', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
+    expect(reset.code).toBe(1);
+    expect(reset.stderr).toContain('emergency-access admin');
+
+    const g = admin(['emergency-access', 'admin', '--json', '--passphrase-stdin'], PASSPHRASE);
+    expect(g.code, g.stderr).toBe(0);
+    const out = JSON.parse(g.stdout) as { link: string; mode: string; minutes: number; expiresAt: string };
+    expect(out.mode).toBe('stopped');
+    expect(out.minutes).toBe(60);
+    expect(out.link).toMatch(/\/emergency-access#code=[A-Za-z0-9_-]{43}$/);
+
+    const list = admin(['list-admins', '--json', '--passphrase-stdin'], PASSPHRASE, { SM_PASSWORD_LOGIN: 'none' });
+    expect(list.code, list.stderr).toBe(0);
+    const l = JSON.parse(list.stdout) as { passwordLogin: string; admins: { username: string; signIn: string[]; emergencyUntil: string | null }[] };
+    expect(l.passwordLogin).toBe('none');
+    expect(l.admins[0]!.signIn).toEqual(['emergency']);
+    expect(l.admins[0]!.emergencyUntil).toBe(out.expiresAt);
+    const text = admin(['list-admins', '--passphrase-stdin'], PASSPHRASE);
+    expect(text.stdout).toContain('emergency access open until');
+
+    setDb(new Db(databaseTarget()));
+    const grants = db().all<{ code_hash: string; issued_by: string }>(
+      'SELECT code_hash, issued_by FROM emergency_access_grants WHERE used_at IS NULL AND revoked_at IS NULL',
+    );
+    expect(grants).toHaveLength(1);
+    expect(grants[0]!.issued_by).toMatch(/^cli:/);
+    // only the hash is stored
+    expect(grants[0]!.code_hash).not.toContain(out.link.split('#code=')[1]);
+    const audit = db().get<{ actor: string; summary: string }>(
+      "SELECT actor, summary FROM audit_log WHERE action = 'auth.emergency_access_granted' ORDER BY seq DESC LIMIT 1",
+    )!;
+    expect(audit.actor).toMatch(/^cli:/);
+    expect(audit.summary).toContain('"admin"');
   });
 });

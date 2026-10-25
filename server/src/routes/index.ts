@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   LOCALE_CODES,
   API_DOCS_MODES,
+  PASSWORD_LOGIN_MODES,
   OUTBOUND_POLICIES,
   ROLES,
   validateProcess,
@@ -28,8 +29,8 @@ import { changeMasterPassphrase } from '../vault-rotation.js';
 import { publicKeyPem } from '../vault.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
 import { confirmPlatformConfig, sealPlatformConfigs } from '../platforms/integrity.js';
-import { getSettings, updateSettings } from '../settings.js';
-import { HttpError, parseJson, MAX_DEFINITION_TEXT } from '../util.js';
+import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
+import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -51,6 +52,7 @@ import { recordRoutes } from '../records/routes.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
+import { migrationRoutes } from '../migration/routes.js';
 import { findingAttention, startAccessChecks } from '../compliance/reconciliation.js';
 import { monitorAttention } from '../monitors/service.js';
 import { dueAttention } from '../credentials/service.js';
@@ -67,6 +69,8 @@ import { startGitSync } from '../sync/engine.js';
 import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
+import * as emergency from '../auth/emergency.js';
+import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
 import { BRAND, boundedRecord } from '@sm/shared';
@@ -188,7 +192,9 @@ function setupProgress(): DashboardSetup {
 function meInfo(): Me | null {
   const u = currentUser();
   if (!u) return null;
-  return { user: users.getUser(u.id), capabilities: capabilities(u) };
+  const user = users.getUser(u.id);
+  if (u.emergency) user.mustChangePassword = false;
+  return { user, capabilities: capabilities(u), ...(u.emergency ? { emergency: { expiresAt: u.emergency.expiresAt } } : {}) };
 }
 
 function requireProcess(processId: string, perm: 'view' | 'run' | 'edit' | 'approve' | 'manage', what: string) {
@@ -304,7 +310,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     unlocked: vault().unlocked,
     me: meInfo(),
     ssoProviders: sso.publicProviders(),
-    passwordLogin: getSettings().passwordLogin,
+    passwordLogin: passwordLoginMode(),
     demo: config.demo,
     version: config.version,
     browserAvailable: await browserAvailable(),
@@ -331,7 +337,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     runAs(users.toAuthUser(user), () =>
       audit({ action: 'vault.initialized', entityType: 'vault', summary: `${BRAND.name} set up by ${user.username} (first administrator)` }),
     );
-    const session = await users.login(b.username, b.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
+    // the first administrator's session (SM_PASSWORD_LOGIN=none waits for an administrator's single sign-on, see ssoOnlyReady)
+    const session = users.createSession(user.id, user.username, { ip: req.ip, userAgent: req.headers['user-agent'] }, 'password');
     reply.header('set-cookie', sessionCookie(session.token));
     sendSessionKeys(reply, session);
     await onUnlocked();
@@ -345,6 +352,37 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     reply.header('set-cookie', sessionCookie(session.token));
     sendSessionKeys(reply, session);
     return { user, capabilities: capabilities(users.toAuthUser(user)) } satisfies Me;
+  });
+
+  // Emergency access (break-glass, see auth/emergency.ts): the one-time code from `steward admin emergency-access`.
+  app.post('/auth/emergency', { bodyLimit: 4 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req, reply) => {
+    const b = z.object({ code: z.string().max(200) }).parse(req.body);
+    const { user, ...session } = emergency.signInWithCode(b.code.trim(), { ip: req.ip, userAgent: req.headers['user-agent'] });
+    reply.header('set-cookie', sessionCookie(session.token));
+    sendSessionKeys(reply, session);
+    return { user: { ...user, mustChangePassword: false }, capabilities: capabilities(users.toAuthUser(user)) } satisfies Me;
+  });
+  // The same command while Steward runs: a grant signed with the vault's key, from this machine only.
+  app.post('/auth/emergency/grant', { bodyLimit: 8 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
+    const b = z
+      .object({
+        grant: z.object({
+          v: z.literal(1),
+          purpose: z.literal('steward-emergency-access-v1'),
+          instanceId: z.string().max(100),
+          username: z.string().max(256),
+          minutes: z.number().int(),
+          codeHash: z.string().max(64),
+          actor: z.string().max(200),
+          issuedAt: z.string().max(40),
+          nonce: z.string().max(64),
+        }),
+        signature: z.string().max(200),
+      })
+      .parse(req.body);
+    const forwarded = !!(req.headers['x-forwarded-for'] || req.headers['x-forwarded-host'] || req.headers.forwarded || req.headers['x-real-ip']);
+    const g = emergency.acceptSignedGrant(b, { remote: req.socket.remoteAddress, forwarded, instanceId: currentInstanceId() });
+    return { ok: true, username: g.username, expiresAt: g.expiresAt, minutes: g.minutes };
   });
 
   app.post('/auth/logout', async (req, reply) => {
@@ -503,10 +541,34 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
         password: z.string().max(1024).optional(),
+        /** A single sign-on account: no password, claimed at the first sign-in through this provider only */
+        provider: z.string().max(100).optional(),
       })
       .parse(req.body);
-    return users.createUser({ ...b, mustChangePassword: true });
+    const { provider, ...input } = b;
+    // single sign-on only: new accounts get no password and are linked by their user name at the first sign-in
+    if (provider || passwordLoginMode() === 'none') {
+      if (b.password) users.requirePasswordLogin('setting a password');
+      return users.createUser({ ...input, password: undefined, noPassword: true, provider: claimingProvider(provider).id });
+    }
+    return users.createUser({ ...input, mustChangePassword: true });
   });
+  /**
+   * The provider that may claim a new account without a password: the one chosen, or the only enabled one. With several
+   * enabled providers the choice is required – otherwise any of them could hand the account (and its roles) to whoever
+   * has that user name there.
+   */
+  function claimingProvider(id: string | undefined): { id: string; displayName: string } {
+    const enabled = sso.publicProviders();
+    if (id) {
+      const p = enabled.find((x) => x.id === id);
+      if (!p) throw new HttpError(400, 'Choose an enabled single sign-on provider', 'SSO_PROVIDER_UNKNOWN');
+      return p;
+    }
+    if (enabled.length === 1) return enabled[0]!;
+    if (!enabled.length) throw new HttpError(400, 'Enable a single sign-on provider first', 'SSO_PROVIDER_REQUIRED');
+    throw new HttpError(400, 'Choose the single sign-on provider the account signs in with', 'SSO_PROVIDER_CHOICE_REQUIRED');
+  }
   app.put('/users/:id', async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
@@ -515,9 +577,20 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
         active: z.boolean().optional(),
+        /** Bind a local account to a single sign-on provider (removes its password) */
+        provider: z.string().max(100).optional(),
       })
       .parse(req.body);
-    return users.updateUser(params(req).id!, b);
+    const { provider, ...patch } = b;
+    const id = params(req).id!;
+    // one transaction: a binding is not kept when the rest of the change is refused
+    return db().tx(() => {
+      if (provider) {
+        const p = claimingProvider(provider);
+        users.bindToProvider(id, p.id, p.displayName);
+      }
+      return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
+    });
   });
   app.post('/users/:id/reset-password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
@@ -568,7 +641,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageSettings', 'change settings');
     const b = z
       .object({
-        passwordLogin: z.enum(['all', 'adminsOnly']).optional(),
+        passwordLogin: z.enum(PASSWORD_LOGIN_MODES).optional(),
         browserHeadless: z.boolean().optional(),
         browserTimeoutMs: z.number().int().min(1000).optional(),
         retentionRunDays: z.number().int().min(0).max(3650).optional(),
@@ -581,12 +654,48 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         findingDismissFourEyes: z.boolean().optional(),
       })
       .parse(req.body);
+    const before = passwordLoginMode();
+    const envLogin = passwordLoginFromEnv();
+    if (b.passwordLogin !== undefined && envLogin) {
+      // SM_PASSWORD_LOGIN decides; the stored value is not touched (the UI shows the field read-only)
+      if (b.passwordLogin !== envLogin && b.passwordLogin !== before)
+        throw new HttpError(409, `Password sign-in is set by SM_PASSWORD_LOGIN=${envLogin} on the server`, 'PASSWORD_LOGIN_FROM_ENV', { value: envLogin });
+      delete b.passwordLogin;
+    }
     if (b.passwordLogin === 'adminsOnly' && !sso.publicProviders().length)
-      throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in');
+      throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
+    if (b.passwordLogin === 'none' && before !== 'none') requireSsoOnlyPossible();
     const s = updateSettings(b);
-    audit({ action: 'settings.updated', entityType: 'settings', summary: 'Settings updated', details: b });
+    const ended =
+      b.passwordLogin && b.passwordLogin !== before ? users.endPasswordSessions(b.passwordLogin, readCookie(req.headers.cookie, SESSION_COOKIE)) : 0;
+    audit({
+      action: 'settings.updated',
+      entityType: 'settings',
+      summary:
+        b.passwordLogin && b.passwordLogin !== before
+          ? `Settings updated: password sign-in ${before} → ${b.passwordLogin}${ended ? ` (${ended} password session(s) signed out)` : ''}`
+          : 'Settings updated',
+      details: { ...b, ...(ended ? { sessionsEnded: ended } : {}) },
+    });
     return s;
   });
+
+  /**
+   * Single sign-on only is allowed once it cannot lock everyone out: an enabled provider exists and the administrator
+   * turning it on signed in through it (so at least one administrator demonstrably gets in that way).
+   */
+  function requireSsoOnlyPossible(): void {
+    const providers = sso.publicProviders();
+    if (!providers.length) throw new HttpError(400, 'Enable a single sign-on provider before turning off password sign-in', 'SSO_PROVIDER_REQUIRED');
+    const u = me();
+    const account = users.getUser(u.id);
+    if (u.emergency || !providers.some((p) => p.id === account.authSource))
+      throw new HttpError(
+        409,
+        'Sign in with single sign-on as an administrator first – then you know that at least one administrator can still get in',
+        'SSO_ADMIN_REQUIRED',
+      );
+  }
 
   // ---------- platforms ----------
   app.get('/platform-presets', async () => connectors.listPresets());
@@ -878,7 +987,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/artifacts/:id', async (req, reply) => {
     const a = store.artifactFile(params(req).id!);
     requireRun(a.runId, 'view', 'view this run');
-    return reply.type(a.mime).send(fs.readFileSync(a.path));
+    const data = fs.readFileSync(a.path);
+    // the type comes from the content (screenshots are images): anything else is a download that cannot run as page or script
+    const image = rasterImageType(data);
+    reply.header('content-disposition', `${image ? 'inline' : 'attachment'}; filename="${a.name.replace(/[^\w.-]/g, '_')}"`);
+    reply.header('content-security-policy', "sandbox; default-src 'none'");
+    reply.header('x-content-type-options', 'nosniff');
+    return reply.type(image ?? 'application/octet-stream').send(data);
   });
 
   // ---------- tasks ----------
@@ -1090,6 +1205,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await ticketRoutes(app);
   await dailySummaryRoutes(app);
   await complianceRoutes(app);
+  await migrationRoutes(app);
 
   // ---------- demo ----------
   app.post('/demo/setup', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async () => {

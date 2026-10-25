@@ -124,3 +124,13 @@ export function errorParam(e: unknown): ErrorParam {
   if (e instanceof HttpError) return { message: e.message, ...(e.code ? { code: e.code } : {}), ...(e.params ? { params: e.params } : {}) };
   return { message: e instanceof Error ? e.message : String(e) };
 }
+
+/** A raster image type read from the content (PNG, JPEG, GIF, WebP), or null – the declared type is never trusted. */
+export function rasterImageType(data: Buffer): 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp' | null {
+  const head = data.subarray(0, 12);
+  if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg';
+  if (head.subarray(0, 6).toString('latin1').startsWith('GIF8')) return 'image/gif';
+  if (head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
+  return null;
+}

@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
-import type { AuditCheckpoint, AuditEntry, AuditVerifyResult } from '@sm/shared';
+import type { AuditCheckpoint, AuditEntry, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
 import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault } from './vault.js';
 import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
-import { currentActor } from './auth/context.js';
+import { currentActor, currentUser } from './auth/context.js';
 import { logger } from './log.js';
 
 /**
@@ -102,8 +102,23 @@ export const PENDING_MAX = 1000;
 const pending: (Capped & { ts: string; actor: string })[] = [];
 let droppedWhileLocked = 0;
 
+/** Entries of a session opened with emergency access carry the flag in the summary and the details. */
+function flagEmergency(input: AuditInput, grantId: string): AuditInput {
+  const d = input.details;
+  const plain = d !== null && typeof d === 'object' && !Array.isArray(d);
+  return {
+    ...input,
+    summary: `[Emergency access] ${input.summary}`,
+    details: { ...(plain ? (d as Record<string, unknown>) : d === undefined || d === null ? {} : { value: d }), emergencyAccess: grantId },
+  };
+}
+
 export function audit(input: AuditInput): AuditEntry {
-  const c = capped(input);
+  // entries attributed to the person signed in with emergency access – also when a service names them as the actor
+  // explicitly (a check run, a report); entries of someone else (such as "system") stay unflagged
+  const user = currentUser();
+  const emergency = user?.emergency && (input.actor === undefined || input.actor === user.username) ? user.emergency : undefined;
+  const c = capped(emergency ? flagEmergency(input, emergency.grantId) : input);
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {
@@ -282,27 +297,88 @@ export function isAuthentic(r: AuditRow | undefined): boolean {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
-/** Rows matching `where` (newest first unless ascending); only authentic ones are returned, `rejected` counts the others. */
-export function authenticRows(where: string, params: unknown[], opts: { ascending?: boolean; limit?: number } = {}): { rows: AuditRow[]; rejected: number } {
-  const rows = db().all<AuditRow>(
-    `SELECT * FROM audit_log WHERE (${where}) ORDER BY seq ${opts.ascending ? 'ASC' : 'DESC'} LIMIT ?`,
-    ...params,
-    opts.limit ?? 50,
-  );
-  const ok: AuditRow[] = [];
+/**
+ * Imported audit history (server/src/migration): the ids of imports whose history verifies against the source's
+ * signed checkpoint and whose record matches this chain's instance.imported entry. Registered by the migration
+ * module; without it (command-line tools) imported history is not consulted.
+ */
+let verifiedImports: (() => string[]) | null = null;
+export function setVerifiedImports(fn: () => string[]): void {
+  verifiedImports = fn;
+}
+
+/** An entry of an imported (verified) history: its seq is the source's. */
+export type ImportedAuditRow = AuditRow & { import_id?: string };
+
+/**
+ * Rows matching `where` (newest first unless ascending); only authentic ones are returned, `rejected` counts the others.
+ * Entries of verified imported history count as authentic too (content that moved with it – approvals, protocol
+ * seals, snapshots – keeps its evidence); they come before this instance's own entries (they are older).
+ * `ownOnly`: this instance's chain only (checkpoints, import records).
+ */
+export function authenticRows(
+  where: string,
+  params: unknown[],
+  opts: { ascending?: boolean; limit?: number; ownOnly?: boolean } = {},
+): { rows: ImportedAuditRow[]; rejected: number } {
+  const limit = opts.limit ?? 50;
+  const rows = db().all<AuditRow>(`SELECT * FROM audit_log WHERE (${where}) ORDER BY seq ${opts.ascending ? 'ASC' : 'DESC'} LIMIT ?`, ...params, limit);
+  const ok: ImportedAuditRow[] = [];
   let rejected = 0;
   for (const r of rows) {
     if (isAuthentic(r)) ok.push(r);
     else rejected++;
   }
-  return { rows: ok, rejected };
+  const imports = opts.ownOnly || !verifiedImports ? [] : verifiedImports();
+  if (!imports.length) return { rows: ok, rejected };
+  const imported = db().all<ImportedAuditRow>(
+    `SELECT * FROM imported_audit_log WHERE import_id IN (${imports.map(() => '?').join(', ')}) AND (${where}) ORDER BY seq ${opts.ascending ? 'ASC' : 'DESC'} LIMIT ?`,
+    ...imports,
+    ...params,
+    limit,
+  );
+  const all = opts.ascending ? [...imported, ...ok] : [...ok, ...imported];
+  return { rows: all.slice(0, limit), rejected };
 }
 
-/** Protocol fingerprint sealed in the (authentic) audit entry written when the run finished. */
-export function sealedProtocolHash(runId: string): string | null {
+/**
+ * Where an authentic row comes from when it is not this instance's own: the import and the fingerprint of the source's
+ * key. Answers that rest on such a row say so ("verified against the imported history of …").
+ */
+export function importedSourceOf(row: { import_id?: string | null } | null | undefined): ImportedHistoryRef | undefined {
+  if (!row?.import_id) return undefined;
+  const r = db().get<{ source_fingerprint: string }>('SELECT source_fingerprint FROM instance_imports WHERE id = ?', row.import_id);
+  return r ? { importId: row.import_id, sourceFingerprint: r.source_fingerprint } : undefined;
+}
+
+/** The first imported source among authentic rows (see importedSourceOf). */
+export function importedSourceAmong(rows: ImportedAuditRow[]): ImportedHistoryRef | undefined {
+  return importedSourceOf(rows.find((r) => r.import_id));
+}
+
+/** Verified imported history holding entries that match `where`: checks of that entity may rest on it. */
+export function importedHistoryFor(where: string, params: unknown[]): ImportedHistoryRef | undefined {
+  const imports = verifiedImports?.() ?? [];
+  if (!imports.length) return undefined;
+  const r = db().get<{ import_id: string }>(
+    `SELECT import_id FROM imported_audit_log WHERE import_id IN (${imports.map(() => '?').join(', ')}) AND (${where}) LIMIT 1`,
+    ...imports,
+    ...params,
+  );
+  return importedSourceOf(r);
+}
+
+/** Protocol fingerprint sealed in the (authentic) audit entry written when the run finished, and where that entry is. */
+export function sealedProtocol(runId: string): { hash: string; importedHistory?: ImportedHistoryRef } | null {
   const { rows } = authenticRows("run_id = ? AND action IN ('run.succeeded', 'run.failed', 'run.cancelled')", [runId], { limit: 10 });
   const d = rows[0] ? parseJson<{ protocolHash?: string } | null>(rows[0].details, null) : null;
-  return d?.protocolHash ?? null;
+  if (!d?.protocolHash) return null;
+  const from = importedSourceOf(rows[0]);
+  return { hash: d.protocolHash, ...(from ? { importedHistory: from } : {}) };
+}
+
+export function sealedProtocolHash(runId: string): string | null {
+  return sealedProtocol(runId)?.hash ?? null;
 }
 
 // ---------- verification ----------
@@ -431,7 +507,7 @@ export function checkpointPayload(c: Omit<AuditCheckpoint, 'signature'>): string
 
 /** The most recent authentic checkpoint entry whose signature checks out. */
 export function latestCheckpoint(valid: (c: AuditCheckpoint) => boolean): { entrySeq: number; checkpoint: AuditCheckpoint } | null {
-  const { rows } = authenticRows("action = 'audit.checkpoint'", [], { limit: 20 });
+  const { rows } = authenticRows("action = 'audit.checkpoint'", [], { limit: 20, ownOnly: true });
   for (const r of rows) {
     const c = parseJson<AuditCheckpoint | null>(r.details, null);
     if (c && typeof c.seq === 'number' && c.seq < Number(r.seq) && valid(c)) return { entrySeq: Number(r.seq), checkpoint: c };

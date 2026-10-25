@@ -3,7 +3,7 @@ import path from 'node:path';
 import { BRAND, type ReportBranding, type ReportLang, type ReportRecord, type ReportVerification, type RunStatus } from '@sm/shared';
 import { config } from '../config.js';
 import { db } from '../db.js';
-import { audit, authenticRows } from '../audit.js';
+import { audit, authenticRows, importedSourceOf } from '../audit.js';
 import { runRow } from '../engine/store.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256, slugify } from '../util.js';
 import { getBranding, logo } from './branding.js';
@@ -412,6 +412,8 @@ interface GeneratedEntry {
   entity_id: string | null;
   run_id: string | null;
   details: string | null;
+  /** set when the entry is in imported history (see authenticRows) */
+  import_id?: string;
 }
 
 /**
@@ -459,8 +461,10 @@ export function verificationOf(data: Buffer, found: ReturnType<typeof findGenera
   if (!found || !found.match) return { match: 'unknown', sha256: sha256(data), auditChain: chain, ...(found?.forged ? { forgedEntries: found.forged } : {}) };
   const d = parseJson<{ kind?: string; filename?: string; sha256: string; size: number }>(found.entry.details, { sha256: '', size: 0 });
   const stored = !!db().get('SELECT 1 FROM reports WHERE id = ?', found.entry.entity_id);
+  const imported = importedSourceOf(found.entry);
   return {
     ...(found.forged ? { forgedEntries: found.forged } : {}),
+    ...(imported ? { importedHistory: imported } : {}),
     match: found.match,
     sha256: sha256(data),
     report: {

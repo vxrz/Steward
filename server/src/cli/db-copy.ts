@@ -21,6 +21,7 @@ import { Db } from '../db.js';
 import { describeTarget, parseDatabaseTarget, quoteIdent, type DatabaseTarget } from '../database/sql.js';
 import { EVIDENCE_TABLES, noDeleteTrigger } from '../migrations/compliance.js';
 import { IMMUTABLE_RECORD_TABLES, immutableRowTriggers } from '../migrations/records.js';
+import { IMMUTABLE_MOVE_TABLES } from '../migrations/instance-moves.js';
 
 export interface CopyOptions {
   from: DatabaseTarget;
@@ -38,7 +39,7 @@ const FETCH = 1000;
 /** Bound parameters per INSERT (PostgreSQL allows 65535, SQLite 32766). */
 const MAX_PARAMS = 30000;
 
-function tables(d: Db): string[] {
+export function tables(d: Db): string[] {
   const rows =
     d.dialect === 'sqlite'
       ? d.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name")
@@ -48,7 +49,7 @@ function tables(d: Db): string[] {
   return rows.map((r) => r.name).filter((t) => !META.has(t));
 }
 
-function columns(d: Db, table: string): string[] {
+export function columns(d: Db, table: string): string[] {
   const rows =
     d.dialect === 'sqlite'
       ? d.all<{ name: string }>('SELECT name FROM pragma_table_info(?) ORDER BY cid', table)
@@ -73,7 +74,7 @@ function parents(d: Db, table: string): string[] {
 }
 
 /** Parents before children. */
-function fkOrder(d: Db, list: string[]): string[] {
+export function fkOrder(d: Db, list: string[]): string[] {
   const deps = new Map(list.map((t) => [t, parents(d, t).filter((p) => list.includes(p))]));
   const out: string[] = [];
   const visit = (t: string, path: string[]) => {
@@ -86,7 +87,7 @@ function fkOrder(d: Db, list: string[]): string[] {
   return out;
 }
 
-function primaryKey(d: Db, table: string): string[] {
+export function primaryKey(d: Db, table: string): string[] {
   return d
     .all<{ name: string }>(
       `SELECT a.attname AS name FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
@@ -99,7 +100,7 @@ function primaryKey(d: Db, table: string): string[] {
 const count = (d: Db, table: string) => d.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${quoteIdent(table)}`)!.n;
 
 /** Reads a table in batches, in insertion order where known. `rowid` carries SQLite's implicit row id. */
-function* readBatches(src: Db, table: string, cols: string[]): Generator<Record<string, unknown>[]> {
+export function* readBatches(src: Db, table: string, cols: string[]): Generator<Record<string, unknown>[]> {
   if (src.dialect === 'sqlite') {
     let last = Number.MIN_SAFE_INTEGER;
     for (;;) {
@@ -161,7 +162,7 @@ export function copyDatabase(opts: CopyOptions): CopyResult {
       target.tx(() => {
         // evidence tables refuse deletes (trigger): lifted only while their old rows are replaced
         const guarded = EVIDENCE_TABLES.filter((t) => filled.includes(t));
-        const frozen = IMMUTABLE_RECORD_TABLES.filter((t) => filled.includes(t));
+        const frozen = [...IMMUTABLE_RECORD_TABLES, ...IMMUTABLE_MOVE_TABLES].filter((t) => filled.includes(t));
         for (const t of guarded) target.exec(noDeleteTrigger(target.dialect, t).drop);
         for (const t of frozen) target.exec(immutableRowTriggers(target.dialect, t).drop);
         for (const t of [...order].reverse()) if (filled.includes(t)) target.run(`DELETE FROM ${quoteIdent(t)}`);

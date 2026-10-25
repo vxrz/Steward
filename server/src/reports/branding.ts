@@ -91,12 +91,26 @@ export function removeLogo(): ReportBranding {
   return getBranding();
 }
 
+/** Report branding from elsewhere (a migration package): text fields as strings, only a logo type that matches the file. */
+export function checkedBranding(v: unknown, logoData: Buffer | null): Stored | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const s = { ...DEFAULTS, ...(v as Partial<Stored>) };
+  if (typeof s.accentColor !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(s.accentColor)) s.accentColor = DEFAULTS.accentColor;
+  for (const k of ['companyName', 'classification', 'footerNote'] as const) s[k] = typeof s[k] === 'string' ? s[k].slice(0, 500) : DEFAULTS[k];
+  const mime = logoData ? imageMime(logoData) : null;
+  if (!mime || s.logoMime !== mime) ((s.logoMime = null), (s.logoUpdatedAt = null));
+  return s;
+}
+
 /** The logo used in reports (custom or the Steward default). */
 export function logo(): { data: Buffer; mime: string; custom: boolean } {
   const b = getBranding();
   if (b.customLogo && b.logoMime) {
     try {
-      return { data: fs.readFileSync(logoFile(b.logoMime)), mime: b.logoMime, custom: true };
+      const data = fs.readFileSync(logoFile(b.logoMime));
+      // the type comes from the content, never from the stored setting
+      const mime = imageMime(data);
+      if (mime) return { data, mime, custom: true };
     } catch {
       /* fall back to the default */
     }

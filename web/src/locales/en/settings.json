@@ -4,11 +4,27 @@
   "saved": "Settings saved",
   "signIn": {
     "title": "Sign-in",
-    "all": "Password and SSO",
-    "adminsOnly": "SSO only",
-    "adminsOnlyHint": "Everyone signs in with single sign-on. Local administrator accounts can still use their password – keep at least one as break-glass access in case the identity provider is unavailable.",
-    "allHint": "Users can sign in with a local password or, if configured, with single sign-on.",
-    "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams."
+    "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams.",
+    "question": "Who may sign in with a password?",
+    "fromEnv": "Set on the server with <c>{{name}}</c> – change it there.",
+    "pendingNone": "<c>{{name}}=none</c> takes effect once an administrator has signed in with single sign-on. Until then administrators sign in with their password – so this installation can be set up.",
+    "mode": {
+      "all": "Password and single sign-on",
+      "allHint": "Users sign in with a local password or, if configured, with single sign-on.",
+      "adminsOnly": "Single sign-on, administrators also with a password",
+      "adminsOnlyHint": "Everyone signs in with single sign-on. Local administrator accounts can still use their password as break-glass access.",
+      "none": "Single sign-on only",
+      "noneHint": "Nobody signs in with a password. If the identity provider fails, an administrator gets in with emergency access from the server's command line."
+    },
+    "noneNeedsProvider": "Single sign-on only needs an enabled single sign-on provider (Users & teams).",
+    "noneNeedsSsoAdmin": "To turn on single sign-on only, sign in with single sign-on as an administrator first – then you know that at least one administrator can still get in.",
+    "emergencyTitle": "Emergency access needs the server",
+    "emergencyHint": "If single sign-on fails, run <c>steward admin emergency-access</c> with an administrator's user name on the server. It needs the data folder and the master passphrase, and prints a one-time sign-in link. Keep both available to at least two people.",
+    "sessionsEnd": "When you save, password sessions this setting no longer allows are signed out. API tokens keep working.",
+    "confirm": {
+      "adminsOnly": "Only administrators will be able to sign in with a password. Other people's password sessions are signed out now.",
+      "none": "Nobody will be able to sign in with a password. Password sessions are signed out now, and password resets are no longer possible. If single sign-on fails, only emergency access from the server's command line gets you in."
+    }
   },
   "language": {
     "title": "Language",
@@ -181,5 +197,116 @@
     "lastSent": "Last sent",
     "never": "not yet",
     "whenValue": "{{time}} {{timeZone}}, {{days}}"
+  },
+  "migration": {
+    "title": "Migration",
+    "card": "Move this instance to another one – for example from the desktop app to a server with PostgreSQL and single sign-on – or bring a moved instance in, with a mapping of every user and team.",
+    "open": "Open migration",
+    "adminsOnly": "Only administrators can move instances.",
+    "intro": "Export a migration package of this instance, or import one from another instance. Everything important moves: data, stored files and the audit log. Every user and team of the package is mapped to an account and team here, and the mapping is recorded in the audit log.",
+    "fingerprint": "Source key fingerprint",
+    "export": {
+      "title": "Export this instance",
+      "intro": "Writes one file with all data, stored files and the audit log. It is encrypted with a transfer passphrase and signed with this instance's key. Credentials are encrypted again for the target. Sessions, API tokens and the sign-in setup do not move.",
+      "passphrase": "Master passphrase of this instance",
+      "passphraseHint": "The package carries every credential, so the master passphrase is asked again.",
+      "transfer": "Transfer passphrase",
+      "transferHint": "At least {{count}} characters. The target needs it to open the package – pass it on separately from the file.",
+      "transferRepeat": "Repeat the transfer passphrase",
+      "tooShort": "At least {{count}} characters.",
+      "differ": "The transfer passphrases differ.",
+      "submit": "Export package",
+      "done": "Migration package ready",
+      "readyTitle": "Package ready",
+      "ready": "{{rows}} rows in {{tables}} tables, {{files}} files and {{entries}} audit entries – {{size}}.",
+      "undecryptable_one": "{{count}} credential could not be decrypted here and is moved empty.",
+      "undecryptable_other": "{{count}} credentials could not be decrypted here and are moved empty.",
+      "download": "Download {{name}}",
+      "once": "The download works once, within 30 minutes. Note the fingerprint: the target shows it for confirmation."
+    },
+    "import": {
+      "title": "Import a package",
+      "intro": "Into a new instance: set up the administrator and single sign-on first. The package is checked before anything changes (dry run).",
+      "file": "Migration package (.smig)",
+      "filePlaceholder": "Choose a file",
+      "check": "Check package",
+      "fingerprintLabel": "Fingerprint of the source's signing key",
+      "fingerprintHint": "Read it on the source, not here: the source showed it when it exported the package (also under Audit log → Anchoring outside the database → Signing key fingerprint). Enter all {{min}} characters; the colons are optional.",
+      "submit": "Import",
+      "discard": "Discard",
+      "problems": "The import was refused",
+      "done": "Package imported",
+      "doneTitle": "Imported",
+      "doneText": "{{rows}} rows, {{files}} files and {{entries}} audit entries of the source are here now.",
+      "temporaryPasswords": "One-time passwords of the new local accounts (shown once):"
+    },
+    "plan": {
+      "title": "Dry run",
+      "source": "From Steward {{version}} ({{db}}), exported {{at}} by {{by}}.",
+      "content": "{{rows}} rows in {{tables}} tables, {{files}} files ({{size}}).",
+      "migrations_one": "{{count}} database migration is applied on import.",
+      "migrations_other": "{{count}} database migrations are applied on import.",
+      "historyOk": "Audit log verified",
+      "historyBad": "Audit log not verified",
+      "paused": "Imported paused (turn them on after a review): {{list}}.",
+      "details": "What does not move",
+      "notApplied": "Settings of the source that are not applied"
+    },
+    "mapping": {
+      "users": "Users",
+      "usersHint": "Decide for every user of the source what they are here. Ownership and access move with the decision; the history keeps the source's names and shows who they are now.",
+      "teams": "Teams",
+      "local": "local",
+      "inactive": "deactivated",
+      "clash": "An account \"{{name}}\" exists here: map to it, or the name would mean two people.",
+      "becomes": "Becomes",
+      "account": "Account here",
+      "username": "User name here",
+      "ssoHint": "Exactly the user name single sign-on gives (e.g. the e-mail / UPN); linked at the first sign-in.",
+      "team": "Team here",
+      "teamName": "Team name here",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "preview": "{{kind}}: {{source}} → {{target}} ({{what}})",
+      "confirmSourceAdmin": "I confirm the decision for this administrator of the source",
+      "confirmTargetAdmin": "I confirm the mapping to an administrator of this instance",
+      "action": {
+        "map": "An existing account here",
+        "create-sso": "A new single sign-on account",
+        "create-local": "A new local account",
+        "archive": "A former user (cannot sign in)"
+      },
+      "result": {
+        "map": "existing account",
+        "create-sso": "new single sign-on account",
+        "create-local": "new local account",
+        "archive": "former user"
+      },
+      "teamAction": {
+        "map": "An existing team here",
+        "create": "A new team",
+        "drop": "Dropped"
+      },
+      "provider": "Single sign-on provider",
+      "providerHint": "Only this provider can claim the new account at the first sign-in.",
+      "confirmGuess": "I confirm that this is the same person (matched by e-mail address or name only)"
+    },
+    "imports": {
+      "title": "Imports into this instance",
+      "none": "Nothing was imported into this instance.",
+      "summary": "Imported {{at}} by {{by}} – from Steward {{version}}, exported {{exportedAt}}.",
+      "verified": "Verified",
+      "notVerified": "Not verified",
+      "mapping": "Identity mapping",
+      "source": "On the source",
+      "now": "Here",
+      "team": "team: {{name}}",
+      "showHistory_one": "Show the imported audit history ({{count}} entry)",
+      "showHistory_other": "Show the imported audit history ({{count}} entries)",
+      "hideHistory": "Hide the imported audit history",
+      "search": "Search the imported history",
+      "noEntries": "No entries.",
+      "actorNow": "{{actor}} → {{now}}"
+    }
   }
 }

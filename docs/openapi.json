@@ -1061,12 +1061,38 @@
                   "boolean"
                 ],
                 "description": "hash = recordedHash; null while the run is not finished"
+              },
+              "importedHistory": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "importId": {
+                        "type": "string"
+                      },
+                      "sourceFingerprint": {
+                        "type": "string",
+                        "description": "SHA-256 fingerprint of the source instance's signing key"
+                      }
+                    },
+                    "required": [
+                      "importId",
+                      "sourceFingerprint"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Set when the sealing audit entry is in history imported from another instance (moved with a migration package): recordedHash is then verified against that history and the source's key"
               }
             },
             "required": [
               "hash",
               "recordedHash",
-              "intact"
+              "intact",
+              "importedHistory"
             ],
             "additionalProperties": false,
             "description": "Tamper evidence of the run protocol"

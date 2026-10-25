@@ -258,7 +258,16 @@
       "tls": "HTTPS (TLS)",
       "allowedHosts": "Allowed host names",
       "localOnly": "localhost only",
-      "proxy": "Outbound proxy (environment)"
+      "proxy": "Outbound proxy (environment)",
+      "passwordLogin": "Password sign-in",
+      "passwordLoginModes": {
+        "all": "everyone",
+        "adminsOnly": "administrators only",
+        "none": "off (single sign-on only)"
+      },
+      "fromEnv": "set by {{name}}",
+      "pendingNone": "{{name}}=none takes effect after the first single sign-on of an administrator",
+      "emergencyWindows": "Open emergency access windows"
     }
   },
   "updateNotice": {

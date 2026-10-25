@@ -35,6 +35,8 @@ const PUBLIC_PATHS = [
   '/api/auth/status',
   '/api/auth/login',
   '/api/auth/setup',
+  '/api/auth/emergency',
+  '/api/auth/emergency/grant',
   '/api/vault/status',
   '/api/ready',
   '/api/client-config',
@@ -65,6 +67,16 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   'PUT /api/sync-sources/:id',
   'DELETE /api/sync-sources/:id',
   'POST /api/sync-sources/:id/rotate-webhook-secret',
+  // moving an instance: every credential leaves (export) or a whole instance comes in (import)
+  'POST /api/migration/export',
+  'GET /api/migration/exports/:id/download',
+  'POST /api/migration/imports/upload',
+  'GET /api/migration/imports/staged/:id',
+  'DELETE /api/migration/imports/staged/:id',
+  'POST /api/migration/imports/staged/:id/apply',
+  'GET /api/migration/imports',
+  'GET /api/migration/imports/:id',
+  'GET /api/migration/imports/:id/history',
 ]);
 /** Inbound webhooks: machine-to-machine, authenticated by the trigger's secret (no session, no CSRF header). */
 const HOOKS_PREFIX = '/api/hooks/';

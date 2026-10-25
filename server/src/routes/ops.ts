@@ -84,6 +84,8 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me/tokens', async () => listTokens(me().id));
   app.post('/me/tokens', async (req) => {
     if (viaToken(req)) throw new HttpError(403, 'API tokens cannot create other tokens – sign in to the web UI');
+    // emergency access is for repairing sign-in, not for lasting access that outlives its session
+    if (me().emergency) throw new HttpError(403, 'API tokens cannot be created in an emergency access session', 'EMERGENCY_NO_TOKENS');
     const b = z
       .object({ name: z.string().min(1).max(100), scope: z.enum(API_TOKEN_SCOPES), expiresInDays: z.number().int().min(1).max(3650).optional() })
       .parse(req.body);

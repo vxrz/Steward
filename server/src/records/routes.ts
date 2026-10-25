@@ -16,7 +16,15 @@ import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from '.
 import * as svc from './service.js';
 import * as types from './types.js';
 import { addLink, linkInput, linkUpdate, listBacklinks, removeLink, searchTargets, targetVisible, updateLink } from './links.js';
-import { addAttachment, ATTACHMENT_EXTENSIONS, attachmentForDownload, contentDisposition, MAX_ATTACHMENT_BYTES, removeAttachment } from './attachments.js';
+import {
+  addAttachment,
+  ATTACHMENT_EXTENSIONS,
+  attachmentForDownload,
+  contentDisposition,
+  downloadType,
+  MAX_ATTACHMENT_BYTES,
+  removeAttachment,
+} from './attachments.js';
 import { exportMarkdown, IMPORT_LIMITS, importMarkdown } from './markdown-io.js';
 import { generateRecordPdf, pdfInput } from './pdf.js';
 import { uploadSignedPdf } from './signed.js';
@@ -250,7 +258,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
     reply.header('content-disposition', contentDisposition(row.filename));
     reply.header('content-security-policy', "sandbox; default-src 'none'");
     reply.header('x-content-type-options', 'nosniff');
-    return reply.type(row.mime || 'application/octet-stream').send(data);
+    return reply.type(downloadType(row.mime)).send(data);
   });
 
   // PDF and signed copies

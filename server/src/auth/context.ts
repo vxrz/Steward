@@ -7,6 +7,8 @@ export interface AuthUser {
   displayName: string;
   roles: Role[];
   teams: string[];
+  /** The session was opened with an emergency access code (see emergency.ts): shown as a banner, flagged in the audit log */
+  emergency?: { grantId: string; expiresAt: string };
 }
 
 interface RequestStore {

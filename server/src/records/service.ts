@@ -20,7 +20,7 @@ import {
   type RecordWorkflow,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { audit, authenticRows } from '../audit.js';
+import { audit, authenticRows, importedHistoryFor } from '../audit.js';
 import { currentActor, type AuthUser } from '../auth/context.js';
 import { findUserByName, getUser } from '../auth/users.js';
 import { resolveLocale, t as tr, type MessageKey } from '../i18n/index.js';
@@ -458,6 +458,11 @@ export function currentContentHash(r: RecordRow, t: Pick<TypeRow, 'key'>): strin
   return contentHash(r, t.key, attachmentRows(r.id, 'file'));
 }
 
+function importedHistoryOf(recordId: string): Pick<RecordDetail, 'importedHistory'> {
+  const from = importedHistoryFor("entity_type = 'record' AND entity_id = ?", [recordId]);
+  return from ? { importedHistory: from } : {};
+}
+
 export function getRecord(idOrNumber: string): RecordDetail {
   const u = me();
   const r = requireRecordRow(idOrNumber);
@@ -478,6 +483,7 @@ export function getRecord(idOrNumber: string): RecordDetail {
     frozenHash: r.frozen_hash,
     frozen,
     tampered: frozen && !frozenIntact(r, hash),
+    ...importedHistoryOf(r.id),
     submittedBy: r.submitted_by,
     submittedAt: r.submitted_at,
     supersededBy: supersededInfo(u, r),

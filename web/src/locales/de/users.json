@@ -44,7 +44,13 @@
     "ssoHint": "Single-Sign-on-Benutzer werden bei ihrer ersten Anmeldung automatisch angelegt (sofern der Anbieter es erlaubt). Sie lassen sich auch vorab hier mit genau ihrem SSO-Benutzernamen (z. B. E-Mail / UPN) anlegen, um Rollen zuzuweisen – das Konto wird bei der ersten Anmeldung verknüpft.",
     "initialPassword": "Erstes Passwort (optional)",
     "initialPasswordHint": "Leer lassen, um ein temporäres Passwort zu erzeugen. In jedem Fall muss es bei der ersten Anmeldung geändert werden.",
-    "adminWarning": "Administratoren können Benutzer, Plattformen und Zugangsdaten verwalten und sehen alles."
+    "adminWarning": "Administratoren können Benutzer, Plattformen und Zugangsdaten verwalten und sehen alles.",
+    "noPasswordHint": "Die Passwort-Anmeldung ist ausgeschaltet: Das Konto bekommt kein Passwort. Es wird bei der ersten Single-Sign-on-Anmeldung mit genau diesem Benutzernamen verknüpft (z. B. E-Mail / UPN).",
+    "signIn": "Meldet sich an mit",
+    "signInPassword": "Einem Passwort",
+    "signInProvider": "{{name}} (Single Sign-on, kein Passwort)",
+    "signInHint": "Ein Single-Sign-on-Konto hat kein Passwort. Nur dieser Anbieter kann es bei der ersten Anmeldung übernehmen, mit genau diesem Benutzernamen.",
+    "signInBindHint": "Die Wahl eines Anbieters entfernt das Passwort und meldet das Konto ab; danach kann nur dieser Anbieter es übernehmen, mit genau diesem Benutzernamen."
   },
   "teamModal": {
     "saved": "Team „{{name}}“ gespeichert",

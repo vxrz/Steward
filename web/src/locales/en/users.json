@@ -44,7 +44,13 @@
     "ssoHint": "Single sign-on users are created automatically at their first sign-in (if the provider allows it). You can also create them here in advance with exactly their SSO user name (e.g. the e-mail / UPN) to assign roles – the account is linked at the first sign-in.",
     "initialPassword": "Initial password (optional)",
     "initialPasswordHint": "Leave empty to generate a temporary password. The user must change it at the first sign-in either way.",
-    "adminWarning": "Administrators can manage users, platforms and credentials and see everything."
+    "adminWarning": "Administrators can manage users, platforms and credentials and see everything.",
+    "noPasswordHint": "Password sign-in is turned off: the account gets no password. It is linked at its first single sign-on with exactly this user name (e.g. the e-mail / UPN).",
+    "signIn": "Signs in with",
+    "signInPassword": "A password",
+    "signInProvider": "{{name}} (single sign-on, no password)",
+    "signInHint": "A single sign-on account has no password. Only this provider can claim it at the first sign-in, with exactly this user name.",
+    "signInBindHint": "Choosing a provider removes the password and signs the account out; only that provider can then claim it, with exactly this user name."
   },
   "teamModal": {
     "saved": "Team \"{{name}}\" saved",

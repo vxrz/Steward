@@ -5,6 +5,7 @@
  */
 
 import type { ErrorParams } from './errors.js';
+import type { ImportedHistoryRef } from './api.js';
 
 // ---------- workflows ----------
 
@@ -533,6 +534,8 @@ export interface SignedPdfDetails {
   /** Always "structure": signatures are not cryptographically validated */
   validation: 'structure' | 'none';
   plain?: boolean;
+  /** The generated PDF's audit entry is in history imported from another instance (verified against the source's key) */
+  importedHistory?: ImportedHistoryRef;
 }
 
 export interface RecordEvent {
@@ -627,6 +630,11 @@ export interface RecordDetail extends RecordSummary {
   frozen: boolean;
   /** Frozen content that does not match the hash of the authentic audit entry that froze it (changed outside Steward) */
   tampered: boolean;
+  /**
+   * The record has audit entries in history imported from another instance (docs/MIGRATION.md): its checks (frozen
+   * content, editions, reviews, signed PDFs) are verified against that history and the source's key as well
+   */
+  importedHistory?: ImportedHistoryRef;
   submittedBy: string | null;
   submittedAt: string | null;
   /**

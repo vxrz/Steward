@@ -83,6 +83,12 @@
         "label": "Überprüfung eines Dokuments fällig",
         "info": "Ein Dokument, das Sie überprüfen, ist bald zur regelmäßigen Überprüfung fällig (oder überfällig)"
       }
+    },
+    "security": {
+      "emergency": {
+        "label": "Notfallzugang",
+        "info": "Jemand hat sich mit dem Notfallzugang von der Kommandozeile des Servers angemeldet (Administratoren)"
+      }
     }
   }
 }
