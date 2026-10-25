@@ -17,6 +17,7 @@ import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/c
 import { connectVaultToDatabase } from './vault-rotation.js';
 import { instanceRoutes } from './instance.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
+import { stepUpApplies, stepUpRefusal } from './auth/step-up.js';
 import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
@@ -63,6 +64,12 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   // a test sign-in shows a person's claims to the administrator who started it
   'POST /api/sso/providers/:id/test-sign-in',
   'POST /api/sso/test-sign-ins/:id',
+  // step-up re-authentication (auth/step-up.ts): a token cannot confirm anything
+  'GET /api/auth/step-up',
+  'POST /api/auth/step-up',
+  'DELETE /api/auth/step-up',
+  'POST /api/auth/step-up/sso',
+  'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
@@ -219,8 +226,11 @@ const ANONYMOUS_BODY_LIMIT = 64 * 1024;
  * sets one): the route permission matrix test checks them all.
  */
 type RegisteredRoute = { method: string; url: string; bodyLimit?: number };
-const ROUTE_TABLES = new WeakMap<FastifyInstance, RegisteredRoute[]>();
-export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] => [...(ROUTE_TABLES.get(app) ?? [])];
+const ROUTE_TABLES = new WeakMap<FastifyInstance, (RegisteredRoute & { stepUp?: 'always' | 'rule' })[]>();
+export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] => (ROUTE_TABLES.get(app) ?? []).map(({ stepUp: _s, ...r }) => r);
+/** Routes with a step-up rule (auth/step-up.ts): "always", or "rule" when only some requests are sensitive. */
+export const stepUpRoutes = (app: FastifyInstance): Record<string, 'always' | 'rule'> =>
+  Object.fromEntries((ROUTE_TABLES.get(app) ?? []).filter((r) => r.stepUp).map((r) => [`${r.method} ${r.url}`, r.stepUp!]));
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   connectVaultToDatabase();
@@ -247,10 +257,13 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         }
       : {}),
   }) as unknown as FastifyInstance;
-  const routeTable: RegisteredRoute[] = [];
+  const routeTable: (RegisteredRoute & { stepUp?: 'always' | 'rule' })[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
-    for (const method of [r.method].flat()) if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit });
+    const rule = (r.config as { stepUp?: unknown } | undefined)?.stepUp;
+    const stepUp = rule === true ? ('always' as const) : typeof rule === 'function' ? ('rule' as const) : undefined;
+    for (const method of [r.method].flat())
+      if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit, ...(stepUp ? { stepUp } : {}) });
   });
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
   // Rate limits for every route registered below (per user, else per client address; see rateLimits.ts)
@@ -367,6 +380,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       }
       if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
+      }
+      // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.
+      if (stepUpApplies(req, req.routeOptions.config?.stepUp)) {
+        const refusal = stepUpRefusal(!(info as { session?: unknown }).session, info!);
+        if (refusal) return void reply.code(refusal.status).send(refusal.body);
       }
     }
     (req as unknown as { smUser?: string }).smUser = user?.username;

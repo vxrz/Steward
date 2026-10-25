@@ -105,7 +105,8 @@ function importRow(r: Record<string, unknown>): InstanceImport {
 
 export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   // ---------- export ----------
-  app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
+  // the master passphrase proves the vault, the step-up (auth/step-up.ts) the person
+  app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: true } }, async (req) => {
     const u = me();
     const b = z.object({ passphrase: z.string().max(1024), transferPassphrase: z.string().max(1024) }).parse(req.body);
     const wait = unlockThrottle.waitSeconds();
@@ -201,7 +202,7 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.post('/migration/imports/staged/:id/apply', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+  app.post('/migration/imports/staged/:id/apply', { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: true } }, async (req) => {
     const u = me();
     const s = stagedFor(params(req).id!, u);
     const b = z.object({ mapping: mappingSchema, confirmFingerprint: z.string().min(1).max(200) }).parse(req.body);

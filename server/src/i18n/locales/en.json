@@ -196,5 +196,13 @@
     "title": "Test sign-in",
     "done": "Test sign-in finished. Return to Steward – the claims and the preview are shown in the sign-in provider's settings. You can close this window.",
     "failed": "The test sign-in failed. Return to Steward to see why. You can close this window."
+  },
+  "stepUp": {
+    "title": "Confirm it is you",
+    "confirming": "Confirming…",
+    "done": "Confirmed. You can close this window – Steward goes on with your action.",
+    "notHere": "This confirmation could not be finished here: open it in the browser where you are signed in to Steward, and try again.",
+    "failed": "The confirmation was refused. Return to Steward and try again.",
+    "back": "Back to Steward"
   }
 }

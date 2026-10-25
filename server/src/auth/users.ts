@@ -16,7 +16,7 @@ import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { checkPasswordPolicy, dummyHash, hashPassword, temporaryPassword, verifyPasswordAsync } from './passwords.js';
 import { recordFailedLogin } from './login-audit.js';
-import type { AuthUser } from './context.js';
+import type { AuthUser, SessionMeta } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
 import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
@@ -109,12 +109,14 @@ const cleanName = (v: string | undefined): string | null | undefined => {
 };
 
 /** A signed-in user as sessionUser returns it: the account plus how the session was opened. */
-export type SessionInfo = UserInfo & { emergency?: AuthUser['emergency'] };
+export type SessionInfo = UserInfo & { emergency?: AuthUser['emergency']; session?: SessionMeta };
 
 export function toAuthUser(u: UserInfo | SessionInfo): AuthUser {
   const out: AuthUser = { id: u.id, username: u.username, displayName: u.displayName, roles: u.roles, teams: u.teams };
   const emergency = (u as SessionInfo).emergency;
   if (emergency) out.emergency = emergency;
+  const session = (u as SessionInfo).session;
+  if (session) out.session = session;
   return out;
 }
 
@@ -576,6 +578,40 @@ export async function login(username: string, password: string, meta: { ip?: str
   return { ...session, user: toInfo(r) };
 }
 
+/**
+ * Step-up with the password (a password session confirms a sensitive action): the same limits as a sign-in – the
+ * lockout per account and address, the counters per account and per address – and one hash per attempt whatever the
+ * account (constant time). Failures count against sign-in too: someone holding a stolen session cannot guess the
+ * password behind it faster than at the sign-in page. Audited by the caller (step-up.ts), which also marks the session.
+ */
+export async function verifyStepUpPassword(userId: string, password: string, meta: { ip?: string }): Promise<{ username: string }> {
+  const r = db().get<UserRow>('SELECT * FROM users WHERE id = ?', userId);
+  const username = r?.username ?? '';
+  const key = `${username.toLowerCase()}|${meta.ip ?? ''}`;
+  const f = failures.get(key);
+  if (f && f.until > Date.now()) throw new HttpError(429, 'Too many failed attempts – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  const account = username.toLowerCase();
+  const byAccount = recent(accountFailures, account);
+  if (byAccount.length >= ACCOUNT_MAX_FAILURES)
+    throw new HttpError(429, 'Too many failed attempts for this account – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  const address = meta.ip ?? '';
+  const byAddress = recent(addressFailures, address);
+  if (byAddress.length >= ADDRESS_MAX_FAILURES)
+    throw new HttpError(429, 'Too many failed attempts from this address – try again in a few minutes', 'TOO_MANY_ATTEMPTS');
+  const ok = await verifyPasswordAsync(password, r?.password_hash && r.password_hash.startsWith('scrypt$') ? r.password_hash : dummyHash());
+  if (!r || !ok || !r.active) {
+    const count = (f?.count ?? 0) + 1;
+    if (failures.size >= MAX_TRACKED && !failures.has(key)) failures.delete(failures.keys().next().value!);
+    failures.set(key, { count, until: count >= 5 ? Date.now() + 5 * 60000 : 0 });
+    remember(accountFailures, account, byAccount);
+    remember(addressFailures, address, byAddress);
+    throw Object.assign(new HttpError(403, 'The password is wrong', 'STEP_UP_WRONG_PASSWORD'), { attempt: count });
+  }
+  failures.delete(key);
+  accountFailures.delete(account);
+  return { username };
+}
+
 /** The link key belonging to a binding (derived, so it needs no storage of its own). */
 const linkKeyOf = (binding: string) => crypto.createHmac('sha256', Buffer.from(binding, 'hex')).update('steward-link-v1').digest('base64url');
 
@@ -595,7 +631,7 @@ export function createSession(
   username: string,
   meta: { ip?: string; userAgent?: string },
   method: string,
-  opts: { emergencyGrantId?: string } = {},
+  opts: { emergencyGrantId?: string; stepUp?: { at: number; method: string } } = {},
 ): CreatedSession {
   const token = crypto.randomBytes(32).toString('base64url');
   const sessionKey = crypto.randomBytes(32).toString('base64url');
@@ -604,7 +640,7 @@ export function createSession(
   const emergency = !!opts.emergencyGrantId;
   db().tx(() => {
     db().run(
-      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding, method, emergency_grant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, user_id, created_at, expires_at, last_seen_at, ip, user_agent, binding, method, emergency_grant_id, step_up_at, step_up_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       hashToken(token),
       userId,
       ts,
@@ -616,6 +652,9 @@ export function createSession(
       // how the session was opened decides what the sign-in mode allows (sessionUser): password, sso or emergency
       emergency ? 'emergency' : method === 'password' ? 'password' : 'sso',
       opts.emergencyGrantId ?? null,
+      // a sign-in is a confirmation too: the password just entered, or a fresh sign-in at the provider (auth_time, see sso.ts)
+      opts.stepUp ? new Date(opts.stepUp.at).toISOString() : method === 'password' && !emergency ? ts : null,
+      opts.stepUp ? opts.stepUp.method : method === 'password' && !emergency ? 'password' : null,
     );
     db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
     db().run('DELETE FROM sessions WHERE expires_at < ?', ts);
@@ -690,6 +729,8 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     binding: string | null;
     emergency_grant_id: string | null;
     method: string | null;
+    step_up_at: string | null;
+    step_up_method: string | null;
   }>('SELECT * FROM sessions WHERE id = ?', id);
   if (!s) return null;
   const now = Date.now();
@@ -721,6 +762,13 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     );
   }
   const info: SessionInfo = toInfo(r);
+  info.session = {
+    id,
+    // sessions from before the method was recorded count as password sessions (like the sign-in policy above)
+    method: emergency ? 'emergency' : s.method === 'sso' ? 'sso' : 'password',
+    stepUpAt: s.step_up_at ? Date.parse(s.step_up_at) : null,
+    stepUpMethod: s.step_up_method,
+  };
   if (emergency) {
     // An emergency session is for fixing sign-in: no forced password change in between.
     info.mustChangePassword = false;

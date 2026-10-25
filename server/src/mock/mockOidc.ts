@@ -83,6 +83,19 @@ export interface MockIdentitySpec {
   preferred_username?: string;
   idToken?: Record<string, unknown>;
   userinfo?: Record<string, unknown>;
+  /**
+   * Sign-in time at the provider (auth_time, step-up): by default every sign-in on the account page is a fresh one
+   * (auth_time = now). With authAgeSeconds the identity has an older session at the provider, which a sign-in without
+   * prompt=login / max_age=0 reuses (auth_time = now − age); ignorePrompt: the provider does not honour them either.
+   * idToken: { auth_time: null } leaves the claim out.
+   */
+  authAgeSeconds?: number;
+  ignorePrompt?: boolean;
+  /**
+   * Multi-factor authentication: 'whenAsked' (default) – amr gets "mfa", acr the requested acr value and acrs the
+   * requested authentication context when acr_values or a claims request for acrs asks for it; 'always'; 'never'.
+   */
+  mfa?: 'whenAsked' | 'always' | 'never';
 }
 const custom = new Map<string, MockIdentitySpec>();
 const MAX_CUSTOM = 50;
@@ -133,11 +146,39 @@ function claimsOf(i: MockIdentity, extra: Record<string, unknown> | undefined): 
 
 const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
+/** auth_time, amr, acr and acrs of a sign-in (see MockIdentitySpec): honours prompt=login, max_age, acr_values and a claims request for acrs. */
+function authClaims(q: Record<string, string>, spec: MockIdentitySpec | undefined): Record<string, unknown> {
+  const now = Math.floor(Date.now() / 1000);
+  // the identity's session at the provider is `age` old: reused unless the request asks for a fresh sign-in
+  const age = spec?.authAgeSeconds ?? 0;
+  const tooOld = q.max_age !== undefined && Number.isFinite(Number(q.max_age)) && age > Number(q.max_age);
+  const authTime = (q.prompt === 'login' || tooOld) && !spec?.ignorePrompt ? now : now - age;
+  let contexts: string[] = [];
+  try {
+    const v = (JSON.parse(q.claims ?? '{}') as { id_token?: { acrs?: { value?: string; values?: string[] } } }).id_token?.acrs;
+    contexts = v ? [...(v.value ? [v.value] : []), ...(v.values ?? [])] : [];
+  } catch {
+    /* no claims request */
+  }
+  const acrValues = (q.acr_values ?? '').split(' ').filter(Boolean);
+  const asked = acrValues.length > 0 || contexts.length > 0;
+  const mfa = spec?.mfa === 'always' || (spec?.mfa !== 'never' && asked);
+  return {
+    auth_time: authTime,
+    amr: mfa ? ['pwd', 'mfa'] : ['pwd'],
+    ...(acrValues.length ? { acr: mfa ? acrValues[0] : '0' } : {}),
+    ...(contexts.length ? { acrs: mfa ? contexts : [] } : {}),
+  };
+}
+
 export async function mockOidc(app: FastifyInstance): Promise<void> {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const kid = crypto.randomBytes(6).toString('hex');
   const jwk = { ...(publicKey.export({ format: 'jwk' }) as Record<string, string>), kid, alg: 'RS256', use: 'sig' };
-  const codes = new Map<string, { identity: MockIdentity; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }>();
+  const codes = new Map<
+    string,
+    { identity: MockIdentity; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number; auth: Record<string, unknown> }
+  >();
   /** Access tokens for the userinfo endpoint (bounded, short-lived). */
   const accessTokens = new Map<string, { sub: string; expires: number }>();
 
@@ -155,9 +196,26 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
       scopes_supported: ['openid', 'profile', 'email'],
+      claims_parameter_supported: true,
+      acr_values_supported: ['mfa', 'urn:okta:loa:2fa:any', 'gold'],
       token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
       code_challenge_methods_supported: ['S256'],
-      claims_supported: ['sub', 'name', 'given_name', 'family_name', 'preferred_username', 'email', 'email_verified', 'roles', 'oid', 'tid'],
+      claims_supported: [
+        'sub',
+        'name',
+        'given_name',
+        'family_name',
+        'preferred_username',
+        'email',
+        'email_verified',
+        'roles',
+        'oid',
+        'tid',
+        'auth_time',
+        'amr',
+        'acr',
+        'acrs',
+      ],
     };
   });
 
@@ -170,6 +228,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     if (q.client_id !== DEMO_OIDC.clientId) return reply.code(400).type('text/plain').send('unknown client_id');
     if (q.response_type !== 'code') return reply.code(400).type('text/plain').send('unsupported response_type');
     const params = new URLSearchParams(q);
+    const again = q.prompt === 'login' || q.max_age === '0';
     const rows = listed()
       .map((i) => {
         const p = new URLSearchParams(params);
@@ -181,7 +240,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     return reply
       .type('text/html')
       .send(
-        `<!doctype html><meta charset="utf-8"><title>Sign in – Demo identity provider</title><style>body{font-family:Segoe UI,sans-serif;background:#f3f2f1;margin:0}main{max-width:420px;margin:60px auto;background:#fff;padding:32px;box-shadow:0 2px 6px #0002}ul{list-style:none;padding:0}a.acc{display:block;padding:10px 12px;margin:6px 0;border:1px solid #ddd;color:#222;text-decoration:none}a.acc:hover{background:#f0f6ff}</style><main><h2>Pick an account</h2><p>Simulated Microsoft Entra ID (demo mode). In real use your company sign-in page appears here.</p><ul>${rows}</ul></main>`,
+        `<!doctype html><meta charset="utf-8"><title>Sign in – Demo identity provider</title><style>body{font-family:Segoe UI,sans-serif;background:#f3f2f1;margin:0}main{max-width:420px;margin:60px auto;background:#fff;padding:32px;box-shadow:0 2px 6px #0002}ul{list-style:none;padding:0}a.acc{display:block;padding:10px 12px;margin:6px 0;border:1px solid #ddd;color:#222;text-decoration:none}a.acc:hover{background:#f0f6ff}</style><main><h2>${again ? 'Sign in again' : 'Pick an account'}</h2><p>Simulated Microsoft Entra ID (demo mode). In real use your company sign-in page appears here.</p><ul>${rows}</ul></main>`,
       );
   });
 
@@ -190,7 +249,15 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     const identity = identityOf(String(q.login ?? ''));
     if (!identity || q.client_id !== DEMO_OIDC.clientId || !q.redirect_uri) return reply.code(400).type('text/plain').send('invalid request');
     const code = crypto.randomBytes(16).toString('base64url');
-    codes.set(code, { identity, clientId: q.client_id, redirectUri: q.redirect_uri, nonce: q.nonce, challenge: q.code_challenge, expires: Date.now() + 60000 });
+    codes.set(code, {
+      identity,
+      clientId: q.client_id,
+      redirectUri: q.redirect_uri,
+      nonce: q.nonce,
+      challenge: q.code_challenge,
+      expires: Date.now() + 60000,
+      auth: authClaims(q, custom.get(identity.sub)),
+    });
     const target = new URL(q.redirect_uri);
     target.searchParams.set('code', code);
     if (q.state) target.searchParams.set('state', q.state);
@@ -220,7 +287,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const i = entry.identity;
     const payload = {
-      ...claimsOf(i, custom.get(i.sub)?.idToken),
+      ...claimsOf(i, { ...entry.auth, ...custom.get(i.sub)?.idToken }),
       iss: issuerOf(req.headers.host),
       sub: i.sub,
       aud: clientId,
@@ -253,6 +320,9 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
       const b = (req.body ?? {}) as MockIdentitySpec;
       if (typeof b !== 'object' || Array.isArray(b)) throw new Error('JSON object expected');
       setMockIdentity((req.params as { sub: string }).sub, {
+        ...(typeof b.authAgeSeconds === 'number' && b.authAgeSeconds >= 0 ? { authAgeSeconds: Math.min(b.authAgeSeconds, 365 * 86400) } : {}),
+        ...(b.ignorePrompt === true ? { ignorePrompt: true } : {}),
+        ...(b.mfa === 'always' || b.mfa === 'never' || b.mfa === 'whenAsked' ? { mfa: b.mfa } : {}),
         ...(typeof b.name === 'string' ? { name: b.name.slice(0, 100) } : {}),
         ...(typeof b.preferred_username === 'string' ? { preferred_username: b.preferred_username.slice(0, 200) } : {}),
         ...(b.idToken && typeof b.idToken === 'object' ? { idToken: b.idToken } : {}),

@@ -124,6 +124,11 @@ export const config = {
   session: {
     idleMs: envInt('SM_SESSION_IDLE_MINUTES', 30, 5, 7 * 24 * 60) * 60_000,
     maxMs: envInt('SM_SESSION_MAX_HOURS', 12, 1, 30 * 24) * 3_600_000,
+    /**
+     * Step-up re-authentication (OWASP ASVS 3.7.1): how long a confirmation – the password again or a fresh single
+     * sign-on – lets a session do sensitive actions, and how old a sign-in at the identity provider (auth_time) may be.
+     */
+    stepUpMs: envInt('SM_STEP_UP_MINUTES', 5, 1, 15) * 60_000,
   },
   /** Session cookie with Secure and HSTS: built-in TLS, or an https public URL (TLS terminated by a proxy). */
   get secureCookies(): boolean {

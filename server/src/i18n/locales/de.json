@@ -196,5 +196,13 @@
     "title": "Test-Anmeldung",
     "done": "Test-Anmeldung abgeschlossen. Kehren Sie zu Steward zurück – die Claims und die Vorschau stehen in den Einstellungen des Anmeldeanbieters. Sie können dieses Fenster schließen.",
     "failed": "Die Test-Anmeldung ist fehlgeschlagen. In Steward sehen Sie, warum. Sie können dieses Fenster schließen."
+  },
+  "stepUp": {
+    "title": "Bestätigen Sie, dass Sie es sind",
+    "confirming": "Wird bestätigt …",
+    "done": "Bestätigt. Sie können dieses Fenster schließen – Steward setzt Ihre Aktion fort.",
+    "notHere": "Die Bestätigung konnte hier nicht abgeschlossen werden: Öffnen Sie sie in dem Browser, in dem Sie bei Steward angemeldet sind, und versuchen Sie es erneut.",
+    "failed": "Die Bestätigung wurde abgelehnt. Kehren Sie zu Steward zurück und versuchen Sie es erneut.",
+    "back": "Zurück zu Steward"
   }
 }

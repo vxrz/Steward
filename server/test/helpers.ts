@@ -5,6 +5,10 @@ import type { AddressInfo } from 'node:net';
 import type { FastifyInstance } from 'fastify';
 
 export type Client = <T = any>(method: string, url: string, body?: unknown) => Promise<T>;
+export interface ClientOptions {
+  /** Confirm with the sign-in password when a route asks for a step-up (default: true) */
+  autoStepUp?: boolean;
+}
 
 export const ADMIN = { username: 'admin', password: 'Admin-password-1' };
 
@@ -17,8 +21,13 @@ export interface TestServer {
   app: FastifyInstance;
   base: string;
   api: Client;
-  /** Sign in as another user */
-  as: (username: string, password: string) => Promise<Client>;
+  /**
+   * Sign in as another user. Like the web app's step-up dialog, the client confirms with the password it signed in with
+   * when a sensitive route answers STEP_UP_REQUIRED, and sends the request again once (`autoStepUp: false`: never).
+   */
+  as: (username: string, password: string, opts?: ClientOptions) => Promise<Client>;
+  /** A new client without a session (sign in with POST /auth/login) */
+  client: (opts?: ClientOptions) => Client;
   waitRun: (id: string, statuses?: string[]) => Promise<any>;
   dataDir: string;
 }
@@ -43,11 +52,13 @@ export async function startTestServer(opts: { dataDir?: string } = {}): Promise<
   process.env.SM_PORT = String(port);
   // under a path prefix (SM_BASE_PATH) everything lives below it
   const base = `http://127.0.0.1:${port}${config.basePath}`;
-  const client = (): Client => {
+  const client = (opts: ClientOptions = {}): Client => {
     let cookie = '';
     // the session cookie plus the session key the web app keeps in localStorage (session binding)
     let sessionKey = '';
-    const call = async (method: string, url: string, body?: unknown) => {
+    // the password of the sign-in, for step-ups (auth/step-up.ts)
+    let password = '';
+    const call = async (method: string, url: string, body?: unknown, retried = false): Promise<any> => {
       const res = await fetch(base + '/api' + url, {
         method,
         headers: {
@@ -64,14 +75,29 @@ export async function startTestServer(opts: { dataDir?: string } = {}): Promise<
       if (key !== null) sessionKey = key;
       const text = await res.text();
       const data = text ? (res.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text) : null;
-      if (!res.ok) throw Object.assign(new Error(`${method} ${url} → ${res.status}: ${text}`), { status: res.status });
+      if (!res.ok) {
+        if (
+          res.status === 403 &&
+          data?.code === 'STEP_UP_REQUIRED' &&
+          data.stepUp?.method === 'password' &&
+          password &&
+          !retried &&
+          opts.autoStepUp !== false
+        ) {
+          await call('POST', '/auth/step-up', { password }, true);
+          return call(method, url, body, true);
+        }
+        throw Object.assign(new Error(`${method} ${url} → ${res.status}: ${text}`), { status: res.status, body: data });
+      }
+      if ((url === '/auth/login' || url === '/auth/setup') && typeof (body as { password?: unknown })?.password === 'string')
+        password = (body as { password: string }).password;
       return data;
     };
-    return call as Client;
+    return ((method: string, url: string, body?: unknown) => call(method, url, body)) as Client;
   };
   const api = client();
-  const as = async (username: string, password: string) => {
-    const c = client();
+  const as = async (username: string, password: string, opts?: ClientOptions) => {
+    const c = client(opts);
     await c('POST', '/auth/login', { username, password });
     return c;
   };
@@ -83,7 +109,7 @@ export async function startTestServer(opts: { dataDir?: string } = {}): Promise<
     }
     throw new Error(`Run ${id} did not reach ${statuses}`);
   };
-  return { app, base, api, as, waitRun, dataDir };
+  return { app, base, api, as, client, waitRun, dataDir };
 }
 
 const sessionKeys = new Map<string, string>();
@@ -98,6 +124,15 @@ export async function loginCookie(base: string, username: string, password: stri
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   sessionKeys.set(cookie, res.headers.get('x-sm-session-key') ?? '');
   return cookie;
+}
+/** Confirms the session of a cookie from loginCookie with the password (step-up, auth/step-up.ts). */
+export async function stepUpCookie(base: string, cookie: string, password: string): Promise<void> {
+  const res = await fetch(base + '/api/auth/step-up', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-sm-client': '1', ...authHeaders(cookie) },
+    body: JSON.stringify({ password }),
+  });
+  if (res.status !== 200) throw new Error(`step-up → ${res.status}: ${await res.text()}`);
 }
 /** Cookie plus session key header (session binding) for a cookie from loginCookie. */
 export function authHeaders(cookie: string): Record<string, string> {
