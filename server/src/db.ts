@@ -19,6 +19,7 @@ import { GITSYNC_MIGRATIONS } from './migrations/gitsync.js';
 import { TICKET_MIGRATIONS } from './migrations/tickets.js';
 import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
 import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
+import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -76,6 +77,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...TICKET_MIGRATIONS,
   ...DAILY_SUMMARY_MIGRATIONS,
   ...COMPLIANCE_MIGRATIONS,
+  ...SIGN_IN_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

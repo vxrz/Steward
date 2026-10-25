@@ -24,7 +24,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash, IconUsersGroup } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import { ROLES, ROLE_INFO, type Role, type Team, type UserInfo } from '@sm/shared';
+import { ROLES, ROLE_INFO, type AuthStatus, type Role, type Team, type UserInfo } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader, useFieldErrors } from '../components/common';
 import { fmtRelative } from '../format';
@@ -104,6 +104,7 @@ export function UsersPage() {
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
   const sso = useSsoProviders();
   const ssoName = (source: string) => sso.data?.find((p) => p.id === source)?.displayName ?? source;
+  const passwordsOff = usePasswordsOff();
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['users'] });
@@ -200,7 +201,7 @@ export function UsersPage() {
                             <IconEdit size={16} />
                           </ActionIcon>
                         </Tooltip>
-                        {(!u.authSource || u.authSource === 'local') && (
+                        {(!u.authSource || u.authSource === 'local') && !passwordsOff && (
                           <Tooltip label={t('table.resetPassword')}>
                             <ActionIcon variant="subtle" onClick={() => reset(u)} aria-label={t('table.resetPassword')}>
                               <IconKey size={16} />
@@ -322,6 +323,12 @@ export function UsersPage() {
   );
 }
 
+/** Password sign-in is turned off (single sign-on only): no passwords to set or reset. */
+function usePasswordsOff(): boolean {
+  const auth = useQuery({ queryKey: ['auth'], queryFn: () => get<AuthStatus>('/auth/status') });
+  return auth.data?.passwordLogin === 'none';
+}
+
 function UserModal({
   user,
   onClose,
@@ -338,6 +345,7 @@ function UserModal({
   const [roles, setRoles] = useState<string[]>(user?.roles ?? ['operator']);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const passwordsOff = usePasswordsOff();
 
   const v = useFieldErrors({ username: !username.trim() && t('common:validation.required') });
   const save = async () => {
@@ -354,7 +362,7 @@ function UserModal({
           displayName: displayName.trim() || undefined,
           email: email.trim() || undefined,
           roles,
-          password: password || undefined,
+          password: (!passwordsOff && password) || undefined,
         });
         notifyOk(t('userModal.created', { user: r.user.username }));
         onSaved(r.temporaryPassword, r.user.username);
@@ -382,10 +390,10 @@ function UserModal({
         <MultiSelect label={t('table.roles')} data={roleOptions()} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
         {!user && (
           <Text size="xs" c="dimmed">
-            {t('userModal.ssoHint')}
+            {passwordsOff ? t('userModal.noPasswordHint') : t('userModal.ssoHint')}
           </Text>
         )}
-        {!user && (
+        {!user && !passwordsOff && (
           <PasswordInput
             label={t('userModal.initialPassword')}
             description={t('userModal.initialPasswordHint')}

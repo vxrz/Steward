@@ -13,6 +13,7 @@ export const NOTIFICATION_EVENTS = [
   'summary.daily',
   'access.undocumented',
   'document.review',
+  'security.emergency',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -29,6 +30,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'summary.daily': 'The daily summary of people who turned it on in their profile (in-app and e-mail only)',
   'access.undocumented': 'The access reconciliation found access changes without an access change entry',
   'document.review': 'A living document you review is due for its periodic review soon (or is overdue)',
+  'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
 };
 
 export interface AppNotification {

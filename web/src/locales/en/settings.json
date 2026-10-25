@@ -4,11 +4,26 @@
   "saved": "Settings saved",
   "signIn": {
     "title": "Sign-in",
-    "all": "Password and SSO",
-    "adminsOnly": "SSO only",
-    "adminsOnlyHint": "Everyone signs in with single sign-on. Local administrator accounts can still use their password – keep at least one as break-glass access in case the identity provider is unavailable.",
-    "allHint": "Users can sign in with a local password or, if configured, with single sign-on.",
-    "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams."
+    "noProvider": "No single sign-on provider is enabled yet – only administrators would be able to sign in. Configure one under Users & teams.",
+    "question": "Who may sign in with a password?",
+    "fromEnv": "Set on the server with <c>{{name}}</c> – change it there.",
+    "mode": {
+      "all": "Password and single sign-on",
+      "allHint": "Users sign in with a local password or, if configured, with single sign-on.",
+      "adminsOnly": "Single sign-on, administrators also with a password",
+      "adminsOnlyHint": "Everyone signs in with single sign-on. Local administrator accounts can still use their password as break-glass access.",
+      "none": "Single sign-on only",
+      "noneHint": "Nobody signs in with a password. If the identity provider fails, an administrator gets in with emergency access from the server's command line."
+    },
+    "noneNeedsProvider": "Single sign-on only needs an enabled single sign-on provider (Users & teams).",
+    "noneNeedsSsoAdmin": "To turn on single sign-on only, sign in with single sign-on as an administrator first – then you know that at least one administrator can still get in.",
+    "emergencyTitle": "Emergency access needs the server",
+    "emergencyHint": "If single sign-on fails, run <c>steward admin emergency-access</c> with an administrator's user name on the server. It needs the data folder and the master passphrase, and prints a one-time sign-in link. Keep both available to at least two people.",
+    "sessionsEnd": "When you save, password sessions this setting no longer allows are signed out. API tokens keep working.",
+    "confirm": {
+      "adminsOnly": "Only administrators will be able to sign in with a password. Other people's password sessions are signed out now.",
+      "none": "Nobody will be able to sign in with a password. Password sessions are signed out now, and password resets are no longer possible. If single sign-on fails, only emergency access from the server's command line gets you in."
+    }
   },
   "language": {
     "title": "Language",

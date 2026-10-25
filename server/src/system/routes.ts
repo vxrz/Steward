@@ -4,7 +4,7 @@ import type { AboutInfo, SystemStatus, UpdateNotice } from '@sm/shared';
 import { config } from '../config.js';
 import { db, databaseLabel } from '../db.js';
 import { vault } from '../vault.js';
-import { getSettings, readSetting } from '../settings.js';
+import { getSettings, passwordLoginFromEnv, readSetting } from '../settings.js';
 import { currentUser, runAs } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
 import * as scheduler from '../scheduler.js';
@@ -104,7 +104,27 @@ export function systemStatus(full: boolean): SystemStatus {
       monitorDays: settings.retentionMonitorDays ?? 30,
       lastCleanup: readSetting<SystemStatus['retention']['lastCleanup']>('maintenance.lastCleanup', null),
     },
-    security: { tls: !!config.tls, ...(full ? { allowedHosts: extraHosts, proxyFromEnvironment: proxy } : {}) },
+    security: {
+      tls: !!config.tls,
+      passwordLogin: settings.passwordLogin,
+      passwordLoginFromEnv: !!passwordLoginFromEnv(),
+      ...(full
+        ? {
+            allowedHosts: extraHosts,
+            proxyFromEnvironment: proxy,
+            emergencyWindowsOpen: safe(
+              () =>
+                Number(
+                  db().get<{ n: number }>(
+                    'SELECT COUNT(*) AS n FROM emergency_access_grants WHERE used_at IS NULL AND revoked_at IS NULL AND expires_at > ?',
+                    nowIso(),
+                  )!.n,
+                ),
+              0,
+            ),
+          }
+        : {}),
+    },
     runtime: {
       node: process.version,
       platform: process.platform,

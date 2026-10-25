@@ -258,7 +258,15 @@
       "tls": "HTTPS (TLS)",
       "allowedHosts": "Erlaubte Hostnamen",
       "localOnly": "nur localhost",
-      "proxy": "Ausgehender Proxy (Umgebung)"
+      "proxy": "Ausgehender Proxy (Umgebung)",
+      "passwordLogin": "Passwort-Anmeldung",
+      "passwordLoginModes": {
+        "all": "alle",
+        "adminsOnly": "nur Administratoren",
+        "none": "aus (nur Single Sign-on)"
+      },
+      "fromEnv": "festgelegt durch {{name}}",
+      "emergencyWindows": "Offene Notfallzugangs-Fenster"
     }
   },
   "updateNotice": {

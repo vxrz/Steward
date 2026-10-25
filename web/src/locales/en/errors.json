@@ -431,7 +431,18 @@
     "FORBIDDEN_reviewOwnerSelf": "Four-eyes principle: you own or wrote this document, so you cannot make yourself its review owner. An administrator can.",
     "FORBIDDEN_reviewInterval": "Only approvers and administrators change the review interval of a document.",
     "FORBIDDEN_reviewIntervalAdmin": "Only administrators turn off the periodic reviews of a document or plan them less often than its type does.",
-    "FORBIDDEN_reviewDateLater": "Only approvers and administrators remove a planned review date or move it later."
+    "FORBIDDEN_reviewDateLater": "Only approvers and administrators remove a planned review date or move it later.",
+    "PASSWORD_LOGIN_OFF": "Password sign-in is turned off (single sign-on only) – this is not possible.",
+    "PASSWORD_LOGIN_FROM_ENV": "Password sign-in is set on the server with SM_PASSWORD_LOGIN={{value}}.",
+    "SSO_PROVIDER_REQUIRED": "Enable a single sign-on provider before turning off password sign-in.",
+    "SSO_ADMIN_REQUIRED": "Sign in with single sign-on as an administrator first – then you know that at least one administrator can still get in.",
+    "EMERGENCY_CODE_INVALID": "This emergency access link is invalid, used or expired – run the command on the server again.",
+    "EMERGENCY_REQUEST_REFUSED": "Emergency access can only be granted on the server itself, with the master passphrase.",
+    "EMERGENCY_UNKNOWN_ACCOUNT": "There is no such account.",
+    "EMERGENCY_NOT_ADMIN": "Emergency access is for administrators.",
+    "EMERGENCY_ACCOUNT_DISABLED": "The account is deactivated.",
+    "EMERGENCY_WINDOW_INVALID": "The window must be 1 to 1440 minutes.",
+    "EMERGENCY_NO_TOKENS": "API tokens cannot be created in an emergency access session."
   },
   "boundary": {
     "title": "Something went wrong on this page",

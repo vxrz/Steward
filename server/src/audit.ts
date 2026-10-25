@@ -4,7 +4,7 @@ import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault } from './vault.js';
 import { canonicalJson, nowIso, parseJson, sha256 } from './util.js';
-import { currentActor } from './auth/context.js';
+import { currentActor, currentUser } from './auth/context.js';
 import { logger } from './log.js';
 
 /**
@@ -102,8 +102,21 @@ export const PENDING_MAX = 1000;
 const pending: (Capped & { ts: string; actor: string })[] = [];
 let droppedWhileLocked = 0;
 
+/** Entries of a session opened with emergency access carry the flag in the summary and the details. */
+function flagEmergency(input: AuditInput, grantId: string): AuditInput {
+  const d = input.details;
+  const plain = d !== null && typeof d === 'object' && !Array.isArray(d);
+  return {
+    ...input,
+    summary: `[Emergency access] ${input.summary}`,
+    details: { ...(plain ? (d as Record<string, unknown>) : d === undefined || d === null ? {} : { value: d }), emergencyAccess: grantId },
+  };
+}
+
 export function audit(input: AuditInput): AuditEntry {
-  const c = capped(input);
+  // only entries attributed to the signed-in person (no explicit actor such as "system")
+  const emergency = input.actor === undefined ? currentUser()?.emergency : undefined;
+  const c = capped(emergency ? flagEmergency(input, emergency.grantId) : input);
   if (!vault().unlocked) {
     const e = { ...c, actor: c.actor ?? capText(currentActor(), LIMITS.actor), ts: nowIso() };
     if (pending.length >= PENDING_MAX) {

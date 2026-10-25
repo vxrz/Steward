@@ -28,6 +28,9 @@ export interface InstanceFile {
 export const instanceFile = (dataDir = config.dataDir): string => path.join(dataDir, 'instance.json');
 let current: InstanceFile | undefined;
 
+/** The id in instance.json of this running server (undefined before it listens). */
+export const currentInstanceId = (): string | undefined => current?.instanceId;
+
 /** Called once the server listens. */
 export function writeInstanceFile(url: string): InstanceFile {
   current = {

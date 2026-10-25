@@ -65,6 +65,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/vault/status': PUBLIC,
   'POST /api/auth/setup': PUBLIC,
   'POST /api/auth/login': PUBLIC,
+  // emergency access: the one-time code (auth/emergency.ts), and the signed grant of the command line (loopback only)
+  'POST /api/auth/emergency': PUBLIC,
+  'POST /api/auth/emergency/grant': PUBLIC,
   'GET /api/auth/oidc/:id/start': PUBLIC,
   'GET /api/auth/oidc/callback': PUBLIC,
   'POST /api/auth/logout': ALL,

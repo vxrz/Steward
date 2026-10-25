@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, type OutboundPolicy, type Settings } from '@sm/shared';
+import { DEFAULT_LOCALE, PASSWORD_LOGIN_MODES, type OutboundPolicy, type PasswordLogin, type Settings } from '@sm/shared';
 import { db } from './db.js';
 
 const DEFAULTS = (): Settings => ({
@@ -34,6 +34,25 @@ const INTERNAL = [
   'system.',
 ];
 
+/** SM_PASSWORD_LOGIN (all | adminsOnly | none) for locked-down deployments: wins over the stored setting. */
+export function passwordLoginFromEnv(): PasswordLogin | undefined {
+  const v = process.env.SM_PASSWORD_LOGIN?.trim();
+  return (PASSWORD_LOGIN_MODES as readonly string[]).includes(v ?? '') ? (v as PasswordLogin) : undefined;
+}
+
+/** Who may sign in with a password right now (checked at sign-in and for every session request). */
+export function passwordLoginMode(): PasswordLogin {
+  const env = passwordLoginFromEnv();
+  if (env) return env;
+  const r = db().get<{ value: string }>("SELECT value FROM settings WHERE key = 'passwordLogin'");
+  try {
+    const v = r ? (JSON.parse(r.value) as unknown) : 'all';
+    return (PASSWORD_LOGIN_MODES as readonly unknown[]).includes(v) ? (v as PasswordLogin) : 'all';
+  } catch {
+    return 'all';
+  }
+}
+
 export function getSettings(): Settings {
   const rows = db().all<{ key: string; value: string }>('SELECT key, value FROM settings');
   const s = DEFAULTS() as unknown as Record<string, unknown>;
@@ -49,6 +68,10 @@ export function getSettings(): Settings {
   if ((['platforms', 'allowList', 'open'] as const).includes(process.env.SM_OUTBOUND_POLICY as OutboundPolicy)) {
     s.outboundPolicy = process.env.SM_OUTBOUND_POLICY;
   }
+  if (!(PASSWORD_LOGIN_MODES as readonly unknown[]).includes(s.passwordLogin)) s.passwordLogin = 'all';
+  const envLogin = passwordLoginFromEnv();
+  if (envLogin) s.passwordLogin = envLogin;
+  s.passwordLoginFromEnv = !!envLogin;
   return s as unknown as Settings;
 }
 

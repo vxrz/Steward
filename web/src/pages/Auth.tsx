@@ -206,6 +206,42 @@ export function LoginPage({ status }: { status: AuthStatus }) {
   const providers = status.ssoProviders ?? [];
   const ssoFirst = status.passwordLogin === 'adminsOnly' && providers.length > 0;
   const [showPassword, setShowPassword] = useState(!ssoFirst);
+  const footer = (
+    <>
+      {!status.unlocked && (
+        <Text size="xs" c="dimmed" ta="center">
+          {t('login.vaultLocked')}
+        </Text>
+      )}
+      {status.demo && (
+        <Text size="xs" c="dimmed" ta="center">
+          {t('login.demo', { version: status.version })}
+        </Text>
+      )}
+    </>
+  );
+
+  // Single sign-on only: no password form at all (the server refuses password sign-in anyway)
+  if (status.passwordLogin === 'none') {
+    return (
+      <Card icon={<AppLogo size={48} title={appName} />} title={t('login.title', { brand: appName })}>
+        <SsoErrorAlert error={ssoError} onClose={clearSsoError} />
+        {providers.length > 0 ? (
+          <>
+            <Text size="sm" c="dimmed" ta="center">
+              {t('login.ssoOnly')}
+            </Text>
+            <SsoButtons providers={providers} />
+          </>
+        ) : (
+          <Alert color="orange" variant="light">
+            {t('login.ssoOnlyNoProvider')}
+          </Alert>
+        )}
+        {footer}
+      </Card>
+    );
+  }
 
   const passwordForm = (
     <form
@@ -267,16 +303,77 @@ export function LoginPage({ status }: { status: AuthStatus }) {
           )}
         </>
       )}
-      {!status.unlocked && (
-        <Text size="xs" c="dimmed" ta="center">
-          {t('login.vaultLocked')}
-        </Text>
+      {footer}
+    </Card>
+  );
+}
+
+/** The code from an emergency access link (".../emergency-access#code=…"); the fragment never reaches the server or a proxy log. */
+function codeFromHash(): string {
+  const m = /(?:^#|&)code=([A-Za-z0-9_-]+)/.exec(typeof window === 'undefined' ? '' : window.location.hash);
+  return m?.[1] ?? '';
+}
+
+/**
+ * Sign-in with the one-time link from `steward admin emergency-access` (works while password sign-in is off).
+ * Shown at /emergency-access when nobody is signed in.
+ */
+export function EmergencyAccessPage({ status, onDone }: { status: AuthStatus; onDone: () => void }) {
+  const { t } = useTranslation('auth');
+  const refresh = useRefreshAuth();
+  const [code, setCode] = useState(codeFromHash);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      await post('/auth/emergency', { code: code.trim() });
+      // the code is used up: remove it from the address bar and the history entry
+      window.history.replaceState(null, '', window.location.pathname);
+      onDone();
+      await refresh();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card icon={<IconShieldLock size={40} stroke={1.4} color="var(--mantine-color-orange-6)" />} title={t('emergency.title')} intro={t('emergency.intro')}>
+      {status.me ? (
+        <Alert color="blue" variant="light">
+          {t('emergency.signedIn')}
+        </Alert>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <Stack>
+            <PasswordInput
+              label={t('emergency.code')}
+              description={t('emergency.codeHint')}
+              required
+              value={code}
+              onChange={(e) => setCode(e.currentTarget.value)}
+              autoComplete="off"
+              autoFocus={!code}
+            />
+            {error && <Alert color="red">{error}</Alert>}
+            <Button type="submit" color="orange" loading={busy} disabled={!code.trim()} autoFocus={!!code}>
+              {t('emergency.submit')}
+            </Button>
+          </Stack>
+        </form>
       )}
-      {status.demo && (
-        <Text size="xs" c="dimmed" ta="center">
-          {t('login.demo', { version: status.version })}
-        </Text>
-      )}
+      <Box ta="center">
+        <Anchor size="sm" onClick={onDone} component="button" type="button">
+          {t('emergency.toSignIn')}
+        </Anchor>
+      </Box>
     </Card>
   );
 }

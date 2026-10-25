@@ -431,7 +431,18 @@
     "FORBIDDEN_reviewOwnerSelf": "Vier-Augen-Prinzip: Sie sind Eigentümer oder Autor dieses Dokuments und können sich nicht selbst für die Überprüfung verantwortlich machen. Ein Administrator kann das.",
     "FORBIDDEN_reviewInterval": "Nur Freigebende und Administratoren ändern das Überprüfungsintervall eines Dokuments.",
     "FORBIDDEN_reviewIntervalAdmin": "Nur Administratoren schalten die regelmäßige Überprüfung eines Dokuments ab oder planen sie seltener als seine Art.",
-    "FORBIDDEN_reviewDateLater": "Nur Freigebende und Administratoren entfernen ein geplantes Überprüfungsdatum oder verschieben es nach hinten."
+    "FORBIDDEN_reviewDateLater": "Nur Freigebende und Administratoren entfernen ein geplantes Überprüfungsdatum oder verschieben es nach hinten.",
+    "PASSWORD_LOGIN_OFF": "Die Passwort-Anmeldung ist ausgeschaltet (nur Single Sign-on) – das ist nicht möglich.",
+    "PASSWORD_LOGIN_FROM_ENV": "Die Passwort-Anmeldung ist auf dem Server mit SM_PASSWORD_LOGIN={{value}} festgelegt.",
+    "SSO_PROVIDER_REQUIRED": "Zuerst einen Single-Sign-on-Anbieter aktivieren, dann die Passwort-Anmeldung ausschalten.",
+    "SSO_ADMIN_REQUIRED": "Zuerst als Administrator per Single Sign-on anmelden – dann ist sicher, dass mindestens ein Administrator weiterhin hineinkommt.",
+    "EMERGENCY_CODE_INVALID": "Dieser Notfallzugangs-Link ist ungültig, schon benutzt oder abgelaufen – den Befehl auf dem Server erneut ausführen.",
+    "EMERGENCY_REQUEST_REFUSED": "Der Notfallzugang lässt sich nur auf dem Server selbst gewähren, mit der Master-Passphrase.",
+    "EMERGENCY_UNKNOWN_ACCOUNT": "Dieses Konto gibt es nicht.",
+    "EMERGENCY_NOT_ADMIN": "Der Notfallzugang ist für Administratoren.",
+    "EMERGENCY_ACCOUNT_DISABLED": "Das Konto ist deaktiviert.",
+    "EMERGENCY_WINDOW_INVALID": "Das Zeitfenster muss 1 bis 1440 Minuten lang sein.",
+    "EMERGENCY_NO_TOKENS": "In einer Notfallzugangs-Sitzung lassen sich keine API-Tokens erstellen."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

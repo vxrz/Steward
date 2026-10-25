@@ -14,7 +14,8 @@ import { AppLogo } from './components/brand/AppLogo';
 import { AppFooter } from './components/brand/AppFooter';
 import { get, setAuthChangeHandler } from './api';
 import { MeContext } from './auth';
-import { ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
+import { EmergencyAccessPage, ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
+import { EmergencyBanner } from './components/security/EmergencyBanner';
 import { UserMenu, signOut } from './components/UserMenu';
 import { CommandPalette, CommandPaletteButton } from './components/CommandPalette';
 import { AppNav, useNavGroups } from './components/AppNav';
@@ -90,6 +91,8 @@ export function App() {
     if (userLocale && userLocale !== currentLanguage()) void setLanguage(userLocale);
   }, [userLocale]);
   const onSignOut = () => signOut(qc);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   if (status.isLoading) {
     return (
@@ -107,6 +110,9 @@ export function App() {
   }
   const st = status.data;
   if (st.setupRequired) return <SetupPage status={st} />;
+  // the one-time link of `steward admin emergency-access` (see auth/emergency.ts on the server)
+  if (location.pathname === '/emergency-access' && !st.me?.emergency)
+    return <EmergencyAccessPage status={st} onDone={() => navigate('/', { replace: true })} />;
   if (!st.me) return <LoginPage status={st} />;
   if (st.me.user.mustChangePassword) return <ForcedPasswordChangePage status={st} onSignOut={onSignOut} />;
   if (!st.unlocked) return <VaultLockedPage status={st} onSignOut={onSignOut} />;
@@ -119,6 +125,7 @@ export function App() {
 
 function Shell({ status }: { status: AuthStatus }) {
   const { t } = useTranslation('nav');
+  const qc = useQueryClient();
   const appName = useAppName();
   const [opened, { toggle, close }] = useDisclosure();
   const location = useLocation();
@@ -189,6 +196,7 @@ function Shell({ status }: { status: AuthStatus }) {
       </AppShell.Navbar>
       <AppShell.Main style={{ display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
+          {status.me!.emergency && <EmergencyBanner expiresAt={status.me!.emergency.expiresAt} onSignOut={() => signOut(qc)} />}
           {caps.manageSettings && <UpdateNotice />}
           <ErrorBoundary resetKey={location.pathname}>
             <Suspense fallback={<PageLoader />}>

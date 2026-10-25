@@ -35,6 +35,8 @@ const PUBLIC_PATHS = [
   '/api/auth/status',
   '/api/auth/login',
   '/api/auth/setup',
+  '/api/auth/emergency',
+  '/api/auth/emergency/grant',
   '/api/vault/status',
   '/api/ready',
   '/api/client-config',

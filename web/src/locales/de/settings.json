@@ -4,11 +4,26 @@
   "saved": "Einstellungen gespeichert",
   "signIn": {
     "title": "Anmeldung",
-    "all": "Passwort und SSO",
-    "adminsOnly": "Nur SSO",
-    "adminsOnlyHint": "Alle melden sich per Single Sign-on an. Lokale Administratorkonten können weiterhin ihr Passwort verwenden – mindestens eines als Notfallzugang behalten, falls der Identity Provider nicht erreichbar ist.",
-    "allHint": "Benutzer können sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on anmelden.",
-    "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten."
+    "noProvider": "Es ist noch kein Single-Sign-on-Anbieter aktiviert – nur Administratoren könnten sich anmelden. Einen Anbieter unter Benutzer & Teams einrichten.",
+    "question": "Wer darf sich mit Passwort anmelden?",
+    "fromEnv": "Auf dem Server mit <c>{{name}}</c> festgelegt – dort ändern.",
+    "mode": {
+      "all": "Passwort und Single Sign-on",
+      "allHint": "Benutzer melden sich mit einem lokalen Passwort oder, falls eingerichtet, per Single Sign-on an.",
+      "adminsOnly": "Single Sign-on, Administratoren auch mit Passwort",
+      "adminsOnlyHint": "Alle melden sich per Single Sign-on an. Lokale Administratorkonten können ihr Passwort weiterhin als Notfallzugang verwenden.",
+      "none": "Nur Single Sign-on",
+      "noneHint": "Niemand meldet sich mit Passwort an. Fällt der Identity Provider aus, kommt ein Administrator über den Notfallzugang auf der Kommandozeile des Servers hinein."
+    },
+    "noneNeedsProvider": "Nur Single Sign-on setzt einen aktivierten Single-Sign-on-Anbieter voraus (Benutzer & Teams).",
+    "noneNeedsSsoAdmin": "Um nur Single Sign-on einzuschalten, zuerst als Administrator per Single Sign-on anmelden – dann ist sicher, dass mindestens ein Administrator weiterhin hineinkommt.",
+    "emergencyTitle": "Der Notfallzugang braucht den Server",
+    "emergencyHint": "Fällt Single Sign-on aus, auf dem Server <c>steward admin emergency-access</c> mit dem Benutzernamen eines Administrators ausführen. Der Befehl braucht den Datenordner und die Master-Passphrase und gibt einen einmaligen Anmeldelink aus. Beides sollte mindestens zwei Personen zur Verfügung stehen.",
+    "sessionsEnd": "Beim Speichern werden Passwort-Sitzungen abgemeldet, die diese Einstellung nicht mehr erlaubt. API-Tokens funktionieren weiter.",
+    "confirm": {
+      "adminsOnly": "Nur noch Administratoren können sich mit Passwort anmelden. Die Passwort-Sitzungen aller anderen werden jetzt abgemeldet.",
+      "none": "Niemand kann sich mehr mit Passwort anmelden. Passwort-Sitzungen werden jetzt abgemeldet, und Passwörter lassen sich nicht mehr zurücksetzen. Fällt Single Sign-on aus, hilft nur noch der Notfallzugang auf der Kommandozeile des Servers."
+    }
   },
   "language": {
     "title": "Sprache",

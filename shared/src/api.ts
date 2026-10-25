@@ -129,7 +129,16 @@ export interface Capabilities {
 export interface Me {
   user: UserInfo;
   capabilities: Capabilities;
+  /** Set when this session was opened with an emergency access code from the server's command line */
+  emergency?: { expiresAt: string };
 }
+
+/**
+ * Who may sign in with a password: everyone, administrators only (break-glass), or nobody (single
+ * sign-on only; emergency access from the server's command line still works).
+ */
+export const PASSWORD_LOGIN_MODES = ['all', 'adminsOnly', 'none'] as const;
+export type PasswordLogin = (typeof PASSWORD_LOGIN_MODES)[number];
 
 export interface AuthStatus {
   /** Vault (master passphrase) exists */
@@ -140,8 +149,8 @@ export interface AuthStatus {
   me: Me | null;
   /** Enabled single sign-on providers (buttons on the sign-in page) */
   ssoProviders: SsoProviderPublic[];
-  /** 'adminsOnly': password sign-in is limited to administrators (break-glass) */
-  passwordLogin: 'all' | 'adminsOnly';
+  /** 'adminsOnly': password sign-in is limited to administrators (break-glass); 'none': single sign-on only */
+  passwordLogin: PasswordLogin;
   demo: boolean;
   version: string;
   browserAvailable: boolean;
@@ -642,8 +651,10 @@ export interface AuditAnchoring {
 export type VaultStatus = AuthStatus & { operator?: string };
 
 export interface Settings {
-  /** 'adminsOnly' limits password sign-in to administrators once SSO is in place */
-  passwordLogin: 'all' | 'adminsOnly';
+  /** 'adminsOnly' limits password sign-in to administrators once SSO is in place; 'none' turns it off (SM_PASSWORD_LOGIN overrides it) */
+  passwordLogin: PasswordLogin;
+  /** Read-only: passwordLogin comes from SM_PASSWORD_LOGIN and cannot be changed in the UI */
+  passwordLoginFromEnv?: boolean;
   browserHeadless: boolean;
   /** Delete runs (journal, logs, evidence files) older than this many days; 0 = keep forever. The audit log is never pruned. */
   retentionRunDays: number;

@@ -318,6 +318,17 @@ export function SystemStatusPage() {
               <Row label={t('status.security.tls')}>
                 <Toggle on={s.security.tls} />
               </Row>
+              {s.security.passwordLogin && (
+                <Row label={t('status.security.passwordLogin')}>
+                  <span data-testid="status-password-login">
+                    {t(`status.security.passwordLoginModes.${s.security.passwordLogin}`)}
+                    {s.security.passwordLoginFromEnv ? ` (${t('status.security.fromEnv', { name: 'SM_PASSWORD_LOGIN' })})` : ''}
+                  </span>
+                </Row>
+              )}
+              {s.security.emergencyWindowsOpen !== undefined && (
+                <Row label={t('status.security.emergencyWindows')}>{fmtNumber(s.security.emergencyWindowsOpen)}</Row>
+              )}
               {s.security.allowedHosts && (
                 <Row label={t('status.security.allowedHosts')}>
                   {s.security.allowedHosts.length ? s.security.allowedHosts.join(', ') : t('status.security.localOnly')}

@@ -37,10 +37,10 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'access.undocumented',
     'document.review',
   ];
-  return Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, withEmail.includes(e) ? ['inApp', 'email'] : ['inApp']])) as Record<
-    NotificationEvent,
-    NotificationChannel[]
-  >;
+  // emergency access: every channel that is set up, so nobody can use it unnoticed
+  return Object.fromEntries(
+    NOTIFICATION_EVENTS.map((e) => [e, e === 'security.emergency' ? ['inApp', 'email', 'teams'] : withEmail.includes(e) ? ['inApp', 'email'] : ['inApp']]),
+  ) as Record<NotificationEvent, NotificationChannel[]>;
 }
 
 const DEFAULTS = (): StoredConfig => ({
