@@ -38,6 +38,7 @@ const source = {
   auditEntries: 0,
   processOwner: { id: '', owner: '' },
   recordId: '',
+  runId: '',
 };
 
 async function rawExport(body: unknown, cookie = adminCookie): Promise<Response> {
@@ -103,6 +104,7 @@ beforeAll(async () => {
   for (const r of db().all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL'))
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
   source.fingerprint = (await s.api('GET', '/audit/anchoring')).fingerprint;
+  source.runId = (await s.api('GET', '/runs?status=succeeded&limit=1'))[0].id;
 }, 180_000);
 
 afterAll(async () => {
@@ -420,6 +422,11 @@ describe('import into SQLite through the web API', () => {
     const history = await max('GET', `/migration/imports/${importId}/history?limit=500`);
     const fromAdmin = history.find((h: any) => h.actor === 'admin');
     expect(fromAdmin.actorNow).toBe('max@contoso.example');
+    // evidence that moved stays verifiable: the run protocol's seal is in the imported history
+    const token = await max('POST', '/me/tokens', { name: 'check', scope: 'read' });
+    const run = await (await fetch(`${child.base}/api/v1/runs/${source.runId}`, { headers: { authorization: `Bearer ${token.token}` } })).json();
+    expect(run.protocol.recordedHash).toBeTruthy();
+    expect(run.protocol.intact).toBe(true);
     // a second import is refused
     const again = await upload(max, pkgFile, TRANSFER);
     expect(again.body.blocking?.length ?? 0).toBeGreaterThan(0);

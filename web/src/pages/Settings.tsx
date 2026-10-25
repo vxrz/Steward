@@ -40,6 +40,7 @@ import { ThemeSettingsCard } from '../components/theme/ThemeSettingsCard';
 import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
+import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { SignInPolicyCard } from '../components/security/SignInPolicyCard';
 
@@ -289,6 +290,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
         {!readOnly && <GitSyncSettingsCard />}
+        {!readOnly && <MigrationSettingsCard />}
         <Card withBorder>
           <Title order={5} mb="xs">
             {t('unattended.title')}

@@ -67,6 +67,7 @@ const LinkTypesPage = page(() => import('./pages/LinkTypes'), 'LinkTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
+const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
@@ -239,6 +240,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 {caps.manageUsers && <Route path="/users" element={<UsersPage />} />}
                 <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
                 <Route path="/settings/git-sync" element={<GitSyncPage />} />
+                <Route path="/settings/migration" element={<MigrationPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}

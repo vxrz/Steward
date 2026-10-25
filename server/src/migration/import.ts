@@ -31,6 +31,7 @@ import { passwordLoginMode } from '../settings.js';
 import { hashPassword, temporaryPassword } from '../auth/passwords.js';
 import { NO_PASSWORD } from '../auth/users.js';
 import { invalidateAliases } from '../auth/aliases.js';
+import { invalidateVerifiedImports } from './history.js';
 import { openPackage, sha256File, workDir, PACKAGE_FORMAT, PACKAGE_VERSION, type Manifest, type PackageTeam, type PackageUser } from './format.js';
 import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS, type RefKind } from './tables.js';
 import { DATA_PREFIX } from './export.js';
@@ -768,6 +769,7 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
     for await (const l of lines(pkg.reader, pkg.reader.find('audit.jsonl')!)) entries.push(JSON.parse(l) as AuditEntry);
     const result = copyIntoTarget(staging, pkg, resolved, settings, entries, opts);
     invalidateAliases();
+    invalidateVerifiedImports();
     return { ...result, files: files.length };
   } catch (e) {
     for (const f of files) fs.rmSync(f, { force: true });

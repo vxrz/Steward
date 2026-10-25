@@ -1,6 +1,6 @@
 import type { AuditCheckpoint, AuditEntry } from '@sm/shared';
 import { db } from '../db.js';
-import { authenticRows, toEntry, type AuditRow } from '../audit.js';
+import { authenticRows, setVerifiedImports, toEntry, type AuditRow } from '../audit.js';
 import { verifyExport } from '../cli/audit-verify-export.js';
 import { parseJson, sha256 } from '../util.js';
 
@@ -44,7 +44,7 @@ export function verifyImportedHistory(importId: string): ImportedHistoryCheck {
         (entries.length !== Number(imp.history_entries) ? `${entries.length} of ${imp.history_entries} entries are there` : 'No checkpoint')),
   };
   // the import record is bound to this instance's own audit chain
-  const { rows } = authenticRows("action = 'instance.imported' AND entity_id = ?", [importId], { limit: 5 });
+  const { rows } = authenticRows("action = 'instance.imported' AND entity_id = ?", [importId], { limit: 5, ownOnly: true });
   const d = rows[0] ? parseJson<{ packageSha256?: string; mappingSha256?: string }>(rows[0].details, {}) : null;
   const mappingOk = sha256(imp.mapping) === imp.mapping_sha256;
   const record = !d
@@ -54,3 +54,24 @@ export function verifyImportedHistory(importId: string): ImportedHistoryCheck {
       : { ok: true, message: `Package and mapping match audit entry #${rows[0]!.seq}` };
   return { ok: history.ok && record.ok, entries: entries.length, history, record };
 }
+
+/** Verified imports, re-checked at most every 10 minutes (the imported history is append-only, see the migration). */
+const CHECK_MS = 10 * 60_000;
+let verified: { at: number; ids: string[] } | null = null;
+export function invalidateVerifiedImports(): void {
+  verified = null;
+}
+setVerifiedImports(() => {
+  if (verified && Date.now() - verified.at < CHECK_MS) return verified.ids;
+  let ids: string[];
+  try {
+    ids = db()
+      .all<{ id: string }>('SELECT id FROM instance_imports ORDER BY imported_at')
+      .map((r) => r.id)
+      .filter((id) => verifyImportedHistory(id).ok);
+  } catch {
+    ids = []; // before the migration that creates the tables
+  }
+  verified = { at: Date.now(), ids };
+  return ids;
+});

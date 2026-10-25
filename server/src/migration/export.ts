@@ -13,6 +13,7 @@ import { platformIntegrity, type SealedPlatformRow } from '../platforms/integrit
 import { columns, readBatches, tables } from '../cli/db-copy.js';
 import { HttpError, parseJson, sha256 } from '../util.js';
 import { listProviders } from '../auth/sso.js';
+import { currentActor } from '../auth/context.js';
 import {
   PACKAGE_FORMAT,
   PACKAGE_VERSION,
@@ -250,7 +251,7 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
       product: BRAND.name,
       productVersion: config.version,
       createdAt: new Date().toISOString(),
-      createdBy: opts.actor ?? 'system',
+      createdBy: opts.actor ?? currentActor(),
       source: { fingerprint, publicKey: pub, database: d.dialect },
       schema,
       tables: tableInfo,

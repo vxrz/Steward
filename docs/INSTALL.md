@@ -186,7 +186,9 @@ docker compose up -d
 
 **PostgreSQL.** The app does not back up PostgreSQL itself: a copy of a live server database is best made with the server's own tools. Before every update, run `pg_dump` (see [Backup](#5-database-sqlite-or-postgresql)) and back up the data folder. When an update migrates the database, the log says so with the warning `PostgreSQL: migrating the database without an automatic backup`. PostgreSQL rolls back a failed migration as well; to go back, restore the dump with `pg_restore --clean` and start the previous version.
 
-**Moving to a deployed instance.** Copy the data folder of the desktop app to the server, start the same or a newer version there, and – for PostgreSQL – move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
+**Moving from a local to a deployed instance.** To move the desktop app to a server with PostgreSQL and single sign-on, use a **migration package**: export it on the laptop (_Settings → Migration_ or `steward migrate export`), set up the server with its own master passphrase, administrator and single sign-on, then import the package there with a mapping of every local user to an account on the server (for example their single sign-on account). Everything important moves, credentials are re-encrypted for the server's vault, the audit log stays verifiable, and the mapping is recorded in the audit log. Step by step: [MIGRATION.md](MIGRATION.md).
+
+To move an instance 1:1 instead – the same accounts, the same master passphrase – copy the data folder to the server, start the same or a newer version there, and for PostgreSQL move the database with `npm run db:copy` (see above). `db:copy` upgrades the source first and keeps a copy of an older SQLite source in `backups/` next to it.
 
 ## Resetting a demo and recovering access
 
