@@ -169,15 +169,26 @@ describe('defaults and existing providers', () => {
       const e = await configure({ stableIdClaims: claims }).catch((x) => x);
       expect(e.message, claims.join('+')).toContain('SSO_STABLE_ID_NOT_UNIQUE');
       // a confirmation does not make shared claims unique
-      const confirmed = await configure({ stableIdClaims: claims, stableIdConfirmedUnique: true }).catch((x) => x);
+      const confirmed = await configure({ stableIdClaims: claims, stableIdConfirmedClaims: claims }).catch((x) => x);
       expect(confirmed.message, claims.join('+')).toContain('SSO_STABLE_ID_NOT_UNIQUE');
     }
     // a custom claim needs the administrator's confirmation (audited); a subject claim does not
     expect((await configure({ stableIdClaims: ['employeeId'] }).catch((x) => x)).message).toContain('SSO_STABLE_ID_NOT_UNIQUE');
-    const custom = await configure({ stableIdClaims: ['tid', 'employeeId'], stableIdConfirmedUnique: true });
+    const custom = await configure({ stableIdClaims: ['tid', 'employeeId'], stableIdConfirmedClaims: ['employeeId', 'tid'] });
     expect(custom.stableIdClaims).toEqual(['tid', 'employeeId']);
-    expect((await lastAudit('sso.provider_updated')).details.changed).toEqual(expect.arrayContaining(['stableIdClaims', 'stableIdConfirmedUnique']));
-    expect((await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedUnique: false })).stableIdClaims).toEqual(['tid', 'oid']);
+    const entry = await lastAudit('sso.provider_updated');
+    expect(entry.details.changed).toEqual(expect.arrayContaining(['stableIdClaims', 'stableIdConfirmedClaims']));
+    expect(entry.details.stableIdConfirmedClaims).toEqual(['employeeId', 'tid']);
+    // the confirmation is for those claims only: other claims need it again
+    const other = await configure({ stableIdClaims: ['costCenter'] }).catch((x) => x);
+    expect(other.message).toContain('SSO_STABLE_ID_NOT_UNIQUE');
+    expect((await configure({ stableIdClaims: ['costCenter'], stableIdConfirmedClaims: ['costCenter'] })).stableIdClaims).toEqual(['costCenter']);
+    // shared claims also nested or in other case – a confirmation does not help
+    for (const claims of [['realm_access.roles'], ['TID'], ['extension.tid']]) {
+      const e = await configure({ stableIdClaims: claims, stableIdConfirmedClaims: claims }).catch((x) => x);
+      expect(e.message, claims[0]).toContain('SSO_STABLE_ID_NOT_UNIQUE');
+    }
+    expect((await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedClaims: [] })).stableIdClaims).toEqual(['tid', 'oid']);
     await configure({ stableIdClaims: ['sub'] });
   });
 });
@@ -232,7 +243,7 @@ describe('the stable identifier', () => {
 
   it('records issuer + sub only when an identity is linked: a shared identifier cannot move an account to the last signer', async () => {
     // an administrator confirmed a claim that turns out to be shared (Max and Nina both send employeeId E1)
-    await configure({ stableIdClaims: ['employeeId'], stableIdConfirmedUnique: true });
+    await configure({ stableIdClaims: ['employeeId'], stableIdConfirmedClaims: ['employeeId'] });
     mock.setMockIdentity('a1f3', { idToken: { employeeId: 'E1' } });
     mock.setMockIdentity('e5b7', { idToken: { employeeId: 'E1' } });
     const max = await meOf((await signIn('a1f3')).client!);
@@ -242,7 +253,7 @@ describe('the stable identifier', () => {
     expect((await meOf((await signIn('e5b7')).client!)).id).toBe(max.id);
     expect(row('max@contoso.example')!.external_sub).toBe(maxSub);
     // back to an identifier that names one person: Nina does not get Max's account, Max does
-    await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedUnique: false });
+    await configure({ stableIdClaims: ['tid', 'oid'], stableIdConfirmedClaims: [] });
     const nina = await signIn('e5b7');
     expect(nina.client ? (await meOf(nina.client)).id : nina.error).not.toBe(max.id);
     expect((await meOf((await signIn('a1f3')).client!)).id).toBe(max.id);
@@ -406,6 +417,9 @@ describe('user name rules', () => {
     const { user } = await s.api('POST', '/users', { username: 'boss', roles: ['admin'], provider: p });
     mock.setMockIdentity('evil1', { preferred_username: 'boss@evil.example' });
     expect((await signIn('evil1')).error).toContain('not of a domain this provider strips');
+    // a listed domain after another one: what is left still has a domain – refused
+    mock.setMockIdentity('evil2', { preferred_username: 'boss@evil.example@contoso.example' });
+    expect((await signIn('evil2')).error).toContain('not of a domain this provider strips');
     expect(row('boss')).toMatchObject({ id: user.id, external_id: null });
     mock.setMockIdentity('boss1', { preferred_username: 'boss@contoso.example', idToken: { roles: ['SM.Admins'] } });
     expect((await meOf((await signIn('boss1')).client!)).id).toBe(user.id);
@@ -421,6 +435,38 @@ describe('user name rules', () => {
       mock.setMockIdentity('odd', { preferred_username: name });
       expect((await signIn('odd')).error, name).toContain('is not usable');
     }
+  });
+
+  it('keeps signing in linked identities whose name is not usable for new accounts (names from older versions)', async () => {
+    const issuer = `${s.base}/mock/oidc`;
+    const enc = encodeURIComponent;
+    const ts = new Date().toISOString();
+    // accounts an older version created with names it accepted: one linked by the current link, one by a legacy link
+    for (const [id, name, link] of [
+      ['usr_juergen', 'jürgen@contoso.example', `${p}#iss=${enc(issuer)}#sub=jue`],
+      ['usr_jose', 'josé@contoso.example', `${p}:jos`],
+    ]) {
+      db().run(
+        `INSERT INTO users (id, username, display_name, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source, external_id)
+         VALUES (?, ?, ?, '!sso', '["viewer"]', 1, 0, ?, ?, ?, ?)`,
+        id,
+        name,
+        name,
+        ts,
+        ts,
+        p,
+        link,
+      );
+    }
+    mock.setMockIdentity('jue', { preferred_username: 'jürgen@contoso.example' });
+    expect((await meOf((await signIn('jue')).client!)).id).toBe('usr_juergen');
+    mock.setMockIdentity('jos', { preferred_username: 'josé@contoso.example' });
+    expect((await meOf((await signIn('jos')).client!)).id).toBe('usr_jose'); // re-linked
+    // a new identity with such a name gets no account (and no existing one by name)
+    mock.setMockIdentity('jue2', { preferred_username: 'jürgen2@contoso.example' });
+    expect((await signIn('jue2')).error).toContain('is not usable');
+    mock.setMockIdentity('jue3', { preferred_username: 'jürgen@contoso.example' });
+    expect((await signIn('jue3')).error).toContain('is not usable');
   });
 });
 
@@ -438,12 +484,12 @@ describe('e-mail confirmation', () => {
     expect(trusted.warnings).toContainEqual({ code: 'EMAIL_TRUSTED' });
     expect((await meOf((await signIn('ewa')).client!)).username).toBe('ewa@contoso.example');
     // also when the e-mail claim is (part of) the stable identifier
-    await configure({ usernameClaim: 'preferred_username', emailVerifiedByProvider: false, stableIdClaims: ['email'], stableIdConfirmedUnique: true });
+    await configure({ usernameClaim: 'preferred_username', emailVerifiedByProvider: false, stableIdClaims: ['email'], stableIdConfirmedClaims: ['email'] });
     mock.setMockIdentity('eli', { preferred_username: 'eli@contoso.example' });
     expect((await signIn('eli')).error).toContain('email_verified');
     expect((await provider()).stableIdClaims).toEqual(['email']);
     expect((await s.api('GET', '/sso/providers'))[0].warnings).toContainEqual({ code: 'MUTABLE_STABLE_ID', params: { claims: ['email'] } });
-    await configure({ stableIdClaims: ['sub'], stableIdConfirmedUnique: false });
+    await configure({ stableIdClaims: ['sub'], stableIdConfirmedClaims: [] });
   });
 
   it('takes email_verified from where the e-mail address came from (ID token or userinfo)', async () => {
@@ -466,21 +512,26 @@ describe('e-mail confirmation', () => {
 
   it('names providers from before whose sign-ins need email_verified now (editor, startup log)', async () => {
     const created = await s.api('POST', '/sso/providers', { ...(await provider()), displayName: 'Old e-mail', usernameClaim: 'email', clientSecret: 'x' });
-    const stored = JSON.parse(db().get<{ config: string }>('SELECT config FROM identity_providers WHERE id = ?', created.id)!.config);
-    delete stored.emailVerifiedByProvider;
     const { configMac } = await import('../src/integrity.js');
     const { vault } = await import('../src/vault.js');
-    const r = db().get<{ secret: string }>('SELECT secret FROM identity_providers WHERE id = ?', created.id)!;
-    const secret = crypto
-      .createHash('sha256')
-      .update(JSON.stringify(vault().decrypt(r.secret)))
-      .digest('hex');
-    db().run(
-      'UPDATE identity_providers SET config = ?, config_mac = ? WHERE id = ?',
-      JSON.stringify(stored),
-      configMac('sso', created.id, { v: 1, config: stored, enabled: true, secret }),
-      created.id,
-    );
+    /** Stores the provider as a version before #77 did (without the e-mail settings), sealed. */
+    const makeLegacy = () => {
+      const stored = JSON.parse(db().get<{ config: string }>('SELECT config FROM identity_providers WHERE id = ?', created.id)!.config);
+      delete stored.emailVerifiedByProvider;
+      delete stored.emailVerificationNotice;
+      const r = db().get<{ secret: string }>('SELECT secret FROM identity_providers WHERE id = ?', created.id)!;
+      const secret = crypto
+        .createHash('sha256')
+        .update(JSON.stringify(vault().decrypt(r.secret)))
+        .digest('hex');
+      db().run(
+        'UPDATE identity_providers SET config = ?, config_mac = ? WHERE id = ?',
+        JSON.stringify(stored),
+        configMac('sso', created.id, { v: 1, config: stored, enabled: true, secret }),
+        created.id,
+      );
+    };
+    makeLegacy();
     const listed = (await s.api('GET', '/sso/providers')).find((x: { id: string }) => x.id === created.id);
     expect(listed.warnings).toContainEqual({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: 'email' } });
     const { logger } = await import('../src/log.js');
@@ -493,6 +544,25 @@ describe('e-mail confirmation', () => {
       (logger as { warn: unknown }).warn = original;
     }
     expect(warned.some((w) => w.startsWith('Old e-mail:') && w.includes('email_verified'))).toBe(true);
+    const notice = async () =>
+      (await s.api('GET', '/sso/providers'))
+        .find((x: { id: string }) => x.id === created.id)
+        .warnings.some((w: { code: string }) => w.code === 'EMAIL_VERIFIED_NOW_REQUIRED');
+    // a save without a decision keeps the notice
+    await configure({ displayName: 'Old e-mail (renamed)' }, created.id);
+    expect(await notice()).toBe(true);
+    // decided: keep requiring email_verified
+    await configure({ emailVerificationNotice: false }, created.id);
+    expect(await notice()).toBe(false);
+    // decided: the provider verifies every address
+    makeLegacy();
+    expect(await notice()).toBe(true);
+    await configure({ emailVerifiedByProvider: true }, created.id);
+    expect(await notice()).toBe(false);
+    // the e-mail claim no longer names accounts
+    makeLegacy();
+    await configure({ usernameClaim: 'preferred_username' }, created.id);
+    expect(await notice()).toBe(false);
     await s.api('DELETE', `/sso/providers/${created.id}`);
   });
 });

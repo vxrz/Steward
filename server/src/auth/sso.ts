@@ -105,7 +105,10 @@ const providerSchema = z.object({
   stableIdClaims: z.array(claimName.min(1)).min(1).max(SSO_LIMITS.stableIdClaims).optional(),
   usernameTransform: z.enum(SSO_USERNAME_TRANSFORMS).optional(),
   stripDomains: z.array(z.string().trim().toLowerCase().max(253).regex(SSO_DOMAIN, 'A domain such as contoso.com')).max(SSO_LIMITS.stripDomains).optional(),
-  stableIdConfirmedUnique: z.boolean().optional(),
+  /** The stable id claims the administrator confirmed as unique per person (must equal stableIdClaims) */
+  stableIdConfirmedClaims: z.array(claimName.min(1)).max(SSO_LIMITS.stableIdClaims).optional(),
+  /** false: the administrator decided about the email_verified notice of a provider from before #77 */
+  emailVerificationNotice: z.boolean().optional(),
   displayNameTemplate: z.string().trim().max(SSO_LIMITS.template).optional(),
   firstNameClaim: claimName.optional(),
   lastNameClaim: claimName.optional(),
@@ -193,25 +196,24 @@ function requireIntactProvider(p: SsoProvider): void {
 /** `warnings`: only for administrators (they read the accounts – never for the sign-in page or a sign-in). */
 function toProvider(r: ProviderRow, warnings = false): SsoProvider {
   // settings a provider was saved without (it stays sealed as stored) are read with today's behaviour
-  const stored = parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig);
-  const c = withDefaults(stored);
+  const c = withDefaults(parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig));
   const p = { ...c, id: r.id, enabled: !!r.enabled, hasClientSecret: !!r.secret, createdAt: r.created_at, updatedAt: r.updated_at };
-  return { ...p, warnings: warnings ? providerWarnings(p, stored) : [] };
+  return { ...p, warnings: warnings ? providerWarnings(p) : [] };
 }
 
 /**
  * Providers saved before #77 whose sign-ins now need email_verified (the e-mail claim names or identifies accounts):
  * at a provider that never sends it, everyone is refused until an administrator decides (see the startup log).
  */
-function emailNowRequired(p: ProviderConfig, stored: Partial<ProviderConfig>): boolean {
-  return !Object.hasOwn(stored, 'emailVerifiedByProvider') && emailIdentifies(p);
+function emailNowRequired(p: ProviderConfig): boolean {
+  return p.emailVerificationNotice && emailIdentifies(p) && !p.emailVerifiedByProvider;
 }
 
 /** Startup: name the providers whose sign-ins need email_verified since this version. */
 export function warnEmailVerifiedProviders(): void {
   for (const r of db().all<ProviderRow>('SELECT * FROM identity_providers')) {
     const stored = parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig);
-    if (emailNowRequired(withDefaults(stored), stored)) {
+    if (emailNowRequired(withDefaults(stored))) {
       logger.warn(
         { provider: r.id, name: stored.displayName },
         'single sign-on: the e-mail claim names or identifies accounts of this provider – its sign-ins need email_verified=true now; if the provider never sends it but verifies every address, set "This provider verifies e-mail addresses" (docs/SSO.md#e-mail-confirmation)',
@@ -237,9 +239,9 @@ function usernameCollisions(id: string, how: ProviderConfig['usernameTransform']
     .slice(0, 10);
 }
 
-function providerWarnings(p: Omit<SsoProvider, 'warnings'>, stored: Partial<ProviderConfig>): SsoConfigWarning[] {
+function providerWarnings(p: Omit<SsoProvider, 'warnings'>): SsoConfigWarning[] {
   const out = ssoConfigWarnings(p);
-  if (emailNowRequired(p, stored)) out.push({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: p.emailClaim } });
+  if (emailNowRequired(p)) out.push({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: p.emailClaim } });
   const collisions = usernameCollisions(p.id, p.usernameTransform, p.stripDomains);
   if (collisions.length) out.push({ code: 'USERNAME_COLLISIONS', params: { names: collisions, count: collisions.length } });
   return out;
@@ -294,7 +296,8 @@ const CONFIG_KEYS: (keyof ProviderConfig)[] = [
   'emailClaim',
   'emailVerifiedByProvider',
   'stableIdClaims',
-  'stableIdConfirmedUnique',
+  'stableIdConfirmedClaims',
+  'emailVerificationNotice',
   'profileFields',
   'sync',
   'groupsClaim',
@@ -330,8 +333,14 @@ function configFrom(parsed: ParsedInput, before?: ProviderConfig): ProviderConfi
   if (c.usernameTransform === 'stripDomain' && !c.stripDomains.length) {
     throw new HttpError(400, 'Name the domains to strip from user names (e.g. contoso.com)', 'SSO_STRIP_DOMAINS_REQUIRED');
   }
-  // every person needs an identifier of their own: a claim many people share (tid, groups …) would give them one account
-  if (stableIdProblem(c.stableIdClaims, c.stableIdConfirmedUnique)) {
+  // the e-mail notice of a provider from before #77 stays until an administrator decides: turns on "verifies e-mail
+  // addresses", dismisses it (emailVerificationNotice: false) or changes the settings by which e-mail names accounts
+  const emailSettings = (x: ProviderConfig) => JSON.stringify([x.usernameClaim, x.emailClaim, [...x.stableIdClaims].sort()]);
+  c.emailVerificationNotice =
+    !!before?.emailVerificationNotice && parsed.emailVerificationNotice !== false && !c.emailVerifiedByProvider && emailSettings(before) === emailSettings(c);
+  // every person needs an identifier of their own: a claim many people share (tid, groups …) would give them one
+  // account; a confirmation counts only for exactly the claims it was given for
+  if (stableIdProblem(c.stableIdClaims, c.stableIdConfirmedClaims)) {
     throw new HttpError(
       400,
       `The stable identifier (${c.stableIdClaims.join(', ')}) must name one person: include sub or oid, or confirm that the claims are unique per person`,
@@ -731,13 +740,35 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     return d;
   };
 
-  if (stableIdProblem(p.stableIdClaims, p.stableIdConfirmedUnique)) {
+  if (stableIdProblem(p.stableIdClaims, p.stableIdConfirmedClaims)) {
     return refuse({
       code: 'SSO_STABLE_ID_NOT_UNIQUE',
       message: `The stable identifier of ${p.displayName} (${p.stableIdClaims.join(', ')}) does not name one person – an administrator has to fix it`,
       params: { claims: p.stableIdClaims },
     });
   }
+  // The user name only matters when it links an existing account by name or names a new one – an identity that is
+  // linked already signs in by its stable identifier, whatever its name at the provider is now (no lockout of accounts
+  // with names older versions accepted).
+  const usernameRefusal = (): Decision | undefined => {
+    if (transformed === null) {
+      return refuse({
+        code: 'SSO_USERNAME_DOMAIN',
+        message: `The user name "${usernameFrom.value}" is not of a domain this provider strips (${p.stripDomains.join(', ')})`,
+        params: { claim: usernameFrom.claim, domains: p.stripDomains },
+      });
+    }
+    // the same characters as local user names (plus "+"), after NFKC: no look-alikes that the database's case-insensitive
+    // comparison would match with another account, no invisible or bidi characters
+    if (!SSO_USERNAME.test(username)) {
+      return refuse({
+        code: 'SSO_USERNAME_INVALID',
+        message: `The user name from claim "${usernameFrom.claim}" is not usable: 2–${MAX_USERNAME} characters, letters, digits and . _ @ + - only`,
+        params: { claim: usernameFrom.claim, max: MAX_USERNAME },
+      });
+    }
+    return undefined;
+  };
   for (const rule of p.requiredClaims) {
     const v = claimAt(claims, rule.claim);
     const got = (Array.isArray(v) ? claimList(v) : [claimText(v, 500)]).filter((x): x is string => !!x).map((x) => x.toLowerCase());
@@ -750,22 +781,6 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
         },
       });
     }
-  }
-  if (transformed === null) {
-    return refuse({
-      code: 'SSO_USERNAME_DOMAIN',
-      message: `The user name "${usernameFrom.value}" is not of a domain this provider strips (${p.stripDomains.join(', ')})`,
-      params: { claim: usernameFrom.claim, domains: p.stripDomains },
-    });
-  }
-  // the same characters as local user names (plus "+"), after NFKC: no look-alikes that the database's case-insensitive
-  // comparison would match with another account, no invisible or bidi characters
-  if (!SSO_USERNAME.test(username)) {
-    return refuse({
-      code: 'SSO_USERNAME_INVALID',
-      message: `The user name from claim "${usernameFrom.claim}" is not usable: 2–${MAX_USERNAME} characters, letters, digits and . _ @ + - only`,
-      params: { claim: usernameFrom.claim, max: MAX_USERNAME },
-    });
   }
   if (verificationRequired && verified !== true) {
     return refuse({
@@ -824,6 +839,8 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
   }
 
   if (!account) {
+    const invalid = usernameRefusal();
+    if (invalid) return invalid;
     const existing = db().get<AccountRow>(`SELECT ${ACCOUNT_COLUMNS} FROM users WHERE username = ?`, username);
     if (existing) {
       const source = existing.auth_source ?? 'local';

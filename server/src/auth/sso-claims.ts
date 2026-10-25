@@ -1,4 +1,12 @@
-import { DEFAULT_SSO_SYNC, SSO_LIMITS, type SsoClaimEntry, type SsoClaimSettings, type SsoProvider, type SsoUsernameTransform } from '@sm/shared';
+import {
+  DEFAULT_SSO_SYNC,
+  emailIdentifies,
+  SSO_LIMITS,
+  type SsoClaimEntry,
+  type SsoClaimSettings,
+  type SsoProvider,
+  type SsoUsernameTransform,
+} from '@sm/shared';
 import { sha256 } from '../util.js';
 
 /**
@@ -71,6 +79,8 @@ export function transformUsername(raw: string, how: SsoUsernameTransform, stripD
     if (at < 0) return s.toLowerCase();
     const domain = s.slice(at + 1).toLowerCase();
     if (at === 0 || !stripDomains.some((d) => d.toLowerCase() === domain)) return null;
+    // boss@evil.example@contoso.example would become boss@evil.example: refused
+    if (s.slice(0, at).includes('@')) return null;
     return s.slice(0, at).toLowerCase();
   }
   return s.toLowerCase();
@@ -131,14 +141,16 @@ export function identityKeys(
   const issuer = String(claims.iss ?? '').replace(/\/+$/, '');
   const sub = String(claims.sub ?? '');
   const parts = stableIdClaims.map((name) => ({ name, value: identityValue(claimAt(claims, name)) }));
-  const build = (pairs: { name: string; value: string }[]) => {
-    const k = `${providerId}#iss=${enc(issuer)}${pairs.map((p) => `#${enc(p.name)}=${enc(p.value)}`).join('')}`;
+  // a number is marked ("==1"): it never gives the same link as the string "1" (an encoded value never starts with "=")
+  const numeric = new Set(stableIdClaims.filter((name) => typeof claimAt(claims, name) === 'number'));
+  const build = (pairs: { name: string; value: string; numeric?: boolean }[]) => {
+    const k = `${providerId}#iss=${enc(issuer)}${pairs.map((p) => `#${enc(p.name)}=${p.numeric ? '=' : ''}${enc(p.value)}`).join('')}`;
     // a long one is hashed, with the claim names kept readable (keyClaimNames)
     return k.length > MAX_KEY ? `${providerId}#h#${enc(pairs.map((p) => p.name).join(','))}#${sha256(k)}` : k;
   };
   const complete = parts.every((p) => p.value !== null);
   return {
-    key: complete ? build(parts as { name: string; value: string }[]) : undefined,
+    key: complete ? build((parts as { name: string; value: string }[]).map((p) => ({ ...p, numeric: numeric.has(p.name) }))) : undefined,
     subKey: build([{ name: 'sub', value: sub }]),
     legacyKey: `${providerId}:${sub}`,
     issuer,
@@ -217,7 +229,16 @@ export function withDefaults(c: Partial<ProviderConfig> & Pick<ProviderConfig, '
     groupValues: c.groupValues ?? 'names',
     linkExisting: c.linkExisting ?? 'byName',
     stripDomains: c.stripDomains ?? [],
-    stableIdConfirmedUnique: c.stableIdConfirmedUnique ?? false,
+    stableIdConfirmedClaims: c.stableIdConfirmedClaims ?? [],
+    // saved before #77 with the e-mail claim naming or identifying accounts: shown until an administrator decides
+    emailVerificationNotice:
+      c.emailVerificationNotice ??
+      (!Object.hasOwn(c, 'emailVerifiedByProvider') &&
+        emailIdentifies({
+          usernameClaim: c.usernameClaim ?? 'preferred_username',
+          emailClaim: c.emailClaim ?? 'email',
+          stableIdClaims: c.stableIdClaims?.length ? c.stableIdClaims : ['sub'],
+        })),
     emailVerifiedByProvider: c.emailVerifiedByProvider ?? false,
     useUserinfo: c.useUserinfo ?? false,
     requiredClaims: c.requiredClaims ?? [],

@@ -77,7 +77,8 @@ export type SsoClaimSettings = Pick<
   | 'stableIdClaims'
   | 'usernameTransform'
   | 'stripDomains'
-  | 'stableIdConfirmedUnique'
+  | 'stableIdConfirmedClaims'
+  | 'emailVerificationNotice'
   | 'displayNameTemplate'
   | 'firstNameClaim'
   | 'lastNameClaim'
@@ -117,7 +118,8 @@ const base = {
   usernameTransform: 'lowercase' as const,
   stripDomains: [] as string[],
   stableIdClaims: ['sub'],
-  stableIdConfirmedUnique: false,
+  stableIdConfirmedClaims: [] as string[],
+  emailVerificationNotice: false,
   profileFields: [] as SsoProfileField[],
   sync: { ...DEFAULT_SSO_SYNC },
   groupValues: 'names' as const,
@@ -273,15 +275,26 @@ export const SSO_NON_UNIQUE_CLAIMS = new Set([
 /** A domain to strip from user names (lower case, e.g. contoso.com). */
 export const SSO_DOMAIN = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
+const NON_UNIQUE_LOWER = new Set([...SSO_NON_UNIQUE_CLAIMS].map((c) => c.toLowerCase()));
+
+/** A claim many people share: its name, or the first or last segment of a nested path (realm_access.roles), ignoring case. */
+export function isSharedClaim(claim: string): boolean {
+  const parts = claim.toLowerCase().split('.');
+  return NON_UNIQUE_LOWER.has(claim.toLowerCase()) || NON_UNIQUE_LOWER.has(parts[0]!) || NON_UNIQUE_LOWER.has(parts[parts.length - 1]!);
+}
+
+const sameClaims = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((x) => b.includes(x)) && b.every((x) => a.includes(x));
+
 /**
- * Why these stable id claims cannot identify one person, or null. They must include a subject claim (sub, oid) or a
- * claim the administrator confirmed as unique per person; claims many people share never count.
+ * Why these stable id claims cannot identify one person, or null. They must include a subject claim (sub, oid) – or
+ * the administrator confirmed exactly these claims as unique per person (`confirmed`; a confirmation of other claims
+ * does not carry over) and at least one of them is not a claim many people share.
  */
-export function stableIdProblem(claims: readonly string[], confirmedUnique: boolean): 'NONE' | 'NOT_UNIQUE' | null {
+export function stableIdProblem(claims: readonly string[], confirmed: readonly string[]): 'NONE' | 'NOT_UNIQUE' | null {
   if (!claims.length) return 'NONE';
   if (claims.some((c) => (SSO_SUBJECT_CLAIMS as readonly string[]).includes(c))) return null;
-  const custom = claims.filter((c) => !SSO_NON_UNIQUE_CLAIMS.has(c));
-  return custom.length && confirmedUnique ? null : 'NOT_UNIQUE';
+  const custom = claims.filter((c) => !isSharedClaim(c));
+  return custom.length && sameClaims(claims, confirmed) ? null : 'NOT_UNIQUE';
 }
 
 // ---------- warnings about a configuration ----------

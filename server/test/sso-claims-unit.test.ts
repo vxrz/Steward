@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ssoConfigWarnings, stableIdProblem, SSO_PRESET_INFO, SSO_PRESETS } from '@sm/shared';
+import { isSharedClaim, ssoConfigWarnings, stableIdProblem, SSO_PRESET_INFO, SSO_PRESETS } from '@sm/shared';
 import {
   claimAt,
   claimList,
@@ -46,7 +46,9 @@ describe('claims', () => {
     expect(transformUsername('boss@evil.example', 'stripDomain', ['contoso.com'])).toBeNull();
     expect(transformUsername('Max@Contoso.com', 'stripDomain')).toBeNull();
     expect(transformUsername('@contoso.com', 'stripDomain', ['contoso.com'])).toBeNull();
-    expect(transformUsername('a@b@c.com', 'stripDomain', ['c.com'])).toBe('a@b');
+    // a name that still has a domain after stripping one (boss@evil.example@contoso.example) is refused
+    expect(transformUsername('a@b@c.com', 'stripDomain', ['c.com'])).toBeNull();
+    expect(transformUsername('boss@evil.example@contoso.example', 'stripDomain', ['contoso.example'])).toBeNull();
     expect(transformUsername('max', 'stripDomain', ['c.com'])).toBe('max');
     // NFKC first: look-alikes become the letters they stand for
     expect(transformUsername('\u212Aate', 'lowercase')).toBe('kate');
@@ -87,7 +89,10 @@ describe('claims', () => {
     const keyOf = (oid: unknown) => identityKeys('idp_1', { iss: 'x', sub: 's', oid }, ['oid']).key;
     expect(keyOf(' v ')).not.toBe(keyOf('v'));
     for (const bad of [['v'], ['a', 'b'], { v: 1 }, '', true, null, 'x'.repeat(257), Number.NaN]) expect(keyOf(bad)).toBeUndefined();
-    expect(keyOf(42)).toBe('idp_1#iss=x#oid=42');
+    // a number never gives the link of the same digits as a string
+    expect(keyOf(42)).toBe('idp_1#iss=x#oid==42');
+    expect(keyOf('42')).toBe('idp_1#iss=x#oid=42');
+    expect(keyClaimNames(keyOf(42)!, 'idp_1')).toEqual(['oid']);
     expect(keyOf('x'.repeat(256))).toBeDefined();
     expect(keyClaimNames('idp_1#moved=abc', 'idp_1')).toBe('moved');
     expect(keyClaimNames('idp_1#retired=abc', 'idp_1')).toBeNull();
@@ -113,14 +118,28 @@ describe('claims', () => {
 
 describe('stable identifier claims', () => {
   it('must name one person', () => {
-    expect(stableIdProblem(['sub'], false)).toBeNull();
-    expect(stableIdProblem(['tid', 'oid'], false)).toBeNull();
-    expect(stableIdProblem(['tid'], false)).toBe('NOT_UNIQUE');
-    expect(stableIdProblem(['tid'], true)).toBe('NOT_UNIQUE');
-    expect(stableIdProblem(['groups', 'roles', 'hd'], true)).toBe('NOT_UNIQUE');
-    expect(stableIdProblem(['employeeId'], false)).toBe('NOT_UNIQUE');
-    expect(stableIdProblem(['employeeId'], true)).toBeNull();
-    expect(stableIdProblem([], true)).toBe('NONE');
+    expect(stableIdProblem(['sub'], [])).toBeNull();
+    expect(stableIdProblem(['tid', 'oid'], [])).toBeNull();
+    expect(stableIdProblem(['tid'], [])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['tid'], ['tid'])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['groups', 'roles', 'hd'], ['groups', 'roles', 'hd'])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['employeeId'], [])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['employeeId'], ['employeeId'])).toBeNull();
+    expect(stableIdProblem([], ['x'])).toBe('NONE');
+  });
+
+  it('holds a confirmation only for exactly the claims it was given for', () => {
+    expect(stableIdProblem(['costCenter'], ['employeeId'])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['employeeId', 'costCenter'], ['employeeId'])).toBe('NOT_UNIQUE');
+    expect(stableIdProblem(['costCenter', 'employeeId'], ['employeeId', 'costCenter'])).toBeNull();
+  });
+
+  it('knows shared claims also nested and in other case', () => {
+    for (const c of ['TID', 'Groups', 'realm_access.roles', 'resource_access.app.roles', 'extension.tid', 'Address.Country']) {
+      expect(isSharedClaim(c), c).toBe(true);
+      expect(stableIdProblem([c], [c]), c).toBe('NOT_UNIQUE');
+    }
+    expect(isSharedClaim('extension.employeeId')).toBe(false);
   });
 });
 

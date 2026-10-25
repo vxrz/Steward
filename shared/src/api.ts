@@ -109,8 +109,13 @@ export interface SsoProvider {
   usernameTransform: SsoUsernameTransform;
   /** With usernameTransform "stripDomain": the only domains removed; a user name of any other domain is refused */
   stripDomains: string[];
-  /** The stable id claims hold no subject claim (sub, oid): the administrator confirmed they are unique per person */
-  stableIdConfirmedUnique: boolean;
+  /**
+   * The stable id claims hold no subject claim (sub, oid): the claims the administrator confirmed as unique per person.
+   * The confirmation holds only while it lists exactly the configured claims.
+   */
+  stableIdConfirmedClaims: string[];
+  /** Saved before #77 with the e-mail claim naming accounts: sign-ins need email_verified now – shown until decided */
+  emailVerificationNotice: boolean;
   /** Display name from claims, e.g. "{given_name} {family_name}"; empty: the display name claim */
   displayNameTemplate: string;
   firstNameClaim: string;
@@ -142,7 +147,8 @@ type SsoProviderLaterFields =
   | 'stableIdClaims'
   | 'usernameTransform'
   | 'stripDomains'
-  | 'stableIdConfirmedUnique'
+  | 'stableIdConfirmedClaims'
+  | 'emailVerificationNotice'
   | 'displayNameTemplate'
   | 'firstNameClaim'
   | 'lastNameClaim'
