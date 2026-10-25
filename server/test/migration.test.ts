@@ -191,6 +191,29 @@ describe('export (source)', () => {
       n === 'manifest.json' ? Buffer.from(d.toString().replace('"productVersion": "', '"productVersion": "9')) : d,
     );
     await expect(readPackage(forged, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_SIGNATURE_INVALID' });
+    // the signature covers the purpose line too: a valid signature of the bare manifest (any other use of the key) is refused
+    const { MANIFEST_SIGNATURE_PURPOSE, manifestSigningInput } = await import('../src/migration/format.js');
+    const { publicKeyFingerprint } = await import('../src/vault.js');
+    const k = crypto.generateKeyPairSync('ed25519');
+    const pem = k.publicKey.export({ type: 'spki', format: 'pem' }).toString();
+    let rekeyed = Buffer.alloc(0);
+    const resign = (name: string, sign: (m: Buffer) => Buffer) =>
+      repack(name, (n, d) => {
+        if (n === 'manifest.json') {
+          const m = JSON.parse(d.toString());
+          m.source.publicKey = pem;
+          m.source.fingerprint = publicKeyFingerprint(pem);
+          return (rekeyed = Buffer.from(JSON.stringify(m, null, 1)));
+        }
+        if (n === 'signature.json')
+          return Buffer.from(JSON.stringify({ alg: 'ed25519', publicKey: pem, signature: crypto.sign(null, sign(rekeyed), k.privateKey).toString('base64') }));
+        return d;
+      });
+    await expect(readPackage(await resign('bare', (m) => m), TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_SIGNATURE_INVALID' });
+    const prefixed = await readPackage(await resign('prefixed', manifestSigningInput), TRANSFER).catch((e: { code?: string }) => e);
+    expect(prefixed).not.toMatchObject({ code: 'MIGRATION_SIGNATURE_INVALID' });
+    if ('close' in prefixed) prefixed.close();
+    expect(manifestSigningInput(Buffer.from('{}')).toString()).toBe(`${MANIFEST_SIGNATURE_PURPOSE}\n{}`);
     const smuggled = await repack('smuggled', (_n, d) => d, ['files/docs/extra.txt', Buffer.from('not listed')]);
     await expect(readPackage(smuggled, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_PACKAGE_INVALID' });
     const changed = await repack('changed', (n, d) => (n.startsWith('files/records/') ? Buffer.concat([d, Buffer.from(' ')]) : d));

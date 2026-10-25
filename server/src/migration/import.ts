@@ -38,7 +38,17 @@ import { hashPassword, temporaryPassword } from '../auth/passwords.js';
 import { NO_PASSWORD } from '../auth/users.js';
 import { invalidateAliases } from '../auth/aliases.js';
 import { invalidateVerifiedImports } from './history.js';
-import { openPackage, sha256File, workDir, PACKAGE_FORMAT, PACKAGE_VERSION, type Manifest, type PackageTeam, type PackageUser } from './format.js';
+import {
+  manifestSigningInput,
+  openPackage,
+  sha256File,
+  workDir,
+  PACKAGE_FORMAT,
+  PACKAGE_VERSION,
+  type Manifest,
+  type PackageTeam,
+  type PackageUser,
+} from './format.js';
 import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS, type RefKind } from './tables.js';
 import { DATA_PREFIX } from './export.js';
 
@@ -194,7 +204,7 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
     if (
       sig.alg !== 'ed25519' ||
       sig.publicKey !== manifest.source.publicKey ||
-      !verifySignature(manifest.source.publicKey, manifestBytes, String(sig.signature ?? ''))
+      !verifySignature(manifest.source.publicKey, manifestSigningInput(manifestBytes), String(sig.signature ?? ''))
     ) {
       throw new HttpError(400, 'The package signature is invalid – it was changed after the export', 'MIGRATION_SIGNATURE_INVALID');
     }

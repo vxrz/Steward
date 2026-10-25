@@ -91,9 +91,15 @@ export interface Manifest {
 export interface Signature {
   alg: 'ed25519';
   publicKey: string;
-  /** base64 signature over the exact bytes of manifest.json */
+  /** base64 signature over manifestSigningInput(<the exact bytes of manifest.json>) */
   signature: string;
 }
+
+/** Domain separation: the instance key signs other things too (audit checkpoints, emergency grants). */
+export const MANIFEST_SIGNATURE_PURPOSE = 'steward-migration-manifest-v1';
+
+/** What the source's key signs: the purpose line, then the exact bytes of manifest.json. */
+export const manifestSigningInput = (manifestBytes: Buffer): Buffer => Buffer.concat([Buffer.from(`${MANIFEST_SIGNATURE_PURPOSE}\n`, 'utf8'), manifestBytes]);
 
 const scryptAsync = promisify(crypto.scrypt) as (pw: string, salt: Buffer, len: number, o: crypto.ScryptOptions) => Promise<Buffer>;
 

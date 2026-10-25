@@ -17,6 +17,7 @@ import { currentActor } from '../auth/context.js';
 import {
   PACKAGE_FORMAT,
   PACKAGE_VERSION,
+  manifestSigningInput,
   newPackageKeys,
   sealPackage,
   sha256File,
@@ -268,7 +269,11 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
     };
     const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 1), 'utf8');
     await zip.add('manifest.json', manifestBytes, { compress: true });
-    await zip.add('signature.json', Buffer.from(JSON.stringify({ alg: 'ed25519', publicKey: pub, signature: vault().sign(manifestBytes) })), {});
+    await zip.add(
+      'signature.json',
+      Buffer.from(JSON.stringify({ alg: 'ed25519', publicKey: pub, signature: vault().sign(manifestSigningInput(manifestBytes)) })),
+      {},
+    );
     await zip.finish();
     await sealPackage(zipFile, opts.out, opts.transferPassphrase, keys);
     const size = fs.statSync(opts.out).size;
