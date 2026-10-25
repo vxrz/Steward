@@ -231,7 +231,7 @@
       "filePlaceholder": "Datei auswählen",
       "check": "Paket prüfen",
       "fingerprintLabel": "Fingerabdruck des Signaturschlüssels der Quelle",
-      "fingerprintHint": "Auf der Quelle ablesen, nicht hier: Die Quelle hat ihn beim Export des Pakets angezeigt (auch unter Audit-Log → Verankerung außerhalb der Datenbank → Fingerabdruck des Signaturschlüssels). Mindestens die ersten {{min}} Zeichen eingeben; die Doppelpunkte sind optional.",
+      "fingerprintHint": "Auf der Quelle ablesen, nicht hier: Die Quelle hat ihn beim Export des Pakets angezeigt (auch unter Audit-Log → Verankerung außerhalb der Datenbank → Fingerabdruck des Signaturschlüssels). Alle {{min}} Zeichen eingeben; die Doppelpunkte sind optional.",
       "submit": "Importieren",
       "discard": "Verwerfen",
       "problems": "Der Import wurde abgelehnt",

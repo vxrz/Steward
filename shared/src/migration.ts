@@ -52,8 +52,8 @@ export interface MigrationPlanTeam {
 }
 
 /** The dry run of an import: what comes in, what is refused and how identities could be mapped. */
-/** Hex digits of the source key's fingerprint the importer must enter at least (64 bits: no other key matches by chance or effort). */
-export const MIGRATION_FINGERPRINT_MIN_CHARS = 16;
+/** Hex digits of the source key's fingerprint the importer must enter: all of them (128 bits, out of reach of a key made to match). */
+export const MIGRATION_FINGERPRINT_MIN_CHARS = 32;
 
 /** The fingerprint as entered or shown, without separators: lower-case hex digits. */
 export const normalizeFingerprint = (s: string): string => s.replace(/[\s:]/g, '').toLowerCase();
@@ -65,7 +65,7 @@ export interface MigrationPlan {
   packageSha256: string;
   sizeBytes: number;
   /**
-   * No fingerprint here on purpose: the importer enters it as shown on the source (at least
+   * No fingerprint here on purpose: the importer enters it as shown on the source (all
    * MIGRATION_FINGERPRINT_MIN_CHARS hex digits) instead of confirming a value the target displays.
    */
   source: { version: string; exportedAt: string; exportedBy: string; database: 'sqlite' | 'postgres' };

@@ -179,7 +179,8 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
         action: 'instance.import_checked',
         entityType: 'instance',
         entityId: pkg.manifest.packageId,
-        summary: `Migration package ${pkg.manifest.packageId} from ${pkg.manifest.source.fingerprint} uploaded and checked (dry run)`,
+        // no fingerprint here: the importer reads it on the source, not in this log
+        summary: `Migration package ${pkg.manifest.packageId} uploaded and checked (dry run)`,
         details: { packageSha256: pkg.sha256, history: pkg.history.ok },
       });
       return { ...buildPlan(pkg), id };

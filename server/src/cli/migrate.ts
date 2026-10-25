@@ -29,7 +29,7 @@ Commands:
              --mapping-template writes the suggestions as a mapping file to edit.
   import     Import a package with a complete identity mapping (every user and team of the
              package). --fingerprint is the source key's fingerprint as the source shows it
-             (export output, or Audit log → Anchoring): at least its first 16 characters.
+             (export output, or Audit log → Anchoring): all 32 characters.
 
 Options:
   --out <file>                    With export: the package to write (must not exist)
@@ -179,7 +179,7 @@ async function execute(sub: 'export' | 'inspect' | 'import', file: string | unde
       `Migration package written: ${target}\n` +
         `  ${r.rows} rows in ${r.tables} tables, ${r.files} files, ${r.auditEntries} audit entries, ${(r.size / 1024 / 1024).toFixed(1)} MB\n` +
         `  SHA-256:      ${r.sha256}\n` +
-        `  Fingerprint:  ${r.fingerprint}   (enter it on the target to confirm the package – at least its first 16 characters)\n` +
+        `  Fingerprint:  ${r.fingerprint}   (enter it on the target to confirm the package – all 32 characters)\n` +
         (r.undecryptable ? `  Warning: ${r.undecryptable} credential(s) could not be decrypted here and are moved empty.\n` : '') +
         `Recorded in the audit log as ${actor()}. Keep the transfer passphrase apart from the file.\n`,
     );

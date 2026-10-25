@@ -231,7 +231,7 @@
       "filePlaceholder": "Choose a file",
       "check": "Check package",
       "fingerprintLabel": "Fingerprint of the source's signing key",
-      "fingerprintHint": "Read it on the source, not here: the source showed it when it exported the package (also under Audit log → Anchoring outside the database → Signing key fingerprint). Enter at least its first {{min}} characters; the colons are optional.",
+      "fingerprintHint": "Read it on the source, not here: the source showed it when it exported the package (also under Audit log → Anchoring outside the database → Signing key fingerprint). Enter all {{min}} characters; the colons are optional.",
       "submit": "Import",
       "discard": "Discard",
       "problems": "The import was refused",

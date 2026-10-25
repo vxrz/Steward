@@ -418,14 +418,14 @@ describe('import into SQLite through the web API', () => {
       confirmFingerprint: source.fingerprint,
     });
     expect(shadow.body).toContain('is the name of an account here');
-    const fp = await apply({ mapping: { users, teams }, confirmFingerprint: '0000:1111:2222:3333' });
+    const fp = await apply({ mapping: { users, teams }, confirmFingerprint: '0000:1111:2222:3333:4444:5555:6666:7777' });
     expect(fp.body).toContain('MIGRATION_FINGERPRINT_MISMATCH');
-    // at least 16 hex digits from the start, read on the source
+    // all 32 hex digits, read on the source
     const digits = source.fingerprint.replace(/:/g, '');
-    const short = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 15) });
+    const short = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 31) });
     expect(short.body).toContain('MIGRATION_FINGERPRINT_SHORT');
-    const last = digits[15] === '0' ? '1' : '0';
-    const off = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 15) + last });
+    const last = digits[31] === '0' ? '1' : '0';
+    const off = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 31) + last });
     expect(off.body).toContain('MIGRATION_FINGERPRINT_MISMATCH');
     // still staged after refused attempts
     expect((await max('GET', `/migration/imports/staged/${plan.id}`)).packageId).toBe(plan.packageId);
@@ -438,8 +438,8 @@ describe('import into SQLite through the web API', () => {
     users.olivia = { action: 'create-local' };
     users.adam = { action: 'archive' };
     const teams = Object.fromEntries(plan.teams.map((t: any) => [t.name, { action: 'create' }]));
-    // the first four groups as typed, in capitals: enough
-    const typed = source.fingerprint.split(':').slice(0, 4).join(' : ').toUpperCase();
+    // as typed, with spaces and in capitals
+    const typed = source.fingerprint.split(':').join(' : ').toUpperCase();
     const r = await max('POST', `/migration/imports/staged/${plan.id}/apply`, { mapping: { users, teams }, confirmFingerprint: typed });
     importId = r.importId;
     expect(r.historyEntries).toBe(source.auditEntries);
@@ -579,7 +579,7 @@ describe.skipIf(!PG_TEST_URL)('import into PostgreSQL on the command line', () =
         '--mapping',
         template,
         '--fingerprint',
-        source.fingerprint.slice(0, 19), // the first four groups
+        source.fingerprint.toUpperCase(), // case does not matter
         '--transfer-passphrase-file',
         passFile,
         '--passphrase-stdin',

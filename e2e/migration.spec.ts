@@ -105,9 +105,9 @@ test.describe('migration: export and import with the identity mapping (own serve
     const importButton = page.getByRole('button', { name: 'Import', exact: true });
     await expect(importButton).toBeDisabled();
     const fp = page.getByLabel("Fingerprint of the source's signing key");
-    await fp.fill(fingerprint.slice(0, 14)); // fewer than 16 digits
+    await fp.fill(fingerprint.slice(0, 38)); // 31 of the 32 digits
     await expect(importButton).toBeDisabled();
-    await fp.fill(fingerprint.slice(0, 19)); // the first four groups
+    await fp.fill(fingerprint.replace(/:/g, '')); // the colons are optional
     await importButton.click();
     await expect(page.getByTestId('import-result')).toContainText('Imported');
 
