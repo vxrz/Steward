@@ -5,10 +5,10 @@ services:
     # Signed release image (verify: docs/SECURITY-HARDENING.md#verifying-downloads).
     # With Chromium for browser steps: ghcr.io/vxrz/steward:0.1.2-browser
     image: ghcr.io/vxrz/steward:0.1.2
-    # Or build it from this checkout instead: replace the image line with these two
-    # (update with "git pull && docker compose build --pull && docker compose up -d")
-    # build: .
-    # image: steward:local
+    # Compose pulls the image above; only if the registry doesn't have it (a version before the first
+    # published image, or no access to ghcr.io) does it build it from this checkout instead.
+    # To always build locally: "docker compose build --pull && docker compose up -d".
+    build: .
     restart: unless-stopped
     ports:
       - "127.0.0.1:4310:4310" # remove "127.0.0.1:" to expose on the network (then also set SM_ALLOWED_HOSTS and TLS)

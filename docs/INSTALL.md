@@ -93,7 +93,7 @@ cosign verify ghcr.io/vxrz/steward:0.2.1 \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-To build the image yourself instead (e.g. with your own changes), replace the `image:` line in the compose file with `build: .` and `image: steward:local`, or:
+If the registry doesn't have the pinned version (a checkout from before the first published image, or no access to ghcr.io), `docker compose up` builds it from the checkout instead – such a local build carries no signature, so run `docker compose pull` first when you want the signed image (it fails if there is none). To always build yourself (e.g. with your own changes), run `docker compose build --pull && docker compose up -d`, or:
 
 ```bash
 docker build -t steward .                              # the default image
