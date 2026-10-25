@@ -168,3 +168,36 @@ describe('content of a migration package that is served back', () => {
     ).toBeUndefined();
   });
 });
+
+describe('unfinished runs in a migration package', () => {
+  it('are cancelled, so the start-up recovery never resumes them', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-mr-'));
+    try {
+      const { Db } = await import('../src/db.js');
+      const { cancelUnfinishedRuns } = await import('../src/migration/import.js');
+      const d = new Db({ kind: 'sqlite', file: path.join(dir, 'staging.db') });
+      try {
+        const run = (id: string, status: string) =>
+          d.run(
+            `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, trigger, actor, inputs, bindings, started_at)
+             VALUES (?, 'p', 'P', 1, 'h', ?, 'manual', 'dana', '{}', '{}', 'now')`,
+            id,
+            status,
+          );
+        for (const st of ['running', 'queued', 'waiting', 'succeeded', 'interrupted']) run(`r_${st}`, st);
+        d.run(
+          `INSERT INTO run_tasks (id, run_id, step_key, mode, title, columns, items, status, created_at) VALUES ('t', 'r_waiting', 'k', 'approve', 'T', '[]', '[]', 'open', 'now')`,
+        );
+        expect(cancelUnfinishedRuns(d)).toBe(3);
+        // exactly what engine/runner.ts recoverRuns would pick up
+        expect(d.all("SELECT id FROM runs WHERE status IN ('running', 'queued', 'waiting')")).toEqual([]);
+        expect(d.get<{ status: string }>("SELECT status FROM run_tasks WHERE id = 't'")!.status).toBe('cancelled');
+        expect(d.get<{ status: string }>("SELECT status FROM runs WHERE id = 'r_succeeded'")!.status).toBe('succeeded');
+      } finally {
+        d.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

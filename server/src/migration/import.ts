@@ -396,6 +396,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
   const unsealed = Object.values(m.platformIntegrity).filter((s) => s !== 'ok').length;
   if (unsealed)
     warnings.push(`${unsealed} platform(s) had settings changed outside ${BRAND.name} on the source – an administrator reviews them after the import.`);
+  warnings.push('Runs that are still running or waiting for a decision on the source are imported cancelled – start them again here if they are still needed.');
   const settingsKeys = m.settings.keys;
   return {
     packageId: m.packageId,
@@ -705,8 +706,28 @@ export function fixStoredPaths(staging: Db, dataDir: string): void {
     for (const r of staging.all<{ path: string | null }>('SELECT path FROM reports WHERE path IS NOT NULL')) inside('reports', r.path, 'reports');
 }
 
-function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataDir: string): void {
+/** Shown with the paused automation: unfinished runs arrive cancelled. */
+export const UNFINISHED_RUNS_LABEL = 'unfinished runs (cancelled – start them again here)';
+const UNFINISHED_NOTE = 'Imported from another instance before it finished – it is not resumed here; start it again if it is still needed.';
+
+/**
+ * Runs that were running, queued or waiting for a decision on the source are cancelled (with a note): they would
+ * otherwise be resumed at the next start (engine/runner.ts recoverRuns) and carry on with the moved credentials,
+ * without anyone here having decided to run them. Their open decisions are cancelled too. Returns their number.
+ */
+export function cancelUnfinishedRuns(staging: Db): number {
+  const ids = staging.all<{ id: string }>("SELECT id FROM runs WHERE status IN ('running', 'queued', 'waiting')").map((r) => r.id);
+  const ts = nowIso();
+  for (const id of ids) {
+    staging.run("UPDATE run_tasks SET status = 'cancelled', decided_by = 'system', decided_at = ? WHERE run_id = ? AND status = 'open'", ts, id);
+    staging.run("UPDATE runs SET status = 'cancelled', finished_at = ?, error = ? WHERE id = ?", ts, UNFINISHED_NOTE, id);
+  }
+  return ids.length;
+}
+
+function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataDir: string): number {
   const have = new Set(tables(staging));
+  let unfinished = 0;
   staging.tx(() => {
     // who owns something / who may do something now
     for (const ref of USER_REFS) {
@@ -728,9 +749,11 @@ function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataD
     }
     // automation starts paused: an administrator reviews it on this instance first
     for (const p of PAUSED_ON_IMPORT) if (have.has(p.table)) staging.run(`UPDATE ${quoteIdent(p.table)} SET ${quoteIdent(p.column)} = 0`);
+    unfinished = cancelUnfinishedRuns(staging);
     fixStoredPaths(staging, dataDir);
   });
   reencrypt(staging, pkg.secrets);
+  return unfinished;
 }
 
 // ---------- files ----------
@@ -792,13 +815,13 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
   const staging = await buildStaging(pkg, stagingFile);
   let files: string[] = [];
   try {
-    transformStaging(staging, pkg, maps, dataDir);
+    const unfinished = transformStaging(staging, pkg, maps, dataDir);
     files = (await writeFiles(pkg, dataDir)).written;
     checkStoredContent(staging, dataDir);
     const settings = checkedSettings(parseJson<Record<string, unknown>>((await readEntry(pkg.reader, 'settings.json')).toString('utf8'), {}), dataDir);
     const entries: AuditEntry[] = [];
     for await (const l of lines(pkg.reader, pkg.reader.find('audit.jsonl')!)) entries.push(JSON.parse(l) as AuditEntry);
-    const result = copyIntoTarget(staging, pkg, resolved, settings, entries, opts);
+    const result = copyIntoTarget(staging, pkg, resolved, settings, entries, opts, unfinished);
     invalidateAliases();
     invalidateVerifiedImports();
     return { ...result, files: files.length };
@@ -893,6 +916,7 @@ function copyIntoTarget(
   settings: Record<string, unknown>,
   history: AuditEntry[],
   opts: ApplyOptions,
+  unfinished: number,
 ): Omit<ImportResult, 'files'> {
   const m = pkg.manifest;
   const d = db();
@@ -1054,7 +1078,10 @@ function copyIntoTarget(
     const mappingJson = canonicalJson(rows);
     const mappingSha = sha256(mappingJson);
     d.run('UPDATE instance_imports SET mapping = ?, mapping_sha256 = ?, counts = ? WHERE id = ?', mappingJson, mappingSha, JSON.stringify(counts), importId);
-    const pausedNow = PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })).filter((p) => p.count > 0);
+    const pausedNow = [
+      ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
+      { label: UNFINISHED_RUNS_LABEL, count: unfinished },
+    ].filter((p) => p.count > 0);
     audit({
       ...(opts.actor ? { actor: opts.actor } : {}),
       action: 'instance.imported',
@@ -1075,6 +1102,9 @@ function copyIntoTarget(
       },
     });
   });
-  const paused = PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })).filter((p) => p.count > 0);
+  const paused = [
+    ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
+    { label: UNFINISHED_RUNS_LABEL, count: unfinished },
+  ].filter((p) => p.count > 0);
   return { importId, counts, historyEntries: history.length, temporaryPasswords, paused };
 }

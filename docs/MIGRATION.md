@@ -28,6 +28,8 @@ Does not move (the dry run lists it):
 
 Automation is imported **paused**, so the laptop and the server never run the same schedule twice: schedules, webhook triggers, monitors, heartbeat gateways, report schedules, access checks and Gatus sources. Turn them on after a check. Webhook URLs change with the server's address: update the callers (and rotate the webhook secrets if the laptop was shared).
 
+Runs that are still running, queued or waiting for a decision on the source arrive **cancelled**, with a note (and their open decisions cancelled): Steward would otherwise resume them at its next start and carry on with the moved credentials, without anyone on the target deciding to. Start them again on the target if they are still needed. The dry run says so, and the result lists how many there were.
+
 ## The identity mapping
 
 Every user of the source becomes one of:

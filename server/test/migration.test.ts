@@ -39,6 +39,7 @@ const source = {
   processOwner: { id: '', owner: '' },
   recordId: '',
   runId: '',
+  waitingRunId: '',
 };
 
 async function rawExport(body: unknown, cookie = adminCookie): Promise<Response> {
@@ -105,6 +106,11 @@ beforeAll(async () => {
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
   source.fingerprint = (await s.api('GET', '/audit/anchoring')).fingerprint;
   source.runId = (await s.api('GET', '/runs?status=succeeded&limit=1'))[0].id;
+  // a run that waits for a decision: it must not carry on by itself on the target
+  const hub = (await s.api('GET', '/platforms')).find((x: { kind: string }) => x.kind === 'insights-hub').id;
+  const waiting = await s.waitRun((await s.api('POST', '/runs', { processId: 'ih-access-review-1-flag', bindings: { hub } })).id, ['waiting', 'failed']);
+  expect(waiting.status).toBe('waiting');
+  source.waitingRunId = waiting.id;
 }, 180_000);
 
 afterAll(async () => {
@@ -406,8 +412,12 @@ describe('import into SQLite through the web API', () => {
     expect(byName('olivia')).toMatchObject({ active: true, mustChangePassword: true });
     expect(byName('adam')).toMatchObject({ active: false, roles: [] });
     expect(byName('max@contoso.example').roles).toEqual(['admin']);
-    // automation starts paused
+    // automation starts paused; unfinished runs arrive cancelled (and are listed with it)
     expect((await max('GET', '/schedules')).every((x: any) => !x.enabled)).toBe(true);
+    const waitingRun = await max('GET', `/runs/${source.waitingRunId}`);
+    expect(waitingRun.status).toBe('cancelled');
+    expect(waitingRun.error).toContain('not resumed here');
+    expect(r.paused.map((p: any) => p.label)).toEqual(expect.arrayContaining([expect.stringMatching(/^unfinished runs/)]));
     // the audit chain of this instance, and the import entry
     const verify = await max('GET', '/audit/verify');
     expect(verify.ok, JSON.stringify(verify)).toBe(true);
@@ -447,6 +457,17 @@ describe('import into SQLite through the web API', () => {
     expect(secrets.size).toBe(source.secrets.size);
     for (const [id, v] of source.secrets) expect(secrets.get(id)).toEqual(v);
     child = await startChild({ SM_DATA_DIR: dataDir, SM_MASTER_PASSPHRASE: TARGET_PASS });
+  });
+
+  it('does not resume imported runs after a restart', async () => {
+    // the vault unlocks from SM_MASTER_PASSPHRASE after the start (recoverRuns runs then)
+    for (let i = 0; i < 100 && (await fetch(`${child.base}/api/ready`)).status !== 200; i++) await new Promise((r) => setTimeout(r, 200));
+    const admin = client(child.base); // a new port after the restart
+    await admin('POST', '/auth/login', { username: 'admin', password: 'Target-admin-pw-1' });
+    const run = await admin('GET', `/runs/${source.waitingRunId}`);
+    expect(run.status).toBe('cancelled');
+    const entries = await admin('GET', `/audit?runId=${source.waitingRunId}&limit=50`);
+    expect(entries.filter((e: any) => /run\.(resumed|interrupted)/.test(e.action))).toEqual([]);
   });
 });
 
