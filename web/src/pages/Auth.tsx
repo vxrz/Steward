@@ -19,6 +19,7 @@ import {
 } from '@mantine/core';
 import { IconChevronDown, IconChevronRight, IconClockHour4, IconLock, IconShieldLock } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AuthStatus } from '@sm/shared';
 import { post } from '../api';
@@ -238,6 +239,11 @@ export function LoginPage({ status }: { status: AuthStatus }) {
             {t('login.ssoOnlyNoProvider')}
           </Alert>
         )}
+        <Box ta="center">
+          <Anchor component={Link} to="/emergency-access" size="sm" c="dimmed">
+            {t('login.emergencyLink')}
+          </Anchor>
+        </Box>
         {footer}
       </Card>
     );
