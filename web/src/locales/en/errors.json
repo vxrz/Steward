@@ -63,6 +63,8 @@
     "FORBIDDEN_monitorOutputs": "Changing the outputs of this monitor needs the manage right (owner, administrators or the access list).",
     "FORBIDDEN_createReportSchedule": "You are not allowed to create report schedules.",
     "BODY_TOO_COMPLEX": "The request has too many entries or too many levels (limit {{limit}}). Split it into smaller parts.",
+    "BODY_TOO_LARGE": "The request is too large (at most {{maxMb}} MB).",
+    "BODY_TOO_LARGE_KIB": "The request is too large (at most {{maxKib}} KB).",
     "BAD_REQUEST": "The request is not valid.",
     "NAME_REQUIRED": "Enter a name.",
     "NO_FILE": "No file was sent.",

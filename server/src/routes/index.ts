@@ -76,6 +76,7 @@ import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_C
 import { BRAND, boundedRecord } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 import { auditPendingUpgrades } from '../upgrades.js';
 
 let started = false;
@@ -712,10 +713,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(b.fromPlatformId, 'manage', 'use this platform as a template');
     return connectors.createTypeFromPlatform(b.fromPlatformId, b);
   });
-  app.post('/platform-types/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
-    requireCapability(me(), 'createPlatforms', 'import connector types');
-    return connectors.importType(z.object({ package: z.any() }).parse(req.body).package);
-  });
+  app.post(
+    '/platform-types/import',
+    { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.exports.bytes },
+    async (req) => {
+      requireCapability(me(), 'createPlatforms', 'import connector types');
+      return connectors.importType(z.object({ package: z.any() }).parse(req.body).package);
+    },
+  );
   app.get('/platform-types/:kind/export', async (req, reply) => {
     const pkg = connectors.getPackage(params(req).kind!);
     reply.header('content-disposition', `attachment; filename="connector-${pkg.kind}.json"`);
@@ -807,10 +812,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // API specifications and operations reveal a platform's endpoints: only for users with some permission on it.
   app.get('/platforms/:id/specs', async (req) => (visiblePlatform(params(req).id!), platforms.listSpecs(params(req).id!)));
-  app.post('/platforms/:id/specs', async (req) => {
+  app.post('/platforms/:id/specs', { bodyLimit: LARGE_BODIES.apiSpec.bytes }, async (req) => {
     requirePlatform(params(req).id!, 'manage', 'add API specifications');
     const b = z
-      .object({ name: z.string().max(200).optional(), content: z.string().min(2).optional(), url: z.string().min(1).max(2000).optional() })
+      .object({
+        name: z.string().max(200).optional(),
+        content: z.string().min(2).max(connectors.MAX_SPEC_BYTES).optional(),
+        url: z.string().min(1).max(2000).optional(),
+      })
       .refine((x) => x.content || x.url, 'Provide content or url')
       .parse(req.body);
     const content = b.content ?? (await connectors.fetchSpec(params(req).id!, b.url!));
@@ -873,7 +882,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // ---------- processes ----------
   app.get('/templates', async () => processes.listTemplates());
   app.get('/processes', async () => processes.listProcesses());
-  app.post('/processes', async (req) => {
+  app.post('/processes', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     requireCapability(me(), 'createProcesses', 'create processes');
     const b = z
       .object({
@@ -887,7 +896,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const def = b.text ? processes.parseDefinitionText(b.text) : b.definition;
     return processes.createProcess(def, { comment: b.comment ?? (b.text ? 'Imported' : 'Created') });
   });
-  app.post('/processes/validate', async (req) => {
+  app.post('/processes/validate', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
     try {
       const def = b.text !== undefined ? processes.parseDefinitionText(b.text) : b.definition;
@@ -897,7 +906,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return { ok: false, issues: [{ path: '', message: (e as Error).message }], warnings: [] };
     }
   });
-  app.post('/processes/to-yaml', async (req) => {
+  app.post('/processes/to-yaml', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any() }).parse(req.body);
     return { text: processes.toYaml(b.definition) };
   });
@@ -906,7 +915,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const q = versionQuery.parse(req.query ?? {});
     return processes.getProcess(params(req).id!, q.version);
   });
-  app.put('/processes/:id', async (req) => {
+  app.put('/processes/:id', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     requireProcess(params(req).id!, 'edit', 'edit this process');
     const b = z.object({ definition: z.any(), comment: z.string().max(2000).optional() }).parse(req.body);
     return processes.saveProcess(params(req).id!, b.definition, b.comment ?? '');

@@ -43,13 +43,14 @@ describe('body shape limits', () => {
   });
 
   it('refuses a body with millions of list items quickly, before the route validates it', async () => {
-    // 12 million items, 23 MB: zod 3 needed 18 s and 3 GB for this
-    const body = '{"title":"x","tags":[' + '1,'.repeat(12_000_000) + '1]}';
+    // 12 million items, 24 MB: zod 3 needed 18 s and 3 GB for this. Ordinary routes refuse such a body by its
+    // size (1 MB, bodyLimits.ts); the bundle import accepts 25 MB, so its shape limits must hold.
+    const body = '{"bundle":{"format":"steward-bundle/1","processes":[' + '1,'.repeat(12_000_000) + '1]}}';
     const heap = process.memoryUsage().heapUsed;
     const t = Date.now();
-    const r = await post('/records', body);
+    const r = await post('/bundle/import', body);
     expect(r.status).toBe(413);
-    expect(r.body).toMatchObject({ code: 'BODY_TOO_COMPLEX', params: { limit: DEFAULT_BODY_SHAPE.arrayItems } });
+    expect(r.body).toMatchObject({ code: 'BODY_TOO_COMPLEX', params: { limit: IMPORT_BODY_SHAPE.arrayItems } });
     expect(Date.now() - t).toBeLessThan(10_000);
     expect(process.memoryUsage().heapUsed - heap).toBeLessThan(1024 * 1024 * 1024);
   });

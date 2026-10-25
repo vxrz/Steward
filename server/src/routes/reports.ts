@@ -14,6 +14,7 @@ import * as reports from '../reports/service.js';
 import { initAutoReports } from '../reports/auto.js';
 import { canViewScheduledReport } from '../reports/schedules.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 
 /**
  * Archived PDF reports (mounted under /api):
@@ -178,7 +179,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
     return reply.type(l.mime).send(l.data);
   });
 
-  app.post('/reports/branding/logo', async (req) => {
+  app.post('/reports/branding/logo', { bodyLimit: LARGE_BODIES.reportLogo.bytes }, async (req) => {
     requireCapability(me(), 'manageSettings', 'manage report branding');
     let data: Buffer;
     if (req.isMultipart()) {
@@ -226,7 +227,7 @@ export async function reportRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // ---------- verification of an archived (and possibly signed) copy ----------
-  app.post('/reports/verify', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req) => {
+  app.post('/reports/verify', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.reportVerify.bytes }, async (req) => {
     const u = me();
     let data: Buffer;
     if (req.isMultipart()) {

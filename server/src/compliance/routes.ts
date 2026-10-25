@@ -29,6 +29,7 @@ import * as rec from './reconciliation.js';
 import * as ctl from './controls.js';
 import * as packs from './evidence-pack.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 import { ensureDefaultTypes } from '../records/types.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -172,7 +173,7 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
     ctl.deleteCatalogue(params(req).catalogueId!);
     return reply.code(204).send();
   });
-  app.post('/compliance/catalogues/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: ctl.LIMITS.importBytes * 2 + 16 * 1024 }, async (req) => {
+  app.post('/compliance/catalogues/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.catalogueImport.bytes }, async (req) => {
     const b = z
       .object({
         catalogueId: z.string().max(100).optional(),

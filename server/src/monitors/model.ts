@@ -16,6 +16,9 @@ import { capabilities, isAdmin, matches } from '../auth/permissions.js';
 
 /** Rows and small helpers shared by the monitor modules. */
 
+/** Largest monitor file (YAML) to import, and CSV of template instances, in characters. */
+export const MONITOR_IMPORT_LIMITS = { yamlChars: 512 * 1024, csvChars: 1024 * 1024 };
+
 export interface MonitorRow {
   id: string;
   key: string;

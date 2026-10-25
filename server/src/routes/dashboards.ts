@@ -15,6 +15,7 @@ import { parseJson } from '../util.js';
 import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -62,7 +63,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dashboards', async () => dashboards.listDashboards());
   app.get('/dashboard-templates', async () => dashboards.listDashboardTemplates());
   app.get('/dashboards/:id', async (req) => dashboards.getDashboard(params(req).id!));
-  app.post('/dashboards', async (req) => {
+  app.post('/dashboards', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z
       .object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional(), templateId: z.string().optional() })
       .parse(req.body);
@@ -73,7 +74,7 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     }
     return dashboards.createDashboard(b.text ? dashboards.parseDashboardText(b.text) : b.definition);
   });
-  app.put('/dashboards/:id', async (req) => {
+  app.put('/dashboards/:id', { bodyLimit: LARGE_BODIES.definitions.bytes }, async (req) => {
     const b = z.object({ definition: z.any().optional(), text: z.string().max(MAX_DEFINITION_TEXT).optional() }).parse(req.body);
     return dashboards.saveDashboard(params(req).id!, b.text ? dashboards.parseDashboardText(b.text) : b.definition);
   });
@@ -168,7 +169,8 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
     return bundle;
   });
 
-  app.post('/bundle/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
+  const bundleImport = { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.exports.bytes };
+  app.post('/bundle/import', bundleImport, async (req) => {
     const b = z
       .object({
         bundle: z.object({

@@ -142,7 +142,8 @@ export function createPlatformFromType(input: PlatformInput & { typeKind?: strin
   return getPlatform(platform.id);
 }
 
-const MAX_SPEC_BYTES = 20 * 1024 * 1024;
+/** Largest API specification, fetched from a URL or sent as text. */
+export const MAX_SPEC_BYTES = 20 * 1024 * 1024;
 
 /** Download a spec. Same-host URLs go through the platform (with its authentication). */
 export async function fetchSpec(platformId: string, url: string): Promise<string> {
