@@ -7,6 +7,8 @@ import {
   LOCALE_CODES,
   ROLES,
   boundedRecord,
+  MIGRATION_FINGERPRINT_MIN_CHARS,
+  normalizeFingerprint,
   type AuditEntry,
   type ImportResult,
   type MigrationMapping,
@@ -436,7 +438,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
     packageId: m.packageId,
     packageSha256: pkg.sha256,
     sizeBytes: pkg.size,
-    source: { fingerprint: m.source.fingerprint, version: m.productVersion, exportedAt: m.createdAt, exportedBy: m.createdBy, database: m.source.database },
+    source: { version: m.productVersion, exportedAt: m.createdAt, exportedBy: m.createdBy, database: m.source.database },
     schema: { core: m.schema.core, named: m.schema.named.length, migrationsToApply: gap.toApply },
     counts: m.tables.filter((t) => t.rows > 0).map((t) => ({ table: t.name, rows: t.rows })),
     files: { count: m.files.length, bytes: m.files.reduce((s, f) => s + f.size, 0) },
@@ -845,17 +847,27 @@ export interface ApplyOptions {
   actor?: string;
   /** The signed-in administrator who imports (their account is never changed) */
   importer?: { id: string; username: string } | null;
-  /** The fingerprint the person confirmed (must match the package) */
-  confirmFingerprint?: string;
+  /**
+   * The fingerprint of the source's key as the person read it on the source: at least MIGRATION_FINGERPRINT_MIN_CHARS
+   * hex digits from its start (separators and case do not matter), matching the key that signed the package
+   */
+  confirmFingerprint: string;
 }
 
 export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promise<ImportResult> {
   const m = pkg.manifest;
   const plan = buildPlan(pkg);
   if (plan.blocking.length) throw new HttpError(409, plan.blocking.join(' '), 'MIGRATION_BLOCKED', { problems: plan.blocking });
-  if (opts.confirmFingerprint !== undefined && opts.confirmFingerprint.replace(/\s/g, '').toLowerCase() !== m.source.fingerprint.toLowerCase()) {
+  const typed = normalizeFingerprint(opts.confirmFingerprint ?? '');
+  if (typed.length < MIGRATION_FINGERPRINT_MIN_CHARS || !/^[0-9a-f]+$/.test(typed))
+    throw new HttpError(
+      400,
+      `Enter the fingerprint of the source's signing key as the source shows it – at least its first ${MIGRATION_FINGERPRINT_MIN_CHARS} characters`,
+      'MIGRATION_FINGERPRINT_SHORT',
+      { min: MIGRATION_FINGERPRINT_MIN_CHARS },
+    );
+  if (!normalizeFingerprint(m.source.fingerprint).startsWith(typed))
     throw new HttpError(400, 'The confirmed fingerprint does not match the package', 'MIGRATION_FINGERPRINT_MISMATCH');
-  }
   const mapping = mappingSchema.parse(opts.mapping) as MigrationMapping;
   const resolved = resolveMapping(m, mapping, opts.importer ?? null);
   const dataDir = config.dataDir;

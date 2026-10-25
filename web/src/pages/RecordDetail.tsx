@@ -219,6 +219,11 @@ export function RecordDetailPage() {
           </Text>
         </Alert>
       )}
+      {rec.importedHistory && (
+        <Text size="sm" c="dimmed" mb="sm" data-testid="record-imported-history">
+          {t('detail.importedHistory', { fingerprint: rec.importedHistory.sourceFingerprint })}
+        </Text>
+      )}
       {rec.supersededBy && (
         <Alert color="orange" mb="sm">
           {rec.document ? t('detail.replacedBy') : t('detail.supersededBy')}{' '}
@@ -773,6 +778,11 @@ function PdfTab({ rec, onGenerate, onChange }: { rec: RecordDetail; onGenerate: 
                   </span>
                 </Text>
                 {d?.validation === 'structure' && <Text size="xs">{t('pdf.derivedFrom', { file: d.derivedFromFilename })}</Text>}
+                {d?.importedHistory && (
+                  <Text size="xs" c="dimmed" data-testid="signed-imported-history">
+                    {t('pdf.importedHistory', { fingerprint: d.importedHistory.sourceFingerprint })}
+                  </Text>
+                )}
                 {(d?.signatures ?? []).map((s, i) => (
                   <Text key={i} size="sm" mt={4}>
                     <IconSignature size={14} aria-hidden style={{ verticalAlign: 'middle' }} />{' '}

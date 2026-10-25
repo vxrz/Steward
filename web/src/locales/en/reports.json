@@ -69,6 +69,8 @@
     "generated": "Generated",
     "generatedLine": "{{date}} by {{user}} · audit entry #{{seq}}",
     "recordedHash": "Recorded SHA-256",
+    "verifiedAgainst": "Verified against",
+    "importedHistory": "the imported audit history of the instance with key fingerprint {{fingerprint}} (moved here with a migration package) – not this instance's own audit log",
     "archive": "Archive",
     "archiveRemoved": "The stored copy was removed by data retention; the audit log still proves the content.",
     "chain": "Audit chain: {{result}}",

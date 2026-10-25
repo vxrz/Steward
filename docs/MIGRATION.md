@@ -6,9 +6,9 @@ A **migration package** (`.smig`) carries the whole instance: the data, the stor
 
 ## In short
 
-1. **Source:** _Settings → Migration → Export this instance_, or `steward migrate export --out move.smig` with Steward stopped. Choose a **transfer passphrase** and note the **fingerprint** shown.
+1. **Source:** _Settings → Migration → Export this instance_, or `steward migrate export --out move.smig` with Steward stopped. Choose a **transfer passphrase** and note the **fingerprint** shown – the target asks for it.
 2. **Target:** set up as usual – master passphrase, administrator, single sign-on (_Users & teams → Single sign-on_). Sign in with single sign-on as an administrator.
-3. **Target:** _Settings → Migration → Import a package_: upload the file, enter the transfer passphrase and check the dry run. Decide for every user and team what they become here, compare the fingerprint, import.
+3. **Target:** _Settings → Migration → Import a package_: upload the file, enter the transfer passphrase and check the dry run. Decide for every user and team what they become here, enter the fingerprint you noted on the source (at least its first 16 characters), import.
 4. **Target:** review what was imported paused (schedules, triggers, monitors …) and turn it on. Optionally switch password sign-in off ([INSTALL.md](INSTALL.md#locked-out-of-single-sign-on)).
 
 ## What moves and what does not
@@ -63,12 +63,12 @@ Rules:
 - The source writes `instance.exported` (with the package id) and a signed checkpoint that covers it. The package carries the source's audit log up to that checkpoint, and the source's public key.
 - The target keeps it **unchanged** as imported history, in its own table: original entries, hashes and the signed checkpoint. It is checked at the import and again on _Settings → Migration_ (_Verified_): the entries form an unbroken chain and match the checkpoint signed by the source's key.
 - The target's own chain gets one entry `instance.imported` with the package's SHA-256, the source's fingerprint and version, the counts, the checkpoint the history ends with, and the mapping table (its SHA-256, and the table itself while it is small). The full table is kept with the import and checked against this entry.
-- Evidence that moved stays verifiable: run protocol seals, approvals of living documents, frozen records, report fingerprints and access snapshots are checked against the imported history.
+- Evidence that moved stays verifiable: run protocol seals, approvals of living documents, frozen records, report fingerprints and access snapshots are checked against the imported history. Answers that rest on it say so – _verified against the imported audit history of <source fingerprint>_ – so nobody mistakes them for this instance's own evidence: the run report PDF, `protocol.importedHistory` of `GET /api/v1/runs/{runId}`, _Verify a report_, the record page, signed PDFs and _Verify history_ of access checks.
 
 ## Security
 
 - The package is encrypted with the transfer passphrase (scrypt N=2^17, r=8, p=1 and AES-256-GCM; the header is authenticated). Credentials inside are encrypted once more with a second key from the passphrase, and re-encrypted with the target's vault on import. Pass the passphrase on separately from the file, and delete the file after the import.
-- The manifest – versions, counts and the SHA-256 of every table, every file and the audit log – is signed with the source's Ed25519 key (over the purpose line `steward-migration-manifest-v1` and the manifest, so no other signature of that key – a checkpoint, an emergency grant – can pass as one). The import refuses a package whose signature, content or file list does not match, shows the source's fingerprint and imports only after you confirmed it (compare it with _Audit log → Anchoring outside the database → Signing key fingerprint_ on the source).
+- The manifest – versions, counts and the SHA-256 of every table, every file and the audit log – is signed with the source's Ed25519 key (over the purpose line `steward-migration-manifest-v1` and the manifest, so no other signature of that key – a checkpoint, an emergency grant – can pass as one). The import refuses a package whose signature, content or file list does not match. Since the package names its own key, the import needs that key's fingerprint as **you read it on the source** – the export result, or _Audit log → Anchoring outside the database → Signing key fingerprint_ there – at least the first 16 characters (colons and case do not matter; `MIGRATION_FINGERPRINT_SHORT`, `MIGRATION_FINGERPRINT_MISMATCH`). The target does not display it, so it cannot be confirmed by copying what the package says.
 - Export and import are for administrators in a signed-in session (no API tokens, no emergency access session). The export asks for the master passphrase again; failed attempts are audited and slowed down like unlocking.
 - Uploads are checked for the package's magic line, limited to `SM_MIGRATION_MAX_MB` (default 2048 MB) and kept in a private folder of the data directory until the import or for 30 minutes. File paths in the package are checked; nothing is written outside the stored-file folders, and no existing file is overwritten.
 

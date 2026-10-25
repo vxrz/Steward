@@ -385,7 +385,8 @@ describe('import into SQLite through the web API', () => {
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     plan = r.body;
     expect(plan.blocking).toEqual([]);
-    expect(plan.source.fingerprint).toBe(source.fingerprint);
+    // the target does not show the fingerprint to echo: the importer reads it on the source
+    expect(plan.source).not.toHaveProperty('fingerprint');
     expect(plan.history.ok).toBe(true);
     expect(plan.history.entries).toBe(source.auditEntries);
     const admin = plan.users.find((u: any) => u.username === 'admin');
@@ -397,21 +398,28 @@ describe('import into SQLite through the web API', () => {
 
   it('refuses an incomplete mapping, unconfirmed administrators and a wrong fingerprint', async () => {
     const apply = (body: unknown) => max('POST', `/migration/imports/staged/${plan.id}/apply`, body).catch((e) => e);
-    const partial = await apply({ mapping: { users: {}, teams: {} }, confirmFingerprint: plan.source.fingerprint });
+    const partial = await apply({ mapping: { users: {}, teams: {} }, confirmFingerprint: source.fingerprint });
     expect(partial.status).toBe(400);
     expect(partial.body).toContain('MIGRATION_MAPPING_INVALID');
     const users = Object.fromEntries(plan.users.map((u: any) => [u.username, u.suggestion]));
     const teams = Object.fromEntries(plan.teams.map((t: any) => [t.name, t.suggestion]));
-    const unconfirmed = await apply({ mapping: { users, teams }, confirmFingerprint: plan.source.fingerprint });
+    const unconfirmed = await apply({ mapping: { users, teams }, confirmFingerprint: source.fingerprint });
     expect(unconfirmed.body).toContain('confirm the decision');
     // the name "admin" is an account here: it cannot become an alias of another account (not even of an administrator)
     const shadow = await apply({
       mapping: { users: { ...users, admin: { action: 'map', to: 'max@contoso.example', confirm: true } }, teams },
-      confirmFingerprint: plan.source.fingerprint,
+      confirmFingerprint: source.fingerprint,
     });
     expect(shadow.body).toContain('is the name of an account here');
-    const fp = await apply({ mapping: { users, teams }, confirmFingerprint: '0000:1111' });
+    const fp = await apply({ mapping: { users, teams }, confirmFingerprint: '0000:1111:2222:3333' });
     expect(fp.body).toContain('MIGRATION_FINGERPRINT_MISMATCH');
+    // at least 16 hex digits from the start, read on the source
+    const digits = source.fingerprint.replace(/:/g, '');
+    const short = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 15) });
+    expect(short.body).toContain('MIGRATION_FINGERPRINT_SHORT');
+    const last = digits[15] === '0' ? '1' : '0';
+    const off = await apply({ mapping: { users, teams }, confirmFingerprint: digits.slice(0, 15) + last });
+    expect(off.body).toContain('MIGRATION_FINGERPRINT_MISMATCH');
     // still staged after refused attempts
     expect((await max('GET', `/migration/imports/staged/${plan.id}`)).packageId).toBe(plan.packageId);
   });
@@ -423,7 +431,9 @@ describe('import into SQLite through the web API', () => {
     users.olivia = { action: 'create-local' };
     users.adam = { action: 'archive' };
     const teams = Object.fromEntries(plan.teams.map((t: any) => [t.name, { action: 'create' }]));
-    const r = await max('POST', `/migration/imports/staged/${plan.id}/apply`, { mapping: { users, teams }, confirmFingerprint: plan.source.fingerprint });
+    // the first four groups as typed, in capitals: enough
+    const typed = source.fingerprint.split(':').slice(0, 4).join(' : ').toUpperCase();
+    const r = await max('POST', `/migration/imports/staged/${plan.id}/apply`, { mapping: { users, teams }, confirmFingerprint: typed });
     importId = r.importId;
     expect(r.historyEntries).toBe(source.auditEntries);
     expect(r.files).toBe(source.files.size);
@@ -470,6 +480,9 @@ describe('import into SQLite through the web API', () => {
     const run = await (await fetch(`${child.base}/api/v1/runs/${source.runId}`, { headers: { authorization: `Bearer ${token.token}` } })).json();
     expect(run.protocol.recordedHash).toBeTruthy();
     expect(run.protocol.intact).toBe(true);
+    // … and answers that rest on imported history say so
+    expect(run.protocol.importedHistory).toEqual({ importId, sourceFingerprint: source.fingerprint });
+    expect((await max('GET', `/records/${source.recordId}`)).importedHistory).toEqual({ importId, sourceFingerprint: source.fingerprint });
     // a second import is refused
     const again = await upload(max, pkgFile, TRANSFER);
     expect(again.body.blocking?.length ?? 0).toBeGreaterThan(0);
@@ -540,11 +553,12 @@ describe.skipIf(!PG_TEST_URL)('import into PostgreSQL on the command line', () =
     );
     expect(inspect.status, inspect.stderr + inspect.stdout).toBe(0);
     const plan = JSON.parse(inspect.stdout).plan;
-    expect(plan.source.fingerprint).toBe(source.fingerprint);
+    expect(plan.source.fingerprint).toBeUndefined();
+    expect(inspect.stdout).not.toContain(source.fingerprint);
     const mapping = JSON.parse(fs.readFileSync(template, 'utf8'));
     // without the confirmation of the administrators, the import is refused
     const refused = cli(
-      ['import', pkgFile, '--mapping', template, '--fingerprint', plan.source.fingerprint, '--transfer-passphrase-file', passFile, '--passphrase-stdin'],
+      ['import', pkgFile, '--mapping', template, '--fingerprint', source.fingerprint, '--transfer-passphrase-file', passFile, '--passphrase-stdin'],
       TARGET_PASS,
     );
     expect(refused.status).toBe(1);
@@ -558,7 +572,7 @@ describe.skipIf(!PG_TEST_URL)('import into PostgreSQL on the command line', () =
         '--mapping',
         template,
         '--fingerprint',
-        plan.source.fingerprint,
+        source.fingerprint.slice(0, 19), // the first four groups
         '--transfer-passphrase-file',
         passFile,
         '--passphrase-stdin',

@@ -37,6 +37,7 @@ import type {
   UserAction,
   UserDecision,
 } from '@sm/shared';
+import { MIGRATION_FINGERPRINT_MIN_CHARS, normalizeFingerprint } from '@sm/shared';
 import { ApiError, api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
 import { PageHeader, QueryState } from '../components/common';
 import { useMe } from '../auth';
@@ -209,7 +210,8 @@ function ImportCard() {
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState<MigrationPlan | null>(null);
   const [decisions, setDecisions] = useState<Decisions | null>(null);
-  const [fingerprintOk, setFingerprintOk] = useState(false);
+  const [fingerprint, setFingerprint] = useState('');
+  const fingerprintOk = /^[0-9a-f]*$/.test(normalizeFingerprint(fingerprint)) && normalizeFingerprint(fingerprint).length >= MIGRATION_FINGERPRINT_MIN_CHARS;
   const [problems, setProblems] = useState<string[]>([]);
   const [result, setResult] = useState<ImportResult | null>(null);
 
@@ -224,7 +226,7 @@ function ImportCard() {
       const p = await api<MigrationPlan>('POST', '/migration/imports/upload', form);
       setPlan(p);
       setDecisions(initialDecisions(p));
-      setFingerprintOk(false);
+      setFingerprint('');
       setResult(null);
       setTransfer('');
     } catch (e) {
@@ -246,7 +248,7 @@ function ImportCard() {
     try {
       const r = await post<ImportResult>(`/migration/imports/staged/${encodeURIComponent(plan.id)}/apply`, {
         mapping: decisions,
-        confirmFingerprint: plan.source.fingerprint,
+        confirmFingerprint: fingerprint,
       });
       setResult(r);
       setPlan(null);
@@ -314,14 +316,17 @@ function ImportCard() {
               <MappingEditor plan={plan} decisions={decisions} onChange={setDecisions} />
               <Paper withBorder p="sm">
                 <Stack gap="xs">
-                  <Text size="sm">{t('migration.import.compareFingerprint')}</Text>
-                  <Code block data-testid="source-fingerprint">
-                    {plan.source.fingerprint}
-                  </Code>
-                  <Checkbox
-                    checked={fingerprintOk}
-                    onChange={(e) => setFingerprintOk(e.currentTarget.checked)}
-                    label={t('migration.import.fingerprintConfirmed')}
+                  <TextInput
+                    label={t('migration.import.fingerprintLabel')}
+                    description={t('migration.import.fingerprintHint', { min: MIGRATION_FINGERPRINT_MIN_CHARS })}
+                    placeholder="1a2b:3c4d:5e6f:7a8b:…"
+                    value={fingerprint}
+                    onChange={(e) => setFingerprint(e.currentTarget.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={100}
+                    classNames={{ input: 'mono' }}
+                    data-testid="source-fingerprint"
                   />
                 </Stack>
               </Paper>

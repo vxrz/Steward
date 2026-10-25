@@ -10,10 +10,11 @@ import {
   type AccessSnapshot,
   type AccessSnapshotSummary,
   type AccessSubject,
+  type ImportedHistoryRef,
   type UserInfo,
 } from '@sm/shared';
 import { db } from '../db.js';
-import { audit, authenticRows } from '../audit.js';
+import { audit, authenticRows, importedSourceAmong } from '../audit.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
@@ -852,7 +853,7 @@ export function getSnapshot(checkId: string, snapshotId: string): AccessSnapshot
 }
 
 /** Recomputes every snapshot hash and the chain of a check, and compares them with the authentic audit entries. */
-export function verifyCheck(checkId: string): { ok: boolean; checked: number; problems: string[] } {
+export function verifyCheck(checkId: string): ReturnType<typeof verifyChain> {
   readableCheck(checkId);
   return verifyChain(checkId);
 }
@@ -863,7 +864,14 @@ export function verifyCheck(checkId: string): { ok: boolean; checked: number; pr
  * in the database, and the status of every finding must be the one its audit entries say – so rows
  * deleted or changed by someone with database access (but without the vault) are found.
  */
-export function verifyChain(checkId: string): { ok: boolean; checked: number; findingsChecked: number; problems: string[] } {
+export function verifyChain(checkId: string): {
+  ok: boolean;
+  checked: number;
+  findingsChecked: number;
+  problems: string[];
+  /** snapshot entries in history imported from another instance: verified against that history and the source's key */
+  importedHistory?: ImportedHistoryRef;
+} {
   const rows = db().all<SnapshotRow>('SELECT * FROM access_snapshots WHERE check_id = ? ORDER BY seq ASC', checkId);
   const problems: string[] = [];
   const audited = new Map<string, { chainHash: string; seq: number }>();
@@ -894,7 +902,8 @@ export function verifyChain(checkId: string): { ok: boolean; checked: number; fi
   // snapshots in the audit log that are gone (also the newest ones, which leave no gap in the sequence)
   for (const [id, a] of audited) if (!byId.has(id)) problems.push(`Snapshot #${a.seq} is in the audit log but missing from the database`);
   const findingsChecked = verifyFindings(checkId, auditedFindings, problems);
-  return { ok: problems.length === 0, checked: rows.length, findingsChecked, problems };
+  const imported = importedSourceAmong(entries);
+  return { ok: problems.length === 0, checked: rows.length, findingsChecked, problems, ...(imported ? { importedHistory: imported } : {}) };
 }
 
 /** Findings against their authentic audit entries: existence, status and documenting entry. */

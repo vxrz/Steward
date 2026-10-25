@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import type { AuditCheckpoint, AuditEntry, AuditVerifyResult } from '@sm/shared';
+import type { AuditCheckpoint, AuditEntry, AuditVerifyResult, ImportedHistoryRef } from '@sm/shared';
 import { db } from './db.js';
 import { likeEscape } from './database/sql.js';
 import { vault } from './vault.js';
@@ -341,11 +341,44 @@ export function authenticRows(
   return { rows: all.slice(0, limit), rejected };
 }
 
-/** Protocol fingerprint sealed in the (authentic) audit entry written when the run finished. */
-export function sealedProtocolHash(runId: string): string | null {
+/**
+ * Where an authentic row comes from when it is not this instance's own: the import and the fingerprint of the source's
+ * key. Answers that rest on such a row say so ("verified against the imported history of …").
+ */
+export function importedSourceOf(row: { import_id?: string | null } | null | undefined): ImportedHistoryRef | undefined {
+  if (!row?.import_id) return undefined;
+  const r = db().get<{ source_fingerprint: string }>('SELECT source_fingerprint FROM instance_imports WHERE id = ?', row.import_id);
+  return r ? { importId: row.import_id, sourceFingerprint: r.source_fingerprint } : undefined;
+}
+
+/** The first imported source among authentic rows (see importedSourceOf). */
+export function importedSourceAmong(rows: ImportedAuditRow[]): ImportedHistoryRef | undefined {
+  return importedSourceOf(rows.find((r) => r.import_id));
+}
+
+/** Verified imported history holding entries that match `where`: checks of that entity may rest on it. */
+export function importedHistoryFor(where: string, params: unknown[]): ImportedHistoryRef | undefined {
+  const imports = verifiedImports?.() ?? [];
+  if (!imports.length) return undefined;
+  const r = db().get<{ import_id: string }>(
+    `SELECT import_id FROM imported_audit_log WHERE import_id IN (${imports.map(() => '?').join(', ')}) AND (${where}) LIMIT 1`,
+    ...imports,
+    ...params,
+  );
+  return importedSourceOf(r);
+}
+
+/** Protocol fingerprint sealed in the (authentic) audit entry written when the run finished, and where that entry is. */
+export function sealedProtocol(runId: string): { hash: string; importedHistory?: ImportedHistoryRef } | null {
   const { rows } = authenticRows("run_id = ? AND action IN ('run.succeeded', 'run.failed', 'run.cancelled')", [runId], { limit: 10 });
   const d = rows[0] ? parseJson<{ protocolHash?: string } | null>(rows[0].details, null) : null;
-  return d?.protocolHash ?? null;
+  if (!d?.protocolHash) return null;
+  const from = importedSourceOf(rows[0]);
+  return { hash: d.protocolHash, ...(from ? { importedHistory: from } : {}) };
+}
+
+export function sealedProtocolHash(runId: string): string | null {
+  return sealedProtocol(runId)?.hash ?? null;
 }
 
 // ---------- verification ----------

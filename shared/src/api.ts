@@ -586,6 +586,16 @@ export interface Schedule {
 
 // ---------- Audit ----------
 
+/**
+ * A check that relied on audit history imported from another instance (moving an instance, docs/MIGRATION.md):
+ * that history verified against the source's signed checkpoint and key, not against this instance's own key.
+ */
+export interface ImportedHistoryRef {
+  importId: string;
+  /** SHA-256 fingerprint of the source instance's signing key */
+  sourceFingerprint: string;
+}
+
 export interface AuditEntry {
   seq: number;
   ts: string;

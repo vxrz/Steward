@@ -448,6 +448,7 @@
     "MIGRATION_BLOCKED": "Dieses Paket lässt sich hier nicht importieren (siehe Probelauf).",
     "MIGRATION_BUSY": "Ein anderes Paket wird gerade importiert – zuerst abschließen oder verwerfen.",
     "MIGRATION_EXPORT_GONE": "Das Paket ist nicht mehr da – erneut exportieren.",
+    "MIGRATION_FINGERPRINT_SHORT": "Den Fingerabdruck des Signaturschlüssels so eingeben, wie die Quelle ihn anzeigt – mindestens die ersten {{min}} Zeichen.",
     "MIGRATION_FINGERPRINT_MISMATCH": "Der bestätigte Fingerabdruck passt nicht zum Paket.",
     "MIGRATION_MAPPING_INVALID": "Die Zuordnung der Identitäten lässt sich nicht anwenden – siehe die aufgeführten Probleme.",
     "MIGRATION_NO_SIGNING_KEY": "Der Tresor hat keinen Signaturschlüssel – ihn einmal mit dieser Version entsperren.",

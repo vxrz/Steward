@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import type { RunDetail } from '@sm/shared';
 import { getRunDetail, artifactFile, protocolHash } from './engine/store.js';
-import { sealedProtocolHash } from './audit.js';
+import { sealedProtocol } from './audit.js';
 import { allAuditAscending } from './audit.js';
 import { config } from './config.js';
 import { BRAND } from '@sm/shared';
@@ -49,7 +49,8 @@ function statusBadge(s: string): string {
 export function runReportHtml(runId: string): string {
   const run: RunDetail = getRunDetail(runId);
   const auditEntries = allAuditAscending(runId);
-  const recordedHash = sealedProtocolHash(runId) ?? undefined;
+  const sealed = sealedProtocol(runId);
+  const recordedHash = sealed?.hash;
   const currentHash = protocolHash(runId);
   const intact = recordedHash ? recordedHash === currentHash : null;
   const checks = run.steps.filter((s) => s.type === 'check');
@@ -102,6 +103,10 @@ ${run.dryRun ? '<div class="dry"><strong>DRY RUN</strong> – write operations w
       : intact
         ? `<span class="ok">✔ intact</span> <span class="mono">${esc(currentHash)}</span>`
         : `<span class="bad">✘ modified after completion</span> recorded <span class="mono">${esc(recordedHash)}</span>, now <span class="mono">${esc(currentHash)}</span>`
+  }${
+    sealed?.importedHistory
+      ? `<br/><span class="muted">Seal verified against the imported audit history of the instance with key fingerprint <span class="mono">${esc(sealed.importedHistory.sourceFingerprint)}</span></span>`
+      : ''
   }</td></tr>
 </table>
 

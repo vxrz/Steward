@@ -26,7 +26,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { AccessCheck, AccessFinding, AccessReconciliationMeta, AccessSnapshotSummary, Platform, Subject } from '@sm/shared';
+import type { AccessCheck, AccessFinding, AccessReconciliationMeta, AccessSnapshotSummary, ImportedHistoryRef, Platform, Subject } from '@sm/shared';
 import { get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useCreateParam } from '../components/common';
 import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/compliance/common';
@@ -390,7 +390,7 @@ function SnapshotsPanel({
   query: { data?: AccessSnapshotSummary[]; isLoading: boolean; error: unknown; refetch: () => unknown };
 }) {
   const { t } = useTranslation('compliance');
-  const [result, setResult] = useState<{ ok: boolean; checked: number; problems: string[] } | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; checked: number; problems: string[]; importedHistory?: ImportedHistoryRef } | null>(null);
   const verify = async () => {
     try {
       setResult(await get(`/compliance/access-checks/${check.id}/verify`));
@@ -415,6 +415,11 @@ function SnapshotsPanel({
               {p}
             </Text>
           ))}
+          {result.importedHistory && (
+            <Text size="sm" data-testid="chain-imported-history">
+              {t('reconciliation.importedHistory', { fingerprint: result.importedHistory.sourceFingerprint })}
+            </Text>
+          )}
         </Alert>
       )}
       <QueryState query={query} />

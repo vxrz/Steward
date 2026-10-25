@@ -338,6 +338,9 @@ export async function renderRunReport(
       span: 2,
     },
     { label: t('sealedHash'), value: m.integrity.sealedHash ?? '–', mono: true, span: 2 },
+    ...(m.integrity.importedFrom
+      ? [{ label: t('sealVerifiedAgainst'), value: t('importedHistoryOf', { fingerprint: m.integrity.importedFrom }), span: 2 as const }]
+      : []),
     { label: t('currentHash'), value: m.integrity.currentHash, mono: true, span: 2 },
     { label: t('contentHash'), value: contentHash, mono: true, span: 2 },
     { label: t('reportId'), value: m.reportId, mono: true },

@@ -79,7 +79,8 @@ test.describe('migration: export and import with the identity mapping (own serve
     await card.getByRole('button', { name: 'Check package' }).click();
     const plan = page.getByTestId('migration-plan');
     await expect(plan).toContainText('Audit log verified');
-    await expect(page.getByTestId('source-fingerprint')).toHaveText(fingerprint);
+    // the target does not show the fingerprint: it is read on the source and entered here
+    await expect(plan).not.toContainText(fingerprint);
 
     // the source's administrator: suggested for the administrator here (same name) – needs a confirmation
     const admin = page.getByTestId('map-user-admin');
@@ -95,7 +96,10 @@ test.describe('migration: export and import with the identity mapping (own serve
 
     const importButton = page.getByRole('button', { name: 'Import', exact: true });
     await expect(importButton).toBeDisabled();
-    await page.getByRole('checkbox', { name: 'The fingerprint matches the source' }).check();
+    const fp = page.getByLabel("Fingerprint of the source's signing key");
+    await fp.fill(fingerprint.slice(0, 14)); // fewer than 16 digits
+    await expect(importButton).toBeDisabled();
+    await fp.fill(fingerprint.slice(0, 19)); // the first four groups
     await importButton.click();
     await expect(page.getByTestId('import-result')).toContainText('Imported');
 
