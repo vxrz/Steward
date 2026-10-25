@@ -4,6 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import { z } from 'zod';
 import {
   BRAND,
+  LOCALE_CODES,
   ROLES,
   boundedRecord,
   type AuditEntry,
@@ -27,8 +28,11 @@ import { sealPlatform } from '../platforms/integrity.js';
 import { columns, fkOrder, tables } from '../cli/db-copy.js';
 import { quoteIdent } from '../database/sql.js';
 import { verifyExport } from '../cli/audit-verify-export.js';
-import { canonicalJson, HttpError, newId, nowIso, parseJson, pathInside, sha256 } from '../util.js';
+import { canonicalJson, HttpError, newId, nowIso, parseJson, pathInside, rasterImageType, sha256 } from '../util.js';
 import { passwordLoginMode } from '../settings.js';
+import { checkedLogo, checkedThemeSettings } from '../theme/service.js';
+import { checkedBranding } from '../reports/branding.js';
+import { sniff } from '../records/attachments.js';
 import { hashPassword, temporaryPassword } from '../auth/passwords.js';
 import { NO_PASSWORD } from '../auth/users.js';
 import { invalidateAliases } from '../auth/aliases.js';
@@ -790,7 +794,8 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
   try {
     transformStaging(staging, pkg, maps, dataDir);
     files = (await writeFiles(pkg, dataDir)).written;
-    const settings = parseJson<Record<string, unknown>>((await readEntry(pkg.reader, 'settings.json')).toString('utf8'), {});
+    checkStoredContent(staging, dataDir);
+    const settings = checkedSettings(parseJson<Record<string, unknown>>((await readEntry(pkg.reader, 'settings.json')).toString('utf8'), {}), dataDir);
     const entries: AuditEntry[] = [];
     for await (const l of lines(pkg.reader, pkg.reader.find('audit.jsonl')!)) entries.push(JSON.parse(l) as AuditEntry);
     const result = copyIntoTarget(staging, pkg, resolved, settings, entries, opts);
@@ -803,6 +808,76 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
   } finally {
     staging.close();
   }
+}
+
+/**
+ * Files that are served back must be what their rows say: run artifacts are images (taken from the content), record
+ * attachments get the type their content and name give, exactly as at upload. A row of another type would be served
+ * with a type the package chose (a page or a script on Steward's origin).
+ */
+export function checkStoredContent(staging: Db, dataDir: string): void {
+  const have = new Set(tables(staging));
+  const read = (file: string): Buffer | null => {
+    try {
+      return fs.readFileSync(file);
+    } catch {
+      return null; // the file was removed on the source (retention): nothing is served
+    }
+  };
+  staging.tx(() => {
+    if (have.has('run_artifacts'))
+      for (const r of staging.all<{ id: string; path: string; mime: string }>('SELECT id, path, mime FROM run_artifacts')) {
+        const data = read(r.path);
+        if (!data) continue;
+        const type = rasterImageType(data);
+        if (!type || type !== r.mime) throw new HttpError(400, `Run artifact ${r.id} is not the image it claims to be`, 'MIGRATION_PACKAGE_INVALID');
+      }
+    if (have.has('record_attachments'))
+      for (const r of staging.all<{ id: string; path: string | null; filename: string }>(
+        'SELECT id, path, filename FROM record_attachments WHERE path IS NOT NULL',
+      )) {
+        const data = read(pathInside(path.join(dataDir, 'records'), ...String(r.path).split('/')));
+        if (!data) continue;
+        let mime: string;
+        try {
+          mime = sniff(r.filename, data).mime;
+        } catch {
+          throw new HttpError(400, `Attachment ${r.id} (${r.filename}) is not a file type Steward accepts`, 'MIGRATION_PACKAGE_INVALID');
+        }
+        staging.run('UPDATE record_attachments SET mime = ? WHERE id = ?', mime, r.id);
+      }
+  });
+}
+
+/** The settings that move, each checked like its own form would (invalid values are left out, not applied). */
+export function checkedSettings(settings: Record<string, unknown>, dataDir: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const int = (v: unknown, min: number, max: number) => typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
+  const object = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
+  for (const [k, v] of Object.entries(settings)) {
+    if (!SETTINGS_MOVED.includes(k) || v === null || v === undefined) continue;
+    let ok: unknown;
+    if (k === 'browserHeadless' || k === 'findingDismissFourEyes') ok = typeof v === 'boolean' ? v : undefined;
+    else if (k === 'browserTimeoutMs') ok = int(v, 1000, 3_600_000) ? v : undefined;
+    else if (k === 'retentionRunDays') ok = int(v, 0, 3650) ? v : undefined;
+    else if (k === 'retentionNotificationDays' || k === 'retentionMonitorDays') ok = int(v, 1, 3650) ? v : undefined;
+    else if (k === 'defaultLocale') ok = typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v) ? v : undefined;
+    else if (k === 'theme.settings') ok = checkedThemeSettings(v) ?? undefined;
+    else if (k === 'theme.logo') ok = checkedLogo(v) ?? undefined;
+    else if (k === 'reports.branding') {
+      const mime = object(v) ? (v as { logoMime?: unknown }).logoMime : null;
+      const file = mime === 'image/jpeg' ? 'logo.jpg' : 'logo.png';
+      let data: Buffer | null;
+      try {
+        data = fs.readFileSync(path.join(dataDir, 'branding', file));
+      } catch {
+        data = null;
+      }
+      ok = checkedBranding(v, data) ?? undefined;
+    } else ok = object(v) ? v : undefined;
+    if (ok !== undefined) out[k] = ok;
+  }
+  return out;
 }
 
 /** The mapping as lines for the audit entry, or only its size when it would make the entry too large. */

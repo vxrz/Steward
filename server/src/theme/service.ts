@@ -185,8 +185,38 @@ export function removeLogo(): ThemeSettings {
   return getThemeSettings();
 }
 
+/**
+ * A stored logo as it may be served: type and size taken from the content again (the stored type is never
+ * trusted – a logo written by an import or directly into the database must not become a script or a page).
+ */
+export function checkedLogo(l: unknown): StoredLogo | null {
+  const v = l as Partial<StoredLogo> | null;
+  if (!v || typeof v.data !== 'string') return null;
+  const data = Buffer.from(v.data, 'base64');
+  if (!data.length || data.length > THEME_LOGO_MAX_BYTES) return null;
+  const info = imageInfo(data);
+  if (!info || !info.width || !info.height || info.width > THEME_LOGO_MAX_PIXELS || info.height > THEME_LOGO_MAX_PIXELS) return null;
+  return { ...info, size: data.length, sha256: sha256(data), updatedAt: typeof v.updatedAt === 'string' ? v.updatedAt : nowIso(), data: v.data };
+}
+
+/** Theme settings from elsewhere (a migration package): null unless every field is valid. */
+export function checkedThemeSettings(v: unknown): Stored | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const s = v as Partial<Stored>;
+  const input: Partial<ThemeInput> = {};
+  for (const k of ['primaryColor', 'accentColor', 'colorScheme', 'radius', 'appName'] as const)
+    if (s[k] !== undefined) (input as Record<string, unknown>)[k] = s[k];
+  if (themeProblems(input).length) return null;
+  return {
+    ...stored(),
+    ...input,
+    updatedAt: typeof s.updatedAt === 'string' ? s.updatedAt : null,
+    updatedBy: typeof s.updatedBy === 'string' ? s.updatedBy : null,
+  };
+}
+
 export function logoFile(): { data: Buffer; mime: ThemeLogoType; sha256: string } | null {
-  const l = storedLogo();
+  const l = checkedLogo(storedLogo());
   return l ? { data: Buffer.from(l.data, 'base64'), mime: l.mime, sha256: l.sha256 } : null;
 }
 

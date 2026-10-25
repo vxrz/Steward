@@ -30,7 +30,7 @@ import { publicKeyPem } from '../vault.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
 import { confirmPlatformConfig, sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
-import { HttpError, parseJson, MAX_DEFINITION_TEXT } from '../util.js';
+import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
@@ -957,7 +957,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/artifacts/:id', async (req, reply) => {
     const a = store.artifactFile(params(req).id!);
     requireRun(a.runId, 'view', 'view this run');
-    return reply.type(a.mime).send(fs.readFileSync(a.path));
+    const data = fs.readFileSync(a.path);
+    // the type comes from the content (screenshots are images): anything else is a download that cannot run as page or script
+    const image = rasterImageType(data);
+    reply.header('content-disposition', `${image ? 'inline' : 'attachment'}; filename="${a.name.replace(/[^\w.-]/g, '_')}"`);
+    reply.header('content-security-policy', "sandbox; default-src 'none'");
+    reply.header('x-content-type-options', 'nosniff');
+    return reply.type(image ?? 'application/octet-stream').send(data);
   });
 
   // ---------- tasks ----------

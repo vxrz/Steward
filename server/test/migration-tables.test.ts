@@ -87,3 +87,84 @@ describe('stored file paths in a migration package', () => {
     }
   });
 });
+
+describe('content of a migration package that is served back', () => {
+  it('refuses run artifacts that are not the images they claim to be, and re-derives attachment types', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-mc-'));
+    try {
+      const { Db } = await import('../src/db.js');
+      const { checkStoredContent } = await import('../src/migration/import.js');
+      const { tinyPng } = await import('./png.js');
+      const d = new Db({ kind: 'sqlite', file: path.join(dir, 'staging.db') });
+      try {
+        d.exec('PRAGMA foreign_keys = OFF');
+        const file = (rel: string, data: Buffer | string) => {
+          const p = path.join(dir, rel);
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          fs.writeFileSync(p, data);
+          return p;
+        };
+        const artifact = (mime: string, p: string) =>
+          d.run(
+            `INSERT INTO run_artifacts (id, run_id, step_key, kind, name, mime, path, sha256, size, created_at) VALUES ('a', 'r', 's', 'screenshot', 'a', ?, ?, 'x', 1, 'now')`,
+            mime,
+            p,
+          );
+        artifact('image/png', file('artifacts/r/ok.png', tinyPng()));
+        checkStoredContent(d, dir);
+        d.run('DELETE FROM run_artifacts');
+        artifact('text/html', file('artifacts/r/evil.html', '<script>alert(1)</script>'));
+        expect(() => checkStoredContent(d, dir)).toThrow(/not the image it claims/);
+        d.run('DELETE FROM run_artifacts');
+        artifact('image/png', file('artifacts/r/fake.png', '<script>alert(1)</script>'));
+        expect(() => checkStoredContent(d, dir)).toThrow(/not the image it claims/);
+        d.run('DELETE FROM run_artifacts');
+        const att = (name: string, rel: string) =>
+          d.run(
+            `INSERT INTO record_attachments (id, record_id, kind, filename, mime, size, sha256, path, revision, details, created_at, created_by)
+             VALUES ('t', 'rec', 'file', ?, 'text/html', 1, 'x', ?, 1, '{}', 'now', 'dana')`,
+            name,
+            rel,
+          );
+        file('records/rec/t-notes.txt', 'plain notes');
+        att('notes.txt', 'rec/t-notes.txt');
+        checkStoredContent(d, dir);
+        expect(d.get<{ mime: string }>("SELECT mime FROM record_attachments WHERE id = 't'")!.mime).toBe('text/plain');
+        d.run('DELETE FROM record_attachments');
+        file('records/rec/t-page.html', '<p>x</p>');
+        att('page.html', 'rec/t-page.html');
+        expect(() => checkStoredContent(d, dir)).toThrow(/not a file type/);
+      } finally {
+        d.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('applies only settings that are valid; logos get the type of their content', async () => {
+    const { checkedSettings } = await import('../src/migration/import.js');
+    const { tinyPng } = await import('./png.js');
+    const png = tinyPng();
+    const out = checkedSettings(
+      {
+        'theme.logo': { mime: 'text/javascript', data: png.toString('base64') },
+        'theme.settings': { primaryColor: 'red;}</style><script>', appName: 'X' },
+        retentionRunDays: 30,
+        browserTimeoutMs: 'soon',
+        defaultLocale: 'xx',
+        passwordLogin: 'all',
+      },
+      '/nonexistent',
+    );
+    expect((out['theme.logo'] as { mime: string }).mime).toBe('image/png');
+    expect(out['theme.settings']).toBeUndefined();
+    expect(out.retentionRunDays).toBe(30);
+    expect(out.browserTimeoutMs).toBeUndefined();
+    expect(out.defaultLocale).toBeUndefined();
+    expect(out.passwordLogin).toBeUndefined();
+    expect(
+      checkedSettings({ 'theme.logo': { mime: 'image/png', data: Buffer.from('alert(1)').toString('base64') } }, '/nonexistent')['theme.logo'],
+    ).toBeUndefined();
+  });
+});
