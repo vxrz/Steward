@@ -3,7 +3,7 @@ import { ActionIcon, Badge, Button, Card, Code, CopyButton, Group, SimpleGrid, S
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconBrandWindows, IconCheck, IconCopy, IconEdit, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { SsoProvider, SsoProviderInput } from '@sm/shared';
+import { SSO_PRESET_INFO, type SsoProvider, type SsoProviderInput } from '@sm/shared';
 import { BRAND } from '../../../../shared/src/brand';
 import { del, get, notifyError, put } from '../../api';
 import { ProviderEditor } from './ProviderEditor';
@@ -16,7 +16,7 @@ export function useSsoProviders(enabled = true) {
 }
 
 function toInput(p: SsoProvider): SsoProviderInput {
-  const { id: _i, hasClientSecret: _h, createdAt: _c, updatedAt: _u, ...rest } = p;
+  const { id: _i, hasClientSecret: _h, createdAt: _c, updatedAt: _u, warnings: _w, ...rest } = p;
   return rest;
 }
 
@@ -113,7 +113,7 @@ export function SsoSection() {
             </Group>
             <Group gap={4} mt="xs">
               <Badge size="xs" variant="light" color={p.type === 'entra' ? 'blue' : 'gray'}>
-                {p.type === 'entra' ? 'Entra ID' : 'OIDC'}
+                {p.preset === 'generic' ? 'OIDC' : SSO_PRESET_INFO[p.preset].label}
               </Badge>
               {!p.enabled && (
                 <Badge size="xs" color="gray">
@@ -136,6 +136,16 @@ export function SsoSection() {
               {p.requireMapping && (
                 <Badge size="xs" variant="light" color="orange">
                   {t('sso.badges.requireMapping')}
+                </Badge>
+              )}
+              {p.linkExisting === 'byName' && (
+                <Badge size="xs" variant="light" color="orange">
+                  {t('sso.badges.linkByName')}
+                </Badge>
+              )}
+              {p.warnings.length > 0 && (
+                <Badge size="xs" variant="outline" color="orange">
+                  {t('sso.badges.warnings', { count: p.warnings.length })}
                 </Badge>
               )}
               {p.clientAuth !== 'none' && !p.hasClientSecret && (

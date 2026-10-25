@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import {
   Alert,
   Badge,
@@ -39,6 +39,7 @@ import {
 } from '../components/notifications/browserNotify';
 import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
+import { ProfileValues } from '../components/users/ProfileValues';
 
 export function ProfilePage() {
   const { t } = useTranslation('profile');
@@ -81,18 +82,25 @@ function LanguageCard({ user }: { user: UserInfo }) {
 function AccountCard({ user, local }: { user: UserInfo; local: boolean }) {
   const { t } = useTranslation(['profile', 'common']);
   const qc = useQueryClient();
-  const [displayName, setDisplayName] = useState(user.displayName);
-  const [email, setEmail] = useState(user.email ?? '');
+  const initial = () => ({ displayName: user.displayName, firstName: user.firstName ?? '', lastName: user.lastName ?? '', email: user.email ?? '' });
+  const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    setDisplayName(user.displayName);
-    setEmail(user.email ?? '');
-  }, [user.displayName, user.email]);
-  const dirty = displayName !== user.displayName || email !== (user.email ?? '');
+    setForm(initial());
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset when the stored values change
+  }, [user.displayName, user.firstName, user.lastName, user.email]);
+  // fields the single sign-on provider updates at every sign-in are read-only here
+  const managed = (f: keyof typeof form) => user.managedFields.includes(f);
+  const editable = (Object.keys(form) as (keyof typeof form)[]).filter((f) => !managed(f));
+  const changed = editable.filter((f) => form[f].trim() !== initial()[f]);
+  const set = (f: keyof typeof form) => (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.currentTarget.value;
+    setForm((x) => ({ ...x, [f]: value }));
+  };
   const save = async () => {
     setBusy(true);
     try {
-      await patch<UserInfo>('/me', { displayName: displayName.trim(), email: email.trim() });
+      await patch<UserInfo>('/me', Object.fromEntries(changed.map((f) => [f, form[f].trim()])));
       await qc.invalidateQueries({ queryKey: ['auth'] });
       notifyOk(t('account.saved'));
     } catch (e) {
@@ -124,17 +132,20 @@ function AccountCard({ user, local }: { user: UserInfo; local: boolean }) {
           ))}
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label={t('account.displayName')} required disabled={!local} value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} />
-          <TextInput label={t('account.email')} type="email" disabled={!local} value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+          <TextInput label={t('account.displayName')} required disabled={managed('displayName')} value={form.displayName} onChange={set('displayName')} />
+          <TextInput label={t('account.email')} type="email" disabled={managed('email')} value={form.email} onChange={set('email')} />
+          <TextInput label={t('account.firstName')} disabled={managed('firstName')} value={form.firstName} onChange={set('firstName')} />
+          <TextInput label={t('account.lastName')} disabled={managed('lastName')} value={form.lastName} onChange={set('lastName')} />
         </SimpleGrid>
-        {!local && <Hint>{t('account.ssoHint')}</Hint>}
-        {local && (
+        {!local && <Hint>{editable.length ? t('account.ssoPartlyHint') : t('account.ssoHint')}</Hint>}
+        {editable.length > 0 && (
           <Group>
-            <Button onClick={save} loading={busy} disabled={!dirty || !displayName.trim()}>
+            <Button onClick={save} loading={busy} disabled={!changed.length || !form.displayName.trim()}>
               {t('common:save')}
             </Button>
           </Group>
         )}
+        <ProfileValues values={user.profile} />
       </Stack>
     </Card>
   );

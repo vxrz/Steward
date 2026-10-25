@@ -63,7 +63,10 @@
     "username": "Benutzername",
     "displayName": "Anzeigename",
     "email": "E-Mail",
-    "ssoHint": "Name und E-Mail-Adresse stammen von Ihrem Single-Sign-on-Anbieter und werden bei der Anmeldung aktualisiert."
+    "ssoHint": "Name und E-Mail-Adresse stammen von Ihrem Single-Sign-on-Anbieter und werden bei der Anmeldung aktualisiert.",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "ssoPartlyHint": "Ausgegraute Felder kommen von Ihrem Single-Sign-on-Anbieter und werden bei der Anmeldung aktualisiert."
   },
   "notifications": {
     "title": "Benachrichtigungen",
