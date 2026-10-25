@@ -448,6 +448,8 @@
     "MIGRATION_BLOCKED": "This package cannot be imported here (see the dry run).",
     "MIGRATION_BUSY": "Another package is being imported – finish or discard it first.",
     "MIGRATION_EXPORT_GONE": "The package is gone – export again.",
+    "MIGRATION_UNPACKED_TOO_LARGE": "The package unpacks to {{mb}} MB, more than {{maxMb}} MB (SM_MIGRATION_MAX_UNPACKED_MB).",
+    "MIGRATION_DISK_SPACE": "Not enough free disk space for the package: it needs about {{neededMb}} MB, {{freeMb}} MB are free.",
     "MIGRATION_FINGERPRINT_SHORT": "Enter the fingerprint of the source's signing key as the source shows it – at least its first {{min}} characters.",
     "MIGRATION_FINGERPRINT_MISMATCH": "The confirmed fingerprint does not match the package.",
     "MIGRATION_MAPPING_INVALID": "The identity mapping cannot be applied – see the problems listed.",

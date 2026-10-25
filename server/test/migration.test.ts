@@ -218,6 +218,13 @@ describe('export (source)', () => {
     await expect(readPackage(smuggled, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_PACKAGE_INVALID' });
     const changed = await repack('changed', (n, d) => (n.startsWith('files/records/') ? Buffer.concat([d, Buffer.from(' ')]) : d));
     await expect(readPackage(changed, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_PACKAGE_INVALID' });
+    // what a package unpacks to has an absolute ceiling
+    process.env.SM_MIGRATION_MAX_UNPACKED_MB = '0.01';
+    try {
+      await expect(readPackage(pkgFile, TRANSFER)).rejects.toMatchObject({ code: 'MIGRATION_UNPACKED_TOO_LARGE' });
+    } finally {
+      delete process.env.SM_MIGRATION_MAX_UNPACKED_MB;
+    }
     const ok = await readPackage(pkgFile, TRANSFER);
     try {
       expect(ok.history.ok).toBe(true);

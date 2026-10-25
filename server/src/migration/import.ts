@@ -1,5 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
+import { StringDecoder } from 'node:string_decoder';
 import { pipeline } from 'node:stream/promises';
 import { z } from 'zod';
 import {
@@ -29,7 +31,6 @@ import { ZipReader, safeEntryName, type ZipEntry } from '../compliance/zip.js';
 import { sealPlatform } from '../platforms/integrity.js';
 import { columns, fkOrder, tables } from '../cli/db-copy.js';
 import { quoteIdent } from '../database/sql.js';
-import { verifyExport } from '../cli/audit-verify-export.js';
 import { canonicalJson, HttpError, newId, nowIso, parseJson, pathInside, rasterImageType, sha256 } from '../util.js';
 import { passwordLoginMode } from '../settings.js';
 import { publicProviders } from '../auth/sso.js';
@@ -39,7 +40,7 @@ import { sniff } from '../records/attachments.js';
 import { hashPassword, temporaryPassword } from '../auth/passwords.js';
 import { NO_PASSWORD } from '../auth/users.js';
 import { invalidateAliases } from '../auth/aliases.js';
-import { invalidateVerifiedImports } from './history.js';
+import { HistoryVerifier, invalidateVerifiedImports } from './history.js';
 import {
   manifestSigningInput,
   openPackage,
@@ -151,22 +152,83 @@ async function readEntry(r: ZipReader, name: string, max = MAX_SMALL): Promise<B
   return r.read(e, max);
 }
 
+/**
+ * Absolute ceiling for what a package may unpack to (tables, files and audit log together): SM_MIGRATION_MAX_UNPACKED_MB,
+ * by default 20 GiB – the import needs about this much room twice over (staging database and files).
+ */
+export function maxUnpackedBytes(): number {
+  const mb = Number(process.env.SM_MIGRATION_MAX_UNPACKED_MB);
+  return Math.round((mb > 0 ? mb : 20 * 1024) * 1024 * 1024);
+}
+
+export function checkUnpackedSize(bytes: number): void {
+  const max = maxUnpackedBytes();
+  if (bytes > max)
+    throw new HttpError(
+      413,
+      `The package unpacks to ${Math.ceil(bytes / 1024 / 1024)} MB, more than ${Math.floor(max / 1024 / 1024)} MB (SM_MIGRATION_MAX_UNPACKED_MB)`,
+      'MIGRATION_UNPACKED_TOO_LARGE',
+      { mb: Math.ceil(bytes / 1024 / 1024), maxMb: Math.floor(max / 1024 / 1024) },
+    );
+}
+
+/** Room kept free on the disk of the data folder besides what the import writes. */
+const DISK_RESERVE = 512 * 1024 * 1024;
+
+/** Free bytes on the file system of `dir` for this process (null when the system cannot tell). */
+export function freeBytes(dir: string): number | null {
+  try {
+    const s = fs.statfsSync(dir);
+    return Number(s.bavail) * Number(s.bsize);
+  } catch {
+    return null;
+  }
+}
+
+/** Refuses to unpack or import `bytes` when the disk has not that much room (plus a reserve) left. */
+export function requireFreeSpace(dir: string, bytes: number, free = freeBytes(dir)): void {
+  if (free === null || free >= bytes + DISK_RESERVE) return;
+  throw new HttpError(
+    507,
+    `Not enough free disk space for the package: it needs about ${Math.ceil((bytes + DISK_RESERVE) / 1024 / 1024)} MB, ${Math.floor(free / 1024 / 1024)} MB are free`,
+    'MIGRATION_DISK_SPACE',
+    { neededMb: Math.ceil((bytes + DISK_RESERVE) / 1024 / 1024), freeMb: Math.floor(free / 1024 / 1024) },
+  );
+}
+
 /** One JSON row per line; a line may not exceed MAX_LINE (a crafted package cannot exhaust memory with one line). */
 const MAX_LINE = 64 * 1024 * 1024;
-async function* lines(r: ZipReader, e: ZipEntry): AsyncGenerator<string> {
+/** An audit entry is small (summary and details are capped when written): its lines get a much lower limit. */
+export const MAX_AUDIT_LINE = 4 * 1024 * 1024;
+
+/**
+ * Splits a byte stream into lines – UTF-8 decoded across chunk boundaries (a character split between two chunks
+ * stays one character), each line at most `maxLine` characters.
+ */
+export async function* splitLines(chunks: AsyncIterable<Buffer>, maxLine: number, name: string): AsyncGenerator<string> {
+  const decoder = new StringDecoder('utf8');
   let rest = '';
-  for await (const chunk of (await r.stream(e)) as AsyncIterable<Buffer>) {
-    rest += chunk.toString('utf8');
+  const tooLong = () => new HttpError(400, `${name} has a line longer than ${Math.round(maxLine / 1024 / 1024)} MB`, 'MIGRATION_PACKAGE_INVALID');
+  for await (const chunk of chunks) {
+    rest += decoder.write(chunk);
+    let start = 0;
     let nl = rest.indexOf('\n');
     while (nl >= 0) {
-      const line = rest.slice(0, nl);
-      rest = rest.slice(nl + 1);
-      if (line) yield line;
-      nl = rest.indexOf('\n');
+      if (nl - start > maxLine) throw tooLong();
+      if (nl > start) yield rest.slice(start, nl);
+      start = nl + 1;
+      nl = rest.indexOf('\n', start);
     }
-    if (rest.length > MAX_LINE) throw new HttpError(400, `${e.name} has a line longer than ${MAX_LINE / 1024 / 1024} MB`, 'MIGRATION_PACKAGE_INVALID');
+    rest = rest.slice(start);
+    if (rest.length > maxLine) throw tooLong();
   }
+  rest += decoder.end();
+  if (rest.length > maxLine) throw tooLong();
   if (rest) yield rest;
+}
+
+async function* lines(r: ZipReader, e: ZipEntry, maxLine = MAX_LINE): AsyncGenerator<string> {
+  yield* splitLines((await r.stream(e)) as AsyncIterable<Buffer>, maxLine, e.name);
 }
 
 /**
@@ -177,6 +239,8 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
   const dir = workDir(config.dataDir);
   const close = () => fs.rmSync(dir, { recursive: true, force: true });
   try {
+    // the decrypted ZIP takes about as much room as the package
+    requireFreeSpace(dir, fs.statSync(file).size);
     const zipFile = path.join(dir, 'package.zip');
     const { secrets } = await openPackage(file, passphrase, zipFile);
     let reader: ZipReader;
@@ -222,10 +286,13 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
     }
     expected.set('audit.jsonl', { sha256: manifest.audit.sha256 });
     expected.set('settings.json', { sha256: manifest.settings.sha256 });
-    // a package cannot inflate to more than a bounded multiple of what was uploaded
+    // a package cannot inflate to more than a bounded multiple of what was uploaded, nor beyond the absolute ceiling,
+    // and it is only unpacked when the disk has room for it
     const declared = reader.entries.reduce((s, e) => s + e.usize, 0);
     if (declared > Math.max(4 * 1024 ** 3, 64 * fs.statSync(file).size))
       throw new HttpError(400, 'The package content is larger than its file allows', 'MIGRATION_PACKAGE_INVALID');
+    checkUnpackedSize(declared);
+    requireFreeSpace(dir, declared);
     const names = new Set(reader.entries.map((e) => e.name));
     for (const e of reader.entries) {
       if (e.name === 'manifest.json' || e.name === 'signature.json') continue;
@@ -240,16 +307,10 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
         throw new HttpError(400, `${name} does not match the signed manifest`, 'MIGRATION_PACKAGE_INVALID');
       }
     }
-    // the source's audit log: an unbroken chain up to the signed checkpoint of the export
-    const entries: AuditEntry[] = [];
-    for await (const l of lines(reader, reader.find('audit.jsonl')!)) entries.push(JSON.parse(l) as AuditEntry);
-    const v = verifyExport({
-      entries,
-      checkpoints: [{ source: 'checkpoint of the export', cp: manifest.audit.checkpoint }],
-      publicKey: manifest.source.publicKey,
-      keySource: 'export',
-    });
-    const historyOk = v.ok && v.uncovered === 0 && entries.length === manifest.audit.entries && entries.length === manifest.audit.checkpoint.seq;
+    // the source's audit log: an unbroken chain up to the signed checkpoint of the export (line by line)
+    const verifier = new HistoryVerifier(manifest.audit.checkpoint, manifest.source.publicKey);
+    for await (const l of lines(reader, reader.find('audit.jsonl')!, MAX_AUDIT_LINE)) verifier.addLine(l);
+    const v = verifier.result(manifest.audit.entries);
     return {
       dir,
       file,
@@ -259,11 +320,9 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
       sha256: await sha256File(file),
       size: fs.statSync(file).size,
       history: {
-        ok: historyOk,
-        entries: entries.length,
-        message: historyOk
-          ? `All ${entries.length} entries match the signed checkpoint of ${manifest.audit.checkpoint.ts}`
-          : (v.problems[0] ?? 'The history is incomplete'),
+        ok: v.ok,
+        entries: v.entries,
+        message: v.ok ? `All ${v.entries} entries match the signed checkpoint of ${manifest.audit.checkpoint.ts}` : v.message,
       },
       close,
     };
@@ -875,17 +934,27 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
     users: new Map(resolved.users.map((u) => [lower(u.source.username), u.username])),
     teams: new Map(resolved.teams.map((t) => [lower(t.source.name), t.name])),
   };
+  // the staging database and the files: about twice what the package unpacks to
+  requireFreeSpace(dataDir, 2 * pkg.reader.entries.reduce((s, e) => s + e.usize, 0));
   const stagingFile = path.join(pkg.dir, 'staging.db');
   const staging = await buildStaging(pkg, stagingFile);
+  const history = new HistorySpool(path.join(pkg.dir, 'history.db'));
   let files: string[] = [];
   try {
     const unfinished = transformStaging(staging, pkg, maps, dataDir);
     files = (await writeFiles(pkg, dataDir)).written;
     checkStoredContent(staging, dataDir);
     const settings = checkedSettings(parseJson<Record<string, unknown>>((await readEntry(pkg.reader, 'settings.json')).toString('utf8'), {}), dataDir);
-    const entries: AuditEntry[] = [];
-    for await (const l of lines(pkg.reader, pkg.reader.find('audit.jsonl')!)) entries.push(JSON.parse(l) as AuditEntry);
-    const result = copyIntoTarget(staging, pkg, resolved, settings, entries, opts, unfinished);
+    // the history once more, line by line, into a spool file the import transaction reads page by page
+    const verifier = new HistoryVerifier(m.audit.checkpoint, m.source.publicKey);
+    for await (const l of lines(pkg.reader, pkg.reader.find('audit.jsonl')!, MAX_AUDIT_LINE)) {
+      const e = verifier.addLine(l);
+      if (e) history.add(e);
+    }
+    history.flush();
+    const v = verifier.result(m.audit.entries);
+    if (!v.ok) throw new HttpError(409, `The audit history in the package does not verify: ${v.message}`, 'MIGRATION_BLOCKED', { problems: [v.message] });
+    const result = copyIntoTarget(staging, pkg, resolved, settings, history, opts, unfinished);
     invalidateAliases();
     invalidateVerifiedImports();
     return { ...result, files: files.length };
@@ -894,6 +963,44 @@ export async function applyImport(pkg: OpenedPackage, opts: ApplyOptions): Promi
     throw e;
   } finally {
     staging.close();
+    history.close();
+  }
+}
+
+/** The source's audit entries on disk (a small SQLite file in the work folder), read back in pages. */
+class HistorySpool {
+  private readonly db: DatabaseSync;
+  private readonly insert: ReturnType<DatabaseSync['prepare']>;
+  private open = false;
+  count = 0;
+  constructor(file: string) {
+    this.db = new DatabaseSync(file);
+    this.db.exec('CREATE TABLE history (seq INTEGER PRIMARY KEY, entry TEXT NOT NULL)');
+    this.insert = this.db.prepare('INSERT INTO history (seq, entry) VALUES (?, ?)');
+  }
+  add(e: AuditEntry): void {
+    if (!this.open) (this.db.exec('BEGIN'), (this.open = true));
+    this.insert.run(e.seq, JSON.stringify(e));
+    if (++this.count % 5000 === 0) this.flush();
+  }
+  flush(): void {
+    if (this.open) (this.db.exec('COMMIT'), (this.open = false));
+  }
+  *entries(): Generator<AuditEntry> {
+    const page = this.db.prepare('SELECT seq, entry FROM history WHERE seq > ? ORDER BY seq LIMIT 1000');
+    for (let after = 0; ;) {
+      const rows = page.all(after) as { seq: number; entry: string }[];
+      for (const r of rows) yield JSON.parse(r.entry) as AuditEntry;
+      if (rows.length < 1000) return;
+      after = Number(rows.at(-1)!.seq);
+    }
+  }
+  close(): void {
+    try {
+      this.flush();
+    } finally {
+      this.db.close();
+    }
   }
 }
 
@@ -978,7 +1085,7 @@ function copyIntoTarget(
   pkg: OpenedPackage,
   resolved: { users: ResolvedUser[]; teams: ResolvedTeam[] },
   settings: Record<string, unknown>,
-  history: AuditEntry[],
+  history: HistorySpool,
   opts: ApplyOptions,
   unfinished: number,
 ): Omit<ImportResult, 'files'> {
@@ -1011,7 +1118,7 @@ function copyIntoTarget(
       '',
       '{}',
       JSON.stringify(m.audit.checkpoint),
-      history.length,
+      history.count,
     );
     // ---- teams ----
     const teamIds = new Map<string, string>(); // source team name (lower) → team id here
@@ -1115,7 +1222,7 @@ function copyIntoTarget(
       else d.run('UPDATE platforms SET config_mac = NULL WHERE id = ?', id);
     }
     // ---- the imported history, unchanged ----
-    for (const e of history) {
+    for (const e of history.entries()) {
       d.run(
         `INSERT INTO imported_audit_log (import_id, seq, ts, actor, action, entity_type, entity_id, run_id, summary, details, prev_hash, hash)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1153,13 +1260,13 @@ function copyIntoTarget(
       action: 'instance.imported',
       entityType: 'instance',
       entityId: importId,
-      summary: `Migration package ${m.packageId} from ${m.source.fingerprint} (${BRAND.name} ${m.productVersion}) imported: ${Object.values(counts).reduce((s, n) => s + n, 0)} rows, ${m.files.length} files, ${history.length} audit entries of the source; ${rows.filter((r) => r.kind === 'user').length} users mapped`,
+      summary: `Migration package ${m.packageId} from ${m.source.fingerprint} (${BRAND.name} ${m.productVersion}) imported: ${Object.values(counts).reduce((s, n) => s + n, 0)} rows, ${m.files.length} files, ${history.count} audit entries of the source; ${rows.filter((r) => r.kind === 'user').length} users mapped`,
       details: {
         importId,
         packageId: m.packageId,
         packageSha256: pkg.sha256,
         source: { fingerprint: m.source.fingerprint, version: m.productVersion, exportedAt: m.createdAt, exportedBy: m.createdBy },
-        history: { entries: history.length, checkpointSeq: m.audit.checkpoint.seq, checkpointHash: m.audit.checkpoint.hash, digest: m.audit.checkpoint.digest },
+        history: { entries: history.count, checkpointSeq: m.audit.checkpoint.seq, checkpointHash: m.audit.checkpoint.hash, digest: m.audit.checkpoint.digest },
         mappingSha256: mappingSha,
         counts,
         paused: pausedNow.map((p) => `${p.label}: ${p.count}`),
@@ -1172,5 +1279,5 @@ function copyIntoTarget(
     ...PAUSED_ON_IMPORT.map((p) => ({ label: p.label, count: counts[p.table] ?? 0 })),
     { label: UNFINISHED_RUNS_LABEL, count: unfinished },
   ].filter((p) => p.count > 0);
-  return { importId, counts, historyEntries: history.length, temporaryPasswords, paused };
+  return { importId, counts, historyEntries: history.count, temporaryPasswords, paused };
 }
