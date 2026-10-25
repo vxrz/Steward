@@ -155,9 +155,10 @@ export async function newPackageKeys(passphrase: string): Promise<{ salt: Buffer
 }
 
 function readHeader(file: string): { header: EnvelopeHeader; headBytes: Buffer; size: number } {
-  const size = fs.statSync(file).size;
   const fd = fs.openSync(file, 'r');
   try {
+    // the size of the opened file, not of whatever the path names by now
+    const size = fs.fstatSync(fd).size;
     const buf = Buffer.alloc(Math.min(HEADER_MAX, size));
     fs.readSync(fd, buf, 0, buf.length, 0);
     const magic = Buffer.from(MAGIC);
