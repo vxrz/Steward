@@ -511,7 +511,8 @@ export function createSession(
       meta.ip ?? null,
       meta.userAgent?.slice(0, 200) ?? null,
       binding,
-      (emergency ? 'emergency' : method).slice(0, 100),
+      // how the session was opened decides what the sign-in mode allows (sessionUser): password, sso or emergency
+      emergency ? 'emergency' : method === 'password' ? 'password' : 'sso',
       opts.emergencyGrantId ?? null,
     );
     db().run('UPDATE users SET last_login_at = ? WHERE id = ?', ts, userId);
@@ -538,9 +539,11 @@ export function createSession(
 export function endPasswordSessions(mode: 'all' | 'adminsOnly' | 'none', keepToken?: string): number {
   if (mode === 'all') return 0;
   const keep = keepToken ? hashToken(keepToken) : '';
+  // by how the session was opened (an account linked to single sign-on later may still hold a password session);
+  // sessions from before the method was recorded count as password sessions
   const rows = db().all<{ id: string; roles: string }>(
     `SELECT s.id, u.roles FROM sessions s JOIN users u ON u.id = s.user_id
-     WHERE u.auth_source = 'local' AND s.emergency_grant_id IS NULL AND s.id <> ?`,
+     WHERE (s.method IS NULL OR s.method = 'password') AND s.emergency_grant_id IS NULL AND s.id <> ?`,
     keep,
   );
   let n = 0;
@@ -584,6 +587,7 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
     last_seen_at: string;
     binding: string | null;
     emergency_grant_id: string | null;
+    method: string | null;
   }>('SELECT * FROM sessions WHERE id = ?', id);
   if (!s) return null;
   const now = Date.now();
@@ -596,8 +600,10 @@ export function sessionUser(token: string | undefined, binding: SessionBinding):
   if (!bindingMatches(s.binding, binding)) return null;
   const r = db().get<UserRow>('SELECT * FROM users WHERE id = ? AND active = 1', s.user_id);
   if (!r) return null;
-  // The sign-in policy applies to open sessions too: password sessions end when password sign-in is turned off.
-  if (!emergency && (r.auth_source ?? 'local') === 'local') {
+  // The sign-in policy applies to open sessions too: password sessions end when password sign-in is turned off. It goes
+  // by how the session was opened, not by the account (which may have been linked to single sign-on since); sessions
+  // from before the method was recorded count as password sessions.
+  if (!emergency && (s.method === null || s.method === 'password')) {
     const mode = passwordLoginMode();
     if (mode === 'none' || (mode === 'adminsOnly' && !parseJson<Role[]>(r.roles, []).includes('admin'))) {
       db().run('DELETE FROM sessions WHERE id = ?', id);

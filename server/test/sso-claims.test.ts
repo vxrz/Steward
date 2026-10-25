@@ -88,6 +88,31 @@ describe('claiming accounts with single sign-on', () => {
     expect(r.error).toContain('email_verified');
   });
 
+  it('ends a password session when password sign-in is turned off, also after the account was linked to single sign-on', async () => {
+    await s.api('POST', '/users', { username: 'oskar@contoso.example', roles: ['operator'], password: 'Oskar-local-pw-123' });
+    const { db } = await import('../src/db.js');
+    db().run("UPDATE users SET must_change_password = 0 WHERE username = 'oskar@contoso.example'");
+    const byPassword = await s.as('oskar@contoso.example', 'Oskar-local-pw-123');
+    const linked = await signIn(a, 'c3d5'); // links the local account to the provider
+    expect((await linked.client!('GET', '/auth/me')).user.authSource).toBe(a);
+    process.env.SM_PASSWORD_LOGIN = 'none';
+    try {
+      await expect(byPassword('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
+      expect((await linked.client!('GET', '/auth/me')).user.username).toBe('oskar@contoso.example');
+    } finally {
+      delete process.env.SM_PASSWORD_LOGIN;
+    }
+    // sessions from before the method was recorded count as password sessions
+    const old = (await signIn(a, 'c3d5')).client!;
+    db().run("UPDATE sessions SET method = NULL WHERE method = 'sso'");
+    process.env.SM_PASSWORD_LOGIN = 'none';
+    try {
+      await expect(old('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
+    } finally {
+      delete process.env.SM_PASSWORD_LOGIN;
+    }
+  });
+
   it('with password sign-in off and several providers, a new account needs the provider chosen', async () => {
     const max = (await signIn(a, 'a1f3')).client!;
     process.env.SM_PASSWORD_LOGIN = 'none';
