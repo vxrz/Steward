@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-24
+
+Runs under a path behind a reverse proxy, a documentation section on the service page, typed and editable links, an update notice for administrators, services in the public API, and more consistent sizes in the web app.
+
 ### Added
 
 - **Documentation section on the service page** (#65): every living document linked to the service either way, with number, title, current edition (or draft), status, review status and next review date – only documents the reader may read, which also holds for every count. _New document_ creates a document with the link to the service already set (choosing the type when there is more than one document type) and opens the editor; `POST /api/records` takes `links` for that (up to 20, same checks and audit entries as adding them later). The document page names its services next to the title, the services list marks services with an overdue document review, and `/api/v1` has `GET /services/{serviceId}/documents`. See [docs/RECORDS.md](docs/RECORDS.md#documentation-of-a-service).
@@ -291,6 +295,7 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/vxrz/steward/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/vxrz/steward/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/vxrz/steward/releases/tag/v0.1.0
