@@ -40,7 +40,12 @@ test('an administrator test-signs-in through a provider and previews the account
   await dialog.getByRole('button', { name: 'Scopes and claims' }).click();
   await dialog.getByRole('textbox', { name: 'User name rule' }).click();
   await page.getByRole('option', { name: 'Lower case without @domain (max)' }).click();
-  await expect(dialog.getByTestId('sso-warnings')).toContainText('Without the domain');
+  // only listed domains are stripped (any other domain is refused)
+  await expect(dialog.getByText('Enter at least one domain')).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await dialog.getByRole('textbox', { name: 'Domains to strip' }).fill('contoso.example');
+  await dialog.getByRole('textbox', { name: 'Domains to strip' }).press('Enter');
+  await expect(dialog.getByTestId('sso-warnings')).toContainText('Only the listed domains are stripped');
   await test.getByRole('tab', { name: 'Preview' }).click();
   await expect(preview).toContainText('User name rule: max@contoso.example → max');
   // a policy that refuses: the reason is shown

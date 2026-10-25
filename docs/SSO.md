@@ -35,6 +35,8 @@ The test sign-in is at the bottom of the provider editor (saved providers, also 
 
 The preview uses the settings in the form, also unsaved ones. Change a claim name or the linking policy and the preview follows. The connection (issuer, client, secret) is always the saved one.
 
+A refused real sign-in only tells the person _Your sign-in was refused – ask an administrator (reference …)_. The reason (no account, an administrator account, linked to someone else …) is in the audit entry `auth.login_failed` with that reference – and in the test sign-in.
+
 A test sign-in never signs anyone in: no session, no cookie, no account created, linked or changed. Only the administrator who started it can see the result, for 15 minutes. It is audited as `sso.test_sign_in`.
 
 ## How claims become an account
@@ -43,8 +45,9 @@ A test sign-in never signs anyone in: no session, no cookie, no account created,
 
 - **User name claim** (default `preferred_username`). Without it, the e-mail claim names the account, and without that, the `sub`.
 - **User name rule:** _lower case_ (default, as before), _lower case without @domain_ (`max@contoso.com` → `max`), or _as sent by the provider_. User names are unique ignoring case.
-- Without the domain, people of different domains get the same name. The second one is refused (the account belongs to the first identity). When you save the rule, Steward lists accounts of this provider that would collide.
-- A user name has at most 128 characters.
+- **Without @domain** needs the list of **domains to strip** (your own, e.g. `contoso.com`). A user name of any other domain is refused – otherwise `boss@evil.example` (a guest, another tenant, any Google address) would claim the account `boss`.
+- People with the same name in two listed domains get the same user name: whoever signs in first gets the account, the other one is refused. When you save the rule, Steward lists accounts of this provider that would collide.
+- User names are normalised (Unicode NFKC: full-width letters, a Kelvin sign … become plain letters) and may then only have letters, digits and `. _ @ + -`, 2–128 characters. Anything else (spaces, accents, invisible or bidi characters) is refused.
 
 ### Stable identifier
 
@@ -52,9 +55,11 @@ Once an identity is linked to an account, Steward finds the account by the ident
 
 - It is the **issuer** together with one to three claims. The default is `sub`. The Entra ID preset uses `tid` + `oid` (the object id in the tenant is the same for every app registration; `sub` differs per app).
 - Use claims nobody can change. Never `email`, `upn`, `preferred_username` or `name`: the editor warns about them.
-- **Changing the claims is safe.** Steward also records the issuer + `sub` of every linked identity. At the next sign-in after a change, the account is found by that earlier link and re-linked to the new identifier (`user.sso_relinked`). An account linked by the claims configured now is never re-linked to another identity, even if its recorded `sub` matches.
+- **The identifier must name one person.** It must include `sub` or `oid` – or a claim of your own (e.g. an employee number) that you confirm is unique per person (_These claims are unique per person_; saved and audited). Claims many people share – `tid`, `iss`, `aud`, `hd`, `groups`, `roles`, `amr`, names … – never count on their own: with `tid` alone, everyone in the tenant would share one account. Steward refuses to save such a setting.
+- Values are used exactly as sent: one string of at most 256 characters, or a number. Lists, objects and empty or longer values are refused; nothing is trimmed or cut.
+- **Changing the claims is safe.** Steward also records the issuer + `sub` of an identity when it is linked (or re-linked) – not at every sign-in, so a later sign-in can never move that record to someone else. At the next sign-in after a change, the account is found by that earlier link and re-linked to the new identifier (`user.sso_relinked`). An account linked by the claims configured now is never re-linked to another identity, even if its recorded `sub` matches.
 - **Links from earlier versions** (provider id + `sub`) keep working: they are re-linked the same way at the next sign-in.
-- **Changing the issuer** starts a new namespace: links stay with the former issuer, and those people get no access through the new one. When the new issuer issues the same subjects (e.g. a renamed host or realm URL), tick **Keep the existing accounts linked to the new issuer** when you save.
+- **Changing the issuer** starts a new namespace: links stay with the former issuer, and those people get no access through the new one. When the new issuer issues the same subjects (e.g. a renamed host or realm URL), tick **Keep the existing accounts linked to the new issuer** when you save. (Very long links are stored hashed; they are re-linked through their issuer + `sub` at the next sign-in.)
 - When the claims are missing from the token, the sign-in is refused.
 
 ### Names, e-mail and sync rules
@@ -77,7 +82,7 @@ Read-only fields on the account, e.g. department, job title, phone, city:
 
 - **Groups claim** (default `roles` for Entra app roles, `groups` elsewhere) and the **mappings**: a claim value → roles and teams.
 - **Values are names** (matched ignoring case) or **ids** (matched exactly, e.g. Entra group object ids, Okta group ids).
-- **Group overage:** when a person has too many groups, Entra ID leaves them out of the token and sends `_claim_names` / `_claim_sources` (or `hasgroups`). Steward cannot see the groups then: no roles come from them, the sign-in is logged and audited (`sso.groups_overage`), a provider that requires a mapping refuses the sign-in, and the test sign-in shows it. Fix it at the provider: assign groups to the application ("groups assigned to the application"), use app roles, or a group filter.
+- **Group overage:** when a person has too many groups, Entra ID leaves them out of the token and sends `_claim_names` / `_claim_sources` naming the claim (or `hasgroups`). Steward checks this for the configured groups claim only (app roles in `roles` are not affected). Steward cannot see the groups then: no roles come from them, the sign-in is logged and audited (`sso.groups_overage`), a provider that requires a mapping refuses the sign-in, and the test sign-in shows it. Fix it at the provider: assign groups to the application ("groups assigned to the application"), use app roles, or a group filter.
 
 ### Required claims
 
@@ -88,7 +93,7 @@ Sign-in only when a claim has one of the accepted values (compared ignoring case
 
 ### Userinfo endpoint
 
-Some providers leave claims out of the ID token. Turn on **Also read the userinfo endpoint**: its claims complete the ID token's (the ID token wins when both have a claim; the userinfo response must name the same `sub`). The test sign-in always shows the userinfo claims.
+Some providers leave claims out of the ID token. Turn on **Also read the userinfo endpoint**: its claims complete the ID token's (the ID token wins when both have a claim; the userinfo response must name the same `sub`). `email_verified` is always taken from the same source as the e-mail address. The test sign-in always shows the userinfo claims.
 
 ### E-mail confirmation
 
@@ -105,6 +110,8 @@ What happens when an identity signs in for the first time and an account with it
 | **Only accounts an administrator bound to this provider** (default for new providers) | Accounts created for this provider (_New user → Signs in with_) and local accounts an administrator bound to it (_Edit user → Signs in with_; this removes the password). |
 | **Any local account with the same user name**                                         | Also local accounts with a password. Whoever has that name at the provider gets the account, its roles and its history. The editor warns.                                 |
 | **Never – only new accounts**                                                         | No existing account, also no bound one. A new identity whose user name is taken is refused.                                                                               |
+
+Linking ends the account's open sessions (like binding it does).
 
 In every mode:
 
@@ -200,4 +207,5 @@ Any provider with discovery (`/.well-known/openid-configuration` below the issue
 
 - Providers keep working unchanged. Settings they were saved without are read with the behaviour of earlier versions: user name in lower case, `sub` as stable identifier, names and e-mail updated at every sign-in, group values as names – and **linking local accounts by name**, which the editor flags. New providers link only bound accounts.
 - Existing links are re-linked to the new format at each person's next sign-in (`user.sso_relinked`).
+- **E-mail confirmation is stricter.** Sign-ins now need `email_verified=true` whenever the e-mail claim names or identifies accounts – also when `email` is the configured user name claim. A provider set up that way at an identity provider that never sends `email_verified` refuses everyone after the update. Steward names such providers in its log at start-up and in the provider editor. If the provider verifies every address, turn on _This provider verifies e-mail addresses_; better, use another user name claim.
 - The database migration `signin-002-sso-claims` adds first and last name, the profile fields and the recorded issuer + `sub` to the user accounts. It does not touch the providers (their settings stay sealed as stored).

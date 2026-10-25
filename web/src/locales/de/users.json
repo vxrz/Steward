@@ -224,10 +224,11 @@
       "TENANT_INFLUENCED_CLAIM": "Den Claim {{claim}} setzen die Administratoren jeder Organisation – bei einem mandantenübergreifenden Aussteller kann eine andere Organisation beliebige Werte senden. Verwenden Sie Claims, die Ihre Organisation kontrolliert (nOAuth).",
       "USER_INFLUENCED_CLAIM": "Den Claim {{claim}} können Personen oft selbst ändern – benennen oder erkennen Sie Konten nicht darüber.",
       "MUTABLE_STABLE_ID": "Die dauerhafte Kennung nutzt Claims, die sich ändern können ({{claims}}): Ändern sie sich, verliert die Person das Konto, und jemand anderes kann es erhalten. Verwenden Sie sub (Entra ID: tid und oid).",
-      "STRIP_DOMAIN": "Ohne Domain erhalten Personen verschiedener Domains denselben Benutzernamen (max@a.com und max@b.com → max): Die zweite wird abgewiesen.",
+      "STRIP_DOMAIN": "Nur die aufgeführten Domains werden entfernt. Personen mit gleichem Namen in zwei aufgeführten Domains erhalten denselben Benutzernamen (max@a.com und max@b.com → max): Wer sich zuerst anmeldet, erhält das Konto, die andere Person wird abgewiesen.",
       "NO_DOMAIN_RESTRICTION": "Jedes Google-Konto kann sich anmelden. Fordern Sie den Claim hd mit Ihrer Workspace-Domain.",
       "EMAIL_TRUSTED": "E-Mail-Adressen gelten ohne email_verified als bestätigt. Nur wenn der Anbieter jede Adresse prüft.",
-      "USERNAME_COLLISIONS": "Konten dieses Anbieters, die mit dieser Regel denselben Benutzernamen erhalten: {{names}}."
+      "USERNAME_COLLISIONS": "Konten dieses Anbieters, die mit dieser Regel denselben Benutzernamen erhalten: {{names}}.",
+      "EMAIL_VERIFIED_NOW_REQUIRED": "Seit dieser Version brauchen Anmeldungen dieses Anbieters email_verified=true (der Claim {{claim}} benennt oder erkennt Konten). Sendet der Anbieter ihn nie, prüft aber jede Adresse, schalten Sie „Dieser Anbieter prüft E-Mail-Adressen“ ein – sonst wird jede Anmeldung abgewiesen."
     },
     "test": {
       "title": "Test-Anmeldung",
@@ -283,7 +284,15 @@
         "GROUPS_OVERAGE": "Das Token hat die Gruppen weggelassen (zu viele Gruppen; Claim {{claim}}). Aus ihnen kommen keine Rollen. Weisen Sie der Anwendung Gruppen zu, nutzen Sie App-Rollen oder einen Gruppenfilter.",
         "USERINFO_USED": "Claims vom Userinfo-Endpunkt werden mitverwendet."
       }
-    }
+    },
+    "stripDomains": "Zu entfernende Domains",
+    "stripDomainsHint": "Nur diese Domains werden entfernt (max@contoso.com → max). Ein Benutzername einer anderen Domain wird abgewiesen – sonst könnte boss@beliebige-domain das Konto „boss“ übernehmen.",
+    "stripDomainsPlaceholder": "contoso.com, dann Enter",
+    "stripDomainsRequired": "Mindestens eine Domain eingeben",
+    "stripDomainsInvalid": "Eine Domain wie contoso.com",
+    "stableIdNotUnique": "Diese Claims benennen keine einzelne Person: Nehmen Sie sub oder oid auf, oder bestätigen Sie unten, dass sie je Person eindeutig sind. Claims, die viele teilen (tid, groups, roles, hd …), zählen allein nie.",
+    "stableIdConfirm": "Diese Claims sind je Person eindeutig – ich habe es geprüft",
+    "stableIdConfirmHint": "Ohne sub oder oid teilen sich zwei Personen mit demselben Wert ein Konto. Die Bestätigung wird gespeichert und protokolliert."
   },
   "profileValues": {
     "title": "Vom Anmeldeanbieter",

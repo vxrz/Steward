@@ -474,9 +474,9 @@
     "SSO_ALREADY_BOUND": "This account signs in with single sign-on already.",
     "TEAM_NAME_IS_ALIAS": "\"{{name}}\" is the former name of an imported team.",
     "SSO_REQUIRED_CLAIM": "The account does not belong to the organisation this sign-in is for (claim {{claim}}).",
-    "SSO_USERNAME_INVALID": "The user name from claim {{claim}} is empty or longer than {{max}} characters.",
+    "SSO_USERNAME_INVALID": "The user name from claim {{claim}} is not usable: 2–{{max}} characters, letters, digits and . _ @ + - only.",
     "SSO_EMAIL_NOT_VERIFIED": "The identity provider did not confirm the e-mail address (claim email_verified) – it names or identifies the account here.",
-    "SSO_STABLE_ID_MISSING": "The identity provider did not send the claims that identify the person ({{claims}}).",
+    "SSO_STABLE_ID_MISSING": "The identity provider did not send usable values for the claims that identify the person ({{claims}}): one string of at most 256 characters or a number each.",
     "SSO_NO_ROLE_MAPPING": "No role is mapped for this account (claim {{claim}}), and this provider requires one.",
     "SSO_NO_ROLE_MAPPING_overage": "No role is mapped for this account (claim {{claim}}): the token left the groups out (too many groups).",
     "SSO_LINK_AMBIGUOUS": "More than one account was linked to this identity before. An administrator has to sort it out.",
@@ -489,7 +489,11 @@
     "SSO_NO_ACCOUNT": "No account exists for {{username}}, and this provider does not create accounts.",
     "SSO_USERNAME_IS_ALIAS": "{{username}} is the former name of an imported account.",
     "SSO_PROFILE_FIELD_TWICE": "The profile field {{key}} is listed twice.",
-    "SSO_TEST_NOT_FOUND": "The test sign-in expired. Start it again."
+    "SSO_TEST_NOT_FOUND": "The test sign-in expired. Start it again.",
+    "SSO_STRIP_DOMAINS_REQUIRED": "Name the domains to strip from user names (e.g. contoso.com).",
+    "SSO_STABLE_ID_NOT_UNIQUE": "The stable identifier ({{claims}}) must name one person: include sub or oid, or confirm that the claims are unique per person.",
+    "SSO_USERNAME_DOMAIN": "The user name is not of a domain this provider strips ({{domains}}).",
+    "SSO_SIGN_IN_REFUSED": "Your sign-in was refused. Ask an administrator (reference {{reference}})."
   },
   "boundary": {
     "title": "Something went wrong on this page",

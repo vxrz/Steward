@@ -224,10 +224,11 @@
       "TENANT_INFLUENCED_CLAIM": "The claim {{claim}} is set by each organisation’s administrators – with a multi-tenant issuer another organisation can send any value. Use claims your organisation controls (nOAuth).",
       "USER_INFLUENCED_CLAIM": "People can often change the claim {{claim}} themselves – do not name or identify accounts by it.",
       "MUTABLE_STABLE_ID": "The stable identifier uses claims that can change ({{claims}}): when they change, the person loses the account, and someone else may get it. Use sub (Entra ID: tid and oid).",
-      "STRIP_DOMAIN": "Without the domain, people of different domains get the same user name (max@a.com and max@b.com → max): the second one is refused.",
+      "STRIP_DOMAIN": "Only the listed domains are stripped. People with the same name in two listed domains get the same user name (max@a.com and max@b.com → max): whoever signs in first gets the account, the other one is refused.",
       "NO_DOMAIN_RESTRICTION": "Any Google account can sign in. Add the required claim hd with your Workspace domain.",
       "EMAIL_TRUSTED": "E-mail addresses are trusted without email_verified. Only when the provider verifies every address.",
-      "USERNAME_COLLISIONS": "Accounts of this provider that get the same user name under this rule: {{names}}."
+      "USERNAME_COLLISIONS": "Accounts of this provider that get the same user name under this rule: {{names}}.",
+      "EMAIL_VERIFIED_NOW_REQUIRED": "Since this version, sign-ins of this provider need email_verified=true (the claim {{claim}} names or identifies accounts). If the provider never sends it but verifies every address, turn on “This provider verifies e-mail addresses” – otherwise everyone is refused."
     },
     "test": {
       "title": "Test sign-in",
@@ -283,7 +284,15 @@
         "GROUPS_OVERAGE": "The token left the groups out (too many groups; claim {{claim}}). No roles come from them. Assign groups to the application, use app roles or a group filter.",
         "USERINFO_USED": "Claims from the userinfo endpoint are used too."
       }
-    }
+    },
+    "stripDomains": "Domains to strip",
+    "stripDomainsHint": "Only these domains are removed (max@contoso.com → max). A user name of any other domain is refused – otherwise boss@any-domain could claim the account “boss”.",
+    "stripDomainsPlaceholder": "contoso.com, then Enter",
+    "stripDomainsRequired": "Enter at least one domain",
+    "stripDomainsInvalid": "A domain such as contoso.com",
+    "stableIdNotUnique": "These claims do not name one person: include sub or oid, or confirm below that they are unique per person. Claims many people share (tid, groups, roles, hd …) never count on their own.",
+    "stableIdConfirm": "These claims are unique per person – I checked",
+    "stableIdConfirmHint": "Without sub or oid, two people with the same value would share one account. The confirmation is saved and audited."
   },
   "profileValues": {
     "title": "From the sign-in provider",

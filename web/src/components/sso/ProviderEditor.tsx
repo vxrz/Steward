@@ -26,8 +26,10 @@ import {
   BRAND,
   ROLES,
   SSO_PRESETS,
+  SSO_DOMAIN,
   SSO_PRESET_INFO,
   ssoConfigWarnings,
+  stableIdProblem,
   type Role,
   type SsoDiscoveryResult,
   type SsoPreset,
@@ -50,6 +52,9 @@ const tenantFromIssuer = (issuer: string) => {
   const m = /^https:\/\/login\.microsoftonline\.com\/([^/]+)\/v2\.0\/?$/i.exec(issuer.trim());
   return m ? m[1]! : '';
 };
+
+/** Warnings only the server can tell (they need the accounts or how the provider was stored). */
+const SERVER_WARNINGS = new Set(['USERNAME_COLLISIONS', 'EMAIL_VERIFIED_NOW_REQUIRED']);
 
 /** Where the provider-side steps of a preset are described. */
 export const presetDocsUrl = (preset: SsoPreset) => `${BRAND.repoUrl}/blob/HEAD/docs/SSO.md#${SSO_PRESET_INFO[preset].docsAnchor}`;
@@ -162,13 +167,14 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   }
   const issuerMoved = !!provider && provider.issuer !== form.issuer.trim().replace(/\/+$/, '');
   // checked while typing; collisions of existing accounts come from the server (saved settings)
-  const warnings = [...ssoConfigWarnings({ ...form, type: kind }), ...(provider?.warnings ?? []).filter((w) => w.code === 'USERNAME_COLLISIONS')];
+  const warnings = [...ssoConfigWarnings({ ...form, type: kind }), ...(provider?.warnings ?? []).filter((w) => SERVER_WARNINGS.has(w.code))];
   const needsSecret = form.clientAuth !== 'none';
   const valid =
     form.displayName.trim() &&
     /^https?:\/\//.test(form.issuer.trim()) &&
     form.clientId.trim() &&
-    form.stableIdClaims.length > 0 &&
+    !stableIdProblem(form.stableIdClaims, form.stableIdConfirmedUnique) &&
+    (form.usernameTransform !== 'stripDomain' || (form.stripDomains.length > 0 && form.stripDomains.every((d) => SSO_DOMAIN.test(d)))) &&
     form.requiredClaims.every((r) => !r.claim.trim() || r.values.length > 0);
 
   return (

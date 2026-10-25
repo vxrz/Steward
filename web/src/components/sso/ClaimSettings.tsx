@@ -1,9 +1,12 @@
-import { ActionIcon, Button, Divider, Group, Radio, Select, Stack, Switch, Table, TagsInput, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Button, Checkbox, Divider, Group, Radio, Select, Stack, Switch, Table, TagsInput, Text, TextInput } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  SSO_DOMAIN,
   SSO_LIMITS,
   SSO_LINK_POLICIES,
+  SSO_SUBJECT_CLAIMS,
+  stableIdProblem,
   SSO_SYNCED_FIELDS,
   type SsoGroupValues,
   type SsoProfileField,
@@ -34,6 +37,24 @@ export function ClaimFields({ form, set }: { form: ProviderForm; set: Set }) {
           comboboxProps={{ withinPortal: true }}
         />
       </Group>
+      {form.usernameTransform === 'stripDomain' && (
+        <TagsInput
+          label={t('provider.stripDomains')}
+          description={t('provider.stripDomainsHint')}
+          placeholder={t('provider.stripDomainsPlaceholder')}
+          value={form.stripDomains}
+          maxTags={SSO_LIMITS.stripDomains}
+          onChange={(v) => set('stripDomains', v.map((x) => x.trim().toLowerCase()).filter(Boolean))}
+          error={
+            !form.stripDomains.length
+              ? t('provider.stripDomainsRequired')
+              : form.stripDomains.some((d) => !SSO_DOMAIN.test(d))
+                ? t('provider.stripDomainsInvalid')
+                : undefined
+          }
+          data-testid="sso-strip-domains"
+        />
+      )}
       <Group grow align="flex-start">
         <TextInput label={t('provider.displayNameClaim')} value={form.displayNameClaim} onChange={(e) => set('displayNameClaim', e.currentTarget.value)} />
         <TextInput
@@ -86,16 +107,28 @@ export function ClaimFields({ form, set }: { form: ProviderForm; set: Set }) {
 /** The claims that identify a person for good. */
 export function StableIdField({ form, set }: { form: ProviderForm; set: Set }) {
   const { t } = useTranslation('users');
+  const problem = stableIdProblem(form.stableIdClaims, form.stableIdConfirmedUnique);
+  const withoutSubject = !form.stableIdClaims.some((c) => (SSO_SUBJECT_CLAIMS as readonly string[]).includes(c));
   return (
-    <TagsInput
-      label={t('provider.stableId')}
-      description={t('provider.stableIdHint')}
-      value={form.stableIdClaims}
-      onChange={(v) => set('stableIdClaims', v.map((x) => x.trim()).filter(Boolean))}
-      maxTags={SSO_LIMITS.stableIdClaims}
-      error={form.stableIdClaims.length ? undefined : t('provider.stableIdRequired')}
-      data-testid="sso-stable-id"
-    />
+    <Stack gap={4}>
+      <TagsInput
+        label={t('provider.stableId')}
+        description={t('provider.stableIdHint')}
+        value={form.stableIdClaims}
+        onChange={(v) => set('stableIdClaims', v.map((x) => x.trim()).filter(Boolean))}
+        maxTags={SSO_LIMITS.stableIdClaims}
+        error={problem === 'NONE' ? t('provider.stableIdRequired') : problem === 'NOT_UNIQUE' ? t('provider.stableIdNotUnique') : undefined}
+        data-testid="sso-stable-id"
+      />
+      {withoutSubject && form.stableIdClaims.length > 0 && (
+        <Checkbox
+          label={t('provider.stableIdConfirm')}
+          description={t('provider.stableIdConfirmHint')}
+          checked={form.stableIdConfirmedUnique}
+          onChange={(e) => set('stableIdConfirmedUnique', e.currentTarget.checked)}
+        />
+      )}
+    </Stack>
   );
 }
 
