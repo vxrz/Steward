@@ -664,9 +664,9 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     notes,
   };
   const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams };
-  const refuse = (code: string, message: string, params?: ErrorParams): Decision => {
+  const refuse = (refusal: { code: string; message: string; params?: ErrorParams }): Decision => {
     preview.outcome = 'refuse';
-    preview.refusal = { code, message, ...(params ? { params } : {}) };
+    preview.refusal = refusal;
     return d;
   };
 
@@ -674,34 +674,46 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
     const v = claimAt(claims, rule.claim);
     const got = (Array.isArray(v) ? claimList(v) : [claimText(v, 500)]).filter((x): x is string => !!x).map((x) => x.toLowerCase());
     if (!rule.values.some((x) => got.includes(x.trim().toLowerCase()))) {
-      return refuse('SSO_REQUIRED_CLAIM', `Your account does not belong to the organisation this sign-in is for (claim "${rule.claim}")`, {
-        claim: rule.claim,
+      return refuse({
+        code: 'SSO_REQUIRED_CLAIM',
+        message: `Your account does not belong to the organisation this sign-in is for (claim "${rule.claim}")`,
+        params: {
+          claim: rule.claim,
+        },
       });
     }
   }
   if (!username || username.length > MAX_USERNAME) {
-    return refuse('SSO_USERNAME_INVALID', `The user name from claim "${usernameFrom.claim}" is empty or longer than ${MAX_USERNAME} characters`, {
-      claim: usernameFrom.claim,
-      max: MAX_USERNAME,
+    return refuse({
+      code: 'SSO_USERNAME_INVALID',
+      message: `The user name from claim "${usernameFrom.claim}" is empty or longer than ${MAX_USERNAME} characters`,
+      params: {
+        claim: usernameFrom.claim,
+        max: MAX_USERNAME,
+      },
     });
   }
   if (verificationRequired && verified !== true) {
-    return refuse(
-      'SSO_EMAIL_NOT_VERIFIED',
-      'The identity provider did not confirm the e-mail address the account is named or identified by (claim "email_verified")',
-      { claim: p.emailClaim },
-    );
+    return refuse({
+      code: 'SSO_EMAIL_NOT_VERIFIED',
+      message: 'The identity provider did not confirm the e-mail address the account is named or identified by (claim "email_verified")',
+      params: { claim: p.emailClaim },
+    });
   }
   if (!keys.key) {
     const missing = keys.parts.filter((x) => x.value === null).map((x) => x.name);
-    return refuse('SSO_STABLE_ID_MISSING', `The identity provider did not send the claims that identify you (${missing.join(', ')})`, { claims: missing });
+    return refuse({
+      code: 'SSO_STABLE_ID_MISSING',
+      message: `The identity provider did not send the claims that identify you (${missing.join(', ')})`,
+      params: { claims: missing },
+    });
   }
   if (p.requireMapping && matched.length === 0) {
-    return refuse(
-      'SSO_NO_ROLE_MAPPING',
-      `Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")${overage ? ' – the token left the groups out (too many groups)' : ''}`,
-      { claim: p.groupsClaim, ...(overage ? { context: 'overage' } : {}) },
-    );
+    return refuse({
+      code: 'SSO_NO_ROLE_MAPPING',
+      message: `Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")${overage ? ' – the token left the groups out (too many groups)' : ''}`,
+      params: { claim: p.groupsClaim, ...(overage ? { context: 'overage' } : {}) },
+    });
   }
 
   // ----- which account: the stable id, else the identity's earlier link (re-linked), else the user name -----
@@ -726,7 +738,7 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
         return names !== null && !sameSet(names, p.stableIdClaims);
       });
     if (candidates.length > 1) {
-      return refuse('SSO_LINK_AMBIGUOUS', `More than one ${BRAND.name} account was linked to this identity before – ask an administrator`);
+      return refuse({ code: 'SSO_LINK_AMBIGUOUS', message: `More than one ${BRAND.name} account was linked to this identity before – ask an administrator` });
     }
     if (candidates[0]) {
       account = candidates[0];
@@ -741,27 +753,39 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
       const source = existing.auth_source ?? 'local';
       preview.account = { id: existing.id, username: existing.username, displayName: existing.display_name, authSource: source };
       if (source !== 'local' && source !== p.id)
-        return refuse('SSO_OTHER_PROVIDER', `The user name "${username}" belongs to another sign-in provider`, { username });
+        return refuse({ code: 'SSO_OTHER_PROVIDER', message: `The user name "${username}" belongs to another sign-in provider`, params: { username } });
       // an account of this provider that is linked already belongs to that identity, not to whoever has the name now
       if (source === p.id && existing.external_id)
-        return refuse('SSO_LINKED_TO_OTHER_IDENTITY', `The account "${username}" is linked to another ${p.displayName} identity`, { username });
+        return refuse({
+          code: 'SSO_LINKED_TO_OTHER_IDENTITY',
+          message: `The account "${username}" is linked to another ${p.displayName} identity`,
+          params: { username },
+        });
       // a local administrator is never taken over by a name: an administrator binds it to this provider first (Users & teams)
       if (source === 'local' && parseJson<Role[]>(existing.roles, []).includes('admin')) {
-        return refuse('SSO_LOCAL_ADMIN', `"${username}" is a local administrator account – an administrator has to bind it to ${p.displayName} first`, {
-          username,
+        return refuse({
+          code: 'SSO_LOCAL_ADMIN',
+          message: `"${username}" is a local administrator account – an administrator has to bind it to ${p.displayName} first`,
+          params: {
+            username,
+          },
         });
       }
       if (p.linkExisting === 'never') {
-        return refuse('SSO_LINK_NEVER', `An account "${username}" exists already and ${p.displayName} does not link existing accounts – ask an administrator`, {
-          username,
+        return refuse({
+          code: 'SSO_LINK_NEVER',
+          message: `An account "${username}" exists already and ${p.displayName} does not link existing accounts – ask an administrator`,
+          params: {
+            username,
+          },
         });
       }
       if (p.linkExisting === 'bound' && source !== p.id) {
-        return refuse(
-          'SSO_LINK_BOUND_ONLY',
-          `An account "${username}" exists already – an administrator has to bind it to ${p.displayName} first (Users & teams → Edit user → Signs in with)`,
-          { username },
-        );
+        return refuse({
+          code: 'SSO_LINK_BOUND_ONLY',
+          message: `An account "${username}" exists already – an administrator has to bind it to ${p.displayName} first (Users & teams → Edit user → Signs in with)`,
+          params: { username },
+        });
       }
       account = existing;
       preview.outcome = 'link';
@@ -770,13 +794,18 @@ function decide(p: DecisionProvider, claims: Claims): Decision {
   if (account) {
     preview.account = { id: account.id, username: account.username, displayName: account.display_name, authSource: account.auth_source ?? 'local' };
     d.account = account;
-    if (!account.active) return refuse('SSO_ACCOUNT_DISABLED', `Your ${BRAND.name} account is disabled`);
+    if (!account.active) return refuse({ code: 'SSO_ACCOUNT_DISABLED', message: `Your ${BRAND.name} account is disabled` });
     return d;
   }
-  if (!p.autoProvision) return refuse('SSO_NO_ACCOUNT', `No ${BRAND.name} account exists for "${username}" – ask an administrator`, { username });
+  if (!p.autoProvision)
+    return refuse({ code: 'SSO_NO_ACCOUNT', message: `No ${BRAND.name} account exists for "${username}" – ask an administrator`, params: { username } });
   // a former name of an imported account (aliases.ts) must not become a new account: it would inherit that account's grants
   if (aliasTarget(username))
-    return refuse('SSO_USERNAME_IS_ALIAS', `"${username}" is the former name of an imported account – ask an administrator`, { username });
+    return refuse({
+      code: 'SSO_USERNAME_IS_ALIAS',
+      message: `"${username}" is the former name of an imported account – ask an administrator`,
+      params: { username },
+    });
   return d;
 }
 
