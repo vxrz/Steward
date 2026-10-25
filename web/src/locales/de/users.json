@@ -292,7 +292,9 @@
     "stripDomainsInvalid": "Eine Domain wie contoso.com",
     "stableIdNotUnique": "Diese Claims benennen keine einzelne Person: Nehmen Sie sub oder oid auf, oder bestätigen Sie unten, dass sie je Person eindeutig sind. Claims, die viele teilen (tid, groups, roles, hd …), zählen allein nie.",
     "stableIdConfirm": "Diese Claims sind je Person eindeutig – ich habe es geprüft",
-    "stableIdConfirmHint": "Ohne sub oder oid teilen sich zwei Personen mit demselben Wert ein Konto. Die Bestätigung wird gespeichert und protokolliert."
+    "stableIdConfirmHint": "Ohne sub oder oid teilen sich zwei Personen mit demselben Wert ein Konto. Die Bestätigung wird gespeichert und protokolliert.",
+    "emailNoticeDismiss": "email_verified weiter verlangen – ich habe geprüft, dass dieser Anbieter ihn sendet",
+    "emailNoticeDismissHint": "Entfernt diesen Hinweis beim Speichern. Auch „Dieser Anbieter prüft E-Mail-Adressen“ oder ein anderer Claim für die Kontonamen entfernt ihn."
   },
   "profileValues": {
     "title": "Vom Anmeldeanbieter",

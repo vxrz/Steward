@@ -167,13 +167,18 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
   }
   const issuerMoved = !!provider && provider.issuer !== form.issuer.trim().replace(/\/+$/, '');
   // checked while typing; collisions of existing accounts come from the server (saved settings)
-  const warnings = [...ssoConfigWarnings({ ...form, type: kind }), ...(provider?.warnings ?? []).filter((w) => SERVER_WARNINGS.has(w.code))];
+  const warnings = [
+    ...ssoConfigWarnings({ ...form, type: kind }),
+    ...(provider?.warnings ?? []).filter(
+      (w) => SERVER_WARNINGS.has(w.code) && (w.code !== 'EMAIL_VERIFIED_NOW_REQUIRED' || (form.emailVerificationNotice && !form.emailVerifiedByProvider)),
+    ),
+  ];
   const needsSecret = form.clientAuth !== 'none';
   const valid =
     form.displayName.trim() &&
     /^https?:\/\//.test(form.issuer.trim()) &&
     form.clientId.trim() &&
-    !stableIdProblem(form.stableIdClaims, form.stableIdConfirmedUnique) &&
+    !stableIdProblem(form.stableIdClaims, form.stableIdConfirmedClaims) &&
     (form.usernameTransform !== 'stripDomain' || (form.stripDomains.length > 0 && form.stripDomains.every((d) => SSO_DOMAIN.test(d)))) &&
     form.requiredClaims.every((r) => !r.claim.trim() || r.values.length > 0);
 
@@ -202,6 +207,15 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Anchor>
         </Alert>
         <ConfigWarnings warnings={warnings} />
+        {provider?.emailVerificationNotice && (
+          <Checkbox
+            label={t('provider.emailNoticeDismiss')}
+            description={t('provider.emailNoticeDismissHint')}
+            checked={!form.emailVerificationNotice}
+            onChange={(e) => set('emailVerificationNotice', !e.currentTarget.checked)}
+            data-testid="sso-email-notice"
+          />
+        )}
         <TextInput
           label={t('provider.buttonLabel')}
           description={t('provider.buttonLabelHint', { button: t('auth:sso.signInWith', { provider: form.displayName || '…' }) })}

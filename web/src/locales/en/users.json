@@ -292,7 +292,9 @@
     "stripDomainsInvalid": "A domain such as contoso.com",
     "stableIdNotUnique": "These claims do not name one person: include sub or oid, or confirm below that they are unique per person. Claims many people share (tid, groups, roles, hd …) never count on their own.",
     "stableIdConfirm": "These claims are unique per person – I checked",
-    "stableIdConfirmHint": "Without sub or oid, two people with the same value would share one account. The confirmation is saved and audited."
+    "stableIdConfirmHint": "Without sub or oid, two people with the same value would share one account. The confirmation is saved and audited.",
+    "emailNoticeDismiss": "Keep requiring email_verified – I checked that this provider sends it",
+    "emailNoticeDismissHint": "Removes this notice when you save. Turning on “This provider verifies e-mail addresses” or naming accounts by another claim removes it too."
   },
   "profileValues": {
     "title": "From the sign-in provider",

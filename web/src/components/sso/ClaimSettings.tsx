@@ -107,7 +107,10 @@ export function ClaimFields({ form, set }: { form: ProviderForm; set: Set }) {
 /** The claims that identify a person for good. */
 export function StableIdField({ form, set }: { form: ProviderForm; set: Set }) {
   const { t } = useTranslation('users');
-  const problem = stableIdProblem(form.stableIdClaims, form.stableIdConfirmedUnique);
+  const problem = stableIdProblem(form.stableIdClaims, form.stableIdConfirmedClaims);
+  // a confirmation is for exactly these claims: changing them asks for it again
+  const confirmed =
+    form.stableIdConfirmedClaims.length === form.stableIdClaims.length && form.stableIdClaims.every((c) => form.stableIdConfirmedClaims.includes(c));
   const withoutSubject = !form.stableIdClaims.some((c) => (SSO_SUBJECT_CLAIMS as readonly string[]).includes(c));
   return (
     <Stack gap={4}>
@@ -115,7 +118,10 @@ export function StableIdField({ form, set }: { form: ProviderForm; set: Set }) {
         label={t('provider.stableId')}
         description={t('provider.stableIdHint')}
         value={form.stableIdClaims}
-        onChange={(v) => set('stableIdClaims', v.map((x) => x.trim()).filter(Boolean))}
+        onChange={(v) => {
+          set('stableIdClaims', v.map((x) => x.trim()).filter(Boolean));
+          set('stableIdConfirmedClaims', []);
+        }}
         maxTags={SSO_LIMITS.stableIdClaims}
         error={problem === 'NONE' ? t('provider.stableIdRequired') : problem === 'NOT_UNIQUE' ? t('provider.stableIdNotUnique') : undefined}
         data-testid="sso-stable-id"
@@ -124,8 +130,8 @@ export function StableIdField({ form, set }: { form: ProviderForm; set: Set }) {
         <Checkbox
           label={t('provider.stableIdConfirm')}
           description={t('provider.stableIdConfirmHint')}
-          checked={form.stableIdConfirmedUnique}
-          onChange={(e) => set('stableIdConfirmedUnique', e.currentTarget.checked)}
+          checked={confirmed}
+          onChange={(e) => set('stableIdConfirmedClaims', e.currentTarget.checked ? [...form.stableIdClaims] : [])}
         />
       )}
     </Stack>
