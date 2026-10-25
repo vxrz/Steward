@@ -45,31 +45,36 @@ function legacy({ zodSchema, jsonSchema: js }: OverrideContext): void {
   }
 }
 
+const WRAPPER_KEYS = ['default', 'description'];
+/** Keywords whose value maps names to schemas, and keywords whose value is data, not a schema */
+const SCHEMA_MAPS = new Set(['properties', 'patternProperties', '$defs', 'definitions', 'dependentSchemas']);
+const DATA = new Set(['default', 'examples', 'example', 'enum', 'const']);
 /**
  * After the overrides: zod 4 folds `anyOf: [{ type: integer }, { type: null }]` into
  * `type: [null, integer]`, and writes the default and description of a wrapper (optional, nullable …)
  * before the keywords of the wrapped schema.
  */
-const WRAPPER_KEYS = ['default', 'description'];
 function legacyLayout(v: unknown): void {
-  if (Array.isArray(v)) v.forEach(legacyLayout);
-  else if (v !== null && typeof v === 'object') {
-    const js = v as JsonSchema;
-    if (Array.isArray(js.type) && js.type.length === 2 && js.type.includes('integer') && js.type.includes('null')) {
-      delete js.type;
-      js.anyOf = [{ type: 'integer' }, { type: 'null' }];
+  if (Array.isArray(v)) return v.forEach(legacyLayout);
+  if (v === null || typeof v !== 'object') return;
+  const js = v as JsonSchema;
+  if (Array.isArray(js.type) && js.type.length === 2 && js.type.includes('integer') && js.type.includes('null')) {
+    delete js.type;
+    js.anyOf = [{ type: 'integer' }, { type: 'null' }];
+  }
+  const keys = Object.keys(js);
+  const first = keys.findIndex((k) => !WRAPPER_KEYS.includes(k));
+  if (first > 0 && js.type !== 'object') {
+    for (const k of WRAPPER_KEYS.filter((k) => keys.slice(0, first).includes(k))) {
+      const value = js[k];
+      delete js[k];
+      js[k] = value;
     }
-    const keys = Object.keys(js);
-    const first = keys.findIndex((k) => !WRAPPER_KEYS.includes(k));
-    const lead = keys.slice(0, Math.max(first, 0));
-    if (lead.length && js.type !== 'object') {
-      for (const k of WRAPPER_KEYS.filter((k) => lead.includes(k))) {
-        const value = js[k];
-        delete js[k];
-        js[k] = value;
-      }
-    }
-    Object.values(js).forEach(legacyLayout);
+  }
+  for (const [k, value] of Object.entries(js)) {
+    if (DATA.has(k)) continue;
+    if (SCHEMA_MAPS.has(k) && value !== null && typeof value === 'object') Object.values(value).forEach(legacyLayout);
+    else legacyLayout(value);
   }
 }
 
