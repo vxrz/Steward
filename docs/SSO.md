@@ -133,6 +133,35 @@ Every claim that names, identifies or links an account must be controlled by you
 
 See also [SECURITY-HARDENING.md](SECURITY-HARDENING.md).
 
+## Step-up re-authentication
+
+Before a sensitive action – an API token, a role change, the sign-in and outbound settings, an evidence pack … (the list is in [SECURITY-HARDENING.md](SECURITY-HARDENING.md#step-up-re-authentication)) – a person who signed in with single sign-on signs in again at the same provider. Steward has no password of theirs to ask for.
+
+1. The dialog _Confirm it is you_ offers **Confirm with \<provider\>**. It opens the provider in a popup (in the same window when popups are blocked) with `prompt=login` and `max_age=0`.
+2. The redirect comes back to the usual redirect URI (`…/api/auth/oidc/callback` – nothing new to register). The callback checks the answer like a sign-in (state, nonce, PKCE, signature) and then:
+   - the identity must be the signed-in account: the same [stable identifier](#stable-identifier) a sign-in links by (or the account's earlier link), never just the same user name – someone else's sign-in at the provider is refused;
+   - `auth_time` must be at most `SM_STEP_UP_MINUTES` old (default 5) – a provider that ignored `prompt=login` and reused an older session is refused, and so is one that sends no `auth_time`;
+   - with _Require multi-factor authentication_ (provider editor, _Confirming sensitive actions_): the Entra ID authentication context in `acrs`, else one of the configured _acr values_ in `acr`, else `mfa` in `amr`;
+   - what a sign-in would refuse now (a required claim, the role mapping, a disabled account) refuses the step-up too.
+3. The callback never signs in, creates or changes an account and sets no cookie. Its page hands a one-time ticket to the browser that holds the session, which redeems it (`POST /api/auth/step-up/sso/complete`): a sign-in finished in another browser or for another session confirms nothing. Then the popup closes and the action runs again by itself. (In the same window you come back to the page and do it again.)
+
+The return path is limited to Steward's own pages; it works under `SM_BASE_PATH` and behind a reverse proxy like the sign-in. Refusals show the reason in the dialog and are audited (`auth.step_up_failed` with the reason); a confirmation is audited as `auth.step_up` with the method `sso` or `sso+mfa`.
+
+A sign-in whose `auth_time` is fresh confirms the new session right away (with MFA where the provider requires it for step-up), so right after signing in nobody is asked twice.
+
+**Per preset** – check with the [test sign-in](#test-sign-in) that the ID token carries `auth_time` (and `amr` or `acr` for MFA):
+
+| Preset             | `prompt=login` / `max_age`                         | `auth_time`                                                                                                                                 | MFA for step-up                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microsoft Entra ID | both honoured                                      | an **optional claim**: _App registration → Token configuration → Add optional claim → ID → `auth_time`_. Without it the step-up is refused. | `amr` with `mfa`, or – better – an **authentication context**: _Entra admin center → Protection → Conditional Access → Authentication contexts → New_ (e.g. `c1`, "Steward sensitive actions"), a Conditional Access policy for that context (e.g. require MFA, a compliant device or a phishing-resistant method), and `c1` in the provider editor. Steward asks with the claims parameter (`acrs`, essential) and checks `acrs` in the ID token. |
+| Keycloak           | both honoured                                      | always sent                                                                                                                                 | _acr values_ with Keycloak's step-up flows (_Authentication → Flows_, levels of authentication, and _ACR to LoA mapping_ of the realm or client, e.g. `gold`); `amr` only with an AMR mapper.                                                                                                                                                                                                                                                      |
+| Okta               | both honoured                                      | always sent                                                                                                                                 | `amr` (`mfa`, `otp` …); or _acr values_ such as `urn:okta:loa:2fa:any` (Okta Identity Engine).                                                                                                                                                                                                                                                                                                                                                     |
+| Google Workspace   | no `prompt=login` – Steward sends only `max_age=0` | sent for requests with `max_age`                                                                                                            | No `amr`/`acr`: leave _Require multi-factor authentication_ off and enforce 2-Step Verification in the Workspace admin console.                                                                                                                                                                                                                                                                                                                    |
+| Authentik          | both honoured                                      | always sent                                                                                                                                 | `amr` (`pwd`, `mfa` …) in recent versions; a flow with an authenticator stage for MFA.                                                                                                                                                                                                                                                                                                                                                             |
+| Generic            | depends                                            | required – check with the test sign-in                                                                                                      | `amr` or `acr_values`, as your provider supports.                                                                                                                                                                                                                                                                                                                                                                                                  |
+
+**Entra ID Conditional Access authentication context** is the strongest option: the policy lives in Entra (MFA strength, device compliance, sign-in frequency _every time_), and Steward only accepts a token that says the policy was met. Tokens of earlier sign-ins don't carry the context, so the step-up always goes through the policy.
+
 ## Presets
 
 ### Microsoft Entra ID
@@ -151,6 +180,7 @@ Notes:
 - **E-mail:** Entra ID sends `email_verified` only as an optional claim, and the `email` claim is not verified for every account. Keep `preferred_username` as user name.
 - **Groups instead of app roles:** let Entra emit the `groups` claim (_Token configuration_), set the groups claim to `groups` and the values to _ids_, and map group object ids. Tokens carry at most 200 groups; beyond that Entra sends an overage indicator ([groups and roles](#groups-and-roles)). App roles avoid that.
 - **Multi-tenant** (`organizations`): add the required claim `tid`.
+- **Step-up:** add the optional claim `auth_time` to the ID token, or people who sign in with Entra ID cannot confirm sensitive actions ([step-up](#step-up-re-authentication)); an authentication context makes Entra enforce MFA for them.
 
 ### Keycloak
 
@@ -202,6 +232,9 @@ Any provider with discovery (`/.well-known/openid-configuration` below the issue
 | `user.sso_relinked`    | An account was re-linked to the stable identifier through its earlier link.          |
 | `user.roles_synced`    | Roles or mapped teams changed from the claims.                                       |
 | `auth.login_failed`    | A sign-in was refused (with the reason).                                             |
+| `auth.step_up`         | A session confirmed it is its owner (method `password`, `sso` or `sso+mfa`).         |
+| `auth.step_up_failed`  | A confirmation was refused (with the reason, e.g. `STEP_UP_STALE`).                  |
+| `auth.step_up_ended`   | A person ended the confirmation of their session.                                    |
 
 ## Upgrading from an earlier version
 
