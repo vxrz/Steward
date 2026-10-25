@@ -1,7 +1,7 @@
 /**
  * Contract of the public REST API (/api/v1): every response body and query
  * string is defined here as a zod schema, converted to JSON Schema
- * (draft 2019-09, compatible with OpenAPI 3.1) and registered as Fastify route
+ * (draft 2020-12, the dialect of OpenAPI 3.1; server/src/jsonSchema.ts) and registered as Fastify route
  * schemas. The response schemas also drive serialization, so a field that is
  * not declared here never leaves the server.
  *

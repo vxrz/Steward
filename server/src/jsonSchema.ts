@@ -24,7 +24,7 @@ function acceptsUndefined(s: z.ZodType): boolean {
  * - The safe-integer range `.int()` adds is left out, and so are `propertyNames` of records
  *   (JSON object keys are strings anyway).
  * - A nullable schema carries the description of the schema it wraps, and a nullable integer stays
- *   `anyOf: [{ type: integer }, { type: null }]` (see `nullableIntegers`).
+ *   `anyOf: [{ type: integer }, { type: null }]` (see `legacyLayout`).
  */
 function legacy({ zodSchema, jsonSchema: js }: OverrideContext): void {
   const def = zodSchema._zod.def as { type: string; shape?: Record<string, z.ZodType>; checks?: { _zod: { def: { format?: string } } }[] };
@@ -45,16 +45,31 @@ function legacy({ zodSchema, jsonSchema: js }: OverrideContext): void {
   }
 }
 
-/** zod 4 folds `anyOf: [{ type: integer }, { type: null }]` into `type: [null, integer]` (after the overrides). */
-function nullableIntegers(v: unknown): void {
-  if (Array.isArray(v)) v.forEach(nullableIntegers);
+/**
+ * After the overrides: zod 4 folds `anyOf: [{ type: integer }, { type: null }]` into
+ * `type: [null, integer]`, and writes the default and description of a wrapper (optional, nullable …)
+ * before the keywords of the wrapped schema.
+ */
+const WRAPPER_KEYS = ['default', 'description'];
+function legacyLayout(v: unknown): void {
+  if (Array.isArray(v)) v.forEach(legacyLayout);
   else if (v !== null && typeof v === 'object') {
     const js = v as JsonSchema;
     if (Array.isArray(js.type) && js.type.length === 2 && js.type.includes('integer') && js.type.includes('null')) {
       delete js.type;
       js.anyOf = [{ type: 'integer' }, { type: 'null' }];
     }
-    Object.values(js).forEach(nullableIntegers);
+    const keys = Object.keys(js);
+    const first = keys.findIndex((k) => !WRAPPER_KEYS.includes(k));
+    const lead = keys.slice(0, Math.max(first, 0));
+    if (lead.length && js.type !== 'object') {
+      for (const k of WRAPPER_KEYS.filter((k) => lead.includes(k))) {
+        const value = js[k];
+        delete js[k];
+        js[k] = value;
+      }
+    }
+    Object.values(js).forEach(legacyLayout);
   }
 }
 
@@ -73,6 +88,6 @@ export function zodJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSc
     override: legacy,
   }) as JsonSchema;
   delete out.$schema;
-  nullableIntegers(out);
+  legacyLayout(out);
   return out;
 }
