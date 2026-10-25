@@ -190,6 +190,9 @@ async function unlockVault(p: string): Promise<void> {
   }
 }
 
+/** Host names of the loopback interface (URL.hostname writes IPv6 in brackets). */
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
 interface Values {
   activate?: boolean;
   'passphrase-stdin'?: boolean;
@@ -243,11 +246,19 @@ async function execute(sub: Command, username: string | undefined, values: Value
     if (vault().info().format !== 2) throw new Failure('the vault has not been converted yet – unlock Steward once, or stop it and run the command again');
     await unlockVault(await passphrase(values, config.masterPassphrase));
     const { makeSignedGrant, newCode, hashCode } = await import('../auth/emergency.js');
+    // the grant goes only to this machine's loopback interface: the server accepts it from nowhere else
+    const target = new URL(`${running.url.replace(/\/+$/, '')}/api/auth/emergency/grant`);
+    if (!LOOPBACK_HOSTS.has(target.hostname)) {
+      throw new Failure(
+        `Steward listens on ${target.host}, not on this machine's loopback interface, so it cannot take emergency access while it runs – ` +
+          'stop it and run the command again (or let it listen on 127.0.0.1, localhost or 0.0.0.0 with SM_HOST)',
+      );
+    }
     const code = newCode();
     const body = makeSignedGrant({ instanceId: running.instanceId, username: username!, minutes: values.minutes, codeHash: hashCode(code), actor: actor() });
     let res: Response;
     try {
-      res = await fetch(`${running.url}/api/auth/emergency/grant`, {
+      res = await fetch(target, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-sm-client': '1' },
         body: JSON.stringify(body),

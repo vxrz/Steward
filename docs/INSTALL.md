@@ -245,7 +245,7 @@ What it does and needs:
 
 It works **while Steward runs** and while it is stopped:
 
-- **Running:** the command signs the request with the installation's key from the vault (which needs `vault.json` and the master passphrase) and hands it to Steward on this machine (`instance.json` in the data folder tells it where). Steward checks the signature, that the request is fresh, that it is meant for this running instance and that it came directly over the loopback interface (not through a proxy). This also works while the vault is locked.
+- **Running:** the command signs the request with the installation's key from the vault (which needs `vault.json` and the master passphrase) and hands it to Steward on this machine (`instance.json` in the data folder tells it where). Steward checks the signature, that the request is fresh, that it is meant for this running instance and that it came directly over the loopback interface (not through a proxy). This also works while the vault is locked. The command only sends to a loopback address: if Steward listens on one specific network address (`SM_HOST=10.0.0.5`), stop it first.
 - **Stopped:** the command writes the grant into the database; start Steward, then open the link.
 
 Step by step:
