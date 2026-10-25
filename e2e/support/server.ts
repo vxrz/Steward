@@ -58,6 +58,8 @@ export async function startIsolatedServer(opts: { demo?: boolean } = {}): Promis
         ...(BASE_PATH ? { SM_BASE_PATH: BASE_PATH, SM_TRUST_PROXY: '127.0.0.1' } : {}),
         SM_DEMO: opts.demo ? '1' : '',
         SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
+        // step-up: the admin's setup session counts as confirmed for the longest window
+        SM_STEP_UP_MINUTES: '15',
         SM_LOG_LEVEL: 'warn',
         OTEL_EXPORTER_OTLP_ENDPOINT: '',
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',

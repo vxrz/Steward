@@ -44,6 +44,8 @@ export interface Fixtures {
   apiAs: (user: UserKey) => Promise<APIRequestContext>;
   /** Fails the test when the page logs console errors or throws (auto-applied). */
   consoleGuard: GuardState;
+  /** The stored sessions are confirmed for sensitive actions (step-up, auto-applied) */
+  confirmedSessions: void;
 }
 
 /** Worker-scoped: under E2E_BASE_PATH, app paths passed to goto() and API requests get the base path (support/basePath.ts). */
@@ -65,6 +67,14 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
       const state: GuardState = { problems: [], allow: [] };
       await use(state);
       expect(state.problems, 'the page logged errors (see e2e/support/fixtures.ts → BENIGN_CONSOLE for the allow-list)').toEqual([]);
+    },
+    { auto: true },
+  ],
+  confirmedSessions: [
+    // eslint-disable-next-line no-empty-pattern -- Playwright fixtures must destructure their first argument
+    async ({}, use) => {
+      await confirmSessions();
+      await use();
     },
     { auto: true },
   ],
@@ -111,6 +121,39 @@ export function sessionHeaders(user: UserKey): Record<string, string> {
   const state = JSON.parse(fs.readFileSync(authFile(user), 'utf8')) as { origins: { localStorage: { name: string; value: string }[] }[] };
   const key = state.origins.flatMap((o) => o.localStorage).find((e) => e.name === 'sm.sessionKey')?.value;
   return key ? { 'x-sm-session': key } : {};
+}
+
+/** The session cookie of a stored session ("name=value"). */
+function storedCookie(user: UserKey): string {
+  const state = JSON.parse(fs.readFileSync(authFile(user), 'utf8')) as { cookies: { name: string; value: string }[] };
+  return state.cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+}
+
+/**
+ * Step-up re-authentication (server/src/auth/step-up.ts): sensitive actions need a recent confirmation of the session.
+ * The demo users' stored sessions are shared by every test, so they are confirmed with the password here – like a person
+ * who just entered it – whenever less than five minutes of the window (SM_STEP_UP_MINUTES=15) are left. Tests of the
+ * dialog itself use sessions of their own (e2e/step-up.spec.ts).
+ */
+const confirmedUntil = new Map<UserKey, number>();
+const MARGIN_MS = 5 * 60_000;
+async function confirmSessions(): Promise<void> {
+  for (const user of Object.keys(USERS) as UserKey[]) {
+    if ((confirmedUntil.get(user) ?? 0) > Date.now() + MARGIN_MS) continue;
+    const headers = { 'x-sm-client': '1', cookie: storedCookie(user), ...sessionHeaders(user) };
+    const status = await fetch(`${baseURL()}/api/auth/step-up`, { headers });
+    if (!status.ok) continue; // a test may have ended this session (it signs in again)
+    let until = Date.parse(((await status.json()) as { until: string | null }).until ?? '') || 0;
+    if (until < Date.now() + MARGIN_MS) {
+      const r = await fetch(`${baseURL()}/api/auth/step-up`, {
+        method: 'POST',
+        headers: { ...headers, 'content-type': 'application/json' },
+        body: JSON.stringify({ password: USERS[user].password }),
+      });
+      if (r.ok) until = Date.parse(((await r.json()) as { until: string }).until);
+    }
+    confirmedUntil.set(user, until);
+  }
 }
 
 /** The session key of a page that signed in through the UI. */
