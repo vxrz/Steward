@@ -63,6 +63,22 @@ describe('identity aliases of imported accounts', () => {
     expect(fourEyesReason(olivia, { owner: 'x', created_by: 'y', submitted_by: null }, ['LAPTOP-OLIVIA'])?.code).toBe('FOUR_EYES_CONTENT_AUTHOR');
   });
 
+  it('counts a former name as the subject of an access change', async () => {
+    const { isSubjectOf } = await import('../src/compliance/access.js');
+    expect(isSubjectOf('olivia', { subjectName: 'laptop-olivia' })).toBe(true);
+    expect(isSubjectOf('vera', { subjectName: 'laptop-olivia' })).toBe(false);
+  });
+
+  it('keeps a former team name from another team, but the team itself may take it back', async () => {
+    const e = await s.api('POST', '/teams', { name: 'Old desk' }).catch((x) => x);
+    expect(e.status).toBe(409);
+    expect(e.message).toContain('TEAM_NAME_IS_ALIAS');
+    const team = (await s.api('GET', '/teams')).find((t: { name: string }) => t.name === 'Service Desk');
+    const renamed = await s.api('PUT', `/teams/${team.id}`, { name: 'Old desk' });
+    expect(renamed.name).toBe('Old desk');
+    await s.api('PUT', `/teams/${team.id}`, { name: 'Service Desk' });
+  });
+
   it('keeps a former name from becoming a new account', async () => {
     const e = await s.api('POST', '/users', { username: 'laptop-olivia', roles: ['viewer'] }).catch((x) => x);
     expect(e.status).toBe(409);

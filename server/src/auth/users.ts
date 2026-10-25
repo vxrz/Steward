@@ -8,7 +8,7 @@ import { recordFailedLogin } from './login-audit.js';
 import type { AuthUser } from './context.js';
 import { passwordLoginMode } from '../settings.js';
 import { config } from '../config.js';
-import { aliasTarget, invalidateAliases } from './aliases.js';
+import { aliasTarget, invalidateAliases, teamAliasTarget } from './aliases.js';
 
 interface UserRow {
   id: string;
@@ -355,6 +355,9 @@ export function saveTeam(input: { name: string; description?: string; members?: 
   const name = input.name.trim();
   if (!/^[\w .@-]{2,64}$/.test(name)) throw new HttpError(400, 'Team name: 2–64 characters');
   const tid = id ?? newId('team_');
+  // a former team name of an imported team still stands for that team in imported content (aliases.ts)
+  const former = teamAliasTarget(name);
+  if (former && former !== tid) throw new HttpError(409, `"${name}" is the former name of an imported team`, 'TEAM_NAME_IS_ALIAS', { name });
   const memberIds = (input.members ?? []).map((m) => {
     const u = findUserByName(m);
     if (!u) throw new HttpError(400, `Unknown user "${m}"`);

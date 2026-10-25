@@ -21,6 +21,8 @@ interface Cache {
   userByAlias: Map<string, string>;
   /** current team name (lower case) → former team names (lower case) */
   teamAliases: Map<string, string[]>;
+  /** former team name (lower case) → team id */
+  teamByAlias: Map<string, string>;
   loadedAt: number;
 }
 
@@ -30,7 +32,7 @@ const MAX_AGE_MS = 60_000;
 
 function load(): Cache {
   if (cache && Date.now() - cache.loadedAt < MAX_AGE_MS) return cache;
-  const next: Cache = { userAliases: new Map(), userByAlias: new Map(), teamAliases: new Map(), loadedAt: Date.now() };
+  const next: Cache = { userAliases: new Map(), userByAlias: new Map(), teamAliases: new Map(), teamByAlias: new Map(), loadedAt: Date.now() };
   let rows: { kind: string; alias: string; target_id: string; team_name: string | null }[];
   try {
     rows = db().all(
@@ -44,9 +46,12 @@ function load(): Cache {
     if (r.kind === 'user') {
       next.userAliases.set(r.target_id, [...(next.userAliases.get(r.target_id) ?? []), alias]);
       next.userByAlias.set(alias, r.target_id);
-    } else if (r.kind === 'team' && r.team_name) {
-      const key = r.team_name.toLowerCase();
-      next.teamAliases.set(key, [...(next.teamAliases.get(key) ?? []), alias]);
+    } else if (r.kind === 'team') {
+      next.teamByAlias.set(alias, r.target_id);
+      if (r.team_name) {
+        const key = r.team_name.toLowerCase();
+        next.teamAliases.set(key, [...(next.teamAliases.get(key) ?? []), alias]);
+      }
     }
   }
   cache = next;
@@ -64,6 +69,16 @@ export function aliasSubjects(u: { id: string; teams: string[] }): string[] {
   const out = (c.userAliases.get(u.id) ?? []).map((a) => `user:${a}`);
   for (const t of u.teams) for (const a of c.teamAliases.get(t.toLowerCase()) ?? []) out.push(`team:${a}`);
   return out;
+}
+
+/** The former names of a user (lower case). */
+export function aliasesOf(userId: string): string[] {
+  return load().userAliases.get(userId) ?? [];
+}
+
+/** The team id a former team name stands for (undefined: not an alias). */
+export function teamAliasTarget(name: string): string | undefined {
+  return load().teamByAlias.get(name.trim().toLowerCase());
 }
 
 /** The user id a former user name stands for (undefined: not an alias). */

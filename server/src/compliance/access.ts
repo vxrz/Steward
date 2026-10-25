@@ -1,4 +1,5 @@
 import type { AclEntry, PlatformPermission, Role } from '@sm/shared';
+import { aliasesOf } from '../auth/aliases.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin, platformPermissions } from '../auth/permissions.js';
 import { findUserByName } from '../auth/users.js';
@@ -57,7 +58,8 @@ export const canDocumentAccessOn = (u: AuthUser | null, platformId: string): boo
 export function identitiesOf(username: string | null | undefined): string[] {
   if (!username || username === SYSTEM_USER.username) return [];
   const u = findUserByName(username);
-  return [...new Set([username, u?.username, u?.email].filter((x): x is string => !!x).map((x) => x.trim().toLowerCase()))];
+  // former names of an imported account are the same person (auth/aliases.ts)
+  return [...new Set([username, u?.username, u?.email, ...(u ? aliasesOf(u.id) : [])].filter((x): x is string => !!x).map((x) => x.trim().toLowerCase()))];
 }
 
 /** Whether the Steward user is the subject of an access change (by subject id or name, case-insensitive). */

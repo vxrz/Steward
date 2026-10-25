@@ -466,7 +466,8 @@
     "USERNAME_IS_ALIAS": "„{{username}}“ ist der frühere Name eines importierten Kontos.",
     "SSO_PROVIDER_UNKNOWN": "Einen aktivierten Single-Sign-on-Anbieter wählen.",
     "SSO_PROVIDER_CHOICE_REQUIRED": "Den Single-Sign-on-Anbieter wählen, mit dem sich das Konto anmeldet.",
-    "SSO_ALREADY_BOUND": "Dieses Konto meldet sich bereits per Single Sign-on an."
+    "SSO_ALREADY_BOUND": "Dieses Konto meldet sich bereits per Single Sign-on an.",
+    "TEAM_NAME_IS_ALIAS": "„{{name}}“ ist der frühere Name eines importierten Teams."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sameIdentity } from '../auth/aliases.js';
 import {
   REVIEW_OUTCOMES,
   type CredentialDue,
@@ -297,8 +298,9 @@ export const reviewSettingsInput = z
   .strict();
 
 /** Whoever wrote the document: its owner, its creator, the authors and submitters of its editions and every author of a saved version. */
-function wroteDocument(username: string, r: RecordRow): boolean {
-  const same = (a: string | null | undefined) => !!a && a.toLowerCase() === username.toLowerCase();
+function wroteDocument(user: { id: string; username: string }, r: RecordRow): boolean {
+  // former names of an imported account count as the same person (auth/aliases.ts)
+  const same = (a: string | null | undefined) => sameIdentity(a, user);
   if (same(r.owner) || same(r.created_by) || same(r.submitted_by)) return true;
   if (
     db()
@@ -335,7 +337,7 @@ export function updateReviewSettings(idOrNumber: string, input: z.infer<typeof r
     }
     if (owner !== d.review_owner) {
       if (!approver) forbid('choose the review owner of this document', 'reviewOwner');
-      if (owner && owner.toLowerCase() === u.username.toLowerCase() && !isAdmin(u) && wroteDocument(u.username, r))
+      if (owner && owner.toLowerCase() === u.username.toLowerCase() && !isAdmin(u) && wroteDocument(u, r))
         forbid('make yourself the review owner of a document you own or wrote', 'reviewOwnerSelf');
       ((patch.review_owner = owner), (changes.reviewOwner = owner ?? r.owner));
     }
