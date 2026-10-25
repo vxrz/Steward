@@ -35,9 +35,18 @@ const packageSchema = z.object({
   description: z.string().default(''),
   baseUrl: z.string().default(''),
   config: z.any(),
-  secretFields: z.array(z.object({ key: z.string(), label: z.string(), help: z.string().optional() })).default([]),
-  docs: z.array(z.object({ title: z.string(), url: z.string() })).default([]),
-  specs: z.array(z.object({ name: z.string(), content: z.string() })).default([]),
+  secretFields: z
+    .array(z.object({ key: z.string(), label: z.string(), help: z.string().optional() }))
+    .max(100)
+    .default([]),
+  docs: z
+    .array(z.object({ title: z.string(), url: z.string() }))
+    .max(100)
+    .default([]),
+  specs: z
+    .array(z.object({ name: z.string(), content: z.string() }))
+    .max(100)
+    .default([]),
 });
 
 function rows(): { kind: string; package: string; created_at: string }[] {

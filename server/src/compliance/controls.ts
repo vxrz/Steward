@@ -807,8 +807,8 @@ export const periodQuery = z
     from: z.string().datetime({ offset: true }),
     to: z.string().datetime({ offset: true }),
   })
-  .refine((p) => Date.parse(p.from) <= Date.parse(p.to), { message: 'from must be before to' })
-  .refine((p) => Date.parse(p.to) - Date.parse(p.from) <= 3 * 366 * 86400000, { message: 'The period may be at most three years' });
+  .refine((p) => Date.parse(p.from) <= Date.parse(p.to), { error: 'from must be before to' })
+  .refine((p) => Date.parse(p.to) - Date.parse(p.from) <= 3 * 366 * 86400000, { error: 'The period may be at most three years' });
 
 const normPeriod = (p: Period): Period => ({ from: new Date(p.from).toISOString(), to: new Date(p.to).toISOString() });
 

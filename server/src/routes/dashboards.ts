@@ -173,8 +173,15 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
       .object({
         bundle: z.object({
           format: z.enum(BUNDLE_FORMATS),
-          processes: z.array(z.object({ id: z.string(), definition: z.any() })).default([]),
-          dashboards: z.array(z.object({ id: z.string(), definition: z.any() })).default([]),
+          // an export of a large installation (each definition is validated on its own)
+          processes: z
+            .array(z.object({ id: z.string(), definition: z.any() }))
+            .max(10_000)
+            .default([]),
+          dashboards: z
+            .array(z.object({ id: z.string(), definition: z.any() }))
+            .max(10_000)
+            .default([]),
         }),
         /** existing ids: 'newVersion' saves the imported definition as a new version, 'skip' leaves them, 'copy' imports as a new process */
         onConflict: z.enum(['newVersion', 'skip', 'copy']).default('newVersion'),

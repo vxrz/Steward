@@ -5,7 +5,6 @@
  * paginated with opaque cursors and capped in size.
  */
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { DATASET_STATUSES, MONITOR_STATUSES, TICKET_LINK_KINDS, TICKET_STATUSES, type DatasetRow } from '@sm/shared';
 import { db } from '../db.js';
 import { queryAudit } from '../audit.js';
@@ -31,6 +30,7 @@ import { safeBaseUrl } from '../api/v1/routes.js';
 import { MAX_RESULT_CHARS, SUPPORTED_VERSIONS } from './config.js';
 import { gatewayTools } from './gateway.js';
 import { ToolError, cap, cursorArg, defineTool, idArg, isoArg, limitArg, type ToolContext, type ToolDef } from './tooling.js';
+import { zodJsonSchema } from '../jsonSchema.js';
 
 export { ToolError, type McpPrincipal, type ToolContext, type ToolDef } from './tooling.js';
 
@@ -703,8 +703,7 @@ const schemaCache = new Map<string, Record<string, unknown>>();
 function inputSchema(t: ToolDef): Record<string, unknown> {
   let s = schemaCache.get(t.name);
   if (!s) {
-    s = zodToJsonSchema(t.input, { target: 'jsonSchema2019-09', $refStrategy: 'none' }) as Record<string, unknown>;
-    delete s.$schema; // MCP's default dialect is JSON Schema 2020-12; these schemas use nothing dialect-specific
+    s = zodJsonSchema(t.input, 'input'); // MCP's default dialect is JSON Schema 2020-12
     schemaCache.set(t.name, s);
   }
   return s;

@@ -16,7 +16,7 @@
  * - every call (and every refusal) is written to the audit log, with control characters escaped.
  */
 import { z } from 'zod';
-import type { ApiOperation, Platform } from '@sm/shared';
+import { boundedRecord, type ApiOperation, type Platform } from '@sm/shared';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
 import { db } from '../db.js';
@@ -387,9 +387,8 @@ export const gatewayTools: ToolDef[] = [
         platformId: platformArg,
         operation: z.string().min(1).max(600).optional().describe('`operation` from platform_find_operations'),
         path: z.string().min(1).max(2000).optional().describe('Literal path below one of the allowed path prefixes (platforms without a specification)'),
-        pathParams: z.record(scalar).optional().describe('Values for the {placeholders} of the operation path'),
-        query: z
-          .record(z.union([scalar, z.array(scalar).max(50)]))
+        pathParams: boundedRecord(scalar, 50).optional().describe('Values for the {placeholders} of the operation path'),
+        query: boundedRecord(z.union([scalar, z.array(scalar).max(50)]), 100)
           .optional()
           .describe('Query parameters declared by the operation'),
         method: z.enum(['GET', 'HEAD']).optional().describe('For `path` calls: GET (default) or HEAD'),

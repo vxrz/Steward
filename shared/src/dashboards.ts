@@ -87,7 +87,7 @@ export const dashboardWidgetSchema = z.object({
   /** kpi / trend: history window in days (default 30) */
   days: z.number().int().min(1).max(365).optional(),
   /** table: columns to show (default all) */
-  columns: z.array(z.string()).optional(),
+  columns: z.array(z.string()).max(100).optional(),
   /** table: show only rows whose status is not good */
   problemsOnly: z.boolean().optional(),
   limit: z.number().int().min(1).max(5000).optional(),
@@ -103,7 +103,7 @@ export const dashboardDefinitionSchema = z.object({
   description: z.string().optional(),
   /** How often the open dashboard re-reads stored data (default 1 minute) */
   refreshSeconds: z.number().int().min(10).max(3600).optional(),
-  widgets: z.array(dashboardWidgetSchema).default([]),
+  widgets: z.array(dashboardWidgetSchema).max(200).default([]),
 });
 export type DashboardDefinition = z.infer<typeof dashboardDefinitionSchema>;
 

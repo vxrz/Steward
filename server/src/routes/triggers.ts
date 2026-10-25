@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
+import { boundedRecord, WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
@@ -28,14 +28,14 @@ const previewBody = z.object({
   inputMapping: triggers.mappingSchema.default({}),
   allowedHeaders: z.array(z.string()).max(20).default([]),
   payload: z.unknown().optional(),
-  headers: z.record(z.string()).default({}),
-  query: z.record(z.string()).default({}),
+  headers: boundedRecord(z.string(), 100).default({}),
+  query: boundedRecord(z.string(), 200).default({}),
 });
 
 const testBody = z.object({
   payload: z.unknown().optional(),
-  headers: z.record(z.string()).default({}),
-  query: z.record(z.string()).default({}),
+  headers: boundedRecord(z.string(), 100).default({}),
+  query: boundedRecord(z.string(), 200).default({}),
   dryRun: z.boolean().default(true),
 });
 

@@ -3,6 +3,7 @@ import net from 'node:net';
 import jsonata from 'jsonata';
 import { z } from 'zod';
 import {
+  boundedRecord,
   WEBHOOK_AUTH_MODES,
   WEBHOOK_FORBIDDEN_HEADERS,
   type WebhookFire,
@@ -179,9 +180,7 @@ export function addressAllowed(cidrs: string[], ip: string): boolean {
 export const MAX_MAPPING_ENTRIES = 100;
 /** Wall-clock budget of one mapping evaluation, all entries together. */
 const MAPPING_BUDGET_MS = 5000;
-export const mappingSchema = z
-  .record(z.string().max(2000))
-  .refine((m) => Object.keys(m).length <= MAX_MAPPING_ENTRIES, `At most ${MAX_MAPPING_ENTRIES} mapped inputs`);
+export const mappingSchema = boundedRecord(z.string().max(2000), MAX_MAPPING_ENTRIES, `At most ${MAX_MAPPING_ENTRIES} mapped inputs`);
 
 export const settingsSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -191,7 +190,7 @@ export const settingsSchema = z.object({
   enabled: z.boolean().default(true),
   dryRun: z.boolean().default(false),
   inputMapping: mappingSchema.default({}),
-  bindings: z.record(z.string()).default({}),
+  bindings: boundedRecord(z.string(), 100).default({}),
   authMode: z.enum(WEBHOOK_AUTH_MODES).default('token'),
   allowedCidrs: z.array(z.string().max(64)).max(50).default([]),
   allowedHeaders: z.array(z.string().max(64)).max(20).default([]),

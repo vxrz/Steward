@@ -69,7 +69,7 @@ import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND } from '@sm/shared';
+import { BRAND, boundedRecord } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { auditPendingUpgrades } from '../upgrades.js';
@@ -129,7 +129,7 @@ const platformBody = z.object({
   baseUrl: z.string().max(2000).optional(),
   environment: z.string().max(100).optional(),
   config: z.any().optional(),
-  secrets: z.record(z.string().max(20000)).optional(),
+  secrets: boundedRecord(z.string().max(20000), 100).optional(),
 });
 
 /** Query strings are validated like bodies: one value per parameter, bounded, numbers as numbers. */
@@ -646,7 +646,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
   app.put('/platforms/:id/secrets', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change credentials of this platform');
-    return platforms.setSecrets(params(req).id!, z.record(z.string().nullable()).parse(req.body));
+    return platforms.setSecrets(params(req).id!, boundedRecord(z.string().nullable(), 100).parse(req.body));
   });
 
   app.post('/platforms/:id/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
@@ -677,8 +677,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .object({
         method: z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']),
         path: z.string().min(1).max(8000),
-        query: z.record(z.string().max(8000)).optional(),
-        headers: z.record(z.string().max(8000)).optional(),
+        query: boundedRecord(z.string().max(8000), 200).optional(),
+        headers: boundedRecord(z.string().max(8000), 100).optional(),
         body: z.any().optional(),
       })
       .parse(req.body);
@@ -735,7 +735,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .string()
       .max(2000)
       .url()
-      .refine((u) => /^https?:$/.test(new URL(u).protocol), 'Only http and https links are allowed');
+      // URL.parse: an invalid URL is reported by .url(), it must not throw here
+      .refine((u) => /^https?:$/.test(URL.parse(u)?.protocol ?? 'https:'), 'Only http and https links are allowed');
     const b = z
       .object({ title: z.string().max(200), kind: z.enum(['note', 'link']), content: z.string().max(200_000).optional(), url: httpUrl.optional() })
       .parse(req.body);
@@ -830,8 +831,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .object({
         processId: z.string().max(200),
         version: z.number().int().optional(),
-        inputs: z.record(z.unknown()).optional(),
-        bindings: z.record(z.string()).optional(),
+        inputs: boundedRecord(z.unknown(), 200).optional(),
+        bindings: boundedRecord(z.string(), 100).optional(),
         dryRun: z.boolean().optional(),
       })
       .parse(req.body) as StartRunRequest;
@@ -909,8 +910,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     processId: z.string().max(200),
     cron: z.string().min(1).max(100),
     timezone: z.string().max(64).optional(),
-    inputs: z.record(z.unknown()).default({}),
-    bindings: z.record(z.string()).default({}),
+    inputs: boundedRecord(z.unknown(), 200).default({}),
+    bindings: boundedRecord(z.string(), 100).default({}),
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),

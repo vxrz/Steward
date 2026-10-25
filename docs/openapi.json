@@ -7568,6 +7568,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -7589,6 +7590,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -7810,6 +7812,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -8027,6 +8030,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -8158,6 +8162,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -9173,6 +9178,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -9285,6 +9291,7 @@
         "parameters": [
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -10088,6 +10095,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -10552,6 +10560,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -10570,6 +10579,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -10807,6 +10817,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -10854,6 +10865,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -11741,6 +11753,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -11775,6 +11788,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",
@@ -11998,6 +12012,7 @@
           },
           {
             "schema": {
+              "maxItems": 50,
               "type": "array",
               "items": {
                 "type": "string",

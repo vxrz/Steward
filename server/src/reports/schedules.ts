@@ -1,6 +1,7 @@
 import { Cron } from 'croner';
 import { z } from 'zod';
 import {
+  boundedRecord,
   REPORT_LANGS,
   REPORT_SCHEDULE_PRESETS,
   type ReportRecord,
@@ -219,14 +220,14 @@ export const scheduleInputSchema = z.object({
   lang: z.enum(REPORT_LANGS).default('en'),
   classification: z.string().trim().max(60).default(''),
   title: z.string().trim().max(200).default(''),
-  sections: z.record(z.unknown()),
+  sections: boundedRecord(z.unknown(), 100),
   recipients: z
     .object({
       users: z.array(z.string().trim().min(1).max(100)).max(50).default([]),
       teams: z.array(z.string().trim().min(1).max(100)).max(20).default([]),
       emails: z.array(z.string().trim().toLowerCase().email().max(254)).max(MAX_EXTERNAL_RECIPIENTS).default([]),
     })
-    .default({}),
+    .prefault({}),
   attachPdf: z.boolean().default(false),
 });
 export type ScheduleInput = z.infer<typeof scheduleInputSchema>;
