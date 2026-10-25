@@ -11,6 +11,7 @@ import { BRAND } from '@sm/shared';
 import { startNotificationJobs, stopNotificationJobs, flushNotifications } from './notifications/service.js';
 import { startMaintenanceJobs, stopMaintenanceJobs } from './maintenance.js';
 import { db } from './db.js';
+import { passwordLoginPending } from './settings.js';
 import { stopMonitorEngine } from './monitors/engine.js';
 import { stopGatusScraper } from './gatus/metrics.js';
 import { stopReportSchedules } from './reports/schedules.js';
@@ -48,6 +49,12 @@ export async function start(opts: { banner?: boolean } = {}): Promise<Started> {
   // Open (and migrate) the database before anything listens: a failed upgrade stops the start here,
   // with the path of the automatic backup in the message.
   db();
+  if (passwordLoginPending()) {
+    logger.warn(
+      { security: true },
+      'SM_PASSWORD_LOGIN=none is not in effect yet: administrators can still sign in with a password until one of them signs in with single sign-on',
+    );
+  }
   const tracing = initTelemetry();
   const errorReporting = await initErrorReporting({ secretValues: platformSecretValues });
   const app = await buildApp({ logger: true });
