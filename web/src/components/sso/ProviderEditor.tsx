@@ -53,6 +53,9 @@ const tenantFromIssuer = (issuer: string) => {
   return m ? m[1]! : '';
 };
 
+/** An Entra ID Conditional Access authentication context id (step-up). */
+const AUTH_CONTEXT = /^c([1-9]|[1-9][0-9])$/;
+
 /** Warnings only the server can tell (they need the accounts or how the provider was stored). */
 const SERVER_WARNINGS = new Set(['USERNAME_COLLISIONS', 'EMAIL_VERIFIED_NOW_REQUIRED']);
 
@@ -163,6 +166,9 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
         .filter((f) => f.key.trim() || f.claim.trim())
         .map((f) => ({ ...f, key: f.key.trim(), claim: f.claim.trim(), label: f.label.trim() || f.key.trim() })),
       requiredClaims: form.requiredClaims.filter((r) => r.claim.trim()).map((r) => ({ ...r, claim: r.claim.trim() })),
+      stepUpAcrValues: form.stepUpAcrValues.trim(),
+      // an authentication context is an Entra ID setting
+      stepUpAuthContext: kind === 'entra' ? form.stepUpAuthContext.trim() : '',
     };
   }
   const issuerMoved = !!provider && provider.issuer !== form.issuer.trim().replace(/\/+$/, '');
@@ -180,7 +186,8 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
     form.clientId.trim() &&
     !stableIdProblem(form.stableIdClaims, form.stableIdConfirmedClaims) &&
     (form.usernameTransform !== 'stripDomain' || (form.stripDomains.length > 0 && form.stripDomains.every((d) => SSO_DOMAIN.test(d)))) &&
-    form.requiredClaims.every((r) => !r.claim.trim() || r.values.length > 0);
+    form.requiredClaims.every((r) => !r.claim.trim() || r.values.length > 0) &&
+    (kind !== 'entra' || !form.stepUpAuthContext.trim() || AUTH_CONTEXT.test(form.stepUpAuthContext.trim()));
 
   return (
     <Modal opened onClose={onClose} title={provider ? t('provider.edit', { name: provider.displayName }) : t('provider.add')} size="xl">
@@ -497,6 +504,43 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             onChange={(e) => set('syncRoles', e.currentTarget.checked)}
           />
           <Switch label={t('provider.requireMapping')} checked={form.requireMapping} onChange={(e) => set('requireMapping', e.currentTarget.checked)} />
+        </Stack>
+
+        <Divider label={t('provider.stepUp.title')} labelPosition="left" />
+        <Stack gap="xs">
+          <Text size="xs" c="dimmed">
+            {t(preset === 'google' ? 'provider.stepUp.hintGoogle' : 'provider.stepUp.hint')}
+          </Text>
+          <Switch
+            label={t('provider.stepUp.mfa')}
+            description={t(kind === 'entra' ? 'provider.stepUp.mfaHintEntra' : 'provider.stepUp.mfaHint')}
+            checked={form.stepUpMfa}
+            onChange={(e) => set('stepUpMfa', e.currentTarget.checked)}
+          />
+          {form.stepUpMfa && (
+            <Group grow align="flex-start">
+              {kind === 'entra' && (
+                <TextInput
+                  label={t('provider.stepUp.authContext')}
+                  description={t('provider.stepUp.authContextHint')}
+                  // i18n-ignore: an Entra ID authentication context id, the same in every language
+                  placeholder="c1"
+                  classNames={{ input: 'mono' }}
+                  value={form.stepUpAuthContext}
+                  error={form.stepUpAuthContext && !AUTH_CONTEXT.test(form.stepUpAuthContext.trim()) ? t('provider.stepUp.authContextInvalid') : null}
+                  onChange={(e) => set('stepUpAuthContext', e.currentTarget.value)}
+                />
+              )}
+              <TextInput
+                label={t('provider.stepUp.acrValues')}
+                description={t('provider.stepUp.acrValuesHint')}
+                classNames={{ input: 'mono' }}
+                maxLength={200}
+                value={form.stepUpAcrValues}
+                onChange={(e) => set('stepUpAcrValues', e.currentTarget.value)}
+              />
+            </Group>
+          )}
         </Stack>
 
         <TestSignIn providerId={provider?.id ?? null} draft={draft()} />

@@ -294,7 +294,20 @@
     "stableIdConfirm": "These claims are unique per person – I checked",
     "stableIdConfirmHint": "Without sub or oid, two people with the same value would share one account. The confirmation is saved and audited.",
     "emailNoticeDismiss": "Keep requiring email_verified – I checked that this provider sends it",
-    "emailNoticeDismissHint": "Removes this notice when you save. Turning on “This provider verifies e-mail addresses” or naming accounts by another claim removes it too."
+    "emailNoticeDismissHint": "Removes this notice when you save. Turning on “This provider verifies e-mail addresses” or naming accounts by another claim removes it too.",
+    "stepUp": {
+      "title": "Confirming sensitive actions (step-up)",
+      "hint": "Before sensitive actions (API tokens, roles, sign-in settings …) people who signed in with this provider sign in there again. Steward asks for a fresh sign-in (prompt=login, max_age=0) and needs the claim auth_time in the ID token.",
+      "hintGoogle": "Before sensitive actions (API tokens, roles, sign-in settings …) people who signed in with Google sign in there again. Steward asks with max_age=0 (Google does not take prompt=login) and needs the claim auth_time in the ID token.",
+      "mfa": "Require multi-factor authentication",
+      "mfaHint": "The ID token must show a second factor: amr contains \"mfa\", or – with acr values – acr is one of them.",
+      "mfaHintEntra": "The ID token must show a second factor: amr contains \"mfa\", or – with an authentication context – acrs contains it.",
+      "authContext": "Authentication context (Conditional Access)",
+      "authContextHint": "Optional, e.g. c1: Entra ID applies the Conditional Access policy of this context (MFA, a compliant device …).",
+      "authContextInvalid": "An authentication context id from c1 to c99",
+      "acrValues": "acr values",
+      "acrValuesHint": "Optional, space-separated (e.g. Keycloak: gold; Okta: urn:okta:loa:2fa:any). Sent as acr_values; the ID token's acr must be one of them."
+    }
   },
   "profileValues": {
     "title": "From the sign-in provider",

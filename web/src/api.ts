@@ -1,5 +1,5 @@
 import { notifications } from '@mantine/notifications';
-import type { ErrorParams } from '@sm/shared';
+import type { ErrorParams, StepUpInfo } from '@sm/shared';
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
 import { BASE_PATH } from './basePath';
@@ -66,7 +66,22 @@ export function apiUrl(path: string): string {
   return `${BASE_PATH}/api${path}${path.includes('?') ? '&' : '?'}_sk=${encodeURIComponent(key)}`;
 }
 
-export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+/**
+ * Step-up re-authentication: a sensitive action answers 403 STEP_UP_REQUIRED until the person confirms it is them
+ * (components/security/StepUpDialog.tsx). The handler asks and resolves true once confirmed; the request is then sent
+ * again, once – the browser repeats its own request, the server never replays one. Parallel requests share one dialog.
+ */
+let onStepUp: ((info: StepUpInfo) => Promise<boolean>) | undefined;
+let stepUpAsked: Promise<boolean> | null = null;
+export function setStepUpHandler(fn: ((info: StepUpInfo) => Promise<boolean>) | undefined): void {
+  onStepUp = fn;
+}
+
+export function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+  return request<T>(method, url, body, false);
+}
+
+async function request<T>(method: string, url: string, body: unknown, retried: boolean): Promise<T> {
   const isForm = body instanceof FormData;
   const res = await fetch(BASE_PATH + '/api' + url, {
     method,
@@ -90,7 +105,12 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     }
   }
   if (!res.ok) {
-    const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[] } | null;
+    const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[]; stepUp?: StepUpInfo } | null;
+    if (res.status === 403 && d?.code === 'STEP_UP_REQUIRED' && d.stepUp && onStepUp && !retried) {
+      stepUpAsked ??= onStepUp(d.stepUp).finally(() => (stepUpAsked = null));
+      if (await stepUpAsked) return request<T>(method, url, body, true);
+      throw new ApiError(403, i18n.t('errors:codes.STEP_UP_CANCELLED'), undefined, 'STEP_UP_CANCELLED');
+    }
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
     throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params);
   }

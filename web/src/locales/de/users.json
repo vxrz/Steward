@@ -294,7 +294,20 @@
     "stableIdConfirm": "Diese Claims sind je Person eindeutig – ich habe es geprüft",
     "stableIdConfirmHint": "Ohne sub oder oid teilen sich zwei Personen mit demselben Wert ein Konto. Die Bestätigung wird gespeichert und protokolliert.",
     "emailNoticeDismiss": "email_verified weiter verlangen – ich habe geprüft, dass dieser Anbieter ihn sendet",
-    "emailNoticeDismissHint": "Entfernt diesen Hinweis beim Speichern. Auch „Dieser Anbieter prüft E-Mail-Adressen“ oder ein anderer Claim für die Kontonamen entfernt ihn."
+    "emailNoticeDismissHint": "Entfernt diesen Hinweis beim Speichern. Auch „Dieser Anbieter prüft E-Mail-Adressen“ oder ein anderer Claim für die Kontonamen entfernt ihn.",
+    "stepUp": {
+      "title": "Sensible Aktionen bestätigen (Step-up)",
+      "hint": "Vor sensiblen Aktionen (API-Tokens, Rollen, Anmeldeeinstellungen …) melden sich Personen, die sich mit diesem Anbieter angemeldet haben, dort erneut an. Steward fordert eine frische Anmeldung an (prompt=login, max_age=0) und braucht den Claim auth_time im ID-Token.",
+      "hintGoogle": "Vor sensiblen Aktionen (API-Tokens, Rollen, Anmeldeeinstellungen …) melden sich Personen, die sich mit Google angemeldet haben, dort erneut an. Steward fragt mit max_age=0 (Google kennt prompt=login nicht) und braucht den Claim auth_time im ID-Token.",
+      "mfa": "Multi-Faktor-Authentifizierung verlangen",
+      "mfaHint": "Das ID-Token muss einen zweiten Faktor zeigen: amr enthält „mfa“ oder – mit acr-Werten – acr ist einer davon.",
+      "mfaHintEntra": "Das ID-Token muss einen zweiten Faktor zeigen: amr enthält „mfa“ oder – mit einem Authentifizierungskontext – acrs enthält ihn.",
+      "authContext": "Authentifizierungskontext (bedingter Zugriff)",
+      "authContextHint": "Optional, z. B. c1: Entra ID wendet die Richtlinie für bedingten Zugriff dieses Kontexts an (MFA, ein konformes Gerät …).",
+      "authContextInvalid": "Eine Kontext-ID von c1 bis c99",
+      "acrValues": "acr-Werte",
+      "acrValuesHint": "Optional, durch Leerzeichen getrennt (z. B. Keycloak: gold; Okta: urn:okta:loa:2fa:any). Wird als acr_values gesendet; acr im ID-Token muss einer davon sein."
+    }
   },
   "profileValues": {
     "title": "Vom Anmeldeanbieter",
