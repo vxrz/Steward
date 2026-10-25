@@ -48,3 +48,42 @@ describe('migration package classification', () => {
     }
   });
 });
+
+describe('stored file paths in a migration package', () => {
+  it('become paths in this data folder, and paths that lead elsewhere are refused', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-mp-'));
+    try {
+      const { Db } = await import('../src/db.js');
+      const { fixStoredPaths } = await import('../src/migration/import.js');
+      const d = new Db({ kind: 'sqlite', file: path.join(dir, 'staging.db') });
+      try {
+        d.exec('PRAGMA foreign_keys = OFF');
+        const artifact = (id: string, p: string) =>
+          d.run(
+            `INSERT INTO run_artifacts (id, run_id, step_key, kind, name, mime, path, sha256, size, created_at) VALUES (?, 'run_1', 's', 'screenshot', 'a.png', 'image/png', ?, 'x', 1, 'now')`,
+            id,
+            p,
+          );
+        artifact('a1', '@data/artifacts/run_1/a.png');
+        const dataDir = path.join(dir, 'data');
+        fixStoredPaths(d, dataDir);
+        expect(d.get<{ path: string }>("SELECT path FROM run_artifacts WHERE id = 'a1'")!.path).toBe(path.join(dataDir, 'artifacts', 'run_1', 'a.png'));
+        for (const bad of ['/etc/shadow', '@data/artifacts/../../vault.json', '@data/records/x/y.pdf', 'C:\\Windows\\win.ini']) {
+          d.run('DELETE FROM run_artifacts');
+          artifact('a2', bad);
+          expect(() => fixStoredPaths(d, dataDir), bad).toThrow(/unsafe file path/);
+        }
+        d.run('DELETE FROM run_artifacts');
+        d.run(
+          `INSERT INTO record_attachments (id, record_id, kind, filename, mime, size, sha256, path, revision, details, created_at, created_by)
+           VALUES ('att', 'rec', 'file', 'x.pdf', 'application/pdf', 1, 'x', '../../vault.json', 1, '{}', 'now', 'dana')`,
+        );
+        expect(() => fixStoredPaths(d, dataDir)).toThrow(/unsafe file path in record_attachments/);
+      } finally {
+        d.close();
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

@@ -151,7 +151,11 @@ export async function exportPackage(opts: { out: string; transferPassphrase: str
               }
               if (t === 'run_artifacts' && typeof out.path === 'string') {
                 const rel = path.relative(config.dataDir, out.path);
-                if (!rel.startsWith('..') && !path.isAbsolute(rel)) out.path = DATA_PREFIX + rel.split(path.sep).join('/');
+                // a data folder that was moved earlier: the file is where the runner keeps it (artifacts/<run>/<name>)
+                out.path =
+                  !rel.startsWith('..') && !path.isAbsolute(rel)
+                    ? DATA_PREFIX + rel.split(path.sep).join('/')
+                    : `${DATA_PREFIX}artifacts/${String(out.run_id)}/${path.basename(out.path)}`;
               }
               chunk += JSON.stringify(out) + '\n';
               n++;

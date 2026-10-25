@@ -204,6 +204,10 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
     }
     expected.set('audit.jsonl', { sha256: manifest.audit.sha256 });
     expected.set('settings.json', { sha256: manifest.settings.sha256 });
+    // a package cannot inflate to more than a bounded multiple of what was uploaded
+    const declared = reader.entries.reduce((s, e) => s + e.usize, 0);
+    if (declared > Math.max(4 * 1024 ** 3, 64 * fs.statSync(file).size))
+      throw new HttpError(400, 'The package content is larger than its file allows', 'MIGRATION_PACKAGE_INVALID');
     const names = new Set(reader.entries.map((e) => e.name));
     for (const e of reader.entries) {
       if (e.name === 'manifest.json' || e.name === 'signature.json') continue;
@@ -669,6 +673,32 @@ function reencrypt(staging: Db, secrets: Buffer): number {
   return n;
 }
 
+/**
+ * Stored files: paths relative to the data folder ("@data/artifacts/…") become paths in this data folder. A path that
+ * would lead anywhere else (absolute, "..", odd characters) is refused – downloads read these paths.
+ */
+export function fixStoredPaths(staging: Db, dataDir: string): void {
+  const have = new Set(tables(staging));
+  const inside = (dir: string, rel: string | null, what: string) => {
+    try {
+      return pathInside(path.join(dataDir, dir), ...String(rel).split('/'));
+    } catch {
+      throw new HttpError(400, `The package has an unsafe file path in ${what}`, 'MIGRATION_PACKAGE_INVALID');
+    }
+  };
+  for (const r of staging.all<{ id: string; path: string }>('SELECT id, path FROM run_artifacts')) {
+    const prefix = `${DATA_PREFIX}artifacts/`;
+    if (typeof r.path !== 'string' || !r.path.startsWith(prefix))
+      throw new HttpError(400, 'The package has an unsafe file path in run_artifacts', 'MIGRATION_PACKAGE_INVALID');
+    staging.run('UPDATE run_artifacts SET path = ? WHERE id = ?', inside('artifacts', r.path.slice(prefix.length), 'run_artifacts'), r.id);
+  }
+  if (have.has('record_attachments'))
+    for (const r of staging.all<{ path: string | null }>('SELECT path FROM record_attachments WHERE path IS NOT NULL'))
+      inside('records', r.path, 'record_attachments');
+  if (have.has('reports'))
+    for (const r of staging.all<{ path: string | null }>('SELECT path FROM reports WHERE path IS NOT NULL')) inside('reports', r.path, 'reports');
+}
+
 function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataDir: string): void {
   const have = new Set(tables(staging));
   staging.tx(() => {
@@ -692,13 +722,7 @@ function transformStaging(staging: Db, pkg: OpenedPackage, maps: NameMaps, dataD
     }
     // automation starts paused: an administrator reviews it on this instance first
     for (const p of PAUSED_ON_IMPORT) if (have.has(p.table)) staging.run(`UPDATE ${quoteIdent(p.table)} SET ${quoteIdent(p.column)} = 0`);
-    // stored files: paths relative to the data folder become paths in this data folder
-    for (const r of staging.all<{ id: string; path: string }>('SELECT id, path FROM run_artifacts')) {
-      if (!r.path.startsWith(DATA_PREFIX)) continue;
-      const rel = r.path.slice(DATA_PREFIX.length).split('/');
-      const abs = pathInside(dataDir, ...rel);
-      staging.run('UPDATE run_artifacts SET path = ? WHERE id = ?', abs, r.id);
-    }
+    fixStoredPaths(staging, dataDir);
   });
   reencrypt(staging, pkg.secrets);
 }

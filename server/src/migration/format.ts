@@ -217,6 +217,15 @@ export async function openPackage(file: string, passphrase: string, zipOut: stri
 export function workDir(dataDir: string): string {
   const base = path.join(dataDir, 'migration-work');
   fs.mkdirSync(base, { recursive: true, mode: 0o700 });
+  // leftovers of an interrupted export or import (a stopped server): they hold encrypted credentials
+  for (const e of fs.readdirSync(base, { withFileTypes: true })) {
+    const p = path.join(base, e.name);
+    try {
+      if (e.isDirectory() && Date.now() - fs.statSync(p).mtimeMs > 24 * 3600_000) fs.rmSync(p, { recursive: true, force: true });
+    } catch {
+      /* in use or gone */
+    }
+  }
   return fs.mkdtempSync(path.join(base, 'pkg-'));
 }
 

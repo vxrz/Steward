@@ -239,6 +239,8 @@ async function execute(sub: Command, username: string | undefined, values: Value
 
   if (running) {
     // emergency-access while Steward runs: a grant signed with the vault's key, sent over loopback (auth/emergency.ts)
+    // (a format 1 vault would be converted – rewritten – by unlocking it here, under the running server)
+    if (vault().info().format !== 2) throw new Failure('the vault has not been converted yet – unlock Steward once, or stop it and run the command again');
     await unlockVault(await passphrase(values, config.masterPassphrase));
     const { makeSignedGrant, newCode, hashCode } = await import('../auth/emergency.js');
     const code = newCode();
