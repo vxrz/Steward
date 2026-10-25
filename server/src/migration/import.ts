@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   BRAND,
   ROLES,
+  boundedRecord,
   type AuditEntry,
   type ImportResult,
   type MigrationMapping,
@@ -110,7 +111,7 @@ const manifestSchema = z.object({
     )
     .max(10000),
   settings: z.object({ sha256: hex64, keys: z.array(z.string().max(200)).max(10000) }),
-  platformIntegrity: z.record(z.string(), z.enum(['ok', 'mismatch', 'unsealed'])),
+  platformIntegrity: boundedRecord(z.enum(['ok', 'mismatch', 'unsealed']), 10000),
 });
 
 export interface OpenedPackage {
@@ -436,8 +437,9 @@ const teamDecision = z.discriminatedUnion('action', [
   z.object({ action: z.literal('drop') }),
 ]);
 export const mappingSchema = z.object({
-  users: z.record(z.string(), userDecision),
-  teams: z.record(z.string(), teamDecision),
+  // as many entries as a package may carry users and teams (see manifestSchema)
+  users: boundedRecord(userDecision, 100000),
+  teams: boundedRecord(teamDecision, 10000),
 });
 
 interface ResolvedUser {
