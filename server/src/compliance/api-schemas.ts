@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { ACCESS_CHANGE_KINDS, ACCESS_FINDING_STATUSES, CONTROL_TAG_KINDS, EVIDENCE_KINDS } from '@sm/shared';
+import { ACCESS_CHANGE_KINDS, ACCESS_FINDING_STATUSES, CONTROL_TAG_KINDS, EVIDENCE_KINDS, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the compliance endpoints of the public API (/api/v1/access-changes, /access-findings, /controls …). */
 
@@ -105,7 +105,7 @@ export const ControlCoverage = z.object({
   ref: z.string(),
   title: z.string(),
   status: z.enum(['covered', 'gap', 'unmapped']).describe('covered: evidence in the period; gap: mapped, but no evidence; unmapped: no Steward item mapped'),
-  counts: z.record(z.number().int()).describe(`Evidence items per kind (${EVIDENCE_KINDS.join(', ')})`),
+  counts: z.record(z.string(), z.number().int()).describe(`Evidence items per kind (${EVIDENCE_KINDS.join(', ')})`),
 });
 
 export const COMPLIANCE_COMPONENTS: Record<string, ZodTypeAny> = { AccessChange, AccessFinding, Control, ControlTag, ControlCatalogue, ControlCoverage };
@@ -118,7 +118,7 @@ export const AccessChangeListQuery = z.object({
   cursor,
   platformId: z.string().max(100).optional(),
   subject: z.string().max(200).optional().describe('Part of the subject id or name (case-insensitive)'),
-  status: z.array(z.string().max(40)).optional().describe('Only these statuses (repeat the parameter)'),
+  status: z.array(z.string().max(40)).max(QUERY_LIST_MAX).optional().describe('Only these statuses (repeat the parameter)'),
   kind: z.enum(ACCESS_CHANGE_KINDS).optional(),
   from: z.string().datetime({ offset: true }).optional().describe('Performed at or after (ISO 8601)'),
   to: z.string().datetime({ offset: true }).optional().describe('Performed at or before (ISO 8601)'),

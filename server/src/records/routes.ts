@@ -1,6 +1,16 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { EDITION_KINDS, EDITION_RE, LINK_KINDS, RECORD_STATUSES, RECORD_WORKFLOW_KEYS, REVIEW_STATUSES, type RecordsMeta, type ReviewStatus } from '@sm/shared';
+import {
+  boundedRecord,
+  EDITION_KINDS,
+  EDITION_RE,
+  LINK_KINDS,
+  RECORD_STATUSES,
+  RECORD_WORKFLOW_KEYS,
+  REVIEW_STATUSES,
+  type RecordsMeta,
+  type ReviewStatus,
+} from '@sm/shared';
 import { HttpError } from '../util.js';
 import { canApproveRecords, canCreateRecords, canManageRecordTypes, me } from './access.js';
 import * as svc from './service.js';
@@ -42,7 +52,7 @@ const updateBody = z
   .object({
     title: z.string().max(svc.LIMITS.title).optional(),
     body: z.string().max(svc.LIMITS.body).optional(),
-    fields: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+    fields: boundedRecord(z.union([z.string(), z.number(), z.boolean(), z.null()]), 100).optional(),
     tags: z.array(z.string()).max(svc.LIMITS.tags).optional(),
     owner: z.string().max(128).optional(),
     comment: z.string().max(svc.LIMITS.comment).optional(),
@@ -123,7 +133,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
         type: z.string().min(1).max(64),
         title: z.string().max(svc.LIMITS.title),
         body: z.string().max(svc.LIMITS.body).optional(),
-        fields: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+        fields: boundedRecord(z.union([z.string(), z.number(), z.boolean(), z.null()]), 100).optional(),
         tags: z.array(z.string()).max(svc.LIMITS.tags).optional(),
         // e.g. the service a new document is written for ("New document" on the service page)
         links: z.array(linkInput).max(20).optional(),

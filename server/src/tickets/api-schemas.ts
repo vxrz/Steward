@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { TICKET_STATUSES } from '@sm/shared';
+import { TICKET_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the ticket reference endpoints of the public API (/api/v1/ticket-references…). */
 
@@ -55,9 +55,9 @@ export const TICKET_COMPONENTS: Record<string, ZodTypeAny> = { TicketReferenceEn
 export const TicketListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
-  status: z.array(z.enum(TICKET_STATUSES)).optional().describe('Only entries with these statuses (repeat the parameter)'),
+  status: z.array(z.enum(TICKET_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Only entries with these statuses (repeat the parameter)'),
   state: z.enum(['open', 'closed', 'all']).default('all').describe('open: open, waitingVendor, waitingUs; closed: resolved, closed'),
-  source: z.array(z.string().max(40)).optional().describe('Only these sources (repeat the parameter)'),
+  source: z.array(z.string().max(40)).max(QUERY_LIST_MAX).optional().describe('Only these sources (repeat the parameter)'),
   vendor: z.string().max(120).optional().describe('Vendor (case-insensitive, exact)'),
   affected: z.string().max(240).optional().describe('Only entries that name this item as affected: kind:id, e.g. service:svc_123'),
   q: z.string().max(200).optional().describe('Case-insensitive search in number, title, vendor and note'),

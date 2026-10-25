@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { HEARTBEAT_MAX_BODY_BYTES, MONITOR_PERMISSIONS } from '@sm/shared';
+import { boundedRecord, HEARTBEAT_MAX_BODY_BYTES, MONITOR_PERMISSIONS } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { vault } from '../vault.js';
 import { currentUser } from '../auth/context.js';
@@ -103,7 +103,9 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
   app.put('/monitors/:id/access', async (req) => {
-    const b = z.object({ acl: z.array(z.object({ subject: z.string(), permissions: z.array(z.string()) })), owner: z.string().optional() }).parse(req.body);
+    const b = z
+      .object({ acl: z.array(z.object({ subject: z.string(), permissions: z.array(z.string()).max(50) })).max(500), owner: z.string().optional() })
+      .parse(req.body);
     return svc.setAccess(params(req).id!, b);
   });
   app.get('/monitors/:id/export', async (req, reply) => {
@@ -185,12 +187,14 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
         rows: z
           .array(
             z.object({
-              params: z.record(z.unknown()).default({}),
+              params: boundedRecord(z.unknown(), 100).default({}),
               name: z.string().max(160).optional(),
               key: z.string().max(64).optional(),
               enabled: z.boolean().optional(),
             }),
           )
+          // the service refuses more than 500 with its own error (TOO_MANY_INSTANCES)
+          .max(1000)
           .optional(),
         csv: z
           .string()

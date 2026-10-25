@@ -30,8 +30,13 @@ const providerSchema = z.object({
   displayNameClaim: z.string().default('name'),
   emailClaim: z.string().default('email'),
   groupsClaim: z.string().default('roles'),
-  mappings: z.array(z.object({ claimValue: z.string().min(1), roles: z.array(z.enum(ROLES)).default([]), teams: z.array(z.string()).default([]) })).default([]),
-  defaultRoles: z.array(z.enum(ROLES)).default([]),
+  mappings: z
+    .array(
+      z.object({ claimValue: z.string().min(1), roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]), teams: z.array(z.string()).max(100).default([]) }),
+    )
+    .max(500)
+    .default([]),
+  defaultRoles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
   autoProvision: z.boolean().default(true),
   syncRoles: z.boolean().default(true),
   requireMapping: z.boolean().default(false),

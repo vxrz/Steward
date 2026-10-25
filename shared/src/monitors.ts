@@ -7,6 +7,7 @@
  */
 import { z } from 'zod';
 import type { AclEntry } from './api.js';
+import { boundedRecord } from './zodLimits.js';
 
 // ---------- statuses ----------
 
@@ -130,7 +131,7 @@ export const checkSchema = z.discriminatedUnion('type', [
       .url()
       .refine((u) => /^https?:\/\//i.test(u), 'http(s) URLs only'),
     method: z.enum(['GET', 'HEAD', 'POST']).default('GET'),
-    headers: z.record(z.string().max(2000)).optional(),
+    headers: boundedRecord(z.string().max(2000), 100).optional(),
     body: z.string().max(65536).optional(),
     /** e.g. "200", "200-299", "200,204,301-308" (default 200-399) */
     expectStatus: z.string().max(200).optional(),
@@ -149,8 +150,8 @@ export const checkSchema = z.discriminatedUnion('type', [
     platform: platformRef,
     method: z.enum(['GET', 'HEAD', 'POST']).default('GET'),
     path: z.string().min(1).max(2000),
-    query: z.record(z.string().max(2000)).optional(),
-    headers: z.record(z.string().max(2000)).optional(),
+    query: boundedRecord(z.string().max(2000), 100).optional(),
+    headers: boundedRecord(z.string().max(2000), 100).optional(),
     body: z.unknown().optional(),
     /** JSONata over { status, headers, body, durationMs }; default: 2xx */
     condition: expr.optional(),
@@ -166,7 +167,7 @@ export const checkSchema = z.discriminatedUnion('type', [
     aspect: z.string().max(200).optional(),
     variables: z.array(z.string().min(1).max(200)).max(50).optional(),
     path: z.string().max(2000).optional(),
-    query: z.record(z.string().max(2000)).optional(),
+    query: boundedRecord(z.string().max(2000), 100).optional(),
     /** platform source: JSONata over the response body returning a timestamp (or a list – the newest counts) */
     timestamp: expr.optional(),
     ...freshnessFields,
@@ -216,11 +217,11 @@ const outputBase = {
   on: z.enum(['change', 'every']).default('change'),
   minIntervalSeconds: seconds(10, 86400).optional(),
   /** Only these new statuses are sent (default: all) */
-  statuses: z.array(z.enum(MONITOR_STATUSES)).optional(),
+  statuses: z.array(z.enum(MONITOR_STATUSES)).max(MONITOR_STATUSES.length).optional(),
   /** monitor: the aggregated monitor status; checks: each check; all: both (default: monitor for notification and process, all for the others) */
   include: z.enum(['monitor', 'checks', 'all']).optional(),
   /** Restrict to these check ids */
-  checks: z.array(z.string()).optional(),
+  checks: z.array(z.string()).max(100).optional(),
   /** Leave out checks whose failure is explained by a failing parent (default: true for notification and process) */
   suppressDependents: z.boolean().optional(),
 };
@@ -269,9 +270,9 @@ export const outputSchema = z.discriminatedUnion('type', [
     ...outputBase,
     type: z.literal('process'),
     processId: z.string().min(1).max(200),
-    bindings: z.record(z.string()).default({}),
+    bindings: boundedRecord(z.string(), 100).default({}),
     /** Process input → JSONata over { monitor, check, event } */
-    inputs: z.record(z.string().max(2000)).default({}),
+    inputs: boundedRecord(z.string().max(2000), 200).default({}),
     dryRun: z.boolean().default(false),
   }),
 ]);

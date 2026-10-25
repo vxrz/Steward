@@ -167,16 +167,16 @@ export const packInput = z
       })
       .strict()
       .refine((s) => [s.controlIds, s.platformId, s.serviceId].filter((x) => x !== undefined).length === 1, {
-        message: 'Choose controls, a platform or a service',
+        error: 'Choose controls, a platform or a service',
       }),
     from: z.string().datetime({ offset: true }),
     to: z.string().datetime({ offset: true }),
     lang: z.enum(REPORT_LANGS).default('en'),
   })
   .strict()
-  .refine((p) => Date.parse(p.from) < Date.parse(p.to), { message: 'from must be before to', path: ['to'] })
+  .refine((p) => Date.parse(p.from) < Date.parse(p.to), { error: 'from must be before to', path: ['to'] })
   .refine((p) => Date.parse(p.to) - Date.parse(p.from) <= PACK_LIMITS.maxPeriodDays * 86400000, {
-    message: `The period may be at most ${PACK_LIMITS.maxPeriodDays} days`,
+    error: `The period may be at most ${PACK_LIMITS.maxPeriodDays} days`,
     path: ['to'],
   });
 

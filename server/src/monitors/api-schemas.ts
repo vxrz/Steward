@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { CHECK_TYPES, MONITOR_STATUSES } from '@sm/shared';
+import { CHECK_TYPES, MONITOR_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the monitor endpoints of the public API (/api/v1/monitors…). */
 
@@ -32,7 +32,7 @@ export const Monitor = z.object({
   since: ts().nullable().describe('When the status last changed'),
   rootCauses: z.array(CauseRef).describe('Failing checks that explain the status (sub-monitor nodes are expanded)'),
   checkCount: z.number().int(),
-  counts: z.record(z.number().int()).describe('Checks per status'),
+  counts: z.record(z.string(), z.number().int()).describe('Checks per status'),
   uptime: Uptime,
   maintenance: z.object({ startsAt: ts(), endsAt: ts(), reason: z.string() }).nullable().describe('The active maintenance window'),
   acknowledged: z.object({ by: z.string(), at: ts(), comment: z.string() }).nullable(),
@@ -66,7 +66,7 @@ export const MonitorStatusReport = Monitor.extend({
 });
 
 export const MonitorDetail = Monitor.extend({
-  definition: z.record(z.unknown()).describe('Definition: checks, links, outputs (no secrets)'),
+  definition: z.record(z.string(), z.unknown()).describe('Definition: checks, links, outputs (no secrets)'),
 });
 
 export const MonitorHistoryEntry = z.object({
@@ -82,7 +82,7 @@ export const MonitorHistoryEntry = z.object({
 export const MonitorDiscovery = z
   .object({
     data: z
-      .array(z.record(z.string()))
+      .array(z.record(z.string(), z.string()))
       .describe('One object per check (or monitor) with {#MONITOR}, {#MONITORNAME}, {#CHECK}, {#CHECKNAME}, {#CHECKTYPE}, {#CHECKKEY}'),
   })
   .describe('Zabbix low-level discovery (LLD) format');
@@ -102,7 +102,7 @@ const cursor = z.string().max(2000).optional().describe('Cursor from the previou
 export const MonitorListQuery = z.object({
   limit,
   cursor,
-  status: z.array(status()).optional().describe('Only monitors with these statuses (repeat the parameter)'),
+  status: z.array(status()).max(QUERY_LIST_MAX).optional().describe('Only monitors with these statuses (repeat the parameter)'),
   tag: z.string().max(60).optional(),
   q: z.string().max(200).optional().describe('Case-insensitive search in key and name'),
 });

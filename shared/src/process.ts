@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
+import { boundedRecord } from './zodLimits.js';
 
 /**
  * Process definition model.
@@ -282,6 +283,15 @@ export interface NoteConfig {
   text: string;
 }
 
+/**
+ * Size limits of a definition, far above any real process (the largest example has 15 steps): they
+ * keep validation bounded (zod stops at an array's `.max()`, see zodLimits.ts).
+ */
+const MAX_NODES = 2000;
+const MAX_WIRES = 5000;
+/** Steps in one list of the sequential format (top level, then/else, forEach, group) */
+const MAX_STEPS = 2000;
+
 const baseFields = {
   id: identifier,
   name: z.string().optional(),
@@ -298,16 +308,16 @@ const shapes = {
     connection: z.string().min(1),
     method: z.enum(HTTP_METHODS),
     path: z.string().min(1),
-    query: z.record(z.unknown()).optional(),
-    headers: z.record(z.string()).optional(),
+    query: boundedRecord(z.unknown(), 200).optional(),
+    headers: boundedRecord(z.string(), 100).optional(),
     body: z.unknown().optional(),
     bodyType: z.enum(['json', 'form', 'text']).optional(),
-    expectStatus: z.array(z.number().int()).optional(),
+    expectStatus: z.array(z.number().int()).max(100).optional(),
     paginate: paginateSchema.optional(),
     operationId: z.string().optional(),
     mutating: z.boolean().optional(),
   },
-  set: { type: z.literal('set'), values: z.record(z.unknown()) },
+  set: { type: z.literal('set'), values: boundedRecord(z.unknown(), 500) },
   forEach: {
     type: z.literal('forEach'),
     items: z.string().min(1),
@@ -324,9 +334,9 @@ const shapes = {
     instructions: z.string().optional(),
     items: z.string().optional(),
     itemKey: z.string().optional(),
-    columns: z.array(columnSchema).optional(),
+    columns: z.array(columnSchema).max(100).optional(),
     preselect: z.string().optional(),
-    assignees: z.array(z.string()).optional(),
+    assignees: z.array(z.string()).max(100).optional(),
     fourEyes: z.boolean().optional(),
   },
   check: {
@@ -342,12 +352,12 @@ const shapes = {
     title: z.string().min(1),
     text: z.string().optional(),
     rows: z.string().optional(),
-    columns: z.array(columnSchema).optional(),
+    columns: z.array(columnSchema).max(100).optional(),
   },
   browser: {
     type: z.literal('browser'),
     connection: z.string().optional(),
-    actions: z.array(browserActionSchema),
+    actions: z.array(browserActionSchema).max(500),
     mutating: z.boolean().optional(),
     dryRunReadOnly: z.boolean().optional(),
   },
@@ -356,11 +366,11 @@ const shapes = {
     dataset: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.users)'),
     title: z.string().optional(),
     rows: z.string().optional(),
-    columns: z.array(columnSchema).optional(),
+    columns: z.array(columnSchema).max(100).optional(),
     key: z.string().optional(),
     status: z.string().optional(),
     statusText: z.string().optional(),
-    metrics: z.record(z.string()).optional(),
+    metrics: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
   },
@@ -382,8 +392,8 @@ const shapes = {
     type: z.literal('subprocess'),
     process: z.string().min(1),
     version: z.number().int().min(1).optional(),
-    inputs: z.record(z.unknown()).optional(),
-    connections: z.record(z.string()).optional(),
+    inputs: boundedRecord(z.unknown(), 200).optional(),
+    connections: boundedRecord(z.string(), 100).optional(),
   },
   wait: { type: z.literal('wait'), seconds: z.number().min(0).max(3600) },
   fail: { type: z.literal('fail'), message: z.string() },
@@ -431,9 +441,9 @@ export const stepSchema: z.ZodType<Step> = z.lazy(() =>
   z.discriminatedUnion('type', [
     z.object({ ...baseFields, ...shapes.http }),
     z.object({ ...baseFields, ...shapes.set }),
-    z.object({ ...baseFields, ...shapes.forEach, steps: z.array(stepSchema) }),
-    z.object({ ...baseFields, ...shapes.if, then: z.array(stepSchema), else: z.array(stepSchema).optional() }),
-    z.object({ ...baseFields, type: z.literal('group'), steps: z.array(stepSchema) }),
+    z.object({ ...baseFields, ...shapes.forEach, steps: z.array(stepSchema).max(MAX_STEPS) }),
+    z.object({ ...baseFields, ...shapes.if, then: z.array(stepSchema).max(MAX_STEPS), else: z.array(stepSchema).max(MAX_STEPS).optional() }),
+    z.object({ ...baseFields, type: z.literal('group'), steps: z.array(stepSchema).max(MAX_STEPS) }),
     z.object({ ...baseFields, ...shapes.userTask, onReject: z.enum(['fail', 'continue']).optional() }),
     z.object({ ...baseFields, ...shapes.check }),
     z.object({ ...baseFields, ...shapes.log }),
@@ -554,8 +564,8 @@ export const inputDefSchema = z.object({
   description: z.string().optional(),
   required: z.boolean().optional(),
   default: z.unknown().optional(),
-  options: z.array(z.string()).optional(),
-  columns: z.array(z.string()).optional(),
+  options: z.array(z.string()).max(1000).optional(),
+  columns: z.array(z.string()).max(100).optional(),
 });
 export type InputDef = z.infer<typeof inputDefSchema>;
 
@@ -570,12 +580,12 @@ export type ConnectionSlot = z.infer<typeof connectionSlotSchema>;
 const definitionBase = {
   name: z.string().min(1),
   description: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  connections: z.array(connectionSlotSchema).default([]),
-  inputs: z.array(inputDefSchema).default([]),
-  constants: z.record(z.unknown()).optional(),
+  tags: z.array(z.string()).max(50).optional(),
+  connections: z.array(connectionSlotSchema).max(100).default([]),
+  inputs: z.array(inputDefSchema).max(200).default([]),
+  constants: boundedRecord(z.unknown(), 500).optional(),
   /** Values returned to a parent process (name → expression evaluated when the run ends) */
-  outputs: z.record(z.string()).optional(),
+  outputs: boundedRecord(z.string(), 100).optional(),
   /** PDF run report: `auto` generates and archives it whenever a run finishes */
   report: z
     .object({
@@ -588,17 +598,17 @@ const definitionBase = {
 
 export const processDefinitionSchema = z.object({
   ...definitionBase,
-  nodes: z.array(nodeSchema),
-  wires: z.array(wireSchema).default([]),
+  nodes: z.array(nodeSchema).max(MAX_NODES),
+  wires: z.array(wireSchema).max(MAX_WIRES).default([]),
 });
 export type ProcessDefinition = z.infer<typeof processDefinitionSchema>;
 
 /** Accepted input: graph (nodes + wires) or sequential steps. */
 const processInputSchema = z.object({
   ...definitionBase,
-  nodes: z.array(z.unknown()).optional(),
-  wires: z.array(z.unknown()).optional(),
-  steps: z.array(stepSchema).optional(),
+  nodes: z.array(z.unknown()).max(MAX_NODES).optional(),
+  wires: z.array(z.unknown()).max(MAX_WIRES).optional(),
+  steps: z.array(stepSchema).max(MAX_STEPS).optional(),
 });
 
 export interface ValidationIssue {

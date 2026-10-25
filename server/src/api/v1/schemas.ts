@@ -10,12 +10,13 @@
  * must ignore unknown fields.
  */
 import { z, type ZodTypeAny } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { zodJsonSchema, type JsonSchema } from '../../jsonSchema.js';
 import {
   API_DOCS_MODES,
   DATASET_STATUSES,
   PLATFORM_PERMISSIONS,
   PROCESS_PERMISSIONS,
+  QUERY_LIST_MAX,
   ROLES,
   type RunStatus,
   type RunSummary,
@@ -40,7 +41,7 @@ const ts = () => z.string().datetime({ offset: true }).describe('ISO 8601 timest
 const nullableTs = (d: string) => ts().nullable().describe(d);
 /** Free-form JSON value (process definitions, inputs, step output …). */
 const json = (d: string) => z.unknown().describe(d);
-const jsonObject = (d: string) => z.record(z.unknown()).describe(d);
+const jsonObject = (d: string) => z.record(z.string(), z.unknown()).describe(d);
 
 const cursorDescription = 'Opaque cursor for the next page; null on the last page. Pass it unchanged as `cursor` together with the same filters.';
 
@@ -186,12 +187,12 @@ const Check = z.object({
 export const RunDetail = Run.extend({
   inputs: jsonObject('Inputs the run was started with'),
   bindings: z
-    .record(z.object({ platformId: z.string(), platformName: z.string(), baseUrl: z.string() }))
+    .record(z.string(), z.object({ platformId: z.string(), platformName: z.string(), baseUrl: z.string() }))
     .describe('Connection slot → platform used by this run'),
   definitionHash: z.string().describe('Hash of the pinned process version'),
   outputs: jsonObject('Evaluated process outputs').nullable(),
   steps: z
-    .object({ total: z.number().int(), byStatus: z.record(z.number().int()) })
+    .object({ total: z.number().int(), byStatus: z.record(z.string(), z.number().int()) })
     .describe('Summary of the step journal; page through GET /runs/{runId}/steps for the entries'),
   decisions: z.array(Decision).describe('User tasks of this run and their decisions'),
   checks: z.array(Check),
@@ -280,7 +281,7 @@ export const Schedule = z.object({
   dryRun: z.boolean(),
   allowOverlap: z.boolean(),
   inputs: jsonObject('Preset inputs'),
-  bindings: z.record(z.string()).describe('Connection slot → platform id'),
+  bindings: z.record(z.string(), z.string()).describe('Connection slot → platform id'),
   owner: z.string().nullable().describe('Scheduled runs use the rights of this user'),
   nextRunAt: nullableTs('Next planned run (null when disabled or the scheduler is stopped)'),
   lastRunAt: nullableTs('Last run'),
@@ -336,14 +337,14 @@ export const Dataset = z.object({
   updatedAt: ts(),
   rowCount: z.number().int(),
   columns: z.array(z.string()),
-  statusCounts: z.record(z.number().int()).describe('Rows per status (good, warning, serious, critical, unknown)'),
-  metrics: z.record(z.number()).describe('Latest value per metric'),
+  statusCounts: z.record(z.string(), z.number().int()).describe('Rows per status (good, warning, serious, critical, unknown)'),
+  metrics: z.record(z.string(), z.number()).describe('Latest value per metric'),
   staleAfterMinutes: z.number().int().nullable(),
   stale: z.boolean(),
 });
 
 export const DatasetRow = z
-  .record(z.unknown())
+  .record(z.string(), z.unknown())
   .describe('One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText.');
 
 export const MetricSeries = z.object({
@@ -494,8 +495,8 @@ export const ProcessListQuery = z.object({
 export const RunListQuery = z.object({
   ...page,
   processId: z.string().max(200).optional(),
-  status: z.array(z.enum(RUN_STATUSES)).optional().describe('One or more statuses (repeat the parameter)'),
-  trigger: z.array(z.enum(RUN_TRIGGERS)).optional().describe('One or more triggers (repeat the parameter)'),
+  status: z.array(z.enum(RUN_STATUSES)).max(QUERY_LIST_MAX).optional().describe('One or more statuses (repeat the parameter)'),
+  trigger: z.array(z.enum(RUN_TRIGGERS)).max(QUERY_LIST_MAX).optional().describe('One or more triggers (repeat the parameter)'),
   scheduleId: z.string().max(200).optional(),
   dryRun: z.boolean().optional().describe('true: only dry runs, false: only real runs'),
   from: ts().optional().describe('Started at or after this time (ISO 8601)'),
@@ -504,18 +505,18 @@ export const RunListQuery = z.object({
 
 export const StepListQuery = z.object({
   ...page,
-  status: z.array(z.enum(STEP_STATUSES)).optional().describe('One or more step statuses (repeat the parameter)'),
+  status: z.array(z.enum(STEP_STATUSES)).max(QUERY_LIST_MAX).optional().describe('One or more step statuses (repeat the parameter)'),
   type: z.string().max(100).optional().describe('Node type, e.g. http, check, userTask'),
 });
 
 export const LogListQuery = z.object({
   ...page,
-  level: z.array(z.enum(LOG_LEVELS)).optional().describe('One or more levels (repeat the parameter)'),
+  level: z.array(z.enum(LOG_LEVELS)).max(QUERY_LIST_MAX).optional().describe('One or more levels (repeat the parameter)'),
 });
 
 export const TaskListQuery = z.object({
   ...page,
-  status: z.array(z.enum(TASK_STATUSES)).optional().describe('open, completed, cancelled (repeat the parameter); default all'),
+  status: z.array(z.enum(TASK_STATUSES)).max(QUERY_LIST_MAX).optional().describe('open, completed, cancelled (repeat the parameter); default all'),
   processId: z.string().max(200).optional(),
   runId: z.string().max(200).optional(),
 });
@@ -560,11 +561,11 @@ export const PlatformListQuery = z.object({
 export const DatasetRowsQuery = z.object({
   ...page,
   limit: z.number().int().min(1).max(1000).default(100).describe('Page size (1–1000, default 100)'),
-  status: z.array(z.enum(DATASET_STATUSES)).optional().describe('Only rows with these statuses (repeat the parameter)'),
+  status: z.array(z.enum(DATASET_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Only rows with these statuses (repeat the parameter)'),
 });
 
 export const MetricsQuery = z.object({
-  names: z.array(z.string().max(200)).optional().describe('Metric names (repeat the parameter); default all'),
+  names: z.array(z.string().max(200)).max(QUERY_LIST_MAX).optional().describe('Metric names (repeat the parameter); default all'),
   days: z.number().int().min(1).max(400).default(30).describe('History window in days (1–400, default 30)'),
   points: z.number().int().min(2).max(2000).default(200).describe('Maximum points per series (downsampled, default 200)'),
 });
@@ -585,13 +586,9 @@ export const UserListQuery = z.object({ ...page, active: z.boolean().optional() 
 
 // ---------- conversion ----------
 
-type JsonSchema = Record<string, unknown>;
-
-/** zod → JSON Schema (draft 2019-09; OpenAPI 3.1 schema objects are a superset). */
-export function toJsonSchema(schema: ZodTypeAny): JsonSchema {
-  const out = zodToJsonSchema(schema, { target: 'jsonSchema2019-09', $refStrategy: 'none' }) as JsonSchema;
-  delete out.$schema;
-  return out;
+/** zod → JSON Schema (draft 2020-12, the dialect of OpenAPI 3.1). */
+export function toJsonSchema(schema: ZodTypeAny, io: 'input' | 'output' = 'output'): JsonSchema {
+  return zodJsonSchema(schema, io);
 }
 
 /** Shared schemas to register with `app.addSchema` (referenced as `<Name>#`). */
@@ -620,7 +617,7 @@ export function pageOf(name: keyof typeof COMPONENTS & string, description: stri
 
 /** Query-string schema: query parameters are optional, arrays come from repeated parameters. */
 export function querySchema(schema: ZodTypeAny): JsonSchema {
-  return toJsonSchema(schema);
+  return toJsonSchema(schema, 'input');
 }
 
 /** Path parameters (all strings). */

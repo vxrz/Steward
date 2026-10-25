@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { CREDENTIAL_DUE_KINDS, CREDENTIAL_STATUSES, CREDENTIAL_TYPES } from '@sm/shared';
+import { CREDENTIAL_DUE_KINDS, CREDENTIAL_STATUSES, CREDENTIAL_TYPES, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the credentials endpoints of the public API (/api/v1/credentials…). */
 
@@ -65,8 +65,8 @@ export const CREDENTIAL_COMPONENTS: Record<string, ZodTypeAny> = { CredentialEnt
 export const CredentialListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
-  status: z.array(z.enum(CREDENTIAL_STATUSES)).optional().describe('Only entries with these statuses (repeat the parameter)'),
-  type: z.array(z.enum(CREDENTIAL_TYPES)).optional(),
+  status: z.array(z.enum(CREDENTIAL_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Only entries with these statuses (repeat the parameter)'),
+  type: z.array(z.enum(CREDENTIAL_TYPES)).max(QUERY_LIST_MAX).optional(),
   platform: z.string().max(200).optional().describe('Platform id or name'),
   dueWithinDays: z.number().int().min(0).max(3650).optional().describe('Only entries with a due date within this many days (overdue ones included)'),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),

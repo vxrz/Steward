@@ -26,7 +26,7 @@ const admin = (what: string): AuthUser => {
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
 
-const channelList = z.array(z.enum(['inApp', 'email', 'teams', 'webhook']));
+const channelList = z.array(z.enum(['inApp', 'email', 'teams', 'webhook'])).max(4);
 const notificationSettingsBody = z.object({
   email: z.object({
     enabled: z.boolean(),

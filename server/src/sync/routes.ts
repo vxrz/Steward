@@ -16,7 +16,7 @@ const listQuery = z.object({
     .max(100)
     .optional()
     .transform((s) => (s ? s.split(',').filter(Boolean) : []))
-    .pipe(z.array(z.enum(SYNC_UPDATE_STATUSES))),
+    .pipe(z.array(z.enum(SYNC_UPDATE_STATUSES)).max(50)),
   sourceId: z.string().max(60).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });

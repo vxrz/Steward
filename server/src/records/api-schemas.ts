@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { EDITION_KINDS, RECORD_STATUSES, RECORD_WORKFLOW_KEYS, REVIEW_OUTCOMES, REVIEW_STATUSES } from '@sm/shared';
+import { EDITION_KINDS, RECORD_STATUSES, RECORD_WORKFLOW_KEYS, REVIEW_OUTCOMES, REVIEW_STATUSES, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the record endpoints of the public API (/api/v1/records…). */
 
@@ -109,7 +109,7 @@ export const RecordEditionSummary = z.object({
 
 export const RecordEdition = RecordEditionSummary.extend({
   body: z.string().describe('Markdown text of the edition'),
-  fields: z.record(z.string()),
+  fields: z.record(z.string(), z.string()),
   attachments: z.array(z.object({ id: z.string(), filename: z.string(), size: z.number().int(), sha256: hash('SHA-256 of the file') })),
 });
 
@@ -146,7 +146,7 @@ export const RecordDocument = z.object({
 
 export const RecordDetail = Record_.extend({
   body: z.string().describe('Markdown text'),
-  fields: z.record(z.string()).describe('Structured fields of the record type'),
+  fields: z.record(z.string(), z.string()).describe('Structured fields of the record type'),
   contentHash: hash('SHA-256 of the current content (title, text, fields, attached files)'),
   frozenHash: hash('Content hash recorded when the record left the draft status').nullable(),
   frozen: z.boolean().describe('The content can no longer change (outside the draft status)'),
@@ -174,7 +174,7 @@ export const RecordVersion = z.object({
   revision: z.number().int(),
   title: z.string(),
   body: z.string(),
-  fields: z.record(z.string()),
+  fields: z.record(z.string(), z.string()),
   hash: hash('SHA-256 of title, text and fields of this version'),
   author: z.string(),
   comment: z.string(),
@@ -218,11 +218,11 @@ export const RecordListQuery = z.object({
   limit,
   cursor,
   type: z.string().max(64).optional().describe('Record type key, e.g. CR or ADR'),
-  status: z.array(z.string().max(40)).optional().describe('Only records with these statuses (repeat the parameter)'),
+  status: z.array(z.string().max(40)).max(QUERY_LIST_MAX).optional().describe('Only records with these statuses (repeat the parameter)'),
   tag: z.string().max(60).optional(),
   q: z.string().max(200).optional().describe('Case-insensitive search in number, title and text'),
   workflow: z.enum(RECORD_WORKFLOW_KEYS).optional().describe('Only records of types with this workflow, e.g. document'),
-  reviewStatus: z.array(z.enum(REVIEW_STATUSES)).optional().describe('Living documents: only these review statuses (repeat the parameter)'),
+  reviewStatus: z.array(z.enum(REVIEW_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Living documents: only these review statuses (repeat the parameter)'),
 });
 
 export const RecordVersionsQuery = z.object({ limit, cursor });
