@@ -30,6 +30,7 @@ import { publicKeyPem } from '../vault.js';
 import { unlockThrottle } from '../auth/unlock-throttle.js';
 import { confirmPlatformConfig, sealPlatformConfigs } from '../platforms/integrity.js';
 import { getSettings, passwordLoginFromEnv, passwordLoginMode, updateSettings } from '../settings.js';
+import { resolveLocale, t as serverT } from '../i18n/index.js';
 import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../util.js';
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
@@ -411,9 +412,20 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/auth/oidc/callback', async (req, reply) => {
     try {
       const current = new URL(req.url, `${req.protocol}://${req.headers.host}`);
-      const { token, returnTo, sessionKey, linkKey } = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
-      reply.header('set-cookie', sessionCookie(token));
+      const result = await sso.finishSignIn(current, { ip: req.ip, userAgent: req.headers['user-agent'] });
       reply.header('cache-control', 'no-store');
+      if (result.kind === 'test') {
+        // a test sign-in: no cookie, no session – the administrator's editor shows the claims (it asks for them)
+        const lang = resolveLocale(result.locale, getSettings().defaultLocale);
+        const text = result.ok ? serverT(lang, 'ssoTest.done') : serverT(lang, 'ssoTest.failed');
+        const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+        return reply.type('text/html').send(
+          // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- fixed catalog texts, HTML-escaped; no request data
+          `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>${esc(serverT(lang, 'ssoTest.title'))}</title><p>${esc(text)}</p><script>setTimeout(function(){window.close()},1500)</script></html>`,
+        );
+      }
+      const { token, returnTo, sessionKey, linkKey } = result;
+      reply.header('set-cookie', sessionCookie(token));
       // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
       // It also hands the session key to the web app: localStorage of this origin (see auth/cookies.ts).
       const js = (v: string) => JSON.stringify(v).replace(/</g, '\\u003c');
@@ -449,6 +461,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return sso.discover(z.object({ issuer: z.string().url() }).parse(req.body).issuer);
   });
   app.get('/sso/redirect-uri', async (req) => ({ redirectUri: sso.redirectUriFor(req) }));
+  /** Test sign-in: the administrator signs in once through the provider and sees the claims – nothing signs in or changes. */
+  app.post('/sso/providers/:id/test-sign-in', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    requireCapability(me(), 'manageUsers', 'test single sign-on');
+    const u = me();
+    return sso.startTestSignIn(params(req).id!, { id: u.id, username: u.username }, sso.redirectUriFor(req));
+  });
+  app.post('/sso/test-sign-ins/:id', async (req) => {
+    requireCapability(me(), 'manageUsers', 'test single sign-on');
+    const b = z.object({ config: z.unknown().optional() }).parse(req.body ?? {});
+    return sso.testResult(params(req).id!, me().id, b.config);
+  });
 
   app.post('/auth/password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
     const b = z.object({ current: z.string().max(1024), next: z.string().max(1024) }).parse(req.body);
@@ -539,6 +562,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .object({
         username: z.string().max(64),
         displayName: z.string().max(100).optional(),
+        firstName: z.string().max(100).optional(),
+        lastName: z.string().max(100).optional(),
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
         password: z.string().max(1024).optional(),
@@ -575,6 +600,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const b = z
       .object({
         displayName: z.string().max(100).optional(),
+        firstName: z.string().max(100).optional(),
+        lastName: z.string().max(100).optional(),
         email: z.string().max(254).optional(),
         roles: z.array(z.enum(ROLES)).max(ROLES.length).optional(),
         active: z.boolean().optional(),

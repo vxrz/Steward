@@ -1,5 +1,16 @@
 import crypto from 'node:crypto';
-import { ROLES, isLocale, type Locale, type Role, type Team, type UserInfo } from '@sm/shared';
+import {
+  DEFAULT_SSO_SYNC,
+  ROLES,
+  SSO_SYNCED_FIELDS,
+  isLocale,
+  type Locale,
+  type Role,
+  type SsoSyncRules,
+  type Team,
+  type UserInfo,
+  type UserProfileValue,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
@@ -26,6 +37,9 @@ interface UserRow {
   external_id: string | null;
   email_notifications?: number;
   locale?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  profile?: string | null;
 }
 
 const USERNAME = /^[a-zA-Z0-9._@-]{2,64}$/;
@@ -51,8 +65,48 @@ function toInfo(r: UserRow): UserInfo {
     createdAt: r.created_at,
     authSource: r.auth_source ?? 'local',
     locale: isLocale(r.locale) ? r.locale : null,
+    ...(r.first_name ? { firstName: r.first_name } : {}),
+    ...(r.last_name ? { lastName: r.last_name } : {}),
+    profile: profileOf(r.profile),
+    managedFields: managedFields(r.auth_source ?? 'local'),
   };
 }
+
+function profileOf(json: string | null | undefined): UserProfileValue[] {
+  const list = parseJson<unknown>(json ?? null, []);
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((x): x is UserProfileValue => !!x && typeof x === 'object' && typeof x.key === 'string' && typeof x.value === 'string')
+    .slice(0, 50)
+    .map((x) => ({ key: x.key, label: typeof x.label === 'string' ? x.label : x.key, value: x.value }));
+}
+
+/**
+ * Fields the single sign-on provider of an account updates at every sign-in (sync rule "always"): not editable in
+ * Steward. An account whose provider was deleted keeps them read-only (as before the sync rules existed).
+ */
+export function managedFields(authSource: string): UserInfo['managedFields'] {
+  if (authSource === 'local') return [];
+  const row = db().get<{ config: string }>('SELECT config FROM identity_providers WHERE id = ?', authSource);
+  const sync: SsoSyncRules = { ...DEFAULT_SSO_SYNC, ...(row ? parseJson<{ sync?: Partial<SsoSyncRules> }>(row.config, {}).sync : {}) };
+  return SSO_SYNCED_FIELDS.filter((f) => sync[f] !== 'create');
+}
+
+/** Refuses a change of a field the account's single sign-on provider keeps up to date. */
+function requireUnmanaged(before: UserInfo, changed: Partial<Record<UserInfo['managedFields'][number], boolean>>): void {
+  const blocked = before.managedFields.filter((f) => changed[f]);
+  if (blocked.length) {
+    throw new HttpError(400, `${blocked.join(', ')} of this account are managed by single sign-on`, 'SSO_MANAGED_PROFILE', { fields: blocked });
+  }
+}
+
+const NAME_MAX = 100;
+const cleanName = (v: string | undefined): string | null | undefined => {
+  if (v === undefined) return undefined;
+  const s = v.trim();
+  if (s.length > NAME_MAX) throw new HttpError(400, `Names: at most ${NAME_MAX} characters`);
+  return s || null;
+};
 
 /** A signed-in user as sessionUser returns it: the account plus how the session was opened. */
 export type SessionInfo = UserInfo & { emergency?: AuthUser['emergency'] };
@@ -101,6 +155,8 @@ function cleanRoles(roles: unknown): Role[] {
 export function createUser(input: {
   username: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   roles: Role[];
   password?: string;
@@ -133,11 +189,13 @@ export function createUser(input: {
   const roles = cleanRoles(input.roles);
   db().tx(() => {
     db().run(
-      `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
-       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+      `INSERT INTO users (id, username, display_name, first_name, last_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       id,
       username,
       input.displayName?.trim() || username,
+      cleanName(input.firstName) ?? null,
+      cleanName(input.lastName) ?? null,
       input.email ?? null,
       input.noPassword ? NO_PASSWORD : hashPassword(password!),
       JSON.stringify(roles),
@@ -157,15 +215,30 @@ export function createUser(input: {
   return { user: getUser(id), temporaryPassword: temp };
 }
 
-export function updateUser(id: string, patch: { displayName?: string; email?: string; roles?: Role[]; active?: boolean }): UserInfo {
+export function updateUser(
+  id: string,
+  patch: { displayName?: string; firstName?: string; lastName?: string; email?: string; roles?: Role[]; active?: boolean },
+): UserInfo {
   const before = getUser(id);
   const roles = patch.roles ? cleanRoles(patch.roles) : before.roles;
   if (before.roles.includes('admin') && (!roles.includes('admin') || patch.active === false)) ensureAnotherAdmin(id);
+  const firstName = cleanName(patch.firstName);
+  const lastName = cleanName(patch.lastName);
+  const displayName = patch.displayName?.trim() || before.displayName;
+  const email = patch.email ?? before.email ?? null;
+  requireUnmanaged(before, {
+    displayName: displayName !== before.displayName,
+    firstName: firstName !== undefined && firstName !== (before.firstName ?? null),
+    lastName: lastName !== undefined && lastName !== (before.lastName ?? null),
+    email: (email ?? '') !== (before.email ?? ''),
+  });
   db().tx(() => {
     db().run(
-      'UPDATE users SET display_name = ?, email = ?, roles = ?, active = ?, updated_at = ? WHERE id = ?',
-      patch.displayName?.trim() || before.displayName,
-      patch.email ?? before.email ?? null,
+      'UPDATE users SET display_name = ?, first_name = ?, last_name = ?, email = ?, roles = ?, active = ?, updated_at = ? WHERE id = ?',
+      displayName,
+      firstName === undefined ? (before.firstName ?? null) : firstName,
+      lastName === undefined ? (before.lastName ?? null) : lastName,
+      email,
       JSON.stringify(roles),
       patch.active === undefined ? (before.active ? 1 : 0) : patch.active ? 1 : 0,
       nowIso(),
@@ -175,6 +248,10 @@ export function updateUser(id: string, patch: { displayName?: string; email?: st
     const changes: string[] = [];
     if (JSON.stringify(roles) !== JSON.stringify(before.roles)) changes.push(`roles ${before.roles.join(',') || '–'} → ${roles.join(',') || '–'}`);
     if (patch.active !== undefined && patch.active !== before.active) changes.push(patch.active ? 'activated' : 'deactivated');
+    if (displayName !== before.displayName) changes.push('display name');
+    if (firstName !== undefined && firstName !== (before.firstName ?? null)) changes.push('first name');
+    if (lastName !== undefined && lastName !== (before.lastName ?? null)) changes.push('last name');
+    if ((email ?? '') !== (before.email ?? '')) changes.push('e-mail');
     audit({
       action: 'user.updated',
       entityType: 'user',
@@ -188,21 +265,33 @@ export function updateUser(id: string, patch: { displayName?: string; email?: st
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider. */
-export function updateProfile(id: string, patch: { displayName?: string; email?: string; emailNotifications?: boolean; locale?: Locale | null }): UserInfo {
+/**
+ * Changes a user makes to their own profile. Name and e-mail of single sign-on accounts come from the identity provider
+ * unless its sync rule for the field is "only when the account is created".
+ */
+export function updateProfile(
+  id: string,
+  patch: { displayName?: string; firstName?: string; lastName?: string; email?: string; emailNotifications?: boolean; locale?: Locale | null },
+): UserInfo {
   const before = getUser(id);
-  const sso = before.authSource !== 'local';
   const displayName = patch.displayName?.trim();
   const email = patch.email === undefined ? undefined : patch.email.trim();
-  if (sso && ((displayName !== undefined && displayName !== before.displayName) || (email !== undefined && email !== (before.email ?? '')))) {
-    throw new HttpError(400, 'Name and e-mail of this account are managed by single sign-on', 'SSO_MANAGED_PROFILE');
-  }
+  const firstName = cleanName(patch.firstName);
+  const lastName = cleanName(patch.lastName);
+  requireUnmanaged(before, {
+    displayName: displayName !== undefined && displayName !== before.displayName,
+    email: email !== undefined && email !== (before.email ?? ''),
+    firstName: firstName !== undefined && firstName !== (before.firstName ?? null),
+    lastName: lastName !== undefined && lastName !== (before.lastName ?? null),
+  });
   if (displayName !== undefined && (!displayName || displayName.length > 100)) throw new HttpError(400, 'Display name: 1–100 characters');
   if (email && !EMAIL.test(email)) throw new HttpError(400, 'Enter a valid e-mail address', 'INVALID_EMAIL');
   if (patch.locale !== undefined && patch.locale !== null && !isLocale(patch.locale))
     throw new HttpError(400, `Unsupported language "${patch.locale}"`, 'UNSUPPORTED_LOCALE');
   const changes: string[] = [];
   if (displayName !== undefined && displayName !== before.displayName) changes.push('name');
+  if (firstName !== undefined && firstName !== (before.firstName ?? null)) changes.push('first name');
+  if (lastName !== undefined && lastName !== (before.lastName ?? null)) changes.push('last name');
   if (email !== undefined && email !== (before.email ?? '')) changes.push('e-mail');
   if (patch.emailNotifications !== undefined && patch.emailNotifications !== before.emailNotifications) {
     changes.push(`e-mail notifications ${patch.emailNotifications ? 'on' : 'off'}`);
@@ -211,8 +300,10 @@ export function updateProfile(id: string, patch: { displayName?: string; email?:
   if (!changes.length) return before;
   db().tx(() => {
     db().run(
-      'UPDATE users SET display_name = ?, email = ?, email_notifications = ?, locale = ?, updated_at = ? WHERE id = ?',
+      'UPDATE users SET display_name = ?, first_name = ?, last_name = ?, email = ?, email_notifications = ?, locale = ?, updated_at = ? WHERE id = ?',
       displayName ?? before.displayName,
+      firstName === undefined ? (before.firstName ?? null) : firstName,
+      lastName === undefined ? (before.lastName ?? null) : lastName,
       email === undefined ? (before.email ?? null) : email || null,
       (patch.emailNotifications ?? before.emailNotifications) ? 1 : 0,
       patch.locale === undefined ? before.locale : patch.locale,

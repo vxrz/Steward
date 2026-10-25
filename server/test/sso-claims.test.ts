@@ -93,6 +93,8 @@ describe('claiming accounts with single sign-on', () => {
     const { db } = await import('../src/db.js');
     db().run("UPDATE users SET must_change_password = 0 WHERE username = 'oskar@contoso.example'");
     const byPassword = await s.as('oskar@contoso.example', 'Oskar-local-pw-123');
+    const pa = (await s.api('GET', '/sso/providers')).find((x: { id: string }) => x.id === a);
+    await s.api('PUT', `/sso/providers/${a}`, { ...pa, linkExisting: 'byName' }); // a local account with a password: linked by its name
     const linked = await signIn(a, 'c3d5'); // links the local account to the provider
     expect((await linked.client!('GET', '/auth/me')).user.authSource).toBe(a);
     process.env.SM_PASSWORD_LOGIN = 'none';

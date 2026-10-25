@@ -1,0 +1,119 @@
+import { describe, expect, it } from 'vitest';
+import { ssoConfigWarnings, SSO_PRESET_INFO, SSO_PRESETS } from '@sm/shared';
+import {
+  claimAt,
+  claimList,
+  claimText,
+  groupOverage,
+  identityKeys,
+  keyClaimNames,
+  keyIssuer,
+  renderTemplate,
+  shownClaims,
+  transformUsername,
+  withDefaults,
+  withIssuer,
+} from '../src/auth/sso-claims.js';
+
+/** The pure parts of the claim mapping (#77): claim paths, values, user name rules, links. */
+describe('claims', () => {
+  it('reads nested claims, prefers a literal name and never walks into the prototype', () => {
+    const c = { address: { locality: 'Erlangen' }, 'https://example.com/roles': ['a'], 'a.b': 1, a: { b: 2 } };
+    expect(claimAt(c, 'address.locality')).toBe('Erlangen');
+    expect(claimAt(c, 'https://example.com/roles')).toEqual(['a']);
+    expect(claimAt(c, 'a.b')).toBe(1);
+    expect(claimAt(c, '__proto__')).toBeUndefined();
+    expect(claimAt(c, 'address.constructor')).toBeUndefined();
+    expect(claimAt(c, 'address.toString')).toBeUndefined();
+    expect(claimAt(c, 'a.b.c.d.e.f')).toBeUndefined();
+    expect(claimAt(c, 'address..locality')).toBeUndefined();
+  });
+
+  it('turns values into bounded text', () => {
+    expect(claimText(' x\u0007y  ', 10)).toBe('x y');
+    expect(claimText(['a', 1, true, { no: 1 }], 50)).toBe('a, 1, true');
+    expect(claimText({ a: 1 }, 50)).toBeUndefined();
+    expect(claimText('', 50)).toBeUndefined();
+    expect(claimText('abcdef', 3)).toBe('abc');
+    expect(claimList('a b,c')).toEqual(['a', 'b', 'c']);
+    expect(claimList(['x', 2, { y: 1 }])).toEqual(['x', '2']);
+  });
+
+  it('applies the user name rule', () => {
+    expect(transformUsername(' Max@Contoso.com ', 'lowercase')).toBe('max@contoso.com');
+    expect(transformUsername('Max@Contoso.com', 'stripDomain')).toBe('max');
+    expect(transformUsername('@x', 'stripDomain')).toBe('@x');
+    expect(transformUsername('a@b@c', 'stripDomain')).toBe('a@b');
+    expect(transformUsername('Max@Contoso.com', 'none')).toBe('Max@Contoso.com');
+  });
+
+  it('renders display name templates', () => {
+    expect(renderTemplate('{given_name} {family_name}', { given_name: 'Max', family_name: 'Admin' })).toBe('Max Admin');
+    expect(renderTemplate('{family_name}, {given_name} ({address.locality})', { given_name: 'Max', address: { locality: 'Köln' } })).toBe(', Max (Köln)');
+    expect(renderTemplate('{missing}', {})).toBe('');
+    expect(renderTemplate('{n}', { n: 'x'.repeat(300) })).toHaveLength(100);
+  });
+
+  it('recognises group overage indicators', () => {
+    expect(groupOverage({ _claim_names: { groups: 'src1' }, _claim_sources: {} }, 'roles')).toBe(true);
+    expect(groupOverage({ _claim_names: { wids: 'src1' } }, 'wids')).toBe(true);
+    expect(groupOverage({ hasgroups: true }, 'groups')).toBe(true);
+    expect(groupOverage({ hasgroups: 'true' }, 'groups')).toBe(true);
+    expect(groupOverage({ groups: ['a'] }, 'groups')).toBe(false);
+  });
+
+  it('builds links that cannot be confused with each other', () => {
+    const k = identityKeys('idp_1', { iss: 'https://idp.example/', sub: 'a#b=c', tid: 't', oid: 'o' }, ['tid', 'oid']);
+    expect(k.key).toBe('idp_1#iss=https%3A%2F%2Fidp.example#tid=t#oid=o');
+    expect(k.subKey).toBe('idp_1#iss=https%3A%2F%2Fidp.example#sub=a%23b%3Dc');
+    expect(k.legacyKey).toBe('idp_1:a#b=c');
+    expect(keyClaimNames(k.key!, 'idp_1')).toEqual(['tid', 'oid']);
+    expect(keyClaimNames(k.legacyKey, 'idp_1')).toBe('legacy');
+    expect(keyClaimNames(k.key!, 'idp_2')).toBeNull();
+    expect(keyIssuer(k.key!, 'idp_1')).toBe('https://idp.example');
+    expect(withIssuer(k.key!, 'idp_1', 'https://new.example/')).toBe('idp_1#iss=https%3A%2F%2Fnew.example#tid=t#oid=o');
+    expect(identityKeys('idp_1', { iss: 'x', sub: 's' }, ['oid']).key).toBeUndefined();
+    // long values: hashed, the claim names stay readable
+    const long = identityKeys('idp_1', { iss: 'x', sub: 's', a: 'é'.repeat(250), b: 'é'.repeat(250) }, ['a', 'b']);
+    expect(long.key).toMatch(/^idp_1#h#a%2Cb#[0-9a-f]{64}$/);
+    expect(keyClaimNames(long.key!, 'idp_1')).toEqual(['a', 'b']);
+  });
+
+  it('shows claims bounded, as JSON text', () => {
+    const shown = shownClaims({ a: 'x', b: { c: 1 }, big: 'y'.repeat(5000) });
+    expect(shown[0]).toEqual({ name: 'a', value: '"x"' });
+    expect(shown[1]).toEqual({ name: 'b', value: '{"c":1}' });
+    expect(shown[2]!.truncated).toBe(true);
+    expect(shown[2]!.value).toHaveLength(2000);
+  });
+
+  it('keeps today’s behaviour for settings a provider was saved without', () => {
+    const c = withDefaults({ type: 'entra' } as never);
+    expect(c).toMatchObject({ preset: 'entra', linkExisting: 'byName', stableIdClaims: ['sub'], usernameTransform: 'lowercase', groupValues: 'names' });
+  });
+});
+
+describe('presets and configuration warnings', () => {
+  it('pre-fill every setting with a docs section', () => {
+    for (const id of SSO_PRESETS) {
+      const p = SSO_PRESET_INFO[id];
+      expect(p.docsAnchor).toMatch(/^[a-z-]+$/);
+      expect(p.defaults.linkExisting).toBe('bound');
+      expect(p.defaults.scopes).toContain('openid');
+    }
+    expect(SSO_PRESET_INFO.entra.defaults.stableIdClaims).toEqual(['tid', 'oid']);
+    expect(SSO_PRESET_INFO.google.defaults.requiredClaims).toEqual([{ claim: 'hd', values: [] }]);
+  });
+
+  it('warn about claims others can influence', () => {
+    const base = { ...SSO_PRESET_INFO.entra.defaults, type: 'entra' as const, issuer: 'https://login.microsoftonline.com/organizations/v2.0' } as never;
+    const codes = (x: object) => ssoConfigWarnings({ ...(base as object), ...x } as never).map((w) => w.code);
+    expect(codes({})).toEqual(expect.arrayContaining(['MULTI_TENANT_ISSUER', 'TENANT_INFLUENCED_CLAIM']));
+    expect(codes({ requiredClaims: [{ claim: 'tid', values: ['t'] }] })).not.toContain('MULTI_TENANT_ISSUER');
+    expect(codes({ issuer: 'https://login.microsoftonline.com/t/v2.0' })).toEqual([]);
+    expect(codes({ issuer: 'https://idp', usernameClaim: 'name' })).toContain('USER_INFLUENCED_CLAIM');
+    expect(codes({ issuer: 'https://idp', stableIdClaims: ['upn'] })).toContain('MUTABLE_STABLE_ID');
+    expect(codes({ issuer: 'https://accounts.google.com', preset: 'google', requiredClaims: [] })).toContain('NO_DOMAIN_RESTRICTION');
+    expect(codes({ issuer: 'https://idp', linkExisting: 'byName', usernameTransform: 'stripDomain' })).toEqual(['LINK_BY_NAME', 'STRIP_DOMAIN']);
+  });
+});

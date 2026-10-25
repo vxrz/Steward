@@ -392,7 +392,12 @@ export const User = z.object({
   id: z.string(),
   username: z.string(),
   displayName: z.string(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
   email: z.string().nullable(),
+  profile: z
+    .array(z.object({ key: z.string(), label: z.string(), value: z.string() }))
+    .describe('Read-only fields from the single sign-on provider (department, job title …), in the order the provider lists them'),
   roles: z.array(z.enum(ROLES)),
   teams: z.array(z.string()),
   active: z.boolean(),

@@ -1,6 +1,16 @@
 import type { ErrorParams } from './errors.js';
 import type { Column, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
+import type {
+  SsoConfigWarning,
+  SsoGroupValues,
+  SsoLinkPolicy,
+  SsoPreset,
+  SsoProfileField,
+  SsoRequiredClaim,
+  SsoSyncRules,
+  SsoUsernameTransform,
+} from './sso.js';
 
 // ---------- Users, roles, permissions ----------
 
@@ -44,6 +54,18 @@ export interface UserInfo {
   emailNotifications: boolean;
   /** Preferred UI and notification language; null = not chosen yet (browser language in the UI, Settings.defaultLocale for messages) */
   locale: Locale | null;
+  firstName?: string;
+  lastName?: string;
+  /** Read-only fields from the single sign-on provider (department, job title …), in the provider's order */
+  profile: UserProfileValue[];
+  /** Fields the single sign-on provider keeps up to date at every sign-in: not editable in Steward */
+  managedFields: ('displayName' | 'firstName' | 'lastName' | 'email')[];
+}
+
+export interface UserProfileValue {
+  key: string;
+  label: string;
+  value: string;
 }
 
 // ---------- Single sign-on (OpenID Connect) ----------
@@ -80,15 +102,59 @@ export interface SsoProvider {
   syncRoles: boolean;
   /** Deny sign-in when no mapping matches */
   requireMapping: boolean;
+  /** The preset the provider was set up with (pre-fill and help texts only) */
+  preset: SsoPreset;
+  /** Claims that identify a person for good, together with the issuer (default: sub; Entra ID: tid + oid) */
+  stableIdClaims: string[];
+  usernameTransform: SsoUsernameTransform;
+  /** Display name from claims, e.g. "{given_name} {family_name}"; empty: the display name claim */
+  displayNameTemplate: string;
+  firstNameClaim: string;
+  lastNameClaim: string;
+  /** Read-only account fields filled from claims (nested claims with dots: address.locality) */
+  profileFields: SsoProfileField[];
+  /** Per field: updated at every sign-in (not editable in Steward) or only set when the account is created or linked */
+  sync: SsoSyncRules;
+  /** Whether the groups claim carries names (matched ignoring case) or ids (matched exactly) */
+  groupValues: SsoGroupValues;
+  /** Which existing accounts the first sign-in of an identity may link: by user name, only accounts bound to this provider, none */
+  linkExisting: SsoLinkPolicy;
+  /** The provider only issues verified e-mail addresses (for providers that never send email_verified) */
+  emailVerifiedByProvider: boolean;
+  /** Also read the userinfo endpoint (claims missing from the ID token) */
+  useUserinfo: boolean;
+  /** Sign-in only when each of these claims has one of the values (e.g. hd for Google Workspace, tid for Entra ID) */
+  requiredClaims: SsoRequiredClaim[];
+  /** What to look at in the saved configuration (computed, read-only) */
+  warnings: SsoConfigWarning[];
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'createdAt' | 'updatedAt'> & {
-  /** New secret; omit to keep the stored one, '' to remove it */
-  clientSecret?: string;
-};
+/** Settings added after the first version are optional: a request without them keeps the stored values (or the defaults). */
+type SsoProviderLaterFields =
+  | 'preset'
+  | 'stableIdClaims'
+  | 'usernameTransform'
+  | 'displayNameTemplate'
+  | 'firstNameClaim'
+  | 'lastNameClaim'
+  | 'profileFields'
+  | 'sync'
+  | 'groupValues'
+  | 'linkExisting'
+  | 'emailVerifiedByProvider'
+  | 'useUserinfo'
+  | 'requiredClaims';
+
+export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'createdAt' | 'updatedAt' | 'warnings' | SsoProviderLaterFields> &
+  Partial<Pick<SsoProvider, SsoProviderLaterFields>> & {
+    /** New secret; omit to keep the stored one, '' to remove it */
+    clientSecret?: string;
+    /** When the issuer changes: keep the accounts linked (the new issuer issues the same subjects). Default: links stay with the former issuer */
+    keepLinksOnIssuerChange?: boolean;
+  };
 
 export interface SsoProviderPublic {
   id: string;

@@ -191,5 +191,10 @@
     "bodyBefore": "Die regelmäßige Überprüfung von {{number}} „{{title}}“ (Fassung {{edition}}) ist am {{date}} fällig.",
     "bodyOverdue": "Die regelmäßige Überprüfung von {{number}} „{{title}}“ (Fassung {{edition}}) war am {{date}} fällig.",
     "howTo": "Öffnen Sie das Dokument, prüfen Sie, ob die aktuelle Fassung noch stimmt, und wählen Sie „Geprüft – keine Änderung“ oder „Änderung nötig“."
+  },
+  "ssoTest": {
+    "title": "Test-Anmeldung",
+    "done": "Test-Anmeldung abgeschlossen. Kehren Sie zu Steward zurück – die Claims und die Vorschau stehen in den Einstellungen des Anmeldeanbieters. Sie können dieses Fenster schließen.",
+    "failed": "Die Test-Anmeldung ist fehlgeschlagen. In Steward sehen Sie, warum. Sie können dieses Fenster schließen."
   }
 }

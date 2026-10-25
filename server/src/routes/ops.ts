@@ -71,6 +71,8 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const b = z
       .object({
         displayName: z.string().max(100).optional(),
+        firstName: z.string().max(100).optional(),
+        lastName: z.string().max(100).optional(),
         email: z.string().max(254).optional(),
         emailNotifications: z.boolean().optional(),
         /** null = back to the default (browser language / Settings.defaultLocale) */
