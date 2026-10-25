@@ -51,10 +51,18 @@ const SSO_ONLY_READY = 'security.ssoOnlyReadyAt';
  */
 export function ssoOnlyReady(): boolean {
   if (db().get('SELECT 1 FROM settings WHERE key = ?', SSO_ONLY_READY)) return true;
-  const ready = !!db().get(
-    `SELECT 1 FROM users u JOIN identity_providers p ON p.id = u.auth_source
-     WHERE u.active = 1 AND p.enabled = 1 AND u.external_id IS NOT NULL AND u.roles LIKE '%"admin"%'`,
-  );
+  const ready = db()
+    .all<{ roles: string }>(
+      `SELECT u.roles FROM users u JOIN identity_providers p ON p.id = u.auth_source
+       WHERE u.active = 1 AND p.enabled = 1 AND u.external_id IS NOT NULL`,
+    )
+    .some((u) => {
+      try {
+        return (JSON.parse(u.roles) as unknown[]).includes('admin');
+      } catch {
+        return false;
+      }
+    });
   if (ready && passwordLoginFromEnv() === 'none') {
     db().run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING', SSO_ONLY_READY, JSON.stringify(new Date().toISOString()));
     audit({
