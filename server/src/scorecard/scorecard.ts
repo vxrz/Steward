@@ -1,5 +1,6 @@
 import {
   CIA_DIMENSIONS,
+  DUTY_NOT_MET,
   SCORECARD_PARTS,
   SCORECARD_PART_STATUSES,
   levelRank,
@@ -67,8 +68,11 @@ import { ruleRows, ruleValid } from './rules.js';
  * remember which documents counted; a reader who may not read one of them sees that day's documentation as hidden.
  */
 
-const OK_DUTY: DutyPeriodStatus[] = ['done', 'late', 'skipped'];
-const BAD_DUTY: DutyPeriodStatus[] = ['missed', 'failed'];
+const OK_DUTY: readonly DutyPeriodStatus[] = ['done', 'late', 'skipped'];
+/** missed, failed, ended (archived or changed before anything counted); "inactive" is neither met nor not met */
+const BAD_DUTY = DUTY_NOT_MET;
+/** A period ended early (archive, change of the rules) has the key of its period with a ~n suffix: shown without it. */
+const periodKey = (key: string) => key.replace(/~\d+$/, '');
 
 interface ServiceRow {
   id: string;
@@ -205,7 +209,7 @@ function dutiesPart(d: Data, serviceId: string): ScorecardDuties {
     const cur = periodAt(duty.interval_kind, d.now, d.tz);
     // nothing stored for the current period: nothing counts yet (the job stores a period once something happened); a
     // duty archived with its current period done has that period stored as closed
-    const curStatus: DutyPeriodStatus = d.open.get(`${duty.id}\n${cur.key}`)?.status ?? (last?.period_key === cur.key ? last.status : 'due');
+    const curStatus: DutyPeriodStatus = d.open.get(`${duty.id}\n${cur.key}`)?.status ?? (last && periodKey(last.period_key) === cur.key ? last.status : 'due');
     const result = last && BAD_DUTY.includes(last.status) ? 'notMet' : OK_DUTY.includes(curStatus) ? 'met' : BAD_DUTY.includes(curStatus) ? 'notMet' : 'open';
     by[duty.level].total++;
     by[duty.level][result]++;
@@ -215,7 +219,7 @@ function dutiesPart(d: Data, serviceId: string): ScorecardDuties {
       level: duty.level,
       applicationName: duty.application_id ? (d.appNames.get(duty.application_id) ?? null) : null,
       archivedAt: d.dutyArchivedAt.get(duty.id) ?? null,
-      lastClosed: last ? { key: last.period_key, status: last.status } : null,
+      lastClosed: last ? { key: periodKey(last.period_key), status: last.status } : null,
       current: { key: cur.key, status: curStatus },
       result,
     });

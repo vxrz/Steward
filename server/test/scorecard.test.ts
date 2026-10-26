@@ -359,7 +359,13 @@ describe('no clean scorecard by archiving, no flood of messages, no silent "no d
     await s.api('POST', `/duties/${d.id}/archive`, { archived: true });
     const c = await card(vera, svc.id);
     expect(c.duties).toMatchObject({ status: 'attention', archivedThisPeriod: 1, mandatory: { notMet: 1 } });
-    expect(c.duties.items[0]).toMatchObject({ dutyId: d.id, archivedAt: expect.any(String), result: 'notMet' });
+    // nothing counted in the current period: #85 closes it as "ended" (key with a ~n suffix, shown without it)
+    expect(c.duties.items[0]).toMatchObject({
+      dutyId: d.id,
+      archivedAt: expect.any(String),
+      result: 'notMet',
+      lastClosed: { key: currentKey(), status: 'ended' },
+    });
     // the next month: gone
     const next = sc.computeScorecards([svc.id], null, Date.now() + 32 * DAY)[0]!.card;
     expect(next.duties).toMatchObject({ status: 'none', archivedThisPeriod: 0 });
@@ -473,7 +479,8 @@ function openPeriod(dutyId: string, serviceId: string, key: string, status: stri
   db().run(
     `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, failed_runs, service_id, duty_name, process_id, process_name, level,
        interval_kind, grace_days, time_zone, evaluated_at, closed_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'x', ?, 'x', 'mandatory', 'monthly', 0, 'Europe/Berlin', ?, NULL)`,
+     VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'x', ?, 'x', 'mandatory', 'monthly', 0, 'Europe/Berlin', ?, NULL)
+     ON CONFLICT (duty_id, period_key) DO UPDATE SET status = excluded.status`,
     dutyId,
     key,
     iso(Date.now() - DAY),
@@ -525,6 +532,12 @@ describe('the scorecard parts', () => {
     // skipped counts as met
     closedPeriod(b.id, svc.id, '2026-02', 'skipped');
     expect((await card(vera, svc.id)).duties.mandatory).toMatchObject({ met: 2, notMet: 0 });
+    // "inactive" (archived through the whole period) is neither met nor not met: the current period decides
+    closedPeriod(b.id, svc.id, '2026-03', 'inactive');
+    expect((await card(vera, svc.id)).duties.items.find((i: any) => i.dutyId === b.id)).toMatchObject({
+      lastClosed: { key: '2026-03', status: 'inactive' },
+      result: 'met',
+    });
   });
 
   it('availability: attention below target, pending without data, ok when every objective is met', async () => {
