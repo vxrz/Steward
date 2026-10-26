@@ -9239,6 +9239,960 @@
           "storedInvalid"
         ],
         "additionalProperties": false
+      },
+      "DutyEntry": {
+        "title": "DutyEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The application of the service the duty is about, if any"
+          },
+          "applicationName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "processId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The process whose real runs count; null when the token owner may not view it"
+          },
+          "processName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "scheduleId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The schedule that runs it (optional)"
+          },
+          "interval": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "quarterly",
+              "halfYearly",
+              "yearly"
+            ]
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "mandatory",
+              "recommended",
+              "optional"
+            ]
+          },
+          "graceDays": {
+            "type": "integer",
+            "description": "Days into the next period a run may still end (and a late run start)"
+          },
+          "remindDays": {
+            "type": "integer",
+            "description": "Reminder this many days before the period ends; 0: none"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Users and teams responsible for the duty (user:<name>, team:<name>); empty: the service owners"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "The instance time zone the periods follow"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Local midnight of the first day of the period (instance time zone)"
+                  },
+                  "end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Local midnight after the last day (exclusive)"
+                  },
+                  "graceEndsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End of the grace period (= end without one)"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "due",
+                      "done",
+                      "late",
+                      "failed",
+                      "missed",
+                      "skipped",
+                      "inactive",
+                      "ended"
+                    ],
+                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the whole period (not judged); ended: the duty was archived or its rules changed before anything counted – not met, like missed (its end is the moment of the change)"
+                  },
+                  "closed": {
+                    "type": "boolean",
+                    "description": "Stored for good: the result no longer changes"
+                  },
+                  "closedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "closeNote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
+                  },
+                  "inGrace": {
+                    "type": "boolean"
+                  },
+                  "run": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "finishedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "processVersion": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The version of the process the run ran"
+                          },
+                          "definitionHash": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "SHA-256 of that process definition"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "processVersion",
+                          "definitionHash"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The run that counts (done, late) or the last failed one; null when the token owner may not view the process"
+                  },
+                  "failedRuns": {
+                    "type": "integer"
+                  },
+                  "runsInProgress": {
+                    "type": "integer"
+                  },
+                  "skip": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "periodKey": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected",
+                              "withdrawn"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the period is skipped"
+                          },
+                          "requestedBy": {
+                            "type": "string"
+                          },
+                          "requestedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "decidedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The second person who approved or rejected it (never the one who asked)"
+                          },
+                          "decidedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "comment": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "periodKey",
+                          "status",
+                          "reason",
+                          "requestedBy",
+                          "requestedAt",
+                          "decidedBy",
+                          "decidedAt",
+                          "comment"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The approved exception, or the one waiting for a second person"
+                  },
+                  "snapshot": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "mandatory",
+                          "recommended",
+                          "optional"
+                        ]
+                      },
+                      "interval": {
+                        "type": "string",
+                        "enum": [
+                          "weekly",
+                          "monthly",
+                          "quarterly",
+                          "halfYearly",
+                          "yearly"
+                        ]
+                      },
+                      "graceDays": {
+                        "type": "integer"
+                      },
+                      "processName": {
+                        "type": "string",
+                        "description": "Empty when the token owner may not view the process"
+                      },
+                      "timeZone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "level",
+                      "interval",
+                      "graceDays",
+                      "processName",
+                      "timeZone"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the period was judged against: frozen when it closed"
+                  }
+                },
+                "required": [
+                  "key",
+                  "start",
+                  "end",
+                  "graceEndsAt",
+                  "status",
+                  "closed",
+                  "closedAt",
+                  "closeNote",
+                  "inGrace",
+                  "run",
+                  "failedRuns",
+                  "runsInProgress",
+                  "skip",
+                  "snapshot"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period running now (null for archived duties)"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
+                  },
+                  "start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Local midnight of the first day of the period (instance time zone)"
+                  },
+                  "end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Local midnight after the last day (exclusive)"
+                  },
+                  "graceEndsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "End of the grace period (= end without one)"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "due",
+                      "done",
+                      "late",
+                      "failed",
+                      "missed",
+                      "skipped",
+                      "inactive",
+                      "ended"
+                    ],
+                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the whole period (not judged); ended: the duty was archived or its rules changed before anything counted – not met, like missed (its end is the moment of the change)"
+                  },
+                  "closed": {
+                    "type": "boolean",
+                    "description": "Stored for good: the result no longer changes"
+                  },
+                  "closedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "closeNote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
+                  },
+                  "inGrace": {
+                    "type": "boolean"
+                  },
+                  "run": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "startedAt": {
+                            "type": "string"
+                          },
+                          "finishedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "processVersion": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The version of the process the run ran"
+                          },
+                          "definitionHash": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "SHA-256 of that process definition"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "status",
+                          "startedAt",
+                          "finishedAt",
+                          "processVersion",
+                          "definitionHash"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The run that counts (done, late) or the last failed one; null when the token owner may not view the process"
+                  },
+                  "failedRuns": {
+                    "type": "integer"
+                  },
+                  "runsInProgress": {
+                    "type": "integer"
+                  },
+                  "skip": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "periodKey": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "pending",
+                              "approved",
+                              "rejected",
+                              "withdrawn"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the period is skipped"
+                          },
+                          "requestedBy": {
+                            "type": "string"
+                          },
+                          "requestedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "decidedBy": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The second person who approved or rejected it (never the one who asked)"
+                          },
+                          "decidedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "comment": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "periodKey",
+                          "status",
+                          "reason",
+                          "requestedBy",
+                          "requestedAt",
+                          "decidedBy",
+                          "decidedAt",
+                          "comment"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The approved exception, or the one waiting for a second person"
+                  },
+                  "snapshot": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "level": {
+                        "type": "string",
+                        "enum": [
+                          "mandatory",
+                          "recommended",
+                          "optional"
+                        ]
+                      },
+                      "interval": {
+                        "type": "string",
+                        "enum": [
+                          "weekly",
+                          "monthly",
+                          "quarterly",
+                          "halfYearly",
+                          "yearly"
+                        ]
+                      },
+                      "graceDays": {
+                        "type": "integer"
+                      },
+                      "processName": {
+                        "type": "string",
+                        "description": "Empty when the token owner may not view the process"
+                      },
+                      "timeZone": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "level",
+                      "interval",
+                      "graceDays",
+                      "processName",
+                      "timeZone"
+                    ],
+                    "additionalProperties": false,
+                    "description": "What the period was judged against: frozen when it closed"
+                  }
+                },
+                "required": [
+                  "key",
+                  "start",
+                  "end",
+                  "graceEndsAt",
+                  "status",
+                  "closed",
+                  "closedAt",
+                  "closeNote",
+                  "inGrace",
+                  "run",
+                  "failedRuns",
+                  "runsInProgress",
+                  "skip",
+                  "snapshot"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period before"
+          },
+          "pendingSkips": {
+            "type": "integer"
+          },
+          "plannedSkips": {
+            "type": "integer",
+            "description": "Exceptions (waiting or approved) for periods that have not started yet; at most the next 3 periods"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "serviceName",
+          "applicationId",
+          "applicationName",
+          "name",
+          "description",
+          "processId",
+          "processName",
+          "scheduleId",
+          "interval",
+          "level",
+          "graceDays",
+          "remindDays",
+          "owners",
+          "archived",
+          "timeZone",
+          "current",
+          "previous",
+          "pendingSkips",
+          "plannedSkips",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "DutyPeriodEntry": {
+        "title": "DutyPeriodEntry",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Local midnight of the first day of the period (instance time zone)"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Local midnight after the last day (exclusive)"
+          },
+          "graceEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the grace period (= end without one)"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "due",
+              "done",
+              "late",
+              "failed",
+              "missed",
+              "skipped",
+              "inactive",
+              "ended"
+            ],
+            "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the whole period (not judged); ended: the duty was archived or its rules changed before anything counted – not met, like missed (its end is the moment of the change)"
+          },
+          "closed": {
+            "type": "boolean",
+            "description": "Stored for good: the result no longer changes"
+          },
+          "closedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closeNote": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
+          },
+          "inGrace": {
+            "type": "boolean"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "startedAt": {
+                    "type": "string"
+                  },
+                  "finishedAt": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "processVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The version of the process the run ran"
+                  },
+                  "definitionHash": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "SHA-256 of that process definition"
+                  }
+                },
+                "required": [
+                  "id",
+                  "status",
+                  "startedAt",
+                  "finishedAt",
+                  "processVersion",
+                  "definitionHash"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run that counts (done, late) or the last failed one; null when the token owner may not view the process"
+          },
+          "failedRuns": {
+            "type": "integer"
+          },
+          "runsInProgress": {
+            "type": "integer"
+          },
+          "skip": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "periodKey": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "approved",
+                      "rejected",
+                      "withdrawn"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "description": "Why the period is skipped"
+                  },
+                  "requestedBy": {
+                    "type": "string"
+                  },
+                  "requestedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "decidedBy": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "The second person who approved or rejected it (never the one who asked)"
+                  },
+                  "decidedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "periodKey",
+                  "status",
+                  "reason",
+                  "requestedBy",
+                  "requestedAt",
+                  "decidedBy",
+                  "decidedAt",
+                  "comment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The approved exception, or the one waiting for a second person"
+          },
+          "snapshot": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "level": {
+                "type": "string",
+                "enum": [
+                  "mandatory",
+                  "recommended",
+                  "optional"
+                ]
+              },
+              "interval": {
+                "type": "string",
+                "enum": [
+                  "weekly",
+                  "monthly",
+                  "quarterly",
+                  "halfYearly",
+                  "yearly"
+                ]
+              },
+              "graceDays": {
+                "type": "integer"
+              },
+              "processName": {
+                "type": "string",
+                "description": "Empty when the token owner may not view the process"
+              },
+              "timeZone": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "level",
+              "interval",
+              "graceDays",
+              "processName",
+              "timeZone"
+            ],
+            "additionalProperties": false,
+            "description": "What the period was judged against: frozen when it closed"
+          }
+        },
+        "required": [
+          "key",
+          "start",
+          "end",
+          "graceEndsAt",
+          "status",
+          "closed",
+          "closedAt",
+          "closeNote",
+          "inGrace",
+          "run",
+          "failedRuns",
+          "runsInProgress",
+          "skip",
+          "snapshot"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -14413,6 +15367,373 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/duties": {
+      "get": {
+        "operationId": "listDuties",
+        "summary": "List service duties",
+        "tags": [
+          "Services"
+        ],
+        "description": "Recurring tasks of services (an access review every quarter, a restore test every month): the process whose real runs count, the interval of calendar periods in the instance time zone, the level, the grace period, the owners, and the status of the current and the previous period. Ordered by service and name. Archived duties are left out unless `archived` says otherwise.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "applicationId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "mandatory",
+                "recommended",
+                "optional"
+              ]
+            },
+            "in": "query",
+            "name": "level",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "default": "exclude"
+            },
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "description": "Archived duties: left out (default), included, or only these"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of duties",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of duties",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DutyEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/duties/{dutyId}": {
+      "get": {
+        "operationId": "getDuty",
+        "summary": "Get a service duty",
+        "tags": [
+          "Services"
+        ],
+        "description": "Archived duties too. All its periods: `/duties/{dutyId}/periods`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "dutyId",
+            "required": true,
+            "description": "Duty id (dty_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DutyEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/duties/{dutyId}/periods": {
+      "get": {
+        "operationId": "listDutyPeriods",
+        "summary": "Periods of a service duty",
+        "tags": [
+          "Services"
+        ],
+        "description": "Newest first: the open periods (evaluated now) and every stored period. A closed period keeps its status and what it was judged against (name, level, interval, grace period, process name) – later changes of the duty or the process do not change it.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "due",
+                "done",
+                "late",
+                "failed",
+                "missed",
+                "skipped",
+                "inactive",
+                "ended"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "closed",
+            "required": false,
+            "description": "true: stored periods only"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Periods that end after this time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Periods that start before this time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "dutyId",
+            "required": true,
+            "description": "Duty id (dty_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of periods",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of periods",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DutyPeriodEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

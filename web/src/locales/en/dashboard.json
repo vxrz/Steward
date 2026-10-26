@@ -37,7 +37,9 @@
     "oldest_other": "oldest {{count}} days",
     "oldestToday": "oldest opened today",
     "reviewsDue": "Reviews due",
-    "reviewsSplit": "{{overdue}} overdue · {{dueSoon}} due soon"
+    "reviewsSplit": "{{overdue}} overdue · {{dueSoon}} due soon",
+    "duties": "Duties due",
+    "dutiesSplit": "{{missed}} missed · {{dueSoon}} due soon"
   },
   "waiting": "Waiting for your decision",
   "failedChecks": "Failed checks (last 7 days)",

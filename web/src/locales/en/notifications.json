@@ -89,6 +89,24 @@
         "label": "Emergency access",
         "info": "Someone signed in with emergency access from the server command line (administrators)"
       }
+    },
+    "duty": {
+      "due": {
+        "label": "Duty due",
+        "info": "A service duty you are responsible for is due soon and not done yet"
+      },
+      "missed": {
+        "label": "Duty missed",
+        "info": "A period of a mandatory or recommended service duty you are responsible for ended without a successful run"
+      },
+      "exception": {
+        "label": "Duty exception asked for",
+        "info": "Someone asked to skip a period of a service duty you are responsible for: a second person decides"
+      },
+      "ended": {
+        "label": "Duty period ended without a run",
+        "info": "Someone archived or changed a mandatory or recommended duty you are responsible for, and its current period ended without a run"
+      }
     }
   }
 }

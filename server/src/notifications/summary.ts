@@ -29,6 +29,7 @@ import { parseCauses } from '../monitors/model.js';
 import { monitorVisibility, redactCauses, rootCauseMessage } from '../monitors/redact.js';
 import { listCredentials } from '../credentials/service.js';
 import { reviewsDueFor } from '../records/documents.js';
+import { dutiesDueFor } from '../duties/service.js';
 import { listTickets } from '../tickets/service.js';
 import { getRecord } from '../records/service.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
@@ -390,6 +391,20 @@ function reviewsSection(c: Ctx): Section {
   return { count: items.length, items };
 }
 
+/** Service duties the recipient is responsible for: due soon (or in the grace period), and periods missed or failed since the last summary. */
+function dutiesSection(c: Ctx): Section {
+  const items = dutiesDueFor(c.user, Date.parse(c.since), Date.parse(c.until)).map((x) => ({
+    title: t(c.l, 'dailySummary.dutyTitle', { name: x.name, service: x.serviceName, period: x.periodKey }),
+    detail: t(c.l, 'dailySummary.dutyDetail', {
+      status: t(c.l, `dailySummary.dutyStatus.${x.status}` as MessageKey),
+      date: dateOnly(c.l, x.dueAt, c.tz),
+    }),
+    link: `/duties/${encodeURIComponent(x.dutyId)}`,
+    tone: x.status === 'due' ? ('attention' as const) : ('bad' as const),
+  }));
+  return { count: items.length, items };
+}
+
 function reportsSection(c: Ctx): Section {
   const name = c.user.username.toLowerCase();
   const teams = new Set(c.user.teams.map((x) => x.toLowerCase()));
@@ -421,6 +436,7 @@ const BUILDERS: Record<DailySummarySection, (c: Ctx) => Section> = {
   tickets: ticketsSection,
   records: recordsSection,
   reviews: reviewsSection,
+  duties: dutiesSection,
   reports: reportsSection,
 };
 

@@ -23,7 +23,8 @@
     "controls": "Controls",
     "accessChanges": "Access changes",
     "reconciliation": "Access reconciliation",
-    "evidencePacks": "Evidence packs"
+    "evidencePacks": "Evidence packs",
+    "duties": "Duties"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",

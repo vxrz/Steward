@@ -37,7 +37,9 @@
     "oldest_other": "ältestes seit {{count}} Tagen",
     "oldestToday": "ältestes seit heute",
     "reviewsDue": "Fällige Überprüfungen",
-    "reviewsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig"
+    "reviewsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig",
+    "duties": "Fällige Pflichten",
+    "dutiesSplit": "{{missed}} versäumt · {{dueSoon}} bald fällig"
   },
   "waiting": "Wartet auf Ihre Entscheidung",
   "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",

@@ -41,6 +41,7 @@ const source = {
   recordId: '',
   applicationId: '',
   serviceId: '',
+  dutyId: '',
   runId: '',
   waitingRunId: '',
 };
@@ -113,9 +114,31 @@ beforeAll(async () => {
   await dana('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
   source.applicationId = app.id;
   source.serviceId = svc.id;
+  // a duty of the service (#85), owned by dana, with a stored period and an exception
+  const duty = await s.api('POST', '/duties', {
+    serviceId: svc.id,
+    applicationId: app.id,
+    name: 'Moved restore test',
+    processId: p.id,
+    interval: 'monthly',
+    level: 'mandatory',
+    graceDays: 3,
+    owners: ['user:dana'],
+  });
+  source.dutyId = duty.id;
   // what is encrypted on the source, decrypted (to compare with the target)
   const { db } = await import('../src/db.js');
   const { vault } = await import('../src/vault.js');
+  db().run(
+    `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, failed_runs, service_id, application_id, duty_name,
+       process_id, process_name, level, interval_kind, grace_days, time_zone, evaluated_at, closed_at)
+     VALUES (?, '2020-01', '2020-01-01T00:00:00.000Z', '2020-02-01T00:00:00.000Z', '2020-02-04T00:00:00.000Z', 'missed', 0, ?, ?, 'Moved restore test',
+       ?, 'x', 'mandatory', 'monthly', 3, 'UTC', '2020-02-04T00:00:00.000Z', '2020-02-04T00:00:00.000Z')`,
+    source.dutyId,
+    source.serviceId,
+    source.applicationId,
+    p.id,
+  );
   for (const r of db().all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL'))
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
   source.fingerprint = (await s.api('GET', '/audit/anchoring')).fingerprint;
@@ -506,6 +529,15 @@ describe('import into SQLite through the web API', () => {
     expect(movedService.applications.map((a: any) => [a.id, a.role])).toEqual([[source.applicationId, 'primary']]);
     expect(movedService.protectionNeed.confidentiality.effective).toBe('very_high');
     expect(movedService.protectionNeed.availability.override).toMatchObject({ level: 'high', reason: 'Cumulation' });
+    // duties move with their stored periods; owners follow the mapping
+    const movedDuty = await max('GET', `/duties/${source.dutyId}`);
+    expect(movedDuty).toMatchObject({
+      name: 'Moved restore test',
+      serviceId: source.serviceId,
+      applicationId: source.applicationId,
+      owners: ['user:dana@contoso.example'],
+    });
+    expect(movedDuty.periods.find((x: any) => x.key === '2020-01')).toMatchObject({ status: 'missed', closed: true, snapshot: { name: 'Moved restore test' } });
     expect(rec.createdBy).toBe('dana');
     const list = await max('GET', '/users');
     const byName = (n: string) => list.find((u: any) => u.username === n);

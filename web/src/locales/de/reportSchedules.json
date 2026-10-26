@@ -49,6 +49,10 @@
     "tickets": {
       "title": "Ticket-Referenzen",
       "hint": "Offene Tickets je Service und Hersteller mit ihrem Alter; eröffnete und gelöste Tickets; mittlere Lösungszeit je Hersteller"
+    },
+    "duties": {
+      "title": "Service-Pflichten",
+      "hint": "Beendete Zeiträume von Service-Pflichten (erledigt, verspätet, ausgesetzt, fehlgeschlagen, versäumt) und noch nicht erledigte Pflichten"
     }
   },
   "runNow": "Jetzt erstellen",
@@ -104,7 +108,9 @@
     "emailsHint": "Erhalten den Bericht nur per E-Mail (wenn E-Mail eingerichtet ist). Bis zu 20 Adressen; ihre Domain muss unter Einstellungen → Benachrichtigungen erlaubt sein. Nach jeder Adresse Enter drücken.",
     "attachPdf": "PDF an E-Mails anhängen",
     "attachPdfHint": "Sonst enthält die E-Mail einen Link (zum Öffnen ist ein Konto nötig).",
-    "enabled": "Aktiv"
+    "enabled": "Aktiv",
+    "dutyLevels": "Stufen",
+    "allLevels": "Alle Stufen"
   },
   "emptyState": {
     "title": "Noch keine Berichtszeitpläne",

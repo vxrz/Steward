@@ -63,6 +63,8 @@ import { monitorAttention } from '../monitors/service.js';
 import { dueAttention } from '../credentials/service.js';
 import { vendorAttention } from '../tickets/service.js';
 import { reviewAttention } from '../records/documents.js';
+import { dutyRoutes } from '../duties/routes.js';
+import { dutyAttention } from '../duties/service.js';
 import { startMonitorEngine, stopMonitorEngine } from '../monitors/engine.js';
 import { gatusRoutes } from '../gatus/routes.js';
 import { startGatusScraper } from '../gatus/metrics.js';
@@ -1337,6 +1339,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const credentials = dueAttention();
     const findings = findingAttention();
     const reviews = reviewAttention();
+    const duties = dutyAttention();
     const attention: DashboardAttention = {
       tasks: openTasks.length,
       runs: { failed: failed24h, total: last24.length },
@@ -1344,6 +1347,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       ...(credentials ? { credentials } : {}),
       ...(findings ? { findings } : {}),
       ...(reviews ? { reviews } : {}),
+      ...(duties ? { duties } : {}),
       vendorTickets: vendorAttention(),
     };
     return {
@@ -1375,6 +1379,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await reportScheduleRoutes(app);
   await recordRoutes(app);
   await catalogueRoutes(app);
+  await dutyRoutes(app);
   await syncRoutes(app);
   await ticketRoutes(app);
   await dailySummaryRoutes(app);

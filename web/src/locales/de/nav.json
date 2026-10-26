@@ -23,7 +23,8 @@
     "controls": "Kontrollen",
     "accessChanges": "Zugriffsänderungen",
     "reconciliation": "Zugriffsabgleich",
-    "evidencePacks": "Nachweispakete"
+    "evidencePacks": "Nachweispakete",
+    "duties": "Pflichten"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

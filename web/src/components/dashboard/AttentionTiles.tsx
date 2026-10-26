@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   IconAlertTriangle,
   IconArrowsDiff,
+  IconCalendarDue,
   IconCircleCheck,
   IconFileTime,
   IconHeartRateMonitor,
@@ -37,6 +38,7 @@ const COLS: Record<number, SimpleGridProps['cols']> = {
   5: { base: 2, lg: 5 },
   6: { base: 2, md: 3 },
   7: { base: 2, lg: 4 },
+  8: { base: 2, lg: 4 },
 };
 
 /** The start page's tiles: what needs the user's attention. Tiles the server left out (no right) are not shown. */
@@ -107,6 +109,17 @@ export function AttentionTiles({ a }: { a: DashboardAttention }) {
       detail: r.overdue + r.dueSoon ? t('counts.reviewsSplit', { overdue: fmtNumber(r.overdue), dueSoon: fmtNumber(r.dueSoon) }) : quiet,
       to: '/records?workflow=document&review=overdue,dueSoon',
       icon: IconFileTime,
+    });
+  const du = a.duties;
+  if (du)
+    tiles.push({
+      key: 'duties',
+      label: t('counts.duties'),
+      value: du.missed + du.dueSoon,
+      tone: du.missed ? TONE.bad : du.dueSoon ? TONE.soon : null,
+      detail: du.missed + du.dueSoon ? t('counts.dutiesSplit', { missed: fmtNumber(du.missed), dueSoon: fmtNumber(du.dueSoon) }) : quiet,
+      to: '/duties?level=mandatory&status=attention',
+      icon: IconCalendarDue,
     });
   const v = a.vendorTickets;
   if (v)

@@ -27,7 +27,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconDownload, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { REPORT_LANGS } from '@sm/shared';
+import { DUTY_LEVELS, REPORT_LANGS } from '@sm/shared';
 import type { GatusMetricsSource, MonitorSummary, ProcessSummary, RecordType, ReportRecord, ReportSchedule, ReportSchedulePreset, Subject } from '@sm/shared';
 import { apiUrl, del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam } from '../components/common';
@@ -37,7 +37,7 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -296,10 +296,12 @@ type SectionConfig = Record<string, unknown> & {
   types?: string[] | null;
   windowDays?: number;
   sources?: { platformId: string; endpointKeys: string[] | null }[];
+  levels?: string[] | null;
 };
 
 function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; sections: string[]; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['reportSchedules', 'common']);
+  const { t: tDuties } = useTranslation('duties');
   const [d, setD] = useState<Draft>(draft);
   const [busy, setBusy] = useState(false);
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
@@ -323,6 +325,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     runs: { processIds: null },
     records: { types: null, windowDays: 30 },
     tickets: {},
+    duties: { levels: null, serviceIds: null },
   };
   const save = async () => {
     setBusy(true);
@@ -459,6 +462,17 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
                   data={(processes.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
                   value={cfg.processIds ?? []}
                   onChange={(v) => setSec(id, { ...cfg, processIds: v.length ? v : null })}
+                />
+              )}
+              {cfg && id === 'duties' && (
+                <MultiSelect
+                  ml="lg"
+                  maw={420}
+                  label={t('form.dutyLevels')}
+                  placeholder={t('form.allLevels')}
+                  data={DUTY_LEVELS.map((x) => ({ value: x, label: tDuties(`levels.${x}`) }))}
+                  value={(cfg.levels as string[] | null) ?? []}
+                  onChange={(v) => setSec(id, { ...cfg, levels: v.length ? v : null })}
                 />
               )}
               {cfg && id === 'records' && (

@@ -23,6 +23,7 @@ import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
 import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
 import { MANUAL_STEP_MIGRATIONS } from './migrations/manual-steps.js';
 import { CATALOGUE_MIGRATIONS } from './migrations/catalogue.js';
+import { DUTY_MIGRATIONS } from './migrations/duties.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -92,6 +93,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...MOVE_MIGRATIONS,
   ...MANUAL_STEP_MIGRATIONS,
   ...CATALOGUE_MIGRATIONS,
+  ...DUTY_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

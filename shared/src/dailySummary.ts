@@ -1,6 +1,6 @@
 /** Optional daily summary per user (server/src/notifications/summary.ts, docs/NOTIFICATIONS.md). */
 
-export const DAILY_SUMMARY_SECTIONS = ['runs', 'tasks', 'monitors', 'credentials', 'tickets', 'records', 'reviews', 'reports'] as const;
+export const DAILY_SUMMARY_SECTIONS = ['runs', 'tasks', 'monitors', 'credentials', 'tickets', 'records', 'reviews', 'duties', 'reports'] as const;
 export type DailySummarySection = (typeof DAILY_SUMMARY_SECTIONS)[number];
 
 export interface DailySummaryPrefs {

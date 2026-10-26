@@ -468,6 +468,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await listAll('/applications/{applicationId}/documents', `/applications/${x.id}/documents`);
   }
   await get('/cia-scale', '/cia-scale');
+  for (const x of (await listAll('/duties', '/duties?archived=include')).slice(0, 5)) {
+    await get('/duties/{dutyId}', `/duties/${x.id}`);
+    await listAll('/duties/{dutyId}/periods', `/duties/${x.id}/periods`);
+  }
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
   await get('/control-catalogues', '/control-catalogues');
@@ -537,6 +541,18 @@ describe('every endpoint', () => {
     await s.api('PUT', `/services/${apiService}/applications/${app.id}`, { role: 'primary' });
     await s.api('PUT', `/services/${apiService}/protection-need`, { availability: { level: 'very_high', reason: 'Cumulation' } });
     await s.api('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
+    // a duty of the service (#85), with an exception waiting for a second person
+    const duty = await s.api('POST', '/duties', {
+      serviceId: apiService,
+      applicationId: app.id,
+      name: 'API restore test',
+      processId: (await s.api('GET', '/processes'))[0].id,
+      interval: 'monthly',
+      level: 'mandatory',
+      graceDays: 3,
+      owners: ['user:dana'],
+    });
+    await dana('POST', `/duties/${duty.id}/skips`, { periodKey: duty.current.key, reason: 'System replaced this month' });
     adminCrawl = await crawl(tokens.admin);
   });
 

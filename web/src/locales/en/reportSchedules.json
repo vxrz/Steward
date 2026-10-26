@@ -49,6 +49,10 @@
     "tickets": {
       "title": "Ticket references",
       "hint": "Open tickets per service and vendor with their age; tickets opened and resolved; mean time to resolution per vendor"
+    },
+    "duties": {
+      "title": "Service duties",
+      "hint": "Periods of service duties that ended (done, late, skipped, failed, missed) and duties not done yet"
     }
   },
   "runNow": "Generate now",
@@ -104,7 +108,9 @@
     "emailsHint": "Get the report by e-mail only (when e-mail is set up). Up to 20 addresses; their domain must be allowed in Settings → Notifications. Press Enter after each address.",
     "attachPdf": "Attach the PDF to e-mails",
     "attachPdfHint": "Otherwise the e-mail contains a link (recipients need an account to open it).",
-    "enabled": "Enabled"
+    "enabled": "Enabled",
+    "dutyLevels": "Levels",
+    "allLevels": "All levels"
   },
   "emptyState": {
     "title": "No report schedules yet",

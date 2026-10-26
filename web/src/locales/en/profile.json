@@ -121,7 +121,8 @@
       "tickets": "Open tickets I am responsible for",
       "records": "Records waiting for me or that changed",
       "reports": "Reports for me",
-      "reviews": "Document reviews due for me"
+      "reviews": "Document reviews due for me",
+      "duties": "Service duties due or missed that I am responsible for"
     },
     "skipEmpty": "Send nothing on days without anything to report",
     "save": "Save",
