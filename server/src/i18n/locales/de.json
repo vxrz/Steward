@@ -255,6 +255,8 @@
       "mandatory": "verpflichtend",
       "recommended": "empfohlen",
       "optional": "freiwillig"
-    }
+    },
+    "exceptionTitle": "Ausnahme beantragt: \"{{name}}\" ({{service}}), Zeitraum {{period}}",
+    "exceptionBody": "{{user}} beantragt, die Pflicht „{{name}}“ des Service „{{service}}“ im Zeitraum {{period}} auszusetzen: {{reason}}\nEine zweite Person genehmigt oder lehnt sie auf der Seite der Pflicht ab."
   }
 }

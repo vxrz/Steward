@@ -426,7 +426,7 @@ const EXPECT: Record<string, Access> = {
   // the scope of a living document: whoever may edit records (the fixture record is a change request: 400 for them)
   'PUT /api/records/:id/applications': RUN,
   // service duties (#85): everyone reads them like services; service editors (and owners) define them and ask for
-  // exceptions; a second person – service editor, duty owner or approver – decides (the fixture's exception was asked
+  // exceptions; a second person – administrator, designer, or an owner as of the request – decides (the fixture's exception was asked
   // by the administrator, who may only withdraw it)
   'GET /api/duties': ALL,
   'POST /api/duties': DESIGN,
@@ -434,7 +434,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/duties/:id': DESIGN,
   'POST /api/duties/:id/archive': DESIGN,
   'POST /api/duties/:id/skips': DESIGN,
-  'POST /api/duties/:id/skips/:skipId/decision': ['admin', 'designer', 'approver'],
+  'POST /api/duties/:id/skips/:skipId/decision': DESIGN,
   'POST /api/duties/:id/skips/:skipId/withdraw': ADMIN,
 
   // ---- credentials register ----

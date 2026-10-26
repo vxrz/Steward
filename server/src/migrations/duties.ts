@@ -102,4 +102,9 @@ export const DUTY_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE duty_periods ADD COLUMN run_definition_hash TEXT;
     `,
   },
+  {
+    // who may decide an exception: the duty's and the service's owners as of the request (four-eyes)
+    name: 'duties-004-skip-deciders',
+    sql: `ALTER TABLE duty_skips ADD COLUMN decider_subjects TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];

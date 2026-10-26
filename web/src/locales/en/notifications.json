@@ -98,6 +98,10 @@
       "missed": {
         "label": "Duty missed",
         "info": "A period of a mandatory or recommended service duty you are responsible for ended without a successful run"
+      },
+      "exception": {
+        "label": "Duty exception asked for",
+        "info": "Someone asked to skip a period of a service duty you are responsible for: a second person decides"
       }
     }
   }

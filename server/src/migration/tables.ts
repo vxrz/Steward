@@ -82,6 +82,7 @@ export const USER_REFS: UserRef[] = [
   { table: 'services', column: 'owners', kind: 'subjects' },
   { table: 'applications', column: 'owners', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
+  { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
 ];
 

@@ -15,6 +15,7 @@ export const NOTIFICATION_EVENTS = [
   'document.review',
   'duty.due',
   'duty.missed',
+  'duty.exception',
   'security.emergency',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
@@ -34,6 +35,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'document.review': 'A living document you review is due for its periodic review soon (or is overdue)',
   'duty.due': 'A service duty you are responsible for is due soon and not done yet',
   'duty.missed': 'A period of a mandatory or recommended service duty you are responsible for ended without a successful run',
+  'duty.exception': 'Someone asked to skip a period of a service duty you are responsible for: a second person decides',
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
 };
 

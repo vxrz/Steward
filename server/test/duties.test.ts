@@ -490,45 +490,56 @@ describe('exceptions (skipped for this period)', () => {
     expect(asked.current.status).toBe('due');
     expect(asked.current.skip).toMatchObject({ id: skip.id, status: 'pending' });
     expect(await code(olivia('POST', `/duties/${d.id}/skips`, { periodKey: key, reason: 'again' }))).toBe('DUTY_SKIP_EXISTS');
-    // four-eyes: the requester cannot decide; a viewer may not decide at all
+    // four-eyes: the requester cannot decide; a viewer or an approver of nothing here may not decide at all
     expect(await code(olivia('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve' }))).toBe('FOUR_EYES_SKIP');
     expect(await status(vera('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve' }))).toBe(403);
+    expect(await code(adam('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve' }))).toBe('FORBIDDEN');
+    // the requester cannot pick the second person: an owner added after the request may not decide it
+    const ownersNow = { name: 'Restore test', processId: freshProc, interval: 'monthly', level: 'mandatory', owners: ['user:olivia', 'user:adam'] };
+    await dana('PUT', `/duties/${d.id}`, ownersNow);
+    expect(await code(adam('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve' }))).toBe('FORBIDDEN');
+    expect((await adam('GET', `/duties/${d.id}`)).skips[0].canDecide).toBe(false);
     expect(await status(adam('POST', `/duties/${d.id}/skips/${skip.id}/withdraw`))).toBe(403);
-    const approved = await adam('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve', comment: 'Agreed with the CISO' });
-    expect(approved.current).toMatchObject({ status: 'skipped', skip: { status: 'approved', decidedBy: 'adam' } });
-    expect(await code(dana('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'reject' }))).toBe('DUTY_SKIP_DECIDED');
+    // the people who may decide were told, once – not the requester
+    const ids = Object.fromEntries((await s.api('GET', '/users')).map((u: any) => [u.username, u.id]));
+    const told = (user: string) => db().all<any>("SELECT title FROM notifications WHERE user_id = ? AND event = 'duty.exception'", ids[user]);
+    expect(told('olivia')).toEqual([]);
+    expect(told('admin').filter((n) => n.title.includes(key))).toHaveLength(1);
+    // a designer (an editor of the service) approves
+    const approved = await dana('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'approve', comment: 'Agreed with the CISO' });
+    expect(approved.current).toMatchObject({ status: 'skipped', skip: { status: 'approved', decidedBy: 'dana' } });
+    expect(await code(s.api('POST', `/duties/${d.id}/skips/${skip.id}/decision`, { decision: 'reject' }))).toBe('DUTY_SKIP_DECIDED');
     const audit = await s.api('GET', `/audit?entityType=duty&entityId=${d.id}&limit=50`);
     const approval = audit.find((a: any) => a.action === 'duty.skip_approved');
-    expect(approval).toMatchObject({ actor: 'adam', details: { requestedBy: 'olivia', comment: 'Agreed with the CISO' } });
-    expect(audit.some((a: any) => a.action === 'duty.skip_requested' && a.actor === 'olivia')).toBe(true);
+    expect(approval).toMatchObject({ actor: 'dana', details: { requestedBy: 'olivia', comment: 'Agreed with the CISO' } });
+    expect(audit.find((a: any) => a.action === 'duty.skip_requested' && a.actor === 'olivia').details.deciders).toEqual(['user:olivia']);
 
-    // a former name of the approver (imported account) counts as the same person
-    const users = await s.api('GET', '/users');
-    const adamId = users.find((u: any) => u.username === 'adam').id;
+    // a former name of an owner (imported account) counts as the same person
     db().run(
       `INSERT INTO instance_imports (id, package_id, package_sha256, imported_at, imported_by, source_fingerprint, source_public_key, source_version,
          source_exported_at, source_exported_by, manifest, mapping, mapping_sha256, counts, history_checkpoint, history_entries)
        VALUES ('imp_duty', '00000000-0000-0000-0000-000000000001', 'x', 'now', 'test', 'fp', 'key', '0.1.2', 'now', 'test', '{}', '[]', '', '{}', '{}', 0)`,
     );
-    db().run("INSERT INTO identity_aliases (kind, alias, target_id, import_id) VALUES ('user', 'laptop-adam', ?, 'imp_duty')", adamId);
+    db().run("INSERT INTO identity_aliases (kind, alias, target_id, import_id) VALUES ('user', 'laptop-olivia', ?, 'imp_duty')", ids.olivia);
     (await import('../src/auth/aliases.js')).invalidateAliases();
-    const next = (await dana('GET', `/duties/${d.id}`)).current.key;
     const nextKey = (() => {
-      const [y, m] = next.split('-').map(Number);
+      const [y, m] = key.split('-').map(Number);
       return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
     })();
     db().run(
-      `INSERT INTO duty_skips (id, duty_id, period_key, period_start, reason, status, requested_by, requested_at) VALUES ('dsk_alias', ?, ?, '2099-01-01T00:00:00Z', 'Planned', 'pending', 'laptop-adam', ?)`,
+      `INSERT INTO duty_skips (id, duty_id, period_key, period_start, reason, status, requested_by, requested_at, decider_subjects)
+       VALUES ('dsk_alias', ?, ?, '2099-01-01T00:00:00Z', 'Planned', 'pending', 'laptop-olivia', ?, '["user:olivia"]')`,
       d.id,
       nextKey,
       new Date().toISOString(),
     );
-    expect(await code(adam('POST', `/duties/${d.id}/skips/dsk_alias/decision`, { decision: 'approve' }))).toBe('FOUR_EYES_SKIP');
-    expect((await adam('POST', `/duties/${d.id}/skips/dsk_alias/withdraw`)).skips.find((x: any) => x.id === 'dsk_alias').status).toBe('withdrawn');
-    // a rejected exception leaves the period as it is
+    expect(await code(olivia('POST', `/duties/${d.id}/skips/dsk_alias/decision`, { decision: 'approve' }))).toBe('FOUR_EYES_SKIP');
+    expect((await olivia('POST', `/duties/${d.id}/skips/dsk_alias/withdraw`)).skips.find((x: any) => x.id === 'dsk_alias').status).toBe('withdrawn');
+    // a duty owner as of the request decides; a rejected exception leaves the period as it is
     const again = await dana('POST', `/duties/${d.id}/skips`, { periodKey: nextKey, reason: 'Planned downtime' });
-    const rejected = await olivia('POST', `/duties/${d.id}/skips/${again.skips[0].id}/decision`, { decision: 'reject', comment: 'Not a reason' });
-    expect(rejected.skips[0]).toMatchObject({ status: 'rejected', decidedBy: 'olivia' });
+    expect(told('olivia').filter((n) => n.title.includes(nextKey))).toHaveLength(1);
+    const rejected = await adam('POST', `/duties/${d.id}/skips/${again.skips[0].id}/decision`, { decision: 'reject', comment: 'Not a reason' });
+    expect(rejected.skips[0]).toMatchObject({ status: 'rejected', decidedBy: 'adam' });
   });
 
   it('skipped wins over failed and missed, done wins over skipped, and done periods need no exception', async () => {

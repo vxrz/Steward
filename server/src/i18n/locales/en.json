@@ -255,6 +255,8 @@
       "mandatory": "mandatory",
       "recommended": "recommended",
       "optional": "optional"
-    }
+    },
+    "exceptionTitle": "Exception asked for: \"{{name}}\" ({{service}}), period {{period}}",
+    "exceptionBody": "{{user}} asks to skip the duty “{{name}}” of the service “{{service}}” for the period {{period}}: {{reason}}\nA second person approves or rejects it on the duty page."
   }
 }

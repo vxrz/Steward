@@ -16,7 +16,10 @@ import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { matches, processPermissions } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
-import { toAuthUser } from '../auth/users.js';
+import { listUsers, toAuthUser } from '../auth/users.js';
+import { logger } from '../log.js';
+import { t } from '../i18n/index.js';
+import { notify, titleName } from '../notifications/service.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
@@ -76,6 +79,7 @@ interface SkipRow {
   decided_by: string | null;
   decided_at: string | null;
   decision_comment: string;
+  decider_subjects: string;
 }
 
 interface ServiceRef {
@@ -104,9 +108,15 @@ const dutyOwners = (d: DutyRow) => parseJson<string[]>(d.owners, []);
 export const canEditDuty = (u: AuthUser | null, s: ServiceRef): boolean => canEditService(u, serviceOwners(s));
 const isDutyOwner = (u: AuthUser | null, d: DutyRow) => !!u && dutyOwners(d).some((x) => matches(u, x));
 const canRequestSkip = (u: AuthUser | null, d: DutyRow, s: ServiceRef) => canEditDuty(u, s) || isDutyOwner(u, d);
-/** Who may decide a skip by role or responsibility (the four-eyes rule comes on top). */
-const mayDecideSkips = (u: AuthUser | null, d: DutyRow, s: ServiceRef) =>
-  canRequestSkip(u, d, s) || (!!u && u.roles.some((r) => r === 'admin' || r === 'approver'));
+/** Who is responsible when a skip is asked for: the duty's owners and the service's owners, frozen with the request. */
+const deciderSubjects = (d: DutyRow, s: ServiceRef) => [...new Set([...dutyOwners(d), ...serviceOwners(s)])];
+/**
+ * Who may decide a skip (the four-eyes rule comes on top): administrators, the service's editors by role (designers),
+ * and the duty's and the service's owners as they were when it was asked for – so the requester cannot pick the second
+ * person by adding an owner afterwards. Approvers of unrelated services may not.
+ */
+const mayDecideSkip = (u: AuthUser | null, r: Pick<SkipRow, 'decider_subjects'>) =>
+  !!u && (u.roles.includes('admin') || u.roles.includes('designer') || parseJson<string[]>(r.decider_subjects, []).some((x) => matches(u, x)));
 
 /** Responsible for a duty: its owners, else the service's owners. */
 export function responsibleSubjects(d: DutyRow, s: ServiceRef): string[] {
@@ -159,7 +169,7 @@ function viewCtx(now = Date.now()): ViewCtx {
 
 function toSkip(r: SkipRow, d: DutyRow, s: ServiceRef, u: AuthUser | null): DutySkip {
   const pending = r.status === 'pending';
-  const may = mayDecideSkips(u, d, s);
+  const may = mayDecideSkip(u, r);
   const own = !!u && sameIdentity(r.requested_by, u);
   return {
     id: r.id,
@@ -533,10 +543,11 @@ export function requestSkip(dutyId: string, input: z.infer<typeof skipInput>, no
   if (db().get("SELECT 1 FROM duty_skips WHERE duty_id = ? AND period_key = ? AND status IN ('pending', 'approved')", dutyId, p.key))
     throw new HttpError(409, `There is an exception for ${p.key} already`, 'DUTY_SKIP_EXISTS', { key: p.key });
   const skipId = newId('dsk_');
+  const deciders = deciderSubjects(d, s);
   db().tx(() => {
     db().run(
-      `INSERT INTO duty_skips (id, duty_id, period_key, period_start, reason, status, requested_by, requested_at, decision_comment)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, '')`,
+      `INSERT INTO duty_skips (id, duty_id, period_key, period_start, reason, status, requested_by, requested_at, decision_comment, decider_subjects)
+       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, '', ?)`,
       skipId,
       dutyId,
       p.key,
@@ -544,16 +555,44 @@ export function requestSkip(dutyId: string, input: z.infer<typeof skipInput>, no
       input.reason,
       u.username,
       nowIso(),
+      JSON.stringify(deciders),
     );
     audit({
       action: 'duty.skip_requested',
       entityType: 'duty',
       entityId: dutyId,
       summary: `Exception asked for duty "${d.name}" of service "${s.name}", period ${p.key}: ${input.reason.slice(0, 300)}`,
-      details: { skipId, periodKey: p.key, reason: input.reason },
+      details: { skipId, periodKey: p.key, reason: input.reason, deciders },
     });
   });
+  notifySkipRequested(d, s, { id: skipId, periodKey: p.key, reason: input.reason }, u);
   return getDuty(dutyId);
+}
+
+/**
+ * Tells the people who may decide a new exception about it, once: the duty's and the service's owners as of the
+ * request, else the administrators – never the requester.
+ */
+function notifySkipRequested(d: DutyRow, s: ServiceRef, skip: { id: string; periodKey: string; reason: string }, by: AuthUser): void {
+  try {
+    const all = listUsers().filter((x) => x.active && !sameIdentity(by.username, x));
+    const subjects = deciderSubjects(d, s);
+    const named = all.filter((x) => subjects.some((sub) => matches(toAuthUser(x), sub)));
+    notify({
+      event: 'duty.exception',
+      text: (l) => ({
+        title: t(l, 'duty.exceptionTitle', { name: titleName(d.name), service: titleName(s.name), period: skip.periodKey }),
+        body: t(l, 'duty.exceptionBody', { user: by.username, name: d.name, service: s.name, period: skip.periodKey, reason: skip.reason.slice(0, 500) }),
+      }),
+      link: `/duties/${d.id}`,
+      recipients: named.length ? named : all.filter((x) => x.roles.includes('admin')),
+      inAppKey: `duty-skip:${skip.id}`,
+      externalKey: `duty-skip:${skip.id}`,
+      data: { dutyId: d.id, serviceId: s.id, skipId: skip.id, periodKey: skip.periodKey, requestedBy: by.username },
+    });
+  } catch (err) {
+    logger.warn({ err, dutyId: d.id }, 'exception notification could not be sent');
+  }
 }
 
 export function decideSkip(dutyId: string, skipId: string, input: z.infer<typeof decisionInput>, now = Date.now()): DutyDetail {
@@ -561,7 +600,7 @@ export function decideSkip(dutyId: string, skipId: string, input: z.infer<typeof
   const d = dutyRow(dutyId);
   const s = serviceRef(d.service_id);
   const r = skipRow(dutyId, skipId);
-  if (!mayDecideSkips(u, d, s)) forbid('decide exceptions of this duty', 'decideDutySkip');
+  if (!mayDecideSkip(u, r)) forbid('decide exceptions of this duty', 'decideDutySkip');
   if (r.status !== 'pending') throw new HttpError(409, `The exception is ${r.status} already`, 'DUTY_SKIP_DECIDED', { status: r.status });
   // four-eyes: never the person who asked (also under a former name)
   if (sameIdentity(r.requested_by, u)) throw new HttpError(403, 'Four-eyes principle: another person decides the exception you asked for', 'FOUR_EYES_SKIP');

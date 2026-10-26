@@ -16,7 +16,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
     await api.post('/api/processes', { data: { definition: { name: processName, nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } } }),
   );
   const serviceName = uniq('E2E backup service');
-  const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: serviceName, owners: [] } }));
+  const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: serviceName, owners: ['user:olivia'] } }));
   const dutyName = uniq('Monthly restore test');
 
   // define the duty on the service page
@@ -70,18 +70,18 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await expectAccessible(page, 'duty page');
   await expectNoHorizontalScroll(page);
 
-  // adam (approver) approves it
-  const adam = await loginAs('adam');
-  await adam.goto(dutyUrl);
-  const adamSkip = adam.getByTestId(`skip-${period}`);
-  await adamSkip.getByRole('button', { name: 'Approve' }).click();
-  const decide = adam.getByRole('dialog', { name: `Approve the exception for ${period}` });
+  // olivia, an owner of the service, approves it
+  const owner = await loginAs('olivia');
+  await owner.goto(dutyUrl);
+  const ownerSkip = owner.getByTestId(`skip-${period}`);
+  await ownerSkip.getByRole('button', { name: 'Approve' }).click();
+  const decide = owner.getByRole('dialog', { name: `Approve the exception for ${period}` });
   await decide.getByRole('textbox', { name: 'Comment' }).fill('Agreed');
   await decide.getByRole('button', { name: 'Approve' }).click();
   await expect(decide).toBeHidden();
-  await expect(adamSkip).toContainText('Approved by adam');
-  await settle(adam);
-  await expectAccessible(adam, 'duty page after the approval');
+  await expect(ownerSkip).toContainText('Approved by olivia');
+  await settle(owner);
+  await expectAccessible(owner, 'duty page after the approval');
 
   // the list of all duties shows it
   await page.goto('/duties');

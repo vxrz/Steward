@@ -98,6 +98,10 @@
       "missed": {
         "label": "Pflicht versäumt",
         "info": "Ein Zeitraum einer verpflichtenden oder empfohlenen Service-Pflicht, für die Sie verantwortlich sind, endete ohne erfolgreiche Ausführung"
+      },
+      "exception": {
+        "label": "Ausnahme einer Pflicht beantragt",
+        "info": "Jemand hat beantragt, einen Zeitraum einer Service-Pflicht auszusetzen, für die Sie verantwortlich sind: Eine zweite Person entscheidet"
       }
     }
   }

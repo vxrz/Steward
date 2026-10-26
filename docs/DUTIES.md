@@ -86,7 +86,7 @@ Sometimes a duty cannot or need not be done in a period – the system is being 
 2. Choose the period – the current one, the last one while it is in its grace period, or one of the next ones – and write the reason.
 3. _Ask_. The exception waits for a second person.
 
-A **second person** approves or rejects it on the duty page: a duty owner, whoever may edit the service, or an approver – never the person who asked (former names of an imported account count as the same person). Approving or rejecting is a four-eyes decision, like approving a record; it needs no step-up, because it changes no rights and both people and the reason are in the audit log. The requester can withdraw an exception while it waits. A period that has ended, or that is done already, takes no exception.
+A **second person** approves or rejects it on the duty page: an administrator, a designer (who may edit every service), or one of the duty's or the service's owners **as they were when the exception was asked for** – adding an owner afterwards does not let that person decide it, so the requester cannot pick the second person. Never the person who asked (former names of an imported account count as the same person). The owners as of the request (else the administrators) get a notification, _Duty exception asked for_. Approving or rejecting is a four-eyes decision, like approving a record; it needs no step-up, because it changes no rights and both people and the reason are in the audit log. The requester can withdraw an exception while it waits. A period that has ended, or that is done already, takes no exception.
 
 ## Stored history
 
@@ -111,13 +111,13 @@ Both go to the duty's owners (else the service owners, else the administrators),
 
 ## Who may do what
 
-| Action                         | Who                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------ |
-| See duties and their periods   | Everyone who can sign in (like services)                                             |
-| Define, change, archive duties | Whoever may edit the service: designers, administrators, the service's owners        |
-| Ask for an exception           | The duty's owners and whoever may edit the service                                   |
-| Approve or reject an exception | The duty's owners, whoever may edit the service, approvers – never the one who asked |
-| Withdraw an exception          | The person who asked for it                                                          |
+| Action                         | Who                                                                                                        |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| See duties and their periods   | Everyone who can sign in (like services)                                                                   |
+| Define, change, archive duties | Whoever may edit the service: designers, administrators, the service's owners                              |
+| Ask for an exception           | The duty's owners and whoever may edit the service                                                         |
+| Approve or reject an exception | Administrators, designers, the duty's and the service's owners as of the request – never the one who asked |
+| Withdraw an exception          | The person who asked for it                                                                                |
 
 A duty can only name a process you may view. People who may not view the process see the duty and its status, but not the process name or the runs.
 
