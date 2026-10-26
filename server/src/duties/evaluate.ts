@@ -158,7 +158,8 @@ function judge(
   const late = ok.filter((r) => r.started_at >= endIso).sort(byEnd)[0];
   const final = now >= g;
   // retention deleted the run that counted: the stored evidence stays
-  const keep = !done && !late && row && (row.status === 'done' || row.status === 'late') && row.run_id && !runs.some((r) => r.id === row.run_id);
+  const keep =
+    !done && !late && row && (row.status === 'done' || row.status === 'late') && row.run_id && !db().get('SELECT 1 FROM runs WHERE id = ?', row.run_id);
   const failedRuns = Math.max(failed.length, row?.failed_runs ?? 0);
   if (keep)
     return {
