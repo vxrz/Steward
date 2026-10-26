@@ -189,6 +189,38 @@ jobs:
           compression-level: 0 # the layers are compressed already
           retention-days: 1
 
+  # The required status checks name these two jobs (the ruleset predates the matrix): each passes only
+  # when every platform and variant of "image" was built and scanned without findings.
+  image-checks:
+    name: Build, SBOM and scan
+    needs: image
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every platform and variant built and scanned
+        env:
+          RESULT: ${{ needs.image.result }}
+        run: |
+          echo "image jobs: $RESULT"
+          test "$RESULT" = success
+
+  browser-variant:
+    name: Browser variant builds (WITH_BROWSER=1)
+    needs: image
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: The browser variant built, started Chromium and passed the scans
+        env:
+          RESULT: ${{ needs.image.result }}
+        run: |
+          echo "image jobs (including the browser variant): $RESULT"
+          test "$RESULT" = success
+
   publish:
     name: Publish to ghcr.io
     needs: image # every platform and variant built and scanned without findings
