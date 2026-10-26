@@ -34,14 +34,15 @@ A report schedule creates a summary report every day, week or month, archives it
 4. **Language** (English or German) and **classification**.
 5. **Sections** – choose one or more:
 
-   | Section                         | Contents                                                                                                                                                               |
-   | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | Availability of monitors        | Per monitor: uptime, SLA met or missed (optional target, e.g. 99.5 %), number of outages, downtime, average and p95 response time; a bar chart and the list of outages |
-   | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                   |
-   | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                          |
-   | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                       |
-   | Records and change requests     | Records created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                     |
-   | Service duties                  | Periods of service duties that ended in the period with their status, and the duties not done yet at its end ([DUTIES.md](DUTIES.md))                                  |
+   | Section                         | Contents                                                                                                                                                                                             |
+   | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | Availability of monitors        | Per monitor: uptime, SLA met or missed (optional target, e.g. 99.5 %), number of outages, downtime, average and p95 response time; a bar chart and the list of outages                               |
+   | Availability of Gatus endpoints | The same per Gatus endpoint, from metrics mode ([GATUS.md](GATUS.md#5-metrics-mode))                                                                                                                 |
+   | Credentials register            | Expired and overdue entries and those due within _N_ days after the period ([CREDENTIALS.md](CREDENTIALS.md))                                                                                        |
+   | Runs                            | Runs started in the period per process: succeeded, failed, other                                                                                                                                     |
+   | Records and change requests     | Records created, changed, approved or implemented in the period; open change requests by status; planned change windows ([RECORDS.md](RECORDS.md))                                                   |
+   | Service duties                  | Periods of service duties that ended in the period with their status, and the duties not done yet at its end ([DUTIES.md](DUTIES.md))                                                                |
+   | Service scorecard               | Per service duties, availability, documentation and protection need with _attention needed_; the trend of the stored days; availability objectives and their breaches ([SCORECARD.md](SCORECARD.md)) |
 
 6. **Recipients**: Steward users and teams (in the app and by e-mail, following their notification settings) and up to 20 e-mail addresses (e-mail only, when e-mail is set up). An address needs an allowed domain (_Settings → Notifications → Allowed e-mail domains for addresses outside Steward_; while it is empty, the company's own domains – see [CREDENTIALS.md](CREDENTIALS.md#e-mail-addresses-outside-steward)). _Attach the PDF_ sends the file with the e-mail (up to 10 MB); otherwise the e-mail has a link, which needs a Steward account. The subject is `Report ready: "<name>"`, with the name shortened to 80 characters.
 7. Save. _Generate now_ (▶) creates a report immediately for the period ending now.
