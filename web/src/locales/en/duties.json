@@ -73,7 +73,8 @@
     "late": "Late",
     "failed": "Failed",
     "missed": "Missed",
-    "skipped": "Skipped"
+    "skipped": "Skipped",
+    "inactive": "Inactive"
   },
   "filters": {
     "level": "Level",
@@ -115,5 +116,9 @@
       "rejected": "Rejected",
       "withdrawn": "Withdrawn"
     }
+  },
+  "closedEarly": {
+    "changed": "closed early: the duty changed",
+    "archived": "closed early: the duty was archived"
   }
 }

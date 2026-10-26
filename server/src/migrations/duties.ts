@@ -88,4 +88,10 @@ export const DUTY_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // periods closed before the end of their grace period (the duty was archived or its rules changed), and the
+    // status "inactive" for the periods an archived duty went through
+    name: 'duties-002-close-note',
+    sql: `ALTER TABLE duty_periods ADD COLUMN close_note TEXT;`,
+  },
 ];

@@ -15,9 +15,10 @@ export type DutyLevel = (typeof DUTY_LEVELS)[number];
 /**
  * due: the period (or its grace period) has not ended and nothing counts yet; done: a successful run started in the
  * period and ended by the end of the grace period; late: done, but the run started in the grace period; failed: only
- * failed or rejected runs; missed: no run at all; skipped: an approved exception for the period.
+ * failed or rejected runs; missed: no run at all; skipped: an approved exception for the period; inactive: the duty
+ * was archived during the period (not judged).
  */
-export const DUTY_PERIOD_STATUSES = ['due', 'done', 'late', 'failed', 'missed', 'skipped'] as const;
+export const DUTY_PERIOD_STATUSES = ['due', 'done', 'late', 'failed', 'missed', 'skipped', 'inactive'] as const;
 export type DutyPeriodStatus = (typeof DUTY_PERIOD_STATUSES)[number];
 
 export const DUTY_SKIP_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
@@ -84,6 +85,8 @@ export interface DutyPeriod {
   /** Stored for good: the period and its grace period have ended and the result no longer changes */
   closed: boolean;
   closedAt: string | null;
+  /** Why it was closed before the end of its grace period ("duty changed", "duty archived"); null: closed by the job */
+  closeNote: string | null;
   /** The period has ended, the grace period has not */
   inGrace: boolean;
   /** Evidence: the run that counts (done, late) or the last failed one; null when the reader may not see the process */

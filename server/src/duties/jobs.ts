@@ -8,6 +8,7 @@ import { listUsers } from '../auth/users.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
+import { persistDuty, type ServiceRef } from './store.js';
 import { addLocalDays, instanceTimeZone } from './periods.js';
 import { responsibleUsers } from './service.js';
 
@@ -26,89 +27,7 @@ const DAY = 86400000;
 const MISSED_WITHIN_DAYS = 7;
 const iso = (t: number) => new Date(t).toISOString();
 
-interface ServiceRow {
-  id: string;
-  name: string;
-  owners: string;
-  archived: number;
-}
-
-function processName(id: string): string {
-  return db().get<{ name: string }>('SELECT name FROM processes WHERE id = ?', id)?.name ?? id;
-}
-
-/** Writes an open period, or closes it; returns whether the row is now closed by this call. */
-function write(d: DutyRow, e: Evaluated, tz: string, close: boolean, now: number): boolean {
-  const res = db().run(
-    `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, run_id, run_status, run_started_at, run_finished_at,
-       failed_runs, skip_id, service_id, application_id, duty_name, process_id, process_name, level, interval_kind, grace_days, time_zone, evaluated_at, closed_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (duty_id, period_key) DO UPDATE SET status = excluded.status, run_id = excluded.run_id, run_status = excluded.run_status,
-       run_started_at = excluded.run_started_at, run_finished_at = excluded.run_finished_at, failed_runs = excluded.failed_runs, skip_id = excluded.skip_id,
-       service_id = excluded.service_id, application_id = excluded.application_id, duty_name = excluded.duty_name, process_id = excluded.process_id,
-       process_name = excluded.process_name, level = excluded.level, interval_kind = excluded.interval_kind, grace_days = excluded.grace_days,
-       time_zone = excluded.time_zone, evaluated_at = excluded.evaluated_at, closed_at = excluded.closed_at
-     WHERE duty_periods.closed_at IS NULL`,
-    d.id,
-    e.period.key,
-    iso(e.period.start),
-    iso(e.period.end),
-    iso(e.graceEnd),
-    e.status,
-    e.run?.id ?? null,
-    e.run?.status ?? null,
-    e.run?.startedAt || null,
-    e.run?.finishedAt ?? null,
-    e.failedRuns,
-    e.skipId,
-    d.service_id,
-    d.application_id,
-    d.name,
-    d.process_id,
-    processName(d.process_id),
-    d.level,
-    d.interval_kind,
-    d.grace_days,
-    tz,
-    iso(now),
-    close ? iso(now) : null,
-  );
-  return close && res.changes === 1;
-}
-
-const differs = (r: PeriodRow, e: Evaluated) =>
-  r.status !== e.status || r.run_id !== (e.run?.id ?? null) || r.failed_runs !== e.failedRuns || r.skip_id !== e.skipId;
-
-/** Stores the open periods of a duty that have something to keep and closes the ended ones. Returns the newly closed. */
-export function persistDuty(d: DutyRow, s: ServiceRow, now: number, tz = instanceTimeZone()): Evaluated[] {
-  const closed: Evaluated[] = [];
-  for (const e of evaluateDuty(d, now, tz, !d.archived && !s.archived)) {
-    if (e.closed) continue;
-    const worth = e.status !== 'due' || e.failedRuns > 0;
-    if (!e.final && !(e.row ? differs(e.row, e) : worth)) continue;
-    db().tx(() => {
-      if (!write(d, e, tz, e.final, now)) return;
-      closed.push(e);
-      audit({
-        actor: 'system',
-        action: 'duty.period_closed',
-        entityType: 'duty',
-        entityId: d.id,
-        summary: `Duty "${d.name}" of service "${s.name}": period ${e.period.key} ${e.status}`,
-        details: {
-          serviceId: s.id,
-          periodKey: e.period.key,
-          status: e.status,
-          level: d.level,
-          runId: e.run?.id ?? null,
-          failedRuns: e.failedRuns,
-          skipId: e.skipId,
-        },
-      });
-    });
-  }
-  return closed;
-}
+type ServiceRow = ServiceRef;
 
 const claim = (dutyId: string, key: string, kind: 'due' | 'missed'): boolean =>
   db().run('INSERT INTO duty_notifications (duty_id, period_key, kind, sent_at) VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING', dutyId, key, kind, nowIso())

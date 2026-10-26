@@ -73,7 +73,8 @@
     "late": "Verspätet",
     "failed": "Fehlgeschlagen",
     "missed": "Versäumt",
-    "skipped": "Ausgesetzt"
+    "skipped": "Ausgesetzt",
+    "inactive": "Inaktiv"
   },
   "filters": {
     "level": "Stufe",
@@ -115,5 +116,9 @@
       "rejected": "Abgelehnt",
       "withdrawn": "Zurückgezogen"
     }
+  },
+  "closedEarly": {
+    "changed": "vorzeitig beendet: die Pflicht wurde geändert",
+    "archived": "vorzeitig beendet: die Pflicht wurde archiviert"
   }
 }

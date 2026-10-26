@@ -28,6 +28,7 @@ let db: Db;
 let ev: typeof import('../src/duties/evaluate.js');
 let jobs: typeof import('../src/duties/jobs.js');
 let periods: typeof import('../src/duties/periods.js');
+let store: typeof import('../src/duties/store.js');
 
 const status = (p: Promise<unknown>) =>
   p.then(
@@ -52,6 +53,7 @@ beforeAll(async () => {
   ev = await import('../src/duties/evaluate.js');
   jobs = await import('../src/duties/jobs.js');
   periods = await import('../src/duties/periods.js');
+  store = await import('../src/duties/store.js');
 });
 afterAll(async () => {
   await s?.app.close();
@@ -291,7 +293,8 @@ describe('stored periods', () => {
     const processName = db().get<{ name: string }>('SELECT name FROM processes WHERE id = ?', processId)!.name;
     db().run('UPDATE processes SET name = ? WHERE id = ?', 'Renamed process', processId);
     db().run('DELETE FROM runs WHERE id = ?', r);
-    const after = (await s.api('GET', `/duties/${d.id}`)).periods.filter((p: any) => p.closed);
+    // (the change closed the periods since April as they stood – under the old rules)
+    const after = (await s.api('GET', `/duties/${d.id}`)).periods.filter((p: any) => before.some((b: any) => b.key === p.key));
     expect(after).toEqual(before);
     expect(after.find((p: any) => p.key === '2026-02')).toMatchObject({ status: 'done', snapshot: { level: 'mandatory', interval: 'monthly', graceDays: 5 } });
     expect(after.find((p: any) => p.key === '2026-02').snapshot.name).not.toBe('Renamed duty');
@@ -313,6 +316,90 @@ describe('stored periods', () => {
     expect(statusAt(d.row(), '2026-03', '2026-03-04T08:00:00Z')).toMatchObject({ status: 'done', run: { id: r } });
     jobs.runDutyJob(Z('2026-04-01T08:00:00Z'));
     expect(db().get<any>("SELECT status, closed_at FROM duty_periods WHERE duty_id = ? AND period_key = '2026-03'", d.id).status).toBe('done');
+  });
+});
+
+describe('archiving a duty or changing its rules', () => {
+  // the previous month is in its grace period now (40 days), the current month is open
+  const now = Date.now();
+  const cur = () => periods.periodAt('monthly', now, TZ);
+  const prev = () => periods.periodAt('monthly', cur().start - 1, TZ);
+  const iso = (t: number) => new Date(t).toISOString();
+  async function graceDuty() {
+    const d = await duty({ grace: 40, activeFrom: iso(prev().start) });
+    db().run('UPDATE service_duties SET process_id = ? WHERE id = ?', freshProc, d.id);
+    const body = (patch: Record<string, unknown> = {}) => ({
+      name: d.row().name,
+      processId: freshProc,
+      interval: 'monthly',
+      level: 'mandatory',
+      graceDays: 40,
+      ...patch,
+    });
+    return { ...d, body };
+  }
+  const period = (x: any, key: string) => x.periods.find((p: any) => p.key === key);
+
+  it('closes the ended periods as they stand before archiving, and stores the archived periods as inactive on restore', async () => {
+    const d = await graceDuty();
+    const before = await dana('GET', `/duties/${d.id}`);
+    expect(before.previous).toMatchObject({ key: prev().key, status: 'due', inGrace: true });
+    await dana('POST', `/duties/${d.id}/archive`, { archived: true });
+    const archived = await dana('GET', `/duties/${d.id}`);
+    expect(period(archived, prev().key)).toMatchObject({ status: 'missed', closed: true, closeNote: 'duty archived' });
+    // restore in the same period: the previous period stays missed, the current one is judged again
+    const restored = await dana('POST', `/duties/${d.id}/archive`, { archived: false });
+    expect(period(restored, prev().key)).toMatchObject({ status: 'missed', closed: true });
+    expect(restored.current).toMatchObject({ key: cur().key, status: 'due' });
+    const audit = await s.api('GET', `/audit?entityType=duty&entityId=${d.id}&limit=50`);
+    expect(audit.find((a: any) => a.action === 'duty.period_closed' && a.details.periodKey === prev().key).details.closedEarly).toBe('duty archived');
+    // archived over months: the periods in between are stored as inactive
+    await dana('POST', `/duties/${d.id}/archive`, { archived: true });
+    db().run('UPDATE service_duties SET archived = 0 WHERE id = ?', d.id);
+    expect(store.storeInactiveGap(d.row(), now + 70 * 86400000)).toBeGreaterThanOrEqual(2);
+    expect(db().get<any>('SELECT status, close_note FROM duty_periods WHERE duty_id = ? AND period_key = ?', d.id, cur().key)).toEqual({
+      status: 'inactive',
+      close_note: 'duty archived',
+    });
+  });
+
+  it('a period done before archiving stays done', async () => {
+    const d = await graceDuty();
+    // the previous month is done; a later run is the current month's
+    run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
+    run(freshProc, { status: 'succeeded', start: iso(cur().start + 3600000), end: iso(cur().start + 3700000) });
+    await dana('POST', `/duties/${d.id}/archive`, { archived: true });
+    expect(period(await dana('GET', `/duties/${d.id}`), cur().key)).toMatchObject({ status: 'done', closed: true, closeNote: 'duty archived' });
+    db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
+  });
+
+  it('a new interval, grace period or process applies from the current period on; ended periods keep the old rules', async () => {
+    // monthly → yearly: the previous month is closed as it stands, and the year counts no run from before the change
+    const d = await graceDuty();
+    await dana('PUT', `/duties/${d.id}`, d.body({ interval: 'yearly' }));
+    const y = await dana('GET', `/duties/${d.id}`);
+    expect(period(y, prev().key)).toMatchObject({ status: 'missed', closed: true, closeNote: 'duty changed', snapshot: { interval: 'monthly' } });
+    run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
+    expect((await dana('GET', `/duties/${d.id}`)).current.status).toBe('due');
+    db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
+    // a longer grace period does not turn a missed period into a late one
+    const g = await graceDuty();
+    await dana('PUT', `/duties/${g.id}`, g.body({ graceDays: 60 }));
+    expect(period(await dana('GET', `/duties/${g.id}`), prev().key)).toMatchObject({ status: 'missed', closed: true, snapshot: { graceDays: 40 } });
+    // another process: the period in grace was judged by the old one
+    const p = await graceDuty();
+    run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
+    await dana('PUT', `/duties/${p.id}`, p.body({ processId }));
+    expect(period(await dana('GET', `/duties/${p.id}`), prev().key)).toMatchObject({ status: 'done', closed: true });
+    db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
+    // a lower level does not change the level a period that ended is judged by
+    const l = await graceDuty();
+    await dana('PUT', `/duties/${l.id}`, l.body({ level: 'optional' }));
+    expect(period(await dana('GET', `/duties/${l.id}`), prev().key)).toMatchObject({ status: 'missed', snapshot: { level: 'mandatory' } });
+    const audit = await s.api('GET', `/audit?entityType=duty&entityId=${l.id}&limit=50`);
+    expect(audit.find((a: any) => a.action === 'duty.updated').details.periodsClosedEarly).toEqual(
+      expect.arrayContaining([{ key: prev().key, status: 'missed' }]),
+    );
   });
 });
 

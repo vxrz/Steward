@@ -22,6 +22,7 @@ const mapPeriod = (p: DutyPeriod) => ({
   status: p.status,
   closed: p.closed,
   closedAt: p.closedAt,
+  closeNote: p.closeNote,
   inGrace: p.inGrace,
   run: p.run,
   failedRuns: p.failedRuns,

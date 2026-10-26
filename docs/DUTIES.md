@@ -34,7 +34,9 @@ A duty can name the **schedule** that runs it. It does not need one: many proced
 3. Enter a name, choose the process, the interval and the level. Add a grace period, the reminder days, the owners, the application and the schedule if you like.
 4. _Save_. The duty shows its current period, normally _Due_.
 
-_Edit_ (pencil) changes a duty. Changing the process, the interval or the grace period starts the open periods over with the new rules; stored periods do not change. A duty is archived, not deleted: _Archive_ on the duty page. An archived duty judges no new periods; its history stays. _Restore_ starts again with the current period.
+_Edit_ (pencil) changes a duty. A change of the process, the interval, the grace period or the level first **closes every period that has ended** – also one still in its grace period – under the old rules and as it stands: done or late with a run that counts, skipped with an approved exception, else failed or missed. These periods are marked _closed early: the duty changed_. The new rules apply from the current period on, and the current period counts no run from before the change.
+
+A duty is archived, not deleted: _Archive_ on the duty page. Archiving closes the ended periods the same way (_closed early: the duty was archived_), and a current period that is done already stays done; the rest of the current period is not judged. _Restore_ goes on where the stored periods end: the periods the duty was archived through are stored as **inactive**, and the current period is judged as usual.
 
 ## Periods and time zone
 
@@ -54,14 +56,15 @@ The first period of a new duty is the current one. Only runs started after you d
 
 ## Period status
 
-| Status      | Meaning                                                                                                |
-| ----------- | ------------------------------------------------------------------------------------------------------ |
-| **Due**     | The period (or its grace period) is not over, and nothing counts yet                                   |
-| **Done**    | A successful run started in the period and ended by the end of the grace period                        |
-| **Late**    | Done, but by a run that started in the grace period                                                    |
-| **Skipped** | An exception approved by a second person (see below), and no run did it                                |
-| **Failed**  | The period ended with runs, but only failed ones: failed, interrupted, or rejected at an approval step |
-| **Missed**  | The period ended without any run that counts                                                           |
+| Status       | Meaning                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| **Due**      | The period (or its grace period) is not over, and nothing counts yet                                   |
+| **Done**     | A successful run started in the period and ended by the end of the grace period                        |
+| **Late**     | Done, but by a run that started in the grace period                                                    |
+| **Skipped**  | An exception approved by a second person (see below), and no run did it                                |
+| **Failed**   | The period ended with runs, but only failed ones: failed, interrupted, or rejected at an approval step |
+| **Missed**   | The period ended without any run that counts                                                           |
+| **Inactive** | The duty was archived during the period: not judged                                                    |
 
 While a period is open, failed runs are shown as "1 failed run" next to _Due_ – you can still try again. A period is judged in this order: done, late, skipped, failed, missed. A run done in the period always wins over an exception.
 

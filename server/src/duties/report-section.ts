@@ -34,7 +34,10 @@ const en = {
   noneOpen: 'Every duty is done for its current period.',
   more: '{n} more not shown.',
   levels: { mandatory: 'Mandatory', recommended: 'Recommended', optional: 'Optional' } as Record<DutyLevel, string>,
-  statuses: { due: 'Due', done: 'Done', late: 'Late', skipped: 'Skipped', failed: 'Failed', missed: 'Missed' } as Record<DutyPeriodStatus, string>,
+  statuses: { due: 'Due', done: 'Done', late: 'Late', skipped: 'Skipped', failed: 'Failed', missed: 'Missed', inactive: 'Inactive (archived)' } as Record<
+    DutyPeriodStatus,
+    string
+  >,
 };
 type Texts = typeof en;
 const de: Texts = {
@@ -54,7 +57,15 @@ const de: Texts = {
   noneOpen: 'Jede Pflicht ist für ihren aktuellen Zeitraum erledigt.',
   more: '{n} weitere nicht angezeigt.',
   levels: { mandatory: 'Verpflichtend', recommended: 'Empfohlen', optional: 'Freiwillig' },
-  statuses: { due: 'Fällig', done: 'Erledigt', late: 'Verspätet', skipped: 'Ausgesetzt', failed: 'Fehlgeschlagen', missed: 'Versäumt' },
+  statuses: {
+    due: 'Fällig',
+    done: 'Erledigt',
+    late: 'Verspätet',
+    skipped: 'Ausgesetzt',
+    failed: 'Fehlgeschlagen',
+    missed: 'Versäumt',
+    inactive: 'Inaktiv (archiviert)',
+  },
 };
 const tx = (l: ReportLang): Texts => (l === 'de' ? de : en);
 const fill = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`));
@@ -84,11 +95,11 @@ export interface DutiesSectionData {
   open: Row[];
 }
 
-const STATUSES: DutyPeriodStatus[] = ['done', 'late', 'skipped', 'failed', 'missed', 'due'];
+const STATUSES: DutyPeriodStatus[] = ['done', 'late', 'skipped', 'failed', 'missed', 'due', 'inactive'];
 const iso = (t: number) => new Date(t).toISOString();
 
 function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }): DutiesSectionData {
-  const out: DutiesSectionData = { counts: { due: 0, done: 0, late: 0, skipped: 0, failed: 0, missed: 0 }, ended: [], open: [] };
+  const out: DutiesSectionData = { counts: { due: 0, done: 0, late: 0, skipped: 0, failed: 0, missed: 0, inactive: 0 }, ended: [], open: [] };
   if (!currentUser()) return out;
   const at = Math.min(ctx.to, ctx.now);
   for (const b of listDutyViews({ archived: true }, ctx.now)) {
@@ -119,7 +130,8 @@ function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }):
   return out;
 }
 
-const tone = (s: DutyPeriodStatus): Tone => (s === 'done' ? 'success' : s === 'late' || s === 'skipped' ? 'warning' : s === 'due' ? 'info' : 'danger');
+const tone = (s: DutyPeriodStatus): Tone =>
+  s === 'done' ? 'success' : s === 'late' || s === 'skipped' ? 'warning' : s === 'due' ? 'info' : s === 'inactive' ? 'muted' : 'danger';
 
 registerReportSection<DutiesConfig, DutiesSectionData>({
   id: 'duties',
@@ -150,7 +162,7 @@ registerReportSection<DutiesConfig, DutiesSectionData>({
     section(x.title);
     w.paragraph(x.intro, { tone: 'muted', size: 8 });
     w.stats(
-      STATUSES.filter((s) => s !== 'due').map((s) => ({
+      STATUSES.filter((s) => s !== 'due' && s !== 'inactive').map((s) => ({
         label: x.statuses[s],
         value: String(d.counts[s]),
         tone: d.counts[s] ? tone(s) : ('default' as Tone),

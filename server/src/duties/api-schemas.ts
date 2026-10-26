@@ -29,10 +29,16 @@ export const DutyPeriodEntry = z.object({
   status: z
     .enum(DUTY_PERIOD_STATUSES)
     .describe(
-      'due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run',
+      'due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the period (not judged)',
     ),
   closed: z.boolean().describe('Stored for good: the result no longer changes'),
   closedAt: ts().nullable(),
+  closeNote: z
+    .string()
+    .nullable()
+    .describe(
+      'Why the period was closed before the end of its grace period: "duty changed" (its rules changed) or "duty archived"; null: closed by the duty job',
+    ),
   inGrace: z.boolean(),
   run: z
     .object({ id: z.string(), status: z.string(), startedAt: z.string(), finishedAt: z.string().nullable() })

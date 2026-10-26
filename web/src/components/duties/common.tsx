@@ -27,6 +27,7 @@ export const DUTY_STATUS_COLORS: Record<DutyPeriodStatus, string> = {
   skipped: TONE.neutral,
   failed: TONE.bad,
   missed: TONE.bad,
+  inactive: TONE.neutral,
 };
 const LEVEL_COLORS: Record<DutyLevel, string> = { mandatory: 'red', recommended: 'blue', optional: 'gray' };
 

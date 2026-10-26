@@ -9364,9 +9364,10 @@
                       "late",
                       "failed",
                       "missed",
-                      "skipped"
+                      "skipped",
+                      "inactive"
                     ],
-                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run"
+                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the period (not judged)"
                   },
                   "closed": {
                     "type": "boolean",
@@ -9384,6 +9385,13 @@
                       }
                     ],
                     "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "closeNote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
                   },
                   "inGrace": {
                     "type": "boolean"
@@ -9559,6 +9567,7 @@
                   "status",
                   "closed",
                   "closedAt",
+                  "closeNote",
                   "inGrace",
                   "run",
                   "failedRuns",
@@ -9606,9 +9615,10 @@
                       "late",
                       "failed",
                       "missed",
-                      "skipped"
+                      "skipped",
+                      "inactive"
                     ],
-                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run"
+                    "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the period (not judged)"
                   },
                   "closed": {
                     "type": "boolean",
@@ -9626,6 +9636,13 @@
                       }
                     ],
                     "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "closeNote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
                   },
                   "inGrace": {
                     "type": "boolean"
@@ -9801,6 +9818,7 @@
                   "status",
                   "closed",
                   "closedAt",
+                  "closeNote",
                   "inGrace",
                   "run",
                   "failedRuns",
@@ -9895,9 +9913,10 @@
               "late",
               "failed",
               "missed",
-              "skipped"
+              "skipped",
+              "inactive"
             ],
-            "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run"
+            "description": "due: not over and nothing counts yet; done: a successful real run started in the period and ended by the end of the grace period; late: done by a run started in the grace period; skipped: an approved exception; failed: only failed or rejected runs; missed: no run; inactive: the duty was archived during the period (not judged)"
           },
           "closed": {
             "type": "boolean",
@@ -9915,6 +9934,13 @@
               }
             ],
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "closeNote": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Why the period was closed before the end of its grace period: \"duty changed\" (its rules changed) or \"duty archived\"; null: closed by the duty job"
           },
           "inGrace": {
             "type": "boolean"
@@ -10090,6 +10116,7 @@
           "status",
           "closed",
           "closedAt",
+          "closeNote",
           "inGrace",
           "run",
           "failedRuns",
@@ -15530,7 +15557,8 @@
                 "late",
                 "failed",
                 "missed",
-                "skipped"
+                "skipped",
+                "inactive"
               ]
             },
             "in": "query",

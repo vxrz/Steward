@@ -21,6 +21,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
 import { evaluateDuty, type DutyRow, type Evaluated } from './evaluate.js';
+import { closeEnded, storeInactiveGap } from './store.js';
 import { addLocalDays, instanceTimeZone, periodOfKey } from './periods.js';
 
 /**
@@ -190,6 +191,7 @@ function toPeriod(e: Evaluated, d: DutyRow, c: ViewCtx, skip: DutySkip | null): 
     status: e.status,
     closed: e.closed,
     closedAt: e.closedAt,
+    closeNote: e.row?.close_note ?? null,
     inGrace: !e.closed && c.now >= e.period.end && c.now < e.graceEnd,
     run: visible ? e.run : null,
     failedRuns: e.failedRuns,
@@ -407,8 +409,10 @@ export function createDuty(input: DutyInputData): DutyDetail {
   return getDuty(dutyId);
 }
 
-/** Changes that change how open periods are judged: their stored state is dropped and evaluated again. */
-const JUDGED_BY = ['process_id', 'interval_kind', 'grace_days'] as const;
+/** Changes of the rules a period is judged by: the periods that ended are closed first, under the old rules. */
+const JUDGED_BY = ['process_id', 'interval_kind', 'grace_days', 'level'] as const;
+/** Changes after which the current period is judged again from scratch. */
+const REJUDGE_CURRENT = ['process_id', 'interval_kind', 'grace_days'] as const;
 
 export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const u = me();
@@ -431,8 +435,11 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   };
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getDuty(dutyId);
-  const rejudge = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
+  const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
+  const rejudge = changes.some((k) => (REJUDGE_CURRENT as readonly string[]).includes(k));
   db().tx(() => {
+    // periods that ended – also one still in its grace period – keep the result of the rules they ran under
+    const closedEarly = rules ? closeEnded(cur, s, Date.now(), 'duty changed') : [];
     db().run(
       `UPDATE service_duties SET application_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
        remind_days = ?, owners = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
@@ -450,7 +457,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
       u.username,
       dutyId,
     );
-    // closed periods keep what they were judged against; open ones start over with the new rules
+    // the current period starts over with the new rules
     const dropped = rejudge ? db().run('DELETE FROM duty_periods WHERE duty_id = ? AND closed_at IS NULL', dutyId).changes : 0;
     audit({
       action: 'duty.updated',
@@ -462,6 +469,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
         before: Object.fromEntries(changes.map((k) => [k, cur[k]])),
         after: Object.fromEntries(changes.map((k) => [k, next[k]])),
         openPeriodsReevaluated: dropped,
+        periodsClosedEarly: closedEarly.map((e) => ({ key: e.period.key, status: e.status })),
       },
     });
   });
@@ -476,21 +484,19 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
   if (!!cur.archived === archived) return getDuty(dutyId);
   if (!archived) checkName(s.id, cur.name, dutyId);
   db().tx(() => {
-    // archiving ends the duty: its open periods are not judged (and not stored); a restored duty starts with the current period
+    // archiving ends the duty: the periods that ended are closed as they stand (and a current period that is done
+    // already), the rest of the current period is not judged; a restored duty stores the periods it was archived
+    // through as inactive and is judged again from the current period on
+    const closedEarly = archived ? closeEnded(cur, s, Date.now(), 'duty archived', true) : [];
     if (archived) db().run('DELETE FROM duty_periods WHERE duty_id = ? AND closed_at IS NULL', dutyId);
-    db().run(
-      `UPDATE service_duties SET archived = ?, ${archived ? '' : 'active_from = ?, '}updated_at = ?, updated_by = ? WHERE id = ?`,
-      ...(archived ? [1] : [0, nowIso()]),
-      nowIso(),
-      u.username,
-      dutyId,
-    );
+    const inactive = archived ? 0 : storeInactiveGap(cur, Date.now());
+    db().run('UPDATE service_duties SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, dutyId);
     audit({
       action: archived ? 'duty.archived' : 'duty.restored',
       entityType: 'duty',
       entityId: dutyId,
       summary: `Duty "${cur.name}" of service "${s.name}" ${archived ? 'archived' : 'restored'}`,
-      details: { serviceId: s.id },
+      details: { serviceId: s.id, periodsClosedEarly: closedEarly.map((e) => ({ key: e.period.key, status: e.status })), inactivePeriods: inactive },
     });
   });
   return getDuty(dutyId);

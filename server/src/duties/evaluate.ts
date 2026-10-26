@@ -72,6 +72,7 @@ export interface PeriodRow {
   time_zone: string;
   evaluated_at: string;
   closed_at: string | null;
+  close_note: string | null;
 }
 
 export interface Evaluated {

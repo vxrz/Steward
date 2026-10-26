@@ -179,6 +179,7 @@ export function DutyDetailPage() {
                           </Text>
                           <Text size="xs" c="dimmed">
                             {t('dueBy', { date: lastDay(p.end, p.snapshot.timeZone) })} · {p.closed ? t('stateClosed') : t('stateOpen')}
+                            {p.closeNote ? ` · ${t(p.closeNote === 'duty archived' ? 'closedEarly.archived' : 'closedEarly.changed')}` : ''}
                           </Text>
                         </Table.Td>
                         <Table.Td>
