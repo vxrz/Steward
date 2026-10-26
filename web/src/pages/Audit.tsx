@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { IconAnchor, IconDownload, IconSearch, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { AuditEntry, AuditVerifyResult } from '@sm/shared';
-import { apiUrl, get, notifyError, post } from '../api';
+import { apiUrl, confirmedDownload, get, notifyError, post } from '../api';
 import { JsonView, PageHeader } from '../components/common';
 import { fmtDate } from '../format';
 import { VerifyReportButton } from '../components/reports/VerifyReportButton';
@@ -78,13 +78,13 @@ export function AuditPage() {
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item component="a" href={apiUrl('/audit/export?format=csv')}>
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=csv')} onClick={confirmedDownload('exportAuditLog')}>
                   CSV
                 </Menu.Item>
-                <Menu.Item component="a" href={apiUrl('/audit/export?format=jsonl')}>
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=jsonl')} onClick={confirmedDownload('exportAuditLog')}>
                   {t('jsonl')}
                 </Menu.Item>
-                <Menu.Item component="a" href={apiUrl('/audit/export?format=json')}>
+                <Menu.Item component="a" href={apiUrl('/audit/export?format=json')} onClick={confirmedDownload('exportAuditLog')}>
                   {t('jsonSigned')}
                 </Menu.Item>
               </Menu.Dropdown>

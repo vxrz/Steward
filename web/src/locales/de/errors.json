@@ -509,7 +509,8 @@
     "STEP_UP_OTHER_IDENTITY": "Sie haben sich beim Anbieter als jemand anderes angemeldet – melden Sie sich mit Ihrem eigenen Konto an.",
     "STEP_UP_REFUSED": "Ihre Anmeldung beim Anbieter wurde abgelehnt – wenden Sie sich an einen Administrator.",
     "STEP_UP_SSO_FAILED": "Die Anmeldung beim Anbieter ist fehlgeschlagen – versuchen Sie es erneut.",
-    "SESSION_REQUIRED_stepUp": "Diese Aktion braucht eine angemeldete Person, die sie im Browser bestätigt – API-Tokens können das nicht."
+    "SESSION_REQUIRED_stepUp": "Diese Aktion braucht eine angemeldete Person, die sie im Browser bestätigt – API-Tokens können das nicht.",
+    "SMTP_PASSWORD_AGAIN": "SMTP-Server, Port oder Benutzer haben sich geändert – geben Sie das SMTP-Passwort erneut ein."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",
