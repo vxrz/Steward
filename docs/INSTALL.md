@@ -100,7 +100,7 @@ docker build -t steward .                              # the default image
 docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for browser steps
 ```
 
-Images are published from the first release after 0.1.2. For older versions, build the image from the checkout.
+Images are published from 0.2.0 on. For older versions, build the image from the checkout.
 
 - Data lives in the `sm-data` volume (`/data`). Back it up.
 - The compose file publishes the port on `127.0.0.1` only. To serve colleagues:
