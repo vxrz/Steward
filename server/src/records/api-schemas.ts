@@ -58,7 +58,7 @@ export const RecordLink = z.object({
   kind: z
     .string()
     .nullable()
-    .describe('Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL'),
+    .describe('Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL'),
   targetId: z.string().nullable().describe('Id of the internal item – null for an external URL and when the token owner may not see the item'),
   url: z.string().nullable().describe('External http(s) URL'),
   linkType: z
@@ -195,6 +195,9 @@ export const ServiceDocument = z.object({
   linkedFrom: z
     .array(z.enum(['record', 'service']))
     .describe('How the document and the service are linked: record – the document links to the service; service – the service links to the document'),
+  applications: z
+    .array(z.object({ id: z.string(), name: z.string(), archived: z.boolean() }))
+    .describe('The applications the document applies to (its scope); empty: the whole service'),
 });
 
 export const RECORD_COMPONENTS: Record<string, ZodTypeAny> = {

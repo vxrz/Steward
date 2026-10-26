@@ -25,3 +25,4 @@ export * from './compliance.js';
 export * from './zodLimits.js';
 export * from './migration.js';
 export * from './sso.js';
+export * from './catalogue.js';

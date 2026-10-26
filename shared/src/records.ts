@@ -6,6 +6,7 @@
 
 import type { ErrorParams } from './errors.js';
 import type { ImportedHistoryRef } from './api.js';
+import type { DocumentApplicationRef, ServiceApplication, ServiceProtectionNeed } from './catalogue.js';
 
 // ---------- workflows ----------
 
@@ -342,8 +343,12 @@ export interface DocumentInfo {
   editions: RecordEditionSummary[];
   reviews: RecordReview[];
   review: DocumentReviewState;
+  /** The applications the document applies to (empty: no scope, e.g. the whole service) */
+  appliesTo: DocumentApplicationRef[];
   permissions: {
     review: boolean;
+    /** May change the applications the document applies to */
+    scope: boolean;
     /** May open the review settings: an earlier next review (editors, the owner), or more (below) */
     settings: boolean;
     /** May choose the review owner and the document's own interval (approvers, administrators) */
@@ -379,7 +384,7 @@ export interface DocumentChangelogRow {
  * generically as { kind, id }: a new kind needs a resolver on the server and
  * an entry here.
  */
-export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential'] as const;
+export const LINK_KINDS = ['process', 'run', 'monitor', 'platform', 'dashboard', 'record', 'service', 'credential', 'application'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**
@@ -464,13 +469,13 @@ export interface ItemLink {
 }
 
 /**
- * A link from another item to this one: a record or service link, or a
+ * A link from another item to this one: a record, service or application link, or a
  * credentials register entry that names the item under "used by" (linkId is
  * then "credential:<id>").
  */
 export interface Backlink {
   linkId: string;
-  kind: 'record' | 'service' | 'credential';
+  kind: 'record' | 'service' | 'credential' | 'application';
   id: string;
   label: string;
   note: string;
@@ -718,6 +723,10 @@ export interface ServiceSummary {
   documentCount: number;
   /** Living documents linked to the service (either way) whose review is overdue – only documents the reader may read */
   overdueDocuments: number;
+  /** Applications the service consists of (archived ones included) */
+  applicationCount: number;
+  /** Per dimension: derived from its applications (maximum principle), the override and the effective level */
+  protectionNeed: ServiceProtectionNeed;
   updatedAt: string;
 }
 
@@ -740,6 +749,8 @@ export interface ServiceDocument {
   daysLeft: number | null;
   /** record: the document links to the service; service: the service links to the document */
   linkedFrom: ('record' | 'service')[];
+  /** The applications the document applies to (its scope; empty: the whole service) */
+  applications: DocumentApplicationRef[];
 }
 
 export interface ServiceDetail extends ServiceSummary {
@@ -751,6 +762,8 @@ export interface ServiceDetail extends ServiceSummary {
   backlinks: Backlink[];
   /** Living documents linked to the service (either way) that the reader may read */
   documents: ServiceDocument[];
+  /** The applications the service consists of, with their role, rating and integrations */
+  applications: ServiceApplication[];
   canEdit: boolean;
 }
 

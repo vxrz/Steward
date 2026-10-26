@@ -38,6 +38,8 @@ const source = {
   auditEntries: 0,
   processOwner: { id: '', owner: '' },
   recordId: '',
+  applicationId: '',
+  serviceId: '',
   runId: '',
   waitingRunId: '',
 };
@@ -99,6 +101,17 @@ beforeAll(async () => {
     ],
   });
   source.processOwner = { id: p.id, owner: 'dana' };
+  // the service catalogue (#84): an application owned by dana, rated, with a platform, part of a service, scoping a document
+  const app = await s.api('POST', '/applications', { name: 'Moved application', owners: ['user:dana', 'team:service desk'] });
+  await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'very_high', justification: 'Trade secrets' } });
+  await s.api('POST', `/applications/${app.id}/platforms`, { platformId: (await s.api('GET', '/platforms'))[0].id });
+  const svc = await s.api('POST', '/services', { name: 'Moved service', owners: [] });
+  await s.api('PUT', `/services/${svc.id}/applications/${app.id}`, { role: 'primary' });
+  await s.api('PUT', `/services/${svc.id}/protection-need`, { availability: { level: 'high', reason: 'Cumulation' } });
+  const doc = await dana('POST', '/records', { type: 'DOC', title: 'Moved concept', links: [{ kind: 'service', id: svc.id }] });
+  await dana('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
+  source.applicationId = app.id;
+  source.serviceId = svc.id;
   // what is encrypted on the source, decrypted (to compare with the target)
   const { db } = await import('../src/db.js');
   const { vault } = await import('../src/vault.js');
@@ -451,6 +464,16 @@ describe('import into SQLite through the web API', () => {
     expect(p.acl.map((e: any) => e.subject)).toEqual(['user:olivia', 'team:service desk']);
     const rec = await max('GET', `/records/${source.recordId}`);
     expect(rec.owner).toBe('dana@contoso.example');
+    // applications move with their rating, integrations, services and documents; owners follow the mapping
+    const app = await max('GET', `/applications/${source.applicationId}`);
+    expect(app.owners).toEqual(['user:dana@contoso.example', 'team:service desk']);
+    expect(app.rating.confidentiality).toMatchObject({ level: 'very_high', justification: 'Trade secrets', ratedBy: 'admin' });
+    expect(app.integrations).toHaveLength(1);
+    expect(app.documents.map((d: any) => d.title)).toEqual(['Moved concept']);
+    const movedService = await max('GET', `/services/${source.serviceId}`);
+    expect(movedService.applications.map((a: any) => [a.id, a.role])).toEqual([[source.applicationId, 'primary']]);
+    expect(movedService.protectionNeed.confidentiality.effective).toBe('very_high');
+    expect(movedService.protectionNeed.availability.override).toMatchObject({ level: 'high', reason: 'Cumulation' });
     expect(rec.createdBy).toBe('dana');
     const list = await max('GET', '/users');
     const byName = (n: string) => list.find((u: any) => u.username === n);

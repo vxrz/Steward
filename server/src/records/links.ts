@@ -24,8 +24,8 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
  * other way round too (their "used by" links): those show up as backlinks.
  */
 
-/** Items that hold links: records, services and ticket references (tickets/service.ts: the items a ticket affects). */
-export type LinkSource = 'record' | 'service' | 'ticket';
+/** Items that hold links: records, services, applications and ticket references (tickets/service.ts: the items a ticket affects). */
+export type LinkSource = 'record' | 'service' | 'application' | 'ticket';
 
 export interface LinkResolver {
   /** Name and UI path of a visible target, or null (missing or not visible) */
@@ -174,6 +174,23 @@ registerLinkKind('service', {
   },
 });
 
+// applications of the service catalogue: everyone reads them, like services
+registerLinkKind('application', {
+  resolve(id) {
+    const a = db().get<{ name: string; archived: number; vendor: string }>('SELECT name, archived, vendor FROM applications WHERE id = ?', id);
+    return a ? { label: a.name, path: `/applications/${id}`, detail: a.archived ? 'archived' : a.vendor || undefined } : null;
+  },
+  search(q, limit) {
+    return db()
+      .all<{ id: string; name: string; vendor: string }>(
+        "SELECT id, name, vendor FROM applications WHERE archived = 0 AND lower(name) LIKE ? ESCAPE '\\' ORDER BY name LIMIT ?",
+        like(q),
+        limit,
+      )
+      .map((a) => ({ kind: 'application' as const, id: a.id, label: a.name, detail: a.vendor || undefined }));
+  },
+});
+
 // Credentials register entries: the register's read rules (viewers only see entries they own).
 type CredentialLinkRow = Pick<CredentialRow, 'id' | 'name' | 'type' | 'environment' | 'owner_subjects' | 'archived'>;
 const credentialVisible = (r: CredentialLinkRow) => credentialPermissions(currentUser(), r).includes('view');
@@ -311,7 +328,7 @@ export function listBacklinks(kind: string, id: string): Backlink[] {
   for (const r of rows) {
     const src = RESOLVERS.get(r.from_kind)?.resolve(r.from_id);
     if (!src) continue;
-    out.push({ linkId: r.id, kind: r.from_kind as 'record' | 'service', id: r.from_id, label: src.label, note: r.note, path: src.path });
+    out.push({ linkId: r.id, kind: r.from_kind as Backlink['kind'], id: r.from_id, label: src.label, note: r.note, path: src.path });
   }
   for (const c of credentialsLinkingTo(kind, id)) {
     out.push({ linkId: `credential:${c.id}`, kind: 'credential', id: c.id, label: c.name, note: '', path: `/credentials?open=${encodeURIComponent(c.id)}` });

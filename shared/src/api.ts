@@ -270,6 +270,7 @@ export const STEP_UP_ACTIONS = [
   'changeAuditAnchoring',
   'exportMigration',
   'applyMigration',
+  'changeCiaScale',
 ] as const;
 export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
 

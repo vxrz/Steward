@@ -32,6 +32,7 @@ import { editionAsRecord } from '../records/documents.js';
 import { attachmentFile, attachmentRows, type RecordRow } from '../records/model.js';
 import { canReadRecordRow } from '../records/access.js';
 import { getService } from '../catalogue/service.js';
+import { platformCatalogue, serviceCatalogue } from '../catalogue/evidence.js';
 import { csvCell } from '../audit-export.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { likeEscape } from '../database/sql.js';
@@ -620,6 +621,8 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       filtered: !complete,
     };
     const hidden = controls.reduce((n, c) => n + c.hidden, 0);
+    // the protection need (CIA) of the service or of the platform's application, as rated when the pack is built
+    const catalogue = scope.serviceId ? serviceCatalogue(scope.serviceId) : scope.platformId ? platformCatalogue(scope.platformId) : null;
     if (!complete)
       b.omitted.push(
         `This pack holds only what ${row.created_by} may see${hidden ? ` – ${hidden} evidence item(s) of the chosen controls are not visible to them` : ''}. Ask an auditor or administrator for a complete pack.`,
@@ -634,6 +637,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       generatedAt: nowIso(),
       disclaimer: 'Evidence recorded by Steward. It does not certify compliance with any standard.',
       controls,
+      ...(catalogue ? { catalogue } : {}),
       items: list.map(({ via, ...i }) => ({ ...i, via })),
       audit: auditInfo,
       omitted: b.omitted,
@@ -652,6 +656,7 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
       lang,
       filtered: !complete,
       controls,
+      catalogue,
       items: list.map((i) => ({ kind: i.kind, label: i.document ? `${i.label} · ${i.document.edition}` : i.label, at: i.at, files: i.files.length })),
       omitted: b.omitted,
     });

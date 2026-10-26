@@ -271,6 +271,7 @@
       "record": "Record",
       "service": "Service",
       "credential": "Credential",
+      "application": "Application",
       "external": "External link"
     },
     "target": "Target",
