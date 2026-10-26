@@ -535,7 +535,8 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
 /** Lets the waiting run continue after a task was decided (or replays the run when the server restarted meanwhile). */
 async function settleTask(taskId: string, runId: string, result: Settled, actor: string): Promise<void> {
   const waiter = taskWaiters.get(taskId);
-  if (waiter) {
+  // the task id comes from the request: only a waiter this process registered is called
+  if (typeof waiter === 'function') {
     taskWaiters.delete(taskId);
     waiter(result);
   } else {
