@@ -99,7 +99,8 @@
     "reason": {
       "step": "the step asks for it",
       "notAvailable": "something required was not available",
-      "backdated": "it was entered after the fact"
+      "backdated": "it was entered after the fact",
+      "returned": "an earlier entry was sent back"
     },
     "verifiers": "May verify: {{subjects}}",
     "verifyComment": "Verification comment",

@@ -479,14 +479,16 @@ function manualStep(w: ReportWriter, tr: Translator, st: ManualStepModel, images
     w.paragraph(t('returnedTitle'), { bold: true, size: 8.5 });
     w.table(
       [
-        { header: t('returnedEntry'), width: 3 },
-        { header: t('rejectedBy'), width: 3 },
-        { header: t('reason'), width: 4 },
+        { header: t('returnedEntry'), width: 2.6 },
+        { header: t('rejectedBy'), width: 2.6 },
+        { header: t('reason'), width: 2.6 },
+        { header: t('evidenceFiles'), width: 2.6 },
       ],
       st.returned.map((r) => [
         `${personLabel(r.completedBy)} · ${tr.dateTime(r.completedAt)}`,
         `${personLabel(r.rejectedBy)} · ${tr.dateTime(r.rejectedAt)}`,
         r.comment || '–',
+        r.evidence || '–',
       ]),
     );
   }

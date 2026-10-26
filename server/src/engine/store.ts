@@ -545,26 +545,51 @@ export function evidenceRow(taskId: string, id: string): (TaskEvidence & { path:
   return e ? { ...toEvidence(e), path: e.path, runId: e.run_id } : undefined;
 }
 
-export function insertEvidence(e: TaskEvidence & { runId: string; stepKey: string; path: string }): void {
-  db().run(
-    'INSERT INTO run_task_evidence (id, task_id, run_id, step_key, round, filename, mime, size, sha256, path, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    e.id,
-    e.taskId,
-    e.runId,
-    e.stepKey,
-    e.round,
-    e.filename,
-    e.mime,
-    e.size,
-    e.sha256,
-    e.path,
-    e.uploadedBy,
-    e.uploadedAt,
+/**
+ * Stores an evidence file's row – only while its step is still being worked on in the same round and below the
+ * file limit, checked in the same statement (an upload that finishes after the step was completed, sent back or
+ * cancelled stores nothing). Returns false when the row was not stored.
+ */
+export function insertEvidence(e: TaskEvidence & { runId: string; stepKey: string; path: string }, maxFiles: number): boolean {
+  return (
+    db().run(
+      `INSERT INTO run_task_evidence (id, task_id, run_id, step_key, round, filename, mime, size, sha256, path, uploaded_by, uploaded_at)
+       SELECT ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, CAST(? AS INTEGER), ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM run_tasks WHERE id = ? AND status = 'open' AND stage = 'work' AND round = ?)
+         AND (SELECT COUNT(*) FROM run_task_evidence WHERE task_id = ?) < ?`,
+      e.id,
+      e.taskId,
+      e.runId,
+      e.stepKey,
+      e.round,
+      e.filename,
+      e.mime,
+      e.size,
+      e.sha256,
+      e.path,
+      e.uploadedBy,
+      e.uploadedAt,
+      e.taskId,
+      e.round,
+      e.taskId,
+      maxFiles,
+    ).changes > 0
   );
 }
 
-export function deleteEvidence(id: string): void {
-  db().run('DELETE FROM run_task_evidence WHERE id = ?', id);
+/** Removes an evidence row of the current round while the step is still being worked on. Returns false otherwise. */
+export function deleteEvidence(id: string, taskId: string, round: number): boolean {
+  return (
+    db().run(
+      `DELETE FROM run_task_evidence WHERE id = ? AND task_id = ? AND round = ?
+         AND EXISTS (SELECT 1 FROM run_tasks WHERE id = ? AND status = 'open' AND stage = 'work' AND round = ?)`,
+      id,
+      taskId,
+      round,
+      taskId,
+      round,
+    ).changes > 0
+  );
 }
 
 /** Paths (relative to <data>/artifacts) of a run's evidence files. */
@@ -775,15 +800,23 @@ export function protocolHash(runId: string): string {
   const steps = db().all<StepRow>('SELECT key, type, status, input, output, error, summary FROM run_steps WHERE run_id = ? ORDER BY key', runId);
   const tasks = db().all('SELECT step_key, status, decision, decided_by, decided_at FROM run_tasks WHERE run_id = ? ORDER BY step_key', runId);
   const arts = db().all('SELECT step_key, name, sha256 FROM run_artifacts WHERE run_id = ? ORDER BY id', runId);
-  const manual = db().all(
-    `SELECT step_key, stage, round, submission, completed_by, completed_at, verification, verified_by, verified_at, returned
+  const manual = db().all<{ submission: string | null; returned: string }>(
+    `SELECT step_key, manual, verifiers, stage, round, submission, completed_by, completed_at, verification, verified_by, verified_at, returned
      FROM run_tasks WHERE run_id = ? AND mode = 'manual' ORDER BY step_key`,
     runId,
   );
   if (!manual.length) return sha256(canonicalJson({ steps, tasks, arts }));
-  const evidence = db().all(
-    'SELECT step_key, round, filename, sha256, size, uploaded_by, uploaded_at FROM run_task_evidence WHERE run_id = ? ORDER BY id',
-    runId,
-  );
+  // the evidence files of submitted entries (current and sent back): exactly the sets fixed when they were completed
+  const submitted = new Set<string>();
+  for (const m of manual) {
+    const subs = [parseJson<ManualSubmission | null>(m.submission, null), ...parseJson<ManualTaskState['returned']>(m.returned, []).map((r) => r.submission)];
+    for (const sub of subs) for (const e of sub?.evidence ?? []) submitted.add(e.id);
+  }
+  const evidence = db()
+    .all<{ id: string }>(
+      'SELECT id, step_key, round, filename, sha256, size, uploaded_by, uploaded_at FROM run_task_evidence WHERE run_id = ? ORDER BY id',
+      runId,
+    )
+    .filter((e) => submitted.has(e.id));
   return sha256(canonicalJson({ steps, tasks, arts, manual, evidence }));
 }

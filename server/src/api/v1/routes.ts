@@ -5,13 +5,14 @@
  */
 import YAML from 'yaml';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { DatasetRow, ManualTaskState, ProcessPermission, TaskRecord } from '@sm/shared';
+import { entryEvidence, type DatasetRow, type ManualTaskState, type ProcessPermission, type TaskRecord } from '@sm/shared';
 import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { db } from '../../db.js';
 import { audit, queryAudit, sealedProtocol } from '../../audit.js';
 import { createCheckpoint, verificationResult, verifyWithAnchors } from '../../audit-anchor.js';
 import { currentUser } from '../../auth/context.js';
+import { manualForReader } from '../../engine/manual.js';
 import { capabilities, decisionCheck, requireCapability } from '../../auth/permissions.js';
 import * as users from '../../auth/users.js';
 import * as processes from '../../processes/service.js';
@@ -149,7 +150,7 @@ function manualDetail(m: ManualTaskState) {
       return { id: f.id, type: f.type, label: f.label, required: f.use === 'required', value: v?.value ?? null, ticketId: v?.ticketId ?? null };
     }),
     evidence: m.spec.evidence,
-    evidenceFiles: m.evidence.map((e) => ({
+    evidenceFiles: entryEvidence(m).map((e) => ({
       id: e.id,
       filename: e.filename,
       mime: e.mime,
@@ -748,7 +749,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         items: t.items.map((i) => ({ key: String(i.key), cells: i.cells.map((c) => String(c ?? '')), preselected: !!i.preselected })),
         selectedKeys: t.decision ? t.decision.selectedKeys : null,
         comment: t.decision?.comment ?? null,
-        manual: t.manual ? manualDetail(t.manual) : null,
+        manual: t.manual ? manualDetail(manualForReader(t.manual, currentUser())) : null,
       };
     },
   );

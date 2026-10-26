@@ -123,7 +123,7 @@ export function decisionCheck(
     assignees: string[];
     fourEyes: boolean;
     status: string;
-    manual?: { stage: string; spec: { verification: { notRunStarter: boolean; verifiers: string[] } }; submission: { completedBy: string } | null };
+    manual?: ManualForCheck;
   },
   run: { actor: string },
   perms: ProcessPermission[],
@@ -142,19 +142,34 @@ export function decisionCheck(
   return { ok: false, reason: 'You need run or approve rights on this process', code: 'TASK_RIGHTS' };
 }
 
+/** What the verification rules need to know about a manual step. */
+interface ManualForCheck {
+  stage: string;
+  round: number;
+  spec: { verification: { notRunStarter: boolean; verifiers: string[] } };
+  submission: { completedBy: string; evidence?: { uploadedBy: string }[] } | null;
+  evidence: { uploadedBy: string; round: number }[];
+}
+
 /**
- * Whether a user may verify a manual step (second person, maker–checker). Never the person who completed it (also
- * not under a former name from a moved instance), optionally not the run starter; a verifier list is strict (no
+ * Whether a user may verify a manual step (second person, maker–checker). Never the person who completed it or added
+ * evidence to it (also not under a former name from a moved instance), optionally not the run starter; a verifier list is strict (no
  * administrator override: the list names who checks this work).
  */
 export function verificationCheck(
   u: AuthUser,
-  m: { spec: { verification: { notRunStarter: boolean; verifiers: string[] } }; submission: { completedBy: string } | null },
+  m: ManualForCheck,
   run: { actor: string },
   perms: ProcessPermission[],
 ): { ok: boolean; reason?: string; code?: string; params?: ErrorParams } {
   if (!perms.includes('view')) return { ok: false, reason: 'You may not see this run', code: 'TASK_RIGHTS' };
-  if (m.submission && sameIdentity(m.submission.completedBy, u))
+  // everyone who contributed to the entry: who completed it and who added its evidence files (this round's too)
+  const contributors = [
+    m.submission?.completedBy,
+    ...(m.submission?.evidence ?? []).map((e) => e.uploadedBy),
+    ...m.evidence.filter((e) => e.round === m.round).map((e) => e.uploadedBy),
+  ];
+  if (contributors.some((name) => sameIdentity(name, u)))
     return { ok: false, reason: 'A second person must verify this step – not the person who completed it', code: 'VERIFY_SAME_PERSON' };
   if (m.spec.verification.notRunStarter && sameIdentity(run.actor, u))
     return { ok: false, reason: 'The person who started the run may not verify this step', code: 'VERIFY_RUN_STARTER' };

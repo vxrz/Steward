@@ -99,7 +99,8 @@
     "reason": {
       "step": "der Schritt sie verlangt",
       "notAvailable": "etwas Erforderliches nicht verfügbar war",
-      "backdated": "er nachträglich erfasst wurde"
+      "backdated": "er nachträglich erfasst wurde",
+      "returned": "ein früherer Eintrag zurückgegeben wurde"
     },
     "verifiers": "Darf prüfen: {{subjects}}",
     "verifyComment": "Kommentar zur Prüfung",

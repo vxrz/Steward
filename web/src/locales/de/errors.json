@@ -537,7 +537,8 @@
     "VERIFY_COMMENT_REQUIRED": "Geben Sie an, warum Sie den Schritt ablehnen.",
     "VERIFY_RIGHTS": "Zum Prüfen dieses Schritts brauchen Sie das Recht, den Prozess auszuführen oder freizugeben.",
     "VERIFY_RUN_STARTER": "Wer die Ausführung gestartet hat, darf diesen Schritt nicht prüfen.",
-    "VERIFY_SAME_PERSON": "Eine zweite Person muss diesen Schritt prüfen – nicht die Person, die ihn erledigt hat."
+    "VERIFY_SAME_PERSON": "Eine zweite Person muss diesen Schritt prüfen – nicht die Person, die ihn erledigt hat.",
+    "EVIDENCE_TOO_LATE": "Der Schritt wurde während des Hochladens erledigt oder zurückgegeben – die Datei wurde nicht hinzugefügt."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

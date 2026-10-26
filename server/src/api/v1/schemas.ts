@@ -306,7 +306,7 @@ const ManualStep = z
     doneAt: nullableTs('After-the-fact entry: when the work was done, as stated'),
     doneAtReason: z.string().nullable(),
     verificationRequired: z.boolean(),
-    verificationReasons: z.array(z.enum(['step', 'notAvailable', 'backdated'])),
+    verificationReasons: z.array(z.enum(['step', 'notAvailable', 'backdated', 'returned'])),
     verifiers: z.array(z.string()).describe('Who may verify (subjects); empty = everyone with run or approve rights'),
     verification: z
       .object({ approved: z.boolean(), comment: z.string().nullable(), by: z.string(), at: ts() })

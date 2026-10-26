@@ -719,8 +719,17 @@ export interface ManualTaskSpec {
   backdateDays: number;
 }
 
-/** Why a step needs the second-person verification */
-export type VerificationReason = 'step' | 'notAvailable' | 'backdated';
+/** Why a step needs the second-person verification (returned: an earlier entry was sent back) */
+export type VerificationReason = 'step' | 'notAvailable' | 'backdated' | 'returned';
+
+/** An evidence file as it was submitted with an entry */
+export interface SubmittedEvidence {
+  id: string;
+  filename: string;
+  size: number;
+  sha256: string;
+  uploadedBy: string;
+}
 
 /** What the person who completed a manual step entered. */
 export interface ManualSubmission {
@@ -737,6 +746,8 @@ export interface ManualSubmission {
   /** When it was entered in Steward */
   completedAt: string;
   verificationReasons: VerificationReason[];
+  /** The evidence files of this entry, fixed when it was completed (files of the round, with their SHA-256) */
+  evidence: SubmittedEvidence[];
 }
 
 export interface ManualVerification {
@@ -771,6 +782,16 @@ export interface ManualTaskState {
   /** Earlier rounds that a verifier sent back, oldest first */
   returned: { submission: ManualSubmission; rejection: ManualVerification }[];
   evidence: TaskEvidence[];
+}
+
+/**
+ * The evidence files that belong to what a manual step shows: the files fixed in its entry once it was completed
+ * (nothing added later appears in a completed or verified entry), else the files of the round being worked on.
+ */
+export function entryEvidence(m: Pick<ManualTaskState, 'evidence' | 'round' | 'submission'>): TaskEvidence[] {
+  if (!m.submission) return m.evidence.filter((e) => e.round === m.round);
+  const ids = new Set((m.submission.evidence ?? []).map((e) => e.id));
+  return m.evidence.filter((e) => ids.has(e.id));
 }
 
 /** Body of POST /tasks/:id/complete for a manual step. */

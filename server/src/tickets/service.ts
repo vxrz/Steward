@@ -393,6 +393,11 @@ export function listTickets(f: TicketFilter = {}, now = Date.now()): TicketRefer
   return rows.map((r) => toTicket(r, u, now, settings, links.get(r.id)));
 }
 
+/** Whether a user may read a ticket reference (the same rule as GET /ticket-references/:id: signed in, and it exists). */
+export function ticketReadable(u: AuthUser | null, id: string): boolean {
+  return !!u && !!db().get<{ id: string }>('SELECT id FROM ticket_refs WHERE id = ?', id);
+}
+
 export function getTicket(id: string): TicketDetail {
   const u = me();
   const r = ticketRow(id);

@@ -528,3 +528,170 @@ describe('records', () => {
     expect(other.warnings.map((i) => i.code)).toContain('manualSettingsIgnored');
   });
 });
+
+describe('security review', () => {
+  const STEP = { id: 'm', type: 'userTask', mode: 'manual', title: 'Manual', evidence: 'optional', verification: { required: true } };
+
+  /** Starts a multipart upload of a PNG and holds it after the first bytes; `finish()` sends the rest and answers status and body. */
+  async function slowUpload(taskId: string): Promise<{ finish: () => Promise<{ status: number; body: any }> }> {
+    const http = await import('node:http');
+    const u = new URL(`${s.base}/api/tasks/${taskId}/evidence`);
+    const boundary = 'XBOUNDARY';
+    const head = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="late.png"\r\nContent-Type: image/png\r\n\r\n`);
+    const tail = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const png = tinyPng();
+    const req = http.request({
+      hostname: u.hostname,
+      port: u.port,
+      path: u.pathname,
+      method: 'POST',
+      headers: {
+        ...authHeaders(cookies.olivia!),
+        'x-sm-client': '1',
+        'content-type': `multipart/form-data; boundary=${boundary}`,
+        'content-length': head.length + png.length + tail.length,
+      },
+    });
+    const answer = new Promise<{ status: number; body: any }>((res) =>
+      req.on('response', (r) => {
+        let b = '';
+        r.on('data', (d) => (b += d));
+        r.on('end', () => res({ status: r.statusCode!, body: b ? JSON.parse(b) : null }));
+      }),
+    );
+    req.write(head);
+    req.write(png.subarray(0, 10));
+    await new Promise((r) => setTimeout(r, 300));
+    return {
+      finish: async () => {
+        req.write(png.subarray(10));
+        req.end(tail);
+        return answer;
+      },
+    };
+  }
+
+  const evidenceFiles = async (runId: string) => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const dir = path.join(s.dataDir, 'artifacts', runId, 'evidence');
+    return fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  };
+
+  it('M1: an upload that finishes after the step was completed and verified stores nothing', async () => {
+    const { runId, task } = await start([STEP]);
+    const upload = await slowUpload(task.id);
+    await olivia('POST', `/tasks/${task.id}/complete`, {});
+    await adam('POST', `/tasks/${task.id}/verify`, { approved: true });
+    expect((await s.waitRun(runId, ['succeeded', 'failed'])).status).toBe('succeeded');
+    const { sealedProtocolHash } = await import('../src/audit.js');
+    const { protocolHash } = await import('../src/engine/store.js');
+    const sealed = sealedProtocolHash(runId);
+    const late = await upload.finish();
+    expect(late).toMatchObject({ status: 409, body: { code: 'EVIDENCE_TOO_LATE' } });
+    const t = await getTask(adam, task.id);
+    expect(t.manual.evidence).toEqual([]);
+    expect(await evidenceFiles(runId)).toEqual([]);
+    expect(protocolHash(runId)).toBe(sealed);
+  });
+
+  it('M1: an upload that finishes after the step was sent back does not land in the rejected round', async () => {
+    const { runId, task } = await start([STEP]);
+    await upload('olivia', task.id, 'first.txt', 'round 1');
+    const slow = await slowUpload(task.id);
+    await olivia('POST', `/tasks/${task.id}/complete`, {});
+    await adam('POST', `/tasks/${task.id}/verify`, { approved: false, comment: 'again' });
+    const late = await slow.finish();
+    expect(late).toMatchObject({ status: 409, body: { code: 'EVIDENCE_TOO_LATE' } });
+    const t = await getTask(olivia, task.id);
+    expect(t.manual.evidence.map((e: any) => [e.filename, e.round])).toEqual([['first.txt', 1]]);
+    expect(t.manual.returned[0].submission.evidence.map((e: any) => e.filename)).toEqual(['first.txt']);
+    expect(await evidenceFiles(runId)).toHaveLength(1);
+    await s.api('POST', `/runs/${runId}/cancel`);
+  });
+
+  it('M1: parallel uploads cannot pass the file limit; the entry keeps exactly its files', async () => {
+    const { runId, task } = await start([STEP]);
+    const res = await Promise.all(Array.from({ length: 30 }, (_, i) => upload('olivia', task.id, `f${i}.png`, tinyPng())));
+    expect(res.filter((r) => r.status === 200)).toHaveLength(20);
+    expect(res.filter((r) => r.status !== 200).every((r) => r.body.code === 'EVIDENCE_LIMIT')).toBe(true);
+    expect((await getTask(olivia, task.id)).manual.evidence).toHaveLength(20);
+    expect(await evidenceFiles(runId)).toHaveLength(20);
+    await olivia('POST', `/tasks/${task.id}/complete`, {});
+    const t = await getTask(adam, task.id);
+    expect(t.manual.submission.evidence).toHaveLength(20);
+    expect(t.manual.submission.evidence[0]).toEqual(expect.objectContaining({ sha256: expect.stringMatching(/^[0-9a-f]{64}$/), uploadedBy: 'olivia' }));
+    await s.api('POST', `/runs/${runId}/cancel`);
+  });
+
+  it('L1: whoever added evidence to the entry may not verify it', async () => {
+    const { runId, task } = await start([STEP]);
+    expect((await upload('adam', task.id, 'adam.png', tinyPng())).status).toBe(200);
+    await olivia('POST', `/tasks/${task.id}/complete`, {});
+    expect(await code(adam('POST', `/tasks/${task.id}/verify`, { approved: true }))).toBe('VERIFY_SAME_PERSON');
+    expect((await adam('GET', '/tasks?status=open&mine=1')).map((x: any) => x.id)).not.toContain(task.id);
+    await dana('POST', `/tasks/${task.id}/verify`, { approved: true });
+    expect((await s.waitRun(runId, ['succeeded', 'failed'])).status).toBe('succeeded');
+  });
+
+  it('L2: required evidence counts only the current round; after a send-back every entry is verified', async () => {
+    const req = await start([{ ...STEP, evidence: 'required' }]);
+    await upload('olivia', req.task.id, 'wrong.png', tinyPng());
+    await olivia('POST', `/tasks/${req.task.id}/complete`, {});
+    await adam('POST', `/tasks/${req.task.id}/verify`, { approved: false, comment: 'wrong file' });
+    expect(await code(olivia('POST', `/tasks/${req.task.id}/complete`, {}))).toBe('MANUAL_EVIDENCE_REQUIRED');
+    await s.api('POST', `/runs/${req.runId}/cancel`);
+
+    // verification only forced by "not available" in round 1 – still verified in round 2
+    const forced = await start([{ id: 'f', type: 'userTask', mode: 'manual', title: 'Forced', evidence: 'required' }]);
+    await olivia('POST', `/tasks/${forced.task.id}/complete`, { notAvailable: [{ target: 'evidence', reason: 'no camera' }] });
+    await adam('POST', `/tasks/${forced.task.id}/verify`, { approved: false, comment: 'take a photo' });
+    await upload('olivia', forced.task.id, 'photo.png', tinyPng());
+    expect(await olivia('POST', `/tasks/${forced.task.id}/complete`, {})).toMatchObject({ verificationNeeded: true });
+    const t = await getTask(adam, forced.task.id);
+    expect(t.manual.submission.verificationReasons).toEqual(['returned']);
+    expect(t.manual.submission.evidence.map((e: any) => e.filename)).toEqual(['photo.png']);
+    await adam('POST', `/tasks/${forced.task.id}/verify`, { approved: true });
+    expect((await s.waitRun(forced.runId, ['succeeded', 'failed'])).status).toBe('succeeded');
+  });
+
+  it('L3: times need Z or an explicit offset', async () => {
+    const { runId, task } = await start([{ id: 't', type: 'userTask', mode: 'manual', title: 'Times', fields: [{ id: 'at', type: 'datetime', label: 'At' }] }]);
+    const startedAt = (await s.api('GET', `/runs/${runId}`)).startedAt as string;
+    const local = startedAt.slice(0, 16); // 2026-10-26T10:00 – no zone
+    expect(await code(olivia('POST', `/tasks/${task.id}/complete`, { fields: [{ id: 'at', value: local }] }))).toBe('MANUAL_FIELD_INVALID');
+    expect(await code(olivia('POST', `/tasks/${task.id}/complete`, { doneAt: local, doneAtReason: 'x' }))).toBe('MANUAL_DONE_AT_INVALID');
+    const offset = new Date(Date.parse(startedAt) + 1000).toISOString().replace('Z', '+00:00');
+    await olivia('POST', `/tasks/${task.id}/complete`, { fields: [{ id: 'at', value: '2026-10-26T10:30+01:00' }], doneAt: offset, doneAtReason: 'x' });
+    const sub = (await getTask(adam, task.id)).manual.submission;
+    expect(sub.fields[0].value).toBe('2026-10-26T09:30:00.000Z');
+    expect(sub.doneAt).toBe(new Date(offset).toISOString());
+    await s.api('POST', `/runs/${runId}/cancel`);
+  });
+
+  it('nits: the protocol hash covers the step settings; ticket links only for references the reader may read', async () => {
+    const { runId, task } = await start([
+      { id: 'h', type: 'userTask', mode: 'manual', title: 'Hash', fields: [{ id: 'inc', type: 'ticket', label: 'Incident' }] },
+    ]);
+    const ref = await s.api('POST', '/ticket-references', { source: 'servicenow-incident', externalNumber: `INC-H-${Date.now()}`, title: 'x' });
+    await olivia('POST', `/tasks/${task.id}/complete`, { fields: [{ id: 'inc', value: ref.externalNumber }] });
+    expect((await s.waitRun(runId, ['succeeded', 'failed'])).status).toBe('succeeded');
+    expect((await getTask(vera, task.id)).manual.submission.fields[0].ticketId).toBe(ref.id);
+    const { manualForReader } = await import('../src/engine/manual.js');
+    const raw = (await s.api('GET', `/runs/${runId}`)).tasks[0].manual;
+    expect(manualForReader(raw, null).submission!.fields[0].ticketId).toBeNull();
+    await s.api('DELETE', `/ticket-references/${ref.id}`);
+    expect((await getTask(vera, task.id)).manual.submission.fields[0].ticketId).toBeNull();
+
+    const { db } = await import('../src/db.js');
+    const { protocolHash } = await import('../src/engine/store.js');
+    const before = protocolHash(runId);
+    db().run('UPDATE run_tasks SET verifiers = \'["role:viewer"]\' WHERE id = ?', task.id);
+    expect(protocolHash(runId)).not.toBe(before);
+    db().run("UPDATE run_tasks SET verifiers = '[]' WHERE id = ?", task.id);
+    expect(protocolHash(runId)).toBe(before);
+    const spec = db().get<{ manual: string }>('SELECT manual FROM run_tasks WHERE id = ?', task.id)!.manual;
+    db().run('UPDATE run_tasks SET manual = ? WHERE id = ?', spec.replace('"Incident"', '"Changed"'), task.id);
+    expect(protocolHash(runId)).not.toBe(before);
+  });
+});

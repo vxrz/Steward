@@ -1890,7 +1890,8 @@
                       "enum": [
                         "step",
                         "notAvailable",
-                        "backdated"
+                        "backdated",
+                        "returned"
                       ]
                     }
                   },

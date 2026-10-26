@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import type { ReportLang, RunStats, RunStatus, TaskRecord } from '@sm/shared';
+import { entryEvidence, type ReportLang, type RunStats, type RunStatus, type TaskRecord } from '@sm/shared';
 import { db } from '../db.js';
 import * as store from '../engine/store.js';
 import { allAuditAscending, sealedProtocol, sealedProtocolHash } from '../audit.js';
@@ -130,7 +130,7 @@ export interface ManualStepModel {
   verificationApproved: boolean | null;
   verificationComment: string | null;
   /** Earlier entries the verifier sent back */
-  returned: { completedBy: Person; completedAt: string; rejectedBy: Person; rejectedAt: string; comment: string }[];
+  returned: { completedBy: Person; completedAt: string; rejectedBy: Person; rejectedAt: string; comment: string; evidence: string }[];
 }
 
 export function person(username: string | null | undefined): Person {
@@ -365,7 +365,7 @@ function manualStepModel(t: TaskRecord): ManualStepModel {
       notAvailable: na.get(f.id) ?? null,
     })),
     evidenceMode: m.spec.evidence,
-    evidence: m.evidence.map((e) => ({
+    evidence: entryEvidence(m).map((e) => ({
       id: e.id,
       filename: e.filename,
       mime: e.mime,
@@ -397,6 +397,7 @@ function manualStepModel(t: TaskRecord): ManualStepModel {
       rejectedBy: person(r.rejection.by),
       rejectedAt: r.rejection.at,
       comment: short(r.rejection.comment ?? '', 2000),
+      evidence: (r.submission.evidence ?? []).map((e) => `${e.filename} (SHA-256 ${e.sha256.slice(0, 16)}…)`).join(', '),
     })),
   };
 }

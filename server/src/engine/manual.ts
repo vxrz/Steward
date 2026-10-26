@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   MANUAL_LIMITS,
   type ManualSubmission,
+  type ManualTaskState,
   type ManualTaskSpec,
   type ManualVerification,
   type NodeOf,
@@ -18,6 +19,8 @@ import { audit } from '../audit.js';
 import { emit } from '../events.js';
 import { HttpError, newId, nowIso, pathInside, sha256 } from '../util.js';
 import { safeFilename, sniff } from '../records/attachments.js';
+import { ticketReadable } from '../tickets/service.js';
+import type { AuthUser } from '../auth/context.js';
 import * as store from './store.js';
 
 /**
@@ -36,6 +39,8 @@ import * as store from './store.js';
  */
 
 const DAY_MS = 86_400_000;
+/** ISO 8601 date and time with Z or an explicit offset (2026-10-26T09:30:00Z, 2026-10-26T10:30+01:00) */
+export const ISO_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
 /** Clock skew allowed for a stated "done at" time */
 const FUTURE_SKEW_MS = 60_000;
 
@@ -69,6 +74,7 @@ export const manualCompletionSchema = z
       .array(z.object({ target: z.string().max(100), reason: z.string().max(MANUAL_LIMITS.reasonChars) }).strict())
       .max(MANUAL_LIMITS.fields + 1)
       .default([]),
+    // ISO 8601 with Z or an offset, checked in completeManual (MANUAL_DONE_AT_INVALID)
     doneAt: z.string().max(64).optional(),
     doneAtReason: z.string().max(MANUAL_LIMITS.reasonChars).optional(),
     comment: z.string().max(MANUAL_LIMITS.commentChars).optional(),
@@ -124,7 +130,7 @@ function fieldValue(def: ManualTaskSpec['fields'][number], raw: string): { value
       return { value: n };
     }
     case 'datetime': {
-      const ms = Date.parse(v);
+      const ms = ISO_WITH_OFFSET.test(v) ? Date.parse(v) : NaN;
       if (!Number.isFinite(ms)) throw invalid();
       return { value: new Date(ms).toISOString() };
     }
@@ -133,7 +139,7 @@ function fieldValue(def: ManualTaskSpec['fields'][number], raw: string): { value
       return { value: v };
     case 'ticket': {
       if (v.length > 200) throw invalid();
-      // a ticket reference documented in Steward with this number (the web links to it)
+      // a ticket reference documented in Steward with this number (the web links to it for readers who may see it)
       const ref = db().get<{ id: string }>('SELECT id FROM ticket_refs WHERE lower(external_number) = lower(?) ORDER BY created_at DESC LIMIT 1', v);
       return { value: v, ticketId: ref?.id ?? null };
     }
@@ -165,8 +171,10 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
   }
   const fields = spec.fields.map((d) => ({ id: d.id, ...fieldValue(d, given.get(d.id) ?? '') }));
 
+  // the files of this round: earlier rounds were sent back, their files stay with those entries
+  const roundEvidence = m.evidence.filter((e) => e.round === m.round);
   // "not available, because …": only for something required that is missing
-  const evidenceCount = m.evidence.length;
+  const evidenceCount = roundEvidence.length;
   const missingRequired = new Set<string>([
     ...spec.fields.filter((d) => d.use === 'required' && fields.find((f) => f.id === d.id)?.value === null).map((d) => d.id),
     ...(spec.evidence === 'required' && evidenceCount === 0 ? ['evidence'] : []),
@@ -198,7 +206,8 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
   let doneAt: string | null = null;
   let doneAtReason: string | null = null;
   if (input.doneAt?.trim()) {
-    const ms = Date.parse(input.doneAt);
+    // an explicit offset (Z or ±hh:mm): never read in the server's time zone
+    const ms = ISO_WITH_OFFSET.test(input.doneAt.trim()) ? Date.parse(input.doneAt.trim()) : NaN;
     if (!Number.isFinite(ms)) throw new HttpError(400, 'The "done at" time is not a valid date and time', 'MANUAL_DONE_AT_INVALID');
     if (ms > now + FUTURE_SKEW_MS) throw new HttpError(400, 'The "done at" time is in the future', 'MANUAL_DONE_AT_FUTURE');
     const runStart = Date.parse(store.runRow(t.runId).started_at);
@@ -223,6 +232,8 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
     ...(spec.verification.required ? (['step'] as const) : []),
     ...(notAvailable.length ? (['notAvailable'] as const) : []),
     ...(doneAt ? (['backdated'] as const) : []),
+    // once an entry was sent back, every later one is verified too
+    ...(m.returned.length ? (['returned'] as const) : []),
   ];
   const completedAt = nowIso();
   const sub: ManualSubmission = {
@@ -235,9 +246,17 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
     completedBy: actor,
     completedAt,
     verificationReasons: reasons,
+    evidence: [],
   };
   const next = reasons.length ? 'verify' : 'done';
   db().tx(() => {
+    // the entry's evidence: exactly the files of this round as stored now (read inside the transaction)
+    sub.evidence = store
+      .listEvidence(t.id)
+      .filter((e) => e.round === m.round)
+      .map((e) => ({ id: e.id, filename: e.filename, size: e.size, sha256: e.sha256, uploadedBy: e.uploadedBy }));
+    if (spec.evidence === 'required' && !sub.evidence.length && !notAvailable.some((n) => n.target === 'evidence'))
+      throw new HttpError(400, 'This step needs evidence: attach a file, or say why it is not available', 'MANUAL_EVIDENCE_REQUIRED');
     if (!store.submitManual(t.id, sub, next)) throw new HttpError(409, 'This step was completed in the meantime', 'TASK_WAITS_FOR_VERIFICATION');
     audit({
       actor,
@@ -258,7 +277,7 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
         doneAt,
         doneAtReason,
         comment: sub.comment,
-        evidence: m.evidence.map((e) => ({ id: e.id, filename: e.filename, sha256: e.sha256, size: e.size })),
+        evidence: sub.evidence,
         verificationReasons: reasons,
       },
     });
@@ -344,6 +363,24 @@ export function verifyManual(t: TaskRecord, input: z.infer<typeof verificationSc
   return null;
 }
 
+/** A manual step as a reader sees it: links to ticket references only when the reader may read that reference. */
+export function manualForReader(m: ManualTaskState, u: AuthUser | null): ManualTaskState {
+  const cache = new Map<string, boolean>();
+  const readable = (id: string) => {
+    if (!cache.has(id)) cache.set(id, ticketReadable(u, id));
+    return cache.get(id)!;
+  };
+  const fix = (sub: ManualSubmission): ManualSubmission => ({
+    ...sub,
+    fields: sub.fields.map((f) => (f.ticketId && !readable(f.ticketId) ? { ...f, ticketId: null } : f)),
+  });
+  return {
+    ...m,
+    submission: m.submission ? fix(m.submission) : null,
+    returned: m.returned.map((r) => ({ ...r, submission: fix(r.submission) })),
+  };
+}
+
 // ---------- evidence files ----------
 
 const artifactsDir = (): string => path.join(config.dataDir, 'artifacts');
@@ -372,7 +409,13 @@ export function addEvidence(t: TaskRecord, filename: string, data: Buffer, actor
   const e: TaskEvidence = { id, taskId: t.id, filename: name, mime, size: data.length, sha256: hash, uploadedBy: actor, uploadedAt: nowIso(), round: m.round };
   try {
     db().tx(() => {
-      store.insertEvidence({ ...e, runId: t.runId, stepKey: t.stepKey, path: rel });
+      // checked again here: the step may have been completed, sent back or cancelled while the file was uploading
+      if (!store.insertEvidence({ ...e, runId: t.runId, stepKey: t.stepKey, path: rel }, MANUAL_LIMITS.evidenceFiles)) {
+        const now = store.getTask(t.id);
+        if (now.status === 'open' && now.manual?.stage === 'work' && now.manual.round === m.round)
+          throw new HttpError(400, `At most ${MANUAL_LIMITS.evidenceFiles} evidence files per step`, 'EVIDENCE_LIMIT', { max: MANUAL_LIMITS.evidenceFiles });
+        throw new HttpError(409, 'The step was completed or sent back while the file was uploading – the file was not added', 'EVIDENCE_TOO_LATE');
+      }
       audit({
         actor,
         action: 'task.evidence_added',
@@ -406,7 +449,8 @@ export function removeEvidence(t: TaskRecord, evidenceId: string, actor: string)
   if (!e) throw new HttpError(404, 'Evidence file not found', 'EVIDENCE_NOT_FOUND');
   if (e.round !== m.round) throw new HttpError(409, 'This file belongs to an earlier, submitted entry and stays with the protocol', 'EVIDENCE_LOCKED');
   db().tx(() => {
-    store.deleteEvidence(e.id);
+    if (!store.deleteEvidence(e.id, t.id, m.round))
+      throw new HttpError(409, 'This file belongs to a submitted entry and stays with the protocol', 'EVIDENCE_LOCKED');
     audit({
       actor,
       action: 'task.evidence_removed',

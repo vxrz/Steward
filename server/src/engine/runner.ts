@@ -1649,7 +1649,7 @@ function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: Tas
       fields: Object.fromEntries((sub?.fields ?? []).map((f) => [f.id, f.value])),
       notAvailable: sub?.notAvailable ?? [],
       comment: sub?.comment ?? '',
-      evidence: m.evidence.map((e) => ({ filename: e.filename, size: e.size, sha256: e.sha256 })),
+      evidence: (sub?.evidence ?? []).map((e) => ({ filename: e.filename, size: e.size, sha256: e.sha256 })),
       verifiedBy: v?.by ?? null,
       verifiedAt: v?.at ?? null,
       rounds: m.round,

@@ -22,7 +22,7 @@ The step's output (`saveAs`) holds what was entered: `checklist`, `fields` (by f
 ## Doing a manual step
 
 1. Open _My tasks_ (or the run). The step shows its instructions, checklist, fields and evidence files.
-2. Tick the checklist, fill in the fields and add the evidence files. You can remove a file again until you complete the step.
+2. Tick the checklist, fill in the fields and add the evidence files. You can remove a file again until you complete the step. Completing fixes the entry's files (with their SHA-256): nothing added later appears in it.
 3. Something required is not available? Tick _not available_ next to the field (or the evidence) and say why. The step then always needs the second-person verification.
 4. Done earlier, outside Steward? Switch on _Done earlier – enter it after the fact_, enter when it was done and why it is entered afterwards. See below.
 5. Click _Complete step_.
@@ -34,15 +34,15 @@ Who may do the step: the step's _Who may decide_ list (users, teams, roles), oth
 When a step needs it, the person who completed it (A) cannot continue the run alone. A second person (B) checks what A entered and the evidence:
 
 - **Confirm verification** – the run continues.
-- **Send back** (with a comment, the default) – the step goes back to A. A sees the comment, corrects the entry and completes the step again. Earlier entries and their evidence files stay in the protocol.
+- **Send back** (with a comment, the default) – the step goes back to A. A sees the comment, corrects the entry and completes the step again. Earlier entries and their evidence files stay in the protocol; required evidence must be added again (files of a rejected entry don't count).
 - **Reject** (with a comment, when the step's _When the verifier rejects_ is _Fail the run_) – the run fails.
 
 Rules, checked on the server:
 
-- B is never A – also not under a former name from a moved instance (identity aliases, see [MIGRATION.md](MIGRATION.md)).
+- B is never A, and never anyone who added evidence files to the entry – also not under a former name from a moved instance (identity aliases, see [MIGRATION.md](MIGRATION.md)).
 - With _Not the person who started the run either_, B is not the run starter.
 - _Who may verify_ (users, teams, roles) restricts B. The list is strict: administrators are not added. Empty = everyone allowed to run or approve the process.
-- A step is always verified when something required was _not available_ or when it was entered after the fact – whatever the step's settings.
+- A step is always verified when something required was _not available_ or when it was entered after the fact – whatever the step's settings. Once an entry was sent back, every later entry of the step is verified too.
 - A step sent back 25 times fails the run.
 
 The start page tile _Waiting for you_, _My tasks → Mine_ and the daily summary include steps you may verify. The verifiers get a notification (_Verification needed_); A gets one when the step is sent back. Both use the notification event `task.assigned`.
@@ -51,6 +51,7 @@ The start page tile _Waiting for you_, _My tasks → Mine_ and the daily summary
 
 For work done outside Steward, the person records **done at** with a reason. Steward stores both times: the stated _done at_ and when it was entered.
 
+- Through the API, times are ISO 8601 with `Z` or an offset (`2026-10-26T09:30:00Z`, `2026-10-26T10:30+01:00`); a time without one is refused, so it never depends on the server's time zone. The same applies to date-and-time fields.
 - The stated time may not be in the future.
 - It may not be before the run started, unless the step allows back-dating: _Allow a "done at" time up to N days before the run started_ (at most 30 days).
 - Such an entry always needs the second-person verification.
@@ -101,5 +102,5 @@ Evidence files are stored like record attachments ([RECORDS.md](RECORDS.md)):
 - Allowed types: PDF, PNG, JPEG, GIF, WebP, e-mail (`.eml`, `.msg`), Office and OpenDocument files, text, Markdown and CSV. The content must match the extension.
 - Files are written once, read-only, below `<data>/artifacts/<run id>/evidence/`, with their SHA-256. A file changed on disk is refused at download.
 - Downloads are always attachments (`Content-Disposition: attachment`, a sandbox CSP, `nosniff`): a file is never shown as a page.
-- Whoever may see the run may download them. Only the person working on the step adds or removes them, and only until the step is completed.
+- Whoever may see the run may download them. Only the person working on the step adds or removes them, and only until the step is completed: an upload that is still running when the step is completed, sent back or cancelled is refused and its file deleted.
 - They are deleted with their run by the retention cleanup and move with the run in a migration package (checked again on import).

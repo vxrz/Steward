@@ -537,7 +537,8 @@
     "VERIFY_COMMENT_REQUIRED": "Say why you reject the step.",
     "VERIFY_RIGHTS": "You need run or approve rights on this process to verify this step.",
     "VERIFY_RUN_STARTER": "The person who started the run may not verify this step.",
-    "VERIFY_SAME_PERSON": "A second person must verify this step – not the person who completed it."
+    "VERIFY_SAME_PERSON": "A second person must verify this step – not the person who completed it.",
+    "EVIDENCE_TOO_LATE": "The step was completed or sent back while the file was uploading – the file was not added."
   },
   "boundary": {
     "title": "Something went wrong on this page",

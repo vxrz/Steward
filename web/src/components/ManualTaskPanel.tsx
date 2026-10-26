@@ -21,7 +21,15 @@ import { IconArrowBackUp, IconCheck, IconFileUpload, IconShieldCheck, IconTrash,
 import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { ManualCompletion, ManualSubmission, ManualTaskSpec, ManualTaskState, TaskEvidence, TaskRecord } from '@sm/shared';
+import {
+  entryEvidence,
+  type ManualCompletion,
+  type ManualSubmission,
+  type ManualTaskSpec,
+  type ManualTaskState,
+  type TaskEvidence,
+  type TaskRecord,
+} from '@sm/shared';
 import { api, apiUrl, del, notifyError, notifyOk, post } from '../api';
 import { fmtBytes, fmtDate } from '../format';
 import { codeText } from '../i18n/errors';
@@ -145,8 +153,8 @@ function WorkForm({ task }: { task: TaskRecord }) {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const needsEvidence = spec.evidence === 'required' && m.evidence.length === 0;
-  const verification = spec.verification.required || late || Object.values(na).some((v) => v !== undefined);
+  const needsEvidence = spec.evidence === 'required' && !m.evidence.some((e) => e.round === m.round);
+  const verification = spec.verification.required || m.returned.length > 0 || late || Object.values(na).some((v) => v !== undefined);
   const setValue = (id: string, v: string) => setValues((x) => ({ ...x, [id]: v }));
   const toggleNa = (target: string, on: boolean) => setNa((x) => ({ ...x, [target]: on ? '' : undefined }));
 
@@ -371,7 +379,9 @@ function EvidenceList({ task, canRemove }: { task: TaskRecord; canRemove: boolea
   const { t } = useTranslation('tasks');
   const qc = useQueryClient();
   const m = task.manual!;
-  if (!m.evidence.length)
+  // the entry's files: fixed when it was completed, else this round's
+  const files = entryEvidence(m);
+  if (!files.length)
     return m.spec.evidence === 'off' ? null : (
       <Text size="xs" c="dimmed">
         {t('manual.noEvidence')}
@@ -400,7 +410,7 @@ function EvidenceList({ task, canRemove }: { task: TaskRecord; canRemove: boolea
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {m.evidence.map((e) => (
+          {files.map((e) => (
             <Table.Tr key={e.id}>
               <Table.Td style={{ overflowWrap: 'anywhere', minWidth: 140 }}>
                 <Anchor href={apiUrl(`/tasks/${task.id}/evidence/${e.id}/download`)} size="sm">

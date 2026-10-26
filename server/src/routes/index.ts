@@ -40,7 +40,7 @@ import { platformRequest, secretValues } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { startRun, cancelRun, resumeRun, completeTask, completeManualTask, recoverRuns, verifyManualTask } from '../engine/runner.js';
-import { addEvidence, evidenceForDownload, manualCompletionSchema, removeEvidence, verificationSchema } from '../engine/manual.js';
+import { addEvidence, evidenceForDownload, manualCompletionSchema, manualForReader, removeEvidence, verificationSchema } from '../engine/manual.js';
 import { browserAvailable } from '../engine/browser.js';
 import * as scheduler from '../scheduler.js';
 import { runReportHtml } from '../reports.js';
@@ -265,7 +265,14 @@ function withDecisionRights(tasks: TaskRecord[]): TaskRecord[] {
     const pid = t.processId ?? store.taskProcessId(t.id);
     if (!permCache.has(pid)) permCache.set(pid, processes.permissionsFor(pid));
     const check = decisionCheck(currentUser(), t, { actor: t.startedBy ?? '' }, permCache.get(pid)!);
-    return { ...t, canDecide: check.ok, cannotDecideReason: check.reason, cannotDecideCode: check.code, cannotDecideParams: check.params };
+    return {
+      ...t,
+      ...(t.manual ? { manual: manualForReader(t.manual, currentUser()) } : {}),
+      canDecide: check.ok,
+      cannotDecideReason: check.reason,
+      cannotDecideCode: check.code,
+      cannotDecideParams: check.params,
+    };
   });
 }
 

@@ -4,7 +4,7 @@ import { getRunDetail, artifactFile, protocolHash } from './engine/store.js';
 import { sealedProtocol } from './audit.js';
 import { allAuditAscending } from './audit.js';
 import { config } from './config.js';
-import { BRAND } from '@sm/shared';
+import { BRAND, entryEvidence } from '@sm/shared';
 
 const esc = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
@@ -66,8 +66,9 @@ function manualHtml(t: RunDetail['tasks'][number]): string {
         .map((f) => `<tr><td>${esc(f.label)}</td><td>${esc(sub?.fields.find((x) => x.id === f.id)?.value ?? '–')}</td></tr>`)
         .join('')}</table>`
     : '';
-  const files = m.evidence.length
-    ? `<table><tr><th>Evidence file</th><th>Size</th><th>SHA-256</th></tr>${m.evidence
+  const evidence = entryEvidence(m);
+  const files = evidence.length
+    ? `<table><tr><th>Evidence file</th><th>Size</th><th>SHA-256</th></tr>${evidence
         .map((e) => `<tr><td>${esc(e.filename)}</td><td>${esc(e.size)}</td><td class="mono">${esc(e.sha256)}</td></tr>`)
         .join('')}</table>`
     : '';
