@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, ColorInput, FileButton, Group, Image, Paper, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Card, ColorInput, FileButton, Group, Image, Paper, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconEye, IconRestore, IconUpload } from '@tabler/icons-react';
-import { REPORT_LANGS, REPORT_LOGO_MAX_BYTES, type ReportBranding, type ReportLang } from '@sm/shared';
+import { IconAlertTriangle, IconEye, IconRestore, IconUpload } from '@tabler/icons-react';
+import {
+  REPORT_BRANDING_DEFAULTS,
+  REPORT_LANGS,
+  REPORT_LOGO_MAX_BYTES,
+  reportAccentNotes,
+  type ReportAccentNote,
+  type ReportBranding,
+  type ReportLang,
+} from '@sm/shared';
 import { useTranslation } from 'react-i18next';
 import { BRAND } from '../../../../shared/src/brand';
 import { api, getOptional, notifyError, notifyOk, put, apiUrl, authHeaders } from '../../api';
 import { browserTimeZone, reportLangName } from './RunReports';
 import { withBase } from '../../basePath';
+import { fmtNumber } from '../../format';
 
 type Draft = Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'>;
 
@@ -32,6 +41,8 @@ export function ReportBrandingCard() {
   const b = branding.data;
   const logoUrl = apiUrl(`/reports/branding/logo?v=${encodeURIComponent(b.logoUpdatedAt ?? 'default')}`);
   const validColor = /^#[0-9a-fA-F]{6}$/.test(draft.accentColor);
+  const accentNotes = reportAccentNotes(draft.accentColor);
+  const isDefault = (Object.keys(REPORT_BRANDING_DEFAULTS) as (keyof Draft)[]).every((k) => draft[k] === REPORT_BRANDING_DEFAULTS[k]);
 
   const save = async () => {
     setBusy('save');
@@ -155,6 +166,7 @@ export function ReportBrandingCard() {
             error={validColor ? undefined : t('branding.accentInvalid')}
             onChange={(v) => setDraft({ ...draft, accentColor: v })}
           />
+          {accentNotes.length > 0 && <AccentNotes notes={accentNotes} />}
           <TextInput
             label={t('branding.classification')}
             description={t('branding.classificationHint')}
@@ -174,6 +186,15 @@ export function ReportBrandingCard() {
           <Button onClick={save} loading={busy === 'save'} disabled={!validColor}>
             {t('branding.save')}
           </Button>
+          <Button
+            variant="subtle"
+            color="gray"
+            leftSection={<IconRestore size={16} />}
+            disabled={isDefault}
+            onClick={() => setDraft({ ...REPORT_BRANDING_DEFAULTS })}
+          >
+            {t('branding.resetDefaults')}
+          </Button>
           {REPORT_LANGS.map((lang) => (
             <Button
               key={lang}
@@ -189,5 +210,21 @@ export function ReportBrandingCard() {
         </Group>
       </Stack>
     </Card>
+  );
+}
+
+/** Readability of the accent colour on the white report page (like the theme's contrast notes). */
+function AccentNotes({ notes }: { notes: ReportAccentNote[] }) {
+  const { t } = useTranslation('reports');
+  return (
+    <Alert variant="light" color="orange" icon={<IconAlertTriangle size={18} />} title={t('branding.contrast.title')} p="xs" data-testid="branding-contrast">
+      <Stack gap={2}>
+        {notes.map((n) => (
+          <Text size="xs" key={n.kind}>
+            {t(`branding.contrast.${n.kind}`, { ratio: fmtNumber(n.ratio, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}
+          </Text>
+        ))}
+      </Stack>
+    </Alert>
   );
 }

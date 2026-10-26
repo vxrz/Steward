@@ -151,9 +151,61 @@ export interface IfConfig {
   type: 'if';
   condition: string;
 }
+/**
+ * Manual steps (user task mode "manual"): work a person does outside Steward, documented in the run.
+ * Limits keep a step bounded; MANUAL_LIMITS is shared with the server's input checks.
+ */
+export const MANUAL_LIMITS = {
+  checklistItems: 50,
+  checklistItemChars: 500,
+  fields: 20,
+  fieldLabelChars: 200,
+  fieldHintChars: 500,
+  fieldValueChars: 2000,
+  reasonChars: 2000,
+  commentChars: 4000,
+  /** Evidence files per step and their size */
+  evidenceFiles: 20,
+  evidenceBytes: 20 * 1024 * 1024,
+  /** Back-dating before the run started: at most this many days */
+  backdateDays: 30,
+  /** Rounds a step can be sent back to the person who completed it */
+  rounds: 25,
+} as const;
+
+/** Kinds of fields a manual step asks for */
+export const MANUAL_FIELD_TYPES = ['text', 'number', 'datetime', 'link', 'ticket'] as const;
+export type ManualFieldType = (typeof MANUAL_FIELD_TYPES)[number];
+/** off = not asked (kept in the definition), optional, required */
+export const MANUAL_USE = ['off', 'optional', 'required'] as const;
+export type ManualUse = (typeof MANUAL_USE)[number];
+
+export interface ManualFieldDef {
+  /** Stable id (letters, digits, _): the key of the value in the step's output */
+  id: string;
+  type: ManualFieldType;
+  label: string;
+  hint?: string;
+  /** Default: optional */
+  use?: ManualUse;
+}
+
+/** Second-person verification of a manual step (maker–checker). */
+export interface ManualVerificationConfig {
+  /** A second person verifies the step before the run continues (always for "not available" and after-the-fact entries) */
+  required?: boolean;
+  /** The verifier may not be the person who started the run either */
+  notRunStarter?: boolean;
+  /** Who may verify: user:<name>, team:<name>, role:<role>. Empty = everyone allowed to run or approve the process */
+  verifiers?: string[];
+  /** A rejection sends the step back to the person who completed it (default) or fails the run */
+  onReject?: 'return' | 'fail';
+}
+
 export interface UserTaskConfig {
   type: 'userTask';
-  mode: 'select' | 'approve';
+  /** select: pick items; approve: approve or reject; manual: a documented manual step (checklist, fields, evidence, verification) */
+  mode: 'select' | 'approve' | 'manual';
   title: string;
   instructions?: string;
   items?: string;
@@ -165,6 +217,18 @@ export interface UserTaskConfig {
   assignees?: string[];
   /** Four-eyes principle: the person who started the run may not decide. */
   fourEyes?: boolean;
+  /** Manual mode: fixed checklist (plain text items) */
+  checklist?: string[];
+  /** Manual mode: every checklist item must be ticked */
+  checklistAllRequired?: boolean;
+  /** Manual mode: fields to fill in */
+  fields?: ManualFieldDef[];
+  /** Manual mode: evidence attachments (default optional) */
+  evidence?: ManualUse;
+  /** Manual mode: second-person verification */
+  verification?: ManualVerificationConfig;
+  /** Manual mode: an after-the-fact entry may state a time up to this many days before the run started (default 0 = not before the run) */
+  backdateDays?: number;
 }
 export interface CheckConfig {
   type: 'check';
@@ -292,6 +356,25 @@ const MAX_WIRES = 5000;
 /** Steps in one list of the sequential format (top level, then/else, forEach, group) */
 const MAX_STEPS = 2000;
 
+const manualFieldSchema = z
+  .object({
+    id: identifier,
+    type: z.enum(MANUAL_FIELD_TYPES),
+    label: z.string().min(1).max(MANUAL_LIMITS.fieldLabelChars),
+    hint: z.string().max(MANUAL_LIMITS.fieldHintChars).optional(),
+    use: z.enum(MANUAL_USE).optional(),
+  })
+  .strict();
+
+const manualVerificationSchema = z
+  .object({
+    required: z.boolean().optional(),
+    notRunStarter: z.boolean().optional(),
+    verifiers: z.array(z.string().max(200)).max(100).optional(),
+    onReject: z.enum(['return', 'fail']).optional(),
+  })
+  .strict();
+
 const baseFields = {
   id: identifier,
   name: z.string().optional(),
@@ -329,7 +412,7 @@ const shapes = {
   if: { type: z.literal('if'), condition: z.string().min(1) },
   userTask: {
     type: z.literal('userTask'),
-    mode: z.enum(['select', 'approve']),
+    mode: z.enum(['select', 'approve', 'manual']),
     title: z.string().min(1),
     instructions: z.string().optional(),
     items: z.string().optional(),
@@ -338,6 +421,12 @@ const shapes = {
     preselect: z.string().optional(),
     assignees: z.array(z.string()).max(100).optional(),
     fourEyes: z.boolean().optional(),
+    checklist: z.array(z.string().min(1).max(MANUAL_LIMITS.checklistItemChars)).max(MANUAL_LIMITS.checklistItems).optional(),
+    checklistAllRequired: z.boolean().optional(),
+    fields: z.array(manualFieldSchema).max(MANUAL_LIMITS.fields).optional(),
+    evidence: z.enum(MANUAL_USE).optional(),
+    verification: manualVerificationSchema.optional(),
+    backdateDays: z.number().int().min(0).max(MANUAL_LIMITS.backdateDays).optional(),
   },
   check: {
     type: z.literal('check'),
@@ -710,6 +799,7 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     if (n.type === 'userTask' && n.mode === 'select' && !n.items) {
       issues.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'selectNeedsItems', message: 'Select tasks need an "items" expression' });
     }
+    if (n.type === 'userTask') checkManual(n, i, issues, warnings);
     if (n.type === 'subprocess') {
       for (const [childSlot, parentSlot] of Object.entries(n.connections ?? {})) {
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(childSlot))
@@ -827,6 +917,37 @@ function checkGraph(d: ProcessDefinition): { issues: ValidationIssue[]; warnings
     }
   }
   return { issues, warnings };
+}
+
+/** Rules of manual steps (and of manual settings left on other user task modes). */
+function checkManual(n: NodeOf<'userTask'>, i: number, issues: ValidationIssue[], warnings: ValidationIssue[]): void {
+  const manualKeys = ['checklist', 'checklistAllRequired', 'fields', 'evidence', 'verification', 'backdateDays'] as const;
+  if (n.mode !== 'manual') {
+    const used = manualKeys.filter((k) => n[k] !== undefined);
+    if (used.length)
+      warnings.push({
+        path: `nodes[${i}]`,
+        nodeId: n.id,
+        code: 'manualSettingsIgnored',
+        params: { settings: used.join(', ') },
+        message: `${used.join(', ')} only apply to manual steps (mode "manual") and are ignored`,
+      });
+    return;
+  }
+  const seen = new Set<string>();
+  for (const f of n.fields ?? []) {
+    if (seen.has(f.id))
+      issues.push({
+        path: `nodes[${i}].fields`,
+        nodeId: n.id,
+        code: 'duplicateFieldId',
+        params: { id: f.id },
+        message: `Duplicate field id "${f.id}"`,
+      });
+    seen.add(f.id);
+  }
+  if (n.checklistAllRequired && !n.checklist?.length)
+    warnings.push({ path: `nodes[${i}]`, nodeId: n.id, code: 'checklistEmpty', message: '"All items required" has no effect without checklist items' });
 }
 
 /** Methods treated as write operations (skipped in dry runs). */

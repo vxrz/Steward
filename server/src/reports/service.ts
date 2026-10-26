@@ -635,6 +635,7 @@ export async function previewReport(o: {
         itemsOmitted: 0,
       },
     ],
+    manualSteps: [],
     checks: [
       { name: 'No admin removed', passed: true, severity: 'error', message: 'Passed' },
       { name: 'Review group empty', passed: false, severity: 'warning', message: '1 user still flagged' },

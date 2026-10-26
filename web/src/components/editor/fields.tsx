@@ -549,7 +549,7 @@ function ActionsEditor({ value, onChange }: { value: BrowserAction[]; onChange: 
 }
 
 /** Users, teams and roles (suggestions from /api/subjects; free text allowed). */
-function SubjectsField({
+export function SubjectsField({
   label,
   description,
   value,

@@ -12,7 +12,11 @@
   "task": {
     "title": "Decision needed: {{title}}",
     "body": "The run of “{{process}}” (started by {{actor}}) waits for your decision.",
-    "bodyFourEyes": "The run of “{{process}}” (started by {{actor}}) waits for your decision. Four-eyes principle: the person who started the run may not decide."
+    "bodyFourEyes": "The run of “{{process}}” (started by {{actor}}) waits for your decision. Four-eyes principle: the person who started the run may not decide.",
+    "verifyTitle": "Verification needed: {{title}}",
+    "verifyBody": "{{user}} completed a manual step of “{{process}}”. A second person must check and confirm it before the run continues.",
+    "returnedTitle": "Sent back to you: {{title}}",
+    "returnedBody": "{{user}} sent your entry for a manual step of “{{process}}” back: {{comment}}"
   },
   "runFailed": {
     "title": "Run failed: {{process}}",

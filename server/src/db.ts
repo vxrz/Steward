@@ -21,6 +21,7 @@ import { DAILY_SUMMARY_MIGRATIONS } from './migrations/daily-summary.js';
 import { COMPLIANCE_MIGRATIONS } from './migrations/compliance.js';
 import { SIGN_IN_MIGRATIONS } from './migrations/sign-in.js';
 import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
+import { MANUAL_STEP_MIGRATIONS } from './migrations/manual-steps.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -88,6 +89,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...COMPLIANCE_MIGRATIONS,
   ...SIGN_IN_MIGRATIONS,
   ...MOVE_MIGRATIONS,
+  ...MANUAL_STEP_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

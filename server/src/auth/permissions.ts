@@ -119,12 +119,18 @@ export function cleanAcl<P extends string>(acl: unknown, allowed: readonly P[]):
 /** Whether a user may decide an open task. */
 export function decisionCheck(
   u: AuthUser | null,
-  task: { assignees: string[]; fourEyes: boolean; status: string },
+  task: {
+    assignees: string[];
+    fourEyes: boolean;
+    status: string;
+    manual?: ManualForCheck;
+  },
   run: { actor: string },
   perms: ProcessPermission[],
 ): { ok: boolean; reason?: string; code?: string; params?: ErrorParams } {
   if (!u) return { ok: false, reason: 'Not signed in', code: 'NOT_SIGNED_IN' };
   if (task.status !== 'open') return { ok: false, reason: `Task is ${task.status}`, code: 'TASK_CLOSED' };
+  if (task.manual?.stage === 'verify') return verificationCheck(u, task.manual, run, perms);
   if (task.fourEyes && sameIdentity(run.actor, u)) {
     return { ok: false, reason: 'Four-eyes principle: someone other than the person who started the run must decide', code: 'FOUR_EYES_RUN' };
   }
@@ -134,4 +140,44 @@ export function decisionCheck(
   }
   if (perms.includes('approve') || perms.includes('run')) return { ok: true };
   return { ok: false, reason: 'You need run or approve rights on this process', code: 'TASK_RIGHTS' };
+}
+
+/** What the verification rules need to know about a manual step. */
+interface ManualForCheck {
+  stage: string;
+  round: number;
+  spec: { verification: { notRunStarter: boolean; verifiers: string[] } };
+  submission: { completedBy: string; evidence?: { uploadedBy: string }[] } | null;
+  evidence: { uploadedBy: string; round: number }[];
+}
+
+/**
+ * Whether a user may verify a manual step (second person, maker–checker). Never the person who completed it or added
+ * evidence to it (also not under a former name from a moved instance), optionally not the run starter; a verifier list is strict (no
+ * administrator override: the list names who checks this work).
+ */
+export function verificationCheck(
+  u: AuthUser,
+  m: ManualForCheck,
+  run: { actor: string },
+  perms: ProcessPermission[],
+): { ok: boolean; reason?: string; code?: string; params?: ErrorParams } {
+  if (!perms.includes('view')) return { ok: false, reason: 'You may not see this run', code: 'TASK_RIGHTS' };
+  // everyone who contributed to the entry: who completed it and who added its evidence files (this round's too)
+  const contributors = [
+    m.submission?.completedBy,
+    ...(m.submission?.evidence ?? []).map((e) => e.uploadedBy),
+    ...m.evidence.filter((e) => e.round === m.round).map((e) => e.uploadedBy),
+  ];
+  if (contributors.some((name) => sameIdentity(name, u)))
+    return { ok: false, reason: 'A second person must verify this step – not the person who completed it', code: 'VERIFY_SAME_PERSON' };
+  if (m.spec.verification.notRunStarter && sameIdentity(run.actor, u))
+    return { ok: false, reason: 'The person who started the run may not verify this step', code: 'VERIFY_RUN_STARTER' };
+  const verifiers = m.spec.verification.verifiers;
+  if (verifiers.length) {
+    if (verifiers.some((s) => matches(u, s))) return { ok: true };
+    return { ok: false, reason: `Verified by ${verifiers.join(', ')}`, code: 'VERIFY_ASSIGNED', params: { verifiers } };
+  }
+  if (perms.includes('approve') || perms.includes('run')) return { ok: true };
+  return { ok: false, reason: 'You need run or approve rights on this process to verify', code: 'VERIFY_RIGHTS' };
 }

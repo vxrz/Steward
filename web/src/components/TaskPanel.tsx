@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react';
-import { Alert, Anchor, Badge, Button, Checkbox, Group, Paper, Stack, Table, Text, TextInput, Textarea, Title } from '@mantine/core';
+import { Alert, Button, Checkbox, Group, Paper, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { IconCheck, IconSearch, IconX } from '@tabler/icons-react';
-import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TaskRecord } from '@sm/shared';
 import { notifyError, notifyOk, post } from '../api';
 import { fmtDate } from '../format';
-import { Markdown, StatusBadge, subjectLabel } from './common';
+import { Markdown, subjectLabel } from './common';
 import { useMe } from '../auth';
+import { ManualTaskPanel } from './ManualTaskPanel';
+import { TaskHeader } from './TaskHeader';
 
 const MAX_ROWS = 1000;
 
 export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; showRunLink?: boolean }) {
+  return task.mode === 'manual' ? <ManualTaskPanel task={task} showRunLink={showRunLink} /> : <DecisionPanel task={task} showRunLink={showRunLink} />;
+}
+
+function DecisionPanel({ task, showRunLink }: { task: TaskRecord; showRunLink: boolean }) {
   const { t } = useTranslation(['tasks', 'common']);
   const { username } = useMe();
   const qc = useQueryClient();
@@ -60,50 +65,7 @@ export function TaskPanel({ task, showRunLink = true }: { task: TaskRecord; show
   return (
     <Paper withBorder p="md" component="section" aria-label={t('panelLabel', { title: task.title })}>
       <Stack gap="sm">
-        <Group justify="space-between" align="flex-start" wrap="wrap">
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <Group gap="xs">
-              <Title order={4}>{task.title}</Title>
-              <StatusBadge status={task.status} />
-              {task.dryRun && (
-                <Badge color="yellow" variant="light">
-                  {t('common:status.dryrun')}
-                </Badge>
-              )}
-              {task.fourEyes && (
-                <Badge color="grape" variant="light" title={t('panel.fourEyesHint')}>
-                  {t('panel.fourEyes')}
-                </Badge>
-              )}
-            </Group>
-            <Text size="xs" c="dimmed">
-              {task.processName}
-              {showRunLink && (
-                <>
-                  {' · '}
-                  <Anchor component={Link} to={`/runs/${task.runId}`} size="xs">
-                    {t('panel.openRun')}
-                  </Anchor>
-                </>
-              )}
-              {' · '}
-              {t('panel.created', { date: fmtDate(task.createdAt) })}
-              {task.startedBy ? ` · ${t('panel.startedBy', { user: task.startedBy })}` : ''}
-            </Text>
-            {task.assignees?.length > 0 && (
-              <Group gap={4} mt={4}>
-                <Text size="xs" c="dimmed">
-                  {t('panel.assignedTo')}
-                </Text>
-                {task.assignees.map((a) => (
-                  <Badge key={a} size="xs" variant="outline" tt="none" color={a.startsWith('user:') ? 'blue' : a.startsWith('team:') ? 'grape' : 'gray'}>
-                    {subjectLabel(a)}
-                  </Badge>
-                ))}
-              </Group>
-            )}
-          </div>
-        </Group>
+        <TaskHeader task={task} showRunLink={showRunLink} />
         <Markdown text={task.instructions} />
 
         {task.mode === 'select' && (

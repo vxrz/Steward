@@ -1,0 +1,101 @@
+name: "Industrial Edge – Replace an Edge device on site (manual procedure)"
+description: |
+  A manual procedure: the work happens on the shop floor, Steward documents it.
+  Each step has a checklist, fields and evidence files; the replacement itself
+  and the final check are verified by a second person before the run continues
+  (maker–checker). Work done while the network was down can be entered after
+  the fact – such entries are always verified, too.
+
+  Start it when a device has to be replaced. The run protocol PDF lists every
+  step with its ticks, values, evidence (name, size, SHA-256), who completed
+  it, who verified it and any "not available" reasons.
+tags: [manual, industrial-edge, procedure]
+inputs:
+  - name: device
+    label: Device to replace
+    type: string
+    default: edge-line-3
+steps:
+  - id: prepare
+    type: userTask
+    mode: manual
+    name: Prepare the replacement
+    title: "Prepare the replacement of {{ inputs.device }}"
+    instructions: |
+      Plan the downtime with the line lead and get the spare device.
+
+      - The spare device must have the **same hardware revision**.
+      - Note the change ticket – Steward links it when it is documented under *Tickets*.
+    checklist:
+      - Downtime agreed with the line lead
+      - Spare device and tools at hand
+      - Backup of the device configuration downloaded
+    checklistAllRequired: true
+    fields:
+      - id: changeTicket
+        type: ticket
+        label: Change ticket
+        hint: e.g. CHG0012345
+        use: required
+      - id: plannedStart
+        type: datetime
+        label: Planned start of the downtime
+    evidence: "off"
+    backdateDays: 2
+
+  - id: replace
+    type: userTask
+    mode: manual
+    name: Replace the device
+    title: "Replace {{ inputs.device }}"
+    instructions: |
+      1. Switch the line to manual mode and power the device off.
+      2. Swap the device and connect the cables as labelled.
+      3. Power it on and onboard it in Industrial Edge Management.
+
+      Take a photo of the **type label of the new device**.
+    checklist:
+      - Line switched to manual mode
+      - Old device removed, new device mounted and cabled
+      - New device onboarded in Industrial Edge Management
+    checklistAllRequired: true
+    fields:
+      - id: oldSerial
+        type: text
+        label: Serial number of the old device
+        use: required
+      - id: newSerial
+        type: text
+        label: Serial number of the new device
+        hint: On the type label
+        use: required
+      - id: downtimeMinutes
+        type: number
+        label: Downtime (minutes)
+    evidence: required
+    verification:
+      required: true
+      onReject: return
+
+  - id: check
+    type: userTask
+    mode: manual
+    name: Check the result
+    title: "Check {{ inputs.device }} after the replacement"
+    instructions: |
+      Check that the device is online, its apps run and the line produces again.
+    checklist:
+      - Device online in Industrial Edge Management
+      - Apps running
+      - Line back in automatic mode
+    checklistAllRequired: true
+    fields:
+      - id: onlineSince
+        type: datetime
+        label: Device online since
+      - id: iemLink
+        type: link
+        label: Link to the device in Industrial Edge Management
+    verification:
+      required: true
+      notRunStarter: true

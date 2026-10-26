@@ -104,7 +104,8 @@ export function deleteRunsBefore(cutoff: string): { runs: number; artifacts: num
         files.set(id, paths);
         artifacts += paths.length;
         // Generated PDF reports go with their run (files below); the audit log keeps their report.generated entries.
-        for (const t of ['run_artifacts', 'run_tasks', 'run_logs', 'run_steps', 'reports']) db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
+        for (const t of ['run_artifacts', 'run_task_evidence', 'run_tasks', 'run_logs', 'run_steps', 'reports'])
+          db().run(`DELETE FROM ${t} WHERE run_id = ?`, id);
         db().run('DELETE FROM runs WHERE id = ?', id);
       }
     });

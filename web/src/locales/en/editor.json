@@ -93,7 +93,7 @@
     },
     "userTask": {
       "label": "User task / approval",
-      "description": "Pause the run and ask a person to pick items from a list (select) or approve/reject (approve, with \"approved\" and \"rejected\" outputs – an unconnected \"rejected\" output fails the run). The decision is recorded in the protocol.",
+      "description": "Pause the run and ask a person to pick items from a list (select), approve/reject (approve, with \"approved\" and \"rejected\" outputs – an unconnected \"rejected\" output fails the run) or carry out a documented manual step (manual: checklist, fields, evidence, optional second-person verification). Everything is recorded in the protocol.",
       "fields": {
         "mode": {
           "label": "Mode"
@@ -391,7 +391,8 @@
     "revoke": "revoke",
     "modify": "modify",
     "onboarding": "onboarding",
-    "offboarding": "offboarding"
+    "offboarding": "offboarding",
+    "manual": "manual"
   },
   "palette": {
     "search": "Search nodes",
@@ -720,7 +721,10 @@
     "noInput": "Node \"{{id}}\" cannot receive wires",
     "duplicateWire": "Duplicate wire",
     "cycle": "Wires form a cycle ({{cycle}}). Use a \"For each\" node for loops.",
-    "unreachable": "\"{{name}}\" is not connected to the start node and will never run"
+    "unreachable": "\"{{name}}\" is not connected to the start node and will never run",
+    "manualSettingsIgnored": "{{settings}} only apply to manual steps (mode “manual”) and are ignored",
+    "duplicateFieldId": "Duplicate field id “{{id}}”",
+    "checklistEmpty": "“All items required” has no effect without checklist items"
   },
   "diff": {
     "none": "No differences.",
@@ -867,5 +871,52 @@
     "showFull": "Show full value",
     "usingRun": "Using data of run <a>{{id}}</a>",
     "noRun": "No run yet – run the process (dry run) to preview with data"
+  },
+  "manual": {
+    "title": "Manual step",
+    "intro": "A person carries out this step outside Steward and documents it here: a checklist to tick, fields to fill in, evidence files – and, if you want, a second person verifies it before the run continues.",
+    "checklist": "Checklist",
+    "checklistItem": "Checklist item {{n}}",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "removeItem": "Remove checklist item {{n}}",
+    "newItem": "New item",
+    "addItem": "Add item",
+    "allRequired": "All items required",
+    "fields": "Fields",
+    "fieldLabel": "Label",
+    "fieldId": "Id",
+    "fieldType": "Type",
+    "fieldHint": "Hint",
+    "fieldUse": "Use of {{name}}",
+    "removeField": "Remove field {{name}}",
+    "newField": "New field",
+    "addField": "Add field",
+    "use": {
+      "off": "Off",
+      "optional": "Optional",
+      "required": "Required"
+    },
+    "type": {
+      "text": "Text",
+      "number": "Number",
+      "datetime": "Date and time",
+      "link": "Link",
+      "ticket": "Ticket reference"
+    },
+    "evidence": "Evidence files",
+    "evidenceHint": "Screenshots, exports, photos: stored with name, size and SHA-256, content-checked like record attachments.",
+    "verification": "Second-person verification",
+    "verificationRequired": "Verified by a second person",
+    "verificationHint": "Someone other than the person who completed the step checks it before the run continues. Always applies to “not available” and after-the-fact entries.",
+    "verifiers": "Who may verify",
+    "verifiersHint": "Users, teams or roles. Empty = everyone allowed to run or approve this process. A list is strict (no administrator override).",
+    "notRunStarter": "Not the person who started the run either",
+    "onReject": "When the verifier rejects",
+    "onRejectReturn": "Send it back to the person who completed it",
+    "onRejectFail": "Fail the run",
+    "late": "After-the-fact entries",
+    "backdateDays": "Allow a “done at” time up to this many days before the run started",
+    "backdateHint": "0 = not before the run started. At most {{max}} days. A “done at” time is never in the future."
   }
 }

@@ -222,6 +222,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/tasks': ALL,
   'GET /api/tasks/:id': ALL,
   'POST /api/tasks/:id/complete': ACTIVE,
+  // manual steps: verify, evidence files (only whoever may work on the step adds or removes them; whoever sees the run reads them)
+  'POST /api/tasks/:id/verify': ACTIVE,
+  'POST /api/tasks/:id/evidence': ACTIVE,
+  'DELETE /api/tasks/:id/evidence/:evidenceId': ACTIVE,
+  'GET /api/tasks/:id/evidence/:evidenceId/download': ALL,
   'GET /api/schedules': ALL,
   'POST /api/schedules': RUN,
   'PUT /api/schedules/:id': ADMIN,
@@ -613,6 +618,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
 const NO_POSITIVE = new Set([
   'GET /api/artifacts/:id', // the demo runs write no artifacts
   'GET /api/tasks/:id', // no open approval
+  'GET /api/tasks/:id/evidence/:evidenceId/download', // no manual step
   'GET /api/v1/tasks/:taskId',
   'GET /api/records/:id/attachments/:attId/download',
   'GET /api/records/:id/editions/:edition', // the fixture record is a change request: no editions
@@ -677,6 +683,7 @@ function fill(url: string): string {
     .replace(/:wid/g, fx.maintenance!)
     .replace(/:file/g, fx.monitorExample!)
     .replace(/:attId/g, 'att_none')
+    .replace(/:evidenceId/g, 'tev_none')
     .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : fx.recordLink!)
     .replace(/:id/g, () => {
       const prefix = url.split('/')[2]!;
@@ -792,6 +799,7 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/platforms/:id/mcp-gateway': { enabled: true },
   'POST /api/settings/notifications/test': { channel: 'email', to: 'it@example.com' },
   'POST /api/tasks/:id/complete': { approved: true },
+  'POST /api/tasks/:id/verify': { approved: true },
   'POST /api/sync-sources': SYNC_SOURCE,
   'PUT /api/sync-sources/:id': SYNC_SOURCE,
   'POST /api/compliance/access-changes': {

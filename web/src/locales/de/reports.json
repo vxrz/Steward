@@ -104,6 +104,11 @@
     "footerNote": "Fußzeilenhinweis",
     "footerNoteHint": "Optional, z. B. Vertraulich – nur für den internen Gebrauch",
     "save": "Layout speichern",
-    "preview": "Vorschau ({{language}})"
+    "preview": "Vorschau ({{language}})",
+    "resetDefaults": "Auf Standard zurücksetzen",
+    "contrast": {
+      "title": "Lesbarkeit",
+      "graphics": "Linien, Abschnittsmarken und Balken in dieser Farbe heben sich kaum von der weißen Seite ab (Kontrast {{ratio}}:1, empfohlen sind mindestens 3:1). Wählen Sie besser eine dunklere Farbe."
+    }
   }
 }

@@ -142,9 +142,9 @@ export const STEP_META: Record<NodeType, StepMeta> = {
     category: 'People',
     color: 'grape',
     description:
-      'Pause the run and ask a person to pick items from a list (select) or approve/reject (approve, with "approved" and "rejected" outputs – an unconnected "rejected" output fails the run). The decision is recorded in the protocol.',
+      'Pause the run and ask a person to pick items from a list (select), approve/reject (approve, with "approved" and "rejected" outputs – an unconnected "rejected" output fails the run) or carry out a documented manual step (manual: checklist, fields, evidence, optional second-person verification). Everything is recorded in the protocol.',
     fields: [
-      { key: 'mode', label: 'Mode', kind: 'select', options: ['select', 'approve'], required: true },
+      { key: 'mode', label: 'Mode', kind: 'select', options: ['select', 'approve', 'manual'], required: true },
       { key: 'title', label: 'Title', kind: 'template', required: true },
       { key: 'instructions', label: 'Instructions (markdown, templates allowed)', kind: 'templateArea' },
       { key: 'items', label: 'Items (expression, select mode)', kind: 'expr' },

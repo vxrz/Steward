@@ -35,6 +35,10 @@ async function finish(runId: string): Promise<any> {
     const r = await s.api('GET', `/runs/${runId}`);
     if (['succeeded', 'failed', 'cancelled'].includes(r.status)) return r;
     for (const t of r.tasks.filter((x: any) => x.status === 'open')) {
+      if (t.mode === 'manual') {
+        await finishManual(t);
+        continue;
+      }
       const decision = { approved: true, selectedKeys: t.items.filter((x: any) => x.preselected).map((x: any) => x.key), comment: 'automated test' };
       const client = t.canDecide ? s.api : adam;
       await client('POST', `/tasks/${t.id}/complete`, decision);
@@ -42,6 +46,29 @@ async function finish(runId: string): Promise<any> {
     await sleep(100);
   }
   throw new Error(`run ${runId} did not finish`);
+}
+
+/** Manual steps: everything ticked, sample values, missing evidence "not available"; verified by Adam (or the admin). */
+async function finishManual(t: any): Promise<void> {
+  const spec = t.manual.spec;
+  if (t.manual.stage === 'verify') {
+    const client = t.canDecide ? s.api : adam;
+    await client('POST', `/tasks/${t.id}/verify`, { approved: true, comment: 'automated test' });
+    return;
+  }
+  const sample: Record<string, string> = {
+    text: 'SN-0001',
+    number: '12',
+    datetime: new Date().toISOString(),
+    link: 'https://example.com/x',
+    ticket: 'CHG0000001',
+  };
+  await (t.canDecide ? s.api : adam)('POST', `/tasks/${t.id}/complete`, {
+    checked: spec.checklist.map((_: string, i: number) => i),
+    fields: spec.fields.map((f: any) => ({ id: f.id, value: sample[f.type] })),
+    notAvailable: spec.evidence === 'required' && !t.manual.evidence.length ? [{ target: 'evidence', reason: 'automated test' }] : [],
+    comment: 'automated test',
+  });
 }
 
 function hasWrites(def: ProcessDefinition): boolean {

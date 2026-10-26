@@ -70,7 +70,7 @@ const updateBody = z
   .strict();
 
 /** One uploaded file (multipart), with a size limit. */
-async function uploadedFile(req: FastifyRequest, maxBytes: number): Promise<{ filename: string; data: Buffer; fields: Record<string, string> }> {
+export async function uploadedFile(req: FastifyRequest, maxBytes: number): Promise<{ filename: string; data: Buffer; fields: Record<string, string> }> {
   if (!req.isMultipart()) throw new HttpError(400, 'Send the file as multipart/form-data', 'MULTIPART_REQUIRED');
   const file = await req.file({ limits: { fileSize: maxBytes, files: 1 } });
   if (!file) throw new HttpError(400, 'No file', 'NO_FILE');

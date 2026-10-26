@@ -93,7 +93,7 @@
     },
     "userTask": {
       "label": "Benutzeraufgabe / Freigabe",
-      "description": "Hält die Ausführung an und bittet eine Person, Einträge aus einer Liste auszuwählen (Auswahl) oder freizugeben bzw. abzulehnen (Freigabe, mit den Ausgängen „freigegeben“ und „abgelehnt“ – ein nicht verbundener Ausgang „abgelehnt“ lässt die Ausführung fehlschlagen). Die Entscheidung wird im Protokoll festgehalten.",
+      "description": "Hält die Ausführung an und bittet eine Person, Einträge aus einer Liste auszuwählen (Auswahl), freizugeben bzw. abzulehnen (Freigabe, mit den Ausgängen „freigegeben“ und „abgelehnt“ – ein nicht verbundener Ausgang „abgelehnt“ lässt die Ausführung fehlschlagen) oder einen dokumentierten manuellen Schritt auszuführen (manuell: Checkliste, Felder, Nachweise, optional Prüfung durch eine zweite Person). Alles wird im Protokoll festgehalten.",
       "fields": {
         "mode": {
           "label": "Modus"
@@ -391,7 +391,8 @@
     "revoke": "Entzug",
     "modify": "Änderung",
     "onboarding": "Onboarding",
-    "offboarding": "Offboarding"
+    "offboarding": "Offboarding",
+    "manual": "manuell"
   },
   "palette": {
     "search": "Knoten suchen",
@@ -720,7 +721,10 @@
     "noInput": "Knoten „{{id}}“ kann keine Verknüpfungen empfangen",
     "duplicateWire": "Doppelte Verknüpfung",
     "cycle": "Verknüpfungen bilden einen Kreis ({{cycle}}). Für Schleifen einen „Für jedes Element“-Knoten verwenden.",
-    "unreachable": "„{{name}}“ ist nicht mit dem Start-Knoten verbunden und wird nie ausgeführt"
+    "unreachable": "„{{name}}“ ist nicht mit dem Start-Knoten verbunden und wird nie ausgeführt",
+    "manualSettingsIgnored": "{{settings}} gelten nur für manuelle Schritte (Modus „manuell“) und werden ignoriert",
+    "duplicateFieldId": "Doppelte Feld-Id „{{id}}“",
+    "checklistEmpty": "„Alle Punkte erforderlich“ wirkt nur mit Punkten in der Checkliste"
   },
   "diff": {
     "none": "Keine Unterschiede.",
@@ -867,5 +871,52 @@
     "showFull": "Vollständigen Wert anzeigen",
     "usingRun": "Daten der Ausführung <a>{{id}}</a>",
     "noRun": "Noch keine Ausführung – den Prozess ausführen (Probelauf), um eine Vorschau mit Daten zu sehen"
+  },
+  "manual": {
+    "title": "Manueller Schritt",
+    "intro": "Eine Person erledigt diesen Schritt außerhalb von Steward und dokumentiert ihn hier: eine Checkliste zum Abhaken, Felder zum Ausfüllen, Nachweisdateien – und auf Wunsch prüft eine zweite Person ihn, bevor die Ausführung weiterläuft.",
+    "checklist": "Checkliste",
+    "checklistItem": "Punkt {{n}} der Checkliste",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "removeItem": "Punkt {{n}} der Checkliste entfernen",
+    "newItem": "Neuer Punkt",
+    "addItem": "Punkt hinzufügen",
+    "allRequired": "Alle Punkte erforderlich",
+    "fields": "Felder",
+    "fieldLabel": "Bezeichnung",
+    "fieldId": "Kennung",
+    "fieldType": "Typ",
+    "fieldHint": "Hinweis",
+    "fieldUse": "Verwendung von {{name}}",
+    "removeField": "Feld {{name}} entfernen",
+    "newField": "Neues Feld",
+    "addField": "Feld hinzufügen",
+    "use": {
+      "off": "Aus",
+      "optional": "Optional",
+      "required": "Pflicht"
+    },
+    "type": {
+      "text": "Text",
+      "number": "Zahl",
+      "datetime": "Datum und Uhrzeit",
+      "link": "Link",
+      "ticket": "Ticketreferenz"
+    },
+    "evidence": "Nachweisdateien",
+    "evidenceHint": "Screenshots, Exporte, Fotos: gespeichert mit Name, Größe und SHA-256, Inhalt geprüft wie bei Anhängen von Einträgen.",
+    "verification": "Prüfung durch eine zweite Person",
+    "verificationRequired": "Von einer zweiten Person geprüft",
+    "verificationHint": "Jemand anderes als die Person, die den Schritt erledigt hat, prüft ihn, bevor die Ausführung weiterläuft. Gilt immer für Angaben „nicht verfügbar“ und nachträgliche Einträge.",
+    "verifiers": "Wer prüfen darf",
+    "verifiersHint": "Benutzer, Teams oder Rollen. Leer = alle, die diesen Prozess ausführen oder freigeben dürfen. Eine Liste gilt streng (auch für Administratoren).",
+    "notRunStarter": "Auch nicht die Person, die die Ausführung gestartet hat",
+    "onReject": "Wenn die prüfende Person ablehnt",
+    "onRejectReturn": "An die Person zurückgeben, die ihn erledigt hat",
+    "onRejectFail": "Ausführung fehlschlagen lassen",
+    "late": "Nachträgliche Einträge",
+    "backdateDays": "„Erledigt am“ bis zu so vielen Tagen vor dem Start der Ausführung erlauben",
+    "backdateHint": "0 = nicht vor dem Start der Ausführung. Höchstens {{max}} Tage. Eine Zeit „Erledigt am“ liegt nie in der Zukunft."
   }
 }

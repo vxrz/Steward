@@ -915,8 +915,25 @@
                   "type": "string",
                   "enum": [
                     "select",
-                    "approve"
+                    "approve",
+                    "manual"
                   ]
+                },
+                "stage": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "work",
+                        "verify",
+                        "done"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Manual steps: work, verify (waits for the second person) or done; null for other tasks"
                 },
                 "title": {
                   "type": "string"
@@ -983,6 +1000,7 @@
                 "taskId",
                 "stepKey",
                 "mode",
+                "stage",
                 "title",
                 "status",
                 "approved",
@@ -1361,9 +1379,26 @@
             "type": "string",
             "enum": [
               "select",
-              "approve"
+              "approve",
+              "manual"
             ],
-            "description": "select: pick items; approve: approve or reject"
+            "description": "select: pick items; approve: approve or reject; manual: a documented manual step"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "work",
+                  "verify",
+                  "done"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Manual steps: work, verify (waits for the second person) or done; null for other tasks"
           },
           "title": {
             "type": "string"
@@ -1452,6 +1487,7 @@
           "processName",
           "stepKey",
           "mode",
+          "stage",
           "title",
           "instructions",
           "status",
@@ -1492,9 +1528,26 @@
             "type": "string",
             "enum": [
               "select",
-              "approve"
+              "approve",
+              "manual"
             ],
-            "description": "select: pick items; approve: approve or reject"
+            "description": "select: pick items; approve: approve or reject; manual: a documented manual step"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "work",
+                  "verify",
+                  "done"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Manual steps: work, verify (waits for the second person) or done; null for other tasks"
           },
           "title": {
             "type": "string"
@@ -1626,6 +1679,296 @@
               "null",
               "string"
             ]
+          },
+          "manual": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "round": {
+                    "type": "integer",
+                    "description": "1 + the times the step was sent back"
+                  },
+                  "checklist": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "item": {
+                          "type": "string"
+                        },
+                        "checked": {
+                          "type": [
+                            "boolean",
+                            "null"
+                          ],
+                          "description": "null while not completed"
+                        }
+                      },
+                      "required": [
+                        "item",
+                        "checked"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "checklistAllRequired": {
+                    "type": "boolean"
+                  },
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "number",
+                            "datetime",
+                            "link",
+                            "ticket"
+                          ]
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "required": {
+                          "type": "boolean"
+                        },
+                        "value": {
+                          "type": [
+                            "string",
+                            "number",
+                            "null"
+                          ]
+                        },
+                        "ticketId": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Ticket reference in Steward with this number (ticket fields)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type",
+                        "label",
+                        "required",
+                        "value",
+                        "ticketId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "evidence": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "optional",
+                      "required"
+                    ],
+                    "description": "Whether the step takes evidence files"
+                  },
+                  "evidenceFiles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "filename": {
+                          "type": "string"
+                        },
+                        "mime": {
+                          "type": "string"
+                        },
+                        "size": {
+                          "type": "integer"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "uploadedBy": {
+                          "type": "string"
+                        },
+                        "uploadedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "filename",
+                        "mime",
+                        "size",
+                        "sha256",
+                        "uploadedBy",
+                        "uploadedAt"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "notAvailable": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "description": "\"evidence\" or a field id"
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "target",
+                        "reason"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "completed": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          }
+                        },
+                        "required": [
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Who completed the current entry and when it was entered"
+                  },
+                  "doneAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "After-the-fact entry: when the work was done, as stated"
+                  },
+                  "doneAtReason": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "verificationRequired": {
+                    "type": "boolean"
+                  },
+                  "verificationReasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "step",
+                        "notAvailable",
+                        "backdated",
+                        "returned"
+                      ]
+                    }
+                  },
+                  "verifiers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Who may verify (subjects); empty = everyone with run or approve rights"
+                  },
+                  "verification": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "approved": {
+                            "type": "boolean"
+                          },
+                          "comment": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "by": {
+                            "type": "string"
+                          },
+                          "at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          }
+                        },
+                        "required": [
+                          "approved",
+                          "comment",
+                          "by",
+                          "at"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The second person's verification"
+                  },
+                  "returnedRounds": {
+                    "type": "integer",
+                    "description": "Entries a verifier sent back"
+                  }
+                },
+                "required": [
+                  "round",
+                  "checklist",
+                  "checklistAllRequired",
+                  "fields",
+                  "evidence",
+                  "evidenceFiles",
+                  "notAvailable",
+                  "completed",
+                  "doneAt",
+                  "doneAtReason",
+                  "verificationRequired",
+                  "verificationReasons",
+                  "verifiers",
+                  "verification",
+                  "returnedRounds"
+                ],
+                "additionalProperties": false,
+                "description": "Manual step details"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Manual steps only (mode manual)"
           }
         },
         "required": [
@@ -1635,6 +1978,7 @@
           "processName",
           "stepKey",
           "mode",
+          "stage",
           "title",
           "instructions",
           "status",
@@ -1652,7 +1996,8 @@
           "columns",
           "items",
           "selectedKeys",
-          "comment"
+          "comment",
+          "manual"
         ],
         "additionalProperties": false
       },
