@@ -35,6 +35,7 @@ import {
   IconPackageExport,
   IconPackageImport,
   IconSitemap,
+  IconChecklist,
 } from '@tabler/icons-react';
 import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
@@ -77,6 +78,50 @@ export function ProcessesPage() {
     }
   };
 
+  /** A process of manual steps only, ready to fill in (the "Manual procedure" template). */
+  const createManual = async () => {
+    const step = (id: string, x: number, title: string, extra: Record<string, unknown>) => ({
+      id,
+      type: 'userTask',
+      mode: 'manual',
+      name: title,
+      title,
+      instructions: t('manualTemplate.instructions'),
+      x,
+      y: 0,
+      ...extra,
+    });
+    try {
+      const p = await post<ProcessDetail>('/processes', {
+        definition: {
+          name: t('manualTemplate.name'),
+          description: t('manualTemplate.description'),
+          tags: ['manual'],
+          connections: [],
+          inputs: [],
+          nodes: [
+            { id: 'start', type: 'start', name: 'Start', x: 0, y: 0 },
+            step('prepare', 260, t('manualTemplate.prepare'), { checklist: [t('manualTemplate.prepareItem1'), t('manualTemplate.prepareItem2')] }),
+            step('carryOut', 520, t('manualTemplate.carryOut'), {
+              checklist: [t('manualTemplate.carryOutItem1')],
+              fields: [{ id: 'ticket', type: 'ticket', label: t('manualTemplate.ticket'), use: 'required' }],
+              verification: { required: true },
+            }),
+            step('check', 780, t('manualTemplate.check'), { checklist: [t('manualTemplate.checkItem1')], checklistAllRequired: true }),
+          ],
+          wires: [
+            { from: 'start', port: 'out', to: 'prepare' },
+            { from: 'prepare', port: 'out', to: 'carryOut' },
+            { from: 'carryOut', port: 'out', to: 'check' },
+          ],
+        },
+      });
+      navigate(`/processes/${p.id}`);
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+
   const f = filter.toLowerCase();
   const list = (processes.data ?? []).filter((p) => !f || p.name.toLowerCase().includes(f) || p.tags.some((tag) => tag.includes(f)));
 
@@ -111,6 +156,9 @@ export function ProcessesPage() {
                 </Button>
                 <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />} onClick={templates.open}>
                   {t('fromTemplate')}
+                </Button>
+                <Button size="xs" variant="default" leftSection={<IconChecklist size={14} />} onClick={createManual}>
+                  {t('newManualProcedure')}
                 </Button>
                 <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createBlank}>
                   {t('newProcess')}

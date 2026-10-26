@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { Badge, Box, Group, Text, Tooltip } from '@mantine/core';
-import { IconEyeCheck, IconFilter, IconUsers } from '@tabler/icons-react';
+import { IconEyeCheck, IconFilter, IconUsers, IconShieldCheck } from '@tabler/icons-react';
 import { NODE_HEIGHT, NODE_WIDTH, STEP_META, hasInput, nodePorts, type FlowNode } from '@sm/shared';
 import { Markdown, statusLabel } from '../common';
 import i18n from '../../i18n';
@@ -106,6 +106,9 @@ function FlowNodeViewImpl({ data, selected }: NodeProps<FlowRfNode>) {
           {node.when && <IconFilter size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && (node.assignees?.length ?? 0) > 0 && <IconUsers size={11} color="var(--mantine-color-dimmed)" />}
           {node.type === 'userTask' && node.fourEyes && <IconEyeCheck size={11} color="var(--mantine-color-dimmed)" />}
+          {node.type === 'userTask' && node.mode === 'manual' && node.verification?.required && (
+            <IconShieldCheck size={11} color="var(--mantine-color-dimmed)" />
+          )}
           {node.type === 'forEach' && (node.concurrency ?? 1) > 1 && (
             <Tooltip label={i18n.t('editor:node.parallelHint', { count: node.concurrency })} withArrow>
               <Badge size="xs" variant="light" color={color} px={4} style={{ flexShrink: 0, textTransform: 'none' }} data-testid="parallel-badge">

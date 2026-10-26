@@ -64,5 +64,19 @@
     "skip": "Überspringen",
     "copy": "Als Kopie importieren",
     "result": "{{created}} angelegt, {{updated}} aktualisiert, {{skipped}} übersprungen"
+  },
+  "newManualProcedure": "Neues manuelles Verfahren",
+  "manualTemplate": {
+    "name": "Neues manuelles Verfahren",
+    "description": "Ein Verfahren aus manuellen Schritten: Personen erledigen jeden Schritt, haken seine Checkliste ab, füllen seine Felder aus und fügen Nachweise hinzu. Entsprechend markierte Schritte prüft eine zweite Person.",
+    "instructions": "Beschreiben Sie, was in diesem Schritt zu tun ist (Markdown).",
+    "prepare": "Vorbereiten",
+    "prepareItem1": "Die Arbeit bei den Betroffenen ankündigen",
+    "prepareItem2": "Werkzeug und Ersatzteile bereitlegen",
+    "carryOut": "Arbeit ausführen",
+    "carryOutItem1": "Arbeit wie beschrieben ausgeführt",
+    "ticket": "Change-Ticket",
+    "check": "Ergebnis prüfen",
+    "checkItem1": "Alles funktioniert wie vorher"
   }
 }

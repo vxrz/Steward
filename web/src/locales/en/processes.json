@@ -64,5 +64,19 @@
     "skip": "Skip",
     "copy": "Import as copy",
     "result": "{{created}} created, {{updated}} updated, {{skipped}} skipped"
+  },
+  "newManualProcedure": "New manual procedure",
+  "manualTemplate": {
+    "name": "New manual procedure",
+    "description": "A procedure of manual steps: people carry out each step, tick its checklist, enter its fields and add evidence. Steps marked so are verified by a second person.",
+    "instructions": "Describe what to do in this step (Markdown).",
+    "prepare": "Prepare",
+    "prepareItem1": "Announce the work to the people affected",
+    "prepareItem2": "Have the tools and spare parts at hand",
+    "carryOut": "Carry out the work",
+    "carryOutItem1": "Work done as described",
+    "ticket": "Change ticket",
+    "check": "Check the result",
+    "checkItem1": "Everything works as before"
   }
 }

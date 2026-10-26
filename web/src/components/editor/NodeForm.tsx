@@ -6,10 +6,13 @@ import { FieldInput } from './fields';
 import { ApiOperationSection } from './ApiOperation';
 import { ExprNodeScope } from './ExprContext';
 import { SubprocessSection } from './SubprocessSection';
+import { ManualStepSection } from './ManualStepSection';
 import { NODE_ICONS, nodeColor, portHelp } from '../flow/meta';
 import { localizeField, portLabel, stepDescription, stepLabel } from '../../i18n/meta';
 
 const ID_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const SELECT_ONLY = new Set(['items', 'itemKey', 'columns', 'preselect']);
+const NONE = new Set<string>();
 
 export function ExpressionHelp() {
   const { t } = useTranslation('editor');
@@ -76,6 +79,8 @@ export function NodeForm({
   const commonFields = COMMON_FIELDS.filter((f) => !(node.type === 'if' && f.key === 'when')).map((f) => localizeField('common', f));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fields = useMemo(() => meta.fields.map((f) => localizeField(node.type, f)), [meta, node.type, i18n.language]);
+  /** Settings of select tasks that a manual step does not use */
+  const hidden = node.type === 'userTask' && node.mode === 'manual' ? SELECT_ONLY : NONE;
 
   return (
     <ExprNodeScope nodeId={node.id} enabled={node.type !== 'note'}>
@@ -125,35 +130,47 @@ export function NodeForm({
             onChange={(e) => set('description', e.currentTarget.value || undefined)}
           />
         )}
-        {fields.map((f) => (
-          <Fragment key={f.key}>
-            {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
-              <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
-            )}
-            {node.type === 'subprocess' && f.key === 'inputs' && (
-              <SubprocessSection
-                node={node}
-                connections={connections}
-                onChange={(patch) => {
-                  const next: Record<string, unknown> = { ...node, ...patch };
-                  for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
-                  onChange(next as unknown as FlowNode);
-                }}
-              />
-            )}
-            {node.type === 'http' && f.key === 'connection' && (
-              <ApiOperationSection
-                node={node}
-                connections={connections}
-                onChange={(patch) => {
-                  const next: Record<string, unknown> = { ...node, ...patch };
-                  for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
-                  onChange(next as unknown as FlowNode);
-                }}
-              />
-            )}
-          </Fragment>
-        ))}
+        {fields
+          .filter((f) => !hidden.has(f.key))
+          .map((f) => (
+            <Fragment key={f.key}>
+              {!(node.type === 'subprocess' && (f.key === 'inputs' || f.key === 'connections')) && (
+                <FieldInput field={f} value={rec[f.key]} onChange={(v) => set(f.key, v)} connections={connections} />
+              )}
+              {node.type === 'subprocess' && f.key === 'inputs' && (
+                <SubprocessSection
+                  node={node}
+                  connections={connections}
+                  onChange={(patch) => {
+                    const next: Record<string, unknown> = { ...node, ...patch };
+                    for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                    onChange(next as unknown as FlowNode);
+                  }}
+                />
+              )}
+              {node.type === 'userTask' && node.mode === 'manual' && f.key === 'fourEyes' && (
+                <ManualStepSection
+                  node={node}
+                  onChange={(patch) => {
+                    const next: Record<string, unknown> = { ...node, ...patch };
+                    for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                    onChange(next as unknown as FlowNode);
+                  }}
+                />
+              )}
+              {node.type === 'http' && f.key === 'connection' && (
+                <ApiOperationSection
+                  node={node}
+                  connections={connections}
+                  onChange={(patch) => {
+                    const next: Record<string, unknown> = { ...node, ...patch };
+                    for (const k of Object.keys(patch)) if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+                    onChange(next as unknown as FlowNode);
+                  }}
+                />
+              )}
+            </Fragment>
+          ))}
         {ports.length > 0 && (
           <Paper withBorder p="xs">
             <Text size="xs" fw={600} mb={4}>
