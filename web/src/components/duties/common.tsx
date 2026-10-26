@@ -146,7 +146,14 @@ export function DutyFormModal({
   // a change of how the duty is judged closes the current period; without a run that counts, as "ended without a run"
   const rulesChange =
     !!duty && ((duty.processId !== null && processId !== duty.processId) || interval !== duty.interval || graceDays !== duty.graceDays || level !== duty.level);
-  const endsCurrent = rulesChange && duty?.current?.status === 'due';
+  // only stricter (a higher level, a shorter grace period): it applies to the current period, which stays open
+  const stricterOnly =
+    !!duty &&
+    !(duty.processId !== null && processId !== duty.processId) &&
+    interval === duty.interval &&
+    graceDays <= duty.graceDays &&
+    DUTY_LEVELS.indexOf(level) <= DUTY_LEVELS.indexOf(duty.level);
+  const endsCurrent = rulesChange && !stricterOnly && duty?.current?.status === 'due';
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);

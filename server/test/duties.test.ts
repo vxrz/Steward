@@ -434,6 +434,46 @@ describe('archiving a duty or changing its rules', () => {
     ]);
   });
 
+  it('a stricter level or a shorter grace period applies to the current period, which stays open', async () => {
+    const mk = async (patch: Record<string, unknown>) => {
+      const d = await duty({ activeFrom: iso(cur().start), level: 'recommended', grace: 5, ...patch });
+      db().run('UPDATE service_duties SET process_id = ? WHERE id = ?', freshProc, d.id);
+      return d;
+    };
+    const body = (d: any, patch: Record<string, unknown>) => ({
+      name: d.row().name,
+      processId: freshProc,
+      interval: 'monthly',
+      level: 'recommended',
+      graceDays: 5,
+      ...patch,
+    });
+    // recommended → mandatory: still due, now mandatory, and a later run counts
+    const up = await mk({});
+    const raised = await dana('PUT', `/duties/${up.id}`, body(up, { level: 'mandatory' }));
+    expect(raised.current).toMatchObject({ key: cur().key, status: 'due', closed: false, snapshot: { level: 'mandatory' } });
+    expect(raised.periods.some((p: any) => p.status === 'ended')).toBe(false);
+    expect(up.row().rules_from).toBeNull();
+    run(freshProc, { status: 'succeeded', start: iso(Date.now()), end: iso(Date.now() + 1000) });
+    expect((await dana('GET', `/duties/${up.id}`)).current).toMatchObject({ status: 'done' });
+    db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
+    // grace 5 → 2: the period stays open with the new grace end
+    const g = await mk({});
+    const shorter = await dana('PUT', `/duties/${g.id}`, body(g, { graceDays: 2 }));
+    expect(shorter.current).toMatchObject({ key: cur().key, status: 'due', snapshot: { graceDays: 2 } });
+    expect(shorter.current.graceEndsAt).toBe(iso(periods.addLocalDays(cur().end, 2, TZ)));
+    expect(db().get<any>('SELECT grace_end FROM duty_periods WHERE duty_id = ? AND period_key = ?', g.id, cur().key).grace_end).toBe(
+      iso(periods.addLocalDays(cur().end, 2, TZ)),
+    );
+    // a longer grace period (or a lower level) still ends the period without a run
+    const longer = await mk({});
+    const l = await dana('PUT', `/duties/${longer.id}`, body(longer, { graceDays: 10 }));
+    expect(l.periods.find((p: any) => p.key === `${cur().key}~1`)).toMatchObject({ status: 'ended', closeNote: 'duty changed' });
+    const down = await mk({});
+    const d = await dana('PUT', `/duties/${down.id}`, body(down, { level: 'optional' }));
+    expect(d.periods.find((p: any) => p.key === `${cur().key}~1`)).toMatchObject({ status: 'ended' });
+  });
+
   it('a duty done in the current period stays done when it is archived', async () => {
     const d = await graceDuty();
     // the previous month is done; a later run is the current month's

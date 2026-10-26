@@ -66,8 +66,14 @@ function write(d: DutyRow, e: Evaluated, tz: string, close: boolean, now: number
   return close && res.changes === 1;
 }
 
-const differs = (r: PeriodRow, e: Evaluated) =>
-  r.status !== e.status || r.run_id !== (e.run?.id ?? null) || r.failed_runs !== e.failedRuns || r.skip_id !== e.skipId;
+const differs = (r: PeriodRow, e: Evaluated, d: DutyRow) =>
+  r.status !== e.status ||
+  r.run_id !== (e.run?.id ?? null) ||
+  r.failed_runs !== e.failedRuns ||
+  r.skip_id !== e.skipId ||
+  // a stricter level or a shorter grace period applies to the open period as it is
+  r.level !== d.level ||
+  Date.parse(r.grace_end) !== e.graceEnd;
 
 function closedAudit(d: DutyRow, s: ServiceRef, e: Evaluated, note: string | null): void {
   audit({
@@ -96,7 +102,7 @@ export function persistDuty(d: DutyRow, s: ServiceRef, now: number, tz = instanc
   for (const e of periods) {
     if (e.closed) continue;
     // every open period is stored (the start page and the daily summary read them), written again only when it changed
-    if (!e.final && e.row && !differs(e.row, e)) continue;
+    if (!e.final && e.row && !differs(e.row, e, d)) continue;
     db().tx(() => {
       if (!write(d, e, tz, e.final, now)) return;
       closed.push(e);
@@ -116,14 +122,23 @@ export function persistDuty(d: DutyRow, s: ServiceRef, now: number, tz = instanc
  *   when it ends. Otherwise it is closed now as **ended** (without a run – it counts as not met, like missed, but sends
  *   no "missed" message): its stored end is the moment of the change, and the new rules start then, with a partial
  *   first period up to the end of the period of the (new) interval that contains it.
+ * - `endedOnly` (a change that only makes the duty stricter): only the ended periods are closed, under the old rules;
+ *   the current period stays open and is judged by the stricter rules.
  */
-export function closeForChange(d: DutyRow, s: ServiceRef, now: number, note: string, tz = instanceTimeZone()): { closed: Evaluated[]; rulesFrom: number } {
+export function closeForChange(
+  d: DutyRow,
+  s: ServiceRef,
+  now: number,
+  note: string,
+  tz = instanceTimeZone(),
+  endedOnly = false,
+): { closed: Evaluated[]; rulesFrom: number } {
   const closed: Evaluated[] = [];
   let rulesFrom = now;
   if (d.archived || s.archived) return { closed, rulesFrom };
   const keys = new Set(storedPeriods(d.id).map((r) => r.period_key));
   for (const e of evaluateDuty(d, now, tz)) {
-    if (e.closed) continue;
+    if (e.closed || (endedOnly && e.period.end > now)) continue;
     let final: Evaluated;
     if (e.period.end <= now) final = e.status === 'due' ? { ...e, status: e.failedRuns > 0 ? 'failed' : 'missed', final: true } : { ...e, final: true };
     else if (e.status === 'done' || e.status === 'late' || e.status === 'skipped') {

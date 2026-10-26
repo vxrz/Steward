@@ -437,6 +437,17 @@ export function createDuty(input: DutyInputData): DutyDetail {
 /** Changes of the rules a period is judged by: the open periods are closed first, under the old rules (closeForChange). */
 export const JUDGED_BY = ['process_id', 'interval_kind', 'grace_days', 'level'] as const;
 
+/** A change of the rules that only makes the duty stricter: the level goes up and/or the grace period gets shorter. */
+export function stricterOnly(cur: Pick<DutyRow, 'level' | 'grace_days'>, next: Pick<DutyRow, 'level' | 'grace_days'>, changes: string[]): boolean {
+  const rules = changes.filter((k) => (JUDGED_BY as readonly string[]).includes(k));
+  return (
+    rules.length > 0 &&
+    rules.every((k) => k === 'level' || k === 'grace_days') &&
+    DUTY_LEVELS.indexOf(next.level) <= DUTY_LEVELS.indexOf(cur.level) &&
+    next.grace_days <= cur.grace_days
+  );
+}
+
 export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const u = me();
   const cur = dutyRow(dutyId);
@@ -459,10 +470,13 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getDuty(dutyId);
   const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
+  const stricter = rules && stricterOnly(cur, next, changes);
   db().tx(() => {
     // the open periods keep the result of the rules they ran under; the new rules start at the change (or after a
-    // current period that is done already)
-    const change = rules ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
+    // current period that is done already). A change that only makes the duty stricter (a higher level, a shorter grace
+    // period) applies to the current period as it is: only the ended periods are closed, with the old rules.
+    const ended = stricter ? closeForChange(cur, s, Date.now(), 'duty changed', undefined, true) : null;
+    const change = rules && !stricter ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
     db().run(
       `UPDATE service_duties SET application_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
        remind_days = ?, owners = ?, updated_at = ?, updated_by = ?${change ? ', rules_from = ?' : ''} WHERE id = ?`,
@@ -490,7 +504,8 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
         changes,
         before: Object.fromEntries(changes.map((k) => [k, cur[k]])),
         after: Object.fromEntries(changes.map((k) => [k, next[k]])),
-        periodsClosedEarly: (change?.closed ?? []).map((e) => ({ key: e.period.key, status: e.status })),
+        periodsClosedEarly: (change?.closed ?? ended?.closed ?? []).map((e) => ({ key: e.period.key, status: e.status })),
+        ...(stricter ? { stricterOnly: true } : {}),
         ...(change ? { rulesFrom: new Date(change.rulesFrom).toISOString() } : {}),
       },
     });

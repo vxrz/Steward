@@ -40,6 +40,8 @@ _Edit_ (pencil) changes a duty. A change of the process, the interval, the grace
 - The **current period**: if it is done, late or skipped already, it is closed with that status, and the new rules start when it ends. Otherwise it is closed at the moment of the change as **ended without a run** – it counts as not met, like missed (start page, daily summary, report, scorecard), but sends no "missed" message. Its stored end is the moment of the change. The edit dialog says so before you save.
 - The **new rules start at the change**: the first period under them runs from the change to the end of the period (of the new interval) that contains it. Only runs started after the change count; nothing before it is judged again under the new rules – switching from yearly to monthly does not judge the past months of the year.
 
+A change that **only makes the duty stricter** – a higher level (optional → recommended → mandatory), a shorter grace period, or both, with no other change of how it is judged – applies to the current period directly: it stays open, now judged by the stricter rules (a shorter grace period moves its grace end), and the new rules start nothing anew. Periods that have ended are still closed first, with the old grace period. A lower level, a longer grace period, another process or another interval end the current period as described above.
+
 A duty is archived, not deleted: _Archive_ on the duty page. Archiving closes the open periods the same way (_duty archived_; the confirmation says when the current period will be recorded as ended without a run). _Restore_ starts again at the moment of the restore, with a partial first period. Periods that lay entirely inside the archive window are stored as **inactive**.
 
 ## Periods and time zone
