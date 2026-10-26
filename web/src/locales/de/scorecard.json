@@ -1,0 +1,151 @@
+{
+  "title": "Scorecard",
+  "description": "Ist jeder Service in gutem Zustand? Vier Teile je Service, jeder mit seinem eigenen Status: Pflichten, Verfügbarkeit, Dokumentation und Schutzbedarf. Handlungsbedarf, wenn ein Teil Handlungsbedarf hat – ohne Gewichtung.",
+  "panelTitle": "Scorecard",
+  "attention": "Handlungsbedarf",
+  "allGood": "OK",
+  "service": "Service",
+  "overall": "Gesamt",
+  "owners": "Verantwortliche",
+  "servicesTable": "Services und ihre Scorecard",
+  "empty": "Keine Services",
+  "emptyAttention": "Kein Service hat Handlungsbedarf",
+  "emptyHint": "Hier stehen die nicht archivierten Services mit ihrer Scorecard.",
+  "statuses": {
+    "ok": "OK",
+    "attention": "Handlungsbedarf",
+    "pending": "Offen",
+    "none": "Nichts zu bewerten",
+    "hidden": "Verborgen"
+  },
+  "objectiveStatuses": {
+    "met": "Erfüllt",
+    "below": "Unterschritten",
+    "noData": "Keine Daten"
+  },
+  "parts": {
+    "duties": "Pflichten",
+    "availability": "Verfügbarkeit",
+    "documentation": "Dokumentation",
+    "protection": "Schutzbedarf"
+  },
+  "windows": {
+    "h1": "1 Std.",
+    "h24": "24 Std.",
+    "d7": "7 Tage",
+    "d30": "30 Tage"
+  },
+  "noData": {
+    "noSource": "Keine Daten: Die Gatus-Plattform hat keinen Metrik-Modus, oder er ist ausgeschaltet.",
+    "uptimesOff": "Keine Daten: Steward liest die Verfügbarkeitswerte von Gatus für diese Plattform nicht. Schalten Sie in ihrem Metrik-Modus „Auch die Verfügbarkeitswerte von Gatus lesen“ ein.",
+    "stale": "Keine Daten: Die Verfügbarkeitswerte von Gatus wurden zuletzt vor mehr als 3 Stunden gelesen.",
+    "noEndpoint": "Keine Daten: Gatus meldet diesen Endpunkt nicht mehr.",
+    "noValue": "Keine Daten: Gatus meldete für ein Zeitfenster keinen Wert."
+  },
+  "form": {
+    "add": "Ziel hinzufügen",
+    "editOf": "Ziel „{{name}}“ bearbeiten",
+    "saved": "Ziel gespeichert",
+    "platform": "Gatus-Plattform",
+    "platformHint": "Gatus-Plattformen mit Metrik-Modus, die Sie sehen dürfen.",
+    "noSources": "Keine Gatus-Plattform mit Metrik-Modus",
+    "uptimesOff": "Steward liest die Verfügbarkeitswerte von Gatus für diese Plattform noch nicht: Das Ziel zeigt „keine Daten“, bis in ihrem Metrik-Modus „Auch die Verfügbarkeitswerte von Gatus lesen“ eingeschaltet ist.",
+    "endpoint": "Endpunkt",
+    "name": "Name",
+    "application": "Anwendung",
+    "wholeService": "Der ganze Service",
+    "targets": "Zielwerte",
+    "targetsHint": "Mindestverfügbarkeit in Prozent, wie Gatus sie meldet, für jedes Zeitfenster, das Sie bewerten möchten. Lassen Sie ein Zeitfenster leer, um es nicht zu bewerten.",
+    "targetOf": "Zielwert für {{window}}",
+    "targetsRequired": "Legen Sie für mindestens ein Zeitfenster einen Zielwert fest.",
+    "description": "Beschreibung",
+    "notify": "Nachricht senden, wenn das Ziel unterschritten wird",
+    "notifyHint": "An die Verantwortlichen des Service (Administratoren, wenn er keine hat), einmal je Unterschreitung.",
+    "platformHidden": "Sie dürfen die Gatus-Plattform dieses Ziels nicht sehen. Sie können Name und Zielwerte ändern; der Endpunkt bleibt."
+  },
+  "objectives": {
+    "title": "Verfügbarkeitsziele",
+    "empty": "Noch keine Verfügbarkeitsziele.",
+    "notifies": "Sendet eine Nachricht",
+    "platformHidden": "Gatus-Plattform verborgen",
+    "application": "Anwendung",
+    "window": "{{window}}: {{value}} (≥ {{target}})",
+    "windowAria": "{{window}}: {{value}}, Zielwert {{target}}, {{status}}",
+    "breachSince": "Unterschritten seit {{date}}",
+    "valuesAt": "Werte von Gatus gelesen {{when}}",
+    "hint": "Die Werte sind die eigenen Verfügbarkeitswerte von Gatus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",
+    "deleteConfirm": "Ziel „{{name}}“ mit seinen gespeicherten Werten löschen? Der Verlauf der Scorecard behält, was es war.",
+    "deleted": "Ziel gelöscht",
+    "deleteOf": "Ziel „{{name}}“ löschen"
+  },
+  "duties": {
+    "none": "Keine Pflichten.",
+    "mandatory": "Verpflichtend: {{met}} von {{total}} erfüllt, {{open}} offen, {{notMet}} nicht erfüllt",
+    "recommended": "Empfohlen: {{met}} von {{total}} erfüllt, {{open}} offen, {{notMet}} nicht erfüllt",
+    "optional_one": "Freiwillig: {{count}} Pflicht",
+    "optional_other": "Freiwillig: {{count}} Pflichten",
+    "notMetItem": "({{level}}, Zeitraum {{period}})"
+  },
+  "availability": {
+    "none": "Keine Verfügbarkeitsziele.",
+    "summary": "{{met}} von {{total}} erfüllt · {{below}} unterschritten · {{noData}} ohne Daten"
+  },
+  "documentation": {
+    "summary": "{{released}} von {{documents}} Dokumenten freigegeben · {{overdue}} Überprüfungen überfällig · {{dueSoon}} bald fällig",
+    "noneReleased": "Kein freigegebenes Dokument.",
+    "expectedMissing": "Fehlt: {{type}} ({{key}}) für {{application}} ({{dimension}} {{level}})",
+    "expectedPresent_one": "{{count}} erwartetes Dokument vorhanden",
+    "expectedPresent_other": "{{count}} erwartete Dokumente vorhanden"
+  },
+  "protection": {
+    "noApplications": "Nicht bewertet: Der Service hat keine Anwendungen.",
+    "scaleInvalid": "Die CIA-Skala ist nicht gültig: Der Schutzbedarf lässt sich nicht bestimmen.",
+    "rated": "{{rated}} von {{total}} Anwendungen bewertet",
+    "rerate_one": "{{count}} neu zu bewerten",
+    "rerate_other": "{{count}} neu zu bewerten"
+  },
+  "history": {
+    "none": "Noch keine gespeicherten Tage. Steward speichert die Scorecard einmal am Tag.",
+    "summary_one": "Letzter gespeicherter Tag ({{count}}): {{attention}} mit Handlungsbedarf.",
+    "summary_other": "Letzte {{count}} gespeicherte Tage: {{attention}} mit Handlungsbedarf."
+  },
+  "rollup": {
+    "services": "Services",
+    "attention": "Handlungsbedarf",
+    "partHint": "mit Handlungsbedarf",
+    "noOwner": "Ohne Verantwortliche",
+    "perOwner": "Je Verantwortlichem",
+    "owner": "Verantwortlich"
+  },
+  "filters": {
+    "owner": "Verantwortlich",
+    "allOwners": "Alle Verantwortlichen",
+    "attentionOnly": "Nur mit Handlungsbedarf"
+  },
+  "trend": {
+    "title": "Verlauf (gespeicherte Tage)",
+    "none": "Noch keine gespeicherten Tage. Steward speichert die Scorecard jedes Service einmal am Tag.",
+    "summary": "Vom {{from}} bis {{to}}: {{first}} → {{last}} von {{services}} Services mit Handlungsbedarf.",
+    "day": "{{day}}: {{attention}} von {{services}} mit Handlungsbedarf"
+  },
+  "rules": {
+    "title": "Erwartete Dokumente",
+    "add": "Regel hinzufügen",
+    "hint": "Anwendungen, die in einer Dimension mindestens die angegebene Stufe haben, sollten ein freigegebenes Dokument des Typs haben (für die Anwendung oder mit dem Service verknüpft). Die Liste ist anfangs leer.",
+    "empty": "Keine Regeln.",
+    "line": "{{type}} ({{key}}) für {{dimension}} ≥ {{level}}",
+    "off": "Aus",
+    "invalid": "Nicht angewendet: Typ oder Stufe gibt es nicht mehr",
+    "editOf": "Regel für {{type}} bearbeiten",
+    "deleteOf": "Regel für {{type}} löschen",
+    "deleteConfirm": "Regel für {{type}} löschen?",
+    "deleted": "Regel gelöscht",
+    "saved": "Regel gespeichert",
+    "type": "Dokumenttyp",
+    "typeHint": "Eintragstypen lebender Dokumente.",
+    "dimension": "Dimension",
+    "minLevel": "Ab Stufe",
+    "note": "Notiz",
+    "enabled": "Angewendet"
+  }
+}

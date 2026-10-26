@@ -37,7 +37,7 @@ import { fmtBytes, fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 
 const PRESETS: ReportSchedulePreset[] = ['daily', 'weekly', 'monthly', 'custom'];
-const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties'];
+const BUILTIN = ['availability', 'gatus', 'credentials', 'runs', 'records', 'tickets', 'duties', 'scorecard'];
 
 type Draft = Pick<
   ReportSchedule,
@@ -326,6 +326,7 @@ function ScheduleModal({ draft, sections, onClose, onSaved }: { draft: Draft; se
     records: { types: null, windowDays: 30 },
     tickets: {},
     duties: { levels: null, serviceIds: null },
+    scorecard: { serviceIds: null },
   };
   const save = async () => {
     setBusy(true);

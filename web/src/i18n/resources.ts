@@ -18,6 +18,7 @@ import type schedules from '../locales/en/schedules.json';
 import type services from '../locales/en/services.json';
 import type applications from '../locales/en/applications.json';
 import type duties from '../locales/en/duties.json';
+import type scorecard from '../locales/en/scorecard.json';
 import type settings from '../locales/en/settings.json';
 import type system from '../locales/en/system.json';
 import type tasks from '../locales/en/tasks.json';
@@ -68,6 +69,7 @@ export interface Resources {
   services: typeof services;
   applications: typeof applications;
   duties: typeof duties;
+  scorecard: typeof scorecard;
   gitSync: typeof gitSync;
   tickets: typeof tickets;
   compliance: typeof compliance;

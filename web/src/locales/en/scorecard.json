@@ -1,0 +1,151 @@
+{
+  "title": "Scorecard",
+  "description": "Is each service in good shape? Four parts per service, each with its own status: duties, availability, documentation and protection need. Attention needed when any part needs attention – there is no weighting.",
+  "panelTitle": "Scorecard",
+  "attention": "Attention needed",
+  "allGood": "OK",
+  "service": "Service",
+  "overall": "Overall",
+  "owners": "Owners",
+  "servicesTable": "Services and their scorecard",
+  "empty": "No services",
+  "emptyAttention": "No service needs attention",
+  "emptyHint": "Services that are not archived are listed here with their scorecard.",
+  "statuses": {
+    "ok": "OK",
+    "attention": "Attention",
+    "pending": "Open",
+    "none": "Nothing to judge",
+    "hidden": "Hidden"
+  },
+  "objectiveStatuses": {
+    "met": "Met",
+    "below": "Below target",
+    "noData": "No data"
+  },
+  "parts": {
+    "duties": "Duties",
+    "availability": "Availability",
+    "documentation": "Documentation",
+    "protection": "Protection need"
+  },
+  "windows": {
+    "h1": "1 h",
+    "h24": "24 h",
+    "d7": "7 days",
+    "d30": "30 days"
+  },
+  "noData": {
+    "noSource": "No data: the Gatus platform has no metrics mode, or it is turned off.",
+    "uptimesOff": "No data: Steward does not read Gatus' uptime figures for this platform. Turn on “Also read Gatus' uptime figures” in its metrics mode.",
+    "stale": "No data: Gatus' uptime figures were last read more than 3 hours ago.",
+    "noEndpoint": "No data: Gatus does not report this endpoint any more.",
+    "noValue": "No data: Gatus reported no value for a window."
+  },
+  "form": {
+    "add": "Add objective",
+    "editOf": "Edit the objective “{{name}}”",
+    "saved": "Objective saved",
+    "platform": "Gatus platform",
+    "platformHint": "Gatus platforms with metrics mode that you may see.",
+    "noSources": "No Gatus platform with metrics mode",
+    "uptimesOff": "Steward does not read Gatus' uptime figures for this platform yet: the objective shows “no data” until “Also read Gatus' uptime figures” is on in its metrics mode.",
+    "endpoint": "Endpoint",
+    "name": "Name",
+    "application": "Application",
+    "wholeService": "The whole service",
+    "targets": "Targets",
+    "targetsHint": "Minimum uptime in percent, as Gatus reports it, for each window you want to judge. Leave a window empty to ignore it.",
+    "targetOf": "Target for {{window}}",
+    "targetsRequired": "Set a target for at least one window.",
+    "description": "Description",
+    "notify": "Send a message when it falls below target",
+    "notifyHint": "To the service owners (administrators when it has none), once per breach.",
+    "platformHidden": "You may not see the Gatus platform of this objective. You can change its name and targets; the endpoint stays."
+  },
+  "objectives": {
+    "title": "Availability objectives",
+    "empty": "No availability objectives yet.",
+    "notifies": "Sends a message",
+    "platformHidden": "Gatus platform hidden",
+    "application": "Application",
+    "window": "{{window}}: {{value}} (≥ {{target}})",
+    "windowAria": "{{window}}: {{value}}, target {{target}}, {{status}}",
+    "breachSince": "Below target since {{date}}",
+    "valuesAt": "Gatus' figures read {{when}}",
+    "hint": "Values are Gatus' own uptime figures, read once an hour. Steward keeps an hourly sample for 90 days.",
+    "deleteConfirm": "Delete the objective “{{name}}” with its samples? The scorecard history keeps what it was.",
+    "deleted": "Objective deleted",
+    "deleteOf": "Delete the objective “{{name}}”"
+  },
+  "duties": {
+    "none": "No duties.",
+    "mandatory": "Mandatory: {{met}} of {{total}} met, {{open}} open, {{notMet}} not met",
+    "recommended": "Recommended: {{met}} of {{total}} met, {{open}} open, {{notMet}} not met",
+    "optional_one": "Optional: {{count}} duty",
+    "optional_other": "Optional: {{count}} duties",
+    "notMetItem": "({{level}}, period {{period}})"
+  },
+  "availability": {
+    "none": "No availability objectives.",
+    "summary": "{{met}} of {{total}} met · {{below}} below target · {{noData}} without data"
+  },
+  "documentation": {
+    "summary": "{{released}} of {{documents}} documents released · {{overdue}} reviews overdue · {{dueSoon}} due soon",
+    "noneReleased": "No released document.",
+    "expectedMissing": "Missing: {{type}} ({{key}}) for {{application}} ({{dimension}} {{level}})",
+    "expectedPresent_one": "{{count}} expected document present",
+    "expectedPresent_other": "{{count}} expected documents present"
+  },
+  "protection": {
+    "noApplications": "Not rated: the service has no applications.",
+    "scaleInvalid": "The CIA scale is not valid: the protection need cannot be determined.",
+    "rated": "{{rated}} of {{total}} applications rated",
+    "rerate_one": "{{count}} to re-rate",
+    "rerate_other": "{{count}} to re-rate"
+  },
+  "history": {
+    "none": "No stored days yet. Steward stores the scorecard once a day.",
+    "summary_one": "Last {{count}} stored day: {{attention}} with attention needed.",
+    "summary_other": "Last {{count}} stored days: {{attention}} with attention needed."
+  },
+  "rollup": {
+    "services": "Services",
+    "attention": "Attention needed",
+    "partHint": "needing attention",
+    "noOwner": "No owner",
+    "perOwner": "Per owner",
+    "owner": "Owner"
+  },
+  "filters": {
+    "owner": "Owner",
+    "allOwners": "All owners",
+    "attentionOnly": "Attention needed only"
+  },
+  "trend": {
+    "title": "Trend (stored days)",
+    "none": "No stored days yet. Steward stores the scorecard of every service once a day.",
+    "summary": "From {{from}} to {{to}}: {{first}} → {{last}} of {{services}} services needed attention.",
+    "day": "{{day}}: {{attention}} of {{services}} need attention"
+  },
+  "rules": {
+    "title": "Expected documents",
+    "add": "Add rule",
+    "hint": "Applications rated at least the given level in a dimension should have a released document of the type (applying to the application, or linked to the service). The list starts empty.",
+    "empty": "No rules.",
+    "line": "{{type}} ({{key}}) for {{dimension}} ≥ {{level}}",
+    "off": "Off",
+    "invalid": "Not applied: type or level no longer exists",
+    "editOf": "Edit the rule for {{type}}",
+    "deleteOf": "Delete the rule for {{type}}",
+    "deleteConfirm": "Delete the rule for {{type}}?",
+    "deleted": "Rule deleted",
+    "saved": "Rule saved",
+    "type": "Document type",
+    "typeHint": "Record types of living documents.",
+    "dimension": "Dimension",
+    "minLevel": "From level",
+    "note": "Note",
+    "enabled": "Applied"
+  }
+}

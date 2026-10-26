@@ -24,7 +24,8 @@
     "accessChanges": "Zugriffsänderungen",
     "reconciliation": "Zugriffsabgleich",
     "evidencePacks": "Nachweispakete",
-    "duties": "Pflichten"
+    "duties": "Pflichten",
+    "scorecard": "Scorecard"
   },
   "serverUnreachable": "Der {{brand}}-Server ist nicht erreichbar: {{error}}",
   "pageNotFound": "Seite nicht gefunden",

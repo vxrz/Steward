@@ -39,7 +39,10 @@
     "reviewsDue": "Fällige Überprüfungen",
     "reviewsSplit": "{{overdue}} überfällig · {{dueSoon}} bald fällig",
     "duties": "Fällige Pflichten",
-    "dutiesSplit": "{{missed}} versäumt · {{dueSoon}} bald fällig"
+    "dutiesSplit": "{{missed}} versäumt · {{dueSoon}} bald fällig",
+    "scorecard": "Services mit Handlungsbedarf",
+    "scorecardOf_one": "von {{services}} Service",
+    "scorecardOf_other": "von {{services}} Services"
   },
   "waiting": "Wartet auf Ihre Entscheidung",
   "failedChecks": "Fehlgeschlagene Prüfungen (letzte 7 Tage)",

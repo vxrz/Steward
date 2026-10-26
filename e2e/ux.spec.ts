@@ -68,7 +68,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await expect(page.getByRole('textbox', { name: 'Status' })).toHaveValue('failed');
   });
 
-  test('start page: eight tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
+  test('start page: nine tiles of what needs attention, each opening its filtered list', async ({ page, apiAs }) => {
     // a ticket waiting for a vendor since 12 days, so that tile needs attention
     const number = uniq('VEND');
     const openedAt = new Date(Date.now() - 12 * 86400000).toISOString();
@@ -83,7 +83,7 @@ test.describe('lists, dialogs and help (admin)', () => {
     await settle(page);
     const tiles = page.getByTestId('start-tiles');
     const links = tiles.getByRole('link');
-    await expect(links).toHaveCount(8);
+    await expect(links).toHaveCount(9);
     // the approved order; every link names its label and number
     const names = await links.evaluateAll((l) => l.map((a) => a.getAttribute('aria-label') ?? ''));
     expect(names.map((n) => n.replace(/: .*/, ''))).toEqual([
@@ -94,6 +94,7 @@ test.describe('lists, dialogs and help (admin)', () => {
       'Undocumented access changes',
       'Reviews due',
       'Duties due',
+      'Services needing attention',
       'Waiting on vendors',
     ]);
     for (const n of names) expect(n).toMatch(/^[^:]+: \d+ – .+/);
@@ -106,13 +107,14 @@ test.describe('lists, dialogs and help (admin)', () => {
         '/compliance/reconciliation?findings=open',
         '/records?workflow=document&review=overdue,dueSoon',
         '/duties?level=mandatory&status=attention',
+        '/scorecard?attention=1',
         '/tickets?waiting=vendor',
       ].map(appHref),
     );
     const vendor = tiles.getByRole('link', { name: /^Waiting on vendors: [1-9]\d* – oldest \d+ days$/ });
     await expect(vendor).toHaveAttribute('data-state', 'attention');
     // keyboard: the tiles are in the tab order
-    await links.nth(6).focus();
+    await links.nth(7).focus();
     await page.keyboard.press('Tab');
     await expect(vendor).toBeFocused();
     await expectAccessible(page, 'start page tiles');

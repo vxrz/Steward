@@ -53,6 +53,10 @@
     "duties": {
       "title": "Service-Pflichten",
       "hint": "Beendete Zeiträume von Service-Pflichten (erledigt, verspätet, ausgesetzt, fehlgeschlagen, versäumt) und noch nicht erledigte Pflichten"
+    },
+    "scorecard": {
+      "title": "Service-Scorecard",
+      "hint": "Je Service Pflichten, Verfügbarkeit, Dokumentation und Schutzbedarf mit Handlungsbedarf; der Verlauf der gespeicherten Tage; Verfügbarkeitsziele mit ihren Unterschreitungen"
     }
   },
   "runNow": "Jetzt erstellen",

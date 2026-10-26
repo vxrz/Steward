@@ -39,6 +39,7 @@ export const NAMESPACES = [
   'services',
   'applications',
   'duties',
+  'scorecard',
   'gitSync',
   'tickets',
   'compliance',

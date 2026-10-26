@@ -6,6 +6,7 @@ import {
   IconCalendarDue,
   IconCircleCheck,
   IconFileTime,
+  IconGauge,
   IconHeartRateMonitor,
   IconInbox,
   IconKey,
@@ -39,6 +40,7 @@ const COLS: Record<number, SimpleGridProps['cols']> = {
   6: { base: 2, md: 3 },
   7: { base: 2, lg: 4 },
   8: { base: 2, lg: 4 },
+  9: { base: 2, md: 3 },
 };
 
 /** The start page's tiles: what needs the user's attention. Tiles the server left out (no right) are not shown. */
@@ -120,6 +122,17 @@ export function AttentionTiles({ a }: { a: DashboardAttention }) {
       detail: du.missed + du.dueSoon ? t('counts.dutiesSplit', { missed: fmtNumber(du.missed), dueSoon: fmtNumber(du.dueSoon) }) : quiet,
       to: '/duties?level=mandatory&status=attention',
       icon: IconCalendarDue,
+    });
+  const sc = a.scorecard;
+  if (sc)
+    tiles.push({
+      key: 'scorecard',
+      label: t('counts.scorecard'),
+      value: sc.attention,
+      tone: sc.attention ? TONE.attention : null,
+      detail: sc.attention ? t('counts.scorecardOf', { count: sc.services, services: fmtNumber(sc.services) }) : quiet,
+      to: '/scorecard?attention=1',
+      icon: IconGauge,
     });
   const v = a.vendorTickets;
   if (v)

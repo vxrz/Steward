@@ -53,6 +53,10 @@
     "duties": {
       "title": "Service duties",
       "hint": "Periods of service duties that ended (done, late, skipped, failed, missed) and duties not done yet"
+    },
+    "scorecard": {
+      "title": "Service scorecard",
+      "hint": "Per service duties, availability, documentation and protection need with attention needed; the trend of the stored days; availability objectives with their breaches"
     }
   },
   "runNow": "Generate now",
