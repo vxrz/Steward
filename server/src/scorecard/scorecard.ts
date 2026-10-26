@@ -12,6 +12,7 @@ import {
   type ScorecardDutyItem,
   type ScorecardDuties,
   type ScorecardExpectedDocument,
+  type ScorecardObjectiveItem,
   type ScorecardOverview,
   type ScorecardPart,
   type ScorecardPartCounts,
@@ -34,7 +35,16 @@ import { documentRows } from '../catalogue/documents.js';
 import { currentScale, protectionNeeds, ratingsOf } from '../catalogue/cia.js';
 import { instanceTimeZone, localDate, periodAt } from '../duties/periods.js';
 import type { DutyRow } from '../duties/evaluate.js';
-import { judge, readingCache, type ObjectiveRow } from './objectives.js';
+import {
+  longestWindowMs,
+  objectiveState,
+  platformLookup,
+  readingCache,
+  sampleFacts,
+  type ObjectiveRow,
+  type ReadingCache,
+  type SampleFacts,
+} from './objectives.js';
 import { ruleRows, ruleValid } from './rules.js';
 
 /**
@@ -89,6 +99,23 @@ interface Data {
   /** record ids per service: linked (either way) and applying to its applications */
   linked: Map<string, Set<string>>;
   scoped: Map<string, string[]>;
+  /** Duties archived during their current period, with the time of the archive */
+  dutyArchivedAt: Map<string, string>;
+}
+
+/** When these duties were last archived (from the audit log, which nobody can change unnoticed). */
+function archivedAtOf(ids: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    for (const r of db().all<{ entity_id: string; last_ts: string }>(
+      `SELECT entity_id, MAX(ts) AS last_ts FROM audit_log WHERE entity_type = 'duty' AND action = 'duty.archived' AND entity_id IN (${chunk.map(() => '?').join(', ')})
+       GROUP BY entity_id`,
+      ...chunk,
+    ))
+      out.set(r.entity_id, r.last_ts);
+  }
+  return out;
 }
 
 function load(serviceIds: string[] | undefined, now: number): Data {
@@ -101,7 +128,20 @@ function load(serviceIds: string[] | undefined, now: number): Data {
     for (const r of rows) if (ids.has(key(r))) m.set(key(r), [...(m.get(key(r)) ?? []), r]);
     return m;
   };
-  const duties = group(db().all<DutyRow>('SELECT * FROM service_duties WHERE archived = 0 ORDER BY name, id'), (d) => d.service_id);
+  const tz = instanceTimeZone();
+  // archiving does not clean the scorecard: a duty archived during its current period counts until that period ends
+  const archivedDuties = db().all<DutyRow>('SELECT * FROM service_duties WHERE archived = 1');
+  const dutyArchivedAt = new Map<string, string>();
+  for (const [id, at] of archivedAtOf(archivedDuties.map((x) => x.id))) {
+    const x = archivedDuties.find((y) => y.id === id)!;
+    if (Date.parse(at) >= periodAt(x.interval_kind, now, tz).start) dutyArchivedAt.set(id, at);
+  }
+  const duties = group(
+    db()
+      .all<DutyRow>('SELECT * FROM service_duties ORDER BY name, id')
+      .filter((x) => !x.archived || dutyArchivedAt.has(x.id)),
+    (x) => x.service_id,
+  );
   const lastClosed = new Map<string, PeriodRef>();
   for (const r of db().all<PeriodRef>(
     `SELECT p.duty_id, p.period_key, p.status, p.period_end FROM duty_periods p
@@ -127,13 +167,20 @@ function load(serviceIds: string[] | undefined, now: number): Data {
   for (const r of db().all<{ record_id: string; application_id: string }>('SELECT record_id, application_id FROM record_applications'))
     scoped.set(r.record_id, [...(scoped.get(r.record_id) ?? []), r.application_id]);
   return {
-    tz: instanceTimeZone(),
+    tz,
     now,
     services,
     duties,
     lastClosed,
     open,
-    objectives: group(db().all<ObjectiveRow>('SELECT * FROM availability_objectives ORDER BY name, id'), (o) => o.service_id),
+    // an archived objective counts until its longest window has passed (with the status of its last sample)
+    objectives: group(
+      db()
+        .all<ObjectiveRow>('SELECT * FROM availability_objectives ORDER BY name, id')
+        .filter((o) => !o.archived_at || now < Date.parse(o.archived_at) + longestWindowMs(o)),
+      (o) => o.service_id,
+    ),
+    dutyArchivedAt,
     appNames: new Map(
       db()
         .all<{ id: string; name: string }>('SELECT id, name FROM applications')
@@ -156,8 +203,9 @@ function dutiesPart(d: Data, serviceId: string): ScorecardDuties {
   for (const duty of d.duties.get(serviceId) ?? []) {
     const last = d.lastClosed.get(duty.id) ?? null;
     const cur = periodAt(duty.interval_kind, d.now, d.tz);
-    // nothing stored for the current period: nothing counts yet (the job stores a period once something happened)
-    const curStatus: DutyPeriodStatus = d.open.get(`${duty.id}\n${cur.key}`)?.status ?? 'due';
+    // nothing stored for the current period: nothing counts yet (the job stores a period once something happened); a
+    // duty archived with its current period done has that period stored as closed
+    const curStatus: DutyPeriodStatus = d.open.get(`${duty.id}\n${cur.key}`)?.status ?? (last?.period_key === cur.key ? last.status : 'due');
     const result = last && BAD_DUTY.includes(last.status) ? 'notMet' : OK_DUTY.includes(curStatus) ? 'met' : BAD_DUTY.includes(curStatus) ? 'notMet' : 'open';
     by[duty.level].total++;
     by[duty.level][result]++;
@@ -166,6 +214,7 @@ function dutiesPart(d: Data, serviceId: string): ScorecardDuties {
       name: duty.name,
       level: duty.level,
       applicationName: duty.application_id ? (d.appNames.get(duty.application_id) ?? null) : null,
+      archivedAt: d.dutyArchivedAt.get(duty.id) ?? null,
       lastClosed: last ? { key: last.period_key, status: last.status } : null,
       current: { key: cur.key, status: curStatus },
       result,
@@ -178,26 +227,46 @@ function dutiesPart(d: Data, serviceId: string): ScorecardDuties {
     // recommended duties never set "attention": a recommended duty not met is shown as pending
     recommended: { ...by.recommended, status: rec === 'attention' ? 'pending' : rec },
     optional: { total: by.optional.total },
+    archivedThisPeriod: items.filter((i) => i.archivedAt).length,
     items,
   };
 }
 
-function availabilityPart(d: Data, serviceId: string, cache: ReturnType<typeof readingCache>): ScorecardAvailability {
-  const list = (d.objectives.get(serviceId) ?? []).map((o) => ({
-    id: o.id,
-    name: o.name,
-    status: judge(o, cache.read(o.platform_id, o.endpoint_key).values).status,
-    applicationName: o.application_id ? (d.appNames.get(o.application_id) ?? null) : null,
-  }));
+interface ObjCtx {
+  cache: ReadingCache;
+  facts: SampleFacts;
+  platforms: ReturnType<typeof platformLookup>;
+  viewer: AuthUser | null;
+}
+
+function availabilityPart(d: Data, serviceId: string, c: ObjCtx): ScorecardAvailability {
+  const list: ScorecardObjectiveItem[] = (d.objectives.get(serviceId) ?? []).map((o) => {
+    const st = objectiveState(o, c.cache, c.facts, d.now);
+    // the platform and the endpoint only for readers who may see the platform
+    const visible = !!c.viewer && c.platforms.visible(c.viewer, o.platform_id);
+    const e = visible ? c.cache.endpoint(o.platform_id, o.endpoint_key) : null;
+    return {
+      id: o.id,
+      name: o.name,
+      status: st.status,
+      applicationName: o.application_id ? (d.appNames.get(o.application_id) ?? null) : null,
+      source: visible ? `${c.platforms.get(o.platform_id)?.name ?? ''} · ${e ? (e.group_name ? `${e.group_name}/${e.name}` : e.name) : o.endpoint_key}` : null,
+      noDataReason: st.status === 'noData' ? st.reason : null,
+      noDataTooLong: st.noDataTooLong,
+      archivedAt: o.archived_at,
+    };
+  });
   const n = (s: string) => list.filter((o) => o.status === s).length;
   const below = n('below');
   const noData = n('noData');
+  const tooLong = list.filter((o) => o.noDataTooLong).length;
   return {
-    status: !list.length ? 'none' : below ? 'attention' : noData ? 'pending' : 'ok',
+    status: !list.length ? 'none' : below || tooLong ? 'attention' : noData ? 'pending' : 'ok',
     total: list.length,
     met: n('met'),
     below,
     noData,
+    noDataTooLong: tooLong,
     objectives: list,
   };
 }
@@ -334,12 +403,12 @@ export interface Computed {
 export function computeScorecards(serviceIds: string[] | undefined, viewer: AuthUser | null, now = Date.now()): Computed[] {
   const d = load(serviceIds, now);
   if (!d.services.length) return [];
-  const cache = readingCache(now);
+  const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
-    const availability = availabilityPart(d, s.id, cache);
+    const availability = availabilityPart(d, s.id, oc);
     const { ids, ...documentation } = documentationPart(d, s.id, docs);
     const protection = protectionPart(needs.get(s.id)!, (d.members.get(s.id) ?? []).length);
     return {
@@ -500,19 +569,29 @@ export function serviceScorecard(serviceId: string, now = Date.now()): ServiceSc
 /** Service editors, auditors and administrators see every service on the start page; the others the services they own. */
 const seesAll = (u: AuthUser) => u.roles.some((r) => r === 'admin' || r === 'designer' || r === 'auditor');
 
-/** The start page tile: services whose scorecard needs attention; null when the user owns none (and does not see all). */
+/**
+ * The start page tile: services whose scorecard needs attention; null when the user owns none (and does not see all).
+ * Read from the newest stored snapshot (the job writes today's every hour), with the reader's documentation adjustment
+ * of the history view – not computed on every start page load. Only without any snapshot (a new installation, before
+ * the job's first run) is it computed.
+ */
 export function scorecardAttention(now = Date.now()): { attention: number; services: number } | null {
   const u = currentUser();
   if (!u) return null;
   const all = seesAll(u);
-  let ids: string[] | undefined;
-  if (!all) {
-    ids = db()
-      .all<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE archived = 0')
-      .filter((s) => parseJson<string[]>(s.owners, []).some((o) => matches(u, o)))
-      .map((s) => s.id);
-    if (!ids.length) return null;
+  const active = db()
+    .all<{ id: string; owners: string }>('SELECT id, owners FROM services WHERE archived = 0')
+    .filter((s) => all || parseJson<string[]>(s.owners, []).some((o) => matches(u, o)));
+  if (!all && !active.length) return null;
+  const ids = new Set(active.map((s) => s.id));
+  const day = db().get<{ last_day: string | null }>('SELECT MAX(day) AS last_day FROM scorecard_snapshots WHERE day <= ?', dayOf(now))?.last_day ?? null;
+  if (!day) {
+    const cards = computeScorecards(all ? undefined : [...ids], u, now);
+    return { attention: cards.filter((c) => c.card.attention).length, services: cards.length };
   }
-  const cards = computeScorecards(ids, u, now);
-  return { attention: cards.filter((c) => c.card.attention).length, services: cards.length };
+  const rows = db()
+    .all<SnapshotRow>('SELECT * FROM scorecard_snapshots WHERE day = ?', day)
+    .filter((r) => ids.has(r.service_id));
+  const readable = snapshotReader(u, rows);
+  return { attention: rows.filter((r) => pointOf(r, readable(r)).attention).length, services: rows.length };
 }

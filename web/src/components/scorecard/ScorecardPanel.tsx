@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { SCORECARD_PARTS, type ScorecardPart, type ServiceScorecardDetail, type ServiceScorecardHistoryPoint } from '@sm/shared';
 import { get } from '../../api';
+import { fmtDate } from '../../format';
 import { QueryState } from '../common';
 import { useLevel } from '../catalogue/cia';
 import { AttentionBadge, PART_COLORS, PartBadge } from './common';
@@ -66,6 +67,7 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
         <Text size="xs" c="dimmed">
           {t('duties.optional', { count: d.optional.total })}
         </Text>
+        {d.archivedThisPeriod > 0 && <Text size="xs">{t('duties.archived', { count: d.archivedThisPeriod })}</Text>}
         {notMet.length > 0 && (
           <List size="xs" spacing={0}>
             {notMet.map((i) => (
@@ -93,10 +95,15 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
       <Stack gap={2}>
         <Text size="xs">{t('availability.summary', { total: a.total, met: a.met, below: a.below, noData: a.noData })}</Text>
         {a.objectives
-          .filter((o) => o.status !== 'met')
+          .filter((o) => o.status !== 'met' || o.archivedAt)
           .map((o) => (
-            <Text size="xs" key={o.id}>
-              {o.name}: {t(`objectiveStatuses.${o.status}`)}
+            <Text size="xs" key={o.id} style={{ overflowWrap: 'anywhere' }}>
+              {o.archivedAt
+                ? t('availability.archivedItem', { name: o.name, date: fmtDate(o.archivedAt), status: t(`objectiveStatuses.${o.status}`) })
+                : o.noDataTooLong
+                  ? t('availability.tooLong', { name: o.name })
+                  : `${o.name}: ${t(`objectiveStatuses.${o.status}`)}`}
+              {` – ${o.source ?? t('objectives.platformHidden')}`}
             </Text>
           ))}
       </Stack>

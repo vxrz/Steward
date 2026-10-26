@@ -9,6 +9,7 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const listQuery = z.object({
   serviceId: z.string().max(200).optional(),
   applicationId: z.string().max(200).optional(),
+  archived: z.enum(['0', '1']).optional(),
 });
 const trendQuery = z.object({
   days: z.coerce.number().int().min(1).max(730).default(90),
@@ -23,15 +24,15 @@ const trendQuery = z.object({
 export async function scorecardRoutes(app: FastifyInstance): Promise<void> {
   app.get('/objectives', async (req) => {
     const q = listQuery.parse(req.query);
-    return objectives.listObjectives({ serviceId: q.serviceId, applicationId: q.applicationId });
+    return objectives.listObjectives({ serviceId: q.serviceId, applicationId: q.applicationId, archived: q.archived === '1' });
   });
   app.post('/objectives', async (req) => objectives.createObjective(objectives.objectiveInput.parse(req.body)));
   app.get('/objectives/:id', async (req) => objectives.getObjective(params(req).id!));
   app.put('/objectives/:id', async (req) => objectives.updateObjective(params(req).id!, objectives.objectiveUpdate.parse(req.body)));
-  app.delete('/objectives/:id', async (req) => {
-    objectives.deleteObjective(params(req).id!);
-    return { ok: true };
-  });
+  // archived, never deleted: the history of an objective stays (scorecard.ts counts a recently archived one)
+  app.post('/objectives/:id/archive', async (req) =>
+    objectives.setObjectiveArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
+  );
 
   app.get('/scorecard', async () => scorecard.scorecardOverview());
   app.get('/scorecard/trend', async (req) => {

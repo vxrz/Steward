@@ -10433,6 +10433,46 @@
             ],
             "description": "The breach going on now"
           },
+          "noDataSince": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "No data: since when"
+          },
+          "noDataTooLong": {
+            "type": "boolean",
+            "description": "No data for more than 24 hours: needs attention on the scorecard"
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Archived objectives are not sampled and show the status of their last sample"
+          },
+          "archivedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "archivedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -10470,6 +10510,11 @@
           "valuesAt",
           "notify",
           "breach",
+          "noDataSince",
+          "noDataTooLong",
+          "archived",
+          "archivedAt",
+          "archivedBy",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -10650,6 +10695,9 @@
                 ],
                 "additionalProperties": false
               },
+              "archivedThisPeriod": {
+                "type": "integer"
+              },
               "items": {
                 "type": "array",
                 "items": {
@@ -10674,6 +10722,19 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Archived during its current period: it counts until that period ends"
                     },
                     "lastClosed": {
                       "anyOf": [
@@ -10751,6 +10812,7 @@
                     "name",
                     "level",
                     "applicationName",
+                    "archivedAt",
                     "lastClosed",
                     "current",
                     "result"
@@ -10764,6 +10826,7 @@
               "mandatory",
               "recommended",
               "optional",
+              "archivedThisPeriod",
               "items"
             ],
             "additionalProperties": false
@@ -10793,6 +10856,10 @@
               "noData": {
                 "type": "integer"
               },
+              "noDataTooLong": {
+                "type": "integer",
+                "description": "Objectives without data for more than 24 hours (attention)"
+              },
               "objectives": {
                 "type": "array",
                 "items": {
@@ -10817,13 +10884,57 @@
                         "string",
                         "null"
                       ]
+                    },
+                    "source": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                    },
+                    "noDataReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "noSource",
+                            "uptimesOff",
+                            "stale",
+                            "noEndpoint",
+                            "noValue"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "noDataTooLong": {
+                      "type": "boolean"
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Archived recently: counts with its last status until its longest window has passed"
                     }
                   },
                   "required": [
                     "id",
                     "name",
                     "status",
-                    "applicationName"
+                    "applicationName",
+                    "source",
+                    "noDataReason",
+                    "noDataTooLong",
+                    "archivedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -10835,6 +10946,7 @@
               "met",
               "below",
               "noData",
+              "noDataTooLong",
               "objectives"
             ],
             "additionalProperties": false
@@ -11203,6 +11315,9 @@
                       ],
                       "additionalProperties": false
                     },
+                    "archivedThisPeriod": {
+                      "type": "integer"
+                    },
                     "items": {
                       "type": "array",
                       "items": {
@@ -11227,6 +11342,19 @@
                               "null",
                               "string"
                             ]
+                          },
+                          "archivedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Archived during its current period: it counts until that period ends"
                           },
                           "lastClosed": {
                             "anyOf": [
@@ -11304,6 +11432,7 @@
                           "name",
                           "level",
                           "applicationName",
+                          "archivedAt",
                           "lastClosed",
                           "current",
                           "result"
@@ -11317,6 +11446,7 @@
                     "mandatory",
                     "recommended",
                     "optional",
+                    "archivedThisPeriod",
                     "items"
                   ],
                   "additionalProperties": false
@@ -11346,6 +11476,10 @@
                     "noData": {
                       "type": "integer"
                     },
+                    "noDataTooLong": {
+                      "type": "integer",
+                      "description": "Objectives without data for more than 24 hours (attention)"
+                    },
                     "objectives": {
                       "type": "array",
                       "items": {
@@ -11370,13 +11504,57 @@
                               "null",
                               "string"
                             ]
+                          },
+                          "source": {
+                            "type": [
+                              "null",
+                              "string"
+                            ],
+                            "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                          },
+                          "noDataReason": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "noSource",
+                                  "uptimesOff",
+                                  "stale",
+                                  "noEndpoint",
+                                  "noValue"
+                                ]
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "noDataTooLong": {
+                            "type": "boolean"
+                          },
+                          "archivedAt": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "ISO 8601 timestamp (UTC)"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "Archived recently: counts with its last status until its longest window has passed"
                           }
                         },
                         "required": [
                           "id",
                           "name",
                           "status",
-                          "applicationName"
+                          "applicationName",
+                          "source",
+                          "noDataReason",
+                          "noDataTooLong",
+                          "archivedAt"
                         ],
                         "additionalProperties": false
                       }
@@ -11388,6 +11566,7 @@
                     "met",
                     "below",
                     "noData",
+                    "noDataTooLong",
                     "objectives"
                   ],
                   "additionalProperties": false
@@ -12193,6 +12372,9 @@
                 ],
                 "additionalProperties": false
               },
+              "archivedThisPeriod": {
+                "type": "integer"
+              },
               "items": {
                 "type": "array",
                 "items": {
@@ -12217,6 +12399,19 @@
                         "null",
                         "string"
                       ]
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Archived during its current period: it counts until that period ends"
                     },
                     "lastClosed": {
                       "anyOf": [
@@ -12294,6 +12489,7 @@
                     "name",
                     "level",
                     "applicationName",
+                    "archivedAt",
                     "lastClosed",
                     "current",
                     "result"
@@ -12307,6 +12503,7 @@
               "mandatory",
               "recommended",
               "optional",
+              "archivedThisPeriod",
               "items"
             ],
             "additionalProperties": false
@@ -12336,6 +12533,10 @@
               "noData": {
                 "type": "integer"
               },
+              "noDataTooLong": {
+                "type": "integer",
+                "description": "Objectives without data for more than 24 hours (attention)"
+              },
               "objectives": {
                 "type": "array",
                 "items": {
@@ -12360,13 +12561,57 @@
                         "null",
                         "string"
                       ]
+                    },
+                    "source": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "\"platform · endpoint\"; null when the token owner may not see the platform"
+                    },
+                    "noDataReason": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "noSource",
+                            "uptimesOff",
+                            "stale",
+                            "noEndpoint",
+                            "noValue"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "noDataTooLong": {
+                      "type": "boolean"
+                    },
+                    "archivedAt": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "description": "Archived recently: counts with its last status until its longest window has passed"
                     }
                   },
                   "required": [
                     "id",
                     "name",
                     "status",
-                    "applicationName"
+                    "applicationName",
+                    "source",
+                    "noDataReason",
+                    "noDataTooLong",
+                    "archivedAt"
                   ],
                   "additionalProperties": false
                 }
@@ -12378,6 +12623,7 @@
               "met",
               "below",
               "noData",
+              "noDataTooLong",
               "objectives"
             ],
             "additionalProperties": false
@@ -18456,7 +18702,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Objectives of archived services are left out.",
+        "description": "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Archived objectives (and those of archived services) are left out unless `archived` says otherwise.",
         "parameters": [
           {
             "schema": {
@@ -18479,6 +18725,21 @@
             "name": "cursor",
             "required": false,
             "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "default": "exclude"
+            },
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "description": "Archived objectives: left out (default), included, or only these"
           },
           {
             "schema": {

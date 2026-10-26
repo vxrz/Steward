@@ -109,4 +109,12 @@ test('define an availability objective and see the scorecard of the service', as
   await expect(page.getByRole('switch', { name: 'Attention needed only' })).toBeChecked();
   await expect(page).toHaveURL(/attention=1/);
   await expect(page.getByTestId(`scorecard-${svc.id}`)).toHaveCount(0);
+
+  // objectives are archived, not deleted: the archived one is listed below the active ones
+  await page.goto(`/services/${svc.id}`);
+  const objectives = page.getByTestId('objectives-panel');
+  await objectives.getByRole('button', { name: `Archive the objective “${endpoint.name}”` }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Archive' }).click();
+  await expect(objectives).toContainText('No availability objectives yet');
+  await expect(objectives).toContainText('1 archived objective');
 });

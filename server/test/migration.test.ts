@@ -320,6 +320,11 @@ describe('export (source)', () => {
       new Date().toISOString(),
       'admin',
     );
+    // scorecard rows out of range (#86): a target above 100 %, an unknown sample status, a snapshot day that is not a day
+    const badTarget = db().get<{ target_h24: number }>('SELECT target_h24 FROM availability_objectives WHERE id = ?', source.objectiveId)!.target_h24;
+    db().run('UPDATE availability_objectives SET target_h24 = 20000 WHERE id = ?', source.objectiveId);
+    db().run("UPDATE objective_samples SET status = 'great' WHERE objective_id = ?", source.objectiveId);
+    db().run("UPDATE scorecard_snapshots SET day = '2026/01/01' WHERE day = ?", source.snapshotDay);
     try {
       const res = await rawExport({ passphrase: SOURCE_PASS, transferPassphrase: TRANSFER });
       const r = await res.json();
@@ -327,6 +332,9 @@ describe('export (source)', () => {
       const dl = await fetch(`${s.base}/api/migration/exports/${r.downloadId}/download`, { headers: authHeaders(adminCookie) });
       fs.writeFileSync(badScaleFile, Buffer.from(await dl.arrayBuffer()));
     } finally {
+      db().run('UPDATE availability_objectives SET target_h24 = ? WHERE id = ?', badTarget, source.objectiveId);
+      db().run("UPDATE objective_samples SET status = 'below' WHERE objective_id = ?", source.objectiveId);
+      db().run("UPDATE scorecard_snapshots SET day = ? WHERE day = '2026/01/01'", source.snapshotDay);
       db().run('DELETE FROM cia_scales');
       for (const k of keep)
         db().run('INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)', k.dimension, k.levels, k.updated_at, k.updated_by);
@@ -486,6 +494,10 @@ describe('import into SQLite through the web API', () => {
     const r = await upload(max, badScaleFile, TRANSFER);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body.blocking.join(' ')).toContain("the package's CIA scale is not valid");
+    const blocking = r.body.blocking.join('\n');
+    expect(blocking).toMatch(/availability_objectives, row \d+: target_h24 is not 0–10000 hundredths of a percent/);
+    expect(blocking).toMatch(/objective_samples, row \d+: status "great" is unknown/);
+    expect(blocking).toMatch(/scorecard_snapshots, row \d+: day "2026\/01\/01" is not YYYY-MM-DD/);
     fs.rmSync(badScaleFile, { force: true });
   });
 

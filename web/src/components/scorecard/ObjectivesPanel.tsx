@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArchive, IconArchiveOff, IconEdit, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ObjectiveDetail, ObjectiveSummary } from '@sm/shared';
-import { del, get, notifyError, notifyOk } from '../../api';
+import { get, notifyError, notifyOk, post } from '../../api';
 import { QueryState } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtDate, fmtRelative } from '../../format';
@@ -26,23 +26,31 @@ export function ObjectivesPanel({
 }) {
   const { t } = useTranslation('scorecard');
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['objectives', serviceId], queryFn: () => get<ObjectiveSummary[]>(`/objectives?serviceId=${encodeURIComponent(serviceId)}`) });
+  const q = useQuery({
+    queryKey: ['objectives', serviceId],
+    queryFn: () => get<ObjectiveSummary[]>(`/objectives?serviceId=${encodeURIComponent(serviceId)}&archived=1`),
+  });
   const [editing, setEditing] = useState<ObjectiveSummary | 'new' | null>(null);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['objectives'] });
     void qc.invalidateQueries({ queryKey: ['scorecard'] });
   };
-  const remove = async (o: ObjectiveSummary) => {
-    if (!(await confirmDanger({ action: 'delete', message: t('objectives.deleteConfirm', { name: o.name }) }))) return;
+  const setArchived = async (o: ObjectiveSummary, archived: boolean) => {
+    if (archived && !(await confirmDanger({ action: 'archive', message: t('objectives.archiveConfirm', { name: o.name }) }))) return;
     try {
-      await del(`/objectives/${o.id}`);
-      notifyOk(t('objectives.deleted'));
+      await post(`/objectives/${o.id}/archive`, { archived });
+      notifyOk(archived ? t('objectives.archived') : t('objectives.restored'));
       refresh();
     } catch (e) {
       notifyError(e);
     }
   };
-  const list = q.data ?? [];
+  const all = q.data ?? [];
+  const list = all.filter((o) => !o.archived);
+  const archived = all.filter((o) => o.archived);
+  const card = (o: ObjectiveSummary) => (
+    <ObjectiveCard key={o.id} objective={o} onEdit={() => setEditing(o)} onArchive={() => void setArchived(o, !o.archived)} />
+  );
   return (
     <Stack gap="xs" data-testid="objectives-panel">
       <Group justify="space-between">
@@ -63,81 +71,25 @@ export function ObjectivesPanel({
       )}
       {list.length > 0 && (
         <Stack gap="xs" role="list" aria-labelledby="objectives-title">
-          {list.map((o) => (
-            <Paper key={o.id} withBorder p="sm" role="listitem" data-testid={`objective-${o.id}`}>
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Stack gap={4} style={{ minWidth: 0 }}>
-                  <Group gap={6} wrap="wrap">
-                    <Text fw={600} size="sm">
-                      {o.name}
-                    </Text>
-                    <ObjectiveStatusBadge status={o.status} size="xs" />
-                    {o.notify && (
-                      <Badge size="xs" variant="default" tt="none">
-                        {t('objectives.notifies')}
-                      </Badge>
-                    )}
-                  </Group>
-                  <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
-                    {o.platformVisible ? `${o.platformName ?? ''} · ${o.endpointName ?? o.endpointKey ?? ''}` : t('objectives.platformHidden')}
-                    {o.applicationName ? ` · ${t('objectives.application')}: ${o.applicationName}` : ''}
-                  </Text>
-                  <Group gap={6} wrap="wrap">
-                    {o.windows.map((w) => (
-                      <Badge
-                        key={w.window}
-                        size="sm"
-                        variant="outline"
-                        color={OBJECTIVE_COLORS[w.status]}
-                        tt="none"
-                        data-testid={`window-${w.window}`}
-                        aria-label={t('objectives.windowAria', {
-                          window: t(`windows.${w.window}`),
-                          value: fmtPct(w.value),
-                          target: fmtPct(w.target),
-                          status: t(`objectiveStatuses.${w.status}`),
-                        })}
-                      >
-                        {t('objectives.window', { window: t(`windows.${w.window}`), value: fmtPct(w.value), target: fmtPct(w.target) })}
-                      </Badge>
-                    ))}
-                  </Group>
-                  {o.noDataReason && (
-                    <Text size="xs" c="dimmed">
-                      {t(`noData.${o.noDataReason}`)}
-                    </Text>
-                  )}
-                  {o.breach && (
-                    <Text size="xs" c="red.8">
-                      {t('objectives.breachSince', { date: fmtDate(o.breach.startedAt) })}
-                    </Text>
-                  )}
-                  {o.valuesAt && (
-                    <Text size="xs" c="dimmed">
-                      {t('objectives.valuesAt', { when: fmtRelative(o.valuesAt) })}
-                    </Text>
-                  )}
-                  <ObjectiveHistory objective={o} />
-                </Stack>
-                {o.canEdit && (
-                  <Group gap={2} wrap="nowrap">
-                    <ActionIcon variant="subtle" aria-label={t('form.editOf', { name: o.name })} onClick={() => setEditing(o)}>
-                      <IconEdit size={16} />
-                    </ActionIcon>
-                    <ActionIcon variant="subtle" color="red" aria-label={t('objectives.deleteOf', { name: o.name })} onClick={() => void remove(o)}>
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Group>
-                )}
-              </Group>
-            </Paper>
-          ))}
+          {list.map(card)}
         </Stack>
       )}
       {list.length > 0 && (
         <Text size="xs" c="dimmed">
           {t('objectives.hint')}
         </Text>
+      )}
+      {archived.length > 0 && (
+        <details>
+          <summary>
+            <Text component="span" size="sm">
+              {t('objectives.archivedList', { count: archived.length })}
+            </Text>
+          </summary>
+          <Stack gap="xs" role="list" aria-label={t('objectives.archivedList', { count: archived.length })} mt="xs">
+            {archived.map(card)}
+          </Stack>
+        </details>
       )}
       {editing && (
         <ObjectiveFormModal
@@ -149,6 +101,92 @@ export function ObjectivesPanel({
         />
       )}
     </Stack>
+  );
+}
+
+/** One objective: its windows with target, value and status, the platform and endpoint (or "hidden"), and the history. */
+function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: ObjectiveSummary; onEdit: () => void; onArchive: () => void }) {
+  const { t } = useTranslation('scorecard');
+  return (
+    <Paper withBorder p="sm" role="listitem" data-testid={`objective-${o.id}`} data-inactive={o.archived || undefined}>
+      <Group justify="space-between" align="flex-start" wrap="nowrap">
+        <Stack gap={4} style={{ minWidth: 0 }}>
+          <Group gap={6} wrap="wrap">
+            <Text fw={600} size="sm">
+              {o.name}
+            </Text>
+            <ObjectiveStatusBadge status={o.status} size="xs" />
+            {o.archived && (
+              <Badge size="xs" variant="default" tt="none">
+                {t('objectives.archivedOn', { date: fmtDate(o.archivedAt) })}
+              </Badge>
+            )}
+            {o.notify && (
+              <Badge size="xs" variant="default" tt="none">
+                {t('objectives.notifies')}
+              </Badge>
+            )}
+          </Group>
+          <Text size="xs" c="dimmed" style={{ overflowWrap: 'anywhere' }}>
+            {o.platformVisible ? `${o.platformName ?? ''} · ${o.endpointName ?? o.endpointKey ?? ''}` : t('objectives.platformHidden')}
+            {o.applicationName ? ` · ${t('objectives.application')}: ${o.applicationName}` : ''}
+          </Text>
+          <Group gap={6} wrap="wrap">
+            {o.windows.map((w) => (
+              <Badge
+                key={w.window}
+                size="sm"
+                variant="outline"
+                color={OBJECTIVE_COLORS[w.status]}
+                tt="none"
+                data-testid={`window-${w.window}`}
+                aria-label={t('objectives.windowAria', {
+                  window: t(`windows.${w.window}`),
+                  value: fmtPct(w.value),
+                  target: fmtPct(w.target),
+                  status: t(`objectiveStatuses.${w.status}`),
+                })}
+              >
+                {t('objectives.window', { window: t(`windows.${w.window}`), value: fmtPct(w.value), target: fmtPct(w.target) })}
+              </Badge>
+            ))}
+          </Group>
+          {o.noDataReason && !o.archived && (
+            <Text size="xs" c={o.noDataTooLong ? 'red.8' : 'dimmed'}>
+              {o.noDataTooLong && o.noDataSince ? `${t('objectives.noDataSince', { date: fmtDate(o.noDataSince) })} ` : ''}
+              {t(`noData.${o.noDataReason}`)}
+            </Text>
+          )}
+          {o.breach && (
+            <Text size="xs" c="red.8">
+              {t('objectives.breachSince', { date: fmtDate(o.breach.startedAt) })}
+            </Text>
+          )}
+          {o.valuesAt && (
+            <Text size="xs" c="dimmed">
+              {t('objectives.valuesAt', { when: fmtRelative(o.valuesAt) })}
+            </Text>
+          )}
+          <ObjectiveHistory objective={o} />
+        </Stack>
+        {o.canEdit && (
+          <Group gap={2} wrap="nowrap">
+            {!o.archived && (
+              <ActionIcon variant="subtle" aria-label={t('form.editOf', { name: o.name })} onClick={onEdit}>
+                <IconEdit size={16} />
+              </ActionIcon>
+            )}
+            <ActionIcon
+              variant="subtle"
+              aria-label={o.archived ? t('objectives.restoreOf', { name: o.name }) : t('objectives.archiveOf', { name: o.name })}
+              onClick={onArchive}
+            >
+              {o.archived ? <IconArchiveOff size={16} /> : <IconArchive size={16} />}
+            </ActionIcon>
+          </Group>
+        )}
+      </Group>
+    </Paper>
   );
 }
 

@@ -36,6 +36,11 @@ const mapObjective = (o: ObjectiveSummary) => ({
   valuesAt: o.valuesAt,
   notify: o.notify,
   breach: o.breach,
+  noDataSince: o.noDataSince,
+  noDataTooLong: o.noDataTooLong,
+  archived: o.archived,
+  archivedAt: o.archivedAt,
+  archivedBy: o.archivedBy,
   createdAt: o.createdAt,
   createdBy: o.createdBy,
   updatedAt: o.updatedAt,
@@ -135,15 +140,15 @@ export function scorecardApiRoutes(get: Get): void {
       tag: 'Services',
       summary: 'List availability objectives',
       description:
-        "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Objectives of archived services are left out.",
+        "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Archived objectives (and those of archived services) are left out unless `archived` says otherwise.",
       query: ObjectiveListQuery,
       paginated: true,
       response: page('ObjectiveEntry', 'A page of objectives'),
     },
     async (req, reply) => {
       const q = req.query as z.infer<typeof ObjectiveListQuery>;
-      const list = listObjectives({ serviceId: q.serviceId, applicationId: q.applicationId })
-        .filter((o) => !q.status || o.status === q.status)
+      const list = listObjectives({ serviceId: q.serviceId, applicationId: q.applicationId, archived: q.archived !== 'exclude' })
+        .filter((o) => (q.archived !== 'only' || o.archived) && (!q.status || o.status === q.status))
         .map(mapObjective);
       const p = pageArray(list, (o) => [o.serviceName.toLowerCase(), o.name.toLowerCase(), o.id], q, q);
       linkNext(req, reply, p.nextCursor);

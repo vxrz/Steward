@@ -74,13 +74,19 @@
     "breachSince": "Unterschritten seit {{date}}",
     "valuesAt": "Werte von Gatus gelesen {{when}}",
     "hint": "Die Werte sind die eigenen Verfügbarkeitswerte von Gatus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",
-    "deleteConfirm": "Ziel „{{name}}“ mit seinen gespeicherten Werten löschen? Der Verlauf der Scorecard behält, was es war.",
-    "deleted": "Ziel gelöscht",
-    "deleteOf": "Ziel „{{name}}“ löschen",
     "showHistory": "Verlauf anzeigen",
     "hideHistory": "Verlauf ausblenden",
     "historySummary_one": "{{count}} stündlicher Wert in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}",
-    "historySummary_other": "{{count}} stündliche Werte in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}"
+    "historySummary_other": "{{count}} stündliche Werte in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}",
+    "archiveConfirm": "Ziel „{{name}}“ archivieren? Es wird nicht mehr erfasst; seine Werte und Unterschreitungen bleiben, und es zählt auf der Scorecard mit seinem letzten Status weiter, bis sein längstes Zeitfenster vorbei ist.",
+    "archived": "Ziel archiviert",
+    "restored": "Ziel wiederhergestellt",
+    "archivedOn": "Archiviert am {{date}}",
+    "noDataSince": "Keine Daten seit {{date}} (mehr als 24 Stunden).",
+    "restoreOf": "Ziel „{{name}}“ wiederherstellen",
+    "archiveOf": "Ziel „{{name}}“ archivieren",
+    "archivedList_one": "{{count}} archiviertes Ziel",
+    "archivedList_other": "{{count}} archivierte Ziele"
   },
   "duties": {
     "none": "Keine Pflichten.",
@@ -88,11 +94,15 @@
     "recommended": "Empfohlen: {{met}} von {{total}} erfüllt, {{open}} offen, {{notMet}} nicht erfüllt",
     "optional_one": "Freiwillig: {{count}} Pflicht",
     "optional_other": "Freiwillig: {{count}} Pflichten",
-    "notMetItem": "({{level}}, Zeitraum {{period}})"
+    "notMetItem": "({{level}}, Zeitraum {{period}})",
+    "archived_one": "{{count}} Pflicht in diesem Zeitraum archiviert – sie zählt bis zu seinem Ende",
+    "archived_other": "{{count}} Pflichten in diesem Zeitraum archiviert – sie zählen bis zu seinem Ende"
   },
   "availability": {
     "none": "Keine Verfügbarkeitsziele.",
-    "summary": "{{met}} von {{total}} erfüllt · {{below}} unterschritten · {{noData}} ohne Daten"
+    "summary": "{{met}} von {{total}} erfüllt · {{below}} unterschritten · {{noData}} ohne Daten",
+    "tooLong": "{{name}}: seit mehr als 24 Stunden keine Daten",
+    "archivedItem": "{{name}} (archiviert am {{date}}, zählt noch): {{status}}"
   },
   "documentation": {
     "summary": "{{released}} von {{documents}} Dokumenten freigegeben · {{overdue}} Überprüfungen überfällig · {{dueSoon}} bald fällig",

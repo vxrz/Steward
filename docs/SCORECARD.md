@@ -37,7 +37,7 @@ The values are **Gatus' own uptime figures**. Steward does not calculate service
 5. Tick _Send a message when it falls below target_ if the owners should hear about it.
 6. _Save_.
 
-_Edit_ (pencil) changes an objective; _Delete_ (bin) removes it with its samples and breaches. The scorecard history keeps what it was.
+_Edit_ (pencil) changes an objective. Objectives are **archived, never deleted** (_Archive_, box icon): an archived objective is no longer sampled, its samples and breaches stay until the retention removes them, and it still counts on the scorecard with the status of its last sample until its longest window has passed (for "24 h ≥ 99 %, 7 days ≥ 99 %" that is 7 days). So archiving an objective that is below target does not clean the scorecard. Archived objectives are listed under the active ones; _Restore_ brings one back.
 
 ## Status of an objective
 
@@ -49,7 +49,7 @@ Per window with a target:
 | **Below target** | Gatus' value is below the target       |
 | **No data**      | There is no value for the window       |
 
-The objective is _below target_ when any window is below; else _no data_ when any window has no value; else _met_. The card says why there is no data:
+The objective is _below target_ when any window is below; else _no data_ when any window has no value; else _met_. The card shows the Gatus platform and the endpoint (or _Gatus platform hidden_, see below) and says why there is no data:
 
 - the platform has no metrics mode, or it is off;
 - Gatus' uptime figures are not read (_Also read Gatus' uptime figures_ is off);
@@ -57,13 +57,15 @@ The objective is _below target_ when any window is below; else _no data_ when an
 - Gatus does not report the endpoint any more;
 - Gatus reported no value for a window.
 
+No data for **more than 24 hours** – since the last sample with data, or since the objective was defined – needs attention on the scorecard: an objective cannot stay "open" for ever because its source was turned off or its endpoint disappeared.
+
 ## Hourly samples and breaches
 
 Once an hour, Steward stores a **sample** of each objective: the values it had read from Gatus and the status. Samples are kept for **90 days**. _Show history_ on an objective shows the last 30 days (a line of its first window, the number of samples below target and the breaches); the API has all of them (`/api/v1/objectives/{objectiveId}/samples`).
 
 A **breach** starts with the first sample below target and ends with the first sample that meets every target again. _No data_ neither starts nor ends a breach. Ended breaches are kept for 400 days.
 
-With _Send a message …_ on, the service owners (administrators when it has none) get **one message per breach** – not one per sample (notification event `objective.breached`, in-app by default; route it to e-mail, Teams or a webhook in _Settings → Notifications_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
+With _Send a message …_ on, the service owners (administrators when it has none) get **one message per breach** – not one per sample, and at most one per objective a day: an objective that flaps between met and below target records every breach, but sends no second message within 24 hours (notification event `objective.breached`, in-app by default; route it to e-mail, Teams or a webhook in _Settings → Notifications_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 
 ## The scorecard
 
@@ -81,13 +83,13 @@ A service shows **Attention needed** when any part has the status _Attention_.
 | Part                | Attention when …                                                                                                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Duties**          | a **mandatory** duty was not met in its last closed period (missed or failed). _Open_ while a current period is still due ([DUTIES.md](DUTIES.md))                             |
-| **Availability**    | an objective is below target. _Open_ when one has no data                                                                                                                      |
+| **Availability**    | an objective is below target, or has had no data for more than 24 hours. _Open_ when one has no data for a shorter time                                                        |
 | **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md))                                                             |
 | **Protection need** | it is not rated: the service has no applications, a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid |
 
 Details:
 
-- **Duties** are read from the stored periods of [service duties](DUTIES.md): met means done, late or skipped (an approved exception). **Recommended** duties are counted separately and never set _Attention needed_; **optional** duties are only shown.
+- **Duties** are read from the stored periods of [service duties](DUTIES.md): met means done, late or skipped (an approved exception). **Recommended** duties are counted separately and never set _Attention needed_; **optional** duties are only shown. A duty **archived** during its current period still counts until that period ends, with its last status (_1 duty archived this period_) – archiving a duty whose last period was missed does not clean the scorecard.
 - **Documentation** counts the living documents linked to the service (either way) and those that apply to its applications. A document counts as present once it has an approved edition and is not withdrawn; drafts do not.
 - **Protection need** follows the maximum principle of [APPLICATIONS.md](APPLICATIONS.md): a level from an override is enough; a derived level needs every application rated in that dimension.
 
@@ -125,7 +127,7 @@ Once an hour, Steward stores **today's scorecard of every service** (a _snapshot
 
 - **Service page**: the _Scorecard_ section (four parts with details and the stored days) and the _Availability objectives_ section.
 - **Service management → Scorecard**: rollup, trend, every service with its parts, the rules. _Attention needed only_ and the owner filter narrow the list.
-- **Start page**: the tile _Services needing attention_. Administrators, designers and auditors see every service, everyone else the services they own; people who own no service do not get the tile.
+- **Start page**: the tile _Services needing attention_. Administrators, designers and auditors see every service, everyone else the services they own; people who own no service do not get the tile. The tile reads the newest stored snapshot (written every hour), so a new service shows there within the hour.
 - **Scheduled reports**: the section _Service scorecard_ (see below).
 
 ## Who may do what
@@ -144,7 +146,7 @@ Only what you may see counts and shows:
 
 ## Audit, API, reports, migration
 
-- **Audit**: `objective.created`, `objective.updated`, `objective.deleted`, `objective.breached`, `objective.recovered` (by `system`), `scorecard.rule_created`, `scorecard.rule_updated`, `scorecard.rule_deleted`.
+- **Audit**: `objective.created`, `objective.updated`, `objective.archived`, `objective.restored`, `objective.breached`, `objective.recovered` (by `system`), `scorecard.rule_created`, `scorecard.rule_updated`, `scorecard.rule_deleted`.
 - **Public API** (read-only, [API.md](API.md)): `GET /api/v1/scorecard`, `/api/v1/scorecard/trend`, `/api/v1/services/{serviceId}/scorecard`, `/api/v1/objectives`, `/api/v1/objectives/{objectiveId}/samples`.
 - **Scheduled reports** ([REPORTS.md](REPORTS.md)): the section _Service scorecard_ lists every service with its parts and _Attention needed_, the trend of the stored days in the report period, and the objectives with their status at the end of the period and the breaches that started in it. For a report period that has ended, the services come from the snapshot of its last day, so a report made later shows the same.
-- **Migration packages** ([MIGRATION.md](MIGRATION.md)): objectives, rules, samples, breaches and snapshots move; the owners stored with a snapshot follow the identity mapping.
+- **Migration packages** ([MIGRATION.md](MIGRATION.md)): objectives, rules, samples, breaches and snapshots move; the owners stored with a snapshot follow the identity mapping. The dry run checks these rows like the CIA scale: targets and values must be 0–10000 hundredths of a percent, statuses known, snapshot days `YYYY-MM-DD`; otherwise the import is blocked.

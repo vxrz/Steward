@@ -588,7 +588,8 @@
     "SCORECARD_RULE_LIMIT": "Es gibt höchstens {{max}} Regeln.",
     "SCORECARD_RULE_EXISTS": "Diese Regel gibt es bereits.",
     "SCORECARD_RULE_NOT_FOUND": "Regel {{id}} nicht gefunden.",
-    "SCORECARD_SERVICE_ARCHIVED": "Der Service ist archiviert: Er hat keine Scorecard."
+    "SCORECARD_SERVICE_ARCHIVED": "Der Service ist archiviert: Er hat keine Scorecard.",
+    "OBJECTIVE_ARCHIVED": "Das Ziel ist archiviert. Stellen Sie es wieder her, um es zu ändern."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

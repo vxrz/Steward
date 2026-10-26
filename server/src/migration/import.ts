@@ -55,6 +55,7 @@ import {
 import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS, type RefKind } from './tables.js';
 import { DATA_PREFIX } from './export.js';
 import { checkScaleRows } from '../catalogue/cia.js';
+import { SCORECARD_IMPORT_TABLES, scorecardTableChecker } from '../scorecard/import-checks.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -322,6 +323,15 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
       for await (const l of lines(reader, reader.find('tables/cia_scales.jsonl')!))
         rows.push(parseJson<{ dimension: unknown; levels: unknown }>(l, { dimension: null, levels: null }));
       contentProblems.push(...checkScaleRows(rows).map((p) => `${p} – the package's CIA scale is not valid; correct it on the source and export again`));
+    }
+    // the scorecard compares targets, samples and statuses and groups snapshots by day: values must be what Steward writes (#86)
+    for (const name of SCORECARD_IMPORT_TABLES) {
+      const t = manifest.tables.find((x) => x.name === name);
+      const entry = t && t.rows > 0 ? reader.find(`tables/${name}.jsonl`) : undefined;
+      if (!entry) continue;
+      const check = scorecardTableChecker(name);
+      for await (const l of lines(reader, entry)) check.add(parseJson<Record<string, unknown>>(l, {}));
+      contentProblems.push(...check.result().map((p) => `${p} – correct it on the source and export again`));
     }
     return {
       dir,

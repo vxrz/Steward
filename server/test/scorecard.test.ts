@@ -237,12 +237,16 @@ describe('availability objectives', () => {
     expect(await code(dana('PUT', `/objectives/${own.id}`, { name: 'Owned', platformId: secretGatus, endpointKey: 'core_vault', targets: { h24: 99 } }))).toBe(
       'OBJECTIVE_PLATFORM_UNKNOWN',
     );
-    // delete: editors only, audited
-    expect(await status(vera('DELETE', `/objectives/${own.id}`))).toBe(403);
-    await olivia('DELETE', `/objectives/${own.id}`);
-    expect(await status(dana('GET', `/objectives/${own.id}`))).toBe(404);
+    // archive (never delete): editors only, audited
+    expect(await status(vera('POST', `/objectives/${own.id}/archive`, { archived: true }))).toBe(403);
+    expect(await olivia('POST', `/objectives/${own.id}/archive`, { archived: true })).toMatchObject({ archived: true, archivedBy: 'olivia' });
+    expect(await status(dana('DELETE', `/objectives/${own.id}`))).toBe(404);
+    expect((await dana('GET', `/objectives?serviceId=${svc.id}`)).map((o: any) => o.id)).not.toContain(own.id);
+    expect((await dana('GET', `/objectives?serviceId=${svc.id}&archived=1`)).map((o: any) => o.id)).toContain(own.id);
+    expect(await code(olivia('PUT', `/objectives/${own.id}`, { name: 'Owned', targets: { h24: 98 } }))).toBe('OBJECTIVE_ARCHIVED');
     const actions = await auditActions(secret.id);
     expect(actions).toEqual(expect.arrayContaining(['objective.created', 'objective.updated']));
+    expect(await auditActions(own.id)).toContain('objective.archived');
   });
 });
 
@@ -281,10 +285,11 @@ describe('sampling, history and breach messages', () => {
     expect(recovered.breach).toBeNull();
     expect(recovered.breaches).toHaveLength(1);
     expect(recovered.breaches[0].endedAt).toBe(iso(t0 + 4 * HOUR + 60000));
-    // a new breach: a new message
+    // a new breach within a day: recorded, but no second message (the cooldown, see below)
     gatusData(gatusId, { at: t0 + 5 * HOUR }, { core_flaky: { h24: 90 } });
     jobs.sampleObjectives(t0 + 5 * HOUR + 60000);
-    expect(inbox()).toHaveLength(2);
+    expect(inbox()).toHaveLength(1);
+    expect((await dana('GET', `/objectives/${o.id}`)).breaches.map((b: any) => b.notified)).toEqual([false, true]);
     // the objective without "notify" had its breaches too, but no message
     const q = await dana('GET', `/objectives/${quietly.id}`);
     expect(q.breaches.map((b: any) => b.notified)).toEqual([false, false]);
@@ -299,6 +304,121 @@ describe('sampling, history and breach messages', () => {
     expect(jobs.pruneScorecardData(Date.now()).samples).toBeGreaterThanOrEqual(1);
     expect(samples().some((x) => x.bucket.startsWith('2020'))).toBe(false);
     gatusData(gatusId, {}, { core_flaky: { h24: 99.5 } });
+  });
+});
+
+describe('no clean scorecard by archiving, no flood of messages, no silent "no data"', () => {
+  it('a breach message at most once a day per objective, while every breach is recorded (flapping)', async () => {
+    const svc = await newService(['user:olivia']);
+    gatusData(gatusId, {}, { core_flap: { h24: 99.5 } });
+    const o = await objective(svc.id, { endpointKey: 'core_flap', targets: { h1: null, h24: 99, d7: null, d30: null }, notify: true });
+    const t0 = Math.floor(Date.now() / HOUR) * HOUR + 10 * HOUR;
+    const at = (h: number, v: number) => {
+      gatusData(gatusId, { at: t0 + h * HOUR }, { core_flap: { h24: v } });
+      jobs.sampleObjectives(t0 + h * HOUR + 60000);
+    };
+    const inbox = () => db().all<any>("SELECT * FROM notifications WHERE event = 'objective.breached' AND link = ?", `/services/${svc.id}`);
+    at(0, 98); // breach 1: message
+    at(1, 99.5);
+    at(2, 98); // breach 2 within 24 h: recorded, no message
+    at(3, 99.5);
+    at(30, 98); // breach 3 a day later: message
+    const breaches = (await dana('GET', `/objectives/${o.id}`)).breaches;
+    expect(breaches.map((b: any) => b.notified)).toEqual([true, false, true]);
+    expect(inbox()).toHaveLength(2);
+    gatusData(gatusId, {}, { core_flap: { h24: 99.5 } });
+  });
+
+  it('an archived objective keeps its samples and breaches and counts with its last status until its longest window has passed', async () => {
+    const svc = await newService();
+    gatusData(gatusId, {}, { core_down: { h24: 90 } });
+    const o = await objective(svc.id, { endpointKey: 'core_down', targets: { h1: null, h24: 99, d7: 99, d30: null } });
+    jobs.sampleObjectives(Date.now());
+    expect((await card(vera, svc.id)).availability).toMatchObject({ status: 'attention', below: 1 });
+    await dana('POST', `/objectives/${o.id}/archive`, { archived: true });
+    gatusData(gatusId, {}, { core_down: { h24: 100 } });
+    // still counted, with the status of its last sample (not the new figures) – and not sampled any more
+    const c = await card(vera, svc.id);
+    expect(c.availability).toMatchObject({ status: 'attention', below: 1 });
+    expect(c.availability.objectives[0]).toMatchObject({ id: o.id, status: 'below', archivedAt: expect.any(String) });
+    const before = db().get<any>('SELECT COUNT(*) AS n FROM objective_samples WHERE objective_id = ?', o.id).n;
+    jobs.sampleObjectives(Date.now() + 2 * HOUR);
+    expect(db().get<any>('SELECT COUNT(*) AS n FROM objective_samples WHERE objective_id = ?', o.id).n).toBe(before);
+    expect((await dana('GET', `/objectives/${o.id}`)).breaches).toHaveLength(1);
+    // after its longest window (7 days) it no longer counts
+    const later = sc.computeScorecards([svc.id], null, Date.now() + 8 * DAY)[0]!.card;
+    expect(later.availability).toMatchObject({ status: 'none', total: 0 });
+    gatusData(gatusId, {}, { core_down: { h24: 100 } });
+  });
+
+  it('a duty archived during its current period counts until that period ends, with its last status', async () => {
+    const svc = await newService();
+    const d = await duty(svc.id, 'mandatory');
+    closedPeriod(d.id, svc.id, '2026-01', 'missed');
+    expect((await card(vera, svc.id)).duties).toMatchObject({ status: 'attention', archivedThisPeriod: 0 });
+    await s.api('POST', `/duties/${d.id}/archive`, { archived: true });
+    const c = await card(vera, svc.id);
+    expect(c.duties).toMatchObject({ status: 'attention', archivedThisPeriod: 1, mandatory: { notMet: 1 } });
+    expect(c.duties.items[0]).toMatchObject({ dutyId: d.id, archivedAt: expect.any(String), result: 'notMet' });
+    // the next month: gone
+    const next = sc.computeScorecards([svc.id], null, Date.now() + 32 * DAY)[0]!.card;
+    expect(next.duties).toMatchObject({ status: 'none', archivedThisPeriod: 0 });
+  });
+
+  it('"no data" for more than a day needs attention, with the reason; shorter is open', async () => {
+    const svc = await newService();
+    const o = await objective(svc.id, { endpointKey: 'core_quiet' });
+    let c = await card(vera, svc.id);
+    expect(c.availability).toMatchObject({ status: 'pending', noData: 1, noDataTooLong: 0 });
+    expect(c.availability.objectives[0]).toMatchObject({ noDataReason: 'noValue', noDataTooLong: false, source: null });
+    expect((await dana('GET', `/scorecard/services/${svc.id}`)).availability.objectives[0].source).toBe('Gatus (demo) · core/quiet');
+    const defined = iso(Date.now() - 2 * DAY);
+    db().run('UPDATE availability_objectives SET created_at = ? WHERE id = ?', defined, o.id);
+    c = await card(vera, svc.id);
+    expect(c.availability).toMatchObject({ status: 'attention', noDataTooLong: 1 });
+    expect(c.attention).toBe(true);
+    const detail = await dana('GET', `/objectives/${o.id}`);
+    expect(detail).toMatchObject({ noDataTooLong: true, noDataReason: 'noValue', noDataSince: defined });
+    // a sample with data within the last day: open again
+    db().run(
+      "INSERT INTO objective_samples (objective_id, bucket, value_h24, status, sampled_at) VALUES (?, ?, 9990, 'met', ?)",
+      o.id,
+      iso(Math.floor(Date.now() / HOUR) * HOUR - 2 * HOUR),
+      iso(Date.now()),
+    );
+    expect((await card(vera, svc.id)).availability).toMatchObject({ status: 'pending', noDataTooLong: 0 });
+  });
+
+  it('a migration package with out-of-range scorecard rows is refused in the dry run', async () => {
+    const { scorecardRowProblems, scorecardTableChecker } = await import('../src/scorecard/import-checks.js');
+    expect(
+      scorecardRowProblems('availability_objectives', { target_h1: null, target_h24: 9950, target_d7: null, target_d30: null, notify: 1, archived_at: null }),
+    ).toEqual([]);
+    expect(scorecardRowProblems('availability_objectives', { target_h1: 20000, target_h24: -1, target_d7: 99.5, target_d30: null, notify: 2 })).toHaveLength(4);
+    expect(scorecardRowProblems('objective_samples', { bucket: '2026-01-01T00:00:00.000Z', status: 'great', value_h24: 10001 })).toEqual([
+      'status "great" is unknown',
+      'value_h24 is not 0–10000 hundredths of a percent',
+    ]);
+    expect(
+      scorecardRowProblems('scorecard_snapshots', {
+        day: '2026/01/01',
+        duties: 'ok',
+        availability: 'ok',
+        documentation: 'x',
+        protection: 'ok',
+        attention: 0,
+        document_ids: '[]',
+        owners: '[1]',
+      }),
+    ).toEqual(['day "2026/01/01" is not YYYY-MM-DD', 'documentation "x" is not a status', 'owners is not a list of subjects']);
+    expect(scorecardRowProblems('scorecard_rules', { dimension: 'beauty', min_level: 'High!', enabled: 1 })).toHaveLength(2);
+    const check = scorecardTableChecker('objective_samples', 2);
+    for (let i = 0; i < 4; i++) check.add({ bucket: 'x', status: 'met' });
+    expect(check.result()).toEqual([
+      'objective_samples, row 1: bucket is not a timestamp',
+      'objective_samples, row 2: bucket is not a timestamp',
+      'objective_samples: 2 more rows with problems',
+    ]);
   });
 });
 
@@ -576,13 +696,31 @@ describe('overview, rollup, snapshots and trend', () => {
 
   it('the start page tile: every service for editors and auditors, the own ones for others, none for those without', async () => {
     const att = async (c: Client) => (await c('GET', '/dashboard')).attention.scorecard;
+    jobs.snapshotScorecards(Date.now(), true);
     const all = await att(audrey);
     expect(all.services).toBe((await vera('GET', '/scorecard')).services.length);
     expect(await att(adam)).toBeUndefined();
     const svc = await newService(['user:adam']);
-    expect(await att(adam)).toMatchObject({ services: 1, attention: 1 });
+    // read from the stored snapshot, not computed on every load: the new service shows with the next snapshot
+    expect(await att(adam)).toEqual({ services: 0, attention: 0 });
+    jobs.snapshotScorecards(Date.now(), true);
+    expect(await att(adam)).toEqual({ services: 1, attention: 1 });
     expect((await dana('GET', '/dashboard')).attention.scorecard.services).toBe(all.services + 1);
-    expect(svc.id).toBeTruthy();
+    // the reader's documentation adjustment of the history view: a part that relied on a document the reader may not
+    // read does not count for them
+    await s.api('POST', `/services/${svc.id}/archive`, { archived: true });
+    const rated = await newService(['user:adam']);
+    await app(rated.id, { confidentiality: 'normal', integrity: 'normal', availability: 'normal' });
+    const doc = await releasedDoc('Tile manual', { serviceId: rated.id });
+    db().run('UPDATE record_documents SET next_review_override = ? WHERE record_id = ?', iso(Date.now() - DAY), doc.id);
+    jobs.snapshotScorecards(Date.now(), true);
+    expect(await att(adam)).toEqual({ services: 1, attention: 1 });
+    hidden.set('adam', new Set([doc.id]));
+    try {
+      expect(await att(adam)).toEqual({ services: 1, attention: 0 });
+    } finally {
+      hidden.delete('adam');
+    }
   });
 });
 

@@ -55,6 +55,11 @@ export const ObjectiveEntry = z.object({
   valuesAt: ts().nullable().describe("When Steward last read Gatus' uptime figures of the platform"),
   notify: z.boolean(),
   breach: ObjectiveBreachEntry.nullable().describe('The breach going on now'),
+  noDataSince: ts().nullable().describe('No data: since when'),
+  noDataTooLong: z.boolean().describe('No data for more than 24 hours: needs attention on the scorecard'),
+  archived: z.boolean().describe('Archived objectives are not sampled and show the status of their last sample'),
+  archivedAt: ts().nullable(),
+  archivedBy: z.string().nullable(),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -80,12 +85,14 @@ export const ScorecardServiceEntry = z.object({
     mandatory: DutyCounts,
     recommended: DutyCounts.extend({ status: partStatus() }).describe('Shown separately; never sets attention'),
     optional: z.object({ total: z.number().int() }),
+    archivedThisPeriod: z.number().int(),
     items: z.array(
       z.object({
         dutyId: z.string(),
         name: z.string(),
         level: z.enum(DUTY_LEVELS),
         applicationName: z.string().nullable(),
+        archivedAt: ts().nullable().describe('Archived during its current period: it counts until that period ends'),
         lastClosed: z.object({ key: z.string(), status: z.enum(DUTY_PERIOD_STATUSES) }).nullable(),
         current: z.object({ key: z.string(), status: z.enum(DUTY_PERIOD_STATUSES) }).nullable(),
         result: z.enum(['met', 'open', 'notMet']),
@@ -98,7 +105,19 @@ export const ScorecardServiceEntry = z.object({
     met: z.number().int(),
     below: z.number().int(),
     noData: z.number().int(),
-    objectives: z.array(z.object({ id: z.string(), name: z.string(), status: z.enum(OBJECTIVE_STATUSES), applicationName: z.string().nullable() })),
+    noDataTooLong: z.number().int().describe('Objectives without data for more than 24 hours (attention)'),
+    objectives: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        status: z.enum(OBJECTIVE_STATUSES),
+        applicationName: z.string().nullable(),
+        source: z.string().nullable().describe('"platform · endpoint"; null when the token owner may not see the platform'),
+        noDataReason: z.enum(OBJECTIVE_NO_DATA_REASONS).nullable(),
+        noDataTooLong: z.boolean(),
+        archivedAt: ts().nullable().describe('Archived recently: counts with its last status until its longest window has passed'),
+      }),
+    ),
   }),
   documentation: z.object({
     status: partStatus().describe('attention: no released document, a review overdue, or an expected document missing'),
@@ -189,6 +208,7 @@ export const SCORECARD_COMPONENTS: Record<string, ZodTypeAny> = {
 
 export const ObjectiveListQuery = z.object({
   ...page,
+  archived: z.enum(['exclude', 'include', 'only']).default('exclude').describe('Archived objectives: left out (default), included, or only these'),
   serviceId: z.string().max(200).optional(),
   applicationId: z.string().max(200).optional(),
   status: z.enum(OBJECTIVE_STATUSES).optional(),

@@ -74,13 +74,19 @@
     "breachSince": "Below target since {{date}}",
     "valuesAt": "Gatus' figures read {{when}}",
     "hint": "Values are Gatus' own uptime figures, read once an hour. Steward keeps an hourly sample for 90 days.",
-    "deleteConfirm": "Delete the objective “{{name}}” with its samples? The scorecard history keeps what it was.",
-    "deleted": "Objective deleted",
-    "deleteOf": "Delete the objective “{{name}}”",
     "showHistory": "Show history",
     "hideHistory": "Hide history",
     "historySummary_one": "{{count}} hourly sample in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}",
-    "historySummary_other": "{{count}} hourly samples in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}"
+    "historySummary_other": "{{count}} hourly samples in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}",
+    "archiveConfirm": "Archive the objective “{{name}}”? It is no longer sampled; its samples and breaches stay, and it still counts on the scorecard with its last status until its longest window has passed.",
+    "archived": "Objective archived",
+    "restored": "Objective restored",
+    "archivedOn": "Archived {{date}}",
+    "noDataSince": "No data since {{date}} (more than 24 hours).",
+    "restoreOf": "Restore the objective “{{name}}”",
+    "archiveOf": "Archive the objective “{{name}}”",
+    "archivedList_one": "{{count}} archived objective",
+    "archivedList_other": "{{count}} archived objectives"
   },
   "duties": {
     "none": "No duties.",
@@ -88,11 +94,15 @@
     "recommended": "Recommended: {{met}} of {{total}} met, {{open}} open, {{notMet}} not met",
     "optional_one": "Optional: {{count}} duty",
     "optional_other": "Optional: {{count}} duties",
-    "notMetItem": "({{level}}, period {{period}})"
+    "notMetItem": "({{level}}, period {{period}})",
+    "archived_one": "{{count}} duty archived this period – it counts until the period ends",
+    "archived_other": "{{count}} duties archived this period – they count until the period ends"
   },
   "availability": {
     "none": "No availability objectives.",
-    "summary": "{{met}} of {{total}} met · {{below}} below target · {{noData}} without data"
+    "summary": "{{met}} of {{total}} met · {{below}} below target · {{noData}} without data",
+    "tooLong": "{{name}}: no data for more than 24 hours",
+    "archivedItem": "{{name}} (archived {{date}}, still counts): {{status}}"
   },
   "documentation": {
     "summary": "{{released}} of {{documents}} documents released · {{overdue}} reviews overdue · {{dueSoon}} due soon",

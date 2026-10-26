@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   OBJECTIVE_LIMITS,
+  OBJECTIVE_WINDOW_MS,
   OBJECTIVE_WINDOWS,
   type AclEntry,
   type ObjectiveBreach,
@@ -59,6 +60,8 @@ export interface ObjectiveRow {
   created_by: string;
   updated_at: string;
   updated_by: string;
+  archived_at: string | null;
+  archived_by: string | null;
 }
 
 interface BreachRow {
@@ -209,6 +212,67 @@ export function judge(r: ObjectiveRow, values: Record<ObjectiveWindow, number | 
   return { windows, status };
 }
 
+// ---------- state (live, or the last sample of an archived objective) ----------
+
+/** Per objective: the newest sample with data, and the newest sample (archived objectives show it). Read in bulk. */
+export function sampleFacts(): { lastData: Map<string, string>; last: Map<string, SampleRow> } {
+  const lastData = new Map(
+    db()
+      .all<{ objective_id: string; last_bucket: string }>(
+        "SELECT objective_id, MAX(bucket) AS last_bucket FROM objective_samples WHERE status <> 'noData' GROUP BY objective_id",
+      )
+      .map((r) => [r.objective_id, r.last_bucket]),
+  );
+  const last = new Map(
+    db()
+      .all<SampleRow>(
+        `SELECT s.* FROM objective_samples s JOIN (SELECT objective_id, MAX(bucket) AS b FROM objective_samples GROUP BY objective_id) m
+         ON m.objective_id = s.objective_id AND m.b = s.bucket`,
+      )
+      .map((r) => [r.objective_id, r]),
+  );
+  return { lastData, last };
+}
+export type SampleFacts = ReturnType<typeof sampleFacts>;
+
+export interface ObjectiveState {
+  windows: ObjectiveWindowState[];
+  status: ObjectiveStatus;
+  reason: ObjectiveNoDataReason | null;
+  at: string | null;
+  noDataSince: string | null;
+  noDataTooLong: boolean;
+}
+
+/** The longest window an objective has a target for (an archived objective counts on the scorecard that long). */
+export const longestWindowMs = (r: ObjectiveRow): number =>
+  Math.max(0, ...OBJECTIVE_WINDOWS.filter((w) => r[targetColumn(w)] !== null && r[targetColumn(w)] !== undefined).map((w) => OBJECTIVE_WINDOW_MS[w]));
+
+/**
+ * The state of an objective: live from the figures Steward read from Gatus; an archived objective has the status of
+ * its last sample. "No data" counts since the hour after the last sample with data (or since it was defined).
+ */
+export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: SampleFacts, now: number): ObjectiveState {
+  if (r.archived_at) {
+    const x = facts.last.get(r.id);
+    const values = { h1: x?.value_h1 ?? null, h24: x?.value_h24 ?? null, d7: x?.value_d7 ?? null, d30: x?.value_d30 ?? null };
+    const j = judge(r, values);
+    return { ...j, reason: j.status === 'noData' ? 'noValue' : null, at: x?.bucket ?? null, noDataSince: null, noDataTooLong: false };
+  }
+  const reading = cache.read(r.platform_id, r.endpoint_key);
+  const j = judge(r, reading.values);
+  if (j.status !== 'noData') return { ...j, reason: null, at: reading.at, noDataSince: null, noDataTooLong: false };
+  const last = facts.lastData.get(r.id);
+  const since = Math.max(Date.parse(r.created_at), last ? Date.parse(last) + HOUR : 0);
+  return {
+    ...j,
+    reason: reading.reason ?? 'noValue',
+    at: reading.at,
+    noDataSince: new Date(since).toISOString(),
+    noDataTooLong: now - since > OBJECTIVE_LIMITS.noDataAttentionHours * HOUR,
+  };
+}
+
 // ---------- rows and permissions ----------
 
 export function objectiveRow(objectiveId: string): ObjectiveRow {
@@ -274,6 +338,8 @@ interface ViewCtx {
   services: Map<string, ServiceRef>;
   apps: Map<string, string>;
   breaches: Map<string, BreachRow>;
+  facts: SampleFacts;
+  now: number;
 }
 
 function viewCtx(now: number): ViewCtx {
@@ -296,13 +362,15 @@ function viewCtx(now: number): ViewCtx {
         .all<BreachRow>('SELECT * FROM objective_breaches WHERE ended_at IS NULL')
         .map((b) => [b.objective_id, b]),
     ),
+    facts: sampleFacts(),
+    now,
   };
 }
 
 function build(r: ObjectiveRow, c: ViewCtx): ObjectiveView {
   const s = c.services.get(r.service_id)!;
-  const reading = c.cache.read(r.platform_id, r.endpoint_key);
-  const { windows, status } = judge(r, reading.values);
+  const st = objectiveState(r, c.cache, c.facts, c.now);
+  const { windows, status } = st;
   const visible = c.platforms.visible(c.u, r.platform_id);
   const e = visible ? c.cache.endpoint(r.platform_id, r.endpoint_key) : null;
   const open = c.breaches.get(r.id);
@@ -324,10 +392,15 @@ function build(r: ObjectiveRow, c: ViewCtx): ObjectiveView {
       targets: rowTargets(r),
       windows,
       status,
-      noDataReason: status === 'noData' ? (reading.reason ?? 'noValue') : null,
-      valuesAt: reading.at,
+      noDataReason: status === 'noData' ? (st.reason ?? 'noValue') : null,
+      valuesAt: st.at,
       notify: !!r.notify,
-      breach: open ? toBreach(open) : null,
+      breach: open && !r.archived_at ? toBreach(open) : null,
+      noDataSince: st.noDataSince,
+      noDataTooLong: st.noDataTooLong,
+      archived: !!r.archived_at,
+      archivedAt: r.archived_at,
+      archivedBy: r.archived_by,
       createdAt: r.created_at,
       createdBy: r.created_by,
       updatedAt: r.updated_at,
@@ -340,7 +413,7 @@ function build(r: ObjectiveRow, c: ViewCtx): ObjectiveView {
 export interface ObjectiveFilter {
   serviceId?: string;
   applicationId?: string;
-  /** Objectives of archived services too */
+  /** Archived objectives, and objectives of archived services, too */
   archived?: boolean;
 }
 
@@ -356,7 +429,7 @@ export function listObjectiveViews(f: ObjectiveFilter = {}, now = Date.now()): O
     .all<ObjectiveRow>(`SELECT * FROM availability_objectives${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY name, id`, ...args)
     .filter((r) => {
       const s = c.services.get(r.service_id);
-      return !!s && (f.archived || !s.archived);
+      return !!s && (f.archived || (!s.archived && !r.archived_at));
     })
     .map((r) => build(r, c))
     .sort((a, b) => a.summary.serviceName.localeCompare(b.summary.serviceName) || a.summary.name.localeCompare(b.summary.name));
@@ -425,7 +498,7 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
   if (!canEdit(u, s)) forbid('define objectives of this service', 'changeService');
   if (s.archived) throw new HttpError(409, 'The service is archived', 'OBJECTIVE_SERVICE_ARCHIVED', { id: s.id });
   checkReferences(u, s, input);
-  const n = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM availability_objectives WHERE service_id = ?', s.id)?.n ?? 0;
+  const n = db().get<{ n: number }>('SELECT COUNT(*) AS n FROM availability_objectives WHERE service_id = ? AND archived_at IS NULL', s.id)?.n ?? 0;
   if (Number(n) >= OBJECTIVE_LIMITS.perService)
     throw new HttpError(409, `A service has at most ${OBJECTIVE_LIMITS.perService} objectives`, 'OBJECTIVE_LIMIT', { max: OBJECTIVE_LIMITS.perService });
   const objectiveId = newId('obj_');
@@ -476,6 +549,7 @@ export function updateObjective(objectiveId: string, change: ObjectiveUpdate): O
   const input: Resolved = { ...change, platformId: change.platformId ?? cur.platform_id, endpointKey: change.endpointKey ?? cur.endpoint_key };
   const s = serviceRef(cur.service_id);
   if (!canEdit(u, s)) forbid('change objectives of this service', 'changeService');
+  if (cur.archived_at) throw new HttpError(409, 'The objective is archived – restore it first', 'OBJECTIVE_ARCHIVED', { id: objectiveId });
   checkReferences(u, s, input, cur);
   const next = {
     application_id: input.applicationId,
@@ -520,22 +594,36 @@ export function updateObjective(objectiveId: string, change: ObjectiveUpdate): O
   return getObjective(objectiveId);
 }
 
-/** Deletes an objective with its samples and breaches (the daily scorecard snapshots keep what it was). */
-export function deleteObjective(objectiveId: string): void {
+/**
+ * Archives (or restores) an objective. It is not deleted: its samples and breaches stay until the retention removes
+ * them, an archived objective is no longer sampled, and it still counts on the scorecard with the status of its last
+ * sample until its longest window has passed – archiving does not clean a scorecard.
+ */
+export function setObjectiveArchived(objectiveId: string, archived: boolean): ObjectiveDetail {
   const u = me();
   const cur = objectiveRow(objectiveId);
   const s = serviceRef(cur.service_id);
-  if (!canEdit(u, s)) forbid('delete objectives of this service', 'changeService');
+  if (!canEdit(u, s)) forbid('change objectives of this service', 'changeService');
+  if (!!cur.archived_at === archived) return getObjective(objectiveId);
+  if (!archived && s.archived) throw new HttpError(409, 'The service is archived', 'OBJECTIVE_SERVICE_ARCHIVED', { id: s.id });
   db().tx(() => {
-    const samples = db().run('DELETE FROM objective_samples WHERE objective_id = ?', objectiveId).changes;
-    db().run('DELETE FROM objective_breaches WHERE objective_id = ?', objectiveId);
-    db().run('DELETE FROM availability_objectives WHERE id = ?', objectiveId);
+    db().run(
+      'UPDATE availability_objectives SET archived_at = ?, archived_by = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      archived ? nowIso() : null,
+      archived ? u.username : null,
+      nowIso(),
+      u.username,
+      objectiveId,
+    );
+    // a breach going on ends with the archive (it is kept)
+    if (archived) db().run('UPDATE objective_breaches SET ended_at = ? WHERE objective_id = ? AND ended_at IS NULL', nowIso(), objectiveId);
     audit({
-      action: 'objective.deleted',
+      action: archived ? 'objective.archived' : 'objective.restored',
       entityType: 'objective',
       entityId: objectiveId,
-      summary: `Availability objective "${cur.name}" of service "${s.name}" deleted`,
-      details: { serviceId: s.id, platformId: cur.platform_id, endpointKey: cur.endpoint_key, targets: rowTargets(cur), samplesDeleted: samples },
+      summary: `Availability objective "${cur.name}" of service "${s.name}" ${archived ? 'archived' : 'restored'}`,
+      details: { serviceId: s.id, platformId: cur.platform_id, endpointKey: cur.endpoint_key, targets: rowTargets(cur) },
     });
   });
+  return getObjective(objectiveId);
 }

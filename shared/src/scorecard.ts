@@ -40,7 +40,14 @@ export const OBJECTIVE_LIMITS = {
   sampleRetentionDays: 90,
   /** Ended breaches are kept this long */
   breachRetentionDays: 400,
+  /** "No data" for longer than this needs attention on the scorecard (a source turned off, an endpoint gone) */
+  noDataAttentionHours: 24,
+  /** No second breach message for the same objective within this time (the breaches are still recorded) */
+  breachMessageCooldownHours: 24,
 } as const;
+
+/** Milliseconds of each window: an archived objective counts on the scorecard until its longest window has passed. */
+export const OBJECTIVE_WINDOW_MS: Record<ObjectiveWindow, number> = { h1: 3600000, h24: 86400000, d7: 7 * 86400000, d30: 30 * 86400000 };
 
 export const SCORECARD_LIMITS = {
   /** Daily scorecard snapshots are kept this long */
@@ -100,6 +107,14 @@ export interface ObjectiveSummary {
   notify: boolean;
   /** The breach going on now */
   breach: ObjectiveBreach | null;
+  /** No data: since when (the hour after the last sample with data, or when the objective was defined) */
+  noDataSince: string | null;
+  /** No data for longer than OBJECTIVE_LIMITS.noDataAttentionHours: needs attention on the scorecard */
+  noDataTooLong: boolean;
+  /** Archived objectives are not sampled; they show the status of their last sample */
+  archived: boolean;
+  archivedAt: string | null;
+  archivedBy: string | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;
@@ -142,6 +157,8 @@ export interface ScorecardDutyItem {
   name: string;
   level: DutyLevel;
   applicationName: string | null;
+  /** Archived during its current period: it still counts until that period ends, with its last status */
+  archivedAt: string | null;
   /** The newest stored (closed) period */
   lastClosed: { key: string; status: DutyPeriodStatus } | null;
   /** The period running now (stored state; due when nothing is stored for it) */
@@ -164,16 +181,35 @@ export interface ScorecardDuties {
   recommended: ScorecardDutyCounts & { status: ScorecardPartStatus };
   /** Shown only */
   optional: { total: number };
+  /** Duties archived during their current period (they still count until it ends) */
+  archivedThisPeriod: number;
   items: ScorecardDutyItem[];
 }
 
+export interface ScorecardObjectiveItem {
+  id: string;
+  name: string;
+  status: ObjectiveStatus;
+  applicationName: string | null;
+  /** "platform · endpoint" when the reader may see the platform; null: hidden */
+  source: string | null;
+  noDataReason: ObjectiveNoDataReason | null;
+  /** No data for longer than OBJECTIVE_LIMITS.noDataAttentionHours (needs attention) */
+  noDataTooLong: boolean;
+  /** Archived recently: it counts with the status of its last sample until its longest window has passed */
+  archivedAt: string | null;
+}
+
 export interface ScorecardAvailability {
+  /** attention: an objective below target or without data for more than a day; pending: no data for a shorter time */
   status: ScorecardPartStatus;
   total: number;
   met: number;
   below: number;
   noData: number;
-  objectives: { id: string; name: string; status: ObjectiveStatus; applicationName: string | null }[];
+  /** Of those without data: for more than OBJECTIVE_LIMITS.noDataAttentionHours */
+  noDataTooLong: number;
+  objectives: ScorecardObjectiveItem[];
 }
 
 export interface ScorecardDocumentRef {

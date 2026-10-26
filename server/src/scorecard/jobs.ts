@@ -17,8 +17,9 @@ import { computeScorecards, dayOf } from './scorecard.js';
  *      mode reads Gatus' uptime figures hourly) with the objective's status;
  *   2. a breach starts with the first sample below target and ends with the first sample that meets every target
  *      again ("no data" neither starts nor ends one); objectives with "notify" send one message when a breach
- *      starts – not with every sample. The breach row is the claim, so the message goes out once, also across
- *      restarts;
+ *      starts – not with every sample, and at most one per objective within breachMessageCooldownHours (a flapping
+ *      objective records every breach, but does not flood). Archived objectives are not sampled. The breach row is
+ *      the claim, so the message goes out once, also across restarts;
  *   3. once per hour, today's scorecard snapshot of every service (computed for no particular reader); a day's
  *      snapshot is written during that day only, so trends never recompute history from changed data;
  *   4. retention: samples after OBJECTIVE_LIMITS.sampleRetentionDays, ended breaches after breachRetentionDays,
@@ -94,7 +95,7 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
   let all: UserInfo[] | null = null;
   for (const o of db().all<ObjectiveRow>('SELECT * FROM availability_objectives ORDER BY id')) {
     const s = services.get(o.service_id);
-    if (!s || s.archived) continue;
+    if (!s || s.archived || o.archived_at) continue;
     try {
       const reading = cache.read(o.platform_id, o.endpoint_key);
       const { windows, status } = judge(o, reading.values);
@@ -120,6 +121,14 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
       if (status === 'below' && !open) {
         const below = windows.filter((w) => w.status === 'below');
         const breachId = newId('obr_');
+        // a flapping objective: no second message within the cooldown (every breach is still recorded)
+        const send =
+          !!o.notify &&
+          !db().get(
+            'SELECT 1 FROM objective_breaches WHERE objective_id = ? AND notified_at IS NOT NULL AND notified_at >= ?',
+            o.id,
+            iso(now - OBJECTIVE_LIMITS.breachMessageCooldownHours * HOUR),
+          );
         db().tx(() => {
           db().run(
             'INSERT INTO objective_breaches (id, objective_id, started_at, ended_at, windows, notified_at) VALUES (?, ?, ?, NULL, ?, ?)',
@@ -127,7 +136,7 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
             o.id,
             iso(now),
             JSON.stringify(below.map((w) => w.window)),
-            o.notify ? iso(now) : null,
+            send ? iso(now) : null,
           );
           audit({
             actor: 'system',
@@ -135,11 +144,11 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
             entityType: 'objective',
             entityId: o.id,
             summary: `Availability objective "${o.name}" of service "${s.name}" below target (${below.map((w) => `${w.window}: ${w.value} % < ${w.target} %`).join(', ')})`,
-            details: { serviceId: s.id, breachId, windows: below, notify: !!o.notify },
+            details: { serviceId: s.id, breachId, windows: below, notify: !!o.notify, messageSent: send },
           });
         });
         out.breaches++;
-        if (o.notify) {
+        if (send) {
           try {
             sendBreach(o, s, breachId, below, responsible(s, (all ??= listUsers().filter((u) => u.active))));
             out.notified++;

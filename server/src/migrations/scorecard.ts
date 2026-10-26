@@ -87,4 +87,13 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX scorecard_snapshots_service ON scorecard_snapshots(service_id, day);
     `,
   },
+  {
+    // objectives are archived, not deleted: their samples and breaches stay until the retention removes them, and an
+    // objective archived recently still counts on the scorecard until its longest window has passed
+    name: 'scorecard-002-objective-archive',
+    sql: `
+      ALTER TABLE availability_objectives ADD COLUMN archived_at TEXT;
+      ALTER TABLE availability_objectives ADD COLUMN archived_by TEXT;
+    `,
+  },
 ];

@@ -146,6 +146,7 @@ export const HISTORY_COLUMNS: string[] = [
   'service_duties.updated_by',
   'availability_objectives.created_by',
   'availability_objectives.updated_by',
+  'availability_objectives.archived_by',
   'scorecard_rules.created_by',
   'scorecard_rules.updated_by',
   'ticket_ref_events.actor',
