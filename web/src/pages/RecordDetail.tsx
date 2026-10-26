@@ -12,6 +12,7 @@ import {
   Group,
   Menu,
   Modal,
+  MultiSelect,
   Paper,
   Select,
   SimpleGrid,
@@ -45,6 +46,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   REPORT_LANGS,
+  type ApplicationSummary,
   type LinkTarget,
   type EditionKind,
   type RecordActionInfo,
@@ -57,7 +59,7 @@ import {
   type RecordsMeta,
   type SignedPdfDetails,
 } from '@sm/shared';
-import { api, apiUrl, del, get, notifyError, notifyOk, patch, post } from '../api';
+import { api, apiUrl, del, get, notifyError, notifyOk, patch, post, put } from '../api';
 import { DetailState, PageHeader } from '../components/common';
 import { UnifiedDiff } from '../components/editor/VersionDiff';
 import { MarkdownView } from '../components/records/MarkdownView';
@@ -191,6 +193,7 @@ export function RecordDetailPage() {
           </>
         }
       />
+      {doc && <DocumentScope rec={rec} onChange={refresh} />}
       {tampered && (
         <Alert color="red" icon={<IconAlertTriangle size={16} />} mb="sm" title={t('detail.tamperedTitle')}>
           {t('detail.tampered')}
@@ -1078,6 +1081,95 @@ function PdfModal({ rec, onClose, onDone }: { rec: RecordDetail; onClose: () => 
           </Group>
         </Stack>
       )}
+    </Modal>
+  );
+}
+
+/** Living documents: the applications the document applies to (its scope), and – for its editors – changing them. */
+function DocumentScope({ rec, onChange }: { rec: RecordDetail; onChange: () => void }) {
+  const { t } = useTranslation(['applications', 'common']);
+  const [editing, setEditing] = useState(false);
+  const scope = rec.document?.appliesTo ?? [];
+  return (
+    <Group gap={6} mb="sm" wrap="wrap" data-testid="record-applies-to">
+      <Text size="sm" fw={500}>
+        {t('scope.title')}:
+      </Text>
+      {scope.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t('scope.none')}
+        </Text>
+      ) : (
+        scope.map((a) => (
+          <Anchor key={a.id} component={Link} to={`/applications/${a.id}`} size="sm">
+            {a.name}
+          </Anchor>
+        ))
+      )}
+      {rec.document?.permissions.scope && (
+        <Button size="compact-xs" variant="subtle" onClick={() => setEditing(true)}>
+          {t('scope.edit')}
+        </Button>
+      )}
+      {editing && <ScopeModal rec={rec} onClose={() => setEditing(false)} onSaved={onChange} />}
+    </Group>
+  );
+}
+
+function ScopeModal({ rec, onClose, onSaved }: { rec: RecordDetail; onClose: () => void; onSaved: () => void }) {
+  const { t } = useTranslation(['applications', 'common']);
+  const apps = useQuery({ queryKey: ['applications', false], queryFn: () => get<ApplicationSummary[]>('/applications') });
+  const current = rec.document?.appliesTo ?? [];
+  const [ids, setIds] = useState<string[]>(current.map((a) => a.id));
+  const [busy, setBusy] = useState(false);
+  // archived applications that are in the scope already stay choosable (they cannot be added)
+  const data = [
+    ...(apps.data ?? []).map((a) => ({ value: a.id, label: a.name })),
+    ...current.filter((c) => !(apps.data ?? []).some((a) => a.id === c.id)).map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const save = async () => {
+    setBusy(true);
+    try {
+      await put(`/records/${rec.id}/applications`, { applicationIds: ids });
+      onSaved();
+      onClose();
+    } catch (e) {
+      notifyError(e);
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened onClose={onClose} title={t('scope.editTitle', { number: rec.number })}>
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <Stack gap="sm">
+          <MultiSelect
+            label={t('scope.label')}
+            description={t('scope.help')}
+            placeholder={t('scope.general')}
+            data={data}
+            value={ids}
+            onChange={setIds}
+            searchable
+            clearable
+            maxValues={50}
+            data-autofocus
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={onClose}>
+              {t('common:cancel')}
+            </Button>
+            <Button type="submit" loading={busy}>
+              {t('common:save')}
+            </Button>
+          </Group>
+        </Stack>
+      </form>
     </Modal>
   );
 }

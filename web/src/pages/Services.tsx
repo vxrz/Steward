@@ -10,6 +10,7 @@ import { get, notifyError, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
 import { fmtDate, fmtRelative } from '../format';
+import { NeedBadges } from '../components/catalogue/cia';
 
 export const CRITICALITY_COLORS: Record<string, string> = { low: 'gray', medium: 'blue', high: 'orange', critical: 'red' };
 
@@ -57,7 +58,7 @@ function OverdueReviewsBadge({ count, ml }: { count: number; ml?: number }) {
 }
 
 export function ServicesPage() {
-  const { t } = useTranslation(['services', 'common']);
+  const { t } = useTranslation(['services', 'common', 'applications']);
   const navigate = useNavigate();
   const [archived, setArchived] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -117,6 +118,7 @@ export function ServicesPage() {
                   </Group>
                   <CriticalityBadge value={s.criticality} />
                 </Group>
+                <NeedBadges need={s.protectionNeed} />
                 <Text size="xs" c="dimmed">
                   {s.contacts.map((c) => c.email).join(', ') || t('noContacts')}
                 </Text>
@@ -130,6 +132,7 @@ export function ServicesPage() {
                 <Table.Tr>
                   <Table.Th>{t('name')}</Table.Th>
                   <Table.Th>{t('criticality')}</Table.Th>
+                  <Table.Th>{t('applications:need.title')}</Table.Th>
                   <Table.Th>{t('contacts')}</Table.Th>
                   <Table.Th>{t('cmdb')}</Table.Th>
                   <Table.Th>{t('links')}</Table.Th>
@@ -161,6 +164,9 @@ export function ServicesPage() {
                       )}
                     </Table.Td>
                     <Table.Td>{s.criticality ? <CriticalityBadge value={s.criticality} /> : '–'}</Table.Td>
+                    <Table.Td>
+                      <NeedBadges need={s.protectionNeed} />
+                    </Table.Td>
                     <Table.Td>
                       {s.contacts.map((c) => (
                         <Text key={`${c.role}${c.email}`} size="xs">

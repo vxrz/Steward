@@ -1,0 +1,213 @@
+{
+  "title": "Anwendungen",
+  "description": "Woraus Ihre Services bestehen: Plattformen wie Insights Hub oder Industrial Edge und kleinere Anwendungen. Jede kann eine CIA-Bewertung (Schutzbedarf) haben.",
+  "new": "Neue Anwendung",
+  "newTitle": "Neue Anwendung",
+  "editTitle": "{{name}} bearbeiten",
+  "showArchived": "Archivierte Anwendungen anzeigen",
+  "name": "Name",
+  "descriptionLabel": "Beschreibung",
+  "descriptionHelp": "Markdown",
+  "noDescription": "Keine Beschreibung.",
+  "vendor": "Hersteller",
+  "version": "Version",
+  "url": "Adresse (URL)",
+  "openUrl": "Anwendung öffnen",
+  "criticality": "Kritikalität",
+  "owners": "Verantwortlich in Steward",
+  "ownersHelp": "Benutzer und Teams, die diese Anwendung bearbeiten und bewerten dürfen: user:<name> oder team:<name>",
+  "cmdb": "CMDB-Eintrag",
+  "cmdbSystem": "System",
+  "cmdbId": "ID",
+  "cmdbUrl": "Link zum Eintrag",
+  "openCmdb": "In der CMDB öffnen",
+  "noCmdb": "Nicht verknüpft",
+  "tags": "Schlagwörter",
+  "updated": "Geändert",
+  "archived": "archiviert",
+  "archive": "Archivieren",
+  "restore": "Wiederherstellen",
+  "archiveConfirm": "{{name}} archivieren? Die Anwendung zählt dann nicht mehr für den Schutzbedarf ihrer Services und verschwindet aus der Liste und den Auswahllisten; Bewertung, Links und Verlauf bleiben.",
+  "detailLine": "Geändert von {{user}} am {{date}}",
+  "created": "Angelegt von {{user}} am {{date}}",
+  "search": "Suche",
+  "searchPlaceholder": "Name, Hersteller oder Schlagwort",
+  "filters": {
+    "service": "Service",
+    "criticality": "Kritikalität",
+    "protection": "Schutzbedarf",
+    "notRated": "Nicht bewertet",
+    "protectionHint": "Anwendungen mit dieser Stufe in mindestens einem Grundwert"
+  },
+  "noMatch": "Keine Anwendung passt zu den Filtern.",
+  "servicesColumn": "Services",
+  "integrationsColumn": "Integrationen",
+  "emptyState": {
+    "title": "Noch keine Anwendungen",
+    "titleArchived": "Keine archivierten Anwendungen",
+    "text": "Ihre Administratoren oder Designer legen die Anwendungen an, aus denen Ihre Services bestehen.",
+    "textCreate": "Legen Sie die Anwendungen an, aus denen Ihre Services bestehen, ordnen Sie ihre Steward-Plattformen zu und bewerten Sie ihren Schutzbedarf.",
+    "action": "Erste Anwendung anlegen"
+  },
+  "roles": {
+    "primary": "Primär",
+    "dependency": "Abhängigkeit",
+    "other": "Sonstige",
+    "none": "Keine Rolle"
+  },
+  "services": {
+    "title": "Services",
+    "empty": "Noch kein Service besteht aus dieser Anwendung. Fügen Sie sie auf der Seite des Service hinzu."
+  },
+  "integrations": {
+    "title": "Integrationen",
+    "help": "Steward-Plattformen, die sich mit dieser Anwendung verbinden. Eine Plattform gehört zu höchstens einer Anwendung.",
+    "empty": "Dieser Anwendung ist keine Plattform zugeordnet.",
+    "add": "Plattform zuordnen",
+    "addTitle": "Eine Plattform {{name}} zuordnen",
+    "platform": "Plattform",
+    "remove": "{{name}} entfernen",
+    "removeConfirm": "Die Plattform {{name}} von dieser Anwendung entfernen? Die Plattform selbst bleibt.",
+    "notVisible": "Eine Plattform, die Sie nicht sehen dürfen",
+    "mappedBy": "Zugeordnet von {{user}} am {{date}}",
+    "belongsTo": "Anwendung:",
+    "taken": "gehört zu {{name}}"
+  },
+  "documents": {
+    "title": "Dokumentation",
+    "help": "Lebende Dokumente, die für diese Anwendung gelten. Die Anwendungen nennen Sie auf der Seite des Dokuments unter Gilt für.",
+    "empty": "Noch kein Dokument gilt für diese Anwendung."
+  },
+  "cia": {
+    "title": "CIA-Bewertung",
+    "help": "Wie viel Schutz die Anwendung braucht, je Grundwert und jeweils mit Begründung.",
+    "dimensions": {
+      "confidentiality": "Vertraulichkeit",
+      "integrity": "Integrität",
+      "availability": "Verfügbarkeit"
+    },
+    "short": {
+      "confidentiality": "V",
+      "integrity": "I",
+      "availability": "Vf"
+    },
+    "badge": "{{dimension}}: {{level}}",
+    "notRated": "Nicht bewertet",
+    "rate": "Bewerten",
+    "rateTitle": "CIA-Bewertung von {{name}}",
+    "level": "Schutzbedarf",
+    "justification": "Begründung",
+    "justificationHelp": "Warum diese Stufe: die Schadensszenarien, die zutreffen",
+    "ratedBy": "Bewertet von {{user}} am {{date}}",
+    "needsRerating": "Neu bewerten",
+    "needsReratingHint": "Die Skala hat sich geändert (vorher „{{label}}“). Die Bewertung zählt erst wieder, wenn sie neu bewertet ist.",
+    "mapped": "Bei der Änderung der Skala von „{{label}}“ übernommen",
+    "builtin": {
+      "normal": {
+        "label": "normal",
+        "description": "Die Schadensauswirkungen sind begrenzt und überschaubar."
+      },
+      "high": {
+        "label": "hoch",
+        "description": "Die Schadensauswirkungen können beträchtlich sein."
+      },
+      "very_high": {
+        "label": "sehr hoch",
+        "description": "Die Schadensauswirkungen können ein existenziell bedrohliches, katastrophales Ausmaß erreichen."
+      }
+    }
+  },
+  "need": {
+    "title": "Schutzbedarf",
+    "help": "Je Grundwert die höchste Bewertung der Anwendungen des Service (Maximumprinzip, BSI IT-Grundschutz). Mit einer Begründung können Sie ihn abweichend festlegen, etwa bei einem Kumulations- oder Verteilungseffekt.",
+    "dimension": "Grundwert",
+    "derived": "Abgeleitet",
+    "effective": "Gültig",
+    "basis": "Grundlage",
+    "rated": "{{rated}} von {{total}} Anwendungen bewertet",
+    "derivedFrom": "aus {{names}}",
+    "stale_one": "{{count}} Bewertung ist neu zu bewerten",
+    "stale_other": "{{count}} Bewertungen sind neu zu bewerten",
+    "override": "Abweichend festlegen",
+    "overrideTitle": "Schutzbedarf von {{name}} abweichend festlegen",
+    "reason": "Begründung",
+    "reasonHelp": "Warum die abgeleitete Stufe nicht gilt, z. B. ein Kumulations- oder Verteilungseffekt",
+    "overridden": "Festgelegt von {{user}} am {{date}}: {{reason}}",
+    "useDerived": "Abgeleitete Stufe verwenden",
+    "overrideNeedsRerating": "Die Festlegung ist nach einer Änderung der Skala neu zu bewerten (vorher „{{label}}“).",
+    "noApplications": "Fügen Sie Anwendungen hinzu, um den Schutzbedarf abzuleiten."
+  },
+  "serviceApps": {
+    "title": "Anwendungen",
+    "add": "Anwendung hinzufügen",
+    "addTitle": "Eine Anwendung zu {{name}} hinzufügen",
+    "editTitle": "Rolle von {{name}}",
+    "application": "Anwendung",
+    "role": "Rolle",
+    "roleText": "Rolle beschreiben",
+    "editRole": "Rolle von {{name}} ändern",
+    "remove": "{{name}} entfernen",
+    "removeConfirm": "{{name}} aus diesem Service entfernen? Die Anwendung selbst bleibt.",
+    "empty": "Noch keine Anwendungen. Fügen Sie die Anwendungen hinzu, aus denen dieser Service besteht.",
+    "noIntegrations": "Keine Integrationen",
+    "integrations": "Integrationen: "
+  },
+  "scope": {
+    "title": "Gilt für",
+    "none": "Keine Anwendung (der ganze Service)",
+    "edit": "Ändern",
+    "editTitle": "Anwendungen, für die {{number}} gilt",
+    "help": "Die Anwendungen, um die es in diesem Dokument geht, z. B. ein ICAM-Konzept für Insights Hub. Lassen Sie es leer, wenn es für den ganzen Service gilt.",
+    "general": "Ganzer Service",
+    "serviceApps": "Anwendungen von {{name}}",
+    "label": "Anwendungen"
+  },
+  "scale": {
+    "title": "CIA-Skala",
+    "link": "CIA-Skala",
+    "description": "Die Stufen der CIA-Bewertung, die niedrigste zuerst. Standard sind die Schutzbedarfskategorien des BSI IT-Grundschutz: normal, hoch und sehr hoch.",
+    "mode": "Skala",
+    "modes": {
+      "default": "BSI-Standard (normal, hoch, sehr hoch)",
+      "shared": "Eigene Skala für alle drei Grundwerte",
+      "perDimension": "Eigene Skala je Grundwert"
+    },
+    "readOnly": "Nur Administratoren können die Skala ändern.",
+    "updated": "Geändert von {{user}} am {{date}}",
+    "levels": "Stufen",
+    "lowestFirst": "Die niedrigste zuerst: Die Reihenfolge entscheidet über das Maximumprinzip.",
+    "key": "Schlüssel",
+    "keyHelp": "Bewertungen speichern den Schlüssel: a–z, 0–9, _",
+    "label": "Bezeichnung",
+    "levelDescription": "Beschreibung",
+    "color": "Farbe",
+    "colors": {
+      "gray": "Grau",
+      "green": "Grün",
+      "teal": "Petrol",
+      "cyan": "Türkis",
+      "blue": "Blau",
+      "indigo": "Indigoblau",
+      "violet": "Violett",
+      "grape": "Lila",
+      "pink": "Rosa",
+      "yellow": "Gelb",
+      "orange": "Orangefarben",
+      "red": "Rot"
+    },
+    "addLevel": "Stufe hinzufügen",
+    "moveUp": "{{label}} nach oben",
+    "moveDown": "{{label}} nach unten",
+    "removeLevel": "{{label}} entfernen",
+    "usage_one": "{{count}} Bewertung",
+    "usage_other": "{{count}} Bewertungen",
+    "mappingTitle": "Bewertungen entfernter Stufen",
+    "mappingHelp": "Diese Stufen sind nicht mehr auf der Skala. Ordnen Sie ihre Bewertungen einer neuen Stufe zu, oder markieren Sie sie zur Neubewertung. Keine Bewertung wird gelöscht.",
+    "flag": "Zur Neubewertung markieren",
+    "mapTo": "Bewertungen „{{label}}“ ({{dimension}})",
+    "save": "Skala speichern",
+    "saved": "Die CIA-Skala ist gespeichert.",
+    "invalid": "Jede Stufe braucht einen Schlüssel und eine Bezeichnung, und jeder Schlüssel muss eindeutig sein (mindestens zwei Stufen).",
+    "edit": "Skala ändern"
+  }
+}
