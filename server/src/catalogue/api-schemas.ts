@@ -32,6 +32,11 @@ const ProtectionNeedEntry = z.object({
   total: z.number().int().describe('Applications of the service that are not archived'),
   needsRerating: z.number().int().describe('Applications whose rating needs re-rating after a scale change (not counted)'),
   archived: z.number().int().describe('Archived applications of the service (not counted, not in total)'),
+  scaleInvalid: z
+    .boolean()
+    .describe(
+      'The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale',
+    ),
   override: z
     .object({
       level: z.string(),
@@ -119,6 +124,11 @@ export const ApplicationEntry = z.object({
     .describe('Services that consist of the application, with the application’s role in each (id and name of the service here)'),
   integrationCount: z.number().int().describe('Steward platforms mapped to the application (also those the token owner may not see)'),
   rating: CiaRating,
+  scaleInvalid: z
+    .boolean()
+    .describe(
+      'The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale',
+    ),
   documentCount: z.number().int().describe('Living documents that apply to the application and that the token owner may read'),
   overdueDocuments: z.number().int(),
   createdAt: ts(),
@@ -177,6 +187,11 @@ export const CiaScaleEntry = z.object({
     .describe('Ordered levels of each dimension, lowest first (the maximum principle uses this order)'),
   updatedAt: ts().nullable(),
   updatedBy: z.string().nullable(),
+  storedInvalid: z
+    .boolean()
+    .describe(
+      'The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale',
+    ),
 });
 
 export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {

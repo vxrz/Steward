@@ -115,7 +115,9 @@
         "label": "sehr hoch",
         "description": "Die Schadensauswirkungen können ein existenziell bedrohliches, katastrophales Ausmaß erreichen."
       }
-    }
+    },
+    "scaleInvalid": "Die CIA-Skala ist ungültig – der Schutzbedarf lässt sich erst bestimmen, wenn ein Administrator die Skala speichert.",
+    "scaleInvalidShort": "Skala ungültig"
   },
   "need": {
     "title": "Schutzbedarf",
@@ -216,8 +218,8 @@
     "saved": "Die CIA-Skala ist gespeichert.",
     "invalid": "Jede Stufe braucht einen Schlüssel und eine Bezeichnung, und jeder Schlüssel muss eindeutig sein (mindestens zwei Stufen).",
     "edit": "Skala ändern",
-    "reorderTitle": "Stufen ändern ihre Reihenfolge",
-    "reorderHelp": "Diese Stufen bleiben, aber in anderer Reihenfolge: Ihre Bewertungen würden etwas anderes bedeuten. Sie werden zur Neubewertung markiert.",
+    "reorderTitle": "Stufen ändern Reihenfolge oder Bezeichnung",
+    "reorderHelp": "Diese Stufen bleiben, aber in anderer Reihenfolge oder mit der Bezeichnung einer anderen Stufe: Ihre Bewertungen würden etwas anderes bedeuten. Sie werden zur Neubewertung markiert.",
     "reorderLevels": "{{dimension}}: {{levels}}",
     "confirmReorder": "Bewertungen dieser Stufen zur Neubewertung markieren",
     "storedInvalid": "Die gespeicherte Skala ist ungültig (z. B. aus einem Migrationspaket). Bis ein Administrator eine Skala speichert, gilt der BSI-Standard."

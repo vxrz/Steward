@@ -9,7 +9,7 @@ import {
   CIA_SCALE_MODES,
   DEFAULT_CIA_LEVELS,
   levelRank,
-  reorderedLevels,
+  remeanedLevels,
   type ApplicationRating,
   type CiaDimension,
   type CiaLevel,
@@ -278,14 +278,15 @@ export function saveScale(input: ScaleInput): CiaScale {
         throw new HttpError(400, `The level "${to}" is not on the new ${d} scale`, 'CIA_MAPPING_TARGET_UNKNOWN', { level: to, dimension: d });
     }
   }
-  // kept levels in another order: refused unless confirmed (only when ratings or overrides use them)
+  // kept levels in another order, or with another level's former label (a swap): refused unless confirmed (only when
+  // ratings or overrides use them)
   const used = usage();
-  const reordered = byDimension((d) => reorderedLevels(before.levels[d], next[d]).filter((k) => (used[d][k] ?? 0) > 0));
+  const reordered = byDimension((d) => remeanedLevels(before.levels[d], next[d]).filter((k) => (used[d][k] ?? 0) > 0));
   const firstReordered = CIA_DIMENSIONS.find((d) => reordered[d].length);
   if (firstReordered && !input.confirmReorder)
     throw new HttpError(
       409,
-      `The levels ${reordered[firstReordered].join(', ')} of the ${firstReordered} scale change their order – their ratings would mean something else. Confirm it: they are flagged for re-rating`,
+      `The levels ${reordered[firstReordered].join(', ')} of the ${firstReordered} scale change their order or take another level's label – their ratings would mean something else. Confirm it: they are flagged for re-rating`,
       'CIA_REORDER_CONFIRM',
       { dimension: firstReordered, levels: reordered[firstReordered].join(', ') },
     );
@@ -342,7 +343,7 @@ export function saveScale(input: ScaleInput): CiaScale {
       entityId: 'cia_scale',
       summary: `CIA scale changed to ${input.mode === 'default' ? 'the BSI default' : input.mode === 'shared' ? `one scale (${describe(next.confidentiality)})` : 'one scale per dimension'}: ${CIA_DIMENSIONS.map(
         (d) =>
-          `${d} ${effects.get(d)!.mapped} mapped, ${effects.get(d)!.flagged} flagged for re-rating${effects.get(d)!.reordered ? `, ${effects.get(d)!.reordered} flagged because their level moved` : ''}`,
+          `${d} ${effects.get(d)!.mapped} mapped, ${effects.get(d)!.flagged} flagged for re-rating${effects.get(d)!.reordered ? `, ${effects.get(d)!.reordered} flagged because their level moved or took another label` : ''}`,
       ).join('; ')}`,
       details: {
         mode: input.mode,
@@ -468,6 +469,16 @@ export const overrideInput = z.object({ confidentiality: overrideDim, integrity:
 export type OverrideInput = z.infer<typeof overrideInput>;
 
 /** A level must be on the dimension's current scale. */
+/** Ratings and overrides cannot be changed while the stored scale is not valid (the levels are unknown). */
+export function requireValidScale(scale: StoredScale = currentScale()): void {
+  if (scale.storedInvalid)
+    throw new HttpError(
+      409,
+      'The CIA scale is not valid – ratings and protection needs cannot be changed until an administrator saves the scale',
+      'CIA_SCALE_INVALID',
+    );
+}
+
 export function checkLevel(d: CiaDimension, level: string, scale = currentScale()): void {
   if (levelRank(scale.levels[d], level) < 0)
     throw new HttpError(400, `"${level}" is not a level of the ${d} scale (${scale.levels[d].map((l) => l.key).join(', ')})`, 'CIA_LEVEL_UNKNOWN', {
@@ -540,6 +551,7 @@ export function protectionNeeds(serviceIds?: string[]): Map<string, ServiceProte
         total: apps.length,
         needsRerating: stale,
         archived,
+        scaleInvalid: !!scale.storedInvalid,
         override,
         effective: override && !override.needsRerating ? override.level : derived,
       };

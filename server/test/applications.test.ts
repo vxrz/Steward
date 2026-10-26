@@ -542,6 +542,43 @@ describe('after the security review (#84)', () => {
     expect((await s.api('GET', '/catalogue/cia-scale')).mode).toBe('default');
   });
 
+  it('N2: swapping the labels of levels in use is treated like a re-order', async () => {
+    const app = await s.api('POST', '/applications', { name: 'Swap app' });
+    await s.api('PUT', `/applications/${app.id}/rating`, {
+      confidentiality: { level: 'high', justification: 'h' },
+      integrity: { level: 'normal', justification: 'n' },
+      availability: { level: 'very_high', justification: 'v' },
+    });
+    const swapped = [
+      { key: 'normal', label: 'High', color: 'green' },
+      { key: 'high', label: 'Normal', color: 'orange' },
+      { key: 'very_high', label: 'Very high', color: 'red' },
+    ];
+    const refused = await body(s.api('PUT', '/catalogue/cia-scale', { mode: 'shared', levels: swapped }));
+    expect(refused).toMatchObject({ code: 'CIA_REORDER_CONFIRM' });
+    expect(refused.params.levels.split(', ').sort()).toEqual(['high', 'normal']);
+    expect((await s.api('GET', '/catalogue/cia-scale')).mode).toBe('default');
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'shared', levels: swapped, confirmReorder: true });
+    const r = (await vera('GET', `/applications/${app.id}`)).rating;
+    expect(r.confidentiality).toMatchObject({ level: 'high', needsRerating: true, previousLabel: 'High' });
+    expect(r.integrity).toMatchObject({ level: 'normal', needsRerating: true, previousLabel: 'Normal' });
+    // the level whose label stayed keeps its rating
+    expect(r.availability).toMatchObject({ level: 'very_high', needsRerating: false });
+    // back to the default swaps them again (confirmed); a new text alone is not a swap
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'default', confirmReorder: true });
+    await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'high', justification: 'h2' } });
+    await s.api('PUT', '/catalogue/cia-scale', {
+      mode: 'shared',
+      levels: [
+        { key: 'normal', label: 'Normal', color: 'green' },
+        { key: 'high', label: 'Elevated', color: 'orange' },
+        { key: 'very_high', label: 'Very high', color: 'red' },
+      ],
+    });
+    expect((await vera('GET', `/applications/${app.id}`)).rating.confidentiality.needsRerating).toBe(false);
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'default' });
+  });
+
   it('L3: a stored scale that does not validate is not used (BSI default instead), and a package with one is refused', async () => {
     const { checkScaleRows } = await import('../src/catalogue/cia.js');
     const good = JSON.stringify([
@@ -559,6 +596,12 @@ describe('after the security review (#84)', () => {
         { dimension: 'integrity', levels: good },
       ]).join(),
     ).toContain('both a shared scale');
+    // a service with a rated application, before the stored scale breaks
+    const svc = await dana('POST', '/services', { name: 'Invalid scale service', owners: [] });
+    const app = await s.api('POST', '/applications', { name: 'Invalid scale app' });
+    await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'high', justification: 'h' } });
+    await dana('PUT', `/services/${svc.id}/applications/${app.id}`, {});
+    expect((await vera('GET', `/services/${svc.id}`)).protectionNeed.confidentiality.scaleInvalid).toBe(false);
     const { db } = await import('../src/db.js');
     db().run('DELETE FROM cia_scales');
     db().run(
@@ -571,11 +614,48 @@ describe('after the security review (#84)', () => {
     const scale = await vera('GET', '/catalogue/cia-scale');
     expect(scale).toMatchObject({ mode: 'default', storedInvalid: true });
     expect(scale.levels.confidentiality.map((l: any) => l.key)).toEqual(['normal', 'high', 'very_high']);
-    // ratings and services keep working on the default
-    expect((await vera('GET', '/services')).length).toBeGreaterThan(0);
-    // an administrator saving a scale replaces it
+    // N1: every protection need says it cannot be relied on …
+    expect((await vera('GET', `/services/${svc.id}`)).protectionNeed.confidentiality).toMatchObject({ scaleInvalid: true });
+    expect((await vera('GET', '/services')).find((x: any) => x.id === svc.id).protectionNeed.availability.scaleInvalid).toBe(true);
+    // … ratings and overrides cannot change until an administrator saves a scale …
+    expect(await body(s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'normal', justification: 'n' } }))).toMatchObject({
+      code: 'CIA_SCALE_INVALID',
+    });
+    expect(await body(dana('PUT', `/services/${svc.id}/protection-need`, { availability: { level: 'high', reason: 'r' } }))).toMatchObject({
+      code: 'CIA_SCALE_INVALID',
+    });
+    // … also in the public API …
+    const token = (await vera('POST', '/me/tokens', { name: 'invalid scale', scope: 'read' })).token;
+    const v1 = async (url: string) => (await fetch(`${s.base}/api/v1${url}`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect((await v1(`/services/${svc.id}`)).protectionNeed.confidentiality.scaleInvalid).toBe(true);
+    expect((await v1(`/applications/${app.id}`)).scaleInvalid).toBe(true);
+    expect((await v1('/cia-scale')).storedInvalid).toBe(true);
+    // … and in evidence packs
+    let p = await s.api('POST', '/compliance/evidence-packs', {
+      scope: { serviceId: svc.id },
+      from: new Date(Date.now() - 86400000).toISOString(),
+      to: new Date(Date.now() + 60000).toISOString(),
+    });
+    for (let i = 0; i < 600 && p.status === 'building'; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      p = await s.api('GET', `/compliance/evidence-packs/${p.id}`);
+    }
+    expect(p.status, p.error).toBe('ready');
+    const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
+    const res = await fetch(`${s.base}/api/compliance/evidence-packs/${p.id}/download`, { headers: { ...authHeaders(cookie), 'x-sm-client': '1' } });
+    const file = path.join(s.dataDir, 'invalid-scale-pack.zip');
+    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    const { ZipReader } = await import('../src/compliance/zip.js');
+    const zip = await ZipReader.open(file);
+    const index = JSON.parse((await zip.read(zip.find('index.json')!)).toString());
+    expect(index.catalogue.scale.invalid).toBe(true);
+    expect(index.catalogue.service.protectionNeed.confidentiality.scaleInvalid).toBe(true);
+    fs.rmSync(file, { force: true });
+    // an administrator saving a scale replaces it; changes work again
     await s.api('PUT', '/catalogue/cia-scale', { mode: 'default' });
     expect(await s.api('GET', '/catalogue/cia-scale')).not.toHaveProperty('storedInvalid');
+    expect((await vera('GET', `/services/${svc.id}`)).protectionNeed.confidentiality.scaleInvalid).toBe(false);
+    await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'normal', justification: 'n' } });
   });
 
   it('L4: attaching a document to an application is recorded on the application too', async () => {

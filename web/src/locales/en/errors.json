@@ -203,6 +203,7 @@
     "CIA_MAPPING_LEVEL_KEPT": "The level “{{level}}” stays on the {{dimension}} scale. Only levels that are removed can be mapped.",
     "CIA_MAPPING_TARGET_UNKNOWN": "The level “{{level}}” is not on the new {{dimension}} scale.",
     "CIA_REORDER_CONFIRM": "The levels {{levels}} of the {{dimension}} scale change their order, so their ratings would mean something else. Confirm the change: those ratings are flagged for re-rating.",
+    "CIA_SCALE_INVALID": "The CIA scale is not valid. Ratings and protection needs can’t be changed until an administrator saves the scale.",
     "RECORD_NOT_DOCUMENT": "{{number}} is not a living document. Only documents apply to applications.",
     "CREDENTIAL_NOT_FOUND": "Entry {{id}} not found.",
     "CREDENTIAL_ARCHIVED": "Archived entries cannot be changed – restore the entry first.",

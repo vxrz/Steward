@@ -54,6 +54,7 @@ const mapNeed = (n: ServiceProtectionNeed, scale: Scale) =>
           total: x.total,
           needsRerating: x.needsRerating,
           archived: x.archived,
+          scaleInvalid: x.scaleInvalid,
           override: x.override ? { ...x.override, levelLabel: levelLabel(d, x.override.level, scale) ?? x.override.level } : null,
           effective: x.effective,
           effectiveLabel: levelLabel(d, x.effective, scale),
@@ -106,6 +107,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   services: a.services,
   integrationCount: a.integrationCount,
   rating: mapRating(a.rating, scale),
+  scaleInvalid: !!scale.storedInvalid,
   documentCount: a.documentCount,
   overdueDocuments: a.overdueDocuments,
   createdAt: a.createdAt,
@@ -287,7 +289,7 @@ export function serviceApiRoutes(get: Get): void {
     },
     async () => {
       const s = currentScale();
-      return { mode: s.mode, levels: s.levels, updatedAt: s.updatedAt, updatedBy: s.updatedBy };
+      return { mode: s.mode, levels: s.levels, updatedAt: s.updatedAt, updatedBy: s.updatedBy, storedInvalid: !!s.storedInvalid };
     },
   );
 }

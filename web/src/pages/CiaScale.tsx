@@ -9,7 +9,7 @@ import {
   CIA_LEVEL_KEY_RE,
   CIA_LIMITS,
   DEFAULT_CIA_LEVELS,
-  reorderedLevels,
+  remeanedLevels,
   type CiaColor,
   type CiaDimension,
   type CiaLevel,
@@ -143,10 +143,10 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
           : key,
       })),
   );
-  // levels in use that stay but move: their ratings are flagged for re-rating, after a confirmation
+  // levels in use that stay but move or take another level's label: their ratings are flagged for re-rating, after a confirmation
   const reordered = CIA_DIMENSIONS.map((d) => ({
     d,
-    keys: reorderedLevels(scale.levels[d], next[d]).filter((k) => (scale.usage[d][k] ?? 0) > 0),
+    keys: remeanedLevels(scale.levels[d], next[d]).filter((k) => (scale.usage[d][k] ?? 0) > 0),
   })).filter((x) => x.keys.length > 0);
   const [confirmReorder, setConfirmReorder] = useState(false);
   const valid = (ls: CiaLevel[]) =>

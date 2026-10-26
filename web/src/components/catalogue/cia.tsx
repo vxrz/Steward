@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, Paper, Select, Stack, Table, Text, Textarea, Tooltip } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Paper, Select, Stack, Table, Text, Textarea, Tooltip } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { IconAlertTriangle, IconShieldHalf } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -79,7 +79,30 @@ export function LevelBadge({
 }
 
 /** The three dimensions of a rating as small badges (lists). */
+/** In lists, instead of levels: the stored scale is invalid, so ratings and needs cannot be relied on. */
+function ScaleInvalidBadge({ size }: { size: 'xs' | 'sm' }) {
+  const { t } = useTranslation('applications');
+  return (
+    <Tooltip label={t('cia.scaleInvalid')} multiline w={260}>
+      <Badge size={size} color="red" variant="outline" tt="none" leftSection={<IconAlertTriangle size={11} aria-hidden />} aria-label={t('cia.scaleInvalid')}>
+        {t('cia.scaleInvalidShort')}
+      </Badge>
+    </Tooltip>
+  );
+}
+
+/** The panels' notice when the stored scale is invalid. */
+function ScaleInvalidAlert() {
+  const { t } = useTranslation('applications');
+  return (
+    <Alert color="red" variant="light" icon={<IconAlertTriangle size={16} />} data-testid="cia-scale-invalid">
+      {t('cia.scaleInvalid')}
+    </Alert>
+  );
+}
+
 export function RatingBadges({ rating, size = 'xs' }: { rating: ApplicationRating; size?: 'xs' | 'sm' }) {
+  if (useCiaScale().data?.storedInvalid) return <ScaleInvalidBadge size={size} />;
   return (
     <Group gap={4} wrap="wrap">
       {CIA_DIMENSIONS.map((d) => (
@@ -91,6 +114,7 @@ export function RatingBadges({ rating, size = 'xs' }: { rating: ApplicationRatin
 
 /** The effective protection need of a service as small badges (lists). */
 export function NeedBadges({ need, size = 'xs' }: { need: ServiceProtectionNeed; size?: 'xs' | 'sm' }) {
+  if (need.confidentiality.scaleInvalid) return <ScaleInvalidBadge size={size} />;
   return (
     <Group gap={4} wrap="wrap">
       {CIA_DIMENSIONS.map((d) => (
@@ -112,13 +136,14 @@ export function RatingPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
   const { t } = useTranslation(['applications', 'common']);
   const [editing, setEditing] = useState(false);
   const level = useLevel();
+  const invalid = !!useCiaScale().data?.storedInvalid;
   return (
     <Stack gap="xs" data-testid="cia-rating">
       <Group justify="space-between">
         <Text fw={600} id="cia-rating-title">
           {t('cia.title')}
         </Text>
-        {app.canEdit && (
+        {app.canEdit && !invalid && (
           <Button size="xs" variant="default" leftSection={<IconShieldHalf size={14} />} onClick={() => setEditing(true)}>
             {t('cia.rate')}
           </Button>
@@ -127,6 +152,7 @@ export function RatingPanel({ app, onSaved }: { app: ApplicationDetail; onSaved:
       <Text size="xs" c="dimmed">
         {t('cia.help')}
       </Text>
+      {invalid && <ScaleInvalidAlert />}
       <div className="table-scroll">
         <Table fz="sm" aria-labelledby="cia-rating-title">
           <Table.Tbody>
@@ -269,6 +295,7 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
   const { t } = useTranslation(['applications', 'common']);
   const level = useLevel();
   const [editing, setEditing] = useState(false);
+  const invalid = service.protectionNeed.confidentiality.scaleInvalid;
   const names = new Map(service.applications.map((a) => [a.id, a.name]));
   return (
     <Stack gap="xs" data-testid="protection-need">
@@ -276,7 +303,7 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
         <Text fw={600} id="protection-need-title">
           {t('need.title')}
         </Text>
-        {service.canEdit && (
+        {service.canEdit && !invalid && (
           <Button size="xs" variant="default" leftSection={<IconShieldHalf size={14} />} onClick={() => setEditing(true)}>
             {t('need.override')}
           </Button>
@@ -285,6 +312,7 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
       <Text size="xs" c="dimmed">
         {t('need.help')}
       </Text>
+      {invalid && <ScaleInvalidAlert />}
       <div className="table-scroll">
         <Table fz="sm" aria-labelledby="protection-need-title">
           <Table.Thead>

@@ -203,6 +203,7 @@
     "CIA_MAPPING_LEVEL_KEPT": "Die Stufe „{{level}}“ bleibt auf der Skala für {{dimension}}. Nur Stufen, die wegfallen, können zugeordnet werden.",
     "CIA_MAPPING_TARGET_UNKNOWN": "Die Stufe „{{level}}“ gibt es auf der neuen Skala für {{dimension}} nicht.",
     "CIA_REORDER_CONFIRM": "Die Stufen {{levels}} der Skala für {{dimension}} ändern ihre Reihenfolge, ihre Bewertungen würden also etwas anderes bedeuten. Bestätigen Sie die Änderung: Diese Bewertungen werden zur Neubewertung markiert.",
+    "CIA_SCALE_INVALID": "Die CIA-Skala ist ungültig. Bewertungen und Schutzbedarf lassen sich erst ändern, wenn ein Administrator die Skala speichert.",
     "RECORD_NOT_DOCUMENT": "{{number}} ist kein lebendes Dokument. Nur Dokumente gelten für Anwendungen.",
     "CREDENTIAL_NOT_FOUND": "Eintrag {{id}} nicht gefunden.",
     "CREDENTIAL_ARCHIVED": "Archivierte Einträge können nicht geändert werden – stellen Sie den Eintrag zuerst wieder her.",

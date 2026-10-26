@@ -7137,6 +7137,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7208,6 +7212,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7253,6 +7258,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7324,6 +7333,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7369,6 +7379,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7440,6 +7454,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7700,6 +7715,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7771,6 +7790,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7816,6 +7836,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7887,6 +7911,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7932,6 +7957,10 @@
                     "type": "integer",
                     "description": "Archived applications of the service (not counted, not in total)"
                   },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -8003,6 +8032,7 @@
                   "total",
                   "needsRerating",
                   "archived",
+                  "scaleInvalid",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -8425,6 +8455,10 @@
             "additionalProperties": false,
             "description": "CIA rating (protection need) per dimension; null: not rated"
           },
+          "scaleInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+          },
           "documentCount": {
             "type": "integer",
             "description": "Living documents that apply to the application and that the token owner may read"
@@ -8464,6 +8498,7 @@
           "services",
           "integrationCount",
           "rating",
+          "scaleInvalid",
           "documentCount",
           "overdueDocuments",
           "createdAt",
@@ -8775,6 +8810,10 @@
             "additionalProperties": false,
             "description": "CIA rating (protection need) per dimension; null: not rated"
           },
+          "scaleInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+          },
           "documentCount": {
             "type": "integer",
             "description": "Living documents that apply to the application and that the token owner may read"
@@ -8931,6 +8970,7 @@
           "services",
           "integrationCount",
           "rating",
+          "scaleInvalid",
           "documentCount",
           "overdueDocuments",
           "createdAt",
@@ -9185,13 +9225,18 @@
               "null",
               "string"
             ]
+          },
+          "storedInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
           }
         },
         "required": [
           "mode",
           "levels",
           "updatedAt",
-          "updatedBy"
+          "updatedBy",
+          "storedInvalid"
         ],
         "additionalProperties": false
       }

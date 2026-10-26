@@ -31,6 +31,7 @@ import {
   protectionNeedOf,
   protectionNeeds,
   ratingsOf,
+  requireValidScale,
   type OverrideInput,
   type RatingInput,
 } from './cia.js';
@@ -430,6 +431,7 @@ export function rateApplication(id: string, input: RatingInput): ApplicationDeta
   const u = me();
   const cur = requireEditableApplication(id, 'rate this application');
   const scale = currentScale();
+  requireValidScale(scale);
   const before = ratingsOf([id]).get(id) ?? emptyRating();
   const changes: { dimension: CiaDimension; from: string | null; to: string | null; justification?: string }[] = [];
   for (const d of CIA_DIMENSIONS) {
@@ -660,6 +662,7 @@ export function overrideProtectionNeed(serviceId: string, input: OverrideInput):
   const u = me();
   const s = requireEditableService(serviceId, 'change the protection need of this service');
   const scale = currentScale();
+  requireValidScale(scale);
   const need = protectionNeedOf(serviceId);
   const derived = (d: CiaDimension) => need[d].derived;
   const before = new Map(

@@ -102,6 +102,8 @@ export interface ProtectionNeedDimension {
   needsRerating: number;
   /** Archived applications of the service (not counted, not in total) */
   archived: number;
+  /** The stored CIA scale is not valid: this need cannot be determined until an administrator saves a scale */
+  scaleInvalid: boolean;
   override: ProtectionNeedOverride | null;
   /** The override when set (and valid), else the derived level */
   effective: string | null;
@@ -226,4 +228,22 @@ export function reorderedLevels(before: readonly { key: string }[], next: readon
   const a = before.map((l) => l.key).filter((k) => nextKeys.has(k));
   const b = next.map((l) => l.key).filter((k) => beforeKeys.has(k));
   return a.filter((k, i) => b[i] !== k);
+}
+
+/**
+ * Level keys on both scales that take a label another level had before (labels swapped, e.g. normal → "High" and
+ * high → "Normal"): their ratings read differently afterwards, like a re-order. A new text is not a swap.
+ */
+export function swappedLabels(before: readonly { key: string; label: string }[], next: readonly { key: string; label: string }[]): string[] {
+  const norm = (s: string) => s.trim().toLowerCase();
+  const beforeKeys = new Set(before.map((l) => l.key));
+  return next
+    .filter((l) => beforeKeys.has(l.key))
+    .filter((l) => before.some((b) => b.key !== l.key && norm(b.label) === norm(l.label)))
+    .map((l) => l.key);
+}
+
+/** Kept levels whose ratings would mean something else on the new scale: moved, or given another level's label. */
+export function remeanedLevels(before: readonly { key: string; label: string }[], next: readonly { key: string; label: string }[]): string[] {
+  return [...new Set([...reorderedLevels(before, next), ...swappedLabels(before, next)])];
 }

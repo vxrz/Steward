@@ -29,11 +29,13 @@ export interface PackNeed {
   needsRerating: number;
   /** archived applications of the service: not counted */
   archived: number;
+  scaleInvalid: boolean;
   override: { level: string; label: string; reason: string; setBy: string; setAt: string } | null;
 }
 
 export interface PackCatalogue {
-  scale: { mode: string };
+  /** invalid: the stored scale did not validate – the protection need cannot be relied on */
+  scale: { mode: string; invalid: boolean };
   service?: {
     id: string;
     name: string;
@@ -79,6 +81,7 @@ export function serviceCatalogue(serviceId: string): PackCatalogue | null {
       total: n.total,
       needsRerating: n.needsRerating,
       archived: n.archived,
+      scaleInvalid: n.scaleInvalid,
       override: n.override
         ? {
             level: n.override.level,
@@ -91,7 +94,7 @@ export function serviceCatalogue(serviceId: string): PackCatalogue | null {
     };
   });
   return {
-    scale: { mode: scale.mode },
+    scale: { mode: scale.mode, invalid: !!scale.storedInvalid },
     service: {
       id: s.id,
       name: s.name,
@@ -114,7 +117,10 @@ export function platformCatalogue(platformId: string): PackCatalogue {
     'SELECT a.id, a.name, a.archived FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
     platformId,
   );
-  if (!a) return { scale: { mode: scale.mode }, application: null };
+  if (!a) return { scale: { mode: scale.mode, invalid: !!scale.storedInvalid }, application: null };
   const r = ratingsOf([a.id]).get(a.id)!;
-  return { scale: { mode: scale.mode }, application: { id: a.id, name: a.name, archived: !!a.archived, rating: packRating(r, scale) } };
+  return {
+    scale: { mode: scale.mode, invalid: !!scale.storedInvalid },
+    application: { id: a.id, name: a.name, archived: !!a.archived, rating: packRating(r, scale) },
+  };
 }

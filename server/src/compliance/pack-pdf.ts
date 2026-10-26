@@ -53,6 +53,7 @@ const TEXTS = {
     needsRerating: 'needs re-rating',
     stale: '{n} rating(s) need re-rating after a scale change',
     archived: '{n} archived application(s) not counted',
+    scaleInvalid: 'The CIA scale is invalid – protection needs cannot be determined until an administrator saves the scale. The levels below are not reliable.',
     applications: 'Applications',
     application: 'Application',
     role: 'Role',
@@ -115,6 +116,8 @@ const TEXTS = {
     needsRerating: 'Neubewertung nötig',
     stale: '{n} Bewertung(en) nach einer Änderung der Skala neu zu bewerten',
     archived: '{n} archivierte Anwendung(en) nicht berücksichtigt',
+    scaleInvalid:
+      'Die CIA-Skala ist ungültig – der Schutzbedarf lässt sich erst bestimmen, wenn ein Administrator die Skala speichert. Die Stufen unten sind nicht verlässlich.',
     applications: 'Anwendungen',
     application: 'Anwendung',
     role: 'Rolle',
@@ -203,6 +206,7 @@ export async function renderPackPdf(m: PackPdfModel, o: { compress?: boolean } =
     const rating = (r: PackRating | null) => (r ? `${level(r.level, r.label)}${r.needsRerating ? ` (${L.needsRerating})` : ''}` : L.notRated);
     w.section(`${++n}. ${L.protection}`);
     w.paragraph(L.protectionText, { tone: 'muted', size: 8 });
+    if (cat.scale.invalid) w.paragraph(L.scaleInvalid, { tone: 'warning', size: 9 });
     if (cat.service) {
       const need = cat.service.protectionNeed;
       w.table(

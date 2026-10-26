@@ -115,7 +115,9 @@
         "label": "Very high",
         "description": "The impact of damage can reach an existentially threatening, catastrophic level."
       }
-    }
+    },
+    "scaleInvalid": "The CIA scale is invalid – protection needs can’t be determined until an administrator saves the scale.",
+    "scaleInvalidShort": "Scale invalid"
   },
   "need": {
     "title": "Protection need",
@@ -216,8 +218,8 @@
     "saved": "The CIA scale is saved.",
     "invalid": "Each level needs a key and a label, and every key must be unique (at least two levels).",
     "edit": "Change scale",
-    "reorderTitle": "Levels change their order",
-    "reorderHelp": "These levels stay, but in another order: their ratings would mean something else. They are flagged for re-rating.",
+    "reorderTitle": "Levels change their order or label",
+    "reorderHelp": "These levels stay, but in another order or with the label another level had: their ratings would mean something else. They are flagged for re-rating.",
     "reorderLevels": "{{dimension}}: {{levels}}",
     "confirmReorder": "Flag the ratings of these levels for re-rating",
     "storedInvalid": "The stored scale is not valid (for example from a migration package). The BSI default is in use until an administrator saves a scale."
