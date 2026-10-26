@@ -440,12 +440,16 @@ const DAY = 86400000;
 const sinceDay = (days: number, now: number) => dayOf(now - Math.max(1, Math.min(days, 730)) * DAY);
 
 /** The rollup per stored day (oldest first), optionally of the services one owner had that day. */
-export function scorecardTrend(o: { days?: number; owner?: string; from?: string; to?: string } = {}, now = Date.now()): ScorecardTrendPoint[] {
+export function scorecardTrend(
+  o: { days?: number; owner?: string; from?: string; to?: string; serviceIds?: string[] } = {},
+  now = Date.now(),
+): ScorecardTrendPoint[] {
   const u = me();
   const from = o.from ?? sinceDay(o.days ?? 90, now);
   const rows = db()
     .all<SnapshotRow>(`SELECT * FROM scorecard_snapshots WHERE day >= ?${o.to ? ' AND day <= ?' : ''} ORDER BY day, service_id`, from, ...(o.to ? [o.to] : []))
     .filter((r) => {
+      if (o.serviceIds && !o.serviceIds.includes(r.service_id)) return false;
       if (!o.owner) return true;
       const owners = parseJson<string[]>(r.owners, []);
       return o.owner === 'none' ? !owners.length : owners.includes(o.owner.toLowerCase());

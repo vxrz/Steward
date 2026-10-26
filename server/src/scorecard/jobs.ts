@@ -171,7 +171,7 @@ export function sampleObjectives(now = Date.now()): { sampled: number; breaches:
 /** Writes today's scorecard snapshot of every service (not archived), at most once per hour. Returns the rows written (null: not due). */
 export function snapshotScorecards(now = Date.now(), force = false): number | null {
   const day = dayOf(now);
-  const last = db().get<{ at: string | null }>('SELECT MAX(updated_at) AS at FROM scorecard_snapshots WHERE day = ?', day)?.at ?? null;
+  const last = db().get<{ last_at: string | null }>('SELECT MAX(updated_at) AS last_at FROM scorecard_snapshots WHERE day = ?', day)?.last_at ?? null;
   if (!force && last && last >= hourOf(now)) return null;
   const cards = computeScorecards(undefined, null, now);
   db().tx(() => {

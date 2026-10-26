@@ -610,6 +610,7 @@ describe('report section and public API', () => {
     ) as any;
     expect(stored.asOf).toBe('2026-02-27');
     expect(stored.services.map((x: any) => x.service)).toEqual([svc.name]);
+    expect(stored.trend).toEqual([{ day: '2026-02-27', services: 1, attention: 1 }]);
     // the PDF of a schedule with the section
     const schedule = (sections: unknown) => ({
       name: 'Scorecard report',

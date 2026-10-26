@@ -135,7 +135,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
   }
   out.services.sort((a, b) => a.service.localeCompare(b.service));
   // the trend of the stored days in the period (at most 14 points, evenly spread)
-  const points = c.serviceIds ? [] : scorecardTrend({ from: dayOf(ctx.from), to: lastDay }, ctx.now);
+  const points = scorecardTrend({ from: dayOf(ctx.from), to: lastDay, serviceIds: c.serviceIds ?? undefined }, ctx.now);
   const step = Math.max(1, Math.ceil(points.length / 14));
   out.trend = points.filter((_, i) => i % step === 0 || i === points.length - 1).map((p) => ({ day: p.day, services: p.services, attention: p.attention }));
   const fromIso = new Date(ctx.from).toISOString();
