@@ -203,6 +203,29 @@
     "done": "Bestätigt. Sie können dieses Fenster schließen – Steward setzt Ihre Aktion fort.",
     "notHere": "Die Bestätigung konnte hier nicht abgeschlossen werden: Öffnen Sie sie in dem Browser, in dem Sie bei Steward angemeldet sind, und versuchen Sie es erneut.",
     "failed": "Die Bestätigung wurde abgelehnt. Kehren Sie zu Steward zurück und versuchen Sie es erneut.",
-    "back": "Zurück zu Steward"
+    "back": "Zurück zu Steward",
+    "what": "Sie bestätigen: {{actions}}.",
+    "started": "Begonnen um",
+    "actions": {
+      "createToken": "ein API-Token erstellen",
+      "changeVaultPassphrase": "die Master-Passphrase ändern",
+      "createUser": "ein Konto mit Rollen anlegen",
+      "changeAccount": "Rollen oder Anmeldung eines Kontos ändern",
+      "resetPassword": "ein Passwort zurücksetzen",
+      "addSsoProvider": "einen Anmeldeanbieter hinzufügen",
+      "changeSsoProvider": "einen Anmeldeanbieter ändern",
+      "deleteSsoProvider": "einen Anmeldeanbieter löschen",
+      "changeSignInSettings": "Anmelde-, Ausgangs- oder Vier-Augen-Einstellungen ändern",
+      "changeNotificationDelivery": "ändern, wohin Benachrichtigungen gehen",
+      "changeTeamMembers": "Teammitglieder hinzufügen",
+      "grantAccess": "Verwaltungsrechte oder Besitz vergeben",
+      "exportEvidencePack": "ein Nachweispaket exportieren",
+      "exportAuditLog": "das Audit-Log exportieren",
+      "exportCredentials": "das Zugangsdatenregister exportieren",
+      "changeAuditAnchoring": "ändern, wohin Audit-Checkpoints gehen",
+      "exportMigration": "diese Instanz exportieren",
+      "applyMigration": "eine Instanz importieren",
+      "other": "eine sensible Aktion"
+    }
   }
 }

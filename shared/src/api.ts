@@ -250,6 +250,29 @@ export interface AuthStatus {
  */
 export type StepUpMethod = 'password' | 'sso' | 'emergency' | 'none';
 
+/** What a step-up confirms (each sensitive route names its action; shown in the dialog and on the callback page). */
+export const STEP_UP_ACTIONS = [
+  'createToken',
+  'changeVaultPassphrase',
+  'createUser',
+  'changeAccount',
+  'resetPassword',
+  'addSsoProvider',
+  'changeSsoProvider',
+  'deleteSsoProvider',
+  'changeSignInSettings',
+  'changeNotificationDelivery',
+  'changeTeamMembers',
+  'grantAccess',
+  'exportEvidencePack',
+  'exportAuditLog',
+  'exportCredentials',
+  'changeAuditAnchoring',
+  'exportMigration',
+  'applyMigration',
+] as const;
+export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
+
 /** The 403 STEP_UP_REQUIRED answer of a sensitive route (and GET /api/auth/step-up). */
 export interface StepUpInfo {
   method: StepUpMethod;
@@ -259,6 +282,8 @@ export interface StepUpInfo {
   mfa?: boolean;
   /** How long a confirmation lasts (SM_STEP_UP_MINUTES) */
   windowMinutes: number;
+  /** The action that asked (403 STEP_UP_REQUIRED) */
+  action?: StepUpAction;
 }
 
 /** GET /api/auth/step-up: the session's confirmation state. */

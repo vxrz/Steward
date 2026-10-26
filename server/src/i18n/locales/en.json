@@ -203,6 +203,29 @@
     "done": "Confirmed. You can close this window – Steward goes on with your action.",
     "notHere": "This confirmation could not be finished here: open it in the browser where you are signed in to Steward, and try again.",
     "failed": "The confirmation was refused. Return to Steward and try again.",
-    "back": "Back to Steward"
+    "back": "Back to Steward",
+    "what": "You are confirming: {{actions}}.",
+    "started": "Started at",
+    "actions": {
+      "createToken": "create an API token",
+      "changeVaultPassphrase": "change the master passphrase",
+      "createUser": "create an account with roles",
+      "changeAccount": "change an account's roles or sign-in",
+      "resetPassword": "reset a password",
+      "addSsoProvider": "add a sign-in provider",
+      "changeSsoProvider": "change a sign-in provider",
+      "deleteSsoProvider": "delete a sign-in provider",
+      "changeSignInSettings": "change sign-in, outbound or four-eyes settings",
+      "changeNotificationDelivery": "change where notifications go",
+      "changeTeamMembers": "add team members",
+      "grantAccess": "grant management rights or ownership",
+      "exportEvidencePack": "export an evidence pack",
+      "exportAuditLog": "export the audit log",
+      "exportCredentials": "export the credential register",
+      "changeAuditAnchoring": "change where audit checkpoints go",
+      "exportMigration": "export this instance",
+      "applyMigration": "import an instance",
+      "other": "a sensitive action"
+    }
   }
 }

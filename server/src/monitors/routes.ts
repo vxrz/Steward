@@ -16,6 +16,7 @@ import { db } from '../db.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
+import { monitorAccess } from '../auth/step-up-rules.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -101,7 +102,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     svc.deleteMonitor(params(req).id!);
     return { ok: true };
   });
-  app.put('/monitors/:id/access', async (req) => {
+  app.put('/monitors/:id/access', { config: { stepUp: { action: 'grantAccess', ...monitorAccess } } }, async (req) => {
     const b = z
       .object({ acl: z.array(z.object({ subject: z.string(), permissions: z.array(z.string()).max(50) })).max(500), owner: z.string().optional() })
       .parse(req.body);

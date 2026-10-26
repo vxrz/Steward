@@ -17,7 +17,7 @@ import { LINK_PARAM, readCookie, SESSION_COOKIE, SESSION_HEADER } from './auth/c
 import { connectVaultToDatabase } from './vault-rotation.js';
 import { instanceRoutes } from './instance.js';
 import { bearerToken, tokenUser } from './auth/tokens.js';
-import { stepUpApplies, stepUpRefusal } from './auth/step-up.js';
+import { stepUpCheck, type StepUpRule } from './auth/step-up.js';
 import { logger } from './log.js';
 import { publicApi } from './api/index.js';
 import { clientConfig, cspConnectSources, reportError } from './errorReporting.js';
@@ -260,8 +260,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const routeTable: (RegisteredRoute & { stepUp?: 'always' | 'rule' })[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
-    const rule = (r.config as { stepUp?: unknown } | undefined)?.stepUp;
-    const stepUp = rule === true ? ('always' as const) : typeof rule === 'function' ? ('rule' as const) : undefined;
+    const rule = (r.config as { stepUp?: StepUpRule } | undefined)?.stepUp;
+    const stepUp = !rule ? undefined : rule.when ? ('rule' as const) : ('always' as const);
     for (const method of [r.method].flat())
       if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit, ...(stepUp ? { stepUp } : {}) });
   });
@@ -381,14 +381,17 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
       if (!vault().unlocked && !LOCKED_OK.some((p) => url.startsWith(p))) {
         return void reply.code(423).send({ error: 'The vault is locked – an administrator has to unlock it', code: 'VAULT_LOCKED' });
       }
-      // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.
-      if (stepUpApplies(req, req.routeOptions.config?.stepUp)) {
-        const refusal = stepUpRefusal(!(info as { session?: unknown }).session, info!);
-        if (refusal) return void reply.code(refusal.status).send(refusal.body);
-      }
     }
     (req as unknown as { smUser?: string }).smUser = user?.username;
     requestContext.run({ user, ip: req.ip }, done);
+  });
+
+  // Sensitive actions need a recent confirmation of the session's owner (auth/step-up.ts); API tokens never do them.
+  // Runs inside the request context above, so a rule can check the caller's rights the way the route does.
+  app.addHook('preHandler', (req, reply, done) => {
+    const refusal = stepUpCheck(req);
+    if (refusal) return void reply.code(refusal.status).send(refusal.body);
+    done();
   });
 
   // One log line per API request: debug for routine reads, info for changes, warn/error for problems.

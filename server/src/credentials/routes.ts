@@ -65,7 +65,8 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     return { items: svc.listCredentials(q), canCreate: svc.canCreateCredentials() };
   });
 
-  app.get('/credentials/export.csv', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
+  // the whole register (owners, locations, due dates) in one file: a recent confirmation first (auth/step-up.ts)
+  app.get('/credentials/export.csv', { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'exportCredentials' } } }, async (req, reply) => {
     me();
     const q = listQuery.parse(req.query ?? {});
     const items = svc.listCredentials({ ...q, archived: q.archived ?? 'include' });

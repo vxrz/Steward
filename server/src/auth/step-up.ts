@@ -1,19 +1,21 @@
 import crypto from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
-import type { StepUpInfo, StepUpStatus } from '@sm/shared';
+import type { Capabilities, StepUpAction, StepUpInfo, StepUpStatus } from '@sm/shared';
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { audit } from '../audit.js';
 import { HttpError, nowIso } from '../util.js';
-import type { AuthUser, SessionMeta } from './context.js';
-import { getUser, verifyStepUpPassword, type SessionInfo } from './users.js';
+import { currentUser, type AuthUser, type SessionMeta } from './context.js';
+import { capabilities } from './permissions.js';
+import { getUser, verifyStepUpPassword } from './users.js';
 import { getProvider } from './sso.js';
 
 /**
  * Step-up re-authentication (OWASP ASVS 3.7.1, docs/SECURITY-HARDENING.md#step-up-re-authentication).
  *
- * A sensitive route says so in its config: `config: { stepUp: true }`, or a rule on the request for routes where only
- * some changes are sensitive (`stepUp: (req) => roles changed`). The authentication hook (app.ts) checks it before the
+ * A sensitive route says so in its config: `config: { stepUp: { action, who, when } }` – what is confirmed, who the route
+ * serves (a capability or a check; anyone else gets the route's own 403/404, never STEP_UP_REQUIRED) and, for routes
+ * where only some changes are sensitive, which requests. A hook right after authentication (app.ts) checks it before the
  * handler runs: the session must have confirmed its owner within SM_STEP_UP_MINUTES – the password again (password
  * sessions), a fresh sign-in at the identity provider (single sign-on sessions), or the sign-in itself. Otherwise the
  * answer is 403 STEP_UP_REQUIRED with the way to confirm; the web app asks, confirms and sends the same request again
@@ -25,8 +27,15 @@ import { getProvider } from './sso.js';
  *   (SESSION_REQUIRED) – for rules on the request, only when the request is a sensitive one.
  */
 
-/** A route's step-up rule: always, or only when the request is a sensitive one (the body is parsed already). */
-export type StepUpRule = true | ((req: FastifyRequest) => boolean);
+/** A route's step-up rule (the body is parsed already; the signed-in user is currentUser()). */
+export interface StepUpRule {
+  /** What is confirmed: shown in the dialog and on the single sign-on callback page */
+  action: StepUpAction;
+  /** Who the route serves; anyone else gets the route's own refusal. Default: every signed-in caller */
+  who?: keyof Capabilities | ((req: FastifyRequest) => boolean);
+  /** Only these requests are sensitive (default: every request) */
+  when?: (req: FastifyRequest) => boolean;
+}
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -39,14 +48,23 @@ export const stepUpWindowMs = (): number => config.session.stepUpMs;
 /** Clock difference between Steward and the identity provider that is tolerated for auth_time. */
 export const CLOCK_SKEW_MS = 60_000;
 
-/** Whether the rule applies to this request. A rule that fails (e.g. an unknown id) asks for the step-up: fail closed. */
-export function stepUpApplies(req: FastifyRequest, rule: StepUpRule | undefined): boolean {
+/**
+ * Whether the rule applies to this request. A caller the route does not serve, and an unknown object (404), go on to
+ * the route, which refuses them itself (no hint whether an object exists, nothing asked of a caller who may not act);
+ * any other failure of `when` asks for the step-up (fail closed).
+ */
+export function stepUpApplies(req: FastifyRequest, rule: StepUpRule | undefined, u: AuthUser): boolean {
   if (!rule) return false;
-  if (rule === true) return true;
   try {
-    return rule(req);
+    if (typeof rule.who === 'string' ? !capabilities(u)[rule.who] : rule.who && !rule.who(req)) return false;
   } catch {
-    return true;
+    return false;
+  }
+  if (!rule.when) return true;
+  try {
+    return rule.when(req);
+  } catch (e) {
+    return (e as HttpError).statusCode !== 404;
   }
 }
 
@@ -59,7 +77,7 @@ export function steppedUpUntil(s: SessionMeta | undefined, now = Date.now()): nu
 }
 
 /** How a session confirms its owner: by how it was opened (password, single sign-on, emergency). */
-export function stepUpInfo(s: SessionMeta | undefined, account: Pick<SessionInfo, 'authSource'>): StepUpInfo {
+export function stepUpInfo(s: SessionMeta | undefined, account: { authSource: string }): StepUpInfo {
   const windowMinutes = Math.round(stepUpWindowMs() / 60_000);
   if (!s) return { method: 'none', windowMinutes };
   if (s.method === 'emergency') return { method: 'emergency', windowMinutes };
@@ -73,19 +91,24 @@ export function stepUpInfo(s: SessionMeta | undefined, account: Pick<SessionInfo
   return { method: 'none', windowMinutes };
 }
 
-/**
- * The hook's decision (app.ts) for a route with a step-up rule that applies: undefined (go on) or the refusal to send.
- * `viaToken`: an API token, not a session.
- */
-export function stepUpRefusal(viaToken: boolean, info: SessionInfo): { status: number; body: Record<string, unknown> } | undefined {
-  if (viaToken) {
+/** The step-up hook (app.ts, inside the request context): undefined (go on) or the refusal to send. */
+export function stepUpCheck(req: FastifyRequest): { status: number; body: Record<string, unknown> } | undefined {
+  const u = currentUser();
+  const rule = req.routeOptions.config?.stepUp;
+  if (!u || !rule || !stepUpApplies(req, rule, u)) return undefined;
+  return stepUpRefusal(u, rule.action);
+}
+
+/** The answer for a caller that has not confirmed: `u.session` is unset for API tokens. */
+export function stepUpRefusal(u: AuthUser, action: StepUpAction): { status: number; body: Record<string, unknown> } | undefined {
+  if (!u.session) {
     return {
       status: 403,
       body: { error: 'API tokens cannot do this – sign in to the web UI and confirm it there', code: 'SESSION_REQUIRED', params: { context: 'stepUp' } },
     };
   }
-  if (steppedUpUntil(info.session)) return undefined;
-  const stepUp = stepUpInfo(info.session, info);
+  if (steppedUpUntil(u.session)) return undefined;
+  const stepUp = { ...stepUpInfo(u.session, getUser(u.id)), action };
   return {
     status: 403,
     body: {

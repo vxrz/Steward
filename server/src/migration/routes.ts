@@ -106,7 +106,7 @@ function importRow(r: Record<string, unknown>): InstanceImport {
 export async function migrationRoutes(app: FastifyInstance): Promise<void> {
   // ---------- export ----------
   // the master passphrase proves the vault, the step-up (auth/step-up.ts) the person
-  app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: true } }, async (req) => {
+  app.post('/migration/export', { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'exportMigration', who: 'manageUsers' } } }, async (req) => {
     const u = me();
     const b = z.object({ passphrase: z.string().max(1024), transferPassphrase: z.string().max(1024) }).parse(req.body);
     const wait = unlockThrottle.waitSeconds();
@@ -202,20 +202,24 @@ export async function migrationRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  app.post('/migration/imports/staged/:id/apply', { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: true } }, async (req) => {
-    const u = me();
-    const s = stagedFor(params(req).id!, u);
-    const b = z.object({ mapping: mappingSchema, confirmFingerprint: z.string().min(1).max(200) }).parse(req.body);
-    try {
-      const r = await applyImport(s.pkg, { mapping: b.mapping, importer: { id: u.id, username: u.username }, confirmFingerprint: b.confirmFingerprint });
-      dropStaged(params(req).id!);
-      return r;
-    } catch (e) {
-      // a refused mapping or confirmation can be corrected; anything else needs a fresh upload
-      if (!((e instanceof HttpError && e.statusCode < 500) || e instanceof z.ZodError)) dropStaged(params(req).id!);
-      throw e;
-    }
-  });
+  app.post(
+    '/migration/imports/staged/:id/apply',
+    { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'applyMigration', who: 'manageUsers' } } },
+    async (req) => {
+      const u = me();
+      const s = stagedFor(params(req).id!, u);
+      const b = z.object({ mapping: mappingSchema, confirmFingerprint: z.string().min(1).max(200) }).parse(req.body);
+      try {
+        const r = await applyImport(s.pkg, { mapping: b.mapping, importer: { id: u.id, username: u.username }, confirmFingerprint: b.confirmFingerprint });
+        dropStaged(params(req).id!);
+        return r;
+      } catch (e) {
+        // a refused mapping or confirmation can be corrected; anything else needs a fresh upload
+        if (!((e instanceof HttpError && e.statusCode < 500) || e instanceof z.ZodError)) dropStaged(params(req).id!);
+        throw e;
+      }
+    },
+  );
 
   app.get('/migration/imports', async (): Promise<InstanceImport[]> => {
     me();

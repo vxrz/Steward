@@ -25,6 +25,7 @@ import {
   type SsoSignInPreview,
   type SsoTestResult,
   type SsoTestStart,
+  type StepUpAction,
   type UserInfo,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -553,7 +554,7 @@ interface Pending {
   /** A test sign-in by an administrator: records the claims, never signs in or changes an account */
   test?: { testId: string };
   /** A step-up of a signed-in session: checks the identity, never signs in or changes an account */
-  stepUp?: { sessionId: string; userId: string; popup: boolean };
+  stepUp?: { sessionId: string; userId: string; popup: boolean; actions: StepUpAction[]; startedAt: number };
 }
 const pending = new Map<string, Pending>();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -660,9 +661,17 @@ export type CallbackResult =
   ({ kind: 'session'; returnTo: string; username: string } & CreatedSession) | { kind: 'test'; ok: boolean; locale: string | null } | StepUpCallback;
 
 /** A step-up's callback: checked, for the session that started it – the browser holding it redeems the result (step-up.ts). */
-export type StepUpCallback = { kind: 'stepUp'; popup: boolean; returnTo: string; locale: string | null; sessionId: string; userId: string } & (
-  { ok: true; method: 'sso' | 'sso+mfa'; at: number; provider: string } | { ok: false; code: string; message: string }
-);
+export type StepUpCallback = {
+  kind: 'stepUp';
+  popup: boolean;
+  returnTo: string;
+  locale: string | null;
+  sessionId: string;
+  userId: string;
+  /** What the person confirms, and when they started (shown on the callback page) */
+  actions: StepUpAction[];
+  startedAt: number;
+} & ({ ok: true; method: 'sso' | 'sso+mfa'; at: number; provider: string } | { ok: false; code: string; message: string });
 
 /** Handle the redirect back from the identity provider. A sign-in returns a session; a test sign-in only records the claims. */
 export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }): Promise<CallbackResult> {
@@ -745,7 +754,7 @@ function freshAuthentication(
 export async function startStepUp(
   u: { id: string; sessionId: string },
   redirectUri: string,
-  opts: { returnTo?: string; popup: boolean },
+  opts: { returnTo?: string; popup: boolean; actions?: StepUpAction[] },
 ): Promise<{ authorizationUrl: string; expiresAt: string }> {
   const account = getUser(u.id);
   const p = db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', account.authSource);
@@ -756,7 +765,7 @@ export async function startStepUp(
     providerId: provider.id,
     redirectUri,
     returnTo: safeReturnTo(opts.returnTo),
-    stepUp: { sessionId: u.sessionId, userId: u.id, popup: opts.popup },
+    stepUp: { sessionId: u.sessionId, userId: u.id, popup: opts.popup, actions: [...new Set(opts.actions ?? [])], startedAt: Date.now() },
   });
   return { authorizationUrl: url, expiresAt: new Date(Date.now() + STATE_TTL_MS).toISOString() };
 }
@@ -768,7 +777,16 @@ export async function startStepUp(
 async function finishStepUp(flow: Pending, state: string, currentUrl: URL): Promise<StepUpCallback> {
   const su = flow.stepUp!;
   const row = db().get<{ username: string; locale: string | null }>('SELECT username, locale FROM users WHERE id = ?', su.userId);
-  const base = { kind: 'stepUp' as const, popup: su.popup, returnTo: flow.returnTo, locale: row?.locale ?? null, sessionId: su.sessionId, userId: su.userId };
+  const base = {
+    kind: 'stepUp' as const,
+    popup: su.popup,
+    returnTo: flow.returnTo,
+    locale: row?.locale ?? null,
+    sessionId: su.sessionId,
+    userId: su.userId,
+    actions: su.actions,
+    startedAt: su.startedAt,
+  };
   let name = 'single sign-on';
   const refuse = (code: string, message: string, reason?: string): StepUpCallback => {
     audit({
@@ -784,6 +802,8 @@ async function finishStepUp(flow: Pending, state: string, currentUrl: URL): Prom
   try {
     const p = getProvider(flow.providerId);
     name = p.displayName;
+    // turned off since the step-up started: nobody confirms with it any more
+    if (!p.enabled) return refuse('STEP_UP_SSO_UNAVAILABLE', `${p.displayName} is turned off`);
     const received = await receiveClaims(p, flow, state, currentUrl, p.useUserinfo);
     if (p.useUserinfo && received.userinfoError) return refuse('STEP_UP_SSO_FAILED', `Could not read the userinfo: ${received.userinfoError}`);
     const claims = mergedClaims(p, received);

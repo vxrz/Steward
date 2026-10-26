@@ -586,7 +586,25 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'DELETE /api/sso/providers/:id': 'always',
   'PUT /api/settings': { sensitive: { outboundAllowList: ['matrix.example'] }, harmless: {} },
   'PUT /api/settings/notifications': { sensitive: { allowedEmailDomains: ['matrix.example'] }, harmless: { allowedEmailDomains: ['example.com'] } },
+  'POST /api/teams': { sensitive: { name: 'Matrix step-up', members: ['vera'] }, harmless: { name: '!' } },
+  'PUT /api/teams/:id': { sensitive: { name: 'Matrix team', members: ['vera'] }, harmless: { name: 'Matrix team', members: [] } },
+  // (harmless: an invalid subject that grants no management right – refused by the route, the fixture stays)
+  'PUT /api/platforms/:id/access': {
+    sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
+    harmless: { acl: [{ subject: 'bogus', permissions: ['use'] }] },
+  },
+  'PUT /api/processes/:id/access': {
+    sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
+    harmless: { acl: [{ subject: 'bogus', permissions: ['view'] }] },
+  },
+  'PUT /api/monitors/:id/access': {
+    sensitive: { acl: [{ subject: 'team:matrix team', permissions: ['manage'] }] },
+    harmless: { acl: [{ subject: 'bogus', permissions: ['view'] }] },
+  },
   'POST /api/compliance/evidence-packs': 'always',
+  'GET /api/audit/export': 'always',
+  'PUT /api/audit/anchoring': 'always',
+  'GET /api/credentials/export.csv': 'always',
   'POST /api/migration/export': 'always',
   'POST /api/migration/imports/staged/:id/apply': 'always',
 };
@@ -1089,10 +1107,11 @@ describe('route permission matrix', () => {
     expect(ended.status).toBe(200);
     const send = async (headers: Record<string, string>, k: string, body: unknown) => {
       const [method, url] = k.split(' ') as [string, string];
+      const send = method !== 'DELETE' && method !== 'GET';
       const res = await fetch(s.base + fill(url), {
         method,
-        headers: { 'x-sm-client': '1', ...headers, ...(method !== 'DELETE' ? { 'content-type': 'application/json' } : {}) },
-        body: method !== 'DELETE' ? JSON.stringify(body ?? {}) : undefined,
+        headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
+        body: send ? JSON.stringify(body ?? {}) : undefined,
       });
       const text = await res.text();
       return { status: res.status, code: (text.startsWith('{') ? (JSON.parse(text) as { code?: string }).code : undefined) ?? '' };

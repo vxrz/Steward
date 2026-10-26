@@ -390,3 +390,150 @@ describe('single sign-on step-up', () => {
     }
   });
 });
+
+describe('after the security review', () => {
+  const notification = async (patch: { email?: Record<string, unknown>; [k: string]: unknown }) => {
+    const n = await s.api('GET', '/settings/notifications');
+    const { hasPassword: _h, ...email } = n.email;
+    return {
+      email: { ...email, ...patch.email },
+      teams: { enabled: false },
+      webhook: { enabled: false },
+      routes: n.routes,
+      baseUrl: n.baseUrl,
+      allowedEmailDomains: n.allowedEmailDomains,
+      ...Object.fromEntries(Object.entries(patch).filter(([k]) => k !== 'email')),
+    };
+  };
+
+  it('M1: changing where notifications go needs a step-up, and the SMTP password never follows another server', async () => {
+    const smtp = { enabled: true, host: 'smtp.corp.example', port: 587, secure: false, user: 'mailer', from: 'steward@corp.example' };
+    await s.api('PUT', '/settings/notifications', await notification({ email: { ...smtp, password: 'smtp-secret' } }));
+    const c = await unconfirmed();
+    for (const change of [
+      { email: { ...smtp, host: 'evil.example', port: 2525 } },
+      { email: { ...smtp, port: 25 } },
+      { email: { ...smtp, secure: true } },
+      { email: { ...smtp, user: 'other' } },
+      { email: { ...smtp, from: 'x@evil.example' } },
+      { teams: { enabled: true, webhookUrl: 'https://evil.example/hook' } },
+      { webhook: { enabled: true, url: 'https://evil.example/hook' } },
+      { baseUrl: 'https://evil.example' },
+      { routes: { 'security.emergency': ['inApp'] } },
+    ]) {
+      const r = await refusal(c('PUT', '/settings/notifications', await notification(change)));
+      expect(r, JSON.stringify(change)).toMatchObject({ status: 403, code: 'STEP_UP_REQUIRED' });
+      expect(r.body.stepUp.action).toBe('changeNotificationDelivery');
+    }
+    // a new password for the same server, or nothing changed: no step-up
+    await c('PUT', '/settings/notifications', await notification({ email: { ...smtp, password: 'smtp-secret-2' } }));
+    await c('PUT', '/settings/notifications', await notification({ email: smtp }));
+
+    // confirmed: another server without the password is refused, the stored password stays where it was
+    await c('POST', '/auth/step-up', { password: 'Admin-password-1' });
+    expect(await refusal(c('PUT', '/settings/notifications', await notification({ email: { ...smtp, host: 'evil.example', port: 2525 } })))).toMatchObject({
+      status: 400,
+      code: 'SMTP_PASSWORD_AGAIN',
+    });
+    expect((await s.api('GET', '/settings/notifications')).email).toMatchObject({ host: 'smtp.corp.example', hasPassword: true });
+    // with the password again: fine
+    await c('PUT', '/settings/notifications', await notification({ email: { ...smtp, host: 'smtp2.corp.example', password: 'smtp-secret-3' } }));
+    expect((await s.api('GET', '/settings/notifications')).email).toMatchObject({ host: 'smtp2.corp.example', hasPassword: true });
+    // without a user the password is not needed: it is removed with the old server
+    await c('PUT', '/settings/notifications', await notification({ email: { ...smtp, host: 'relay.corp.example', user: '' } }));
+    expect((await s.api('GET', '/settings/notifications')).email).toMatchObject({ host: 'relay.corp.example', hasPassword: false });
+    await s.api('PUT', '/settings/notifications', await notification({ email: { ...smtp, enabled: false, user: '' } }));
+  });
+
+  it('M2: adding team members, renaming a team and granting management rights or ownership need a step-up', async () => {
+    const team = await s.api('POST', '/teams', { name: 'Review team', members: ['dana'] });
+    const c = await unconfirmed();
+    const asks = async (method: string, url: string, b: unknown) => {
+      const r = await refusal(c(method, url, b));
+      return r.code === 'STEP_UP_REQUIRED' ? r.body.stepUp.action : r.status;
+    };
+    expect(await asks('PUT', `/teams/${team.id}`, { name: 'Review team', members: ['dana', 'Vera'] })).toBe('changeTeamMembers');
+    expect(await asks('PUT', `/teams/${team.id}`, { name: 'Review team renamed', members: ['dana'] })).toBe('changeTeamMembers');
+    expect(await asks('POST', '/teams', { name: 'Review team 2', members: ['vera'] })).toBe('changeTeamMembers');
+    // removing members, an empty new team, the same members in another case: no step-up
+    expect(await asks('PUT', `/teams/${team.id}`, { name: 'review TEAM', members: ['DANA'] })).toBe(200);
+    expect(await asks('PUT', `/teams/${team.id}`, { name: 'Review team', members: [] })).toBe(200);
+    expect(await asks('POST', '/teams', { name: 'Review team 3', members: [] })).toBe(200);
+    expect(await asks('DELETE', `/teams/${team.id}`, undefined)).toBe(200);
+
+    const platform = (await s.api('GET', '/platforms'))[0];
+    expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: [{ subject: 'user:vera', permissions: ['use', 'manage'] }] })).toBe('grantAccess');
+    expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: [...platform.acl, { subject: 'team:review team 3', permissions: ['use'] }] })).toBe(
+      200,
+    );
+    expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: platform.acl })).toBe(200);
+    expect(await asks('PUT', '/processes/ih-health-check/access', { acl: [{ subject: 'role:viewer', permissions: ['view', 'manage'] }] })).toBe('grantAccess');
+    expect(await asks('PUT', '/processes/ih-health-check/access', { acl: [], owner: 'vera' })).toBe('grantAccess');
+    expect(await asks('PUT', '/processes/ih-health-check/access', { acl: [{ subject: 'role:viewer', permissions: ['view'] }] })).toBe(200);
+    await s.api('PUT', '/processes/ih-health-check/access', { acl: [] });
+    const monitor = ((await s.api('GET', '/monitors')).items ?? (await s.api('GET', '/monitors')))[0];
+    expect(await asks('PUT', `/monitors/${monitor.id}/access`, { acl: [{ subject: 'user:vera', permissions: ['view', 'manage'] }] })).toBe('grantAccess');
+  });
+
+  it('L1: the audit log and credential register exports, the audit anchoring and turning the four-eyes rule off need a step-up', async () => {
+    await s.api('PUT', '/settings', { findingDismissFourEyes: true });
+    const c = await unconfirmed();
+    const action = async (p: Promise<unknown>) => (await refusal(p)).body?.stepUp?.action;
+    expect(await action(c('GET', '/audit/export?format=csv'))).toBe('exportAuditLog');
+    expect(await action(c('GET', '/credentials/export.csv'))).toBe('exportCredentials');
+    expect(await action(c('PUT', '/audit/anchoring', { emailRecipients: ['x@example.com'] }))).toBe('changeAuditAnchoring');
+    expect(await action(c('PUT', '/settings', { findingDismissFourEyes: false }))).toBe('changeSignInSettings');
+    await c('PUT', '/settings', { findingDismissFourEyes: true }); // turning it on: no step-up
+    await c('POST', '/auth/step-up', { password: 'Admin-password-1' });
+    await c('GET', '/audit/export?format=csv');
+    await c('GET', '/credentials/export.csv');
+    await c('PUT', '/settings', { findingDismissFourEyes: false });
+  });
+
+  it('L2: callers the route does not serve, and unknown objects, get the route’s own answer – never STEP_UP_REQUIRED', async () => {
+    const dana = await unconfirmed('dana', 'Demo-password-1');
+    const vera = (await s.api('GET', '/users')).find((u: { username: string }) => u.username === 'vera');
+    expect(await refusal(dana('PUT', `/users/${vera.id}`, { roles: ['admin'] }))).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    expect(await refusal(dana('PUT', '/users/usr_nonexistent', { roles: ['admin'] }))).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    expect(await refusal(dana('POST', '/sso/providers', {}))).toMatchObject({ status: 403, code: 'FORBIDDEN' });
+    expect((await refusal(dana('GET', '/audit/export'))).code).not.toBe('STEP_UP_REQUIRED');
+    const admin = await unconfirmed();
+    expect((await refusal(admin('PUT', '/users/usr_nonexistent', { roles: ['admin'] }))).status).toBe(404);
+    expect((await refusal(admin('PUT', '/teams/team_nonexistent', { name: 'x y', members: ['vera'] }))).status).toBe(404);
+    expect((await refusal(admin('PUT', '/platforms/nonexistent/access', { acl: [{ subject: 'user:vera', permissions: ['manage'] }] }))).status).toBe(404);
+    // a known one asks
+    expect(await refusal(admin('PUT', `/users/${vera.id}`, { roles: ['admin'] }))).toMatchObject({ code: 'STEP_UP_REQUIRED' });
+  });
+
+  it('L3: a provider turned off after the step-up started confirms nothing', async () => {
+    const c = await ssoClient('a1f3');
+    await c('DELETE', '/auth/step-up');
+    const start = await c('POST', '/auth/step-up/sso', {});
+    const original = await provider();
+    await s.api('PUT', `/sso/providers/${providerId}`, { ...original, enabled: false });
+    try {
+      const url = new URL(start.authorizationUrl);
+      url.pathname += '/approve';
+      url.searchParams.set('login', 'a1f3');
+      const approve = await fetch(url, { redirect: 'manual' });
+      const html = await (await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' })).text();
+      expect(html).not.toMatch(/ticket:/);
+      expect((await c('GET', '/auth/step-up')).failure).toMatchObject({ code: 'STEP_UP_SSO_UNAVAILABLE' });
+    } finally {
+      await s.api('PUT', `/sso/providers/${providerId}`, { ...original, enabled: true });
+    }
+  });
+
+  it('L4/L5: the answer names the action; the callback page says what was confirmed and when it started (escaped)', async () => {
+    const c = await ssoClient('a1f3');
+    await c('DELETE', '/auth/step-up');
+    const r = await refusal(c('POST', '/me/tokens', { name: 'x', scope: 'read' }));
+    expect(r.body.stepUp.action).toBe('createToken');
+    const step = await ssoStepUp(c, 'a1f3', { actions: ['createToken', 'grantAccess'] } as never);
+    expect(step.html).toContain('You are confirming: create an API token, grant management rights or ownership.');
+    expect(step.html).toMatch(/Started at <time datetime="\d{4}-\d\d-\d\dT[\d:.]+Z">\d\d:\d\d UTC<\/time>/);
+    await c('POST', '/auth/step-up/sso/complete', { ticket: step.ticket });
+    // only known actions are accepted
+    expect(await refusal(c('POST', '/auth/step-up/sso', { actions: ['<script>'] }))).toMatchObject({ status: 400, code: 'INVALID_INPUT' });
+  });
+});

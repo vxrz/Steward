@@ -229,8 +229,10 @@ export async function complianceRoutes(app: FastifyInstance): Promise<void> {
   app.get('/compliance/evidence-packs/meta', async () => packs.packsMeta());
   app.get('/compliance/evidence-packs', async () => packs.listPacks());
   // an evidence pack carries the audit trail and personal data out of Steward: a recent confirmation first (auth/step-up.ts)
-  app.post('/compliance/evidence-packs', { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: true } }, async (req) =>
-    packs.createPack(packs.packInput.parse(req.body)),
+  app.post(
+    '/compliance/evidence-packs',
+    { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'exportEvidencePack', who: 'exportEvidence' } } },
+    async (req) => packs.createPack(packs.packInput.parse(req.body)),
   );
   app.get('/compliance/evidence-packs/:packId', async (req) => packs.getPack(params(req).packId!));
   app.delete('/compliance/evidence-packs/:packId', async (req, reply) => {
