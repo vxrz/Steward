@@ -230,6 +230,10 @@ describe('availability objectives', () => {
       targets: { h24: 99.95, d30: 99.9 },
     });
     expect(changed.targets).toMatchObject({ h24: 99.95, d30: 99.9 });
+    // the web form sends no platform when the editor may not see it: the endpoint stays
+    const kept = await dana('PUT', `/objectives/${secret.id}`, { name: 'Vault availability', targets: { h24: 99.9 }, notify: true });
+    expect(kept).toMatchObject({ notify: true, targets: { h24: 99.9, d30: null } });
+    expect(db().get<any>('SELECT endpoint_key FROM availability_objectives WHERE id = ?', secret.id).endpoint_key).toBe('core_vault');
     expect(await code(dana('PUT', `/objectives/${own.id}`, { name: 'Owned', platformId: secretGatus, endpointKey: 'core_vault', targets: { h24: 99 } }))).toBe(
       'OBJECTIVE_PLATFORM_UNKNOWN',
     );

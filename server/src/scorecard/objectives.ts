@@ -114,9 +114,14 @@ export const objectiveInput = z
   .object({ serviceId: id, ...fields })
   .strict()
   .refine(oneTarget, oneTargetMsg);
-export const objectiveUpdate = z.object(fields).strict().refine(oneTarget, oneTargetMsg);
+/** A change; without platform and endpoint they stay (editors who may not see the platform change the targets only). */
+export const objectiveUpdate = z
+  .object({ ...fields, platformId: fields.platformId.optional(), endpointKey: fields.endpointKey.optional() })
+  .strict()
+  .refine(oneTarget, oneTargetMsg);
 export type ObjectiveInput = z.infer<typeof objectiveInput>;
 export type ObjectiveUpdate = z.infer<typeof objectiveUpdate>;
+type Resolved = Omit<ObjectiveUpdate, 'platformId' | 'endpointKey'> & { platformId: string; endpointKey: string };
 
 // ---------- values ----------
 
@@ -392,7 +397,7 @@ export function getObjective(objectiveId: string, now = Date.now()): ObjectiveDe
 
 // ---------- changes ----------
 
-function checkReferences(u: AuthUser, s: ServiceRef, input: ObjectiveUpdate, cur?: ObjectiveRow): void {
+function checkReferences(u: AuthUser, s: ServiceRef, input: Resolved, cur?: ObjectiveRow): void {
   if (input.applicationId && !db().get('SELECT 1 FROM service_applications WHERE service_id = ? AND application_id = ?', s.id, input.applicationId))
     throw new HttpError(400, 'The application is not part of the service', 'OBJECTIVE_APPLICATION_NOT_IN_SERVICE', { id: input.applicationId });
   // an editor who may not see the platform may still change the targets, as long as the endpoint stays
@@ -465,9 +470,10 @@ export function createObjective(input: ObjectiveInput): ObjectiveDetail {
   return getObjective(objectiveId);
 }
 
-export function updateObjective(objectiveId: string, input: ObjectiveUpdate): ObjectiveDetail {
+export function updateObjective(objectiveId: string, change: ObjectiveUpdate): ObjectiveDetail {
   const u = me();
   const cur = objectiveRow(objectiveId);
+  const input: Resolved = { ...change, platformId: change.platformId ?? cur.platform_id, endpointKey: change.endpointKey ?? cur.endpoint_key };
   const s = serviceRef(cur.service_id);
   if (!canEdit(u, s)) forbid('change objectives of this service', 'changeService');
   checkReferences(u, s, input, cur);
