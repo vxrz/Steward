@@ -70,10 +70,37 @@ See _Quick start_ and _Everyday use_ in the [README](../README.md). `npm run des
 
 ## 4. Container
 
+Every release publishes a signed image to the GitHub Container Registry, for linux/amd64 and linux/arm64:
+
+| Tag                                                    | Content                                                                       |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `ghcr.io/vxrz/steward:0.2.1`                           | exactly this version (recommended: pin it, update on purpose)                 |
+| `ghcr.io/vxrz/steward:0.2`                             | the newest 0.2.x                                                              |
+| `ghcr.io/vxrz/steward:latest`                          | the newest release (pre-releases such as `0.3.0-rc.1` only get their own tag) |
+| `…:0.2.1-browser`, `…:0.2-browser`, `…:latest-browser` | the same with Chromium for browser steps (larger)                             |
+
+`docker-compose.yml` pins the version of its checkout:
+
 ```bash
 docker compose up -d                                   # http://localhost:4310
+```
+
+Check the image before you start it the first time (and after each update) – see [Verifying downloads](SECURITY-HARDENING.md#verifying-downloads):
+
+```bash
+cosign verify ghcr.io/vxrz/steward:0.2.1 \
+  --certificate-identity-regexp '^https://github\.com/vxrz/Steward/\.github/workflows/container\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+If the registry doesn't have the pinned version (a checkout from before the first published image, or no access to ghcr.io), `docker compose up` builds it from the checkout instead – such a local build carries no signature, so run `docker compose pull` first when you want the signed image (it fails if there is none). To always build yourself (e.g. with your own changes), run `docker compose build --pull && docker compose up -d`, or:
+
+```bash
+docker build -t steward .                              # the default image
 docker build --build-arg WITH_BROWSER=1 -t steward .   # with Chromium for browser steps
 ```
+
+Images are published from the first release after 0.1.2. For older versions, build the image from the checkout.
 
 - Data lives in the `sm-data` volume (`/data`). Back it up.
 - The compose file publishes the port on `127.0.0.1` only. To serve colleagues:
@@ -167,11 +194,13 @@ npm start
 ```bash
 docker compose stop
 docker run --rm -v <project>_sm-data:/data -v "$PWD":/backup alpine tar czf /backup/steward-data-$(date +%F).tgz -C /data .
-git pull && docker compose build --pull   # or: docker compose pull, for an image from a registry
-docker compose up -d
+# set the new version in docker-compose.yml (image: ghcr.io/vxrz/steward:<version>), or git pull, then:
+docker compose pull && docker compose up -d
 ```
 
-`<project>` is the compose project, by default the folder name (`docker volume ls` shows it). The data volume stays; only the image changes.
+`<project>` is the compose project, by default the folder name (`docker volume ls` shows it). The data volume stays; only the image changes. Verify the new image as above before you start it. With a self-built image: `git pull && docker compose build --pull && docker compose up -d`.
+
+An air-gapped host: pull and verify the image on a connected machine, then `docker save ghcr.io/vxrz/steward:<version> | gzip > steward.tar.gz`, copy the file and `docker load < steward.tar.gz`.
 
 **What happens at the first start.** The app compares the database with the migrations it knows:
 

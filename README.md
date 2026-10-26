@@ -63,7 +63,7 @@ Then:
 - **Desktop executable:** download, double-click; it opens as an app window. `npm run build && npm run build:exe` builds it yourself.
 - **Installed web app:** in Edge/Chrome choose _Install_ (or _Install app_ in the user menu).
 - **Node.js:** see below.
-- **Container:** `docker compose up -d`.
+- **Container:** `docker compose up -d` with the signed image `ghcr.io/vxrz/steward` (linux/amd64 and linux/arm64; `…-browser` tags include Chromium for browser steps), or build it yourself from the `Dockerfile`.
 
 Details, autostart for schedules and code-signing notes are in [docs/INSTALL.md](docs/INSTALL.md). Naming ideas and how to rebrand are in [docs/BRANDING.md](docs/BRANDING.md). Languages (English, German) and how to add one: [docs/I18N.md](docs/I18N.md).
 

@@ -21,7 +21,7 @@ Contents: [Where it runs](#where-it-runs) · [Network, TLS and reverse proxy](#n
   - `SM_PUBLIC_URL=https://<DNS name>` – used for SSO redirects and links; an `https://` URL makes the session cookie `Secure` and turns on HSTS even when TLS ends at the proxy.
   - Prefer an own host name over a path prefix (`https://apps.corp.example/steward`): under a path every application on that host shares Steward's origin, and the cookie cannot use `__Host-`. See [INSTALL.md](INSTALL.md#behind-a-reverse-proxy).
 - **(must) Behind a proxy: `SM_TRUST_PROXY`** – preferably the proxies' addresses/CIDRs (`10.0.0.5`, `10.1.0.0/16`, `loopback`), or the number of proxy hops (`1`; only honoured when the direct peer has a loopback or private address, so a client that reaches Steward directly cannot forge its address). Without it every request seems to come from the proxy: the audit log records the proxy's address, the sign-in lockout locks out everyone at once, everyone who is not signed in shares one [rate-limit](#request-rate-limits) bucket, and webhook source-address rules cannot work. `true` is refused on purpose (any client could claim any address). Make the proxy overwrite (not append to) `X-Forwarded-For` from clients.
-- Proxy settings: forward `Host` (or `X-Forwarded-Host`), `X-Forwarded-Proto`; allow request bodies up to 25 MB for uploads (sign-in and other unauthenticated requests are limited to 64 KB by Steward); do not cache `/api/` (Steward sends `Cache-Control: no-store`).
+- Proxy settings: forward `Host` (or `X-Forwarded-Host`), `X-Forwarded-Proto`; allow request bodies as large as your uploads (60 MB covers record attachments, report PDFs and imports, see [INSTALL.md](INSTALL.md); migration packages need `SM_MIGRATION_MAX_MB`) – Steward sets the limit of each route itself (see [Request body limits](#request-body-limits)); do not cache `/api/` (Steward sends `Cache-Control: no-store`).
 - Firewall: only the proxy may reach Steward's port.
 
 ## Request rate limits
@@ -45,7 +45,22 @@ Steward limits how many requests one client can send, so a script or a stuck bro
 
 ## Request body limits
 
-- **Size:** 25 MB per request for signed-in users (platform OpenAPI specs up to 20 MB arrive as JSON); some routes have lower limits (sign-in 16 KB, MCP 64 KB, inbound webhooks 64–512 KB). Requests without a session or token may send at most 64 KB and must give a `Content-Length`.
+- **Size:** 1 MB per request by default. Only the routes that carry the content of a file in a JSON body accept more, each sized from its own content limit (JSON escaping and UTF-8 can double a text, so a text limit counts twice); they are listed in `server/src/bodyLimits.ts`, and a test fails when any other route accepts more than 1 MB:
+
+  | Route                                                                                                   | Body limit | Why                                                                                     |
+  | ------------------------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------- |
+  | `POST /api/records/import`                                                                              | 4.06 MB    | Markdown files of up to 2 MB together                                                   |
+  | `POST /api/compliance/catalogues/import`                                                                | 2.02 MB    | a control catalogue of up to 1 MB                                                       |
+  | `POST /api/monitors/import`                                                                             | 1.06 MB    | a monitor file (YAML) of up to 512 KB                                                   |
+  | `POST /api/monitors/:id/instances`                                                                      | 2.06 MB    | template instances from a CSV of up to 1 MB                                             |
+  | `POST`/`PUT /api/processes…`, `POST /api/processes/validate`, `/to-yaml`, `POST`/`PUT /api/dashboards…` | 4.06 MB    | a process or dashboard definition of up to 2 MB (`MAX_DEFINITION_TEXT`)                 |
+  | `POST /api/platforms/:id/specs`                                                                         | 25 MB      | an API specification of up to 20 MB, as when fetched from a URL                         |
+  | `POST /api/bundle/import`, `POST /api/platform-types/import`                                            | 25 MB      | exports of a whole installation (processes and dashboards; a connector type with specs) |
+  | `POST /api/reports/branding/logo`                                                                       | 1.35 MB    | the 1 MB logo as base64 (the web app sends multipart)                                   |
+  | `POST /api/reports/verify`                                                                              | 25 MB      | a report PDF as base64 for scripts (the web app sends multipart, up to 50 MB)           |
+
+  File uploads as `multipart/form-data` (record attachments and signed PDFs, logos, documentation, certificates, migration packages) are streamed and limited per file by their route instead. Some routes have lower limits (sign-in 16 KB, audit verification 256 KB, MCP 64 KB, inbound webhooks 64–512 KB). Above the limit Steward answers `413` with the error code `BODY_TOO_LARGE` (`BODY_TOO_LARGE_KIB` below 1 MB) and the limit; the web app shows it translated. Process inputs, also a CSV table loaded from a file, are part of the 1 MB request that starts a run. Requests without a session or token may send at most 64 KB and must give a `Content-Length`.
+
 - **Shape:** before a route validates a JSON body, Steward counts its contents: at most 10,000 items in one list, 10,000 fields in one object, 200,000 values in all and 100 levels of nesting (imports of bundles, connector types and monitors: 50,000 items or fields and 1,000,000 values). Above that: `413` with the error code `BODY_TOO_COMPLEX`. The count is linear and stops at the first limit.
 - **Lists and maps in the schemas:** every list a route, an import, a webhook mapping, an MCP tool or a process definition accepts has its own maximum length, and every map (inputs, headers, fields …) a maximum number of keys. Validation (zod 4) checks the length first and stops there, so a long list can't make it allocate memory per item ([GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), fixed in zod 4.6.6). The shape limits above stay as a second line of defence; a test checks that no schema leaves out a limit.
 
@@ -147,12 +162,40 @@ If Steward has to run on a host where other people (or their programs) are logge
 
 ## Verifying downloads
 
-Release archives and the container image (OCI archive on tags) come with signed build provenance (SLSA, GitHub artifact attestations, keyless Sigstore) and an SBOM attestation:
+Release archives come with signed build provenance (SLSA, GitHub artifact attestations, keyless Sigstore) and an SBOM attestation:
 
 ```bash
-gh attestation verify steward-linux-x64.tar.gz --repo <owner>/<repo>
+gh attestation verify steward-linux-x64.tar.gz --repo vxrz/Steward
 sha256sum -c SHA256SUMS.txt
 ```
+
+**Container image** (`ghcr.io/vxrz/steward`). The Container workflow signs every published image with [cosign](https://docs.sigstore.dev/cosign/) – keyless: the certificate names the workflow, the release tag and the commit – and attaches SLSA build provenance and the CycloneDX SBOM (from Syft) as attestations. Check that an image comes from a release tag of this repository before you run it (cosign 3 or later, a current GitHub CLI):
+
+```bash
+# signature: built by .github/workflows/container.yml for a v* tag of vxrz/Steward
+cosign verify ghcr.io/vxrz/steward:0.2.1 \
+  --certificate-identity-regexp '^https://github\.com/vxrz/Steward/\.github/workflows/container\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# for one exact release, compare the whole identity instead of a pattern
+cosign verify ghcr.io/vxrz/steward:0.2.1 \
+  --certificate-identity https://github.com/vxrz/Steward/.github/workflows/container.yml@refs/tags/v0.2.1 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+# build provenance (SLSA) of the multi-platform image
+gh attestation verify oci://ghcr.io/vxrz/steward:0.2.1 --repo vxrz/Steward \
+  --signer-workflow vxrz/Steward/.github/workflows/container.yml --source-ref refs/tags/v0.2.1
+```
+
+Each platform image (linux/amd64, linux/arm64) is signed too and has its own provenance and SBOM attestation. Look up its digest and check it:
+
+```bash
+docker buildx imagetools inspect ghcr.io/vxrz/steward:0.2.1          # lists the platform digests
+gh attestation verify oci://ghcr.io/vxrz/steward@sha256:<platform digest> --repo vxrz/Steward \
+  --predicate-type https://cyclonedx.org/bom                          # the SBOM attestation
+```
+
+Run what you verified: pin the digest (`image: ghcr.io/vxrz/steward:0.2.1@sha256:…` in the compose file) or at least the version, so a later push to the tag cannot replace it unnoticed. The same commands work for the `-browser` tags.
 
 ## Known limits
 

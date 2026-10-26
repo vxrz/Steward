@@ -238,6 +238,8 @@ test.describe('start page zero state (viewer)', () => {
     await expect(tiles.getByRole('link', { name: 'Waiting on vendors: 0 – All quiet' })).toBeVisible();
     await expect(tiles.getByText(/Undocumented access changes|Credentials due/)).toHaveCount(0);
     await expectAccessible(page, 'start page zero state');
+    // the start page refreshes the counts in the background: let a refresh still in the handler end quietly
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 });
 

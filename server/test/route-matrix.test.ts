@@ -583,7 +583,7 @@ const readTokens = {} as Record<Role, string>;
 let fullAdminToken = '';
 let mcpAdminToken = '';
 let fx: Fx = {};
-let routes: { method: string; url: string }[] = [];
+let routes: { method: string; url: string; bodyLimit?: number }[] = [];
 
 /** Fills the path parameters of a route with fixture ids. */
 function fill(url: string): string {
@@ -971,6 +971,20 @@ describe('route permission matrix', () => {
     expect(
       Object.keys(EXPECT).filter((k) => !registered.has(k) && !WEB_UI.has(k)),
       'EXPECT entries without a route',
+    ).toEqual([]);
+  });
+
+  it('keeps request bodies to 1 MB except on the routes named in bodyLimits.ts', async () => {
+    const { DEFAULT_BODY_LIMIT, LARGE_BODIES } = await import('../src/bodyLimits.js');
+    expect(s.app.initialConfig.bodyLimit).toBe(DEFAULT_BODY_LIMIT);
+    const named = new Map<string, number>(Object.values(LARGE_BODIES).flatMap((l) => l.routes.map((r) => [r, l.bytes] as [string, number])));
+    expect(
+      routes.filter((r) => (named.has(key(r)) ? r.bodyLimit !== named.get(key(r)) : (r.bodyLimit ?? DEFAULT_BODY_LIMIT) > DEFAULT_BODY_LIMIT)).map(key),
+      'routes with a body limit above 1 MB that is not their LARGE_BODIES entry (server/src/bodyLimits.ts)',
+    ).toEqual([]);
+    expect(
+      [...named.keys()].filter((k) => !routes.some((r) => key(r) === k)),
+      'LARGE_BODIES routes that are not registered',
     ).toEqual([]);
   });
 

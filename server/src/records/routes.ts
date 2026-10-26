@@ -32,6 +32,7 @@ import * as docs from './documents.js';
 import * as linkTypes from './link-types.js';
 import * as catalogue from '../catalogue/service.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const csv = (v: unknown): string[] | undefined =>
@@ -150,7 +151,7 @@ export async function recordRoutes(app: FastifyInstance): Promise<void> {
       .parse(req.body);
     return svc.createRecord(b);
   });
-  app.post('/records/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: IMPORT_LIMITS.totalBytes * 2 + 64 * 1024 }, async (req) => {
+  app.post('/records/import', { config: { rateLimit: ROUTE_LIMITS.heavy }, bodyLimit: LARGE_BODIES.recordsImport.bytes }, async (req) => {
     const b = z
       .object({
         type: z.string().max(64).optional(),

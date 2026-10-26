@@ -26,6 +26,7 @@ import { mcpRoutes } from './mcp/http.js';
 import { MCP_PATH } from './mcp/config.js';
 import { countRefused, rateLimitOptions, setRateLimitUser, wasRateLimited } from './rateLimits.js';
 import { checkBodyShape } from './bodyShape.js';
+import { bodyTooLarge, DEFAULT_BODY_LIMIT } from './bodyLimits.js';
 import { BARE_BASE, injectBaseHref, OUTSIDE_BASE, stripBasePath, withBasePath } from './basePath.js';
 
 /** Reachable without signing in. */
@@ -210,9 +211,13 @@ function outsideBasePath(req: FastifyRequest, reply: FastifyReply) {
 /** Requests without any credentials may only send small bodies (sign-in, setup); everything else needs a session or token first. */
 const ANONYMOUS_BODY_LIMIT = 64 * 1024;
 
-/** Every route an app instance registered (method + full URL, HEAD left out): the route permission matrix test checks them all. */
-const ROUTE_TABLES = new WeakMap<FastifyInstance, { method: string; url: string }[]>();
-export const registeredRoutes = (app: FastifyInstance): { method: string; url: string }[] => [...(ROUTE_TABLES.get(app) ?? [])];
+/**
+ * Every route an app instance registered (method + full URL, HEAD left out, with its own body limit if it
+ * sets one): the route permission matrix test checks them all.
+ */
+type RegisteredRoute = { method: string; url: string; bodyLimit?: number };
+const ROUTE_TABLES = new WeakMap<FastifyInstance, RegisteredRoute[]>();
+export const registeredRoutes = (app: FastifyInstance): RegisteredRoute[] => [...(ROUTE_TABLES.get(app) ?? [])];
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   connectVaultToDatabase();
@@ -220,7 +225,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const app = Fastify({
     ...(opts.logger ? { loggerInstance: logger } : { logger: false }),
     disableRequestLogging: true,
-    bodyLimit: 25 * 1024 * 1024,
+    // 1 MB; the import and definition routes that need more name their limit (bodyLimits.ts)
+    bodyLimit: DEFAULT_BODY_LIMIT,
     // Under a path prefix (SM_BASE_PATH): strip it once before routing, so every route, check and limit below
     // sees the same paths as at the root; requests outside it are marked and answered with 404 (onRequest).
     ...(BASE ? { rewriteUrl: (req: Parameters<typeof stripBasePath>[0]) => stripBasePath(req, BASE) } : {}),
@@ -238,10 +244,10 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
         }
       : {}),
   }) as unknown as FastifyInstance;
-  const routeTable: { method: string; url: string }[] = [];
+  const routeTable: RegisteredRoute[] = [];
   ROUTE_TABLES.set(app, routeTable);
   app.addHook('onRoute', (r) => {
-    for (const method of [r.method].flat()) if (method !== 'HEAD') routeTable.push({ method, url: r.url });
+    for (const method of [r.method].flat()) if (method !== 'HEAD') routeTable.push({ method, url: r.url, bodyLimit: r.bodyLimit });
   });
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024, files: 1 } });
   // Rate limits for every route registered below (per user, else per client address; see rateLimits.ts)
@@ -389,6 +395,8 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   app.setErrorHandler((err, req, reply) => {
+    // a body above the route's limit (bodyLimits.ts): with the limit, so the web UI can say how much fits
+    if ((err as { code?: unknown }).code === 'FST_ERR_CTP_BODY_TOO_LARGE') err = bodyTooLarge(req.routeOptions.bodyLimit);
     if (err instanceof HttpError) {
       return reply
         .code(err.statusCode)

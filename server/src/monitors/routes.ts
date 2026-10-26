@@ -9,12 +9,13 @@ import * as svc from './service.js';
 import * as gateways from './gateways.js';
 import * as engine from './engine.js';
 import { handleGatewayBatch, handleHeartbeat } from './hooks.js';
-import { canCreateMonitors, type CheckRow } from './model.js';
+import { canCreateMonitors, MONITOR_IMPORT_LIMITS, type CheckRow } from './model.js';
 import { parseCsv } from './templates.js';
 import { validateMonitorFile } from './validation.js';
 import { db } from '../db.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -72,13 +73,11 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   }));
   app.get('/monitors/examples', async () => svc.listExamples());
   app.post('/monitors/examples/:file', async (req) => svc.importExample(params(req).file!));
-  app.post('/monitors/import', { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE } }, async (req) => {
+  const monitorImport = { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.monitorImport.bytes };
+  app.post('/monitors/import', monitorImport, async (req) => {
     const b = z
       .object({
-        yaml: z
-          .string()
-          .min(1)
-          .max(512 * 1024),
+        yaml: z.string().min(1).max(MONITOR_IMPORT_LIMITS.yamlChars),
         key: z.string().max(64).optional(),
       })
       .parse(req.body);
@@ -181,7 +180,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/monitors/:id/acknowledge', async (req) => svc.unacknowledge(params(req).id!));
 
   // ---------- templates ----------
-  app.post('/monitors/:id/instances', async (req) => {
+  app.post('/monitors/:id/instances', { bodyLimit: LARGE_BODIES.monitorInstances.bytes }, async (req) => {
     const b = z
       .object({
         rows: z
@@ -196,10 +195,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
           // the service refuses more than 500 with its own error (TOO_MANY_INSTANCES)
           .max(1000)
           .optional(),
-        csv: z
-          .string()
-          .max(1024 * 1024)
-          .optional(),
+        csv: z.string().max(MONITOR_IMPORT_LIMITS.csvChars).optional(),
       })
       .parse(req.body);
     let rows = b.rows ?? [];

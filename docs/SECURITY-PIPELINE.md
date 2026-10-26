@@ -18,10 +18,11 @@ what to do with a finding. The vulnerability disclosure policy is in
 |                 |              | [actionlint](https://github.com/rhysd/actionlint) (+ shellcheck)                                                                       | push, PR, weekly                                | any workflow error                                                               |
 |                 |              | [zizmor](https://docs.zizmor.sh)                                                                                                       | push, PR, weekly                                | workflow security findings of medium severity or higher                          |
 | `codeql.yml`    | analyze      | [CodeQL](https://codeql.github.com), `javascript-typescript` (security-extended) and `actions`                                         | push to main, PR, weekly                        | analysis errors (findings are shown in code scanning)                            |
-| `container.yml` | image        | Docker Buildx build (not pushed)                                                                                                       | push, tags, PR, weekly                          | build errors                                                                     |
+| `container.yml` | image        | Docker Buildx build per platform and variant (amd64; arm64 on tags, weekly, manual), not pushed                                        | push, tags, PR, weekly, manual                  | build errors                                                                     |
 |                 |              | [Syft](https://github.com/anchore/syft) SBOM: CycloneDX JSON, SPDX JSON                                                                |                                                 | –                                                                                |
 |                 |              | [Grype](https://github.com/anchore/grype) on the SBOM, `--only-fixed --fail-on high`                                                   |                                                 | high/critical with a fix available                                               |
 |                 |              | Trivy `image`, `--ignore-unfixed`                                                                                                      |                                                 | high/critical with a fix available, secrets in the image                         |
+|                 | publish      | push to `ghcr.io/vxrz/steward` after all scans passed, cosign signature, provenance and SBOM attestations                              | `v*` tags; manual with _push_ (test tag)        | push, signing or attestation errors                                              |
 | `scorecard.yml` | analysis     | [OpenSSF Scorecard](https://scorecard.dev)                                                                                             | push to main, weekly, branch protection changes | – (score and findings in code scanning)                                          |
 | `release.yml`   | sbom         | CycloneDX npm SBOM of the production dependencies                                                                                      | tags, `[build-exe]`                             | – (attached to the release)                                                      |
 | Dependabot      | –            | `.github/dependabot.yml`: npm (minor/patch grouped; Mantine and Vite as one PR each), GitHub Actions, Docker base image                | weekly, plus security updates                   | – (opens pull requests)                                                          |
@@ -51,8 +52,8 @@ and npm SBOMs to Dependency-Track. Setup and differences:
   of the upload – Semgrep keeps them in its SARIF, and code scanning would open
   alerts for them; the `semgrep-report` artifact still has the full file.
 - **Artifacts** (on the workflow run page): `*-report` artifacts keep the SARIF
-  files for 30 days in any case; `container-sbom` holds the image SBOMs
-  (CycloneDX and SPDX, 90 days for tags), `container-scan-reports` the image scan
+  files for 30 days in any case; `container-sbom-<variant>-<platform>` holds the image SBOMs
+  (CycloneDX and SPDX, 90 days for tags), `container-scan-reports-<variant>-<platform>` the image scan
   results and the Syft JSON SBOM.
 
 SARIF files can be opened with the
@@ -118,9 +119,11 @@ with a notice; the full-history scan in CI still runs.
   `security-events: write` and `actions: read` for SARIF uploads – the upload
   reads the workflow run and fails with "Resource not accessible by integration"
   without it –, `id-token: write` for Scorecard publishing,
-  `contents: write` only for the release job).
+  `contents: write` only for the release job, `packages: write`, `id-token: write`
+  and `attestations: write` only for the job that publishes the container image).
 - **No credentials on disk**: `actions/checkout` with `persist-credentials: false`
-  (nothing in these workflows pushes).
+  (the container `publish` job logs in to ghcr.io with the job's `GITHUB_TOKEN`
+  and logs out at the end; no other secret is used).
 - **No `pull_request_target`**: pull requests from forks run without secrets and
   with a read-only token.
 - **No dependency cache in release builds** (cache poisoning); CI and security
@@ -142,9 +145,9 @@ with a notice; the full-history scan in CI still runs.
 - **Signed build provenance**: release archives and `SHA256SUMS.txt` get a SLSA
   build provenance attestation and the CycloneDX SBOM an SBOM attestation
   (`actions/attest-build-provenance`, `actions/attest-sbom`, keyless via
-  Sigstore – no long-lived signing key). On tags the container image is exported
-  as an OCI archive and attested the same way. Verify with
-  `gh attestation verify <file> --repo <owner>/<repo>`.
+  Sigstore – no long-lived signing key). Verify with
+  `gh attestation verify <file> --repo vxrz/Steward`. The container image is
+  signed and attested in the registry, see below.
 
 ## Container image
 
@@ -153,6 +156,53 @@ server, its production dependencies and the built web UI; no npm/npx/yarn;
 non-root numeric user (1000); app files owned by root; node as PID 1 (clean
 shutdown on SIGTERM); works with a read-only root file system (`docker-compose.yml`
 runs it read-only, with all capabilities dropped and `no-new-privileges`).
+
+### Publishing to ghcr.io
+
+`container.yml` publishes `ghcr.io/vxrz/steward` for release tags `vX.Y.Z`:
+`X.Y.Z`, `X.Y` and `latest` (pre-releases like `v1.2.3-rc.1` only `1.2.3-rc.1`;
+`X.Y` and `latest` only move forward, `scripts/ci/image-tags.sh --releases`), for
+linux/amd64 and linux/arm64, and the same tags with `-browser` (`WITH_BROWSER=1`).
+
+1. **Build once per platform and variant** (job `image`, a matrix): on a native
+   runner (`ubuntu-latest`, `ubuntu-24.04-arm`), with OCI labels for source,
+   version, revision and creation time (title, description and licence come from
+   the `Dockerfile`), into an OCI archive. `scripts/ci/oci-index.sh` checks the
+   archive (blob digests, `org.opencontainers.image.revision` = the commit) and
+   prints the image digest into the job summary.
+2. **Scan that archive**: Syft SBOM, Grype and Trivy, as on every pull request.
+   Only when every step passed, the archive is handed on as a run artifact
+   (`container-oci-<variant>-<platform>`, kept for one day).
+3. **Publish** (job `publish`, only after _all_ `image` jobs passed): download the
+   archives of one variant, combine them into a multi-platform image index without
+   rebuilding (`oci-index.sh` again: same checks, the index gets the OCI
+   annotations), push it with `skopeo copy --all --preserve-digests` to every tag
+   and compare the digest in the registry with the local index. The platform
+   images in the registry are byte for byte the scanned ones.
+4. **Sign and attest** the pushed digests: `cosign sign --recursive` (keyless,
+   GitHub OIDC, Sigstore public-good with the Rekor transparency log) signs the
+   index and both platform images; `actions/attest-build-provenance` attests the
+   index and both platform images; `actions/attest-sbom` attaches the CycloneDX
+   SBOM of each platform image. The attestations are stored in GitHub and pushed
+   to the registry. Verify: [SECURITY-HARDENING.md](SECURITY-HARDENING.md#verifying-downloads).
+
+Only `publish` gets `packages: write`, `id-token: write` and `attestations: write`,
+and it only runs for tags and for manual runs with _push_. It uses no secret but
+the job's `GITHUB_TOKEN`.
+
+**Trying it before a release.** _Actions → Container → Run workflow_ builds and
+scans both platforms and both variants and pushes nothing. With _push_ ticked it
+runs the whole chain, but only to `ghcr.io/vxrz/steward:test-<commit sha>` (and
+`…-browser`), never to a version or `latest`; delete the test versions afterwards
+under the package's _Package settings_. Their signature identity ends in
+`@refs/heads/<branch>` instead of `@refs/tags/v…`.
+
+**First publication.** The first push creates the package `steward` under the
+account, linked to the repository (also through `org.opencontainers.image.source`).
+Check its visibility once under _Package settings_ – a new container package can
+start as private – and make it public (_Change visibility_). If a package of
+that name already exists, give the repository write access under _Manage Actions
+access_.
 
 ## Accepted findings (state of the last review)
 

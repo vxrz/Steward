@@ -1,5 +1,7 @@
-# Woodpecker CI: container image (counterpart of .github/workflows/container.yml, plus
-# publishing to Harbor and Dependency-Track, which the GitHub workflow does not do).
+# Woodpecker CI: container image (counterpart of .github/workflows/container.yml, which
+# publishes release tags to ghcr.io; this pipeline publishes to Harbor and Dependency-Track).
+# Shared scripts: scripts/ci/image-tags.sh (here without options: 1.2.3, 1.2, 1, latest)
+# and scripts/security/install-tools.sh.
 #
 # Pull requests, other branches, the weekly cron and manual runs:
 #   build (not pushed) → Syft SBOM, Grype and Trivy scan of the image archive
