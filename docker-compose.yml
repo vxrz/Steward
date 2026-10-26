@@ -3,8 +3,8 @@
 services:
   steward:
     # Signed release image (verify: docs/SECURITY-HARDENING.md#verifying-downloads).
-    # With Chromium for browser steps: ghcr.io/vxrz/steward:0.1.2-browser
-    image: ghcr.io/vxrz/steward:0.1.2
+    # With Chromium for browser steps: ghcr.io/vxrz/steward:0.2.0-browser
+    image: ghcr.io/vxrz/steward:0.2.0
     # Compose pulls the image above; only if the registry doesn't have it (a version before the first
     # published image, or no access to ghcr.io) does it build it from this checkout instead.
     # To always build locally: "docker compose build --pull && docker compose up -d".

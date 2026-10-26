@@ -9,7 +9,7 @@ services:
   steward:
     # Signed release image (with Chromium: …:0.1.2-browser). Compose pulls it, and builds it from
     # this checkout only if the registry doesn't have it.
-    image: ghcr.io/vxrz/steward:0.1.2
+    image: ghcr.io/vxrz/steward:0.2.0
     build: .
     restart: unless-stopped
     depends_on:
