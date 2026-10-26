@@ -1010,6 +1010,8 @@ export interface DashboardAttention {
   reviews?: { overdue: number; dueSoon: number };
   /** Mandatory service duties due within a week (or in their grace period) and those whose last period was missed or failed (service editors, auditors; others: the duties they are responsible for) */
   duties?: { missed: number; dueSoon: number };
+  /** Services whose scorecard needs attention (service editors, auditors: every service; others: the services they own) */
+  scorecard?: { attention: number; services: number };
   /** Open ticket references waiting for a vendor (status "waiting for vendor", or open with a vendor source) */
   vendorTickets?: { open: number; oldestDays: number | null };
 }

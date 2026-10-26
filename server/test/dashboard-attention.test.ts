@@ -48,10 +48,20 @@ afterAll(async () => {
 });
 
 describe('start page tiles', () => {
-  it('administrators and auditors get all eight tiles; viewers only what they may read', async () => {
+  it('administrators and auditors get all nine tiles; viewers only what they may read', async () => {
     const admin = await attention(s.api);
-    expect(Object.keys(admin).sort()).toEqual(['credentials', 'duties', 'findings', 'monitors', 'reviews', 'runs', 'tasks', 'vendorTickets']);
-    expect(Object.keys(await attention(audrey)).sort()).toEqual(['credentials', 'duties', 'findings', 'monitors', 'reviews', 'runs', 'tasks', 'vendorTickets']);
+    expect(Object.keys(admin).sort()).toEqual(['credentials', 'duties', 'findings', 'monitors', 'reviews', 'runs', 'scorecard', 'tasks', 'vendorTickets']);
+    expect(Object.keys(await attention(audrey)).sort()).toEqual([
+      'credentials',
+      'duties',
+      'findings',
+      'monitors',
+      'reviews',
+      'runs',
+      'scorecard',
+      'tasks',
+      'vendorTickets',
+    ]);
     // the operator may use the reconciled platform, so they read its check
     expect(await attention(olivia)).toHaveProperty('findings');
     // vera (viewer) reads no access check and owns no credential: no tile, not a 0
@@ -63,6 +73,8 @@ describe('start page tiles', () => {
     expect(v).not.toHaveProperty('reviews');
     // and is responsible for no service duty
     expect(v).not.toHaveProperty('duties');
+    // and owns no service (the scorecard tile)
+    expect(v).not.toHaveProperty('scorecard');
     expect(v).toHaveProperty('monitors');
     expect(v.vendorTickets).toEqual({ open: 0, oldestDays: null });
     // the old fields stay for the getting-started checklist

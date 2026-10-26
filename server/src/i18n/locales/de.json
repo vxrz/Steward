@@ -263,5 +263,16 @@
     "endedBody": "{{user}} hat die Pflicht „{{name}}“ ({{level}}) des Service „{{service}}“ archiviert oder geändert ({{why}}). Ihr Zeitraum {{period}} hatte noch keine Ausführung, die zählt: Er wurde ohne Ausführung beendet und zählt als nicht erfüllt.",
     "endedArchived": "Pflicht archiviert",
     "endedChanged": "Pflicht geändert"
+  },
+  "objective": {
+    "breachTitle": "Ziel unterschritten: \"{{name}}\" ({{service}})",
+    "breachBody": "Das Verfügbarkeitsziel „{{name}}“ des Service „{{service}}“ ist unterschritten: {{windows}}. Sie erhalten diese Nachricht einmal je Unterschreitung; die Service-Seite zeigt die aktuellen Werte.",
+    "windowValue": "{{window}} {{value}} (Ziel {{target}})",
+    "windows": {
+      "h1": "1 Std.",
+      "h24": "24 Std.",
+      "d7": "7 Tage",
+      "d30": "30 Tage"
+    }
   }
 }

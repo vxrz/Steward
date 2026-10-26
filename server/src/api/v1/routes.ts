@@ -31,6 +31,7 @@ import { ticketApiRoutes } from '../../tickets/api-v1.js';
 import { complianceApiRoutes } from '../../compliance/api-v1.js';
 import { serviceApiRoutes } from '../../catalogue/api-v1.js';
 import { dutyApiRoutes } from '../../duties/api-v1.js';
+import { scorecardApiRoutes } from '../../scorecard/api-v1.js';
 import { HttpError } from '../../util.js';
 import { API_VERSION } from './config.js';
 import { ProblemError } from './problem.js';
@@ -1198,6 +1199,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
   // ---------- service catalogue ----------
   serviceApiRoutes(get);
   dutyApiRoutes(get);
+  scorecardApiRoutes(get);
   // ---------- ticket references ----------
   ticketApiRoutes(get);
   // ---------- compliance ----------

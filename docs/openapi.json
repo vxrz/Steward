@@ -10193,6 +10193,2511 @@
           "snapshot"
         ],
         "additionalProperties": false
+      },
+      "ObjectiveEntry": {
+        "title": "ObjectiveEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "applicationId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "applicationName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "platformVisible": {
+            "type": "boolean",
+            "description": "The token owner may see the Gatus platform; otherwise platform and endpoint are null"
+          },
+          "platformId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "platformName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "endpointKey": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The Gatus endpoint key (group_name)"
+          },
+          "endpointName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "targets": {
+            "type": "object",
+            "properties": {
+              "h1": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "h24": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "h1",
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Targets per window (1 h, 24 h, 7 d, 30 d) in percent; null: none"
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "window": {
+                  "type": "string",
+                  "enum": [
+                    "h1",
+                    "h24",
+                    "d7",
+                    "d30"
+                  ]
+                },
+                "target": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": [
+                    "null",
+                    "number"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "met",
+                    "below",
+                    "noData"
+                  ]
+                }
+              },
+              "required": [
+                "window",
+                "target",
+                "value",
+                "status"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The windows with a target: Gatus' current uptime and the status"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "met",
+              "below",
+              "noData"
+            ],
+            "description": "below: a window is below target; noData: a window has no value; met: every target is reached"
+          },
+          "noDataReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "noSource",
+                  "uptimesOff",
+                  "stale",
+                  "noEndpoint",
+                  "noValue"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valuesAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When Steward last read Gatus' uptime figures of the platform"
+          },
+          "notify": {
+            "type": "boolean"
+          },
+          "breach": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "startedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "endedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "null: still below target"
+                  },
+                  "windows": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "h1",
+                        "h24",
+                        "d7",
+                        "d30"
+                      ]
+                    },
+                    "description": "The windows below target when the breach started"
+                  },
+                  "notified": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "startedAt",
+                  "endedAt",
+                  "windows",
+                  "notified"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The breach going on now"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "serviceId",
+          "serviceName",
+          "applicationId",
+          "applicationName",
+          "name",
+          "description",
+          "platformVisible",
+          "platformId",
+          "platformName",
+          "endpointKey",
+          "endpointName",
+          "targets",
+          "windows",
+          "status",
+          "noDataReason",
+          "valuesAt",
+          "notify",
+          "breach",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "ObjectiveSampleEntry": {
+        "title": "ObjectiveSampleEntry",
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the hour (UTC)"
+          },
+          "values": {
+            "type": "object",
+            "properties": {
+              "h1": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "h24": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d7": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              },
+              "d30": {
+                "type": [
+                  "null",
+                  "number"
+                ]
+              }
+            },
+            "required": [
+              "h1",
+              "h24",
+              "d7",
+              "d30"
+            ],
+            "additionalProperties": false,
+            "description": "Gatus' uptime per window (1 h, 24 h, 7 d, 30 d) in percent; null: none"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "met",
+              "below",
+              "noData"
+            ]
+          }
+        },
+        "required": [
+          "at",
+          "values",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "ScorecardServiceEntry": {
+        "title": "ScorecardServiceEntry",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "criticality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "attention": {
+            "type": "boolean",
+            "description": "Any part needs attention"
+          },
+          "duties": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "From the mandatory duties: attention when one was not met in its last closed period or now"
+              },
+              "mandatory": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "met": {
+                    "type": "integer"
+                  },
+                  "open": {
+                    "type": "integer"
+                  },
+                  "notMet": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total",
+                  "met",
+                  "open",
+                  "notMet"
+                ],
+                "additionalProperties": false
+              },
+              "recommended": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "met": {
+                    "type": "integer"
+                  },
+                  "open": {
+                    "type": "integer"
+                  },
+                  "notMet": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "attention",
+                      "pending",
+                      "none"
+                    ],
+                    "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+                  }
+                },
+                "required": [
+                  "total",
+                  "met",
+                  "open",
+                  "notMet",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "description": "Shown separately; never sets attention"
+              },
+              "optional": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total"
+                ],
+                "additionalProperties": false
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "dutyId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "mandatory",
+                        "recommended",
+                        "optional"
+                      ]
+                    },
+                    "applicationName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "lastClosed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "due",
+                                "done",
+                                "late",
+                                "failed",
+                                "missed",
+                                "skipped"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "current": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "due",
+                                "done",
+                                "late",
+                                "failed",
+                                "missed",
+                                "skipped"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "open",
+                        "notMet"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "dutyId",
+                    "name",
+                    "level",
+                    "applicationName",
+                    "lastClosed",
+                    "current",
+                    "result"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "mandatory",
+              "recommended",
+              "optional",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          "availability": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "met": {
+                "type": "integer"
+              },
+              "below": {
+                "type": "integer"
+              },
+              "noData": {
+                "type": "integer"
+              },
+              "objectives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "below",
+                        "noData"
+                      ]
+                    },
+                    "applicationName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "applicationName"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "total",
+              "met",
+              "below",
+              "noData",
+              "objectives"
+            ],
+            "additionalProperties": false
+          },
+          "documentation": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: no released document, a review overdue, or an expected document missing"
+              },
+              "documents": {
+                "type": "integer"
+              },
+              "released": {
+                "type": "integer"
+              },
+              "overdue": {
+                "type": "integer"
+              },
+              "dueSoon": {
+                "type": "integer"
+              },
+              "missing": {
+                "type": "integer"
+              },
+              "list": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "typeKey": {
+                      "type": "string"
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "reviewStatus": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "dueSoon",
+                        "overdue",
+                        "none"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "number",
+                    "title",
+                    "typeKey",
+                    "released",
+                    "reviewStatus"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "expected": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ruleId": {
+                      "type": "string"
+                    },
+                    "typeKey": {
+                      "type": "string"
+                    },
+                    "typeName": {
+                      "type": "string"
+                    },
+                    "dimension": {
+                      "type": "string",
+                      "enum": [
+                        "confidentiality",
+                        "integrity",
+                        "availability"
+                      ]
+                    },
+                    "minLevel": {
+                      "type": "string"
+                    },
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string"
+                    },
+                    "satisfiedBy": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "number": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "number",
+                          "title"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "ruleId",
+                    "typeKey",
+                    "typeName",
+                    "dimension",
+                    "minLevel",
+                    "applicationId",
+                    "applicationName",
+                    "level",
+                    "satisfiedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "documents",
+              "released",
+              "overdue",
+              "dueSoon",
+              "missing",
+              "list",
+              "expected"
+            ],
+            "additionalProperties": false
+          },
+          "protection": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: not rated (no applications, a dimension without a level, members not rated or not counted, invalid scale)"
+              },
+              "applications": {
+                "type": "integer"
+              },
+              "scaleInvalid": {
+                "type": "boolean"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "dimension": {
+                      "type": "string",
+                      "enum": [
+                        "confidentiality",
+                        "integrity",
+                        "availability"
+                      ]
+                    },
+                    "effective": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "rated": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "needsRerating": {
+                      "type": "integer"
+                    },
+                    "override": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "dimension",
+                    "effective",
+                    "ok",
+                    "rated",
+                    "total",
+                    "needsRerating",
+                    "override"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "applications",
+              "scaleInvalid",
+              "dimensions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "serviceId",
+          "serviceName",
+          "owners",
+          "criticality",
+          "attention",
+          "duties",
+          "availability",
+          "documentation",
+          "protection"
+        ],
+        "additionalProperties": false
+      },
+      "ScorecardEntry": {
+        "title": "ScorecardEntry",
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "serviceId": {
+                  "type": "string"
+                },
+                "serviceName": {
+                  "type": "string"
+                },
+                "owners": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "criticality": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "attention": {
+                  "type": "boolean",
+                  "description": "Any part needs attention"
+                },
+                "duties": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "From the mandatory duties: attention when one was not met in its last closed period or now"
+                    },
+                    "mandatory": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "met": {
+                          "type": "integer"
+                        },
+                        "open": {
+                          "type": "integer"
+                        },
+                        "notMet": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "met",
+                        "open",
+                        "notMet"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "recommended": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "met": {
+                          "type": "integer"
+                        },
+                        "open": {
+                          "type": "integer"
+                        },
+                        "notMet": {
+                          "type": "integer"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "met",
+                        "open",
+                        "notMet",
+                        "status"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Shown separately; never sets attention"
+                    },
+                    "optional": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "total"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dutyId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string",
+                            "enum": [
+                              "mandatory",
+                              "recommended",
+                              "optional"
+                            ]
+                          },
+                          "applicationName": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "lastClosed": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "due",
+                                      "done",
+                                      "late",
+                                      "failed",
+                                      "missed",
+                                      "skipped"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "status"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "current": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "due",
+                                      "done",
+                                      "late",
+                                      "failed",
+                                      "missed",
+                                      "skipped"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "key",
+                                  "status"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "result": {
+                            "type": "string",
+                            "enum": [
+                              "met",
+                              "open",
+                              "notMet"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "dutyId",
+                          "name",
+                          "level",
+                          "applicationName",
+                          "lastClosed",
+                          "current",
+                          "result"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "mandatory",
+                    "recommended",
+                    "optional",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                },
+                "availability": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "met": {
+                      "type": "integer"
+                    },
+                    "below": {
+                      "type": "integer"
+                    },
+                    "noData": {
+                      "type": "integer"
+                    },
+                    "objectives": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "met",
+                              "below",
+                              "noData"
+                            ]
+                          },
+                          "applicationName": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name",
+                          "status",
+                          "applicationName"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "total",
+                    "met",
+                    "below",
+                    "noData",
+                    "objectives"
+                  ],
+                  "additionalProperties": false
+                },
+                "documentation": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: no released document, a review overdue, or an expected document missing"
+                    },
+                    "documents": {
+                      "type": "integer"
+                    },
+                    "released": {
+                      "type": "integer"
+                    },
+                    "overdue": {
+                      "type": "integer"
+                    },
+                    "dueSoon": {
+                      "type": "integer"
+                    },
+                    "missing": {
+                      "type": "integer"
+                    },
+                    "list": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "number": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "typeKey": {
+                            "type": "string"
+                          },
+                          "released": {
+                            "type": "boolean"
+                          },
+                          "reviewStatus": {
+                            "type": "string",
+                            "enum": [
+                              "current",
+                              "dueSoon",
+                              "overdue",
+                              "none"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "number",
+                          "title",
+                          "typeKey",
+                          "released",
+                          "reviewStatus"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "expected": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ruleId": {
+                            "type": "string"
+                          },
+                          "typeKey": {
+                            "type": "string"
+                          },
+                          "typeName": {
+                            "type": "string"
+                          },
+                          "dimension": {
+                            "type": "string",
+                            "enum": [
+                              "confidentiality",
+                              "integrity",
+                              "availability"
+                            ]
+                          },
+                          "minLevel": {
+                            "type": "string"
+                          },
+                          "applicationId": {
+                            "type": "string"
+                          },
+                          "applicationName": {
+                            "type": "string"
+                          },
+                          "level": {
+                            "type": "string"
+                          },
+                          "satisfiedBy": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "number": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "number",
+                                "title"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "ruleId",
+                          "typeKey",
+                          "typeName",
+                          "dimension",
+                          "minLevel",
+                          "applicationId",
+                          "applicationName",
+                          "level",
+                          "satisfiedBy"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "documents",
+                    "released",
+                    "overdue",
+                    "dueSoon",
+                    "missing",
+                    "list",
+                    "expected"
+                  ],
+                  "additionalProperties": false
+                },
+                "protection": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: not rated (no applications, a dimension without a level, members not rated or not counted, invalid scale)"
+                    },
+                    "applications": {
+                      "type": "integer"
+                    },
+                    "scaleInvalid": {
+                      "type": "boolean"
+                    },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "dimension": {
+                            "type": "string",
+                            "enum": [
+                              "confidentiality",
+                              "integrity",
+                              "availability"
+                            ]
+                          },
+                          "effective": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "rated": {
+                            "type": "integer"
+                          },
+                          "total": {
+                            "type": "integer"
+                          },
+                          "needsRerating": {
+                            "type": "integer"
+                          },
+                          "override": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "dimension",
+                          "effective",
+                          "ok",
+                          "rated",
+                          "total",
+                          "needsRerating",
+                          "override"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "applications",
+                    "scaleInvalid",
+                    "dimensions"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "serviceId",
+                "serviceName",
+                "owners",
+                "criticality",
+                "attention",
+                "duties",
+                "availability",
+                "documentation",
+                "protection"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rollup": {
+            "type": "object",
+            "properties": {
+              "overall": {
+                "type": "object",
+                "properties": {
+                  "owner": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "user:<name> or team:<name>; null: overall, or the services without owners (key \"none\")"
+                  },
+                  "key": {
+                    "type": "string"
+                  },
+                  "services": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "parts": {
+                    "type": "object",
+                    "properties": {
+                      "duties": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "availability": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "documentation": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "protection": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "duties",
+                      "availability",
+                      "documentation",
+                      "protection"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "owner",
+                  "key",
+                  "services",
+                  "attention",
+                  "parts"
+                ],
+                "additionalProperties": false
+              },
+              "owners": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "owner": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "user:<name> or team:<name>; null: overall, or the services without owners (key \"none\")"
+                    },
+                    "key": {
+                      "type": "string"
+                    },
+                    "services": {
+                      "type": "integer"
+                    },
+                    "attention": {
+                      "type": "integer"
+                    },
+                    "parts": {
+                      "type": "object",
+                      "properties": {
+                        "duties": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "availability": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "documentation": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "protection": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "duties",
+                        "availability",
+                        "documentation",
+                        "protection"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "owner",
+                    "key",
+                    "services",
+                    "attention",
+                    "parts"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "overall",
+              "owners"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "generatedAt",
+          "services",
+          "rollup"
+        ],
+        "additionalProperties": false
+      },
+      "ScorecardTrendEntry": {
+        "title": "ScorecardTrendEntry",
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "Local day (instance time zone), YYYY-MM-DD"
+          },
+          "services": {
+            "type": "integer"
+          },
+          "attention": {
+            "type": "integer"
+          },
+          "parts": {
+            "type": "object",
+            "properties": {
+              "duties": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              },
+              "availability": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              },
+              "documentation": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              },
+              "protection": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "duties",
+              "availability",
+              "documentation",
+              "protection"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "day",
+          "services",
+          "attention",
+          "parts"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceScorecardEntry": {
+        "title": "ServiceScorecardEntry",
+        "type": "object",
+        "properties": {
+          "serviceId": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "criticality": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "attention": {
+            "type": "boolean",
+            "description": "Any part needs attention"
+          },
+          "duties": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "From the mandatory duties: attention when one was not met in its last closed period or now"
+              },
+              "mandatory": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "met": {
+                    "type": "integer"
+                  },
+                  "open": {
+                    "type": "integer"
+                  },
+                  "notMet": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total",
+                  "met",
+                  "open",
+                  "notMet"
+                ],
+                "additionalProperties": false
+              },
+              "recommended": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  },
+                  "met": {
+                    "type": "integer"
+                  },
+                  "open": {
+                    "type": "integer"
+                  },
+                  "notMet": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "attention",
+                      "pending",
+                      "none"
+                    ],
+                    "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+                  }
+                },
+                "required": [
+                  "total",
+                  "met",
+                  "open",
+                  "notMet",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "description": "Shown separately; never sets attention"
+              },
+              "optional": {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total"
+                ],
+                "additionalProperties": false
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "dutyId": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string",
+                      "enum": [
+                        "mandatory",
+                        "recommended",
+                        "optional"
+                      ]
+                    },
+                    "applicationName": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "lastClosed": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "due",
+                                "done",
+                                "late",
+                                "failed",
+                                "missed",
+                                "skipped"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "current": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "due",
+                                "done",
+                                "late",
+                                "failed",
+                                "missed",
+                                "skipped"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "result": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "open",
+                        "notMet"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "dutyId",
+                    "name",
+                    "level",
+                    "applicationName",
+                    "lastClosed",
+                    "current",
+                    "result"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "mandatory",
+              "recommended",
+              "optional",
+              "items"
+            ],
+            "additionalProperties": false
+          },
+          "availability": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "ok: everything that counts is met; attention: something that counts is not met; pending: still open or no data; none: nothing to judge"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "met": {
+                "type": "integer"
+              },
+              "below": {
+                "type": "integer"
+              },
+              "noData": {
+                "type": "integer"
+              },
+              "objectives": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "met",
+                        "below",
+                        "noData"
+                      ]
+                    },
+                    "applicationName": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "status",
+                    "applicationName"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "total",
+              "met",
+              "below",
+              "noData",
+              "objectives"
+            ],
+            "additionalProperties": false
+          },
+          "documentation": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: no released document, a review overdue, or an expected document missing"
+              },
+              "documents": {
+                "type": "integer"
+              },
+              "released": {
+                "type": "integer"
+              },
+              "overdue": {
+                "type": "integer"
+              },
+              "dueSoon": {
+                "type": "integer"
+              },
+              "missing": {
+                "type": "integer"
+              },
+              "list": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "typeKey": {
+                      "type": "string"
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "reviewStatus": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "dueSoon",
+                        "overdue",
+                        "none"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "number",
+                    "title",
+                    "typeKey",
+                    "released",
+                    "reviewStatus"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "expected": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "ruleId": {
+                      "type": "string"
+                    },
+                    "typeKey": {
+                      "type": "string"
+                    },
+                    "typeName": {
+                      "type": "string"
+                    },
+                    "dimension": {
+                      "type": "string",
+                      "enum": [
+                        "confidentiality",
+                        "integrity",
+                        "availability"
+                      ]
+                    },
+                    "minLevel": {
+                      "type": "string"
+                    },
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "level": {
+                      "type": "string"
+                    },
+                    "satisfiedBy": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "number": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "number",
+                          "title"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "ruleId",
+                    "typeKey",
+                    "typeName",
+                    "dimension",
+                    "minLevel",
+                    "applicationId",
+                    "applicationName",
+                    "level",
+                    "satisfiedBy"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "documents",
+              "released",
+              "overdue",
+              "dueSoon",
+              "missing",
+              "list",
+              "expected"
+            ],
+            "additionalProperties": false
+          },
+          "protection": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: not rated (no applications, a dimension without a level, members not rated or not counted, invalid scale)"
+              },
+              "applications": {
+                "type": "integer"
+              },
+              "scaleInvalid": {
+                "type": "boolean"
+              },
+              "dimensions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "dimension": {
+                      "type": "string",
+                      "enum": [
+                        "confidentiality",
+                        "integrity",
+                        "availability"
+                      ]
+                    },
+                    "effective": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "rated": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "needsRerating": {
+                      "type": "integer"
+                    },
+                    "override": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "dimension",
+                    "effective",
+                    "ok",
+                    "rated",
+                    "total",
+                    "needsRerating",
+                    "override"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "applications",
+              "scaleInvalid",
+              "dimensions"
+            ],
+            "additionalProperties": false
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "string"
+                },
+                "attention": {
+                  "type": "boolean"
+                },
+                "parts": {
+                  "type": "object",
+                  "properties": {
+                    "duties": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    },
+                    "availability": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    },
+                    "documentation": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    },
+                    "protection": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "duties",
+                    "availability",
+                    "documentation",
+                    "protection"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "day",
+                "attention",
+                "parts"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The stored daily snapshots of the last 90 days, oldest first"
+          }
+        },
+        "required": [
+          "serviceId",
+          "serviceName",
+          "owners",
+          "criticality",
+          "attention",
+          "duties",
+          "availability",
+          "documentation",
+          "protection",
+          "history"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -15692,6 +18197,467 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/DutyPeriodEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/scorecard": {
+      "get": {
+        "operationId": "getScorecard",
+        "summary": "The service scorecard",
+        "tags": [
+          "Services"
+        ],
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScorecardEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/scorecard/trend": {
+      "get": {
+        "operationId": "getScorecardTrend",
+        "summary": "Trend of the service scorecard",
+        "tags": [
+          "Services"
+        ],
+        "description": "The rollup of the stored daily snapshots, oldest first: how many services needed attention on each day, per part. A snapshot is written during its day and never after, so the trend does not change with later data.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 730,
+              "default": 90
+            },
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "description": "Days back (default 90)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 130
+            },
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "description": "Only the services this owner had on each day (user:<name>, team:<name>, or none)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One entry per stored day",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "One entry per stored day",
+                  "type": "object",
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ScorecardTrendEntry"
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/services/{serviceId}/scorecard": {
+      "get": {
+        "operationId": "getServiceScorecard",
+        "summary": "The scorecard of a service",
+        "tags": [
+          "Services"
+        ],
+        "description": "Its four parts with their details, and the stored daily snapshots of the last 90 days.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "description": "Service id (svc_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceScorecardEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/objectives": {
+      "get": {
+        "operationId": "listObjectives",
+        "summary": "List availability objectives",
+        "tags": [
+          "Services"
+        ],
+        "description": "Targets per Gatus endpoint for the windows Gatus reports (1 h, 24 h, 7 d, 30 d), attached to a service or one of its applications, with Gatus' current uptime figures and the status per window: met, below target or no data. Objectives of archived services are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "applicationId",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "met",
+                "below",
+                "noData"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of objectives",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of objectives",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ObjectiveEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/objectives/{objectiveId}/samples": {
+      "get": {
+        "operationId": "listObjectiveSamples",
+        "summary": "Hourly samples of an availability objective",
+        "tags": [
+          "Services"
+        ],
+        "description": "Newest first: the values Steward had read from Gatus at each hour, with the objective's status then (kept 90 days).",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Samples from this time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "Samples before this time"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "objectiveId",
+            "required": true,
+            "description": "Objective id (obj_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of samples",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of samples",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ObjectiveSampleEntry"
                       }
                     },
                     "nextCursor": {

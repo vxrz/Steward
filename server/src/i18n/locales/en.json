@@ -263,5 +263,16 @@
     "endedBody": "{{user}} archived or changed the {{level}} duty “{{name}}” of the service “{{service}}” ({{why}}). Its period {{period}} had no run that counts yet: it ended without a run and counts as not met.",
     "endedArchived": "duty archived",
     "endedChanged": "duty changed"
+  },
+  "objective": {
+    "breachTitle": "Objective below target: \"{{name}}\" ({{service}})",
+    "breachBody": "The availability objective “{{name}}” of the service “{{service}}” is below its target: {{windows}}. You get this message once per breach; the service page shows the current values.",
+    "windowValue": "{{window}} {{value}} (target {{target}})",
+    "windows": {
+      "h1": "1 h",
+      "h24": "24 h",
+      "d7": "7 days",
+      "d30": "30 days"
+    }
   }
 }

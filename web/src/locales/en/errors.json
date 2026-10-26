@@ -574,7 +574,21 @@
     "DUTY_SKIP_EXISTS": "There is an exception for {{key}} already.",
     "DUTY_SKIP_NOT_FOUND": "Exception {{id}} not found.",
     "DUTY_SKIP_DECIDED": "The exception was decided already.",
-    "FOUR_EYES_SKIP": "Four-eyes principle: another person decides the exception you asked for."
+    "FOUR_EYES_SKIP": "Four-eyes principle: another person decides the exception you asked for.",
+    "FORBIDDEN_manageScorecardRules": "Only administrators change the expected-document rules of the scorecard.",
+    "OBJECTIVE_NOT_FOUND": "Objective {{id}} not found.",
+    "OBJECTIVE_APPLICATION_NOT_IN_SERVICE": "The application is not part of the service. Add it to the service first.",
+    "OBJECTIVE_PLATFORM_UNKNOWN": "Platform {{id}} not found (or you may not see it).",
+    "OBJECTIVE_PLATFORM_NOT_GATUS": "Availability objectives need a Gatus platform.",
+    "OBJECTIVE_ENDPOINT_UNKNOWN": "Gatus does not report the endpoint “{{key}}”. Pick one from the list (the metrics mode must have scraped it).",
+    "OBJECTIVE_SERVICE_ARCHIVED": "The service is archived. Restore it to define objectives.",
+    "OBJECTIVE_LIMIT": "A service has at most {{max}} objectives.",
+    "SCORECARD_RULE_TYPE_UNKNOWN": "Record type {{key}} not found.",
+    "SCORECARD_RULE_NOT_DOCUMENT": "{{key}} is not a type of living documents.",
+    "SCORECARD_RULE_LIMIT": "There can be at most {{max}} rules.",
+    "SCORECARD_RULE_EXISTS": "This rule exists already.",
+    "SCORECARD_RULE_NOT_FOUND": "Rule {{id}} not found.",
+    "SCORECARD_SERVICE_ARCHIVED": "The service is archived: it has no scorecard."
   },
   "boundary": {
     "title": "Something went wrong on this page",

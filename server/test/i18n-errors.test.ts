@@ -18,6 +18,7 @@ const CODED_AREAS = [
   'compliance/',
   'catalogue/',
   'duties/',
+  'scorecard/',
   'credentials/',
   'reports/',
   'gatus/',

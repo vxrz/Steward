@@ -433,6 +433,8 @@ export function startNotificationJobs(): void {
     import('../tickets/reminders.js').then((m) => m.checkTicketReminders()).catch((err) => logger.warn({ err }, 'ticket reminder check failed'));
     // service duties: store and close periods, reminders and "missed" messages (duties/jobs.ts, idempotent)
     import('../duties/jobs.js').then((m) => m.runDutyJob()).catch((err) => logger.warn({ err }, 'duty job failed'));
+    // availability objectives and the service scorecard: hourly samples, breaches, daily snapshots (scorecard/jobs.ts, idempotent)
+    import('../scorecard/jobs.js').then((m) => m.runScorecardJob()).catch((err) => logger.warn({ err }, 'scorecard job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
   }, STALE_CHECK_MS);
   staleTimer.unref();

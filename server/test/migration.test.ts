@@ -42,6 +42,8 @@ const source = {
   applicationId: '',
   serviceId: '',
   dutyId: '',
+  objectiveId: '',
+  snapshotDay: '',
   runId: '',
   waitingRunId: '',
 };
@@ -138,6 +140,41 @@ beforeAll(async () => {
     source.serviceId,
     source.applicationId,
     p.id,
+  );
+  // an availability objective of the service with a sample and a breach, an expected-document rule and a scorecard
+  // snapshot (#86): the definitions and the history move
+  const gatusPlatform = (await s.api('GET', '/platforms')).find((x: any) => x.kind === 'gatus').id;
+  db().run(
+    `INSERT INTO gatus_endpoints (platform_id, key, group_name, name, first_seen_at, last_seen_at) VALUES (?, 'moved_portal', 'moved', 'portal', ?, ?) ON CONFLICT DO NOTHING`,
+    gatusPlatform,
+    new Date().toISOString(),
+    new Date().toISOString(),
+  );
+  const objective = await dana('POST', '/objectives', {
+    serviceId: svc.id,
+    applicationId: app.id,
+    name: 'Moved portal',
+    platformId: gatusPlatform,
+    endpointKey: 'moved_portal',
+    targets: { h24: 99.5, d30: 99.9 },
+    notify: true,
+  });
+  source.objectiveId = objective.id;
+  source.snapshotDay = (await import('../src/scorecard/scorecard.js')).dayOf(Date.now() - 2 * 86400000);
+  db().run(
+    "INSERT INTO objective_samples (objective_id, bucket, value_h24, status, sampled_at) VALUES (?, '2020-01-01T00:00:00.000Z', 9800, 'below', '2020-01-01T00:00:00.000Z')",
+    objective.id,
+  );
+  db().run(
+    `INSERT INTO objective_breaches (id, objective_id, started_at, ended_at, windows, notified_at) VALUES ('obr_moved', ?, '2020-01-01T00:00:00.000Z', NULL, '["h24"]', '2020-01-01T00:00:00.000Z')`,
+    objective.id,
+  );
+  await s.api('POST', '/scorecard/rules', { typeKey: 'DOC', dimension: 'confidentiality', minLevel: 'high', note: 'Moved rule' });
+  db().run(
+    `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, document_ids, details, updated_at)
+     VALUES (?, ?, 'Moved service', '["user:dana"]', 1, 'pending', 'attention', 'ok', 'ok', '[]', '{}', '2020-01-01T12:00:00.000Z')`,
+    source.snapshotDay,
+    svc.id,
   );
   for (const r of db().all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL'))
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
@@ -538,6 +575,16 @@ describe('import into SQLite through the web API', () => {
       owners: ['user:dana@contoso.example'],
     });
     expect(movedDuty.periods.find((x: any) => x.key === '2020-01')).toMatchObject({ status: 'missed', closed: true, snapshot: { name: 'Moved restore test' } });
+    // availability objectives move with their samples and breaches, the rules and the snapshots too (owners mapped)
+    const movedObjective = await max('GET', `/objectives/${source.objectiveId}`);
+    expect(movedObjective).toMatchObject({ name: 'Moved portal', serviceId: source.serviceId, targets: { h24: 99.5, d30: 99.9 }, notify: true });
+    expect(movedObjective.samples.find((x: any) => x.at === '2020-01-01T00:00:00.000Z')).toMatchObject({ status: 'below', values: { h24: 98 } });
+    expect(movedObjective.breach).toMatchObject({ id: 'obr_moved', notified: true });
+    expect((await max('GET', '/scorecard/rules')).map((r: any) => [r.typeKey, r.note])).toEqual([['DOC', 'Moved rule']]);
+    const movedCard = await max('GET', `/scorecard/services/${source.serviceId}`);
+    expect(movedCard.history.find((x: any) => x.day === source.snapshotDay)).toMatchObject({ attention: true, parts: { availability: 'attention' } });
+    const trend = await max('GET', '/scorecard/trend?days=30&owner=user:dana@contoso.example');
+    expect(trend.find((x: any) => x.day === source.snapshotDay)).toMatchObject({ services: 1, attention: 1 });
     expect(rec.createdBy).toBe('dana');
     const list = await max('GET', '/users');
     const byName = (n: string) => list.find((u: any) => u.username === n);
