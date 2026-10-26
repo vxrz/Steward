@@ -65,6 +65,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await expect(skip).toContainText('someone else decides the exception you asked for');
   await expect(skip.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   await expect(page.getByTestId('duty-periods').getByTestId('duty-status').first()).toHaveText('Done');
+  await expect(page.getByTestId('duty-periods').getByTestId('run-version').first()).toHaveText('Process version 1');
   await settle(page);
   await expectAccessible(page, 'duty page');
   await expectNoHorizontalScroll(page);

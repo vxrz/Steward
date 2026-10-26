@@ -90,7 +90,7 @@ A **second person** approves or rejects it on the duty page: a duty owner, whoev
 
 ## Stored history
 
-A duty job runs every five minutes. It stores the state of open periods and **closes** a period once its grace period has ended: the final status, the run that counted, the number of failed runs, the exception, and what the period was judged against – name, level, interval, grace period, process name and time zone. A closed period is never written again. Later changes of the duty, the process or the runs do not change it – also not when the run retention deletes the run. An open period that is done stays done when its run is deleted.
+A duty job runs every five minutes. It stores the state of open periods and **closes** a period once its grace period has ended: the final status, the run that counted (with the process version and definition hash it ran), the number of failed runs, the exception, and what the period was judged against – name, level, interval, grace period, process name and time zone. A closed period is never written again. Later changes of the duty, the process or the runs do not change it – also not when the run retention deletes the run. An open period that is done stays done when its run is deleted.
 
 The service scorecard reads these stored periods.
 
@@ -124,7 +124,7 @@ A duty can only name a process you may view. People who may not view the process
 ## Audit, API, reports, migration
 
 - **Audit log:** `duty.created`, `.updated` (with the changes before and after), `.archived`, `.restored`, `.skip_requested`, `.skip_approved`, `.skip_rejected`, `.skip_withdrawn`; by the system `duty.period_closed` and `duty.reminder_sent`.
-- **Public API** (read-only, [API.md](API.md)): `GET /api/v1/duties` (filters `serviceId`, `applicationId`, `level`, `archived`), `GET /api/v1/duties/{dutyId}`, `GET /api/v1/duties/{dutyId}/periods` (newest first; filters `status`, `closed`, `from`, `to`).
+- **Public API** (read-only, [API.md](API.md); the run that counted comes with its process version and definition hash): `GET /api/v1/duties` (filters `serviceId`, `applicationId`, `level`, `archived`), `GET /api/v1/duties/{dutyId}`, `GET /api/v1/duties/{dutyId}/periods` (newest first; filters `status`, `closed`, `from`, `to`).
 - **Scheduled reports** ([REPORTS.md](REPORTS.md)): the section _Service duties_ lists the periods that ended in the report period with their status, and the duties not done yet at its end. Limit it to levels or services.
 - **Migration packages** ([MIGRATION.md](MIGRATION.md)) carry duties, their stored periods and exceptions. Owners follow the identity mapping; who asked for and decided an exception stays as it was. The record of reminders sent does not move, so a reminder of the current period may come once more on the new server.
 

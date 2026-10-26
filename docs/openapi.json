@@ -9415,13 +9415,33 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "processVersion": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The version of the process the run ran"
+                          },
+                          "definitionHash": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "SHA-256 of that process definition"
                           }
                         },
                         "required": [
                           "id",
                           "status",
                           "startedAt",
-                          "finishedAt"
+                          "finishedAt",
+                          "processVersion",
+                          "definitionHash"
                         ],
                         "additionalProperties": false
                       },
@@ -9666,13 +9686,33 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "processVersion": {
+                            "anyOf": [
+                              {
+                                "type": "integer"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "description": "The version of the process the run ran"
+                          },
+                          "definitionHash": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "SHA-256 of that process definition"
                           }
                         },
                         "required": [
                           "id",
                           "status",
                           "startedAt",
-                          "finishedAt"
+                          "finishedAt",
+                          "processVersion",
+                          "definitionHash"
                         ],
                         "additionalProperties": false
                       },
@@ -9964,13 +10004,33 @@
                       "string",
                       "null"
                     ]
+                  },
+                  "processVersion": {
+                    "anyOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The version of the process the run ran"
+                  },
+                  "definitionHash": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "SHA-256 of that process definition"
                   }
                 },
                 "required": [
                   "id",
                   "status",
                   "startedAt",
-                  "finishedAt"
+                  "finishedAt",
+                  "processVersion",
+                  "definitionHash"
                 ],
                 "additionalProperties": false
               },

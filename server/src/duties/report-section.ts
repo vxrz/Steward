@@ -33,6 +33,7 @@ const en = {
   none: 'No period of a duty ended in the report period.',
   noneOpen: 'Every duty is done for its current period.',
   more: '{n} more not shown.',
+  version: 'version {n}',
   levels: { mandatory: 'Mandatory', recommended: 'Recommended', optional: 'Optional' } as Record<DutyLevel, string>,
   statuses: { due: 'Due', done: 'Done', late: 'Late', skipped: 'Skipped', failed: 'Failed', missed: 'Missed', inactive: 'Inactive (archived)' } as Record<
     DutyPeriodStatus,
@@ -56,6 +57,7 @@ const de: Texts = {
   none: 'Im Berichtszeitraum endete kein Zeitraum einer Pflicht.',
   noneOpen: 'Jede Pflicht ist für ihren aktuellen Zeitraum erledigt.',
   more: '{n} weitere nicht angezeigt.',
+  version: 'Version {n}',
   levels: { mandatory: 'Verpflichtend', recommended: 'Empfohlen', optional: 'Freiwillig' },
   statuses: {
     due: 'Fällig',
@@ -85,6 +87,8 @@ interface Row {
   period: string;
   status: DutyPeriodStatus;
   completedAt: string | null;
+  /** Process version of the run that counted */
+  version: number | null;
   dueBy: string;
   timeZone: string;
 }
@@ -115,6 +119,7 @@ function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }):
         period: e.period.key,
         status: e.status,
         completedAt: e.status === 'done' || e.status === 'late' ? (e.run?.finishedAt ?? null) : null,
+        version: e.status === 'done' || e.status === 'late' ? (e.run?.processVersion ?? null) : null,
         dueBy: iso(addLocalDays(e.period.end, -1, tz) + 12 * 3600000),
         timeZone: tz,
       };
@@ -186,7 +191,7 @@ registerReportSection<DutiesConfig, DutiesSectionData>({
           x.levels[r.level],
           r.period,
           { text: x.statuses[r.status], tone: tone(r.status) },
-          date(r.completedAt, r.timeZone),
+          r.version === null ? date(r.completedAt, r.timeZone) : `${date(r.completedAt, r.timeZone)} · ${fill(x.version, { n: r.version })}`,
         ]),
       { empty: x.none, size: 7.4 },
     );

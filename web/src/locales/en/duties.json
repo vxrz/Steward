@@ -120,5 +120,6 @@
   "closedEarly": {
     "changed": "closed early: the duty changed",
     "archived": "closed early: the duty was archived"
-  }
+  },
+  "runVersion": "Process version {{version}}"
 }

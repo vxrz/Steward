@@ -192,9 +192,16 @@ export function DutyDetailPage() {
                         </Table.Td>
                         <Table.Td>
                           {p.run ? (
-                            <Anchor component={Link} to={`/runs/${p.run.id}`} size="sm">
-                              {p.run.finishedAt ? fmtDate(p.run.finishedAt) : p.run.id}
-                            </Anchor>
+                            <>
+                              <Anchor component={Link} to={`/runs/${p.run.id}`} size="sm">
+                                {p.run.finishedAt ? fmtDate(p.run.finishedAt) : p.run.id}
+                              </Anchor>
+                              {p.run.processVersion !== null && (
+                                <Text size="xs" c="dimmed" title={p.run.definitionHash ?? undefined} data-testid="run-version">
+                                  {t('runVersion', { version: p.run.processVersion })}
+                                </Text>
+                              )}
+                            </>
                           ) : p.skip?.status === 'approved' ? (
                             <Text size="xs">{p.skip.reason}</Text>
                           ) : (

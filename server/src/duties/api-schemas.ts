@@ -41,7 +41,14 @@ export const DutyPeriodEntry = z.object({
     ),
   inGrace: z.boolean(),
   run: z
-    .object({ id: z.string(), status: z.string(), startedAt: z.string(), finishedAt: z.string().nullable() })
+    .object({
+      id: z.string(),
+      status: z.string(),
+      startedAt: z.string(),
+      finishedAt: z.string().nullable(),
+      processVersion: z.number().int().nullable().describe('The version of the process the run ran'),
+      definitionHash: z.string().nullable().describe('SHA-256 of that process definition'),
+    })
     .nullable()
     .describe('The run that counts (done, late) or the last failed one; null when the token owner may not view the process'),
   failedRuns: z.number().int(),

@@ -94,4 +94,12 @@ export const DUTY_MIGRATIONS: NamedMigration[] = [
     name: 'duties-002-close-note',
     sql: `ALTER TABLE duty_periods ADD COLUMN close_note TEXT;`,
   },
+  {
+    // what exactly was done: the process version and definition hash of the run that counted
+    name: 'duties-003-run-version',
+    sql: `
+      ALTER TABLE duty_periods ADD COLUMN run_version INTEGER;
+      ALTER TABLE duty_periods ADD COLUMN run_definition_hash TEXT;
+    `,
+  },
 ];

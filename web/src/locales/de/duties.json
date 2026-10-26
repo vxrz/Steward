@@ -120,5 +120,6 @@
   "closedEarly": {
     "changed": "vorzeitig beendet: die Pflicht wurde geändert",
     "archived": "vorzeitig beendet: die Pflicht wurde archiviert"
-  }
+  },
+  "runVersion": "Prozessversion {{version}}"
 }

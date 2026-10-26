@@ -27,13 +27,14 @@ function write(d: DutyRow, e: Evaluated, tz: string, close: boolean, now: number
   const res = db().run(
     `INSERT INTO duty_periods (duty_id, period_key, period_start, period_end, grace_end, status, run_id, run_status, run_started_at, run_finished_at,
        failed_runs, skip_id, service_id, application_id, duty_name, process_id, process_name, level, interval_kind, grace_days, time_zone, evaluated_at,
-       closed_at, close_note)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       closed_at, close_note, run_version, run_definition_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (duty_id, period_key) DO UPDATE SET status = excluded.status, run_id = excluded.run_id, run_status = excluded.run_status,
        run_started_at = excluded.run_started_at, run_finished_at = excluded.run_finished_at, failed_runs = excluded.failed_runs, skip_id = excluded.skip_id,
        service_id = excluded.service_id, application_id = excluded.application_id, duty_name = excluded.duty_name, process_id = excluded.process_id,
        process_name = excluded.process_name, level = excluded.level, interval_kind = excluded.interval_kind, grace_days = excluded.grace_days,
-       time_zone = excluded.time_zone, evaluated_at = excluded.evaluated_at, closed_at = excluded.closed_at, close_note = excluded.close_note
+       time_zone = excluded.time_zone, evaluated_at = excluded.evaluated_at, closed_at = excluded.closed_at, close_note = excluded.close_note,
+       run_version = excluded.run_version, run_definition_hash = excluded.run_definition_hash
      WHERE duty_periods.closed_at IS NULL`,
     d.id,
     e.period.key,
@@ -59,6 +60,8 @@ function write(d: DutyRow, e: Evaluated, tz: string, close: boolean, now: number
     iso(now),
     close ? iso(now) : null,
     close ? note : null,
+    e.run?.processVersion ?? null,
+    e.run?.definitionHash ?? null,
   );
   return close && res.changes === 1;
 }

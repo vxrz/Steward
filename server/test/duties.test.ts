@@ -268,6 +268,8 @@ describe('stored periods', () => {
       ['2026-02', 'done', true],
       ['2026-03', 'failed', true],
     ]);
+    // the process version and definition hash of the run that counted (what exactly was done)
+    expect(rows[0]).toMatchObject({ run_version: 1, run_definition_hash: 'x' });
     expect(rows[0]).toMatchObject({ run_id: r, level: 'mandatory', interval_kind: 'monthly', grace_days: 5, time_zone: TZ, duty_name: d.row().name });
     // idempotent: a second run closes nothing again
     expect(jobs.runDutyJob(Z('2026-04-06T08:00:00Z')).closed).toBe(0);
@@ -547,7 +549,10 @@ describe('exceptions (skipped for this period)', () => {
     const r = await s.api('POST', '/runs', { processId: quick });
     await s.waitRun(r.id, ['succeeded', 'failed']);
     const done = await dana('GET', `/duties/${live.id}`);
-    expect(done.current).toMatchObject({ status: 'done', run: { id: r.id, status: 'succeeded' } });
+    expect(done.current).toMatchObject({
+      status: 'done',
+      run: { id: r.id, status: 'succeeded', processVersion: 1, definitionHash: expect.stringMatching(/^[0-9a-f]{64}$/) },
+    });
     expect(await code(dana('POST', `/duties/${live.id}/skips`, { periodKey: done.current.key, reason: 'x' }))).toBe('DUTY_PERIOD_DONE');
     // a dry run of it does not count
     const dry = await dana('POST', '/duties', { serviceId: svc.id, name: 'Dry today', processId: quick, interval: 'yearly', level: 'mandatory' });
@@ -649,6 +654,7 @@ describe('reminders and missed periods', () => {
       ['2025-10', 'missed'],
     ]);
     expect(data.counts).toMatchObject({ done: 1, missed: 1 });
+    expect(data.ended[0].version).toBe(1);
 
     const token = (await vera('POST', '/me/tokens', { name: 'duties', scope: 'read' })).token;
     const v1 = async (url: string) => {
@@ -663,6 +669,8 @@ describe('reminders and missed periods', () => {
       ['2025-10', 'missed'],
       ['2025-09', 'done'],
     ]);
+    // the runs of a process the reader may not view are not shown (this duty's process is not one the reader may view)
+    expect(ps.body.items[1].run).toBeNull();
     expect(ps.body.items[1].snapshot).toMatchObject({ level: 'mandatory', interval: 'monthly', timeZone: TZ });
     expect((await v1('/duties/dty_none')).status).toBe(404);
   });

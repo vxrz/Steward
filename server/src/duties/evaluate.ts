@@ -73,6 +73,8 @@ export interface PeriodRow {
   evaluated_at: string;
   closed_at: string | null;
   close_note: string | null;
+  run_version: number | null;
+  run_definition_hash: string | null;
 }
 
 export interface Evaluated {
@@ -97,6 +99,8 @@ interface RunRow {
   status: string;
   started_at: string;
   finished_at: string | null;
+  process_version: number;
+  definition_hash: string;
 }
 
 const iso = (t: number) => new Date(t).toISOString();
@@ -116,7 +120,14 @@ function rejectedRuns(ids: string[]): Set<string> {
   return out;
 }
 
-const ref = (r: RunRow): DutyRunRef => ({ id: r.id, status: r.status, startedAt: r.started_at, finishedAt: r.finished_at });
+const ref = (r: RunRow): DutyRunRef => ({
+  id: r.id,
+  status: r.status,
+  startedAt: r.started_at,
+  finishedAt: r.finished_at,
+  processVersion: r.process_version,
+  definitionHash: r.definition_hash,
+});
 
 /** The approved skips of a duty, by period key. */
 function approvedSkips(dutyId: string): Map<string, string> {
@@ -143,7 +154,7 @@ function judge(
 ): Omit<Evaluated, 'closed' | 'closedAt' | 'row'> {
   const runs = db()
     .all<RunRow>(
-      'SELECT id, status, started_at, finished_at FROM runs WHERE process_id = ? AND dry_run = 0 AND started_at >= ? AND started_at < ? ORDER BY started_at, id',
+      'SELECT id, status, started_at, finished_at, process_version, definition_hash FROM runs WHERE process_id = ? AND dry_run = 0 AND started_at >= ? AND started_at < ? ORDER BY started_at, id',
       d.process_id,
       iso(Math.max(p.start, since)),
       iso(g),
@@ -169,7 +180,14 @@ function judge(
       period: p,
       graceEnd: g,
       status: row.status,
-      run: { id: row.run_id!, status: row.run_status ?? 'succeeded', startedAt: row.run_started_at ?? '', finishedAt: row.run_finished_at },
+      run: {
+        id: row.run_id!,
+        status: row.run_status ?? 'succeeded',
+        startedAt: row.run_started_at ?? '',
+        finishedAt: row.run_finished_at,
+        processVersion: row.run_version,
+        definitionHash: row.run_definition_hash,
+      },
       failedRuns,
       runsInProgress: inProgress,
       skipId,
@@ -220,7 +238,16 @@ export function fromRow(r: PeriodRow): Evaluated {
     period: { key: r.period_key, start: Date.parse(r.period_start), end: Date.parse(r.period_end) },
     graceEnd: Date.parse(r.grace_end),
     status: r.status,
-    run: r.run_id ? { id: r.run_id, status: r.run_status ?? '', startedAt: r.run_started_at ?? '', finishedAt: r.run_finished_at } : null,
+    run: r.run_id
+      ? {
+          id: r.run_id,
+          status: r.run_status ?? '',
+          startedAt: r.run_started_at ?? '',
+          finishedAt: r.run_finished_at,
+          processVersion: r.run_version,
+          definitionHash: r.run_definition_hash,
+        }
+      : null,
     failedRuns: r.failed_runs,
     runsInProgress: 0,
     skipId: r.skip_id,

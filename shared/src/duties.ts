@@ -52,6 +52,9 @@ export interface DutyRunRef {
   status: string;
   startedAt: string;
   finishedAt: string | null;
+  /** The version of the process the run ran, and the hash of that definition (what exactly was done) */
+  processVersion: number | null;
+  definitionHash: string | null;
 }
 
 export interface DutySkip {
