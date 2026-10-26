@@ -37,6 +37,8 @@ test('a password session confirms with its password, then the token is created',
     const dialog = page.getByRole('dialog', { name: 'Confirm it is you' });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText('sensitive action');
+    // it says what it confirms
+    await expect(dialog.getByTestId('step-up-actions')).toContainText('Create an API token');
     await expectAccessible(page, 'step-up dialog (password)');
     const password = dialog.getByLabel('Your password');
     await expect(password).toBeFocused();
@@ -56,6 +58,31 @@ test('a password session confirms with its password, then the token is created',
     await createToken(page, uniq('Cancelled token'));
     await page.getByRole('dialog', { name: 'Confirm it is you' }).getByRole('button', { name: 'Cancel' }).click();
     await expect(page.getByText('Not done: the action needs a confirmation that it is you.')).toBeVisible();
+  } finally {
+    await ctx?.close();
+    await api.dispose();
+  }
+});
+
+test('a sensitive download (the audit log) asks first, then downloads', async ({ browser }) => {
+  // the auditor's own session, not confirmed
+  const api = await pwRequest.newContext({ baseURL: baseURL(), extraHTTPHeaders: { 'x-sm-client': '1' } });
+  let ctx: BrowserContext | undefined;
+  try {
+    const login = await api.post('/api/auth/login', { data: { username: USERS.audrey.username, password: USERS.audrey.password } });
+    const cookie = login.headers()['set-cookie']!.split(';')[0]!;
+    const keys = { sessionKey: login.headers()['x-sm-session-key']!, linkKey: login.headers()['x-sm-link-key']! };
+    await api.delete('/api/auth/step-up', { headers: { 'x-sm-session': keys.sessionKey } });
+    ctx = await browser.newContext({ baseURL: baseURL(), serviceWorkers: 'block', storageState: sessionState(baseURL(), cookie, keys) });
+    const page = await ctx.newPage();
+    await page.goto('/audit');
+    await page.getByRole('button', { name: 'Export' }).click();
+    await page.getByRole('menuitem', { name: 'CSV' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Confirm it is you' });
+    await expect(dialog.getByTestId('step-up-actions')).toContainText('Export the audit log');
+    await dialog.getByLabel('Your password').fill(USERS.audrey.password);
+    const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Confirm' }).click()]);
+    expect(download.suggestedFilename()).toBe('audit-log.csv');
   } finally {
     await ctx?.close();
     await api.dispose();
@@ -88,6 +115,7 @@ test.describe('single sign-on step-up (own server)', () => {
       await createToken(page, name);
       const dialog = page.getByRole('dialog', { name: 'Confirm it is you' });
       await expect(dialog).toContainText('Sign in again with Microsoft Entra ID (simulated)');
+      await expect(dialog.getByTestId('step-up-actions')).toContainText('Create an API token');
       await expectAccessible(page, 'step-up dialog (single sign-on)');
       const [popup] = await Promise.all([
         ctx.waitForEvent('page'),
