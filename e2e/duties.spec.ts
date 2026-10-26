@@ -16,7 +16,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
     await api.post('/api/processes', { data: { definition: { name: processName, nodes: [{ id: 'start', type: 'start', x: 0, y: 0 }] } } }),
   );
   const serviceName = uniq('E2E backup service');
-  const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: serviceName, owners: ['user:olivia'] } }));
+  const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: serviceName, owners: [] } }));
   const dutyName = uniq('Monthly restore test');
 
   // define the duty on the service page
@@ -71,8 +71,8 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await expectAccessible(page, 'duty page');
   await expectNoHorizontalScroll(page);
 
-  // olivia, an owner of the service, approves it
-  const owner = await loginAs('olivia');
+  // the administrator approves it (the start page tiles of the demo users stay as they are: they own no duty)
+  const owner = await loginAs('admin');
   await owner.goto(dutyUrl);
   const ownerSkip = owner.getByTestId(`skip-${period}`);
   await ownerSkip.getByRole('button', { name: 'Approve' }).click();
@@ -80,7 +80,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await decide.getByRole('textbox', { name: 'Comment' }).fill('Agreed');
   await decide.getByRole('button', { name: 'Approve' }).click();
   await expect(decide).toBeHidden();
-  await expect(ownerSkip).toContainText('Approved by olivia');
+  await expect(ownerSkip).toContainText('Approved by admin');
   await settle(owner);
   await expectAccessible(owner, 'duty page after the approval');
 
