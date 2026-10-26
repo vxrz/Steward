@@ -5,7 +5,7 @@
  */
 import YAML from 'yaml';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { DatasetRow, ProcessPermission, TaskRecord } from '@sm/shared';
+import type { DatasetRow, ManualTaskState, ProcessPermission, TaskRecord } from '@sm/shared';
 import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { db } from '../../db.js';
@@ -138,6 +138,38 @@ const mapStep = (s: ReturnType<typeof store.getStepFull>) => ({
   outputTruncated: !!s.outputTruncated,
 });
 
+function manualDetail(m: ManualTaskState) {
+  const sub = m.submission;
+  return {
+    round: m.round,
+    checklist: m.spec.checklist.map((item, i) => ({ item, checked: sub ? sub.checked.includes(i) : null })),
+    checklistAllRequired: m.spec.checklistAllRequired,
+    fields: m.spec.fields.map((f) => {
+      const v = sub?.fields.find((x) => x.id === f.id);
+      return { id: f.id, type: f.type, label: f.label, required: f.use === 'required', value: v?.value ?? null, ticketId: v?.ticketId ?? null };
+    }),
+    evidence: m.spec.evidence,
+    evidenceFiles: m.evidence.map((e) => ({
+      id: e.id,
+      filename: e.filename,
+      mime: e.mime,
+      size: e.size,
+      sha256: e.sha256,
+      uploadedBy: e.uploadedBy,
+      uploadedAt: e.uploadedAt,
+    })),
+    notAvailable: sub?.notAvailable ?? [],
+    completed: sub ? { by: sub.completedBy, at: sub.completedAt } : null,
+    doneAt: sub?.doneAt ?? null,
+    doneAtReason: sub?.doneAtReason ?? null,
+    verificationRequired: m.spec.verification.required || !!sub?.verificationReasons.length,
+    verificationReasons: sub?.verificationReasons ?? (m.spec.verification.required ? ['step' as const] : []),
+    verifiers: m.spec.verification.verifiers,
+    verification: m.verification,
+    returnedRounds: m.returned.length,
+  };
+}
+
 function mapTask(t: TaskRecord & { processId: string }, perms: ProcessPermission[]) {
   const check = decisionCheck(currentUser(), t, { actor: t.startedBy ?? '' }, perms);
   return {
@@ -147,6 +179,7 @@ function mapTask(t: TaskRecord & { processId: string }, perms: ProcessPermission
     processName: t.processName ?? '',
     stepKey: t.stepKey,
     mode: t.mode,
+    stage: t.manual?.stage ?? null,
     title: t.title,
     instructions: t.instructions ?? null,
     status: t.status,
@@ -554,6 +587,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
           taskId: t.id,
           stepKey: t.stepKey,
           mode: t.mode,
+          stage: t.manual?.stage ?? null,
           title: t.title,
           status: t.status,
           approved: t.decision ? t.decision.approved : null,
@@ -714,6 +748,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
         items: t.items.map((i) => ({ key: String(i.key), cells: i.cells.map((c) => String(c ?? '')), preselected: !!i.preselected })),
         selectedKeys: t.decision ? t.decision.selectedKeys : null,
         comment: t.decision?.comment ?? null,
+        manual: t.manual ? manualDetail(t.manual) : null,
       };
     },
   );

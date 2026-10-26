@@ -1,5 +1,5 @@
 import type { ErrorParams } from './errors.js';
-import type { Column, ProcessDefinition } from './process.js';
+import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type {
   SsoConfigWarning,
@@ -675,7 +675,7 @@ export interface TaskRecord {
   processName?: string;
   processId?: string;
   stepKey: string;
-  mode: 'select' | 'approve';
+  mode: 'select' | 'approve' | 'manual';
   title: string;
   instructions?: string;
   columns: Column[];
@@ -691,18 +691,95 @@ export interface TaskRecord {
   fourEyes: boolean;
   /** Who started the run */
   startedBy?: string;
-  /** Whether the current user may decide this task. */
+  /** Whether the current user may decide this task (manual steps: complete it in stage work, verify it in stage verify). */
   canDecide?: boolean;
   /** Why not (when canDecide is false). */
   cannotDecideReason?: string;
   /** cannotDecideReason as a code and parameters the web UI translates (errors:codes.<code>) */
   cannotDecideCode?: string;
   cannotDecideParams?: ErrorParams;
+  /** Manual steps only: checklist, fields, evidence, completion and verification */
+  manual?: ManualTaskState;
 }
 
 export interface TaskDecision {
   approved: boolean;
   selectedKeys: string[];
+  comment?: string;
+}
+
+/** A manual step's settings, copied into the task when the run reached it (later edits of the process do not change it). */
+export interface ManualTaskSpec {
+  checklist: string[];
+  checklistAllRequired: boolean;
+  fields: { id: string; type: ManualFieldType; label: string; hint?: string; use: Exclude<ManualUse, 'off'> }[];
+  evidence: ManualUse;
+  verification: { required: boolean; notRunStarter: boolean; verifiers: string[]; onReject: 'return' | 'fail' };
+  /** An after-the-fact entry may state a time up to this many days before the run started */
+  backdateDays: number;
+}
+
+/** Why a step needs the second-person verification */
+export type VerificationReason = 'step' | 'notAvailable' | 'backdated';
+
+/** What the person who completed a manual step entered. */
+export interface ManualSubmission {
+  /** Indexes of the ticked checklist items */
+  checked: number[];
+  fields: { id: string; value: string | number | null; ticketId?: string | null }[];
+  /** Required evidence ("evidence") or required fields (their id) that could not be provided, with the reason */
+  notAvailable: { target: string; reason: string }[];
+  /** After-the-fact entry: when the work was done, stated by the person (ISO), and why it is entered afterwards */
+  doneAt: string | null;
+  doneAtReason: string | null;
+  comment: string | null;
+  completedBy: string;
+  /** When it was entered in Steward */
+  completedAt: string;
+  verificationReasons: VerificationReason[];
+}
+
+export interface ManualVerification {
+  approved: boolean;
+  comment: string | null;
+  by: string;
+  at: string;
+}
+
+/** An evidence file of a manual step (stored like record attachments: content-checked, with its SHA-256). */
+export interface TaskEvidence {
+  id: string;
+  taskId: string;
+  filename: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  /** The completion round it was added in (it can be removed until that round is submitted) */
+  round: number;
+}
+
+export interface ManualTaskState {
+  spec: ManualTaskSpec;
+  /** work: waiting for the person doing the step; verify: waiting for the second person; done */
+  stage: 'work' | 'verify' | 'done';
+  /** 1 + the times the step was sent back */
+  round: number;
+  submission: ManualSubmission | null;
+  verification: ManualVerification | null;
+  /** Earlier rounds that a verifier sent back, oldest first */
+  returned: { submission: ManualSubmission; rejection: ManualVerification }[];
+  evidence: TaskEvidence[];
+}
+
+/** Body of POST /tasks/:id/complete for a manual step. */
+export interface ManualCompletion {
+  checked?: number[];
+  fields?: { id: string; value: string }[];
+  notAvailable?: { target: string; reason: string }[];
+  doneAt?: string;
+  doneAtReason?: string;
   comment?: string;
 }
 

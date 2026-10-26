@@ -820,6 +820,13 @@ export function fixStoredPaths(staging: Db, dataDir: string): void {
       inside('records', r.path, 'record_attachments');
   if (have.has('reports'))
     for (const r of staging.all<{ path: string | null }>('SELECT path FROM reports WHERE path IS NOT NULL')) inside('reports', r.path, 'reports');
+  // evidence files of manual steps: relative to the artifacts folder, below the run's own folder
+  if (have.has('run_task_evidence'))
+    for (const r of staging.all<{ path: string | null; run_id: string }>('SELECT path, run_id FROM run_task_evidence')) {
+      inside('artifacts', r.path, 'run_task_evidence');
+      if (String(r.path).split('/')[0] !== r.run_id)
+        throw new HttpError(400, 'The package has an unsafe file path in run_task_evidence', 'MIGRATION_PACKAGE_INVALID');
+    }
 }
 
 /** Shown with the paused automation: unfinished runs arrive cancelled. */
@@ -1042,6 +1049,19 @@ export function checkStoredContent(staging: Db, dataDir: string): void {
           throw new HttpError(400, `Attachment ${r.id} (${r.filename}) is not a file type Steward accepts`, 'MIGRATION_PACKAGE_INVALID');
         }
         staging.run('UPDATE record_attachments SET mime = ? WHERE id = ?', mime, r.id);
+      }
+    // evidence files of manual steps: the same allow-list and content check as at upload
+    if (have.has('run_task_evidence'))
+      for (const r of staging.all<{ id: string; path: string; filename: string }>('SELECT id, path, filename FROM run_task_evidence')) {
+        const data = read(pathInside(path.join(dataDir, 'artifacts'), ...String(r.path).split('/')));
+        if (!data) continue;
+        let mime: string;
+        try {
+          mime = sniff(r.filename, data).mime;
+        } catch {
+          throw new HttpError(400, `Evidence file ${r.id} (${r.filename}) is not a file type Steward accepts`, 'MIGRATION_PACKAGE_INVALID');
+        }
+        staging.run('UPDATE run_task_evidence SET mime = ? WHERE id = ?', mime, r.id);
       }
   });
 }

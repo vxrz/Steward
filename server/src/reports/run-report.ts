@@ -1,7 +1,7 @@
 import { ReportWriter, type CellInput, type Tone } from './pdf/engine.js';
-import { translator, type Translator } from './i18n.js';
+import { translator, type MsgKey, type Translator } from './i18n.js';
 import { PRODUCT, chrome, langTag, statusTone, type BrandingInput } from './common.js';
-import { personLabel, type Person, type RunReportModel } from './model.js';
+import { personLabel, type ManualStepModel, type Person, type RunReportModel } from './model.js';
 
 export interface RenderResult {
   pdf: Buffer;
@@ -237,6 +237,13 @@ export async function renderRunReport(
     }
   }
 
+  // ---------- manual steps ----------
+  if (m.manualSteps.length) {
+    section(t('manualSteps'));
+    w.paragraph(t('manualStepsIntro'), { tone: 'muted', size: 8 });
+    for (const st of m.manualSteps) manualStep(w, tr, st, o.images ?? []);
+  }
+
   // ---------- checks ----------
   section(t('checks'));
   if (!m.checks.length) w.paragraph(t('noChecks'), { tone: 'muted' });
@@ -371,6 +378,118 @@ export async function renderRunReport(
 
   const pdf = await w.finish();
   return { pdf, texts: w.texts };
+}
+
+function manualStep(w: ReportWriter, tr: Translator, st: ManualStepModel, images: { id: string; data: Buffer }[]): void {
+  const { t } = tr;
+  w.subheading(`${t('manualStep')}: ${st.title}`);
+  const outcome =
+    st.status === 'cancelled'
+      ? t('cancelledDecision')
+      : st.status === 'completed'
+        ? st.verificationApproved === false
+          ? t('manualRejected')
+          : st.verificationApproved
+            ? t('manualVerified')
+            : t('manualDone')
+        : st.stage === 'verify'
+          ? t('manualWaitingVerification')
+          : t('manualOpen');
+  const tone: Tone = st.verificationApproved === false ? 'danger' : st.status === 'completed' ? 'success' : 'info';
+  const reasons = st.verificationReasons.map((r) => t(`reason_${r}` as MsgKey)).join(', ');
+  const who = st.verifiers.length ? st.verifiers.join(', ') : t('anyone');
+  const items: Parameters<typeof w.keyValues>[0] = [
+    { label: t('outcome'), value: outcome, tone, span: 2 },
+    { label: t('completedBy'), value: personLabel(st.completedBy) },
+    { label: t('enteredAt'), value: tr.dateTime(st.completedAt) },
+  ];
+  if (st.doneAt) {
+    items.push({ label: t('doneAtStated'), value: tr.dateTime(st.doneAt), tone: 'warning' });
+    items.push({ label: t('doneAtReason'), value: st.doneAtReason ?? '–' });
+  }
+  items.push({ label: t('verification'), value: st.verificationRequired ? t('verificationNeeded', { reasons }) : t('verificationNotNeeded'), span: 2 });
+  if (st.verificationRequired) {
+    items.push({ label: t('mayVerify'), value: t(st.notRunStarter ? 'mayVerifyNotStarter' : 'mayVerifyNotCompleter', { who }), span: 2 });
+    items.push({ label: st.verificationApproved === false ? t('rejectedBy') : t('verifiedBy'), value: personLabel(st.verifiedBy) });
+    items.push({ label: st.verificationApproved === false ? t('rejectedAt') : t('verifiedAt'), value: tr.dateTime(st.verifiedAt) });
+    if (st.verificationComment) items.push({ label: t('verificationComment'), value: st.verificationComment, span: 2 });
+  }
+  items.push({ label: t('decisionComment'), value: st.comment ?? '–', span: 2 });
+  w.keyValues(items);
+  if (st.instructions) w.markdown(st.instructions.length > 3000 ? st.instructions.slice(0, 3000) + ' …' : st.instructions);
+
+  if (st.checklist.length) {
+    w.paragraph(st.checklistAllRequired ? t('checklistAllRequired') : t('checklist'), { bold: true, size: 8.5 });
+    w.table(
+      [
+        { header: t('ticked'), width: 1 },
+        { header: t('item'), width: 9 },
+      ],
+      st.checklist.map((c): CellInput[] => [
+        c.checked === null ? '–' : c.checked ? { text: '✓', tone: 'success', bold: true } : { text: t('no'), tone: 'danger', bold: true },
+        c.item,
+      ]),
+    );
+  }
+  if (st.fields.length) {
+    w.paragraph(t('fieldsTitle'), { bold: true, size: 8.5 });
+    w.table(
+      [
+        { header: t('field'), width: 3 },
+        { header: t('value'), width: 5.4 },
+        { header: '', width: 1.6 },
+      ],
+      st.fields.map((f): CellInput[] => [
+        f.label,
+        f.notAvailable ? { text: t('notAvailableValue', { reason: f.notAvailable }), tone: 'warning' } : f.value || '–',
+        { text: f.required ? t('required') : t('optional'), tone: 'muted' },
+      ]),
+    );
+  }
+  if (st.notAvailable.length) {
+    w.paragraph(t('notAvailableTitle'), { bold: true, size: 8.5 });
+    w.table(
+      [
+        { header: t('what'), width: 3 },
+        { header: t('reason'), width: 7 },
+      ],
+      st.notAvailable.map((n): CellInput[] => [n.what === 'evidence' ? t('evidenceTarget') : n.what, { text: n.reason, tone: 'warning' }]),
+    );
+  }
+  w.paragraph(t('evidenceFiles'), { bold: true, size: 8.5 });
+  if (st.evidenceMode === 'off' && !st.evidence.length) w.paragraph(t('evidenceOff'), { tone: 'muted', size: 8 });
+  else if (!st.evidence.length) w.paragraph(t('evidenceNone'), { tone: 'muted', size: 8 });
+  else {
+    w.table(
+      [
+        { header: t('file'), width: 2.6 },
+        { header: 'SHA-256', width: 4.4, mono: true },
+        { header: t('size'), width: 1, align: 'right' },
+        { header: t('addedBy'), width: 2 },
+      ],
+      st.evidence.map((e) => [e.filename, e.sha256, tr.bytes(e.size), `${personLabel(e.uploadedBy)} · ${tr.dateTime(e.uploadedAt)}`]),
+    );
+    const thumbs = st.evidence
+      .map((e) => ({ e, img: images.find((i) => i.id === e.id) }))
+      .filter((x) => x.img)
+      .map(({ e, img }) => ({ data: img!.data, caption: `${e.filename} · SHA-256 ${e.sha256.slice(0, 16)}…` }));
+    if (thumbs.length) w.images(thumbs);
+  }
+  if (st.returned.length) {
+    w.paragraph(t('returnedTitle'), { bold: true, size: 8.5 });
+    w.table(
+      [
+        { header: t('returnedEntry'), width: 3 },
+        { header: t('rejectedBy'), width: 3 },
+        { header: t('reason'), width: 4 },
+      ],
+      st.returned.map((r) => [
+        `${personLabel(r.completedBy)} · ${tr.dateTime(r.completedAt)}`,
+        `${personLabel(r.rejectedBy)} · ${tr.dateTime(r.rejectedAt)}`,
+        r.comment || '–',
+      ]),
+    );
+  }
 }
 
 export function signOff(w: ReportWriter, tr: Translator, m: { generatedBy: Person; generatedAt: string; reportId: string }, title: string): void {

@@ -161,10 +161,13 @@ const RunChild = z.object({
   finishedAt: nullableTs('Null while the run is not finished'),
 });
 
+const MANUAL_STAGES = ['work', 'verify', 'done'] as const;
+
 const Decision = z.object({
   taskId: z.string(),
   stepKey: z.string(),
-  mode: z.enum(['select', 'approve']),
+  mode: z.enum(['select', 'approve', 'manual']),
+  stage: z.enum(MANUAL_STAGES).nullable().describe('Manual steps: work, verify (waits for the second person) or done; null for other tasks'),
   title: z.string(),
   status: z.enum(TASK_STATUSES),
   approved: z.boolean().nullable(),
@@ -249,7 +252,8 @@ const taskFields = {
   processId: z.string(),
   processName: z.string(),
   stepKey: z.string(),
-  mode: z.enum(['select', 'approve']).describe('select: pick items; approve: approve or reject'),
+  mode: z.enum(['select', 'approve', 'manual']).describe('select: pick items; approve: approve or reject; manual: a documented manual step'),
+  stage: z.enum(MANUAL_STAGES).nullable().describe('Manual steps: work, verify (waits for the second person) or done; null for other tasks'),
   title: z.string(),
   instructions: z.string().nullable(),
   status: z.enum(TASK_STATUSES),
@@ -268,12 +272,57 @@ const taskFields = {
 
 export const Task = z.object(taskFields);
 
+const ManualPerson = z.object({ by: z.string(), at: ts() });
+
+const ManualStep = z
+  .object({
+    round: z.number().int().describe('1 + the times the step was sent back'),
+    checklist: z.array(z.object({ item: z.string(), checked: z.boolean().nullable().describe('null while not completed') })),
+    checklistAllRequired: z.boolean(),
+    fields: z.array(
+      z.object({
+        id: z.string(),
+        type: z.enum(['text', 'number', 'datetime', 'link', 'ticket']),
+        label: z.string(),
+        required: z.boolean(),
+        value: z.union([z.string(), z.number()]).nullable(),
+        ticketId: z.string().nullable().describe('Ticket reference in Steward with this number (ticket fields)'),
+      }),
+    ),
+    evidence: z.enum(['off', 'optional', 'required']).describe('Whether the step takes evidence files'),
+    evidenceFiles: z.array(
+      z.object({
+        id: z.string(),
+        filename: z.string(),
+        mime: z.string(),
+        size: z.number().int(),
+        sha256: z.string(),
+        uploadedBy: z.string(),
+        uploadedAt: ts(),
+      }),
+    ),
+    notAvailable: z.array(z.object({ target: z.string().describe('"evidence" or a field id'), reason: z.string() })),
+    completed: ManualPerson.nullable().describe('Who completed the current entry and when it was entered'),
+    doneAt: nullableTs('After-the-fact entry: when the work was done, as stated'),
+    doneAtReason: z.string().nullable(),
+    verificationRequired: z.boolean(),
+    verificationReasons: z.array(z.enum(['step', 'notAvailable', 'backdated'])),
+    verifiers: z.array(z.string()).describe('Who may verify (subjects); empty = everyone with run or approve rights'),
+    verification: z
+      .object({ approved: z.boolean(), comment: z.string().nullable(), by: z.string(), at: ts() })
+      .nullable()
+      .describe("The second person's verification"),
+    returnedRounds: z.number().int().describe('Entries a verifier sent back'),
+  })
+  .describe('Manual step details');
+
 export const TaskDetail = z.object({
   ...taskFields,
   columns: z.array(z.string()).describe('Column labels of the items'),
   items: z.array(z.object({ key: z.string(), cells: z.array(z.string()), preselected: z.boolean() })),
   selectedKeys: z.array(z.string()).nullable(),
   comment: z.string().nullable(),
+  manual: ManualStep.nullable().describe('Manual steps only (mode manual)'),
 });
 
 export const Schedule = z.object({

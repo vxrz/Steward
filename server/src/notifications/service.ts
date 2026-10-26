@@ -5,7 +5,8 @@ import { logger } from '../log.js';
 import { vault } from '../vault.js';
 import { nowIso, parseJson } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
-import { matches, processPermissions } from '../auth/permissions.js';
+import { matches, processPermissions, verificationCheck } from '../auth/permissions.js';
+import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
 import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './channels.js';
@@ -91,6 +92,26 @@ export function taskRecipients(e: DomainEvents['task.created']): UserInfo[] {
   if (eligible.length) return eligible;
   // nobody matches the assignees – administrators can still decide
   return admins(all).filter((u) => !(e.fourEyes && sameName(u.username, e.runActor)));
+}
+
+/** Users who may verify a manual step that waits for its second person (same rules as verificationCheck). */
+export function verifierRecipients(taskId: string): UserInfo[] {
+  const task = getTask(taskId);
+  if (!task.manual || !task.processId) return [];
+  const all = activeUsers();
+  const access = processAccess(task.processId);
+  const verifiers = task.manual.spec.verification.verifiers;
+  const eligible = all.filter((u) => {
+    const au = toAuthUser(u);
+    const perms = processPermissions(au, access);
+    if (!verificationCheck(au, task.manual!, { actor: task.startedBy ?? '' }, perms).ok) return false;
+    // without a verifier list: the approvers (like decisions), not everyone who may run the process
+    return verifiers.length > 0 || perms.includes('approve');
+  });
+  if (eligible.length || verifiers.length) return eligible;
+  return admins(all).filter(
+    (u) => verificationCheck(toAuthUser(u), task.manual!, { actor: task.startedBy ?? '' }, processPermissions(toAuthUser(u), access)).ok,
+  );
 }
 
 function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; scheduleOwner?: UserInfo } {
@@ -219,6 +240,40 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
     data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, assignees: e.assignees, fourEyes: e.fourEyes },
+  });
+}
+
+export function onVerificationNeeded(e: DomainEvents['task.verification_needed']): void {
+  const round = getTask(e.taskId).manual?.round ?? 1;
+  notify({
+    event: 'task.assigned',
+    text: (l) => ({
+      title: t(l, 'task.verifyTitle', { title: titleName(e.title) }),
+      body: t(l, 'task.verifyBody', { process: e.processName, user: e.completedBy }),
+    }),
+    link: `/runs/${e.runId}`,
+    recipients: verifierRecipients(e.taskId),
+    inAppKey: `task-verify:${e.taskId}:${round}`,
+    externalKey: `task-verify:${e.taskId}:${round}`,
+    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, completedBy: e.completedBy, verification: true },
+  });
+}
+
+export function onTaskReturned(e: DomainEvents['task.returned']): void {
+  const all = activeUsers();
+  const completer = userNamed(e.completedBy, all);
+  const round = getTask(e.taskId).manual?.round ?? 1;
+  notify({
+    event: 'task.assigned',
+    text: (l) => ({
+      title: t(l, 'task.returnedTitle', { title: titleName(e.title) }),
+      body: t(l, 'task.returnedBody', { process: e.processName, user: e.rejectedBy, comment: e.comment.slice(0, 500) }),
+    }),
+    link: `/runs/${e.runId}`,
+    recipients: completer ? [completer] : [],
+    inAppKey: `task-returned:${e.taskId}:${round}`,
+    externalKey: `task-returned:${e.taskId}:${round}`,
+    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true },
   });
 }
 
@@ -351,6 +406,8 @@ export function initNotifications(): void {
   if (subscribed) return;
   subscribed = true;
   on('task.created', deferred('task.created', onTaskCreated));
+  on('task.verification_needed', deferred('task.verification_needed', onVerificationNeeded));
+  on('task.returned', deferred('task.returned', onTaskReturned));
   on('run.finished', deferred('run.finished', onRunFinished));
   on('check.failed', deferred('check.failed', onCheckFailed));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));

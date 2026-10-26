@@ -39,7 +39,8 @@ import * as connectors from '../platforms/connectors.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
-import { startRun, cancelRun, resumeRun, completeTask, recoverRuns } from '../engine/runner.js';
+import { startRun, cancelRun, resumeRun, completeTask, completeManualTask, recoverRuns, verifyManualTask } from '../engine/runner.js';
+import { addEvidence, evidenceForDownload, manualCompletionSchema, removeEvidence, verificationSchema } from '../engine/manual.js';
 import { browserAvailable } from '../engine/browser.js';
 import * as scheduler from '../scheduler.js';
 import { runReportHtml } from '../reports.js';
@@ -50,7 +51,8 @@ import { engineExtrasRoutes } from './engine-extras.js';
 import { reportRoutes } from './reports.js';
 import { triggerRoutes } from './triggers.js';
 import { monitorRoutes } from '../monitors/routes.js';
-import { recordRoutes } from '../records/routes.js';
+import { recordRoutes, uploadedFile } from '../records/routes.js';
+import { contentDisposition, downloadType } from '../records/attachments.js';
 import { ticketRoutes } from '../tickets/routes.js';
 import { dailySummaryRoutes } from '../notifications/summary-routes.js';
 import { complianceRoutes } from '../compliance/routes.js';
@@ -68,7 +70,7 @@ import { reportScheduleRoutes } from './report-schedules.js';
 import { startReportSchedules } from '../reports/schedules.js';
 import { syncRoutes } from '../sync/routes.js';
 import { startGitSync } from '../sync/engine.js';
-import { currentUser, runAs, type AuthUser } from '../auth/context.js';
+import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
@@ -77,7 +79,7 @@ import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND, boundedRecord } from '@sm/shared';
+import { BRAND, MANUAL_LIMITS, boundedRecord } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -1130,12 +1132,54 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const id = params(req).id!;
     const t = visibleTasks().find((x) => x.id === id);
     if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
+    if (t.manual?.stage === 'verify') throw new HttpError(409, 'This step was completed and waits for its verification', 'TASK_WAITS_FOR_VERIFICATION');
     if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not decide this task', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
+    if (t.mode === 'manual') return { ok: true, ...(await completeManualTask(id, manualCompletionSchema.parse(req.body ?? {}))) };
     const b = z
       .object({ approved: z.boolean(), selectedKeys: z.array(z.string().max(500)).max(10000).default([]), comment: z.string().max(5000).optional() })
       .parse(req.body) as TaskDecision;
     await completeTask(id, b);
     return { ok: true };
+  });
+  // manual steps: the second person verifies (or sends back / rejects) what the first one entered
+  app.post('/tasks/:id/verify', async (req) => {
+    const id = params(req).id!;
+    const t = visibleTasks().find((x) => x.id === id);
+    if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
+    if (t.mode !== 'manual' || t.manual?.stage !== 'verify') throw new HttpError(409, 'This step does not wait for a verification', 'TASK_NOT_IN_VERIFICATION');
+    if (!t.canDecide) throw new HttpError(403, t.cannotDecideReason ?? 'You may not verify this step', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
+    return { ok: true, ...(await verifyManualTask(id, verificationSchema.parse(req.body))) };
+  });
+  /** A manual step the current user may work on now (only they add or remove its evidence). */
+  const workableStep = (id: string) => {
+    const t = visibleTasks().find((x) => x.id === id);
+    if (!t) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
+    if (t.mode !== 'manual' || t.manual?.stage !== 'work')
+      throw new HttpError(409, 'Evidence can only be added while the step is being worked on', 'TASK_WAITS_FOR_VERIFICATION');
+    if (!t.canDecide)
+      throw new HttpError(403, t.cannotDecideReason ?? 'You may not work on this step', t.cannotDecideCode ?? 'FORBIDDEN', t.cannotDecideParams);
+    return t;
+  };
+  app.post('/tasks/:id/evidence', async (req) => {
+    const t = workableStep(params(req).id!);
+    const f = await uploadedFile(req, MANUAL_LIMITS.evidenceBytes);
+    return addEvidence(t, f.filename, f.data, currentActor());
+  });
+  app.delete('/tasks/:id/evidence/:evidenceId', async (req) => {
+    const t = workableStep(params(req).id!);
+    removeEvidence(t, params(req).evidenceId!, currentActor());
+    return { ok: true };
+  });
+  app.get('/tasks/:id/evidence/:evidenceId/download', async (req, reply) => {
+    // whoever may see the run may read its evidence
+    const pid = store.taskProcessId(params(req).id!);
+    if (!processes.permissionsFor(pid).includes('view')) throw new HttpError(404, 'Task not found', 'TASK_NOT_FOUND');
+    const { e, data } = evidenceForDownload(params(req).id!, params(req).evidenceId!);
+    // untrusted files: always a download, never rendered by the browser
+    reply.header('content-disposition', contentDisposition(e.filename));
+    reply.header('content-security-policy', "sandbox; default-src 'none'");
+    reply.header('x-content-type-options', 'nosniff');
+    return reply.type(downloadType(e.mime)).send(data);
   });
 
   // ---------- schedules ----------

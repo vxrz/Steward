@@ -42,6 +42,38 @@ function fmtDate(s?: string | null): string {
   return s ? new Date(s).toLocaleString('en-GB', { timeZone: 'UTC' }) + ' UTC' : '–';
 }
 
+/** A manual step in the HTML protocol: every value is escaped (the PDF report has the full layout). */
+function manualHtml(t: RunDetail['tasks'][number]): string {
+  const m = t.manual!;
+  const sub = m.submission;
+  const line = (label: string, value: unknown) => `<br/>${esc(label)}: ${esc(value)}`;
+  const parts = [
+    `<p>${statusBadge(t.status)} ${esc(m.stage === 'verify' ? 'waiting for verification' : m.stage)}`,
+    sub ? line('Completed by', `${sub.completedBy} at ${fmtDate(sub.completedAt)}`) : '',
+    sub?.doneAt ? line('Done at (stated)', `${fmtDate(sub.doneAt)} – ${sub.doneAtReason ?? ''}`) : '',
+    m.verification ? line(m.verification.approved ? 'Verified by' : 'Rejected by', `${m.verification.by} at ${fmtDate(m.verification.at)}`) : '',
+    ...(sub?.notAvailable ?? []).map((n) => line(`Not available (${n.target})`, n.reason)),
+    sub?.comment ? line('Comment', sub.comment) : '',
+    '</p>',
+  ];
+  const checklist = m.spec.checklist.length
+    ? `<table><tr><th>Done</th><th>Checklist item</th></tr>${m.spec.checklist
+        .map((c, i) => `<tr><td>${sub ? (sub.checked.includes(i) ? '☑' : '☐') : '–'}</td><td>${esc(c)}</td></tr>`)
+        .join('')}</table>`
+    : '';
+  const fields = m.spec.fields.length
+    ? `<table><tr><th>Field</th><th>Value</th></tr>${m.spec.fields
+        .map((f) => `<tr><td>${esc(f.label)}</td><td>${esc(sub?.fields.find((x) => x.id === f.id)?.value ?? '–')}</td></tr>`)
+        .join('')}</table>`
+    : '';
+  const files = m.evidence.length
+    ? `<table><tr><th>Evidence file</th><th>Size</th><th>SHA-256</th></tr>${m.evidence
+        .map((e) => `<tr><td>${esc(e.filename)}</td><td>${esc(e.size)}</td><td class="mono">${esc(e.sha256)}</td></tr>`)
+        .join('')}</table>`
+    : '';
+  return parts.join('') + checklist + fields + files;
+}
+
 function statusBadge(s: string): string {
   return `<span class="badge s-${esc(s)}">${esc(s)}</span>`;
 }
@@ -149,6 +181,7 @@ ${
                   )
                   .join('')}</table>`
               : '';
+          if (t.mode === 'manual' && t.manual) return `<h3>${esc(t.title)}</h3>${manualHtml(t)}${t.instructions ? miniMarkdown(t.instructions) : ''}`;
           return `<h3>${esc(t.title)}</h3><p>${statusBadge(t.status)} ${
             t.status === 'completed'
               ? `${t.mode === 'approve' ? (t.decision?.approved ? 'Approved' : 'Rejected') : `${sel.size} of ${t.items.length} selected`} by <strong>${esc(t.decidedBy)}</strong> at ${fmtDate(t.decidedAt)}`

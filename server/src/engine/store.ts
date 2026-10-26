@@ -10,7 +10,12 @@ import type {
   RunStepRecord,
   RunSummary,
   StepStatus,
+  ManualSubmission,
+  ManualTaskSpec,
+  ManualTaskState,
+  ManualVerification,
   TaskDecision,
+  TaskEvidence,
   TaskItem,
   TaskRecord,
 } from '@sm/shared';
@@ -73,7 +78,7 @@ interface TaskRow {
   id: string;
   run_id: string;
   step_key: string;
-  mode: 'select' | 'approve';
+  mode: 'select' | 'approve' | 'manual';
   title: string;
   instructions: string | null;
   columns: string;
@@ -89,6 +94,28 @@ interface TaskRow {
   four_eyes: number;
   process_id?: string;
   run_actor?: string;
+  manual?: string | null;
+  verifiers?: string;
+  stage?: 'work' | 'verify' | 'done' | null;
+  round?: number;
+  submission?: string | null;
+  verification?: string | null;
+  returned?: string;
+}
+
+interface EvidenceRow {
+  id: string;
+  task_id: string;
+  run_id: string;
+  step_key: string;
+  round: number;
+  filename: string;
+  mime: string;
+  size: number;
+  sha256: string;
+  path: string;
+  uploaded_by: string;
+  uploaded_at: string;
 }
 
 export function runRow(id: string): RunRow {
@@ -472,7 +499,79 @@ function toTask(r: TaskRow): TaskRecord {
     assignees: parseJson<string[]>(r.assignees, []),
     fourEyes: !!r.four_eyes,
     startedBy: r.run_actor,
+    ...(r.mode === 'manual' ? { manual: toManual(r) } : {}),
   };
+}
+
+function toManual(r: TaskRow): ManualTaskState {
+  const spec = parseJson<Omit<ManualTaskSpec, 'verification'> & { verification: Omit<ManualTaskSpec['verification'], 'verifiers'> }>(r.manual ?? null, {
+    checklist: [],
+    checklistAllRequired: false,
+    fields: [],
+    evidence: 'optional',
+    verification: { required: false, notRunStarter: false, onReject: 'return' },
+    backdateDays: 0,
+  });
+  return {
+    spec: { ...spec, verification: { ...spec.verification, verifiers: parseJson<string[]>(r.verifiers ?? '[]', []) } },
+    stage: r.stage ?? 'work',
+    round: Number(r.round ?? 1),
+    submission: parseJson<ManualSubmission | null>(r.submission ?? null, null),
+    verification: parseJson<ManualVerification | null>(r.verification ?? null, null),
+    returned: parseJson<ManualTaskState['returned']>(r.returned ?? '[]', []),
+    evidence: listEvidence(r.id),
+  };
+}
+
+const toEvidence = (e: EvidenceRow): TaskEvidence => ({
+  id: e.id,
+  taskId: e.task_id,
+  filename: e.filename,
+  mime: e.mime,
+  size: Number(e.size),
+  sha256: e.sha256,
+  uploadedBy: e.uploaded_by,
+  uploadedAt: e.uploaded_at,
+  round: Number(e.round),
+});
+
+export function listEvidence(taskId: string): TaskEvidence[] {
+  return db().all<EvidenceRow>('SELECT * FROM run_task_evidence WHERE task_id = ? ORDER BY uploaded_at, id', taskId).map(toEvidence);
+}
+
+/** An evidence file's row (with its stored path, relative to <data>/artifacts). */
+export function evidenceRow(taskId: string, id: string): (TaskEvidence & { path: string; runId: string }) | undefined {
+  const e = db().get<EvidenceRow>('SELECT * FROM run_task_evidence WHERE id = ? AND task_id = ?', id, taskId);
+  return e ? { ...toEvidence(e), path: e.path, runId: e.run_id } : undefined;
+}
+
+export function insertEvidence(e: TaskEvidence & { runId: string; stepKey: string; path: string }): void {
+  db().run(
+    'INSERT INTO run_task_evidence (id, task_id, run_id, step_key, round, filename, mime, size, sha256, path, uploaded_by, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    e.id,
+    e.taskId,
+    e.runId,
+    e.stepKey,
+    e.round,
+    e.filename,
+    e.mime,
+    e.size,
+    e.sha256,
+    e.path,
+    e.uploadedBy,
+    e.uploadedAt,
+  );
+}
+
+export function deleteEvidence(id: string): void {
+  db().run('DELETE FROM run_task_evidence WHERE id = ?', id);
+}
+
+/** Paths (relative to <data>/artifacts) of a run's evidence files. */
+export function evidencePaths(runId: string): string[] {
+  return db()
+    .all<{ path: string }>('SELECT path FROM run_task_evidence WHERE run_id = ?', runId)
+    .map((r) => r.path);
 }
 
 /** Process of a task's run (for permission checks). */
@@ -534,10 +633,13 @@ export function findTask(runId: string, stepKey: string): TaskRecord | undefined
   return r ? getTask(r.id) : undefined;
 }
 
-export function insertTask(t: Omit<TaskRecord, 'status' | 'createdAt' | 'decision' | 'decidedBy' | 'decidedAt' | 'startedBy' | 'canDecide'>): void {
+export function insertTask(
+  t: Omit<TaskRecord, 'status' | 'createdAt' | 'decision' | 'decidedBy' | 'decidedAt' | 'startedBy' | 'canDecide' | 'manual'> & { manual?: ManualTaskSpec },
+): void {
+  const { verifiers = [], ...verification } = t.manual?.verification ?? { verifiers: [] };
   db().run(
-    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at, assignees, four_eyes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+    `INSERT INTO run_tasks (id, run_id, step_key, mode, title, instructions, columns, items, status, created_at, assignees, four_eyes, manual, verifiers, stage)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?)`,
     t.id,
     t.runId,
     t.stepKey,
@@ -549,7 +651,53 @@ export function insertTask(t: Omit<TaskRecord, 'status' | 'createdAt' | 'decisio
     nowIso(),
     JSON.stringify(t.assignees ?? []),
     t.fourEyes ? 1 : 0,
+    t.manual ? JSON.stringify({ ...t.manual, verification }) : null,
+    JSON.stringify(verifiers),
+    t.manual ? 'work' : null,
   );
+}
+
+/** A manual step was completed: its entry, and the stage it moves to (verify, or done when no verification is needed). */
+export function submitManual(id: string, sub: ManualSubmission, next: 'verify' | 'done'): number {
+  return db().run(
+    `UPDATE run_tasks SET submission = ?, completed_by = ?, completed_at = ?, stage = ?, status = ?, decision = ?, decided_by = ?, decided_at = ?
+     WHERE id = ? AND status = 'open' AND stage = 'work'`,
+    JSON.stringify(sub),
+    sub.completedBy,
+    sub.completedAt,
+    next,
+    next === 'done' ? 'completed' : 'open',
+    next === 'done' ? JSON.stringify({ approved: true, selectedKeys: [], comment: sub.comment ?? undefined } satisfies TaskDecision) : null,
+    next === 'done' ? sub.completedBy : null,
+    next === 'done' ? sub.completedAt : null,
+    id,
+  ).changes;
+}
+
+/** The second person verified (approved) the step, or rejected it and the run fails (onReject: fail). */
+export function closeVerified(id: string, v: ManualVerification, sub: ManualSubmission): number {
+  return db().run(
+    `UPDATE run_tasks SET verification = ?, verified_by = ?, verified_at = ?, stage = 'done', status = 'completed', decision = ?, decided_by = ?, decided_at = ?
+     WHERE id = ? AND status = 'open' AND stage = 'verify'`,
+    JSON.stringify(v),
+    v.by,
+    v.at,
+    JSON.stringify({ approved: v.approved, selectedKeys: [], comment: sub.comment ?? undefined } satisfies TaskDecision),
+    sub.completedBy,
+    sub.completedAt,
+    id,
+  ).changes;
+}
+
+/** The verifier sent the step back: the entry moves to the returned rounds and the step waits for its person again. */
+export function returnManual(id: string, returned: ManualTaskState['returned'], round: number): number {
+  return db().run(
+    `UPDATE run_tasks SET returned = ?, round = ?, submission = NULL, completed_by = NULL, completed_at = NULL, stage = 'work'
+     WHERE id = ? AND status = 'open' AND stage = 'verify'`,
+    JSON.stringify(returned),
+    round,
+    id,
+  ).changes;
 }
 
 export function decideTask(id: string, status: 'completed' | 'cancelled', decision: TaskDecision | null, by: string): void {
@@ -619,10 +767,23 @@ export function artifactFile(id: string): { path: string; mime: string; name: st
   return r;
 }
 
-/** Fingerprint of everything recorded for a run (steps, decisions, artifacts). */
+/**
+ * Fingerprint of everything recorded for a run (steps, decisions, artifacts – and for manual steps the entries,
+ * verifications and evidence files). Runs without manual steps hash exactly as before, so their seals stay valid.
+ */
 export function protocolHash(runId: string): string {
   const steps = db().all<StepRow>('SELECT key, type, status, input, output, error, summary FROM run_steps WHERE run_id = ? ORDER BY key', runId);
   const tasks = db().all('SELECT step_key, status, decision, decided_by, decided_at FROM run_tasks WHERE run_id = ? ORDER BY step_key', runId);
   const arts = db().all('SELECT step_key, name, sha256 FROM run_artifacts WHERE run_id = ? ORDER BY id', runId);
-  return sha256(canonicalJson({ steps, tasks, arts }));
+  const manual = db().all(
+    `SELECT step_key, stage, round, submission, completed_by, completed_at, verification, verified_by, verified_at, returned
+     FROM run_tasks WHERE run_id = ? AND mode = 'manual' ORDER BY step_key`,
+    runId,
+  );
+  if (!manual.length) return sha256(canonicalJson({ steps, tasks, arts }));
+  const evidence = db().all(
+    'SELECT step_key, round, filename, sha256, size, uploaded_by, uploaded_at FROM run_task_evidence WHERE run_id = ? ORDER BY id',
+    runId,
+  );
+  return sha256(canonicalJson({ steps, tasks, arts, manual, evidence }));
 }

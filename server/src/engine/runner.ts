@@ -15,6 +15,7 @@ import {
   type StepStatus,
   type TaskDecision,
   type TaskItem,
+  type TaskRecord,
 } from '@sm/shared';
 import { audit } from '../audit.js';
 import { config } from '../config.js';
@@ -42,6 +43,7 @@ import { evalBool, evalExpr, evalList, render, renderString, stringify, type Bin
 import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
+import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
 import { publishDataset, datasetOwner } from '../dashboards/datasets.js';
 import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
 import { logger } from '../log.js';
@@ -507,6 +509,7 @@ export async function cancelRun(runId: string, actor = currentActor()): Promise<
 export async function completeTask(taskId: string, decision: TaskDecision, actor = currentActor()): Promise<void> {
   const t = store.getTask(taskId);
   if (t.status !== 'open') throw new HttpError(409, `Task is ${t.status}`);
+  if (t.mode === 'manual') throw new HttpError(400, 'Complete a manual step with its checklist and fields', 'TASK_IS_MANUAL');
   const validKeys = new Set(t.items.map((i) => i.key));
   const selectedKeys = (decision.selectedKeys ?? []).filter((k) => validKeys.has(k));
   const d: TaskDecision = { approved: !!decision.approved, selectedKeys, comment: decision.comment?.slice(0, 4000) };
@@ -526,17 +529,42 @@ export async function completeTask(taskId: string, decision: TaskDecision, actor
       details: { decision: d, unselectedKeys: t.items.map((i) => i.key).filter((k) => !selectedKeys.includes(k)) },
     });
   });
+  await settleTask(taskId, t.runId, { decision: d, by: actor, at }, actor);
+}
+
+/** Lets the waiting run continue after a task was decided (or replays the run when the server restarted meanwhile). */
+async function settleTask(taskId: string, runId: string, result: Settled, actor: string): Promise<void> {
   const waiter = taskWaiters.get(taskId);
   if (waiter) {
     taskWaiters.delete(taskId);
-    waiter({ decision: d, by: actor, at });
+    waiter(result);
   } else {
     // Server was restarted while waiting: replay the run up to this task.
-    await resumeRun(t.runId, actor).catch((e) => {
-      logger.error({ err: e, runId: t.runId }, 'resume after decision failed');
-      if (isUnexpected(e)) reportError(e, { tags: { phase: 'resume', run_id: t.runId } });
+    await resumeRun(runId, actor).catch((e) => {
+      logger.error({ err: e, runId }, 'resume after decision failed');
+      if (isUnexpected(e)) reportError(e, { tags: { phase: 'resume', run_id: runId } });
     });
   }
+}
+
+/** Person A completes a manual step (permission checked by the caller). The run continues unless a second person must verify it. */
+export async function completeManualTask(taskId: string, input: ManualCompletionInput, actor = currentActor()): Promise<{ verificationNeeded: boolean }> {
+  const t = store.getTask(taskId);
+  const settled = completeManual(t, input, actor);
+  if (settled) await settleTask(taskId, t.runId, settled, actor);
+  return { verificationNeeded: !settled };
+}
+
+/** Person B verifies or rejects a manual step (permission checked by the caller). */
+export async function verifyManualTask(
+  taskId: string,
+  input: { approved: boolean; comment?: string },
+  actor = currentActor(),
+): Promise<{ outcome: 'verified' | 'returned' | 'failed' }> {
+  const t = store.getTask(taskId);
+  const settled = verifyManual(t, input, actor);
+  if (settled) await settleTask(taskId, t.runId, settled, actor);
+  return { outcome: input.approved ? 'verified' : settled ? 'failed' : 'returned' };
 }
 
 /** On startup: resume waiting runs, mark in-flight ones as interrupted. */
@@ -1523,10 +1551,11 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
       mode: step.mode,
       title,
       instructions,
-      columns,
+      columns: step.mode === 'manual' ? [] : columns,
       items: ctx.redactor.apply(items),
       assignees: step.assignees ?? [],
       fourEyes: !!step.fourEyes,
+      ...(step.mode === 'manual' ? { manual: manualSpec(step) } : {}),
     });
     emit('task.created', {
       taskId: id,
@@ -1544,7 +1573,7 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
       entityType: 'task',
       entityId: id,
       runId: ctx.runId,
-      summary: `Waiting for decision: "${title}"${step.mode === 'select' ? ` (${items.length} items)` : ''}`,
+      summary: `${step.mode === 'manual' ? 'Waiting for manual step' : 'Waiting for decision'}: "${title}"${step.mode === 'select' ? ` (${items.length} items)` : ''}`,
     });
     task = store.getTask(id);
   }
@@ -1556,7 +1585,7 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
   } else {
     store.setStepStatus(ctx.runId, key, 'waiting');
     ctx.beginWait();
-    ctx.log('info', `Waiting for user decision: ${title}`, key);
+    ctx.log('info', `${step.mode === 'manual' ? 'Waiting for manual step' : 'Waiting for user decision'}: ${title}`, key);
     const taskId = task.id;
     try {
       result = await new Promise((resolve) => {
@@ -1571,6 +1600,7 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
     store.setStepStatus(ctx.runId, key, 'running');
   }
   const { decision, by, at } = result;
+  if (step.mode === 'manual') return manualOutput(store.getTask(task.id), ctx, key, decision, by);
   if (step.mode === 'approve') {
     ctx.log('info', `${decision.approved ? 'Approved' : 'Rejected'} by ${by}${decision.comment ? `: ${decision.comment}` : ''}`, key);
     if (!decision.approved && !hasWires(ctx, step.id, 'rejected')) throw new Error(`Rejected by ${by}${decision.comment ? `: ${decision.comment}` : ''}`);
@@ -1594,6 +1624,37 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
       decidedAt: at,
     },
     summary: `${by} selected ${selected.length} of ${rawItems.length}`,
+  };
+}
+
+/** A finished manual step: its entry becomes the node's output (vars.<saveAs>); a rejected verification with onReject "fail" fails the run. */
+function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: TaskDecision, by: string): LeafResult {
+  const m = t.manual!;
+  const sub = m.submission;
+  const v = m.verification;
+  if (!decision.approved) {
+    const msg = `Verification rejected by ${v?.by ?? '?'}${v?.comment ? `: ${v.comment}` : ''}`;
+    ctx.log('error', msg, key);
+    throw new Error(msg);
+  }
+  ctx.log('info', `Completed by ${by}${v ? `, verified by ${v.by}` : ''}`, key);
+  return {
+    output: {
+      completed: true,
+      completedBy: sub?.completedBy ?? by,
+      completedAt: sub?.completedAt ?? null,
+      doneAt: sub?.doneAt ?? null,
+      doneAtReason: sub?.doneAtReason ?? null,
+      checklist: m.spec.checklist.map((item, i) => ({ item, checked: !!sub?.checked.includes(i) })),
+      fields: Object.fromEntries((sub?.fields ?? []).map((f) => [f.id, f.value])),
+      notAvailable: sub?.notAvailable ?? [],
+      comment: sub?.comment ?? '',
+      evidence: m.evidence.map((e) => ({ filename: e.filename, size: e.size, sha256: e.sha256 })),
+      verifiedBy: v?.by ?? null,
+      verifiedAt: v?.at ?? null,
+      rounds: m.round,
+    },
+    summary: `Completed by ${by}${v ? `, verified by ${v.by}` : ''}`,
   };
 }
 
