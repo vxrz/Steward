@@ -146,7 +146,7 @@ export function thresholds(m: LoadedMonitor, c: CheckDef): { failuresBeforeDown:
 
 // ---------- permissions ----------
 
-const DEFAULTS: Record<Role, MonitorPermission[]> = {
+export const MONITOR_DEFAULTS: Record<Role, MonitorPermission[]> = {
   admin: [...MONITOR_PERMISSIONS],
   designer: ['view', 'acknowledge', 'edit'],
   operator: ['view', 'acknowledge'],
@@ -161,7 +161,7 @@ export function monitorPermissions(u: AuthUser | null, m: { owner: string; acl: 
   if (isAdmin(u) || m.owner.toLowerCase() === u.username.toLowerCase()) return [...MONITOR_PERMISSIONS];
   const out = new Set<MonitorPermission>();
   if (u.roles.includes('auditor')) out.add('view');
-  if (!m.acl.length) for (const r of u.roles) DEFAULTS[r]?.forEach((x) => out.add(x));
+  if (!m.acl.length) for (const r of u.roles) MONITOR_DEFAULTS[r]?.forEach((x) => out.add(x));
   else for (const e of m.acl) if (matches(u, e.subject)) e.permissions.forEach((x) => out.add(x));
   if (out.has('manage')) ['edit', 'acknowledge'].forEach((x) => out.add(x as MonitorPermission));
   if (out.size) out.add('view');

@@ -588,18 +588,18 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'PUT /api/settings/notifications': { sensitive: { allowedEmailDomains: ['matrix.example'] }, harmless: { allowedEmailDomains: ['example.com'] } },
   'POST /api/teams': { sensitive: { name: 'Matrix step-up', members: ['vera'] }, harmless: { name: '!' } },
   'PUT /api/teams/:id': { sensitive: { name: 'Matrix team', members: ['vera'] }, harmless: { name: 'Matrix team', members: [] } },
-  // (harmless: an invalid subject that grants no management right – refused by the route, the fixture stays)
+  // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
   'PUT /api/platforms/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
-    harmless: { acl: [{ subject: 'bogus', permissions: ['use'] }] },
+    harmless: { acl: 'not a list' },
   },
   'PUT /api/processes/:id/access': {
     sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
-    harmless: { acl: [{ subject: 'bogus', permissions: ['view'] }] },
+    harmless: { acl: 'not a list' },
   },
   'PUT /api/monitors/:id/access': {
     sensitive: { acl: [{ subject: 'team:matrix team', permissions: ['manage'] }] },
-    harmless: { acl: [{ subject: 'bogus', permissions: ['view'] }] },
+    harmless: { acl: 'not a list' },
   },
   'POST /api/compliance/evidence-packs': 'always',
   'GET /api/audit/export': 'always',

@@ -19,7 +19,7 @@ import { aliasSubjects, sameIdentity } from './aliases.js';
  * - Auditors can always read everything; nobody but admins/owners can change access.
  */
 
-const DEFAULT_PROCESS: Record<Role, ProcessPermission[]> = {
+export const DEFAULT_PROCESS: Record<Role, ProcessPermission[]> = {
   admin: [...PROCESS_PERMISSIONS],
   designer: ['view', 'edit', 'run'],
   operator: ['view', 'run'],
@@ -28,7 +28,7 @@ const DEFAULT_PROCESS: Record<Role, ProcessPermission[]> = {
   viewer: ['view'],
 };
 
-const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
+export const DEFAULT_PLATFORM: Record<Role, PlatformPermission[]> = {
   admin: [...PLATFORM_PERMISSIONS],
   designer: ['use'],
   operator: ['use'],

@@ -464,7 +464,7 @@ describe('after the security review', () => {
     const platform = (await s.api('GET', '/platforms'))[0];
     expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: [{ subject: 'user:vera', permissions: ['use', 'manage'] }] })).toBe('grantAccess');
     expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: [...platform.acl, { subject: 'team:review team 3', permissions: ['use'] }] })).toBe(
-      200,
+      'grantAccess',
     );
     expect(await asks('PUT', `/platforms/${platform.id}/access`, { acl: platform.acl })).toBe(200);
     expect(await asks('PUT', '/processes/ih-health-check/access', { acl: [{ subject: 'role:viewer', permissions: ['view', 'manage'] }] })).toBe('grantAccess');
@@ -530,10 +530,96 @@ describe('after the security review', () => {
     const r = await refusal(c('POST', '/me/tokens', { name: 'x', scope: 'read' }));
     expect(r.body.stepUp.action).toBe('createToken');
     const step = await ssoStepUp(c, 'a1f3', { actions: ['createToken', 'grantAccess'] } as never);
-    expect(step.html).toContain('You are confirming: create an API token, grant management rights or ownership.');
+    expect(step.html).toContain('Requested for: create an API token, give someone rights in an access list.');
+    // the confirmation is not per action: the page says so
+    expect(step.html).toContain('The confirmation applies to all sensitive actions of this session for 5 minutes.');
     expect(step.html).toMatch(/Started at <time datetime="\d{4}-\d\d-\d\dT[\d:.]+Z">\d\d:\d\d UTC<\/time>/);
     await c('POST', '/auth/step-up/sso/complete', { ticket: step.ticket });
     // only known actions are accepted
     expect(await refusal(c('POST', '/auth/step-up/sso', { actions: ['<script>'] }))).toMatchObject({ status: 400, code: 'INVALID_INPUT' });
+  });
+});
+
+describe('after the re-review', () => {
+  /** A platform restricted to the administrator (confirmed client), and an unconfirmed administrator session. */
+  async function restricted() {
+    const p = (await s.api('GET', '/platforms'))[0];
+    await s.api('PUT', `/platforms/${p.id}/access`, { acl: [{ subject: 'user:admin', permissions: ['manage'] }] });
+    return { p, c: await unconfirmed() };
+  }
+  const asks = async (c: Client, method: string, url: string, b: unknown) => {
+    const r = await refusal(c(method, url, b));
+    return r.code === 'STEP_UP_REQUIRED' ? r.body.stepUp.action : r.status;
+  };
+
+  it('N1: any right anyone gains in an access list asks – a new entry, a role, the defaults of an empty list, an owner', async () => {
+    const { p, c } = await restricted();
+    const url = `/platforms/${p.id}/access`;
+    const admin = { subject: 'user:admin', permissions: ['manage'] };
+    // the reviewer's cases
+    expect(await asks(c, 'PUT', url, { acl: [admin, { subject: 'user:vera', permissions: ['use'] }] })).toBe('grantAccess');
+    expect(await asks(c, 'PUT', url, { acl: [admin, { subject: 'role:operator', permissions: ['use'] }] })).toBe('grantAccess');
+    // an empty list falls back to the role defaults: designers and operators would gain "use"
+    expect(await asks(c, 'PUT', url, { acl: [] })).toBe('grantAccess');
+    // raising a right of an existing entry
+    await s.api('PUT', url, { acl: [admin, { subject: 'team:review team 3', permissions: ['use'] }] });
+    expect(await asks(c, 'PUT', url, { acl: [admin, { subject: 'team:review team 3', permissions: ['use', 'manage'] }] })).toBe('grantAccess');
+    // removals and reorders do not ask
+    expect(await asks(c, 'PUT', url, { acl: [{ subject: 'TEAM:Review Team 3', permissions: ['use'] }, admin] })).toBe(200);
+    expect(await asks(c, 'PUT', url, { acl: [admin] })).toBe(200);
+    expect(await asks(c, 'PUT', url, { acl: [{ subject: 'user:admin', permissions: ['use'] }] })).toBe(200);
+    await s.api('PUT', url, { acl: [] });
+
+    // processes: edit and run grants, an empty list, the owner
+    const proc = '/processes/ih-health-check/access';
+    await s.api('PUT', proc, { acl: [{ subject: 'role:viewer', permissions: ['view'] }], owner: null });
+    expect(await asks(c, 'PUT', proc, { acl: [{ subject: 'role:viewer', permissions: ['view', 'run'] }] })).toBe('grantAccess');
+    expect(
+      await asks(c, 'PUT', proc, {
+        acl: [
+          { subject: 'role:viewer', permissions: ['view'] },
+          { subject: 'user:vera', permissions: ['edit'] },
+        ],
+      }),
+    ).toBe('grantAccess');
+    expect(await asks(c, 'PUT', proc, { acl: [] })).toBe('grantAccess'); // the defaults: designers edit and run …
+    expect(await asks(c, 'PUT', proc, { acl: [{ subject: 'role:viewer', permissions: ['view'] }], owner: 'vera' })).toBe('grantAccess');
+    expect(await asks(c, 'PUT', proc, { acl: [{ subject: 'role:viewer', permissions: ['view'] }] })).toBe(200);
+    // a list going from the defaults to a narrower one takes rights away only
+    await s.api('PUT', proc, { acl: [] });
+    expect(await asks(c, 'PUT', proc, { acl: [{ subject: 'role:designer', permissions: ['view', 'run'] }] })).toBe(200);
+    await s.api('PUT', proc, { acl: [], owner: 'vera' });
+    // clearing the owner takes rights away only
+    expect(await asks(c, 'PUT', proc, { acl: [], owner: null })).toBe(200);
+
+    // monitors: a right that implies others, and a new owner
+    const monitor = ((await s.api('GET', '/monitors')).items ?? (await s.api('GET', '/monitors')))[0];
+    const murl = `/monitors/${monitor.id}/access`;
+    await s.api('PUT', murl, { acl: [{ subject: 'user:vera', permissions: ['view'] }] });
+    expect(await asks(c, 'PUT', murl, { acl: [{ subject: 'user:vera', permissions: ['view', 'acknowledge'] }] })).toBe('grantAccess');
+    expect(await asks(c, 'PUT', murl, { acl: [{ subject: 'user:vera', permissions: ['view'] }], owner: 'vera' })).toBe('grantAccess');
+    expect(await asks(c, 'PUT', murl, { acl: [] })).toBe('grantAccess');
+    expect(await asks(c, 'PUT', murl, { acl: [{ subject: 'user:vera', permissions: ['view'] }] })).toBe(200);
+    await s.api('PUT', murl, { acl: [] });
+  });
+
+  it('N2: turning SMTP TLS off needs the password again', async () => {
+    const n = await s.api('GET', '/settings/notifications');
+    const { hasPassword: _h, ...stored } = n.email;
+    const body = (email: Record<string, unknown>) => ({
+      email: { ...stored, ...email },
+      teams: { enabled: false },
+      webhook: { enabled: false },
+      routes: n.routes,
+    });
+    const tls = { enabled: true, host: 'smtp.corp.example', port: 465, secure: true, user: 'mailer', from: 'steward@corp.example' };
+    await s.api('PUT', '/settings/notifications', body({ ...tls, password: 'smtp-secret' }));
+    expect(await refusal(s.api('PUT', '/settings/notifications', body({ ...tls, secure: false })))).toMatchObject({ status: 400, code: 'SMTP_PASSWORD_AGAIN' });
+    expect((await s.api('GET', '/settings/notifications')).email).toMatchObject({ secure: true, hasPassword: true });
+    // turning it on keeps the password
+    await s.api('PUT', '/settings/notifications', body({ ...tls, secure: false, password: 'smtp-secret' }));
+    await s.api('PUT', '/settings/notifications', body(tls));
+    expect((await s.api('GET', '/settings/notifications')).email).toMatchObject({ secure: true, hasPassword: true });
+    await s.api('PUT', '/settings/notifications', body({ ...tls, enabled: false, user: '' }));
   });
 });

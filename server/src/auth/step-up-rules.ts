@@ -5,6 +5,9 @@ import { getPlatform } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import { requireMonitor } from '../monitors/service.js';
 import { getUser, listTeams } from './users.js';
+import { MONITOR_PERMISSIONS, PLATFORM_PERMISSIONS, PROCESS_PERMISSIONS, type Role } from '@sm/shared';
+import { DEFAULT_PLATFORM, DEFAULT_PROCESS } from './permissions.js';
+import { MONITOR_DEFAULTS } from '../monitors/model.js';
 
 /**
  * Step-up rules of routes where only some changes are sensitive (step-up.ts): the request asks for a confirmation when
@@ -100,47 +103,94 @@ export function changesTeamMembers(req: FastifyRequest): boolean {
 }
 
 type Entry = { subject?: unknown; permissions?: unknown };
-/** Whether a new access list gives a subject a management right it did not have before (raising or adding, not removing). */
-function grantsRight(before: Entry[], after: unknown, rights: string[]): boolean {
-  if (!Array.isArray(after)) return false;
-  const had = new Map<string, Set<string>>();
-  for (const e of before)
-    had.set(
-      String(e.subject ?? '')
-        .trim()
-        .toLowerCase(),
-      new Set((Array.isArray(e.permissions) ? e.permissions : []).map(String)),
-    );
-  return (after as Entry[]).some((e) => {
-    const perms = Array.isArray(e?.permissions) ? e.permissions.map(String) : [];
-    const old =
-      had.get(
-        String(e?.subject ?? '')
-          .trim()
-          .toLowerCase(),
-      ) ?? new Set<string>();
-    return perms.some((p) => rights.includes(p) && !old.has(p));
-  });
-}
-const ownerChanges = (v: unknown, owner: string | null | undefined) =>
-  typeof v === 'string' && v.trim() !== '' && v.trim().toLowerCase() !== (owner ?? '').toLowerCase();
+type Grants = Map<string, Set<string>>;
 
-/** Access lists: who the route serves (its own right) and which changes grant a management right or ownership. */
+/** How rights of one kind of object add up: the defaults of an empty list, rights that imply others, what never changes. */
+interface RightsModel {
+  /** Rights of each role while the access list is empty (administrators always have all: left out) */
+  defaults: Record<Role, readonly string[]>;
+  /** Every right of the object (the owner's) */
+  all: readonly string[];
+  /** Rights another right implies (manage → use …) */
+  implies: Record<string, readonly string[]>;
+  /** Auditors always view (processes, monitors) */
+  auditorsView: boolean;
+}
+const PLATFORM_RIGHTS: RightsModel = { defaults: DEFAULT_PLATFORM, all: PLATFORM_PERMISSIONS, implies: { manage: ['use'] }, auditorsView: false };
+const PROCESS_RIGHTS: RightsModel = { defaults: DEFAULT_PROCESS, all: PROCESS_PERMISSIONS, implies: { '*': ['view'] }, auditorsView: true };
+const MONITOR_RIGHTS: RightsModel = {
+  defaults: MONITOR_DEFAULTS,
+  all: MONITOR_PERMISSIONS,
+  implies: { manage: ['edit', 'acknowledge'], '*': ['view'] },
+  auditorsView: true,
+};
+
+const subjectKey = (v: unknown) =>
+  String(v ?? '')
+    .trim()
+    .toLowerCase();
+
+/**
+ * Who has which rights on an object, by subject (user:, team:, role:): the access list, or – while it is empty – the
+ * role defaults, plus the owner. Administrators always have every right and are left out.
+ */
+function effectiveGrants(acl: Entry[], owner: string | null | undefined, m: RightsModel): Grants {
+  const out: Grants = new Map();
+  const add = (key: string, perms: readonly string[]) => {
+    if (!key || key === 'role:admin') return;
+    const set = out.get(key) ?? new Set<string>();
+    for (const p of perms) {
+      set.add(p);
+      for (const x of m.implies[p] ?? []) set.add(x);
+      for (const x of m.implies['*'] ?? []) set.add(x);
+    }
+    out.set(key, set);
+  };
+  if (!acl.length) for (const [role, perms] of Object.entries(m.defaults)) add(`role:${role}`, perms);
+  else for (const e of acl) add(subjectKey(e?.subject), (Array.isArray(e?.permissions) ? e.permissions : []).map(String));
+  if (m.auditorsView) add('role:auditor', ['view']);
+  if (owner?.trim()) add(`user:${owner.trim().toLowerCase()}`, m.all);
+  return out;
+}
+
+/** Whether a change gives any subject a right it did not have (adding or raising; removals and reorders do not count). */
+function gainsRight(before: Grants, after: Grants): boolean {
+  for (const [key, perms] of after) {
+    const had = before.get(key) ?? new Set<string>();
+    for (const p of perms) if (!had.has(p)) return true;
+  }
+  return false;
+}
+
+const aclOf = (v: unknown): Entry[] | undefined => (Array.isArray(v) ? (v as Entry[]) : undefined);
+
+/** Access lists: who the route serves (its own right) and which changes give anyone a right (a new entry, a raise, the defaults, an owner). */
 export const platformAccess = {
   who: (req: FastifyRequest) => getPlatform(id(req)).permissions.includes('manage'),
-  when: (req: FastifyRequest) => grantsRight(getPlatform(id(req)).acl, body(req).acl, ['manage']),
+  when: (req: FastifyRequest) => {
+    const p = getPlatform(id(req));
+    const acl = aclOf(body(req).acl);
+    return !!acl && gainsRight(effectiveGrants(p.acl, null, PLATFORM_RIGHTS), effectiveGrants(acl, null, PLATFORM_RIGHTS));
+  },
 };
 export const processAccess = {
   who: (req: FastifyRequest) => permissionsFor(id(req)).includes('manage'),
   when: (req: FastifyRequest) => {
     const p = getProcess(id(req));
-    return grantsRight(p.acl, body(req).acl, ['manage']) || ownerChanges(body(req).owner, p.owner);
+    const b = body(req);
+    // (the route keeps the owner when the body leaves it out, and clears it with null)
+    const owner = b.owner === undefined ? p.owner : typeof b.owner === 'string' ? b.owner : null;
+    return gainsRight(effectiveGrants(p.acl, p.owner, PROCESS_RIGHTS), effectiveGrants(aclOf(b.acl) ?? p.acl, owner, PROCESS_RIGHTS));
   },
 };
 export const monitorAccess = {
   who: (req: FastifyRequest) => !!requireMonitor(id(req), 'manage'),
   when: (req: FastifyRequest) => {
     const m = requireMonitor(id(req), 'manage');
-    return grantsRight(JSON.parse(m.acl || '[]') as Entry[], body(req).acl, ['manage']) || ownerChanges(body(req).owner, m.owner);
+    const b = body(req);
+    // (an empty owner keeps the current one, see monitors/service.ts setAccess)
+    const owner = (typeof b.owner === 'string' && b.owner.trim()) || m.owner;
+    const before = JSON.parse(m.acl || '[]') as Entry[];
+    return gainsRight(effectiveGrants(before, m.owner, MONITOR_RIGHTS), effectiveGrants(aclOf(b.acl) ?? before, owner, MONITOR_RIGHTS));
   },
 };
