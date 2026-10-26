@@ -16,6 +16,7 @@ import { initErrorReporting } from './errorReporting';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ThemedMantineProvider } from './theme';
 import { BASE_PATH } from './basePath';
+import { StepUpDialog } from './components/security/StepUpDialog';
 
 document.title = BRAND.name;
 initPwa();
@@ -45,6 +46,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 }
               >
                 <App />
+                {/* confirming a sensitive action (step-up re-authentication), asked by api.ts */}
+                <StepUpDialog />
               </Suspense>
             </ErrorBoundary>
           </BrowserRouter>

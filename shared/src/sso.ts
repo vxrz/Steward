@@ -128,6 +128,9 @@ const base = {
   useUserinfo: false,
   requiredClaims: [] as SsoRequiredClaim[],
   autoProvision: true,
+  stepUpMfa: false,
+  stepUpAcrValues: '',
+  stepUpAuthContext: '',
 };
 
 export const SSO_PRESET_INFO: Record<SsoPreset, SsoPresetInfo> = {

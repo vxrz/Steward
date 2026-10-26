@@ -247,6 +247,9 @@ export function withDefaults(c: Partial<ProviderConfig> & Pick<ProviderConfig, '
     emailVerifiedByProvider: c.emailVerifiedByProvider ?? false,
     useUserinfo: c.useUserinfo ?? false,
     requiredClaims: c.requiredClaims ?? [],
+    stepUpMfa: c.stepUpMfa ?? false,
+    stepUpAcrValues: c.stepUpAcrValues ?? '',
+    stepUpAuthContext: c.stepUpAuthContext ?? '',
   };
 }
 

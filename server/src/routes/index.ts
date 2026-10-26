@@ -5,6 +5,7 @@ import {
   LOCALE_CODES,
   API_DOCS_MODES,
   PASSWORD_LOGIN_MODES,
+  STEP_UP_ACTIONS,
   OUTBOUND_POLICIES,
   ROLES,
   validateProcess,
@@ -71,6 +72,8 @@ import { currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
 import * as emergency from '../auth/emergency.js';
+import * as stepUp from '../auth/step-up.js';
+import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles, platformAccess, processAccess } from '../auth/step-up-rules.js';
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
@@ -424,6 +427,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
           `<!doctype html><html lang="${esc(lang)}"><meta charset="utf-8"><title>${esc(serverT(lang, 'ssoTest.title'))}</title><p>${esc(text)}</p><script>setTimeout(function(){window.close()},1500)</script></html>`,
         );
       }
+      if (result.kind === 'stepUp') return reply.type('text/html').send(stepUpPage(result));
       const { token, returnTo, sessionKey, linkKey } = result;
       reply.header('set-cookie', sessionCookie(token));
       // A same-site page hop (instead of a 302) so the SameSite=Strict session cookie is used right away.
@@ -438,20 +442,88 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  /**
+   * The callback of a step-up (auth/step-up.ts): no cookie, no session. On success the page – in the browser holding the
+   * session – redeems the one-time ticket with the session key, then closes (popup) or returns to the page (redirect).
+   */
+  function stepUpPage(r: sso.StepUpCallback): string {
+    const lang = resolveLocale(r.locale, getSettings().defaultLocale);
+    const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+    const js = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
+    const back = config.basePath + r.returnTo;
+    // what was confirmed and when it started (the start time is written in the browser's time zone by the script)
+    const what = r.actions.length
+      ? r.actions.map((a) => serverT(lang, `stepUp.actions.${a}` as 'stepUp.actions.createToken')).join(', ')
+      : serverT(lang, 'stepUp.actions.other');
+    const started = new Date(r.startedAt).toISOString();
+    const head =
+      // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts and an ISO time, HTML-escaped; no request data
+      `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>${esc(serverT(lang, 'stepUp.title'))}</title>` +
+      `<p>${esc(serverT(lang, 'stepUp.what', { actions: what }))}</p><p>${esc(serverT(lang, 'stepUp.scope', { count: Math.round(config.session.stepUpMs / 60_000) }))}</p><p>${esc(serverT(lang, 'stepUp.started'))} <time datetime="${esc(started)}">${esc(started.slice(11, 16))} UTC</time></p>` +
+      `<script>(function(){var t=document.querySelector('time');try{t.textContent=new Date(t.getAttribute('datetime')).toLocaleTimeString(document.documentElement.lang,{hour:'2-digit',minute:'2-digit'})}catch(e){}})()</script>`;
+    if (!r.ok) {
+      stepUp.recordStepUpFailure(r.sessionId, r.code, r.message);
+      // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts and the provider's refusal, HTML-escaped; the link is a validated app path
+      return `${head}<p>${esc(serverT(lang, 'stepUp.failed'))}</p><p>${esc(r.message)}</p>${r.popup ? '' : `<p><a href="${esc(back)}">${esc(serverT(lang, 'stepUp.back'))}</a></p>`}</html>`;
+    }
+    const ticket = stepUp.issueStepUpTicket({ sessionId: r.sessionId, userId: r.userId, method: r.method, at: r.at, provider: r.provider });
+    const url = config.basePath + '/api/auth/step-up/sso/complete';
+    return (
+      // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts HTML-escaped; values are JSON string literals with "<" escaped (js()), safe inside <script>; the return path is validated (below the base path)
+      `${head}<p id="m">${esc(serverT(lang, 'stepUp.confirming'))}</p><script>(function(){var k=null;try{k=localStorage.getItem(${js(SESSION_KEY_STORAGE)})}catch(e){}` +
+      `var h={'x-sm-client':'1','content-type':'application/json'};if(k)h['x-sm-session']=k;` +
+      `function done(ok){document.getElementById('m').textContent=ok?${js(serverT(lang, 'stepUp.done'))}:${js(serverT(lang, 'stepUp.notHere'))};` +
+      `if(${js(r.popup)}){if(ok)setTimeout(function(){window.close()},800)}else if(ok){location.replace(${js(back)})}}` +
+      `fetch(${js(url)},{method:'POST',credentials:'same-origin',headers:h,body:JSON.stringify({ticket:${js(ticket)}})}).then(function(x){done(x.ok)},function(){done(false)})})()</script></html>`
+    );
+  }
+
+  // ---------- step-up re-authentication (auth/step-up.ts): sessions only, see SESSION_ONLY_ROUTES ----------
+  app.get('/auth/step-up', async () => stepUp.stepUpStatus(stepUp.requireSession(me())));
+  // the password again: limited and counted like a sign-in
+  app.post('/auth/step-up', { bodyLimit: 16 * 1024, config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
+    const b = z.object({ password: z.string().max(1024) }).parse(req.body);
+    return stepUp.passwordStepUp(stepUp.requireSession(me()), b.password, req.ip);
+  });
+  app.delete('/auth/step-up', async () => {
+    const u = stepUp.requireSession(me());
+    stepUp.endStepUp(u);
+    return stepUp.stepUpStatus({ ...u, session: { ...u.session, stepUpAt: null, stepUpMethod: null } });
+  });
+  // a fresh sign-in at the session's provider (prompt=login, max_age=0), in a popup or this window
+  // (no secret is checked here: the provider checks the person; the ticket is 256 random bits)
+  app.post('/auth/step-up/sso', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const u = stepUp.requireSession(me());
+    if (u.session.method !== 'sso') throw new HttpError(400, 'This session was not opened with single sign-on', 'STEP_UP_METHOD', { method: u.session.method });
+    const b = z
+      .object({
+        returnTo: z.string().max(1024).optional(),
+        popup: z.boolean().default(true),
+        // what is being confirmed (from the STEP_UP_REQUIRED answers): shown on the callback page
+        actions: z.array(z.enum(STEP_UP_ACTIONS)).max(STEP_UP_ACTIONS.length).default([]),
+      })
+      .parse(req.body ?? {});
+    return sso.startStepUp({ id: u.id, sessionId: u.session.id }, sso.redirectUriFor(req), b);
+  });
+  app.post('/auth/step-up/sso/complete', { bodyLimit: 4 * 1024, config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const b = z.object({ ticket: z.string().max(100) }).parse(req.body);
+    return stepUp.redeemStepUpTicket(stepUp.requireSession(me()), b.ticket);
+  });
+
   app.get('/sso/providers', async () => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.listProviders();
   });
-  app.post('/sso/providers', async (req) => {
+  app.post('/sso/providers', { config: { stepUp: { action: 'addSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     return sso.saveProvider(req.body as never);
   });
-  app.put('/sso/providers/:id', async (req) => {
+  app.put('/sso/providers/:id', { config: { stepUp: { action: 'changeSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     sso.getProvider(params(req).id!);
     return sso.saveProvider(req.body as never, params(req).id);
   });
-  app.delete('/sso/providers/:id', async (req) => {
+  app.delete('/sso/providers/:id', { config: { stepUp: { action: 'deleteSsoProvider', who: 'manageUsers' } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage single sign-on');
     sso.deleteProvider(params(req).id!);
     return { ok: true };
@@ -509,28 +581,32 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // Master passphrase change (administrators; needs the current passphrase). rotateDataKey re-encrypts every secret.
-  app.post('/vault/passphrase', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
-    if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can change the master passphrase');
-    const b = z.object({ current: z.string().max(1024), next: z.string().max(1024), rotateDataKey: z.boolean().default(true) }).parse(req.body);
-    const wait = unlockThrottle.waitSeconds();
-    if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
-    try {
-      const r = await changeMasterPassphrase(b.current, b.next, b.rotateDataKey);
-      unlockThrottle.succeeded();
-      return { ok: true, ...r };
-    } catch (e) {
-      if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
-        const n = unlockThrottle.failed();
-        audit({
-          action: 'vault.passphrase_change_failed',
-          entityType: 'vault',
-          summary: `Master passphrase change by ${me().username} refused: wrong current passphrase (attempt ${n})`,
-          details: { ip: req.ip },
-        });
+  app.post(
+    '/vault/passphrase',
+    { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'changeVaultPassphrase', who: 'manageSettings' } } },
+    async (req) => {
+      if (!isAdmin(me())) throw new HttpError(403, 'Only administrators can change the master passphrase');
+      const b = z.object({ current: z.string().max(1024), next: z.string().max(1024), rotateDataKey: z.boolean().default(true) }).parse(req.body);
+      const wait = unlockThrottle.waitSeconds();
+      if (wait > 0) throw new HttpError(429, `Too many wrong passphrases – try again in ${wait} s`, 'TOO_MANY_ATTEMPTS');
+      try {
+        const r = await changeMasterPassphrase(b.current, b.next, b.rotateDataKey);
+        unlockThrottle.succeeded();
+        return { ok: true, ...r };
+      } catch (e) {
+        if ((e as HttpError).code === 'WRONG_PASSPHRASE') {
+          const n = unlockThrottle.failed();
+          audit({
+            action: 'vault.passphrase_change_failed',
+            entityType: 'vault',
+            summary: `Master passphrase change by ${me().username} refused: wrong current passphrase (attempt ${n})`,
+            details: { ip: req.ip },
+          });
+        }
+        throw e;
       }
-      throw e;
-    }
-  });
+    },
+  );
 
   // Public information about the vault (format, scrypt cost, checkpoint signing key) – administrators and auditors.
   app.get('/vault/info', async () => {
@@ -556,7 +632,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageUsers', 'manage users');
     return users.listUsers();
   });
-  app.post('/users', async (req) => {
+  app.post('/users', { config: { stepUp: { action: 'createUser', who: 'manageUsers', when: grantsRoles } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
       .object({
@@ -595,7 +671,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (!enabled.length) throw new HttpError(400, 'Enable a single sign-on provider first', 'SSO_PROVIDER_REQUIRED');
     throw new HttpError(400, 'Choose the single sign-on provider the account signs in with', 'SSO_PROVIDER_CHOICE_REQUIRED');
   }
-  app.put('/users/:id', async (req) => {
+  app.put('/users/:id', { config: { stepUp: { action: 'changeAccount', who: 'manageUsers', when: changesAccess } } }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage users');
     const b = z
       .object({
@@ -620,10 +696,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return Object.keys(patch).length || !provider ? users.updateUser(id, patch) : users.getUser(id);
     });
   });
-  app.post('/users/:id/reset-password', { config: { rateLimit: ROUTE_LIMITS.credential } }, async (req) => {
-    requireCapability(me(), 'manageUsers', 'manage users');
-    return { temporaryPassword: users.resetPassword(params(req).id!) };
-  });
+  // a temporary password lets the administrator sign in as that person
+  app.post(
+    '/users/:id/reset-password',
+    { config: { rateLimit: ROUTE_LIMITS.credential, stepUp: { action: 'resetPassword', who: 'manageUsers' } } },
+    async (req) => {
+      requireCapability(me(), 'manageUsers', 'manage users');
+      return { temporaryPassword: users.resetPassword(params(req).id!) };
+    },
+  );
   app.get('/teams', async () => {
     requireCapability(me(), 'manageUsers', 'view teams');
     return users.listTeams();
@@ -633,11 +714,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     description: z.string().max(2000).optional(),
     members: z.array(z.string().max(64)).max(5000).optional(),
   });
-  app.post('/teams', async (req) => {
+  // teams are subjects of access lists: a new member gets the team's rights (auth/step-up-rules.ts)
+  const teamStepUp = { stepUp: { action: 'changeTeamMembers' as const, who: 'manageUsers' as const, when: changesTeamMembers } };
+  app.post('/teams', { config: teamStepUp }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body));
   });
-  app.put('/teams/:id', async (req) => {
+  app.put('/teams/:id', { config: teamStepUp }, async (req) => {
     requireCapability(me(), 'manageUsers', 'manage teams');
     return users.saveTeam(teamBody.parse(req.body), params(req).id);
   });
@@ -665,7 +748,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'manageSettings', 'view settings');
     return getSettings();
   });
-  app.put('/settings', async (req) => {
+  app.put('/settings', { config: { stepUp: { action: 'changeSignInSettings', who: 'manageSettings', when: changesSignInOrOutbound } } }, async (req) => {
     requireCapability(me(), 'manageSettings', 'change settings');
     const b = z
       .object({
@@ -769,7 +852,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requirePlatform(params(req).id!, 'manage', 'change this platform');
     return platforms.updatePlatform(params(req).id!, platformBody.partial().parse(req.body));
   });
-  app.put('/platforms/:id/access', async (req) => {
+  app.put('/platforms/:id/access', { config: { stepUp: { action: 'grantAccess', ...platformAccess } } }, async (req) => {
     requirePlatform(params(req).id!, 'manage', 'change access to this platform');
     return platforms.setPlatformAccess(params(req).id!, z.object({ acl: z.array(z.any()).max(500) }).parse(req.body).acl);
   });
@@ -947,7 +1030,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const b = z.object({ definition: z.any(), comment: z.string().max(2000).optional() }).parse(req.body);
     return processes.saveProcess(params(req).id!, b.definition, b.comment ?? '');
   });
-  app.put('/processes/:id/access', async (req) => {
+  app.put('/processes/:id/access', { config: { stepUp: { action: 'grantAccess', ...processAccess } } }, async (req) => {
     requireProcess(params(req).id!, 'manage', 'change access to this process');
     const b = z.object({ acl: z.array(z.any()).max(500), owner: z.string().max(64).nullable().optional() }).parse(req.body);
     if (b.owner && !users.findUserByName(b.owner)) throw new HttpError(400, `Unknown user "${b.owner}"`);
@@ -1125,7 +1208,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireCapability(me(), 'viewAudit', 'view the audit anchoring');
     return anchoringStatus();
   });
-  app.put('/audit/anchoring', async (req) => {
+  // where the signed checkpoints go (the evidence that the log was not changed)
+  app.put('/audit/anchoring', { config: { stepUp: { action: 'changeAuditAnchoring', who: 'manageSettings' } } }, async (req) => {
     requireCapability(me(), 'manageSettings', 'change the audit anchoring');
     const b = z
       .object({ emailRecipients: z.array(z.string().max(200)).max(20), emailIntervalHours: z.number().int().min(1).max(168).optional() })
@@ -1153,7 +1237,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.type('application/json').send(fs.readFileSync(anchorFile(), 'utf8'));
   });
 
-  app.get('/audit/export', { config: { rateLimit: ROUTE_LIMITS.heavy } }, async (req, reply) => {
+  // the whole audit trail leaves Steward (like an evidence pack)
+  app.get('/audit/export', { config: { rateLimit: ROUTE_LIMITS.heavy, stepUp: { action: 'exportAuditLog', who: 'viewAudit' } } }, async (req, reply) => {
     requireCapability(me(), 'viewAudit', 'export the audit log');
     const format = (req.query as { format?: string }).format ?? 'jsonl';
     if (!['jsonl', 'csv', 'json'].includes(format)) throw new HttpError(400, 'format: jsonl, csv or json');

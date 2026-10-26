@@ -6,6 +6,7 @@ import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { getUser, updateProfile } from '../auth/users.js';
 import { createToken, listTokens, revokeToken } from '../auth/tokens.js';
+import { changesNotificationDelivery } from '../auth/step-up-rules.js';
 import { listInApp, markAllRead, markRead } from '../notifications/store.js';
 import { getNotificationSettings, saveNotificationSettings } from '../notifications/settings.js';
 import { initNotifications, sendTest } from '../notifications/service.js';
@@ -84,7 +85,8 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
 
   // ---------- API tokens ----------
   app.get('/me/tokens', async () => listTokens(me().id));
-  app.post('/me/tokens', async (req) => {
+  // a token outlives the session: creating one needs a recent confirmation (auth/step-up.ts)
+  app.post('/me/tokens', { config: { stepUp: { action: 'createToken' } } }, async (req) => {
     if (viaToken(req)) throw new HttpError(403, 'API tokens cannot create other tokens – sign in to the web UI');
     // emergency access is for repairing sign-in, not for lasting access that outlives its session
     if (me().emergency) throw new HttpError(403, 'API tokens cannot be created in an emergency access session', 'EMERGENCY_NO_TOKENS');
@@ -119,10 +121,14 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     admin('change notification settings');
     return getNotificationSettings();
   });
-  app.put('/settings/notifications', async (req) => {
-    admin('change notification settings');
-    return saveNotificationSettings(notificationSettingsBody.parse(req.body) as NotificationSettingsInput);
-  });
+  app.put(
+    '/settings/notifications',
+    { config: { stepUp: { action: 'changeNotificationDelivery', who: 'manageSettings', when: changesNotificationDelivery } } },
+    async (req) => {
+      admin('change notification settings');
+      return saveNotificationSettings(notificationSettingsBody.parse(req.body) as NotificationSettingsInput);
+    },
+  );
   app.post('/settings/notifications/test', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const u = admin('test notification channels');
     const b = z.object({ channel: z.enum(['email', 'teams', 'webhook']), to: z.string().max(254).optional() }).parse(req.body);

@@ -39,4 +39,13 @@ export const SIGN_IN_MIGRATIONS: NamedMigration[] = [
       CREATE INDEX users_external_sub ON users(external_sub);
     `,
   },
+  {
+    // Step-up re-authentication (#14): when and how this session last confirmed it is its owner (the password again, a
+    // fresh single sign-on, or the sign-in itself). Sensitive actions need a confirmation within SM_STEP_UP_MINUTES.
+    name: 'signin-003-step-up',
+    sql: `
+      ALTER TABLE sessions ADD COLUMN step_up_at TEXT;
+      ALTER TABLE sessions ADD COLUMN step_up_method TEXT;
+    `,
+  },
 ];

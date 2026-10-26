@@ -103,6 +103,8 @@ export default async function globalSetup(_config: FullConfig): Promise<() => Pr
       SM_HOST: '127.0.0.1',
       SM_DEMO: '1',
       SM_MASTER_PASSPHRASE: MASTER_PASSPHRASE,
+      // step-up re-authentication: the stored sessions are confirmed by the fixtures (support/fixtures.ts) – for the longest window
+      SM_STEP_UP_MINUTES: '15',
       SM_LOG_LEVEL: process.env.SM_LOG_LEVEL ?? 'info',
       // never reach out to a real collector or proxy from the tests
       OTEL_EXPORTER_OTLP_ENDPOINT: '',

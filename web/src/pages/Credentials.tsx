@@ -42,7 +42,7 @@ import {
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Backlink, Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
-import { api, apiUrl, del, get, notifyError, notifyOk, post } from '../api';
+import { api, apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
 import { CredentialEditor } from '../components/credentials/CredentialEditor';
@@ -283,6 +283,7 @@ export function CredentialsPage() {
               variant="default"
               component="a"
               href={apiUrl(`/credentials/export.csv${qs ? `?${qs}` : ''}`)}
+              onClick={confirmedDownload('exportCredentials')}
               leftSection={<IconDownload size={14} />}
             >
               {t('exportCsv')}

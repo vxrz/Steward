@@ -134,6 +134,12 @@ export interface SsoProvider {
   useUserinfo: boolean;
   /** Sign-in only when each of these claims has one of the values (e.g. hd for Google Workspace, tid for Entra ID) */
   requiredClaims: SsoRequiredClaim[];
+  /** Step-up (confirming a sensitive action): require multi-factor authentication – amr contains "mfa", or the acr/acrs below */
+  stepUpMfa: boolean;
+  /** Step-up with MFA: acr_values asked for (space-separated); the ID token's acr must be one of them. Empty: amr is checked */
+  stepUpAcrValues: string;
+  /** Step-up with MFA at Entra ID: a Conditional Access authentication context (c1–c99) asked for; the token's acrs must contain it */
+  stepUpAuthContext: string;
   /** What to look at in the saved configuration (computed, read-only) */
   warnings: SsoConfigWarning[];
   enabled: boolean;
@@ -158,7 +164,10 @@ type SsoProviderLaterFields =
   | 'linkExisting'
   | 'emailVerifiedByProvider'
   | 'useUserinfo'
-  | 'requiredClaims';
+  | 'requiredClaims'
+  | 'stepUpMfa'
+  | 'stepUpAcrValues'
+  | 'stepUpAuthContext';
 
 export type SsoProviderInput = Omit<SsoProvider, 'id' | 'hasClientSecret' | 'createdAt' | 'updatedAt' | 'warnings' | SsoProviderLaterFields> &
   Partial<Pick<SsoProvider, SsoProviderLaterFields>> & {
@@ -232,6 +241,65 @@ export interface AuthStatus {
   demo: boolean;
   version: string;
   browserAvailable: boolean;
+}
+
+/**
+ * Step-up re-authentication (confirming a sensitive action, docs/SECURITY-HARDENING.md#step-up-re-authentication):
+ * how this session confirms – the password (password sessions), a fresh sign-in at the session's provider (single
+ * sign-on sessions), not needed (emergency access) or not possible (the provider is gone or disabled).
+ */
+export type StepUpMethod = 'password' | 'sso' | 'emergency' | 'none';
+
+/** What a step-up confirms (each sensitive route names its action; shown in the dialog and on the callback page). */
+export const STEP_UP_ACTIONS = [
+  'createToken',
+  'changeVaultPassphrase',
+  'createUser',
+  'changeAccount',
+  'resetPassword',
+  'addSsoProvider',
+  'changeSsoProvider',
+  'deleteSsoProvider',
+  'changeSignInSettings',
+  'changeNotificationDelivery',
+  'changeTeamMembers',
+  'grantAccess',
+  'exportEvidencePack',
+  'exportAuditLog',
+  'exportCredentials',
+  'changeAuditAnchoring',
+  'exportMigration',
+  'applyMigration',
+] as const;
+export type StepUpAction = (typeof STEP_UP_ACTIONS)[number];
+
+/** The 403 STEP_UP_REQUIRED answer of a sensitive route (and GET /api/auth/step-up). */
+export interface StepUpInfo {
+  method: StepUpMethod;
+  /** Single sign-on sessions: the provider to confirm with */
+  provider?: { id: string; displayName: string };
+  /** The provider asks for multi-factor authentication at step-up */
+  mfa?: boolean;
+  /** How long a confirmation lasts (SM_STEP_UP_MINUTES) */
+  windowMinutes: number;
+  /** The action that asked (403 STEP_UP_REQUIRED) */
+  action?: StepUpAction;
+}
+
+/** GET /api/auth/step-up: the session's confirmation state. */
+export interface StepUpStatus extends StepUpInfo {
+  /** Confirmed until (ISO), or null */
+  until: string | null;
+  /** How it was confirmed: password, sso, sso+mfa or emergency */
+  confirmedWith: string | null;
+  /** The last refused single sign-on confirmation of this session (shown in the dialog) */
+  failure?: { code: string; message: string; at: string };
+}
+
+/** POST /api/auth/step-up/sso: open this URL (popup or the same window). */
+export interface StepUpSsoStart {
+  authorizationUrl: string;
+  expiresAt: string;
 }
 
 export interface Subject {

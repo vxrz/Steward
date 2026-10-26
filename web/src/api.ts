@@ -1,5 +1,5 @@
 import { notifications } from '@mantine/notifications';
-import type { ErrorParams } from '@sm/shared';
+import type { ErrorParams, StepUpAction, StepUpInfo, StepUpStatus } from '@sm/shared';
 import i18n from './i18n';
 import { errorText } from './i18n/errors';
 import { BASE_PATH } from './basePath';
@@ -66,7 +66,45 @@ export function apiUrl(path: string): string {
   return `${BASE_PATH}/api${path}${path.includes('?') ? '&' : '?'}_sk=${encodeURIComponent(key)}`;
 }
 
-export async function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+/**
+ * Step-up re-authentication: a sensitive action answers 403 STEP_UP_REQUIRED until the person confirms it is them
+ * (components/security/StepUpDialog.tsx). The handler asks and resolves true once confirmed; the request is then sent
+ * again, once – the browser repeats its own request, the server never replays one. Requests that ask while the dialog
+ * is open join it: the dialog lists every action it confirms.
+ */
+let onStepUp: ((info: StepUpInfo) => Promise<boolean>) | undefined;
+export function setStepUpHandler(fn: ((info: StepUpInfo) => Promise<boolean>) | undefined): void {
+  onStepUp = fn;
+}
+
+/**
+ * Before a sensitive download (a link, which cannot show the dialog itself): asks for the confirmation when the session
+ * has none. True when the download may start.
+ */
+export async function confirmFirst(action: StepUpAction): Promise<boolean> {
+  const s = await get<StepUpStatus>('/auth/step-up');
+  if (s.until) return true;
+  return onStepUp ? onStepUp({ ...s, action }) : false;
+}
+
+/** onClick of a sensitive download link: confirms first (step-up), then follows the link. */
+export function confirmedDownload(action: StepUpAction) {
+  return (e: { preventDefault: () => void; currentTarget: { getAttribute: (name: string) => string | null } }) => {
+    e.preventDefault();
+    const href = e.currentTarget.getAttribute('href');
+    void confirmFirst(action)
+      .then((ok) => {
+        if (ok && href) window.location.assign(href);
+      })
+      .catch((err: unknown) => notifyError(err));
+  };
+}
+
+export function api<T = unknown>(method: string, url: string, body?: unknown): Promise<T> {
+  return request<T>(method, url, body, false);
+}
+
+async function request<T>(method: string, url: string, body: unknown, retried: boolean): Promise<T> {
   const isForm = body instanceof FormData;
   const res = await fetch(BASE_PATH + '/api' + url, {
     method,
@@ -90,7 +128,11 @@ export async function api<T = unknown>(method: string, url: string, body?: unkno
     }
   }
   if (!res.ok) {
-    const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[] } | null;
+    const d = data as { error?: string; code?: string; params?: ErrorParams; issues?: { path: string; message: string }[]; stepUp?: StepUpInfo } | null;
+    if (res.status === 403 && d?.code === 'STEP_UP_REQUIRED' && d.stepUp && onStepUp && !retried) {
+      if (await onStepUp(d.stepUp)) return request<T>(method, url, body, true);
+      throw new ApiError(403, i18n.t('errors:codes.STEP_UP_CANCELLED'), undefined, 'STEP_UP_CANCELLED');
+    }
     if (!url.startsWith('/auth/') && (res.status === 401 || res.status === 423 || d?.code === 'PASSWORD_CHANGE_REQUIRED')) onAuthChange?.();
     throw new ApiError(res.status, d?.error ?? i18n.t('errors:http', { status: res.status }), d?.issues, d?.code, d?.params);
   }

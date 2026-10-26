@@ -83,6 +83,12 @@ const EXPECT: Record<string, Access> = {
   'POST /api/auth/logout': ALL,
   'GET /api/auth/me': ALL,
   'POST /api/auth/password': ALL,
+  // step-up re-authentication (auth/step-up.ts): every signed-in session confirms its own owner
+  'GET /api/auth/step-up': ALL,
+  'POST /api/auth/step-up': ALL,
+  'DELETE /api/auth/step-up': ALL,
+  'POST /api/auth/step-up/sso': ALL,
+  'POST /api/auth/step-up/sso/complete': ALL,
   'GET /api/about': ALL,
   'GET /api/system/status': ADMIN_AUDITOR,
   'GET /api/system/update-notice': ADMIN,
@@ -541,6 +547,11 @@ const SESSION_ONLY = [
   'DELETE /api/sso/providers/:id',
   'POST /api/sso/providers/:id/test-sign-in',
   'POST /api/sso/test-sign-ins/:id',
+  'GET /api/auth/step-up',
+  'POST /api/auth/step-up',
+  'DELETE /api/auth/step-up',
+  'POST /api/auth/step-up/sso',
+  'POST /api/auth/step-up/sso/complete',
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',
@@ -558,6 +569,45 @@ const SESSION_ONLY = [
   'GET /api/migration/imports/:id',
   'GET /api/migration/imports/:id/history',
 ];
+
+/**
+ * Sensitive routes that need a recent confirmation of the session's owner (step-up, auth/step-up.ts): always, or – for
+ * routes where only some changes are sensitive – with a body that makes the request a sensitive one (`sensitive`) and
+ * one that does not (`harmless`, never STEP_UP_REQUIRED). A route that loses its step-up fails this test.
+ */
+const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown }> = {
+  'POST /api/me/tokens': 'always',
+  'POST /api/vault/passphrase': 'always',
+  'POST /api/users': { sensitive: { username: 'matrix-new', roles: ['viewer'] }, harmless: { username: '!' } },
+  'PUT /api/users/:id': { sensitive: { roles: ['admin'] }, harmless: {} },
+  'POST /api/users/:id/reset-password': 'always',
+  'POST /api/sso/providers': 'always',
+  'PUT /api/sso/providers/:id': 'always',
+  'DELETE /api/sso/providers/:id': 'always',
+  'PUT /api/settings': { sensitive: { outboundAllowList: ['matrix.example'] }, harmless: {} },
+  'PUT /api/settings/notifications': { sensitive: { allowedEmailDomains: ['matrix.example'] }, harmless: { allowedEmailDomains: ['example.com'] } },
+  'POST /api/teams': { sensitive: { name: 'Matrix step-up', members: ['vera'] }, harmless: { name: '!' } },
+  'PUT /api/teams/:id': { sensitive: { name: 'Matrix team', members: ['vera'] }, harmless: { name: 'Matrix team', members: [] } },
+  // (harmless: no list, so nobody gains a right – refused by the route's validation, the fixture stays)
+  'PUT /api/platforms/:id/access': {
+    sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
+    harmless: { acl: 'not a list' },
+  },
+  'PUT /api/processes/:id/access': {
+    sensitive: { acl: [{ subject: 'user:vera', permissions: ['manage'] }] },
+    harmless: { acl: 'not a list' },
+  },
+  'PUT /api/monitors/:id/access': {
+    sensitive: { acl: [{ subject: 'team:matrix team', permissions: ['manage'] }] },
+    harmless: { acl: 'not a list' },
+  },
+  'POST /api/compliance/evidence-packs': 'always',
+  'GET /api/audit/export': 'always',
+  'PUT /api/audit/anchoring': 'always',
+  'GET /api/credentials/export.csv': 'always',
+  'POST /api/migration/export': 'always',
+  'POST /api/migration/imports/staged/:id/apply': 'always',
+};
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
@@ -1045,6 +1095,41 @@ describe('route permission matrix', () => {
     }
     expect(problems).toEqual([]);
   }, 120_000);
+
+  it('asks for a step-up on every sensitive route (sessions) and refuses API tokens there', async () => {
+    const { stepUpRoutes } = await import('../src/app.js');
+    expect(stepUpRoutes(s.app), 'routes with a step-up rule (config.stepUp) – see STEP_UP').toEqual(
+      Object.fromEntries(Object.entries(STEP_UP).map(([k, v]) => [k, v === 'always' ? 'always' : 'rule'])),
+    );
+    // a session of its own that is not confirmed (a sign-in counts as a confirmation: ended here)
+    const cookie = await loginCookie(s.base, 'admin', 'Admin-password-1');
+    const ended = await fetch(`${s.base}/api/auth/step-up`, { method: 'DELETE', headers: { 'x-sm-client': '1', ...authHeaders(cookie) } });
+    expect(ended.status).toBe(200);
+    const send = async (headers: Record<string, string>, k: string, body: unknown) => {
+      const [method, url] = k.split(' ') as [string, string];
+      const send = method !== 'DELETE' && method !== 'GET';
+      const res = await fetch(s.base + fill(url), {
+        method,
+        headers: { 'x-sm-client': '1', ...headers, ...(send ? { 'content-type': 'application/json' } : {}) },
+        body: send ? JSON.stringify(body ?? {}) : undefined,
+      });
+      const text = await res.text();
+      return { status: res.status, code: (text.startsWith('{') ? (JSON.parse(text) as { code?: string }).code : undefined) ?? '' };
+    };
+    const problems: string[] = [];
+    for (const [k, rule] of Object.entries(STEP_UP)) {
+      const body = rule === 'always' ? (bodies()[k] ?? {}) : rule.sensitive;
+      const asSession = await send(authHeaders(cookie), k, body);
+      if (asSession.status !== 403 || asSession.code !== 'STEP_UP_REQUIRED') problems.push(`${k} unconfirmed session: ${asSession.status} ${asSession.code}`);
+      const asToken = await send({ authorization: `Bearer ${fullAdminToken}` }, k, body);
+      if (asToken.status !== 403) problems.push(`${k} full API token: ${asToken.status} ${asToken.code}`);
+      if (rule !== 'always') {
+        const harmless = await send(authHeaders(cookie), k, rule.harmless);
+        if (harmless.code === 'STEP_UP_REQUIRED') problems.push(`${k} harmless change: asks for a step-up`);
+      }
+    }
+    expect(problems).toEqual([]);
+  });
 
   it('keeps identity, vault and sign-in settings to signed-in sessions (no API tokens)', async () => {
     const b = bodies();

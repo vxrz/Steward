@@ -133,7 +133,17 @@ describe('server error codes', () => {
   it('the English texts do not drift into keys nobody throws', () => {
     const all = new Set([...throws.flatMap((t) => t.codes), ...otherCodes.map((c) => c.code)]);
     // codes sent by hand-written replies or other services (auth routes, SSO) are listed here
-    const external = new Set(['PASSWORD_CHANGE_REQUIRED', 'NOT_SIGNED_IN', 'VAULT_LOCKED', 'SSO_VAULT_LOCKED']);
+    const external = new Set([
+      'PASSWORD_CHANGE_REQUIRED',
+      'NOT_SIGNED_IN',
+      'VAULT_LOCKED',
+      'SSO_VAULT_LOCKED',
+      // single sign-on step-up refusals the dialog shows (auth/sso.ts finishStepUp), and the web app's own cancel
+      'STEP_UP_OTHER_IDENTITY',
+      'STEP_UP_REFUSED',
+      'STEP_UP_SSO_FAILED',
+      'STEP_UP_CANCELLED',
+    ]);
     const unused = Object.keys(en)
       .map((k) => k.replace(/_(?:[a-z][A-Za-z0-9-]*|right_[a-z]+)$/, ''))
       .map((k) => k.replace(/_(?:one|other)$/, ''))
