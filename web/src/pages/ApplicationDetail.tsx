@@ -15,6 +15,7 @@ import { fmtDate, fmtDay } from '../format';
 import { CriticalityBadge } from './Services';
 import { ApplicationFormModal } from './Applications';
 import { RatingPanel } from '../components/catalogue/cia';
+import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 
 export function ApplicationDetailPage() {
@@ -101,6 +102,7 @@ export function ApplicationDetailPage() {
               )}
             </Stack>
             <ApplicationDocuments documents={a.documents} />
+            <DutiesPanel applicationId={a.id} />
             <LinksPanel
               links={a.links}
               backlinks={a.backlinks}
