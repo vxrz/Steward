@@ -510,7 +510,7 @@
     "STEP_UP_REFUSED": "Your sign-in at the provider was refused – ask an administrator.",
     "STEP_UP_SSO_FAILED": "The sign-in at the provider failed – try again.",
     "SESSION_REQUIRED_stepUp": "This action needs a signed-in person who confirms it in the browser – API tokens cannot do it.",
-    "SMTP_PASSWORD_AGAIN": "The SMTP server, port or user changed – enter the SMTP password again."
+    "SMTP_PASSWORD_AGAIN": "The SMTP server, port, user or TLS changed – enter the SMTP password again."
   },
   "boundary": {
     "title": "Something went wrong on this page",

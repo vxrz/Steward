@@ -156,10 +156,14 @@ export function saveNotificationSettings(input: NotificationSettingsInput): Noti
   // The stored SMTP password belongs to the server and account it was entered for: it never goes to another host, port
   // or user. A change of those needs the password again (or none, without a user).
   const before = storedConfig().email;
+  // (turning TLS off counts too: the password would then cross the network in clear text)
   const moved =
-    before.host.toLowerCase() !== next.email.host.toLowerCase() || before.port !== next.email.port || (before.user ?? '') !== (next.email.user ?? '');
+    before.host.toLowerCase() !== next.email.host.toLowerCase() ||
+    before.port !== next.email.port ||
+    (before.user ?? '') !== (next.email.user ?? '') ||
+    (before.secure && !next.email.secure);
   if (moved && secrets.smtpPassword && input.email.password === undefined) {
-    if (next.email.user) throw new HttpError(400, 'The SMTP server, port or user changed – enter the SMTP password again', 'SMTP_PASSWORD_AGAIN');
+    if (next.email.user) throw new HttpError(400, 'The SMTP server, port, user or TLS changed – enter the SMTP password again', 'SMTP_PASSWORD_AGAIN');
     secrets.smtpPassword = undefined;
     changedSecrets.push('SMTP password (removed with the server)');
   }

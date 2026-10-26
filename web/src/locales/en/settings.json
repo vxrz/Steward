@@ -148,7 +148,7 @@
     "allowedDomains": "Allowed e-mail domains for addresses outside Steward",
     "allowedDomainsHint": "Credential owners and report recipients that are not Steward users only get e-mails at these domains, e.g. corp.example or *.corp.example (all subdomains). Empty: the domains of the Steward users’ own addresses (used by an administrator, a single sign-on account or at least two users).",
     "allowedDomainsPlaceholder": "corp.example, *.corp.example",
-    "passwordAgain": "The server, port or user changed: enter the password again (the stored one is never sent to another server)."
+    "passwordAgain": "The server, port, user or TLS changed: enter the password again (the stored one is never sent to another server or without TLS)."
   },
   "publicApi": {
     "title": "REST API",

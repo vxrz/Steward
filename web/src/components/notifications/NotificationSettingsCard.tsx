@@ -242,13 +242,14 @@ export function NotificationSettingsCard() {
           <TextInput label={t('notify.user')} value={d.email.user ?? ''} onChange={(e) => setEmail({ user: e.currentTarget.value })} autoComplete="off" />
           <SecretInput
             label={t('notify.password')}
-            // the stored password stays with its server: another host, port or user needs it again (the server refuses otherwise)
+            // the stored password stays with its server: another host, port, user or TLS off needs it again (the server refuses otherwise)
             description={
               stored.email.hasPassword &&
               smtpPassword === undefined &&
               (d.email.host.trim().toLowerCase() !== stored.email.host.toLowerCase() ||
                 d.email.port !== stored.email.port ||
-                (d.email.user ?? '').trim() !== (stored.email.user ?? ''))
+                (d.email.user ?? '').trim() !== (stored.email.user ?? '') ||
+                (stored.email.secure && !d.email.secure))
                 ? t('notify.passwordAgain')
                 : undefined
             }
