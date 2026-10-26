@@ -55,6 +55,7 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await ask.getByRole('button', { name: 'Ask' }).click();
   await expect(ask).toBeHidden();
   await expect(card).toContainText('1 exception waits for a second person');
+  await expect(card.getByTestId('planned-skips')).toHaveText('1 exception planned ahead');
 
   // the duty page: dana cannot decide her own request
   await card.getByRole('link', { name: dutyName }).click();

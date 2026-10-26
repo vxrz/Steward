@@ -83,7 +83,7 @@ While a period is open, failed runs are shown as "1 failed run" next to _Due_ �
 Sometimes a duty cannot or need not be done in a period – the system is being replaced, the restore test is replaced by a full disaster recovery exercise. Ask for an exception:
 
 1. On the service page, choose the calendar icon of the duty (or _Ask for an exception_ on the duty page).
-2. Choose the period – the current one, the last one while it is in its grace period, or one of the next ones – and write the reason.
+2. Choose the period – the current one, the last one while it is in its grace period, or one of the next three – and write the reason. Exceptions reach at most three periods ahead; the duty shows how many are planned ahead (_N exceptions planned ahead_).
 3. _Ask_. The exception waits for a second person.
 
 A **second person** approves or rejects it on the duty page: an administrator, a designer (who may edit every service), or one of the duty's or the service's owners **as they were when the exception was asked for** – adding an owner afterwards does not let that person decide it, so the requester cannot pick the second person. Never the person who asked (former names of an imported account count as the same person). The owners as of the request (else the administrators) get a notification, _Duty exception asked for_. Approving or rejecting is a four-eyes decision, like approving a record; it needs no step-up, because it changes no rights and both people and the reason are in the audit log. The requester can withdraw an exception while it waits. A period that has ended, or that is done already, takes no exception.

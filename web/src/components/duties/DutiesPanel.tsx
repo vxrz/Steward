@@ -66,6 +66,11 @@ export function DutiesPanel({
                         {t(`intervals.${d.interval}`)}
                         {d.graceDays ? ` ${t('graceShort', { count: d.graceDays })}` : ''}
                       </Badge>
+                      {d.plannedSkips > 0 && (
+                        <Badge size="xs" color="orange" variant="light" tt="none" data-testid="planned-skips">
+                          {t('plannedSkips', { count: d.plannedSkips })}
+                        </Badge>
+                      )}
                       {d.pendingSkips > 0 && (
                         <Badge size="xs" color="violet" variant="light" tt="none">
                           {t('pendingSkips', { count: d.pendingSkips })}

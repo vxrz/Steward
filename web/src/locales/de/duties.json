@@ -121,5 +121,7 @@
     "changed": "vorzeitig beendet: die Pflicht wurde geändert",
     "archived": "vorzeitig beendet: die Pflicht wurde archiviert"
   },
-  "runVersion": "Prozessversion {{version}}"
+  "runVersion": "Prozessversion {{version}}",
+  "plannedSkips_one": "{{count}} Ausnahme im Voraus geplant",
+  "plannedSkips_other": "{{count}} Ausnahmen im Voraus geplant"
 }

@@ -87,6 +87,7 @@ export const DutyEntry = z.object({
   current: DutyPeriodEntry.nullable().describe('The period running now (null for archived duties)'),
   previous: DutyPeriodEntry.nullable().describe('The period before'),
   pendingSkips: z.number().int(),
+  plannedSkips: z.number().int().describe('Exceptions (waiting or approved) for periods that have not started yet; at most the next 3 periods'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),

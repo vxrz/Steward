@@ -25,7 +25,7 @@ import { canEditService, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
 import { evaluateDuty, type DutyRow, type Evaluated } from './evaluate.js';
 import { closeEnded, storeInactiveGap } from './store.js';
-import { addLocalDays, instanceTimeZone, periodOfKey } from './periods.js';
+import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } from './periods.js';
 
 /**
  * Service duties (#85): CRUD, the period view of a duty, exceptions with four-eyes, and the figures for the start
@@ -37,8 +37,6 @@ import { addLocalDays, instanceTimeZone, periodOfKey } from './periods.js';
  * (former names count as the same person) – approves or rejects it. Names of processes the reader may not view are
  * left out (the status stays visible: it belongs to the service).
  */
-
-const DAY = 86400000;
 
 const subject = z
   .string()
@@ -285,6 +283,7 @@ function build(d: DutyRow, s: ServiceRef, c: ViewCtx, appName: string | null): B
       current: cur ? toPeriod(cur, d, c, skipFor(cur.period.key)) : null,
       previous: before ? toPeriod(before, d, c, skipFor(before.period.key)) : null,
       pendingSkips: skipRows.filter((x) => x.status === 'pending').length,
+      plannedSkips: skipRows.filter((x) => (x.status === 'pending' || x.status === 'approved') && Date.parse(x.period_start) > c.now).length,
       createdAt: d.created_at,
       createdBy: d.created_by,
       updatedAt: d.updated_at,
@@ -538,8 +537,11 @@ export function requestSkip(dutyId: string, input: z.infer<typeof skipInput>, no
   const { p, e } = periodState(d, s, input.periodKey, now);
   if (e?.closed || e?.final || (!e && p.end <= now)) throw new HttpError(409, `The period ${p.key} is closed`, 'DUTY_PERIOD_CLOSED', { key: p.key });
   if (e && (e.status === 'done' || e.status === 'late')) throw new HttpError(409, `The duty is done for ${p.key}`, 'DUTY_PERIOD_DONE', { key: p.key });
-  if (p.start > now + DUTY_LIMITS.skipAheadDays * DAY)
-    throw new HttpError(400, `The period ${p.key} is too far ahead`, 'DUTY_PERIOD_TOO_FAR', { key: p.key, days: DUTY_LIMITS.skipAheadDays });
+  // the current period and the next few at most: no long queue of approved exceptions
+  let limit = periodAt(d.interval_kind, now, instanceTimeZone());
+  for (let i = 0; i < DUTY_LIMITS.skipAheadPeriods; i++) limit = nextPeriod(d.interval_kind, limit, instanceTimeZone());
+  if (p.start > limit.start)
+    throw new HttpError(400, `The period ${p.key} is too far ahead`, 'DUTY_PERIOD_TOO_FAR', { key: p.key, periods: DUTY_LIMITS.skipAheadPeriods });
   if (db().get("SELECT 1 FROM duty_skips WHERE duty_id = ? AND period_key = ? AND status IN ('pending', 'approved')", dutyId, p.key))
     throw new HttpError(409, `There is an exception for ${p.key} already`, 'DUTY_SKIP_EXISTS', { key: p.key });
   const skipId = newId('dsk_');

@@ -570,7 +570,7 @@
     "DUTY_PERIOD_UNKNOWN": "“{{key}}” is not a period of this duty.",
     "DUTY_PERIOD_CLOSED": "The period {{key}} has ended. Its result is stored and no longer changes.",
     "DUTY_PERIOD_DONE": "The duty is done for {{key}} – no exception needed.",
-    "DUTY_PERIOD_TOO_FAR": "The period {{key}} is too far ahead. Plan exceptions at most {{days}} days ahead.",
+    "DUTY_PERIOD_TOO_FAR": "“{{key}}” is too far ahead. Exceptions reach at most {{periods}} periods after the current one.",
     "DUTY_SKIP_EXISTS": "There is an exception for {{key}} already.",
     "DUTY_SKIP_NOT_FOUND": "Exception {{id}} not found.",
     "DUTY_SKIP_DECIDED": "The exception was decided already.",

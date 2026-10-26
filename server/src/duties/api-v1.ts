@@ -64,6 +64,7 @@ const map = (d: DutySummary) => ({
   current: d.current ? mapPeriod(d.current) : null,
   previous: d.previous ? mapPeriod(d.previous) : null,
   pendingSkips: d.pendingSkips,
+  plannedSkips: d.plannedSkips,
   createdAt: d.createdAt,
   createdBy: d.createdBy,
   updatedAt: d.updatedAt,

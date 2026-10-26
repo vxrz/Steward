@@ -121,5 +121,7 @@
     "changed": "closed early: the duty changed",
     "archived": "closed early: the duty was archived"
   },
-  "runVersion": "Process version {{version}}"
+  "runVersion": "Process version {{version}}",
+  "plannedSkips_one": "{{count}} exception planned ahead",
+  "plannedSkips_other": "{{count}} exceptions planned ahead"
 }

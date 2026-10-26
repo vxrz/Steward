@@ -33,8 +33,8 @@ export const DUTY_LIMITS = {
   /** Reminder this many days before the period ends (0: none) */
   remindDays: 90,
   reason: 2000,
-  /** Skips can be planned for periods that start within this many days */
-  skipAheadDays: 400,
+  /** Skips can be planned for the current period and at most this many periods after it */
+  skipAheadPeriods: 3,
 } as const;
 
 /** The key of a period: 2026-W44, 2026-10, 2026-Q4, 2026-H2, 2026. */
@@ -135,6 +135,8 @@ export interface DutySummary {
   previous: DutyPeriod | null;
   /** Skips waiting for a second person */
   pendingSkips: number;
+  /** Exceptions (waiting or approved) for periods that have not started yet */
+  plannedSkips: number;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

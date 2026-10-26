@@ -542,6 +542,18 @@ describe('exceptions (skipped for this period)', () => {
     expect(rejected.skips[0]).toMatchObject({ status: 'rejected', decidedBy: 'adam' });
   });
 
+  it('reach at most three periods ahead, and the duty shows how many are planned', async () => {
+    const svc = await service();
+    const d = await dana('POST', '/duties', { serviceId: svc.id, name: 'Weekly check', processId: freshProc, interval: 'weekly', level: 'mandatory' });
+    let p = periods.periodAt('weekly', Date.now(), TZ);
+    const next: string[] = [];
+    for (let i = 0; i < 4; i++) next.push((p = periods.nextPeriod('weekly', p, TZ)).key);
+    const third = await dana('POST', `/duties/${d.id}/skips`, { periodKey: next[2], reason: 'Plant shutdown' });
+    expect(third).toMatchObject({ plannedSkips: 1, pendingSkips: 1 });
+    expect(await code(dana('POST', `/duties/${d.id}/skips`, { periodKey: next[3], reason: 'Plant shutdown' }))).toBe('DUTY_PERIOD_TOO_FAR');
+    expect((await vera('GET', `/duties?serviceId=${svc.id}`))[0].plannedSkips).toBe(1);
+  });
+
   it('skipped wins over failed and missed, done wins over skipped, and done periods need no exception', async () => {
     const d = await duty({ activeFrom: '2026-02-01T00:00:00Z' });
     run(d.proc, { status: 'failed', start: '2026-02-03T08:00:00Z', end: '2026-02-03T08:10:00Z' });

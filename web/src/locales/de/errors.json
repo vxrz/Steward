@@ -570,7 +570,7 @@
     "DUTY_PERIOD_UNKNOWN": "„{{key}}“ ist kein Zeitraum dieser Pflicht.",
     "DUTY_PERIOD_CLOSED": "Der Zeitraum {{key}} ist beendet. Sein Ergebnis ist gespeichert und ändert sich nicht mehr.",
     "DUTY_PERIOD_DONE": "Die Pflicht ist für {{key}} erledigt – keine Ausnahme nötig.",
-    "DUTY_PERIOD_TOO_FAR": "Der Zeitraum {{key}} liegt zu weit in der Zukunft. Planen Sie Ausnahmen höchstens {{days}} Tage im Voraus.",
+    "DUTY_PERIOD_TOO_FAR": "„{{key}}“ liegt zu weit in der Zukunft. Ausnahmen reichen höchstens {{periods}} Zeiträume über den aktuellen hinaus.",
     "DUTY_SKIP_EXISTS": "Für {{key}} gibt es bereits eine Ausnahme.",
     "DUTY_SKIP_NOT_FOUND": "Ausnahme {{id}} nicht gefunden.",
     "DUTY_SKIP_DECIDED": "Über die Ausnahme wurde bereits entschieden.",

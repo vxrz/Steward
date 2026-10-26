@@ -278,7 +278,7 @@ export function DutyFormModal({
 export function SkipModal({ duty, onClose, onSaved }: { duty: DutySummary; onClose: () => void; onSaved: (d: DutyDetail) => void }) {
   const { t } = useTranslation(['duties', 'common']);
   const open = [duty.previous, duty.current].filter((p): p is DutyPeriod => !!p && !p.closed && p.status === 'due' && Date.parse(p.graceEndsAt) > Date.now());
-  const keys = [...new Set([...open.map((p) => p.key), ...(duty.current ? nextKeys(duty.interval, duty.current, 6) : [])])];
+  const keys = [...new Set([...open.map((p) => p.key), ...(duty.current ? nextKeys(duty.interval, duty.current, DUTY_LIMITS.skipAheadPeriods) : [])])];
   const [periodKey, setPeriodKey] = useState<string | null>(keys[0] ?? null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);

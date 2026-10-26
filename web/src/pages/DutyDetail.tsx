@@ -58,6 +58,11 @@ export function DutyDetailPage() {
                 {t('archived')}
               </Badge>
             )}
+            {d.plannedSkips > 0 && (
+              <Badge color="orange" variant="light" tt="none" data-testid="planned-skips">
+                {t('plannedSkips', { count: d.plannedSkips })}
+              </Badge>
+            )}
           </Group>
         }
         description={

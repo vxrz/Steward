@@ -9877,6 +9877,10 @@
           "pendingSkips": {
             "type": "integer"
           },
+          "plannedSkips": {
+            "type": "integer",
+            "description": "Exceptions (waiting or approved) for periods that have not started yet; at most the next 3 periods"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -9915,6 +9919,7 @@
           "current",
           "previous",
           "pendingSkips",
+          "plannedSkips",
           "createdAt",
           "createdBy",
           "updatedAt",
