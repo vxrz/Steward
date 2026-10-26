@@ -472,6 +472,10 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await get('/duties/{dutyId}', `/duties/${x.id}`);
     await listAll('/duties/{dutyId}/periods', `/duties/${x.id}/periods`);
   }
+  await get('/scorecard', '/scorecard');
+  await get('/scorecard/trend', '/scorecard/trend?days=30');
+  if (apiService) await get('/services/{serviceId}/scorecard', `/services/${apiService}/scorecard`);
+  for (const x of (await listAll('/objectives', '/objectives')).slice(0, 5)) await listAll('/objectives/{objectiveId}/samples', `/objectives/${x.id}/samples`);
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
   await get('/control-catalogues', '/control-catalogues');
@@ -553,6 +557,28 @@ describe('every endpoint', () => {
       owners: ['user:dana'],
     });
     await dana('POST', `/duties/${duty.id}/skips`, { periodKey: duty.current.key, reason: 'System replaced this month' });
+    // an availability objective of the service (#86) with an hourly sample, and today's scorecard snapshot
+    const { db } = await import('../src/db.js');
+    const gatusPlatform = (await s.api('GET', '/platforms')).find((p: any) => p.kind === 'gatus').id;
+    const now = new Date().toISOString();
+    db().run(
+      `INSERT INTO gatus_endpoints (platform_id, key, group_name, name, first_seen_at, last_seen_at, gatus_uptime) VALUES (?, 'api_portal', 'api', 'portal', ?, ?, '{"h1":100,"h24":99.5,"d7":null,"d30":null}')
+       ON CONFLICT DO NOTHING`,
+      gatusPlatform,
+      now,
+      now,
+    );
+    await s.api('POST', '/objectives', {
+      serviceId: apiService,
+      applicationId: app.id,
+      name: 'API portal',
+      platformId: gatusPlatform,
+      endpointKey: 'api_portal',
+      targets: { h24: 99, d30: 99.5 },
+      notify: true,
+    });
+    (await import('../src/scorecard/jobs.js')).sampleObjectives();
+    (await import('../src/scorecard/jobs.js')).snapshotScorecards(Date.now(), true);
     adminCrawl = await crawl(tokens.admin);
   });
 

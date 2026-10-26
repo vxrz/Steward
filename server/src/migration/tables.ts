@@ -83,6 +83,8 @@ export const USER_REFS: UserRef[] = [
   { table: 'applications', column: 'owners', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
   { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
+  // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
+  { table: 'scorecard_snapshots', column: 'owners', kind: 'subjects' },
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
 ];
 
@@ -142,6 +144,11 @@ export const HISTORY_COLUMNS: string[] = [
   'services.updated_by',
   'service_duties.created_by',
   'service_duties.updated_by',
+  'availability_objectives.created_by',
+  'availability_objectives.updated_by',
+  'availability_objectives.archived_by',
+  'scorecard_rules.created_by',
+  'scorecard_rules.updated_by',
   'ticket_ref_events.actor',
   'ticket_refs.created_by',
   'ticket_refs.updated_by',

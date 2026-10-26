@@ -574,7 +574,22 @@
     "DUTY_SKIP_EXISTS": "Für {{key}} gibt es bereits eine Ausnahme.",
     "DUTY_SKIP_NOT_FOUND": "Ausnahme {{id}} nicht gefunden.",
     "DUTY_SKIP_DECIDED": "Über die Ausnahme wurde bereits entschieden.",
-    "FOUR_EYES_SKIP": "Vier-Augen-Prinzip: Über die Ausnahme, die Sie beantragt haben, entscheidet eine andere Person."
+    "FOUR_EYES_SKIP": "Vier-Augen-Prinzip: Über die Ausnahme, die Sie beantragt haben, entscheidet eine andere Person.",
+    "FORBIDDEN_manageScorecardRules": "Nur Administratoren ändern die Regeln für erwartete Dokumente der Scorecard.",
+    "OBJECTIVE_NOT_FOUND": "Ziel {{id}} nicht gefunden.",
+    "OBJECTIVE_APPLICATION_NOT_IN_SERVICE": "Die Anwendung gehört nicht zum Service. Fügen Sie sie zuerst dem Service hinzu.",
+    "OBJECTIVE_PLATFORM_UNKNOWN": "Plattform {{id}} nicht gefunden (oder Sie dürfen sie nicht sehen).",
+    "OBJECTIVE_PLATFORM_NOT_GATUS": "Verfügbarkeitsziele brauchen eine Gatus-Plattform.",
+    "OBJECTIVE_ENDPOINT_UNKNOWN": "Gatus meldet den Endpunkt „{{key}}“ nicht. Wählen Sie einen aus der Liste (der Metrik-Modus muss ihn erfasst haben).",
+    "OBJECTIVE_SERVICE_ARCHIVED": "Der Service ist archiviert. Stellen Sie ihn wieder her, um Ziele festzulegen.",
+    "OBJECTIVE_LIMIT": "Ein Service hat höchstens {{max}} Ziele.",
+    "SCORECARD_RULE_TYPE_UNKNOWN": "Eintragstyp {{key}} nicht gefunden.",
+    "SCORECARD_RULE_NOT_DOCUMENT": "{{key}} ist kein Typ lebender Dokumente.",
+    "SCORECARD_RULE_LIMIT": "Es gibt höchstens {{max}} Regeln.",
+    "SCORECARD_RULE_EXISTS": "Diese Regel gibt es bereits.",
+    "SCORECARD_RULE_NOT_FOUND": "Regel {{id}} nicht gefunden.",
+    "SCORECARD_SERVICE_ARCHIVED": "Der Service ist archiviert: Er hat keine Scorecard.",
+    "OBJECTIVE_ARCHIVED": "Das Ziel ist archiviert. Stellen Sie es wieder her, um es zu ändern."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

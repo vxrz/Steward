@@ -42,6 +42,9 @@ const source = {
   applicationId: '',
   serviceId: '',
   dutyId: '',
+  objectiveId: '',
+  archivedDutyId: '',
+  snapshotDay: '',
   runId: '',
   waitingRunId: '',
 };
@@ -126,6 +129,16 @@ beforeAll(async () => {
     owners: ['user:dana'],
   });
   source.dutyId = duty.id;
+  // a mandatory duty archived during its current period (#86): it still counts on the scorecard until the period ends
+  const archivedDuty = await s.api('POST', '/duties', {
+    serviceId: svc.id,
+    name: 'Moved archived check',
+    processId: p.id,
+    interval: 'yearly',
+    level: 'mandatory',
+  });
+  await s.api('POST', `/duties/${archivedDuty.id}/archive`, { archived: true });
+  source.archivedDutyId = archivedDuty.id;
   // what is encrypted on the source, decrypted (to compare with the target)
   const { db } = await import('../src/db.js');
   const { vault } = await import('../src/vault.js');
@@ -138,6 +151,41 @@ beforeAll(async () => {
     source.serviceId,
     source.applicationId,
     p.id,
+  );
+  // an availability objective of the service with a sample and a breach, an expected-document rule and a scorecard
+  // snapshot (#86): the definitions and the history move
+  const gatusPlatform = (await s.api('GET', '/platforms')).find((x: any) => x.kind === 'gatus').id;
+  db().run(
+    `INSERT INTO gatus_endpoints (platform_id, key, group_name, name, first_seen_at, last_seen_at) VALUES (?, 'moved_portal', 'moved', 'portal', ?, ?) ON CONFLICT DO NOTHING`,
+    gatusPlatform,
+    new Date().toISOString(),
+    new Date().toISOString(),
+  );
+  const objective = await dana('POST', '/objectives', {
+    serviceId: svc.id,
+    applicationId: app.id,
+    name: 'Moved portal',
+    platformId: gatusPlatform,
+    endpointKey: 'moved_portal',
+    targets: { h24: 99.5, d30: 99.9 },
+    notify: true,
+  });
+  source.objectiveId = objective.id;
+  source.snapshotDay = (await import('../src/scorecard/scorecard.js')).dayOf(Date.now() - 2 * 86400000);
+  db().run(
+    "INSERT INTO objective_samples (objective_id, bucket, value_h24, status, sampled_at) VALUES (?, '2020-01-01T00:00:00.000Z', 9800, 'below', '2020-01-01T00:00:00.000Z')",
+    objective.id,
+  );
+  db().run(
+    `INSERT INTO objective_breaches (id, objective_id, started_at, ended_at, windows, notified_at) VALUES ('obr_moved', ?, '2020-01-01T00:00:00.000Z', NULL, '["h24"]', '2020-01-01T00:00:00.000Z')`,
+    objective.id,
+  );
+  await s.api('POST', '/scorecard/rules', { typeKey: 'DOC', dimension: 'confidentiality', minLevel: 'high', note: 'Moved rule' });
+  db().run(
+    `INSERT INTO scorecard_snapshots (day, service_id, service_name, owners, attention, duties, availability, documentation, protection, document_ids, details, updated_at)
+     VALUES (?, ?, 'Moved service', '["user:dana"]', 1, 'pending', 'attention', 'ok', 'ok', '[]', '{}', '2020-01-01T12:00:00.000Z')`,
+    source.snapshotDay,
+    svc.id,
   );
   for (const r of db().all<{ id: string; secrets: string | null }>('SELECT id, secrets FROM platforms WHERE secrets IS NOT NULL'))
     source.secrets.set(r.id, vault().decrypt(r.secrets!));
@@ -283,6 +331,11 @@ describe('export (source)', () => {
       new Date().toISOString(),
       'admin',
     );
+    // scorecard rows out of range (#86): a target above 100 %, an unknown sample status, a snapshot day that is not a day
+    const badTarget = db().get<{ target_h24: number }>('SELECT target_h24 FROM availability_objectives WHERE id = ?', source.objectiveId)!.target_h24;
+    db().run('UPDATE availability_objectives SET target_h24 = 20000 WHERE id = ?', source.objectiveId);
+    db().run("UPDATE objective_samples SET status = 'great' WHERE objective_id = ?", source.objectiveId);
+    db().run("UPDATE scorecard_snapshots SET day = '2026/01/01' WHERE day = ?", source.snapshotDay);
     try {
       const res = await rawExport({ passphrase: SOURCE_PASS, transferPassphrase: TRANSFER });
       const r = await res.json();
@@ -290,6 +343,9 @@ describe('export (source)', () => {
       const dl = await fetch(`${s.base}/api/migration/exports/${r.downloadId}/download`, { headers: authHeaders(adminCookie) });
       fs.writeFileSync(badScaleFile, Buffer.from(await dl.arrayBuffer()));
     } finally {
+      db().run('UPDATE availability_objectives SET target_h24 = ? WHERE id = ?', badTarget, source.objectiveId);
+      db().run("UPDATE objective_samples SET status = 'below' WHERE objective_id = ?", source.objectiveId);
+      db().run("UPDATE scorecard_snapshots SET day = ? WHERE day = '2026/01/01'", source.snapshotDay);
       db().run('DELETE FROM cia_scales');
       for (const k of keep)
         db().run('INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)', k.dimension, k.levels, k.updated_at, k.updated_by);
@@ -449,6 +505,10 @@ describe('import into SQLite through the web API', () => {
     const r = await upload(max, badScaleFile, TRANSFER);
     expect(r.status, JSON.stringify(r.body)).toBe(200);
     expect(r.body.blocking.join(' ')).toContain("the package's CIA scale is not valid");
+    const blocking = r.body.blocking.join('\n');
+    expect(blocking).toMatch(/availability_objectives, row \d+: target_h24 is not 0–10000 hundredths of a percent/);
+    expect(blocking).toMatch(/objective_samples, row \d+: status "great" is unknown/);
+    expect(blocking).toMatch(/scorecard_snapshots, row \d+: day "2026\/01\/01" is not YYYY-MM-DD/);
     fs.rmSync(badScaleFile, { force: true });
   });
 
@@ -538,6 +598,20 @@ describe('import into SQLite through the web API', () => {
       owners: ['user:dana@contoso.example'],
     });
     expect(movedDuty.periods.find((x: any) => x.key === '2020-01')).toMatchObject({ status: 'missed', closed: true, snapshot: { name: 'Moved restore test' } });
+    // availability objectives move with their samples and breaches, the rules and the snapshots too (owners mapped)
+    // the archived duty still counts on the target until its (yearly) period ends: the archive moment is in the duty data
+    const movedDuties = (await max('GET', `/scorecard/services/${source.serviceId}`)).duties;
+    expect(movedDuties.archivedThisPeriod).toBe(1);
+    expect(movedDuties.items.find((i: any) => i.dutyId === source.archivedDutyId)).toMatchObject({ archivedAt: expect.any(String), result: 'notMet' });
+    const movedObjective = await max('GET', `/objectives/${source.objectiveId}`);
+    expect(movedObjective).toMatchObject({ name: 'Moved portal', serviceId: source.serviceId, targets: { h24: 99.5, d30: 99.9 }, notify: true });
+    expect(movedObjective.samples.find((x: any) => x.at === '2020-01-01T00:00:00.000Z')).toMatchObject({ status: 'below', values: { h24: 98 } });
+    expect(movedObjective.breach).toMatchObject({ id: 'obr_moved', notified: true });
+    expect((await max('GET', '/scorecard/rules')).map((r: any) => [r.typeKey, r.note])).toEqual([['DOC', 'Moved rule']]);
+    const movedCard = await max('GET', `/scorecard/services/${source.serviceId}`);
+    expect(movedCard.history.find((x: any) => x.day === source.snapshotDay)).toMatchObject({ attention: true, parts: { availability: 'attention' } });
+    const trend = await max('GET', '/scorecard/trend?days=30&owner=user:dana@contoso.example');
+    expect(trend.find((x: any) => x.day === source.snapshotDay)).toMatchObject({ services: 1, attention: 1 });
     expect(rec.createdBy).toBe('dana');
     const list = await max('GET', '/users');
     const byName = (n: string) => list.find((u: any) => u.username === n);

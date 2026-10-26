@@ -436,6 +436,20 @@ const EXPECT: Record<string, Access> = {
   'POST /api/duties/:id/skips': DESIGN,
   'POST /api/duties/:id/skips/:skipId/decision': DESIGN,
   'POST /api/duties/:id/skips/:skipId/withdraw': ADMIN,
+  // availability objectives and the service scorecard (#86): everyone reads them like services; service editors (and
+  // owners) define objectives; administrators keep the expected-document rules
+  'GET /api/objectives': ALL,
+  'POST /api/objectives': DESIGN,
+  'GET /api/objectives/:id': ALL,
+  'PUT /api/objectives/:id': DESIGN,
+  'POST /api/objectives/:id/archive': DESIGN,
+  'GET /api/scorecard': ALL,
+  'GET /api/scorecard/trend': ALL,
+  'GET /api/scorecard/services/:id': ALL,
+  'GET /api/scorecard/rules': ALL,
+  'POST /api/scorecard/rules': ADMIN,
+  'PUT /api/scorecard/rules/:id': ADMIN,
+  'DELETE /api/scorecard/rules/:id': ADMIN,
 
   // ---- credentials register ----
   'GET /api/credentials': ALL,
@@ -530,6 +544,11 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/duties': ALL,
   'GET /api/v1/duties/:dutyId': ALL,
   'GET /api/v1/duties/:dutyId/periods': ALL,
+  'GET /api/v1/scorecard': ALL,
+  'GET /api/v1/scorecard/trend': ALL,
+  'GET /api/v1/services/:serviceId/scorecard': ALL,
+  'GET /api/v1/objectives': ALL,
+  'GET /api/v1/objectives/:objectiveId/samples': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -712,6 +731,7 @@ function fill(url: string): string {
     .replace(/:applicationId/g, fx.application!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
+    .replace(/:objectiveId/g, fx.objective!)
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
     .replace(/:snapshotId/g, fx.snapshot!)
@@ -748,6 +768,8 @@ function fill(url: string): string {
         services: 'service',
         applications: 'application',
         duties: 'duty',
+        objectives: 'objective',
+        scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
         'report-schedules': 'reportSchedule',
         reports: 'report',
         users: 'user',
@@ -826,6 +848,17 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/duties/:id/archive': { archived: true },
   'POST /api/duties/:id/skips': { periodKey: fx.dutyPeriod, reason: 'x' },
   'POST /api/duties/:id/skips/:skipId/decision': { decision: 'reject', comment: 'x' },
+  'POST /api/objectives': {
+    serviceId: fx.service,
+    name: 'Matrix objective x',
+    platformId: fx.gatusPlatform,
+    endpointKey: 'matrix_endpoint',
+    targets: { h24: 99 },
+  },
+  'PUT /api/objectives/:id': { name: 'Matrix objective', platformId: fx.gatusPlatform, endpointKey: 'matrix_endpoint', targets: { h24: 99.5 } },
+  'POST /api/objectives/:id/archive': { archived: true },
+  'POST /api/scorecard/rules': { typeKey: 'DOC', dimension: 'integrity', minLevel: 'high' },
+  'PUT /api/scorecard/rules/:id': { typeKey: 'DOC', dimension: 'confidentiality', minLevel: 'very_high' },
   'POST /api/link-types': { name: 'Matrix link type', icon: 'book' },
   'PUT /api/link-types/:key': { name: 'Matrix link type 2', icon: 'git' },
   'POST /api/credentials': CREDENTIAL,
@@ -1046,6 +1079,23 @@ beforeAll(async () => {
   const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
   const skip = (await a('POST', `/duties/${duty.id}/skips`, { periodKey: nextMonth, reason: 'Matrix' })).skips[0];
   Object.assign(fx, { duty: duty.id, dutySkip: skip.id, dutyPeriod: nextMonth });
+  // an availability objective of the service on an endpoint the Gatus platform reports, and an expected-document rule
+  const { db } = await import('../src/db.js');
+  db().run(
+    "INSERT INTO gatus_endpoints (platform_id, key, group_name, name, first_seen_at, last_seen_at) VALUES (?, 'matrix_endpoint', 'matrix', 'endpoint', ?, ?) ON CONFLICT DO NOTHING",
+    gatus.id,
+    new Date().toISOString(),
+    new Date().toISOString(),
+  );
+  const objective = await a('POST', '/objectives', {
+    serviceId: svc.id,
+    name: 'Matrix objective',
+    platformId: gatus.id,
+    endpointKey: 'matrix_endpoint',
+    targets: { h24: 99 },
+  });
+  const rule = (await a('POST', '/scorecard/rules', { typeKey: 'DOC', dimension: 'confidentiality', minLevel: 'high' }))[0];
+  Object.assign(fx, { objective: objective.id, scorecardRule: rule.id });
   Object.assign(fx, {
     accessCheck: accessCheck.id,
     accessPlatform: accessCheck.platformId,

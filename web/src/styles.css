@@ -166,3 +166,9 @@ p .mantine-Anchor-root,
     grid-column: span 2;
   }
 }
+/* nine tiles: three columns from md, two below – the last one takes the whole row there */
+@media (max-width: 61.99em) {
+  .attention-tiles[data-count='9'] > :last-child {
+    grid-column: span 2;
+  }
+}

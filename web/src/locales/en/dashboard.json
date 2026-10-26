@@ -39,7 +39,10 @@
     "reviewsDue": "Reviews due",
     "reviewsSplit": "{{overdue}} overdue · {{dueSoon}} due soon",
     "duties": "Duties due",
-    "dutiesSplit": "{{missed}} missed · {{dueSoon}} due soon"
+    "dutiesSplit": "{{missed}} missed · {{dueSoon}} due soon",
+    "scorecard": "Services needing attention",
+    "scorecardOf_one": "of {{services}} service",
+    "scorecardOf_other": "of {{services}} services"
   },
   "waiting": "Waiting for your decision",
   "failedChecks": "Failed checks (last 7 days)",

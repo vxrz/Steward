@@ -8,23 +8,24 @@ Steward notifies people in the app (the bell in the header) and – depending on
 
 ## Events
 
-| Event                           | Who gets it                                                                                     |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Decision                        | People who may decide a task that waits                                                         |
-| Run failed                      | Who started the run, the owner of the schedule                                                  |
-| Check failed                    | Who started the run, the schedule owner, the process owner                                      |
-| Stale data                      | The process owner and administrators                                                            |
-| Schedule skipped                | The schedule owner and administrators                                                           |
-| Monitor status                  | Owners and subscribers of the monitor (root causes only)                                        |
-| Credential due                  | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                                      |
-| Report ready                    | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                                |
-| Ticket not checked              | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders))               |
-| Document review due             | The review owner of a living document ([RECORDS.md](RECORDS.md#periodic-reviews))               |
-| Duty due                        | The owners of a service duty, else the service owners ([DUTIES.md](DUTIES.md))                  |
-| Duty missed                     | The same, when a mandatory or recommended duty's period ended without a run that counts         |
-| Duty period ended without a run | The duty's and the service's owners (else administrators), not who archived or changed the duty |
-| Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester  |
-| Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks               |
+| Event                           | Who gets it                                                                                                                                    |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Decision                        | People who may decide a task that waits                                                                                                        |
+| Run failed                      | Who started the run, the owner of the schedule                                                                                                 |
+| Check failed                    | Who started the run, the schedule owner, the process owner                                                                                     |
+| Stale data                      | The process owner and administrators                                                                                                           |
+| Schedule skipped                | The schedule owner and administrators                                                                                                          |
+| Monitor status                  | Owners and subscribers of the monitor (root causes only)                                                                                       |
+| Credential due                  | The owners of the entry ([CREDENTIALS.md](CREDENTIALS.md))                                                                                     |
+| Report ready                    | The recipients of the report schedule ([REPORTS.md](REPORTS.md))                                                                               |
+| Ticket not checked              | The responsible people of a ticket reference ([TICKETS.md](TICKETS.md#reminders))                                                              |
+| Document review due             | The review owner of a living document ([RECORDS.md](RECORDS.md#periodic-reviews))                                                              |
+| Duty due                        | The owners of a service duty, else the service owners ([DUTIES.md](DUTIES.md))                                                                 |
+| Duty missed                     | The same, when a mandatory or recommended duty's period ended without a run that counts                                                        |
+| Duty period ended without a run | The duty's and the service's owners (else administrators), not who archived or changed the duty                                                |
+| Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester                                                 |
+| Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md)) |
+| Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                              |
 
 ## E-mail addresses outside Steward
 

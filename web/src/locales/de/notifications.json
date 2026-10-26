@@ -107,6 +107,12 @@
         "label": "Zeitraum einer Pflicht ohne Ausführung beendet",
         "info": "Jemand hat eine verpflichtende oder empfohlene Pflicht, für die Sie verantwortlich sind, archiviert oder geändert, und ihr aktueller Zeitraum endete ohne Ausführung"
       }
+    },
+    "objective": {
+      "breached": {
+        "label": "Ziel unterschritten",
+        "info": "Ein Verfügbarkeitsziel eines Service, für den Sie verantwortlich sind, ist unter seinen Zielwert gefallen (einmal je Unterschreitung)"
+      }
     }
   }
 }

@@ -24,6 +24,7 @@ import { MOVE_MIGRATIONS } from './migrations/instance-moves.js';
 import { MANUAL_STEP_MIGRATIONS } from './migrations/manual-steps.js';
 import { CATALOGUE_MIGRATIONS } from './migrations/catalogue.js';
 import { DUTY_MIGRATIONS } from './migrations/duties.js';
+import { SCORECARD_MIGRATIONS } from './migrations/scorecard.js';
 
 export type { DatabaseTarget } from './database/sql.js';
 
@@ -94,6 +95,7 @@ const NAMED_MIGRATIONS: NamedMigration[] = [
   ...MANUAL_STEP_MIGRATIONS,
   ...CATALOGUE_MIGRATIONS,
   ...DUTY_MIGRATIONS,
+  ...SCORECARD_MIGRATIONS,
 ];
 
 const MIGRATIONS: string[] = [

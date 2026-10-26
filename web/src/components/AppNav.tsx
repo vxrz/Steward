@@ -26,6 +26,7 @@ import {
   IconStack2,
   IconApps,
   IconCalendarCheck,
+  IconGauge,
   IconTicket,
   IconUserShield,
   IconUsers,
@@ -49,6 +50,7 @@ export type NavKey =
   | 'services'
   | 'applications'
   | 'duties'
+  | 'scorecard'
   | 'credentials'
   | 'tickets'
   | 'reports'
@@ -104,6 +106,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/services', key: 'services', icon: IconStack2 },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
+      { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },
       { to: '/credentials', key: 'credentials', icon: IconKey },
       { to: '/tickets', key: 'tickets', icon: IconTicket },

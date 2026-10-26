@@ -107,6 +107,12 @@
         "label": "Duty period ended without a run",
         "info": "Someone archived or changed a mandatory or recommended duty you are responsible for, and its current period ended without a run"
       }
+    },
+    "objective": {
+      "breached": {
+        "label": "Objective below target",
+        "info": "An availability objective of a service you are responsible for fell below its target (once per breach)"
+      }
     }
   }
 }

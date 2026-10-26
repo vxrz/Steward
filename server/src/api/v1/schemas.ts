@@ -29,6 +29,7 @@ import { TICKET_COMPONENTS } from '../../tickets/api-schemas.js';
 import { COMPLIANCE_COMPONENTS } from '../../compliance/api-schemas.js';
 import { SERVICE_COMPONENTS } from '../../catalogue/api-schemas.js';
 import { DUTY_COMPONENTS } from '../../duties/api-schemas.js';
+import { SCORECARD_COMPONENTS } from '../../scorecard/api-schemas.js';
 
 export const RUN_STATUSES = ['queued', 'running', 'waiting', 'succeeded', 'failed', 'cancelled', 'interrupted'] as const satisfies readonly RunStatus[];
 export const RUN_TRIGGERS = ['manual', 'schedule', 'resume', 'subprocess', 'webhook', 'monitor'] as const satisfies readonly RunSummary['trigger'][];
@@ -498,6 +499,7 @@ export const COMPONENTS: Record<string, ZodTypeAny> = {
   ...COMPLIANCE_COMPONENTS,
   ...SERVICE_COMPONENTS,
   ...DUTY_COMPONENTS,
+  ...SCORECARD_COMPONENTS,
 };
 
 /** Example values shown in the documentation. */

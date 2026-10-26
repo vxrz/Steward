@@ -24,7 +24,8 @@
     "accessChanges": "Access changes",
     "reconciliation": "Access reconciliation",
     "evidencePacks": "Evidence packs",
-    "duties": "Duties"
+    "duties": "Duties",
+    "scorecard": "Scorecard"
   },
   "serverUnreachable": "Cannot reach the {{brand}} server: {{error}}",
   "pageNotFound": "Page not found",

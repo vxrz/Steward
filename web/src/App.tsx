@@ -70,6 +70,7 @@ const ApplicationsPage = page(() => import('./pages/Applications'), 'Application
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
+const ScorecardPage = page(() => import('./pages/Scorecard'), 'ScorecardPage');
 const CiaScalePage = page(() => import('./pages/CiaScale'), 'CiaScalePage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
 const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
@@ -238,6 +239,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/applications/:id" element={<ApplicationDetailPage />} />
                 <Route path="/duties" element={<DutiesPage />} />
                 <Route path="/duties/:id" element={<DutyDetailPage />} />
+                <Route path="/scorecard" element={<ScorecardPage />} />
                 <Route path="/credentials" element={<CredentialsPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />
