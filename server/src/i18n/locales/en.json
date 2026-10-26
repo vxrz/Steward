@@ -130,7 +130,8 @@
       "tickets": "Open tickets you are responsible for",
       "records": "Records",
       "reports": "Reports for you",
-      "reviews": "Document reviews due"
+      "reviews": "Document reviews due",
+      "duties": "Service duties"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
@@ -182,7 +183,14 @@
     "reportDetail": "Generated {{date}}",
     "more_one": "… and {{count}} more",
     "more_other": "… and {{count}} more",
-    "reviewTitle": "{{number}} {{title}} (edition {{edition}})"
+    "reviewTitle": "{{number}} {{title}} (edition {{edition}})",
+    "dutyTitle": "{{name}} ({{service}}) – period {{period}}",
+    "dutyDetail": "{{status}} · {{date}}",
+    "dutyStatus": {
+      "due": "due",
+      "missed": "missed",
+      "failed": "only failed runs"
+    }
   },
   "accessUndocumented": {
     "title": "Undocumented access changes: \"{{name}}\"",
@@ -234,5 +242,19 @@
     },
     "scope_one": "The confirmation applies to all sensitive actions of this session for {{count}} minute.",
     "scope_other": "The confirmation applies to all sensitive actions of this session for {{count}} minutes."
+  },
+  "duty": {
+    "dueTitle_one": "Duty due: \"{{name}}\" ({{service}}) – {{count}} day left",
+    "dueTitle_other": "Duty due: \"{{name}}\" ({{service}}) – {{count}} days left",
+    "dueBody": "The {{level}} duty “{{name}}” of the service “{{service}}” is not done yet for the period {{period}}. The period ends after {{date}}.",
+    "missedTitle": "Duty missed: \"{{name}}\" ({{service}}), period {{period}}",
+    "missedBody": "The period {{period}} of the {{level}} duty “{{name}}” of the service “{{service}}” ended without a run of its process.",
+    "failedTitle": "Duty not done: \"{{name}}\" ({{service}}), period {{period}}",
+    "failedBody": "The period {{period}} of the {{level}} duty “{{name}}” of the service “{{service}}” ended with failed or rejected runs only.",
+    "levels": {
+      "mandatory": "mandatory",
+      "recommended": "recommended",
+      "optional": "optional"
+    }
   }
 }

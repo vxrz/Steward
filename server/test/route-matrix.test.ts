@@ -425,6 +425,17 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/catalogue/cia-scale': ADMIN,
   // the scope of a living document: whoever may edit records (the fixture record is a change request: 400 for them)
   'PUT /api/records/:id/applications': RUN,
+  // service duties (#85): everyone reads them like services; service editors (and owners) define them and ask for
+  // exceptions; a second person – service editor, duty owner or approver – decides (the fixture's exception was asked
+  // by the administrator, who may only withdraw it)
+  'GET /api/duties': ALL,
+  'POST /api/duties': DESIGN,
+  'GET /api/duties/:id': ALL,
+  'PUT /api/duties/:id': DESIGN,
+  'POST /api/duties/:id/archive': DESIGN,
+  'POST /api/duties/:id/skips': DESIGN,
+  'POST /api/duties/:id/skips/:skipId/decision': ['admin', 'designer', 'approver'],
+  'POST /api/duties/:id/skips/:skipId/withdraw': ADMIN,
 
   // ---- credentials register ----
   'GET /api/credentials': ALL,
@@ -516,6 +527,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/applications/:applicationId': ALL,
   'GET /api/v1/applications/:applicationId/documents': ALL,
   'GET /api/v1/cia-scale': ALL,
+  'GET /api/v1/duties': ALL,
+  'GET /api/v1/duties/:dutyId': ALL,
+  'GET /api/v1/duties/:dutyId/periods': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -696,6 +710,8 @@ function fill(url: string): string {
     .replace(/:recordId/g, fx.record!)
     .replace(/:serviceId/g, fx.service!)
     .replace(/:applicationId/g, fx.application!)
+    .replace(/:dutyId/g, fx.duty!)
+    .replace(/:skipId/g, fx.dutySkip!)
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
     .replace(/:snapshotId/g, fx.snapshot!)
@@ -731,6 +747,7 @@ function fill(url: string): string {
         'ticket-references': 'ticket',
         services: 'service',
         applications: 'application',
+        duties: 'duty',
         'report-schedules': 'reportSchedule',
         reports: 'report',
         users: 'user',
@@ -804,6 +821,11 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
   'PUT /api/records/:id/applications': { applicationIds: [] },
+  'POST /api/duties': { serviceId: fx.service, name: 'Matrix duty x', processId: fx.process, interval: 'monthly', level: 'mandatory' },
+  'PUT /api/duties/:id': { name: 'Matrix duty', processId: fx.process, interval: 'monthly', level: 'recommended' },
+  'POST /api/duties/:id/archive': { archived: true },
+  'POST /api/duties/:id/skips': { periodKey: fx.dutyPeriod, reason: 'x' },
+  'POST /api/duties/:id/skips/:skipId/decision': { decision: 'reject', comment: 'x' },
   'POST /api/link-types': { name: 'Matrix link type', icon: 'book' },
   'PUT /api/link-types/:key': { name: 'Matrix link type 2', icon: 'git' },
   'POST /api/credentials': CREDENTIAL,
@@ -1018,6 +1040,12 @@ beforeAll(async () => {
     await new Promise((r) => setTimeout(r, 100));
     pack = await a('GET', `/compliance/evidence-packs/${pack.id}`);
   }
+  // a duty of the service with an exception for the next month, asked by the administrator
+  const duty = await a('POST', '/duties', { serviceId: svc.id, name: 'Matrix duty', processId: proc.id, interval: 'monthly', level: 'mandatory' });
+  const [y, m] = duty.current.key.split('-').map(Number);
+  const nextMonth = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+  const skip = (await a('POST', `/duties/${duty.id}/skips`, { periodKey: nextMonth, reason: 'Matrix' })).skips[0];
+  Object.assign(fx, { duty: duty.id, dutySkip: skip.id, dutyPeriod: nextMonth });
   Object.assign(fx, {
     accessCheck: accessCheck.id,
     accessPlatform: accessCheck.platformId,

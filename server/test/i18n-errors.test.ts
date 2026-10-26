@@ -17,6 +17,7 @@ const CODED_AREAS = [
   'sync/',
   'compliance/',
   'catalogue/',
+  'duties/',
   'credentials/',
   'reports/',
   'gatus/',

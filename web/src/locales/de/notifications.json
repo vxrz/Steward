@@ -89,6 +89,16 @@
         "label": "Notfallzugang",
         "info": "Jemand hat sich mit dem Notfallzugang von der Kommandozeile des Servers angemeldet (Administratoren)"
       }
+    },
+    "duty": {
+      "due": {
+        "label": "Pflicht fällig",
+        "info": "Eine Service-Pflicht, für die Sie verantwortlich sind, ist bald fällig und noch nicht erledigt"
+      },
+      "missed": {
+        "label": "Pflicht versäumt",
+        "info": "Ein Zeitraum einer verpflichtenden oder empfohlenen Service-Pflicht, für die Sie verantwortlich sind, endete ohne erfolgreiche Ausführung"
+      }
     }
   }
 }

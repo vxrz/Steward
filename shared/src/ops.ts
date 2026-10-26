@@ -13,6 +13,8 @@ export const NOTIFICATION_EVENTS = [
   'summary.daily',
   'access.undocumented',
   'document.review',
+  'duty.due',
+  'duty.missed',
   'security.emergency',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
@@ -30,6 +32,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'summary.daily': 'The daily summary of people who turned it on in their profile (in-app and e-mail only)',
   'access.undocumented': 'The access reconciliation found access changes without an access change entry',
   'document.review': 'A living document you review is due for its periodic review soon (or is overdue)',
+  'duty.due': 'A service duty you are responsible for is due soon and not done yet',
+  'duty.missed': 'A period of a mandatory or recommended service duty you are responsible for ended without a successful run',
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
 };
 

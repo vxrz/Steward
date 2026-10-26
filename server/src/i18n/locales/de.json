@@ -130,7 +130,8 @@
       "tickets": "Offene Tickets in Ihrer Verantwortung",
       "records": "Dokumente",
       "reports": "Berichte für Sie",
-      "reviews": "Fällige Überprüfungen von Dokumenten"
+      "reviews": "Fällige Überprüfungen von Dokumenten",
+      "duties": "Service-Pflichten"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
@@ -182,7 +183,14 @@
     "reportDetail": "Erstellt am {{date}}",
     "more_one": "… und {{count}} weiterer",
     "more_other": "… und {{count}} weitere",
-    "reviewTitle": "{{number}} {{title}} (Fassung {{edition}})"
+    "reviewTitle": "{{number}} {{title}} (Fassung {{edition}})",
+    "dutyTitle": "{{name}} ({{service}}) – Zeitraum {{period}}",
+    "dutyDetail": "{{status}} · {{date}}",
+    "dutyStatus": {
+      "due": "fällig",
+      "missed": "versäumt",
+      "failed": "nur fehlgeschlagene Ausführungen"
+    }
   },
   "accessUndocumented": {
     "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
@@ -234,5 +242,19 @@
     },
     "scope_one": "Die Bestätigung gilt {{count}} Minute lang für alle sensiblen Aktionen dieser Sitzung.",
     "scope_other": "Die Bestätigung gilt {{count}} Minuten lang für alle sensiblen Aktionen dieser Sitzung."
+  },
+  "duty": {
+    "dueTitle_one": "Pflicht fällig: \"{{name}}\" ({{service}}) – noch {{count}} Tag",
+    "dueTitle_other": "Pflicht fällig: \"{{name}}\" ({{service}}) – noch {{count}} Tage",
+    "dueBody": "Die Pflicht „{{name}}“ ({{level}}) des Service „{{service}}“ ist für den Zeitraum {{period}} noch nicht erledigt. Der Zeitraum endet nach dem {{date}}.",
+    "missedTitle": "Pflicht versäumt: \"{{name}}\" ({{service}}), Zeitraum {{period}}",
+    "missedBody": "Der Zeitraum {{period}} der Pflicht „{{name}}“ ({{level}}) des Service „{{service}}“ endete ohne eine Ausführung ihres Prozesses.",
+    "failedTitle": "Pflicht nicht erledigt: \"{{name}}\" ({{service}}), Zeitraum {{period}}",
+    "failedBody": "Der Zeitraum {{period}} der Pflicht „{{name}}“ ({{level}}) des Service „{{service}}“ endete nur mit fehlgeschlagenen oder abgelehnten Ausführungen.",
+    "levels": {
+      "mandatory": "verpflichtend",
+      "recommended": "empfohlen",
+      "optional": "optional"
+    }
   }
 }
