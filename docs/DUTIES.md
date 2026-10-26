@@ -50,7 +50,7 @@ Periods are calendar periods in the **time zone of the server** (the `TZ` enviro
 
 A period starts and ends at local midnight, so the change to and from daylight saving time is handled: the week of the change simply has an hour more or less. A grace period counts calendar days after the end of the period.
 
-The first period of a new duty is the current one. Runs earlier in that period count already – a restore test done on the 3rd still counts for a duty you define on the 20th.
+The first period of a new duty is the current one. Only runs started after you defined the duty count for it – a restore test done on the 3rd does not count for a duty you define on the 20th.
 
 ## Period status
 

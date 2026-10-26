@@ -235,6 +235,14 @@ describe('period status from the runs', () => {
     expect(statusAt(d2.row(), '2026-03', AFTER)?.status).toBe('missed');
   });
 
+  it('the first period counts only runs started after the duty was defined', async () => {
+    const d = await duty({ activeFrom: '2026-03-15T00:00:00Z' });
+    run(d.proc, { status: 'succeeded', start: '2026-03-10T08:00:00Z', end: '2026-03-10T08:05:00Z' });
+    expect(statusAt(d.row(), '2026-03', AFTER)?.status).toBe('missed');
+    run(d.proc, { status: 'succeeded', start: '2026-03-20T08:00:00Z', end: '2026-03-20T08:05:00Z' });
+    expect(statusAt(d.row(), '2026-03', AFTER)?.status).toBe('done');
+  });
+
   it('weekly duties follow the week of the time zone across the change to winter time', async () => {
     const d = await duty({ interval: 'weekly', grace: 1, activeFrom: '2025-10-01T00:00:00Z' });
     // Sunday 26 Oct 2025, 23:30 local (CET, UTC+1) is still week 43

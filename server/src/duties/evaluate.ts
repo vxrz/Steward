@@ -10,7 +10,8 @@ import { graceEnd, nextPeriod, periodAt, type Period } from './periods.js';
  * process. Dry runs never count (they change nothing on the platforms), runs of other processes never count (a copy
  * of a process is another process), and cancelled runs are ignored (someone stopped them on purpose).
  *
- * A run belongs to the period it started in. Per period, in this order:
+ * A run belongs to the period it started in. The first period of a duty counts only runs started after the duty was
+ * defined (and, after a change of its rules, after the last closed period). Per period, in this order:
  *   - done: a run that started in the period, succeeded and ended by the end of the grace period;
  *   - late: no such run, but one that started in the grace period and ended in it;
  *   - skipped: an approved exception for the period (four-eyes);
@@ -137,12 +138,13 @@ function judge(
   claimed: Set<string>,
   skipId: string | null,
   row: PeriodRow | null,
+  since: number,
 ): Omit<Evaluated, 'closed' | 'closedAt' | 'row'> {
   const runs = db()
     .all<RunRow>(
       'SELECT id, status, started_at, finished_at FROM runs WHERE process_id = ? AND dry_run = 0 AND started_at >= ? AND started_at < ? ORDER BY started_at, id',
       d.process_id,
-      iso(p.start),
+      iso(Math.max(p.start, since)),
       iso(g),
     )
     .filter((r) => !claimed.has(r.id));
@@ -197,12 +199,15 @@ export function evaluateDuty(d: DutyRow, now: number, tz: string, active = true)
   const closedKeys = new Set(closed.map((r) => r.period_key));
   const skips = approvedSkips(d.id);
   const lastClosedEnd = closed.reduce((m, r) => Math.max(m, Date.parse(r.period_end)), 0);
-  let p = periodAt(d.interval_kind, Math.max(Date.parse(d.active_from), lastClosedEnd), tz);
+  // the first period counts runs from the moment the duty (or its current rules) started, not from the period start:
+  // runs before the duty existed, and runs the closed periods before a rule change were judged by, never count again
+  const since = Math.max(Date.parse(d.active_from), lastClosedEnd);
+  let p = periodAt(d.interval_kind, since, tz);
   for (let i = 0; i < MAX_PERIODS && p.start <= now; i++, p = nextPeriod(d.interval_kind, p, tz)) {
     if (closedKeys.has(p.key)) continue;
     const g = graceEnd(p, d.grace_days, tz);
     const row = open.get(p.key) ?? null;
-    const e = judge(d, p, g, now, claimed, skips.get(p.key) ?? null, row);
+    const e = judge(d, p, g, now, claimed, skips.get(p.key) ?? null, row, since);
     if (e.run && (e.status === 'done' || e.status === 'late')) claimed.add(e.run.id);
     out.push({ ...e, closed: false, closedAt: null, row });
   }
