@@ -31,6 +31,7 @@ const ProtectionNeedEntry = z.object({
   rated: z.number().int().describe('Applications (not archived) with a valid rating of this dimension'),
   total: z.number().int().describe('Applications of the service that are not archived'),
   needsRerating: z.number().int().describe('Applications whose rating needs re-rating after a scale change (not counted)'),
+  archived: z.number().int().describe('Archived applications of the service (not counted, not in total)'),
   override: z
     .object({
       level: z.string(),

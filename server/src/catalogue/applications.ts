@@ -22,7 +22,18 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canCreateServices, canEditService, forbid, me } from '../records/access.js';
 import { addLink, httpUrl, listBacklinks, listLinks, removeLink, updateLink, type LinkInput, type LinkUpdate } from '../records/links.js';
 import { requireEditable, touch } from '../records/service.js';
-import { checkLevel, currentScale, emptyRating, levelLabel, protectionNeedOf, ratingsOf, type OverrideInput, type RatingInput } from './cia.js';
+import {
+  auditNeedChanges,
+  checkLevel,
+  currentScale,
+  emptyRating,
+  levelLabel,
+  protectionNeedOf,
+  protectionNeeds,
+  ratingsOf,
+  type OverrideInput,
+  type RatingInput,
+} from './cia.js';
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopeOf } from './scope.js';
 
@@ -116,8 +127,15 @@ function cmdbOf(r: ApplicationRow): ApplicationSummary['cmdb'] {
 }
 
 type PlatformRow = { id: string; name: string; kind: string; environment: string; acl: string };
-const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
-  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) }).length > 0;
+const platformRights = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) =>
+  platformPermissions(u, { acl: parseJson<AclEntry<PlatformPermission>[]>(p.acl, []) });
+const platformVisible = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).length > 0;
+/**
+ * Mapping a platform to an application (or removing it) decides which application – and whose CIA rating – the
+ * platform's evidence names: it needs the manage right on the platform (administrators have it everywhere), on top of
+ * the right to edit the application.
+ */
+const platformManaged = (u: AuthUser | null, p: Pick<PlatformRow, 'acl'>) => platformRights(u, p).includes('manage');
 
 /** The platforms mapped to these applications, by application; platforms the user may not see are named only as not visible. */
 export function integrationsOf(appIds: string[], u: AuthUser | null = currentUser()): Map<string, ApplicationIntegration[]> {
@@ -150,8 +168,9 @@ export function integrationsOf(appIds: string[], u: AuthUser | null = currentUse
           path: `/platforms/${r.platform_id}`,
           mappedAt: r.created_at,
           mappedBy: r.created_by,
+          canManage: platformManaged(u, r),
         }
-      : { visible, platformId: null, name: '', kind: null, environment: null, path: null, mappedAt: r.created_at, mappedBy: r.created_by };
+      : { visible, platformId: null, name: '', kind: null, environment: null, path: null, mappedAt: r.created_at, mappedBy: r.created_by, canManage: false };
     out.set(r.application_id, [...(out.get(r.application_id) ?? []), i]);
   }
   return out;
@@ -373,12 +392,20 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
   return getApplication(id);
 }
 
+/** The services an application is part of (their protection need depends on it). */
+const servicesWith = (appId: string) =>
+  db()
+    .all<{ service_id: string }>('SELECT service_id FROM service_applications WHERE application_id = ?', appId)
+    .map((r) => r.service_id);
+
 export function setApplicationArchived(id: string, archived: boolean): ApplicationDetail {
   const u = me();
   const cur = requireEditableApplication(id, 'archive this application');
   if (!!cur.archived === archived) return getApplication(id);
   if (!archived && nameTaken(cur.name, id))
     throw new HttpError(409, `An application named "${cur.name}" exists already – rename one of them first`, 'APPLICATION_EXISTS', { name: cur.name });
+  const needs = protectionNeeds(servicesWith(id));
+  const scale = currentScale();
   db().tx(() => {
     db().run('UPDATE applications SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, id);
     audit({
@@ -387,6 +414,8 @@ export function setApplicationArchived(id: string, archived: boolean): Applicati
       entityId: id,
       summary: `Application "${cur.name}" ${archived ? 'archived' : 'restored'}`,
     });
+    // services that no longer (or again) count this application: their own history says so
+    auditNeedChanges(needs, scale, { kind: 'application', what: `${archived ? 'archiving' : 'restoring'} application "${cur.name}"`, applicationId: id });
   });
   return getApplication(id);
 }
@@ -417,6 +446,7 @@ export function rateApplication(id: string, input: RatingInput): ApplicationDeta
   }
   if (!changes.length) return getApplication(id);
   const now = nowIso();
+  const needs = protectionNeeds(servicesWith(id));
   db().tx(() => {
     for (const c of changes) {
       db().run('DELETE FROM application_ratings WHERE application_id = ? AND dimension = ?', id, c.dimension);
@@ -440,6 +470,7 @@ export function rateApplication(id: string, input: RatingInput): ApplicationDeta
       summary: `CIA rating of application "${cur.name}" changed: ${changes.map((c) => `${c.dimension} ${label(c.dimension, c.from)} → ${label(c.dimension, c.to)}`).join(', ')}`,
       details: { changes },
     });
+    auditNeedChanges(needs, scale, { kind: 'application', what: `the CIA rating of application "${cur.name}"`, applicationId: id });
   });
   return getApplication(id);
 }
@@ -451,6 +482,7 @@ export function addApplicationPlatform(id: string, platformId: string): Applicat
   const p = db().get<PlatformRow>('SELECT id, name, kind, environment, acl FROM platforms WHERE id = ?', platformId);
   // only platforms the user can see (no probing for ids of hidden platforms)
   if (!p || !platformVisible(u, p)) throw new HttpError(404, `Platform ${platformId} not found`, 'PLATFORM_NOT_FOUND', { id: platformId });
+  if (!platformManaged(u, p)) forbid('map this platform to an application (you need the manage right on the platform)', 'mapPlatform');
   const mapped = db().get<{ id: string; name: string }>(
     'SELECT a.id, a.name FROM application_platforms ap JOIN applications a ON a.id = ap.application_id WHERE ap.platform_id = ?',
     platformId,
@@ -488,6 +520,7 @@ export function removeApplicationPlatform(id: string, platformId: string): Appli
     throw new HttpError(404, 'This platform is not mapped to the application', 'APPLICATION_PLATFORM_NOT_FOUND');
   // (a platform the user cannot see is named by its id only)
   const p = db().get<PlatformRow>('SELECT id, name, kind, environment, acl FROM platforms WHERE id = ?', platformId);
+  if (p && !platformManaged(u, p)) forbid('remove this platform from the application (you need the manage right on the platform)', 'mapPlatform');
   const name = p && platformVisible(u, p) ? p.name : platformId;
   db().tx(() => {
     db().run('DELETE FROM application_platforms WHERE platform_id = ? AND application_id = ?', platformId, id);
@@ -564,6 +597,8 @@ export function setServiceApplication(serviceId: string, applicationId: string, 
   if (cur && (cur.role ?? null) === role && cur.role_text === roleText) return;
   if (!cur && a.archived) throw new HttpError(409, `Application "${a.name}" is archived`, 'APPLICATION_ARCHIVED', { name: a.name });
   const roleLabel = role === 'other' ? `"${roleText}"` : (role ?? 'no role');
+  const needs = cur ? new Map() : protectionNeeds([serviceId]);
+  const scale = currentScale();
   db().tx(() => {
     if (cur)
       db().run('UPDATE service_applications SET role = ?, role_text = ? WHERE service_id = ? AND application_id = ?', role, roleText, serviceId, applicationId);
@@ -587,6 +622,7 @@ export function setServiceApplication(serviceId: string, applicationId: string, 
         : `Application "${a.name}" added to service "${s.name}" (${roleLabel})`,
       details: { applicationId, role, roleText, ...(cur ? { old: { role: cur.role ?? null, roleText: cur.role_text } } : {}) },
     });
+    auditNeedChanges(needs, scale, { kind: 'membership', what: `adding application "${a.name}"`, applicationId });
   });
 }
 
@@ -599,6 +635,8 @@ export function removeServiceApplication(serviceId: string, applicationId: strin
     applicationId,
   );
   if (!cur) throw new HttpError(404, 'This application is not part of the service', 'SERVICE_APPLICATION_NOT_FOUND');
+  const needs = protectionNeeds([serviceId]);
+  const scale = currentScale();
   db().tx(() => {
     db().run('DELETE FROM service_applications WHERE service_id = ? AND application_id = ?', serviceId, applicationId);
     db().run('UPDATE services SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, serviceId);
@@ -609,6 +647,7 @@ export function removeServiceApplication(serviceId: string, applicationId: strin
       summary: `Application "${cur.name}" removed from service "${s.name}"`,
       details: { applicationId, role: cur.role ?? null, roleText: cur.role_text },
     });
+    auditNeedChanges(needs, scale, { kind: 'membership', what: `removing application "${cur.name}"`, applicationId });
   });
 }
 
@@ -687,7 +726,7 @@ export function setDocumentScope(recordId: string, applicationIds: string[]): Do
   const wanted = [...new Set(applicationIds)];
   const added = wanted.filter((id) => !before.some((b) => b.id === id));
   const removed = before.filter((b) => !wanted.includes(b.id));
-  const names = new Map<string, string>();
+  const names = new Map<string, string>(removed.map((x) => [x.id, x.name]));
   for (const id of added) {
     const a = db().get<{ name: string; archived: number }>('SELECT name, archived FROM applications WHERE id = ?', id);
     if (!a) throw new HttpError(404, `Application ${id} not found`, 'APPLICATION_NOT_FOUND', { id });
@@ -707,6 +746,19 @@ export function setDocumentScope(recordId: string, applicationIds: string[]): Do
       summary: `${r.number} applies to: ${scopeLabel(wanted, names, before)}`,
       details: { added, removed: removed.map((x) => x.id), applicationIds: wanted },
     });
+    // … and on each application concerned: its documents changed without its owners (its history shows it)
+    for (const [ids, action, verb] of [
+      [added, 'application.document_added', 'now applies to'],
+      [removed.map((x) => x.id), 'application.document_removed', 'no longer applies to'],
+    ] as const)
+      for (const id of ids)
+        audit({
+          action,
+          entityType: 'application',
+          entityId: id,
+          summary: `${r.number} "${r.title}" ${verb} application "${names.get(id) ?? id}"`,
+          details: { recordId: r.id, number: r.number },
+        });
   });
   return scopeOf(r.id);
 }

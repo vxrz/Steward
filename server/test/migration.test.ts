@@ -26,6 +26,7 @@ const TARGET_PASS = 'target master passphrase';
 const TRANSFER = 'transfer passphrase 2026';
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-move-'));
 const pkgFile = path.join(work, 'source.smig');
+const badScaleFile = path.join(work, 'bad-scale.smig');
 const sha = (b: Buffer | string) => crypto.createHash('sha256').update(b).digest('hex');
 
 let s: TestServer;
@@ -248,6 +249,30 @@ describe('export (source)', () => {
     }
   });
 
+  it('exports a package whose CIA scale this instance would not accept (for the dry run below)', async () => {
+    const { db } = await import('../src/db.js');
+    const keep = db().all<Record<string, unknown>>('SELECT * FROM cia_scales');
+    db().run('DELETE FROM cia_scales');
+    db().run(
+      'INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)',
+      'all',
+      JSON.stringify([{ key: 'Not A Key', label: '', color: 'url(x)' }]),
+      new Date().toISOString(),
+      'admin',
+    );
+    try {
+      const res = await rawExport({ passphrase: SOURCE_PASS, transferPassphrase: TRANSFER });
+      const r = await res.json();
+      expect(res.status, JSON.stringify(r)).toBe(200);
+      const dl = await fetch(`${s.base}/api/migration/exports/${r.downloadId}/download`, { headers: authHeaders(adminCookie) });
+      fs.writeFileSync(badScaleFile, Buffer.from(await dl.arrayBuffer()));
+    } finally {
+      db().run('DELETE FROM cia_scales');
+      for (const k of keep)
+        db().run('INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)', k.dimension, k.levels, k.updated_at, k.updated_by);
+    }
+  });
+
   it('stops the source', async () => {
     await s.app.close();
     const { db } = await import('../src/db.js');
@@ -396,6 +421,13 @@ describe('import into SQLite through the web API', () => {
     });
     return { status: res.status, body: await res.json() };
   };
+
+  it('blocks a package whose CIA scale does not validate, naming the problem in the dry run', async () => {
+    const r = await upload(max, badScaleFile, TRANSFER);
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+    expect(r.body.blocking.join(' ')).toContain("the package's CIA scale is not valid");
+    fs.rmSync(badScaleFile, { force: true });
+  });
 
   it('checks the package (dry run) and suggests a mapping', async () => {
     const wrong = await upload(max, pkgFile, 'wrong transfer passphrase');

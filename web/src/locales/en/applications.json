@@ -61,7 +61,7 @@
   },
   "integrations": {
     "title": "Integrations",
-    "help": "Steward platforms that connect to this application. A platform belongs to one application at most.",
+    "help": "Steward platforms that connect to this application. A platform belongs to one application at most. Mapping or removing a platform needs the manage right on it.",
     "empty": "No platform is mapped to this application.",
     "add": "Map platform",
     "addTitle": "Map a platform to {{name}}",
@@ -126,8 +126,6 @@
     "basis": "Basis",
     "rated": "{{rated}} of {{total}} applications rated",
     "derivedFrom": "from {{names}}",
-    "stale_one": "{{count}} rating needs re-rating",
-    "stale_other": "{{count}} ratings need re-rating",
     "override": "Override",
     "overrideTitle": "Override the protection need of {{name}}",
     "reason": "Reason",
@@ -135,7 +133,16 @@
     "overridden": "Set by {{user}} on {{date}}: {{reason}}",
     "useDerived": "Use the derived level",
     "overrideNeedsRerating": "The override needs re-rating after a scale change (was “{{label}}”).",
-    "noApplications": "Add applications to derive the protection need."
+    "noApplications": "Add applications to derive the protection need.",
+    "notCounted": "Not counted: {{parts}}",
+    "parts": {
+      "unrated_one": "{{count}} application not rated",
+      "unrated_other": "{{count}} applications not rated",
+      "stale_one": "{{count}} rating needing re-rating",
+      "stale_other": "{{count}} ratings needing re-rating",
+      "archived_one": "{{count}} archived application",
+      "archived_other": "{{count}} archived applications"
+    }
   },
   "serviceApps": {
     "title": "Applications",
@@ -208,6 +215,11 @@
     "save": "Save scale",
     "saved": "The CIA scale is saved.",
     "invalid": "Each level needs a key and a label, and every key must be unique (at least two levels).",
-    "edit": "Change scale"
+    "edit": "Change scale",
+    "reorderTitle": "Levels change their order",
+    "reorderHelp": "These levels stay, but in another order: their ratings would mean something else. They are flagged for re-rating.",
+    "reorderLevels": "{{dimension}}: {{levels}}",
+    "confirmReorder": "Flag the ratings of these levels for re-rating",
+    "storedInvalid": "The stored scale is not valid (for example from a migration package). The BSI default is in use until an administrator saves a scale."
   }
 }

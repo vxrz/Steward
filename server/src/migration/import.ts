@@ -54,6 +54,7 @@ import {
 } from './format.js';
 import { NOT_MOVED, PAUSED_ON_IMPORT, SETTINGS_MOVED, USER_ID_TABLES, USER_REFS, type RefKind } from './tables.js';
 import { DATA_PREFIX } from './export.js';
+import { checkScaleRows } from '../catalogue/cia.js';
 
 /**
  * Import of a migration package (see format.ts and export.ts) into this instance:
@@ -141,6 +142,8 @@ export interface OpenedPackage {
   sha256: string;
   size: number;
   history: { ok: boolean; message: string; entries: number };
+  /** Content of the package that this instance would not accept (blocks the import, listed in the dry run) */
+  contentProblems?: string[];
   close(): void;
 }
 
@@ -311,6 +314,15 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
     const verifier = new HistoryVerifier(manifest.audit.checkpoint, manifest.source.publicKey);
     for await (const l of lines(reader, reader.find('audit.jsonl')!, MAX_AUDIT_LINE)) verifier.addLine(l);
     const v = verifier.result(manifest.audit.entries);
+    // the CIA scale is read on every page: it must be a scale a save request would accept (#84)
+    const contentProblems: string[] = [];
+    const scaleTable = manifest.tables.find((t) => t.name === 'cia_scales');
+    if (scaleTable && scaleTable.rows > 0) {
+      const rows: { dimension: unknown; levels: unknown }[] = [];
+      for await (const l of lines(reader, reader.find('tables/cia_scales.jsonl')!))
+        rows.push(parseJson<{ dimension: unknown; levels: unknown }>(l, { dimension: null, levels: null }));
+      contentProblems.push(...checkScaleRows(rows).map((p) => `${p} – the package's CIA scale is not valid; correct it on the source and export again`));
+    }
     return {
       dir,
       file,
@@ -324,6 +336,7 @@ export async function readPackage(file: string, passphrase: string): Promise<Ope
         entries: v.entries,
         message: v.ok ? `All ${v.entries} entries match the signed checkpoint of ${manifest.audit.checkpoint.ts}` : v.message,
       },
+      contentProblems,
       close,
     };
   } catch (e) {
@@ -459,6 +472,7 @@ export function buildPlan(pkg: OpenedPackage): MigrationPlan {
     );
   }
   if (!pkg.history.ok) blocking.push(`The audit history in the package does not verify: ${pkg.history.message}`);
+  blocking.push(...(pkg.contentProblems ?? []));
   if (!vault().unlocked) blocking.push('The vault of this instance is locked.');
   const filled = filledTargetTables();
   if (filled.length)

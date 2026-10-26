@@ -61,7 +61,7 @@
   },
   "integrations": {
     "title": "Integrationen",
-    "help": "Steward-Plattformen, die sich mit dieser Anwendung verbinden. Eine Plattform gehört zu höchstens einer Anwendung.",
+    "help": "Steward-Plattformen, die sich mit dieser Anwendung verbinden. Eine Plattform gehört zu höchstens einer Anwendung. Zum Zuordnen oder Entfernen brauchen Sie das Recht „Verwalten“ auf der Plattform.",
     "empty": "Dieser Anwendung ist keine Plattform zugeordnet.",
     "add": "Plattform zuordnen",
     "addTitle": "Eine Plattform {{name}} zuordnen",
@@ -126,8 +126,6 @@
     "basis": "Grundlage",
     "rated": "{{rated}} von {{total}} Anwendungen bewertet",
     "derivedFrom": "aus {{names}}",
-    "stale_one": "{{count}} Bewertung ist neu zu bewerten",
-    "stale_other": "{{count}} Bewertungen sind neu zu bewerten",
     "override": "Abweichend festlegen",
     "overrideTitle": "Schutzbedarf von {{name}} abweichend festlegen",
     "reason": "Begründung",
@@ -135,7 +133,16 @@
     "overridden": "Festgelegt von {{user}} am {{date}}: {{reason}}",
     "useDerived": "Abgeleitete Stufe verwenden",
     "overrideNeedsRerating": "Die Festlegung ist nach einer Änderung der Skala neu zu bewerten (vorher „{{label}}“).",
-    "noApplications": "Fügen Sie Anwendungen hinzu, um den Schutzbedarf abzuleiten."
+    "noApplications": "Fügen Sie Anwendungen hinzu, um den Schutzbedarf abzuleiten.",
+    "notCounted": "Nicht berücksichtigt: {{parts}}",
+    "parts": {
+      "unrated_one": "{{count}} Anwendung nicht bewertet",
+      "unrated_other": "{{count}} Anwendungen nicht bewertet",
+      "stale_one": "{{count}} Bewertung neu zu bewerten",
+      "stale_other": "{{count}} Bewertungen neu zu bewerten",
+      "archived_one": "{{count}} archivierte Anwendung",
+      "archived_other": "{{count}} archivierte Anwendungen"
+    }
   },
   "serviceApps": {
     "title": "Anwendungen",
@@ -208,6 +215,11 @@
     "save": "Skala speichern",
     "saved": "Die CIA-Skala ist gespeichert.",
     "invalid": "Jede Stufe braucht einen Schlüssel und eine Bezeichnung, und jeder Schlüssel muss eindeutig sein (mindestens zwei Stufen).",
-    "edit": "Skala ändern"
+    "edit": "Skala ändern",
+    "reorderTitle": "Stufen ändern ihre Reihenfolge",
+    "reorderHelp": "Diese Stufen bleiben, aber in anderer Reihenfolge: Ihre Bewertungen würden etwas anderes bedeuten. Sie werden zur Neubewertung markiert.",
+    "reorderLevels": "{{dimension}}: {{levels}}",
+    "confirmReorder": "Bewertungen dieser Stufen zur Neubewertung markieren",
+    "storedInvalid": "Die gespeicherte Skala ist ungültig (z. B. aus einem Migrationspaket). Bis ein Administrator eine Skala speichert, gilt der BSI-Standard."
   }
 }

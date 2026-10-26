@@ -35,7 +35,8 @@ The list has a search (name, vendor, tag) and filters by service, criticality an
 
 On the application page, _Integrations → Map platform_, choose the platform and _Save_.
 
-- You can only choose platforms you may see.
+- Mapping a platform – and removing it – needs the **manage** right on the platform (administrators have it on every platform), on top of the right to edit the application. The mapping decides which application, and whose CIA rating, the platform's evidence names; using a platform is not enough.
+- You can only choose platforms you may manage.
 - A platform that belongs to another application is refused with the name of that application. Remove it there first.
 - Readers who may not see a mapped platform see _A platform you may not see_ – no name, no link.
 - The platform page names its application next to the base URL.
@@ -69,7 +70,7 @@ The default levels are the protection needs of **BSI IT-Grundschutz** (BSI-Stand
 
 The service page shows, per dimension:
 
-- **Derived:** the highest rating of its applications – the **maximum principle** of BSI-Standard 200-2. Archived applications and ratings that need re-rating do not count. The line says which application gave the level and how many of the applications are rated.
+- **Derived:** the highest rating of its applications – the **maximum principle** of BSI-Standard 200-2. Archived applications and ratings that need re-rating do not count. The line says which application gave the level and how many of the applications are rated, and _Not counted_ lists the applications left out: not rated, needing re-rating, archived.
 - **Effective:** the derived level, or the override.
 
 An override sets a dimension to another level with a **reason** (_Protection need → Override_). Use it when the maximum principle does not fit:
@@ -96,7 +97,9 @@ Each level has a key (stored with the ratings: `a`–`z`, `0`–`9`, `_`), a lab
 - **map** it to a level of the new scale: the ratings keep their justification and show _Mapped from “Very high” when the scale changed_;
 - or **flag for re-rating** (the default): the ratings keep their old level and justification, show _Needs re-rating_ with the old label, and do not count for the protection need until someone rates them again. The service page says how many ratings need re-rating.
 
-Renaming a label or moving a level changes no rating (ratings store the key). Saving the scale asks for a fresh confirmation of your sign-in, because it changes the ratings of every application at once. The change is audited with the old and new levels and what happened to the ratings.
+Renaming a label changes no rating (ratings store the key); the audit entry records the old and new label. **Moving a level** that ratings use – changing its order among the levels that stay – changes what those ratings mean: the editor lists these levels and asks you to confirm, and their ratings and overrides are flagged for re-rating (the API refuses the change with `CIA_REORDER_CONFIRM` unless the request has `confirmReorder: true`). Adding a level between others moves nothing.
+
+A stored scale that does not validate – for example from a migration package – is not used: Steward uses the BSI default, logs a warning and shows it on the scale page until an administrator saves a scale. A migration package with such a scale is refused in the dry run. Saving the scale asks for a fresh confirmation of your sign-in, because it changes the ratings of every application at once. The change is audited with the old and new levels and what happened to the ratings.
 
 ## Documents that apply to an application
 
@@ -107,7 +110,7 @@ A living document (a record type with the workflow _document_) that belongs to a
 - The service page groups its documents by application, and lists the rest under _Whole service_.
 - The application page lists its documents with edition, status and review status.
 
-The scope is not part of the document's content: changing it needs no new edition. It is audited on the record.
+The scope is not part of the document's content: changing it needs no new edition. It is audited on the record and on each application concerned (`application.document_added`, `application.document_removed`): whoever may edit the document can name any application, and the application's history shows it.
 
 ## Who may do what
 
@@ -115,7 +118,8 @@ The scope is not part of the document's content: changing it needs no new editio
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
 | See applications, ratings, protection needs and the scale                      | Everyone who can sign in                                                                  |
 | Create applications                                                            | Designers and administrators                                                              |
-| Edit, archive, rate an application; map its platforms; change its links        | Designers, administrators and the users and teams responsible for it                      |
+| Edit, archive, rate an application; change its links                           | Designers, administrators and the users and teams responsible for it                      |
+| Map platforms to an application, remove them                                   | Whoever may edit the application **and** has the manage right on the platform             |
 | Add applications to a service, change their role, override its protection need | Whoever may edit the service (designers, administrators, its responsible users and teams) |
 | Change the CIA scale                                                           | Administrators, with a fresh confirmation (step-up)                                       |
 | Change the applications a document applies to                                  | Whoever may edit the record                                                               |
@@ -124,7 +128,7 @@ Applications have no access lists, like services: the catalogue is readable for 
 
 ## Audit, API, evidence packs, migration
 
-- **Audit log:** `application.created`, `.updated`, `.archived`, `.restored`, `.rated`, `.platform_added`, `.platform_removed`, `.link_added` …; `service.application_added`, `.application_changed`, `.application_removed`, `service.protection_need_overridden`; `record.scope_changed`; `catalogue.cia_scale_changed`.
+- **Audit log:** `application.created`, `.updated`, `.archived`, `.restored`, `.rated`, `.platform_added`, `.platform_removed`, `.link_added` …; `service.application_added`, `.application_changed`, `.application_removed`, `service.protection_need_overridden`, `service.protection_need_changed` (the effective need of a service moved because of an application, a member or a scale change – one entry per service, on the service); `record.scope_changed`, `application.document_added`, `application.document_removed`; `catalogue.cia_scale_changed`.
 - **Public API** (read-only, [API.md](API.md)): `GET /api/v1/applications`, `GET /api/v1/applications/{applicationId}` (with integrations and links), `GET /api/v1/applications/{applicationId}/documents`, `GET /api/v1/cia-scale`. Services carry `applications` and `protectionNeed`; the documents of a service carry `applications` (their scope).
 - **Evidence packs** of a service hold its protection need (effective, derived, override with reason) and the CIA rating of each application in `index.json` (`catalogue`) and in the summary PDF; packs of a platform hold the rating of its application. See [COMPLIANCE.md](COMPLIANCE.md#protection-needs-cia).
 - **Migration packages** ([MIGRATION.md](MIGRATION.md)) carry applications, ratings, integrations, the applications of services, overrides, document scopes and the scale. The responsible users and teams follow the identity mapping; who rated something stays as it was.

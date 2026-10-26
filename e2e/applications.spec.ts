@@ -23,6 +23,8 @@ test('an application with a platform and a CIA rating gives its service a protec
       },
     }),
   );
+  // mapping a platform to an application needs the manage right on it (#84 review)
+  await json(await admin.put(`/api/platforms/${platform.id}/access`, { data: { acl: [{ subject: 'user:dana', permissions: ['manage'] }] } }));
   const serviceName = uniq('E2E plant service');
   const svc = await json<{ id: string }>(await api.post('/api/services', { data: { name: serviceName, owners: [] } }));
   const name = uniq('E2E Insights Hub');

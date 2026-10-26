@@ -56,6 +56,8 @@ export interface CiaScale {
   /** How many application ratings and service overrides use each level key, per dimension (for the mapping when the scale changes) */
   usage: Record<CiaDimension, Record<string, number>>;
   canEdit: boolean;
+  /** The stored scale is not valid (e.g. from a migration package): the BSI default is in use until an administrator saves one */
+  storedInvalid?: boolean;
 }
 
 /** One dimension of an application's rating. */
@@ -98,6 +100,8 @@ export interface ProtectionNeedDimension {
   total: number;
   /** Applications whose rating needs re-rating after a scale change (not counted) */
   needsRerating: number;
+  /** Archived applications of the service (not counted, not in total) */
+  archived: number;
   override: ProtectionNeedOverride | null;
   /** The override when set (and valid), else the derived level */
   effective: string | null;
@@ -129,6 +133,8 @@ export interface ApplicationIntegration {
   path: string | null;
   mappedAt: string;
   mappedBy: string;
+  /** The user may remove the platform from the application (manage right on the platform) */
+  canManage: boolean;
 }
 
 export interface ApplicationSummary {
@@ -208,4 +214,16 @@ export function levelRank(levels: readonly CiaLevel[], key: string | null | unde
 /** A value for each dimension. */
 export function byDimension<T>(f: (d: CiaDimension) => T): Record<CiaDimension, T> {
   return { confidentiality: f('confidentiality'), integrity: f('integrity'), availability: f('availability') };
+}
+
+/**
+ * Level keys on both scales whose order among the kept keys changed: ratings with such a key mean something else
+ * on the new scale (a scale change flags them for re-rating, after a confirmation).
+ */
+export function reorderedLevels(before: readonly { key: string }[], next: readonly { key: string }[]): string[] {
+  const nextKeys = new Set(next.map((l) => l.key));
+  const beforeKeys = new Set(before.map((l) => l.key));
+  const a = before.map((l) => l.key).filter((k) => nextKeys.has(k));
+  const b = next.map((l) => l.key).filter((k) => beforeKeys.has(k));
+  return a.filter((k, i) => b[i] !== k);
 }

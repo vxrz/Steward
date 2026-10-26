@@ -111,25 +111,44 @@ describe('applications', () => {
     const [p1, p2] = platforms.filter((p) => p.kind !== 'gatus');
     const ih = app.id;
     const edge = await dana('POST', '/applications', { name: 'Industrial Edge' });
-    let a = await olivia('POST', `/applications/${ih}/platforms`, { platformId: p1!.id });
-    expect(a.integrations).toEqual([expect.objectContaining({ visible: true, platformId: p1!.id, name: p1!.name, path: `/platforms/${p1!.id}` })]);
+    // dana manages both platforms, olivia (an owner of the application) only uses them
+    for (const p of [p1!, p2!])
+      await s.api('PUT', `/platforms/${p.id}/access`, {
+        acl: [
+          { subject: 'user:dana', permissions: ['manage'] },
+          { subject: 'user:olivia', permissions: ['use'] },
+        ],
+      });
+    let a = await dana('POST', `/applications/${ih}/platforms`, { platformId: p1!.id });
+    expect(a.integrations).toEqual([
+      expect.objectContaining({ visible: true, platformId: p1!.id, name: p1!.name, path: `/platforms/${p1!.id}`, canManage: true }),
+    ]);
     expect(a.integrationCount).toBe(1);
     // the same platform for another application: refused, naming where it belongs
     const taken = await body(dana('POST', `/applications/${edge.id}/platforms`, { platformId: p1!.id }));
     expect(taken.code).toBe('PLATFORM_MAPPED');
     expect(taken.params).toMatchObject({ application: 'Insights Hub' });
     // mapping it again to the same application changes nothing
-    expect((await olivia('POST', `/applications/${ih}/platforms`, { platformId: p1!.id })).integrations).toHaveLength(1);
-    a = await olivia('POST', `/applications/${ih}/platforms`, { platformId: p2!.id });
+    expect((await dana('POST', `/applications/${ih}/platforms`, { platformId: p1!.id })).integrations).toHaveLength(1);
+    a = await dana('POST', `/applications/${ih}/platforms`, { platformId: p2!.id });
     expect(a.integrations.map((i: any) => i.platformId).sort()).toEqual([p1!.id, p2!.id].sort());
     expect(await status(vera('POST', `/applications/${ih}/platforms`, { platformId: p2!.id }))).toBe(403);
     expect(await status(dana('POST', `/applications/${ih}/platforms`, { platformId: 'plt_missing' }))).toBe(404);
     // the platform page names its application
     expect((await dana('GET', `/platforms/${p1!.id}/application`)).application).toEqual({ id: ih, name: 'Insights Hub', archived: false });
     expect((await dana('GET', `/platforms/${platforms.find((p) => p.kind === 'gatus')!.id}/application`)).application).toBeNull();
+    // olivia may edit the application but not manage the platforms: she cannot remove them …
+    expect((await olivia('GET', `/applications/${ih}`)).integrations.every((i: any) => i.canManage === false)).toBe(true);
+    const unmap = await body(olivia('DELETE', `/applications/${ih}/platforms/${p2!.id}`));
+    expect(unmap).toMatchObject({ code: 'FORBIDDEN', params: { context: 'mapPlatform' } });
     // remove it here, then it can move
     await dana('DELETE', `/applications/${ih}/platforms/${p2!.id}`);
     expect(await status(dana('DELETE', `/applications/${ih}/platforms/${p2!.id}`))).toBe(404);
+    // … nor claim a platform for her own application (#84 M1: it would block the real application and its evidence)
+    const own = await s.api('POST', '/applications', { name: 'Olivia’s app', owners: ['user:olivia'] });
+    const claim = await body(olivia('POST', `/applications/${own.id}/platforms`, { platformId: p2!.id }));
+    expect(claim).toMatchObject({ code: 'FORBIDDEN', params: { context: 'mapPlatform' } });
+    expect((await s.api('GET', `/platforms/${p2!.id}/application`)).application).toBeNull();
     expect((await dana('POST', `/applications/${edge.id}/platforms`, { platformId: p2!.id })).integrations).toHaveLength(1);
     const actions = (await audit('application', ih)).map((e: any) => e.action);
     expect(actions).toEqual(expect.arrayContaining(['application.platform_added', 'application.platform_removed']));
@@ -306,7 +325,7 @@ describe('services, ratings and protection needs', () => {
     expect(d.protectionNeed.integrity).toMatchObject({ derived: 'critical', effective: 'critical' });
     expect(d.protectionNeed.availability).toMatchObject({ effective: 'critical', override: { level: 'critical', previousLabel: 'Very high' } });
     const entry = (await s.api('GET', '/audit?action=catalogue.cia_scale_changed&limit=1'))[0];
-    expect(entry.details.effects.integrity).toEqual({ mapped: 1, flagged: 0 });
+    expect(entry.details.effects.integrity).toEqual({ mapped: 1, flagged: 0, reordered: 0 });
     expect(entry.details.previousMode).toBe('default');
 
     // a scale per dimension: availability without "high" and no mapping → flagged for re-rating
@@ -440,5 +459,135 @@ describe('services, ratings and protection needs', () => {
       justification: 'Production data of customers',
     });
     fs.rmSync(file, { force: true });
+  });
+});
+
+describe('after the security review (#84)', () => {
+  const needAudit = async (serviceId: string) => (await audit('service', serviceId)).filter((e: any) => e.action === 'service.protection_need_changed');
+
+  it('L1: a service shows the applications it does not count, and its history says when an application change moved its need', async () => {
+    const svc = await dana('POST', '/services', { name: 'Review service', owners: ['user:dana'] });
+    const a = await s.api('POST', '/applications', { name: 'Review app A', owners: ['user:olivia'] });
+    const b = await s.api('POST', '/applications', { name: 'Review app B', owners: ['user:olivia'] });
+    await s.api('PUT', `/applications/${a.id}/rating`, { confidentiality: { level: 'very_high', justification: 'Secrets' } });
+    await s.api('PUT', `/applications/${b.id}/rating`, { confidentiality: { level: 'normal', justification: 'Public' } });
+    // adding a member is audited with the need it moves
+    await dana('PUT', `/services/${svc.id}/applications/${b.id}`, {});
+    await dana('PUT', `/services/${svc.id}/applications/${a.id}`, {});
+    let e = await needAudit(svc.id);
+    expect(e[0]).toMatchObject({
+      details: { cause: 'membership', applicationId: a.id, changes: [{ dimension: 'confidentiality', from: 'normal', to: 'very_high' }] },
+    });
+    expect((await vera('GET', `/services/${svc.id}`)).protectionNeed.confidentiality).toMatchObject({ effective: 'very_high', total: 2, archived: 0 });
+    // the owner of A (not of the service) archives it: the service says it is not counted, and its history why the need fell
+    await olivia('POST', `/applications/${a.id}/archive`, { archived: true });
+    expect((await vera('GET', `/services/${svc.id}`)).protectionNeed.confidentiality).toMatchObject({ effective: 'normal', total: 1, archived: 1, rated: 1 });
+    e = await needAudit(svc.id);
+    expect(e[0]).toMatchObject({ actor: 'olivia', details: { cause: 'application', applicationId: a.id, changes: [{ from: 'very_high', to: 'normal' }] } });
+    expect(e[0].summary).toContain('archiving application "Review app A"');
+    expect(e[0].summary).toContain('confidentiality Very high → Normal');
+    await olivia('POST', `/applications/${a.id}/archive`, { archived: false });
+    // lowering a rating
+    await olivia('PUT', `/applications/${a.id}/rating`, { confidentiality: { level: 'high', justification: 'Less secret' } });
+    e = await needAudit(svc.id);
+    expect(e.map((x: any) => x.details.cause).slice(0, 2)).toEqual(['application', 'application']);
+    expect(e[0].details.changes).toEqual([{ dimension: 'confidentiality', from: 'very_high', to: 'high' }]);
+    // a change that does not move the need writes nothing on the service
+    const n = e.length;
+    await olivia('PUT', `/applications/${b.id}/rating`, { integrity: null, confidentiality: { level: 'normal', justification: 'Public data only' } });
+    expect((await needAudit(svc.id)).length).toBe(n);
+    // removing a member
+    await dana('DELETE', `/services/${svc.id}/applications/${a.id}`);
+    expect((await needAudit(svc.id))[0].details).toMatchObject({ cause: 'membership', changes: [{ from: 'high', to: 'normal' }] });
+    // the public API and the evidence carry the archived count too
+    await dana('PUT', `/services/${svc.id}/applications/${a.id}`, {});
+    await olivia('POST', `/applications/${a.id}/archive`, { archived: true });
+    const token = (await vera('POST', '/me/tokens', { name: 'review', scope: 'read' })).token;
+    const res = await fetch(`${s.base}/api/v1/services/${svc.id}`, { headers: { authorization: `Bearer ${token}` } });
+    expect((await res.json()).protectionNeed.confidentiality).toMatchObject({ archived: 1, total: 1 });
+  });
+
+  it('L2: levels that stay but change their order need a confirmation and flag their ratings', async () => {
+    const app = await s.api('POST', '/applications', { name: 'Reorder app' });
+    await s.api('PUT', `/applications/${app.id}/rating`, {
+      confidentiality: { level: 'high', justification: 'h' },
+      integrity: { level: 'normal', justification: 'n' },
+    });
+    const swapped = [
+      { key: 'normal', label: 'Normal', color: 'green' },
+      { key: 'very_high', label: 'Very high', color: 'red' },
+      { key: 'high', label: 'High', color: 'orange' },
+    ];
+    const refused = await body(s.api('PUT', '/catalogue/cia-scale', { mode: 'shared', levels: swapped }));
+    expect(refused).toMatchObject({ code: 'CIA_REORDER_CONFIRM', params: { dimension: 'confidentiality' } });
+    expect(refused.params.levels).toContain('high');
+    expect((await s.api('GET', '/catalogue/cia-scale')).mode).toBe('default');
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'shared', levels: swapped, confirmReorder: true });
+    const r = (await vera('GET', `/applications/${app.id}`)).rating;
+    expect(r.confidentiality).toMatchObject({ level: 'high', needsRerating: true, previousLabel: 'High' });
+    // a level that kept its place keeps its ratings
+    expect(r.integrity).toMatchObject({ level: 'normal', needsRerating: false });
+    const entry = (await s.api('GET', '/audit?action=catalogue.cia_scale_changed&limit=1'))[0];
+    // only levels in use count (no rating uses very_high in confidentiality)
+    expect(entry.details.reordered.confidentiality).toContain('high');
+    expect(entry.details.effects.confidentiality.reordered).toBeGreaterThan(0);
+    // relabelling alone is recorded, nothing is flagged
+    await s.api('PUT', `/applications/${app.id}/rating`, { integrity: { level: 'normal', justification: 'n2' } });
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'shared', levels: swapped.map((l) => (l.key === 'normal' ? { ...l, label: 'Basic' } : l)) });
+    expect((await vera('GET', `/applications/${app.id}`)).rating.integrity.needsRerating).toBe(false);
+    expect((await s.api('GET', '/audit?action=catalogue.cia_scale_changed&limit=1'))[0].details.relabeled).toEqual(
+      expect.arrayContaining([{ dimension: 'integrity', key: 'normal', from: 'Normal', to: 'Basic' }]),
+    );
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'default', confirmReorder: true });
+    expect((await s.api('GET', '/catalogue/cia-scale')).mode).toBe('default');
+  });
+
+  it('L3: a stored scale that does not validate is not used (BSI default instead), and a package with one is refused', async () => {
+    const { checkScaleRows } = await import('../src/catalogue/cia.js');
+    const good = JSON.stringify([
+      { key: 'low', label: 'Low', description: '', color: 'gray' },
+      { key: 'high', label: 'High', description: '', color: 'red' },
+    ]);
+    expect(checkScaleRows([{ dimension: 'all', levels: good }])).toEqual([]);
+    expect(checkScaleRows([{ dimension: 'all', levels: JSON.stringify([{ key: 'X Y', label: '', color: 'javascript:' }]) }]).length).toBeGreaterThan(0);
+    expect(checkScaleRows([{ dimension: 'all', levels: '{not json' }])).toHaveLength(1);
+    expect(checkScaleRows([{ dimension: 'secrecy', levels: good }])[0]).toContain('unknown dimension');
+    expect(checkScaleRows([{ dimension: 'confidentiality', levels: good }])[0]).toContain('some dimensions only');
+    expect(
+      checkScaleRows([
+        { dimension: 'all', levels: good },
+        { dimension: 'integrity', levels: good },
+      ]).join(),
+    ).toContain('both a shared scale');
+    const { db } = await import('../src/db.js');
+    db().run('DELETE FROM cia_scales');
+    db().run(
+      'INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)',
+      'all',
+      JSON.stringify([{ key: 'a', label: '<b>x</b>'.repeat(200), color: 'url(evil)' }, { key: 'b' }]),
+      new Date().toISOString(),
+      'import',
+    );
+    const scale = await vera('GET', '/catalogue/cia-scale');
+    expect(scale).toMatchObject({ mode: 'default', storedInvalid: true });
+    expect(scale.levels.confidentiality.map((l: any) => l.key)).toEqual(['normal', 'high', 'very_high']);
+    // ratings and services keep working on the default
+    expect((await vera('GET', '/services')).length).toBeGreaterThan(0);
+    // an administrator saving a scale replaces it
+    await s.api('PUT', '/catalogue/cia-scale', { mode: 'default' });
+    expect(await s.api('GET', '/catalogue/cia-scale')).not.toHaveProperty('storedInvalid');
+  });
+
+  it('L4: attaching a document to an application is recorded on the application too', async () => {
+    const svc = await dana('POST', '/services', { name: 'Scope review service', owners: [] });
+    const app = await s.api('POST', '/applications', { name: 'Scoped by others', owners: ['user:olivia'] });
+    const doc = await dana('POST', '/records', { type: 'DOC', title: 'Foreign concept', links: [{ kind: 'service', id: svc.id, note: '' }] });
+    await dana('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
+    let e = (await audit('application', app.id)).find((x: any) => x.action === 'application.document_added');
+    expect(e).toMatchObject({ actor: 'dana', details: { recordId: doc.id } });
+    expect(e.summary).toContain('"Foreign concept" now applies to application "Scoped by others"');
+    await dana('PUT', `/records/${doc.id}/applications`, { applicationIds: [] });
+    e = (await audit('application', app.id)).find((x: any) => x.action === 'application.document_removed');
+    expect(e.summary).toContain('no longer applies to application "Scoped by others"');
   });
 });

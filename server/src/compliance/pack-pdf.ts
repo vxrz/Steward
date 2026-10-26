@@ -52,6 +52,7 @@ const TEXTS = {
     notRated: 'not rated',
     needsRerating: 'needs re-rating',
     stale: '{n} rating(s) need re-rating after a scale change',
+    archived: '{n} archived application(s) not counted',
     applications: 'Applications',
     application: 'Application',
     role: 'Role',
@@ -113,6 +114,7 @@ const TEXTS = {
     notRated: 'nicht bewertet',
     needsRerating: 'Neubewertung nötig',
     stale: '{n} Bewertung(en) nach einer Änderung der Skala neu zu bewerten',
+    archived: '{n} archivierte Anwendung(en) nicht berücksichtigt',
     applications: 'Anwendungen',
     application: 'Anwendung',
     role: 'Rolle',
@@ -214,10 +216,14 @@ export async function renderPackPdf(m: PackPdfModel, o: { compress?: boolean } =
           const basis = x.override
             ? L.overridden.replace('{user}', x.override.setBy).replace('{derived}', level(x.derived, x.derivedLabel)).replace('{reason}', x.override.reason)
             : L.derived.replace('{rated}', String(x.rated)).replace('{total}', String(x.total));
+          const notCounted = [
+            x.needsRerating ? L.stale.replace('{n}', String(x.needsRerating)) : '',
+            x.archived ? L.archived.replace('{n}', String(x.archived)) : '',
+          ].filter(Boolean);
           return [
             L.dimensions[d],
             { text: level(x.effective, x.effectiveLabel), bold: true },
-            x.needsRerating ? `${basis} – ${L.stale.replace('{n}', String(x.needsRerating))}` : basis,
+            notCounted.length ? `${basis} – ${notCounted.join(', ')}` : basis,
           ];
         }),
       );

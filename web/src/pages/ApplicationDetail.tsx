@@ -235,7 +235,7 @@ function IntegrationsPanel({ app, onSaved }: { app: ApplicationDetail; onSaved: 
                   {t('integrations.mappedBy', { user: i.mappedBy, date: fmtDate(i.mappedAt) })}
                 </Text>
               </Box>
-              {app.canEdit && i.visible && i.platformId && (
+              {app.canEdit && i.canManage && i.platformId && (
                 <ActionIcon
                   variant="subtle"
                   color="red"
@@ -285,7 +285,8 @@ function AddPlatformModal({ app, onClose, onSaved }: { app: ApplicationDetail; o
           <Select
             label={t('integrations.platform')}
             data={(platforms.data ?? [])
-              .filter((p) => !mapped.has(p.id))
+              // mapping needs the manage right on the platform
+              .filter((p) => !mapped.has(p.id) && p.permissions.includes('manage'))
               .map((p) => ({ value: p.id, label: p.environment ? `${p.name} (${p.environment})` : p.name }))}
             value={platformId}
             onChange={setPlatformId}

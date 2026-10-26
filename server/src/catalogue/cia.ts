@@ -9,6 +9,7 @@ import {
   CIA_SCALE_MODES,
   DEFAULT_CIA_LEVELS,
   levelRank,
+  reorderedLevels,
   type ApplicationRating,
   type CiaDimension,
   type CiaLevel,
@@ -23,8 +24,9 @@ import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
-import { HttpError, nowIso, parseJson } from '../util.js';
+import { HttpError, nowIso } from '../util.js';
 import { forbid, me } from '../records/access.js';
+import { logger } from '../log.js';
 
 /**
  * CIA scales, ratings and the derived protection need of a service.
@@ -70,24 +72,71 @@ export interface OverrideRow {
 
 const defaultLevels = (): CiaLevel[] => DEFAULT_CIA_LEVELS.map((l) => ({ ...l }));
 
-/** The scale in use: its mode and the ordered levels of each dimension. */
-export function currentScale(): { mode: CiaScaleMode; levels: Record<CiaDimension, CiaLevel[]>; updatedAt: string | null; updatedBy: string | null } {
-  const rows = db().all<ScaleRow>('SELECT * FROM cia_scales');
-  const all = rows.find((r) => r.dimension === 'all');
-  const perDim = CIA_DIMENSIONS.map((d) => rows.find((r) => r.dimension === d));
-  const parse = (r: ScaleRow | undefined) => {
-    const levels = parseJson<CiaLevel[]>(r?.levels ?? null, []);
-    return levels.length >= CIA_LIMITS.minLevels ? levels : defaultLevels();
-  };
-  const latest = rows.reduce<ScaleRow | undefined>((a, r) => (!a || r.updated_at > a.updated_at ? r : a), undefined);
-  if (perDim.every(Boolean)) {
-    return {
-      mode: 'perDimension',
-      levels: byDimension((d) => parse(perDim[CIA_DIMENSIONS.indexOf(d)])),
-      updatedAt: latest?.updated_at ?? null,
-      updatedBy: latest?.updated_by ?? null,
-    };
+type StoredScale = {
+  mode: CiaScaleMode;
+  levels: Record<CiaDimension, CiaLevel[]>;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  /** The stored scale did not validate: the BSI default is in use */
+  storedInvalid?: boolean;
+};
+
+const DIMENSION_OR_ALL: readonly string[] = ['all', ...CIA_DIMENSIONS];
+
+/**
+ * Checks stored scale rows (this database, or the cia_scales table of a migration package) exactly like a save
+ * request: known dimensions, either one shared row or one row per dimension, and valid levels. Returns the problems.
+ */
+export function checkScaleRows(rows: { dimension: unknown; levels: unknown }[]): string[] {
+  const problems: string[] = [];
+  const dims = rows.map((r) => String(r.dimension));
+  for (const r of rows) {
+    const d = String(r.dimension);
+    if (!DIMENSION_OR_ALL.includes(d)) {
+      problems.push(`CIA scale: unknown dimension "${d.slice(0, 40)}"`);
+      continue;
+    }
+    let raw: unknown = null;
+    try {
+      raw = typeof r.levels === 'string' ? JSON.parse(r.levels) : r.levels;
+    } catch {
+      /* not JSON: reported below */
+    }
+    const p = levelsInput.safeParse(raw);
+    if (!p.success) problems.push(`CIA scale (${d}): ${p.error.issues[0]?.path.join('.') ?? ''} ${p.error.issues[0]?.message ?? 'invalid levels'}`.trim());
   }
+  if (new Set(dims).size !== dims.length) problems.push('CIA scale: a dimension is stored twice');
+  const perDim = dims.filter((d) => d !== 'all');
+  if (dims.includes('all') && perDim.length) problems.push('CIA scale: both a shared scale and scales per dimension are stored');
+  if (perDim.length && perDim.length !== CIA_DIMENSIONS.length) problems.push('CIA scale: scales per dimension are stored for some dimensions only');
+  return problems;
+}
+
+const warned = new Set<string>();
+
+/** The scale in use: its mode and the ordered levels of each dimension (the BSI default when the stored one is not valid). */
+export function currentScale(): StoredScale {
+  const rows = db().all<ScaleRow>('SELECT * FROM cia_scales');
+  const latest = rows.reduce<ScaleRow | undefined>((a, r) => (!a || r.updated_at > a.updated_at ? r : a), undefined);
+  const fallback = (storedInvalid: boolean): StoredScale => ({
+    mode: 'default',
+    levels: { confidentiality: defaultLevels(), integrity: defaultLevels(), availability: defaultLevels() },
+    updatedAt: latest?.updated_at ?? null,
+    updatedBy: latest?.updated_by ?? null,
+    ...(storedInvalid ? { storedInvalid } : {}),
+  });
+  if (!rows.length) return fallback(false);
+  const problems = checkScaleRows(rows);
+  if (problems.length) {
+    const key = problems.join('; ');
+    if (!warned.has(key)) {
+      warned.add(key);
+      logger.warn({ problems }, 'The stored CIA scale is not valid – the BSI default is in use until an administrator saves a scale');
+    }
+    return fallback(true);
+  }
+  const parse = (r: ScaleRow) => levelsInput.parse(JSON.parse(r.levels)) as CiaLevel[];
+  const all = rows.find((r) => r.dimension === 'all');
   if (all) {
     const levels = parse(all);
     return {
@@ -98,8 +147,8 @@ export function currentScale(): { mode: CiaScaleMode; levels: Record<CiaDimensio
     };
   }
   return {
-    mode: 'default',
-    levels: { confidentiality: defaultLevels(), integrity: defaultLevels(), availability: defaultLevels() },
+    mode: 'perDimension',
+    levels: byDimension((d) => parse(rows.find((r) => r.dimension === d)!)),
     updatedAt: latest?.updated_at ?? null,
     updatedBy: latest?.updated_by ?? null,
   };
@@ -166,6 +215,11 @@ export const scaleInput = z
      * flagged "needs re-rating". Keys: a dimension, or "all" for every dimension (a dimension's own entry wins).
      */
     mapping: mappingInput.default({}),
+    /**
+     * Levels that stay but move (their order among the kept levels changes) give their ratings another meaning: the
+     * save is refused unless this confirms it, and those ratings are flagged for re-rating.
+     */
+    confirmReorder: z.boolean().default(false),
   })
   .strict()
   .superRefine((v, ctx) => {
@@ -197,7 +251,9 @@ const RATED = {
 
 /**
  * Saves a scale (administrators). Ratings and overrides whose level the new scale no longer has are mapped (mapping)
- * or flagged for re-rating – never deleted. One audit entry with the levels and what happened to the ratings.
+ * or flagged for re-rating – never deleted. Levels that stay but change their order mean something else afterwards:
+ * the save needs `confirmReorder`, and their ratings are flagged for re-rating too. One audit entry with the levels
+ * and what happened to the ratings, and one per service whose effective protection need changes.
  */
 export function saveScale(input: ScaleInput): CiaScale {
   const u = me();
@@ -222,8 +278,25 @@ export function saveScale(input: ScaleInput): CiaScale {
         throw new HttpError(400, `The level "${to}" is not on the new ${d} scale`, 'CIA_MAPPING_TARGET_UNKNOWN', { level: to, dimension: d });
     }
   }
+  // kept levels in another order: refused unless confirmed (only when ratings or overrides use them)
+  const used = usage();
+  const reordered = byDimension((d) => reorderedLevels(before.levels[d], next[d]).filter((k) => (used[d][k] ?? 0) > 0));
+  const firstReordered = CIA_DIMENSIONS.find((d) => reordered[d].length);
+  if (firstReordered && !input.confirmReorder)
+    throw new HttpError(
+      409,
+      `The levels ${reordered[firstReordered].join(', ')} of the ${firstReordered} scale change their order – their ratings would mean something else. Confirm it: they are flagged for re-rating`,
+      'CIA_REORDER_CONFIRM',
+      { dimension: firstReordered, levels: reordered[firstReordered].join(', ') },
+    );
+  const relabeled = CIA_DIMENSIONS.flatMap((d) =>
+    next[d]
+      .map((l) => ({ dimension: d, key: l.key, from: before.levels[d].find((b) => b.key === l.key)?.label, to: l.label }))
+      .filter((x) => x.from !== undefined && x.from !== x.to),
+  );
+  const needsBefore = protectionNeeds();
   const now = nowIso();
-  const effects = new Map<CiaDimension, { mapped: number; flagged: number }>();
+  const effects = new Map<CiaDimension, { mapped: number; flagged: number; reordered: number }>();
   db().tx(() => {
     db().run('DELETE FROM cia_scales');
     if (input.mode === 'shared')
@@ -233,12 +306,20 @@ export function saveScale(input: ScaleInput): CiaScale {
         db().run('INSERT INTO cia_scales (dimension, levels, updated_at, updated_by) VALUES (?, ?, ?, ?)', d, JSON.stringify(next[d]), now, u.username);
     for (const d of CIA_DIMENSIONS) {
       const keys = new Set(next[d].map((l) => l.key));
+      const moved = new Set(reordered[d]);
       const map = mappingFor(input.mapping, d);
-      const e = { mapped: 0, flagged: 0 };
+      const e = { mapped: 0, flagged: 0, reordered: 0 };
       const handle = (q: (typeof RATED)[keyof typeof RATED]) => {
         for (const r of db().all<{ id: string; level: string; needs_rerating: number }>(q.select, d)) {
-          if (keys.has(r.level)) continue;
           const oldLabel = before.levels[d].find((l) => l.key === r.level)?.label ?? r.level;
+          if (keys.has(r.level)) {
+            // kept, but in another order: flagged (the old label stays visible)
+            if (moved.has(r.level) && !r.needs_rerating) {
+              db().run(q.flag, oldLabel, r.id, d);
+              e.reordered++;
+            }
+            continue;
+          }
           const to = map.get(r.level);
           if (to) {
             // mapped: valid again on the new scale (unless it waited for a re-rating anyway); the old label stays visible
@@ -260,7 +341,8 @@ export function saveScale(input: ScaleInput): CiaScale {
       entityType: 'cia_scale',
       entityId: 'cia_scale',
       summary: `CIA scale changed to ${input.mode === 'default' ? 'the BSI default' : input.mode === 'shared' ? `one scale (${describe(next.confidentiality)})` : 'one scale per dimension'}: ${CIA_DIMENSIONS.map(
-        (d) => `${d} ${effects.get(d)!.mapped} mapped, ${effects.get(d)!.flagged} flagged for re-rating`,
+        (d) =>
+          `${d} ${effects.get(d)!.mapped} mapped, ${effects.get(d)!.flagged} flagged for re-rating${effects.get(d)!.reordered ? `, ${effects.get(d)!.reordered} flagged because their level moved` : ''}`,
       ).join('; ')}`,
       details: {
         mode: input.mode,
@@ -268,11 +350,54 @@ export function saveScale(input: ScaleInput): CiaScale {
         levels: next,
         previousLevels: before.levels,
         mapping: input.mapping,
+        reordered,
+        relabeled,
         effects: byDimension((d) => effects.get(d)!),
       },
     });
+    auditNeedChanges(needsBefore, before, { kind: 'scale', what: 'a change of the CIA scale' });
   });
   return getScale();
+}
+
+/**
+ * One audit entry (entity service) for each of these services whose effective protection need differs from
+ * `before` – after a change of an application, of the members of a service or of the scale. Call it inside the
+ * transaction of the change, after the change.
+ */
+export function auditNeedChanges(
+  before: Map<string, ServiceProtectionNeed>,
+  beforeScale: StoredScale,
+  cause: { kind: 'application' | 'membership' | 'scale'; what: string; applicationId?: string },
+): void {
+  if (!before.size) return;
+  const after = protectionNeeds([...before.keys()]);
+  const scale = currentScale();
+  const names = new Map(
+    db()
+      .all<{ id: string; name: string }>('SELECT id, name FROM services')
+      .map((r) => [r.id, r.name]),
+  );
+  for (const [sid, b] of before) {
+    const a = after.get(sid);
+    if (!a) continue;
+    const changes = CIA_DIMENSIONS.filter((d) => b[d].effective !== a[d].effective).map((d) => ({
+      dimension: d,
+      from: b[d].effective,
+      to: a[d].effective,
+    }));
+    if (!changes.length) continue;
+    const label = (d: CiaDimension, k: string | null, sc: StoredScale) => (k ? levelLabel(d, k, sc) : 'not rated');
+    audit({
+      action: 'service.protection_need_changed',
+      entityType: 'service',
+      entityId: sid,
+      summary: `Protection need of service "${names.get(sid) ?? sid}" changed by ${cause.what}: ${changes
+        .map((c) => `${c.dimension} ${label(c.dimension, c.from, beforeScale)} → ${label(c.dimension, c.to, scale)}`)
+        .join(', ')}`,
+      details: { cause: cause.kind, ...(cause.applicationId ? { applicationId: cause.applicationId } : {}), changes },
+    });
+  }
 }
 
 // ---------- ratings ----------
@@ -375,6 +500,7 @@ export function protectionNeeds(serviceIds?: string[]): Map<string, ServiceProte
   const out = new Map<string, ServiceProtectionNeed>();
   for (const sid of ids) {
     const apps = members.filter((m) => m.service_id === sid && !m.archived).map((m) => m.application_id);
+    const archived = members.filter((m) => m.service_id === sid && m.archived).length;
     const need: ServiceProtectionNeed = byDimension((d): ProtectionNeedDimension => {
       const levels = scale.levels[d];
       let best = -1;
@@ -413,6 +539,7 @@ export function protectionNeeds(serviceIds?: string[]): Map<string, ServiceProte
         rated,
         total: apps.length,
         needsRerating: stale,
+        archived,
         override,
         effective: override && !override.needsRerating ? override.level : derived,
       };

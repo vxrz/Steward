@@ -27,6 +27,8 @@ export interface PackNeed {
   rated: number;
   total: number;
   needsRerating: number;
+  /** archived applications of the service: not counted */
+  archived: number;
   override: { level: string; label: string; reason: string; setBy: string; setAt: string } | null;
 }
 
@@ -76,6 +78,7 @@ export function serviceCatalogue(serviceId: string): PackCatalogue | null {
       rated: n.rated,
       total: n.total,
       needsRerating: n.needsRerating,
+      archived: n.archived,
       override: n.override
         ? {
             level: n.override.level,

@@ -53,6 +53,7 @@ const mapNeed = (n: ServiceProtectionNeed, scale: Scale) =>
           rated: x.rated,
           total: x.total,
           needsRerating: x.needsRerating,
+          archived: x.archived,
           override: x.override ? { ...x.override, levelLabel: levelLabel(d, x.override.level, scale) ?? x.override.level } : null,
           effective: x.effective,
           effectiveLabel: levelLabel(d, x.effective, scale),

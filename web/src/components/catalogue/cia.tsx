@@ -320,8 +320,20 @@ export function ProtectionNeedPanel({ service, onSaved }: { service: ServiceDeta
                       </Text>
                       <Text size="xs" c="dimmed">
                         {n.total ? t('need.rated', { rated: n.rated, total: n.total }) : t('need.noApplications')}
-                        {n.needsRerating > 0 && ` · ${t('need.stale', { count: n.needsRerating })}`}
                       </Text>
+                      {(n.archived > 0 || n.needsRerating > 0 || n.total - n.rated - n.needsRerating > 0) && (
+                        <Text size="xs" c="dimmed" data-testid={`not-counted-${d}`}>
+                          {t('need.notCounted', {
+                            parts: [
+                              n.total - n.rated - n.needsRerating > 0 ? t('need.parts.unrated', { count: n.total - n.rated - n.needsRerating }) : '',
+                              n.needsRerating > 0 ? t('need.parts.stale', { count: n.needsRerating }) : '',
+                              n.archived > 0 ? t('need.parts.archived', { count: n.archived }) : '',
+                            ]
+                              .filter(Boolean)
+                              .join(', '),
+                          })}
+                        </Text>
+                      )}
                       {n.override && (
                         <Text size="xs" c={n.override.needsRerating ? 'yellow' : undefined} data-testid={`override-${d}`}>
                           {n.override.needsRerating

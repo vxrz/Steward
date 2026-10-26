@@ -7133,6 +7133,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7203,6 +7207,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7244,6 +7249,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7314,6 +7323,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7355,6 +7365,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7425,6 +7439,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7681,6 +7696,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7751,6 +7770,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7792,6 +7812,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7862,6 +7886,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"
@@ -7903,6 +7928,10 @@
                     "type": "integer",
                     "description": "Applications whose rating needs re-rating after a scale change (not counted)"
                   },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
                   "override": {
                     "anyOf": [
                       {
@@ -7973,6 +8002,7 @@
                   "rated",
                   "total",
                   "needsRerating",
+                  "archived",
                   "override",
                   "effective",
                   "effectiveLabel"

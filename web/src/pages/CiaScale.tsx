@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActionIcon, Alert, Badge, Button, Group, Paper, Radio, Select, Stack, Table, Text, TextInput } from '@mantine/core';
+import { ActionIcon, Alert, Badge, Button, Checkbox, Group, Paper, Radio, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import {
   CIA_LEVEL_KEY_RE,
   CIA_LIMITS,
   DEFAULT_CIA_LEVELS,
+  reorderedLevels,
   type CiaColor,
   type CiaDimension,
   type CiaLevel,
@@ -53,6 +54,11 @@ export function CiaScalePage() {
             {t('scale.mode')}: {t(`scale.modes.${s.mode}`)}
             {s.updatedBy && s.updatedAt && ` · ${t('scale.updated', { user: s.updatedBy, date: fmtDate(s.updatedAt) })}`}
           </Text>
+          {s.storedInvalid && (
+            <Alert color="red" variant="light" data-testid="scale-invalid">
+              {t('scale.storedInvalid')}
+            </Alert>
+          )}
           {!s.canEdit && (
             <Text size="xs" c="dimmed">
               {t('scale.readOnly')}
@@ -137,9 +143,16 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
           : key,
       })),
   );
+  // levels in use that stay but move: their ratings are flagged for re-rating, after a confirmation
+  const reordered = CIA_DIMENSIONS.map((d) => ({
+    d,
+    keys: reorderedLevels(scale.levels[d], next[d]).filter((k) => (scale.usage[d][k] ?? 0) > 0),
+  })).filter((x) => x.keys.length > 0);
+  const [confirmReorder, setConfirmReorder] = useState(false);
   const valid = (ls: CiaLevel[]) =>
     ls.length >= CIA_LIMITS.minLevels && ls.every((l) => CIA_LEVEL_KEY_RE.test(l.key) && l.label.trim()) && new Set(ls.map((l) => l.key)).size === ls.length;
-  const ok = mode === 'default' || (mode === 'shared' ? valid(shared) : CIA_DIMENSIONS.every((d) => valid(dims[d])));
+  const levelsOk = mode === 'default' || (mode === 'shared' ? valid(shared) : CIA_DIMENSIONS.every((d) => valid(dims[d])));
+  const ok = levelsOk && (reordered.length === 0 || confirmReorder);
   const save = async () => {
     if (!ok) return;
     setBusy(true);
@@ -155,13 +168,14 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
     try {
       const body =
         mode === 'default'
-          ? { mode, mapping: map }
+          ? { mode, mapping: map, confirmReorder }
           : mode === 'shared'
-            ? { mode, levels: clean(shared), mapping: map }
+            ? { mode, levels: clean(shared), mapping: map, confirmReorder }
             : {
                 mode,
                 dimensions: { confidentiality: clean(dims.confidentiality), integrity: clean(dims.integrity), availability: clean(dims.availability) },
                 mapping: map,
+                confirmReorder,
               };
       qc.setQueryData(['cia-scale'], await put<CiaScale>('/catalogue/cia-scale', body));
       void qc.invalidateQueries({ queryKey: ['applications'] });
@@ -199,6 +213,19 @@ function ScaleEditor({ scale, onDone }: { scale: CiaScale; onDone: () => void })
         {!ok && (
           <Alert color="red" variant="light">
             {t('scale.invalid')}
+          </Alert>
+        )}
+        {reordered.length > 0 && (
+          <Alert color="yellow" variant="light" title={t('scale.reorderTitle')} data-testid="scale-reorder">
+            <Stack gap="xs">
+              <Text size="sm">{t('scale.reorderHelp')}</Text>
+              {reordered.map((r) => (
+                <Text key={r.d} size="sm">
+                  {t('scale.reorderLevels', { dimension: t(`cia.dimensions.${r.d}`), levels: r.keys.join(', ') })}
+                </Text>
+              ))}
+              <Checkbox label={t('scale.confirmReorder')} checked={confirmReorder} onChange={(e) => setConfirmReorder(e.currentTarget.checked)} />
+            </Stack>
           </Alert>
         )}
         {removed.length > 0 && (
