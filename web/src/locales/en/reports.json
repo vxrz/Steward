@@ -104,6 +104,11 @@
     "footerNote": "Footer note",
     "footerNoteHint": "Optional, e.g. Confidential – for internal use only",
     "save": "Save branding",
-    "preview": "Preview ({{language}})"
+    "preview": "Preview ({{language}})",
+    "resetDefaults": "Reset to default",
+    "contrast": {
+      "title": "Readability",
+      "graphics": "Lines, section markers and chart bars in this color barely stand out from the white page (contrast {{ratio}}:1, at least 3:1 recommended). Consider a darker color."
+    }
   }
 }

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { BRAND, REPORT_LOGO_MAX_BYTES, type ReportBranding } from '@sm/shared';
+import { REPORT_BRANDING_DEFAULTS, REPORT_LOGO_MAX_BYTES, type ReportBranding } from '@sm/shared';
 import { config } from '../config.js';
 import { readSetting, writeSetting } from '../settings.js';
 import { HttpError, nowIso } from '../util.js';
@@ -17,10 +17,7 @@ const KEY = 'reports.branding';
 type Stored = Omit<ReportBranding, 'customLogo'>;
 
 const DEFAULTS: Stored = {
-  companyName: '',
-  accentColor: BRAND.color,
-  classification: 'Internal',
-  footerNote: '',
+  ...REPORT_BRANDING_DEFAULTS,
   logoMime: null,
   logoUpdatedAt: null,
 };

@@ -1,4 +1,6 @@
 import type { ImportedHistoryRef } from './api.js';
+import { BRAND } from './brand.js';
+import { contrastRatio } from './theme.js';
 /** Archived PDF reports (run reports and periodic summaries) and their branding. */
 
 export const REPORT_LANGS = ['en', 'de'] as const;
@@ -80,6 +82,36 @@ export interface ReportBranding {
 }
 
 export const REPORT_LOGO_MAX_BYTES = 1024 * 1024;
+
+/** The report branding settings as shipped (Settings → Report branding → "Reset to default"). */
+export const REPORT_BRANDING_DEFAULTS: Pick<ReportBranding, 'companyName' | 'accentColor' | 'classification' | 'footerNote'> = {
+  companyName: '',
+  accentColor: BRAND.color,
+  classification: 'Internal',
+  footerNote: '',
+};
+
+/** A readability note on the report accent colour (shown in Settings, like the theme's contrast notes). */
+export interface ReportAccentNote {
+  /** graphics: lines, bars and markers in the colour barely stand out from the white page (below 3:1) */
+  kind: 'graphics';
+  /** Contrast of the colour against the white page */
+  ratio: number;
+}
+
+/** Non-text contrast (WCAG 1.4.11) the accent colour should reach against the white report page. */
+export const REPORT_ACCENT_MIN_CONTRAST = 3;
+
+/**
+ * Reports use the accent colour for the header rule, section markers, chart bars and a light tint behind
+ * table headers – never for text, which stays dark. So the colour must stand out from the white page as a
+ * graphic (3:1); the tint keeps the dark text readable whatever the colour.
+ */
+export function reportAccentNotes(accentColor: string): ReportAccentNote[] {
+  if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) return [];
+  const ratio = contrastRatio(accentColor, '#ffffff');
+  return ratio < REPORT_ACCENT_MIN_CONTRAST ? [{ kind: 'graphics', ratio }] : [];
+}
 
 /** Result of checking a PDF against the audit log (POST /api/reports/verify). */
 export interface ReportVerification {
