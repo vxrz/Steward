@@ -76,7 +76,11 @@
     "hint": "Values are Gatus' own uptime figures, read once an hour. Steward keeps an hourly sample for 90 days.",
     "deleteConfirm": "Delete the objective “{{name}}” with its samples? The scorecard history keeps what it was.",
     "deleted": "Objective deleted",
-    "deleteOf": "Delete the objective “{{name}}”"
+    "deleteOf": "Delete the objective “{{name}}”",
+    "showHistory": "Show history",
+    "hideHistory": "Hide history",
+    "historySummary_one": "{{count}} hourly sample in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}",
+    "historySummary_other": "{{count}} hourly samples in the last 30 days, {{below}} below target, breaches: {{breaches}} – the line shows {{window}}"
   },
   "duties": {
     "none": "No duties.",

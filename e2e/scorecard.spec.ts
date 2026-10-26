@@ -70,6 +70,8 @@ test('define an availability objective and see the scorecard of the service', as
   await expect(card.getByTestId('objective-status')).toHaveText('Met');
   await expect(card.getByTestId('window-h24')).toContainText('(≥ 1 %)');
   await expect(card).toContainText('Sends a message');
+  await card.getByRole('button', { name: 'Show history' }).click();
+  await expect(card.getByTestId('objective-history')).toContainText('in the last 30 days');
 
   // the scorecard of the service: four parts, each with its own status
   await page.reload();

@@ -76,7 +76,11 @@
     "hint": "Die Werte sind die eigenen Verfügbarkeitswerte von Gatus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",
     "deleteConfirm": "Ziel „{{name}}“ mit seinen gespeicherten Werten löschen? Der Verlauf der Scorecard behält, was es war.",
     "deleted": "Ziel gelöscht",
-    "deleteOf": "Ziel „{{name}}“ löschen"
+    "deleteOf": "Ziel „{{name}}“ löschen",
+    "showHistory": "Verlauf anzeigen",
+    "hideHistory": "Verlauf ausblenden",
+    "historySummary_one": "{{count}} stündlicher Wert in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}",
+    "historySummary_other": "{{count}} stündliche Werte in den letzten 30 Tagen, {{below}} unterschritten, Unterschreitungen: {{breaches}} – die Linie zeigt {{window}}"
   },
   "duties": {
     "none": "Keine Pflichten.",

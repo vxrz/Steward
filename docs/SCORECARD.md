@@ -59,7 +59,7 @@ The objective is _below target_ when any window is below; else _no data_ when an
 
 ## Hourly samples and breaches
 
-Once an hour, Steward stores a **sample** of each objective: the values it had read from Gatus and the status. Samples are kept for **90 days**; the objective's page (API: `/api/v1/objectives/{objectiveId}/samples`) shows them.
+Once an hour, Steward stores a **sample** of each objective: the values it had read from Gatus and the status. Samples are kept for **90 days**. _Show history_ on an objective shows the last 30 days (a line of its first window, the number of samples below target and the breaches); the API has all of them (`/api/v1/objectives/{objectiveId}/samples`).
 
 A **breach** starts with the first sample below target and ends with the first sample that meets every target again. _No data_ neither starts nor ends a breach. Ended breaches are kept for 400 days.
 

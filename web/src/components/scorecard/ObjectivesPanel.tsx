@@ -3,11 +3,12 @@ import { ActionIcon, Badge, Button, Group, Paper, Stack, Text } from '@mantine/c
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconEdit, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { ObjectiveSummary } from '@sm/shared';
+import type { ObjectiveDetail, ObjectiveSummary } from '@sm/shared';
 import { del, get, notifyError, notifyOk } from '../../api';
 import { QueryState } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtDate, fmtRelative } from '../../format';
+import { Sparkline } from '../dashboard/charts';
 import { OBJECTIVE_COLORS, ObjectiveFormModal, ObjectiveStatusBadge, fmtPct } from './common';
 
 /**
@@ -116,6 +117,7 @@ export function ObjectivesPanel({
                       {t('objectives.valuesAt', { when: fmtRelative(o.valuesAt) })}
                     </Text>
                   )}
+                  <ObjectiveHistory objective={o} />
                 </Stack>
                 {o.canEdit && (
                   <Group gap={2} wrap="nowrap">
@@ -145,6 +147,38 @@ export function ObjectivesPanel({
           onClose={() => setEditing(null)}
           onSaved={refresh}
         />
+      )}
+    </Stack>
+  );
+}
+
+/** The stored hourly samples of the first window with a target (last 30 days), on demand. */
+function ObjectiveHistory({ objective: o }: { objective: ObjectiveSummary }) {
+  const { t } = useTranslation('scorecard');
+  const [open, setOpen] = useState(false);
+  const q = useQuery({ queryKey: ['objectives', 'detail', o.id], queryFn: () => get<ObjectiveDetail>(`/objectives/${o.id}`), enabled: open });
+  const w = o.windows[0]?.window;
+  if (!w) return null;
+  const samples = (q.data?.samples ?? []).filter((x) => x.values[w] !== null).reverse();
+  const below = (q.data?.samples ?? []).filter((x) => x.status === 'below').length;
+  return (
+    <Stack gap={2}>
+      <Button variant="subtle" size="compact-xs" w="fit-content" px={0} onClick={() => setOpen((x) => !x)} aria-expanded={open}>
+        {open ? t('objectives.hideHistory') : t('objectives.showHistory')}
+      </Button>
+      {open && <QueryState query={q} rows={1} />}
+      {open && q.data && (
+        <Stack gap={2} data-testid="objective-history">
+          <Text size="xs" c="dimmed">
+            {t('objectives.historySummary', {
+              count: q.data.samples.length,
+              below,
+              breaches: q.data.breaches.length,
+              window: t(`windows.${w}`),
+            })}
+          </Text>
+          {samples.length > 1 && <Sparkline points={samples.map((x) => ({ ts: x.at, value: x.values[w]! }))} height={32} />}
+        </Stack>
       )}
     </Stack>
   );
