@@ -216,6 +216,16 @@ function ObjectiveHistory({ objective: o }: { objective: ObjectiveSummary }) {
             })}
           </Text>
           {samples.length > 1 && <Sparkline points={samples.map((x) => ({ ts: x.at, value: x.values[w]! }))} height={32} />}
+          {q.data.breaches.slice(0, 5).map((b) => (
+            <Text size="xs" key={b.id} data-testid="objective-breach">
+              {b.endedAt
+                ? t(b.endReason === 'archived' ? 'objectives.breachArchived' : 'objectives.breachRecovered', {
+                    from: fmtDate(b.startedAt),
+                    to: fmtDate(b.endedAt),
+                  })
+                : t('objectives.breachSince', { date: fmtDate(b.startedAt) })}
+            </Text>
+          ))}
         </Stack>
       )}
     </Stack>

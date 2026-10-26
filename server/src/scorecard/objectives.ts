@@ -5,6 +5,7 @@ import {
   OBJECTIVE_WINDOWS,
   type AclEntry,
   type ObjectiveBreach,
+  type ObjectiveBreachEndReason,
   type ObjectiveDetail,
   type ObjectiveNoDataReason,
   type ObjectiveSample,
@@ -69,11 +70,12 @@ interface BreachRow {
   objective_id: string;
   started_at: string;
   ended_at: string | null;
+  end_reason: ObjectiveBreachEndReason | null;
   windows: string;
   notified_at: string | null;
 }
 
-interface SampleRow {
+export interface SampleRow {
   objective_id: string;
   bucket: string;
   value_h1: number | null;
@@ -84,7 +86,7 @@ interface SampleRow {
   sampled_at: string;
 }
 
-interface ServiceRef {
+export interface ServiceRef {
   id: string;
   name: string;
   owners: string;
@@ -254,10 +256,21 @@ export const longestWindowMs = (r: ObjectiveRow): number =>
  */
 export function objectiveState(r: ObjectiveRow, cache: ReadingCache, facts: SampleFacts, now: number): ObjectiveState {
   if (r.archived_at) {
+    // the final sample taken when it was archived (sampling.ts); "no data" is measured up to the archive
     const x = facts.last.get(r.id);
     const values = { h1: x?.value_h1 ?? null, h24: x?.value_h24 ?? null, d7: x?.value_d7 ?? null, d30: x?.value_d30 ?? null };
     const j = judge(r, values);
-    return { ...j, reason: j.status === 'noData' ? 'noValue' : null, at: x?.bucket ?? null, noDataSince: null, noDataTooLong: false };
+    if (j.status !== 'noData') return { ...j, reason: null, at: x?.bucket ?? null, noDataSince: null, noDataTooLong: false };
+    const lastData = facts.lastData.get(r.id);
+    const since = Math.max(Date.parse(r.created_at), lastData ? Date.parse(lastData) + HOUR : 0);
+    const end = Date.parse(r.archived_at);
+    return {
+      ...j,
+      reason: 'noValue',
+      at: x?.bucket ?? null,
+      noDataSince: new Date(since).toISOString(),
+      noDataTooLong: end - since > OBJECTIVE_LIMITS.noDataAttentionHours * HOUR,
+    };
   }
   const reading = cache.read(r.platform_id, r.endpoint_key);
   const j = judge(r, reading.values);
@@ -281,13 +294,13 @@ export function objectiveRow(objectiveId: string): ObjectiveRow {
   return r;
 }
 
-function serviceRef(serviceId: string): ServiceRef {
+export function serviceRef(serviceId: string): ServiceRef {
   const s = db().get<ServiceRef>('SELECT id, name, owners, archived FROM services WHERE id = ?', serviceId);
   if (!s) throw new HttpError(404, `Service ${serviceId} not found`, 'SERVICE_NOT_FOUND', { id: serviceId });
   return s;
 }
 
-const canEdit = (u: AuthUser | null, s: ServiceRef) => canEditService(u, parseJson<string[]>(s.owners, []));
+export const canEdit = (u: AuthUser | null, s: ServiceRef) => canEditService(u, parseJson<string[]>(s.owners, []));
 
 interface PlatformRef {
   id: string;
@@ -322,6 +335,8 @@ const toBreach = (b: BreachRow): ObjectiveBreach => ({
   id: b.id,
   startedAt: b.started_at,
   endedAt: b.ended_at,
+  // breaches ended before end reasons were stored ended by a sample that met every target
+  endReason: b.ended_at ? (b.end_reason ?? 'recovered') : null,
   windows: parseJson<ObjectiveWindow[]>(b.windows, []),
   notified: !!b.notified_at,
 });
@@ -589,40 +604,6 @@ export function updateObjective(objectiveId: string, change: ObjectiveUpdate): O
       entityId: objectiveId,
       summary: `Availability objective "${input.name}" of service "${s.name}" changed (${changes.join(', ')})`,
       details: { changes, before: Object.fromEntries(changes.map((k) => [k, cur[k]])), after: Object.fromEntries(changes.map((k) => [k, next[k]])) },
-    });
-  });
-  return getObjective(objectiveId);
-}
-
-/**
- * Archives (or restores) an objective. It is not deleted: its samples and breaches stay until the retention removes
- * them, an archived objective is no longer sampled, and it still counts on the scorecard with the status of its last
- * sample until its longest window has passed – archiving does not clean a scorecard.
- */
-export function setObjectiveArchived(objectiveId: string, archived: boolean): ObjectiveDetail {
-  const u = me();
-  const cur = objectiveRow(objectiveId);
-  const s = serviceRef(cur.service_id);
-  if (!canEdit(u, s)) forbid('change objectives of this service', 'changeService');
-  if (!!cur.archived_at === archived) return getObjective(objectiveId);
-  if (!archived && s.archived) throw new HttpError(409, 'The service is archived', 'OBJECTIVE_SERVICE_ARCHIVED', { id: s.id });
-  db().tx(() => {
-    db().run(
-      'UPDATE availability_objectives SET archived_at = ?, archived_by = ?, updated_at = ?, updated_by = ? WHERE id = ?',
-      archived ? nowIso() : null,
-      archived ? u.username : null,
-      nowIso(),
-      u.username,
-      objectiveId,
-    );
-    // a breach going on ends with the archive (it is kept)
-    if (archived) db().run('UPDATE objective_breaches SET ended_at = ? WHERE objective_id = ? AND ended_at IS NULL', nowIso(), objectiveId);
-    audit({
-      action: archived ? 'objective.archived' : 'objective.restored',
-      entityType: 'objective',
-      entityId: objectiveId,
-      summary: `Availability objective "${cur.name}" of service "${s.name}" ${archived ? 'archived' : 'restored'}`,
-      details: { serviceId: s.id, platformId: cur.platform_id, endpointKey: cur.endpoint_key, targets: rowTargets(cur) },
     });
   });
   return getObjective(objectiveId);

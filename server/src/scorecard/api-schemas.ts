@@ -3,6 +3,7 @@ import {
   CIA_DIMENSIONS,
   DUTY_LEVELS,
   DUTY_PERIOD_STATUSES,
+  OBJECTIVE_BREACH_END_REASONS,
   OBJECTIVE_NO_DATA_REASONS,
   OBJECTIVE_STATUSES,
   OBJECTIVE_WINDOWS,
@@ -29,6 +30,10 @@ const ObjectiveBreachEntry = z.object({
   id: z.string(),
   startedAt: ts(),
   endedAt: ts().nullable().describe('null: still below target'),
+  endReason: z
+    .enum(OBJECTIVE_BREACH_END_REASONS)
+    .nullable()
+    .describe('recovered: every target met again; archived: ended because the objective was archived (not a recovery)'),
   windows: z.array(z.enum(OBJECTIVE_WINDOWS)).describe('The windows below target when the breach started'),
   notified: z.boolean(),
 });

@@ -86,7 +86,9 @@
     "restoreOf": "Ziel „{{name}}“ wiederherstellen",
     "archiveOf": "Ziel „{{name}}“ archivieren",
     "archivedList_one": "{{count}} archiviertes Ziel",
-    "archivedList_other": "{{count}} archivierte Ziele"
+    "archivedList_other": "{{count}} archivierte Ziele",
+    "breachRecovered": "Unterschritten {{from}} – {{to}} (wieder erfüllt)",
+    "breachArchived": "Unterschritten {{from}} – {{to}} (durch Archivieren beendet, nicht wieder erfüllt)"
   },
   "duties": {
     "none": "Keine Pflichten.",

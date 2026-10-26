@@ -366,9 +366,70 @@ describe('no clean scorecard by archiving, no flood of messages, no silent "no d
       result: 'notMet',
       lastClosed: { key: currentKey(), status: 'ended' },
     });
+    // the archive moment comes from the duty data (the period closed with "duty archived"), which a migration package
+    // carries – not only from this instance's audit log
+    const archivedAt = c.duties.items[0].archivedAt;
+    expect(archivedAt).toBe(db().get<any>("SELECT MAX(closed_at) AS at FROM duty_periods WHERE duty_id = ? AND close_note = 'duty archived'", d.id).at);
+    db().run("DELETE FROM audit_log WHERE entity_id = ? AND action = 'duty.archived'", d.id);
+    expect((await card(vera, svc.id)).duties.items[0]).toMatchObject({ dutyId: d.id, archivedAt });
     // the next month: gone
     const next = sc.computeScorecards([svc.id], null, Date.now() + 32 * DAY)[0]!.card;
     expect(next.duties).toMatchObject({ status: 'none', archivedThisPeriod: 0 });
+  });
+
+  it('archiving takes a final sample: a breach since the last hourly sample is recorded, announced and ended "by archiving"', async () => {
+    const svc = await newService(['user:olivia']);
+    gatusData(gatusId, {}, { core_late: { h24: 99.8 } });
+    const o = await objective(svc.id, { endpointKey: 'core_late', targets: { h1: null, h24: 99, d7: null, d30: null }, notify: true });
+    jobs.sampleObjectives(Date.now());
+    expect((await dana('GET', `/objectives/${o.id}`)).samples[0].status).toBe('met');
+    // Gatus is below target now; the next hourly sample has not been taken yet
+    gatusData(gatusId, {}, { core_late: { h24: 97.5 } });
+    const archived = await dana('POST', `/objectives/${o.id}/archive`, { archived: true });
+    expect(archived).toMatchObject({ archived: true, status: 'below' });
+    expect(archived.samples[0]).toMatchObject({ status: 'below', values: { h24: 97.5 } });
+    expect(archived.breaches).toEqual([expect.objectContaining({ endReason: 'archived', notified: true, endedAt: archived.archivedAt })]);
+    expect(db().all<any>("SELECT * FROM notifications WHERE event = 'objective.breached' AND link = ?", `/services/${svc.id}`)).toHaveLength(1);
+    const c = await card(vera, svc.id);
+    expect(c.availability).toMatchObject({ status: 'attention', below: 1 });
+    expect(c.availability.objectives[0]).toMatchObject({ id: o.id, status: 'below', archivedAt: archived.archivedAt });
+    // without figures, the final sample says "no data"
+    gatusData(gatusId, { uptimes: false }, {});
+    const quiet = await objective(svc.id, { endpointKey: 'core_late', targets: { h1: null, h24: 99, d7: null, d30: null } });
+    expect((await dana('POST', `/objectives/${quiet.id}/archive`, { archived: true })).samples[0].status).toBe('noData');
+    gatusData(gatusId, {}, { core_late: { h24: 99.8 } });
+  });
+
+  it('a breach that ends with every target met again is "recovered"', async () => {
+    const svc = await newService();
+    gatusData(gatusId, {}, { core_rec: { h24: 90 } });
+    const o = await objective(svc.id, { endpointKey: 'core_rec', targets: { h1: null, h24: 99, d7: null, d30: null } });
+    const t0 = Math.floor(Date.now() / HOUR) * HOUR + 40 * HOUR;
+    gatusData(gatusId, { at: t0 }, { core_rec: { h24: 90 } });
+    jobs.sampleObjectives(t0 + 60000);
+    gatusData(gatusId, { at: t0 + HOUR }, { core_rec: { h24: 99.5 } });
+    jobs.sampleObjectives(t0 + HOUR + 60000);
+    expect((await dana('GET', `/objectives/${o.id}`)).breaches).toEqual([expect.objectContaining({ endReason: 'recovered' })]);
+    gatusData(gatusId, {}, { core_rec: { h24: 99.5 } });
+  });
+
+  it('archiving after more than a day without data keeps the attention until the window has passed', async () => {
+    const svc = await newService();
+    gatusData(gatusId, { uptimes: false }, {});
+    try {
+      const o = await objective(svc.id, { endpointKey: 'core_quiet', targets: { h1: null, h24: 99, d7: null, d30: null } });
+      db().run('UPDATE availability_objectives SET created_at = ? WHERE id = ?', iso(Date.now() - 2 * DAY), o.id);
+      const a = await dana('POST', `/objectives/${o.id}/archive`, { archived: true });
+      expect(a).toMatchObject({ archived: true, status: 'noData', noDataTooLong: true });
+      const c = await card(vera, svc.id);
+      expect(c.availability).toMatchObject({ status: 'attention', noDataTooLong: 1 });
+      expect(sc.computeScorecards([svc.id], null, Date.now() + 2 * DAY)[0]!.card.availability.status).toBe('none');
+      // archived after a shorter gap: open, not attention
+      const fresh = await objective(svc.id, { endpointKey: 'core_quiet', targets: { h1: null, h24: 99, d7: null, d30: null } });
+      expect(await dana('POST', `/objectives/${fresh.id}/archive`, { archived: true })).toMatchObject({ status: 'noData', noDataTooLong: false });
+    } finally {
+      gatusData(gatusId, {}, {});
+    }
   });
 
   it('"no data" for more than a day needs attention, with the reason; shorter is open', async () => {
@@ -418,6 +479,9 @@ describe('no clean scorecard by archiving, no flood of messages, no silent "no d
       }),
     ).toEqual(['day "2026/01/01" is not YYYY-MM-DD', 'documentation "x" is not a status', 'owners is not a list of subjects']);
     expect(scorecardRowProblems('scorecard_rules', { dimension: 'beauty', min_level: 'High!', enabled: 1 })).toHaveLength(2);
+    expect(scorecardRowProblems('objective_breaches', { started_at: '2026-01-01T00:00:00.000Z', windows: '["h24"]', end_reason: 'deleted' })).toEqual([
+      'end_reason is unknown',
+    ]);
     const check = scorecardTableChecker('objective_samples', 2);
     for (let i = 0; i < 4; i++) check.add({ bucket: 'x', status: 'met' });
     expect(check.result()).toEqual([

@@ -107,18 +107,32 @@ interface Data {
   dutyArchivedAt: Map<string, string>;
 }
 
-/** When these duties were last archived (from the audit log, which nobody can change unnoticed). */
+/**
+ * When these (archived) duties were archived. From the duty data, which a migration package carries: archiving closes
+ * the duty's open periods with the note "duty archived" (duties/service.ts), so the newest such row (not an "inactive"
+ * one, which a restore stores) was closed at the archive. Only for a duty without such a row: the audit log, then the
+ * imported audit history of a migration package.
+ */
 function archivedAtOf(ids: string[]): Map<string, string> {
   const out = new Map<string, string>();
-  for (let i = 0; i < ids.length; i += 500) {
-    const chunk = ids.slice(i, i + 500);
-    for (const r of db().all<{ entity_id: string; last_ts: string }>(
-      `SELECT entity_id, MAX(ts) AS last_ts FROM audit_log WHERE entity_type = 'duty' AND action = 'duty.archived' AND entity_id IN (${chunk.map(() => '?').join(', ')})
-       GROUP BY entity_id`,
-      ...chunk,
-    ))
-      out.set(r.entity_id, r.last_ts);
-  }
+  const query = (sql: string, chunk: string[]) => {
+    for (const r of db().all<{ id: string; at: string }>(sql.replace('$IN', chunk.map(() => '?').join(', ')), ...chunk)) if (r.at) out.set(r.id, r.at);
+  };
+  const each = (list: string[], sql: string) => {
+    for (let i = 0; i < list.length; i += 500) query(sql, list.slice(i, i + 500));
+  };
+  each(
+    ids,
+    "SELECT duty_id AS id, MAX(closed_at) AS at FROM duty_periods WHERE close_note = 'duty archived' AND status <> 'inactive' AND duty_id IN ($IN) GROUP BY duty_id",
+  );
+  each(
+    ids.filter((x) => !out.has(x)),
+    "SELECT entity_id AS id, MAX(ts) AS at FROM audit_log WHERE entity_type = 'duty' AND action = 'duty.archived' AND entity_id IN ($IN) GROUP BY entity_id",
+  );
+  each(
+    ids.filter((x) => !out.has(x)),
+    "SELECT entity_id AS id, MAX(ts) AS at FROM imported_audit_log WHERE entity_type = 'duty' AND action = 'duty.archived' AND entity_id IN ($IN) GROUP BY entity_id",
+  );
   return out;
 }
 

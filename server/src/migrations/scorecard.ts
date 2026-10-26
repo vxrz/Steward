@@ -94,6 +94,8 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
     sql: `
       ALTER TABLE availability_objectives ADD COLUMN archived_at TEXT;
       ALTER TABLE availability_objectives ADD COLUMN archived_by TEXT;
+      -- why a breach ended: the objective met every target again (recovered), or it was archived
+      ALTER TABLE objective_breaches ADD COLUMN end_reason TEXT;
     `,
   },
 ];

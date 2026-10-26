@@ -86,7 +86,9 @@
     "restoreOf": "Restore the objective “{{name}}”",
     "archiveOf": "Archive the objective “{{name}}”",
     "archivedList_one": "{{count}} archived objective",
-    "archivedList_other": "{{count}} archived objectives"
+    "archivedList_other": "{{count}} archived objectives",
+    "breachRecovered": "Below target {{from}} – {{to}} (met again)",
+    "breachArchived": "Below target {{from}} – {{to}} (ended by archiving, not recovered)"
   },
   "duties": {
     "none": "No duties.",

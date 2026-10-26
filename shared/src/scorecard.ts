@@ -69,11 +69,16 @@ export interface ObjectiveWindowState {
   status: ObjectiveStatus;
 }
 
+export const OBJECTIVE_BREACH_END_REASONS = ['recovered', 'archived'] as const;
+export type ObjectiveBreachEndReason = (typeof OBJECTIVE_BREACH_END_REASONS)[number];
+
 export interface ObjectiveBreach {
   id: string;
   startedAt: string;
   /** null: still below target */
   endedAt: string | null;
+  /** recovered: every target met again; archived: the objective was archived during the breach */
+  endReason: ObjectiveBreachEndReason | null;
   /** The windows below target when the breach started */
   windows: ObjectiveWindow[];
   notified: boolean;

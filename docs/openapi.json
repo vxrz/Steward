@@ -10401,6 +10401,21 @@
                     ],
                     "description": "null: still below target"
                   },
+                  "endReason": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "recovered",
+                          "archived"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "recovered: every target met again; archived: ended because the objective was archived (not a recovery)"
+                  },
                   "windows": {
                     "type": "array",
                     "items": {
@@ -10422,6 +10437,7 @@
                   "id",
                   "startedAt",
                   "endedAt",
+                  "endReason",
                   "windows",
                   "notified"
                 ],

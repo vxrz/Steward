@@ -1,4 +1,4 @@
-import { CIA_DIMENSIONS, CIA_LEVEL_KEY_RE, OBJECTIVE_STATUSES, OBJECTIVE_WINDOWS, SCORECARD_PART_STATUSES } from '@sm/shared';
+import { CIA_DIMENSIONS, CIA_LEVEL_KEY_RE, OBJECTIVE_BREACH_END_REASONS, OBJECTIVE_STATUSES, OBJECTIVE_WINDOWS, SCORECARD_PART_STATUSES } from '@sm/shared';
 
 /**
  * Checks of the scorecard tables of a migration package (#86), row by row, like the CIA scale check: values the
@@ -47,6 +47,7 @@ export function scorecardRowProblems(table: string, r: Record<string, unknown>):
     if (typeof r.started_at !== 'string' || !ISO.test(r.started_at)) p.push('started_at is not a timestamp');
     if (!isoOrNull(r.ended_at) || !isoOrNull(r.notified_at)) p.push('ended_at or notified_at is not a timestamp');
     if (!jsonArray(r.windows, (x) => oneOf(OBJECTIVE_WINDOWS, x))) p.push('windows is not a list of windows');
+    if (r.end_reason !== null && r.end_reason !== undefined && !oneOf(OBJECTIVE_BREACH_END_REASONS, r.end_reason)) p.push('end_reason is unknown');
   } else if (table === 'scorecard_rules') {
     if (!oneOf(CIA_DIMENSIONS, r.dimension)) p.push('dimension is unknown');
     if (typeof r.min_level !== 'string' || !CIA_LEVEL_KEY_RE.test(r.min_level)) p.push('min_level is not a level key');

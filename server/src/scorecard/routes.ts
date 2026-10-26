@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import * as objectives from './objectives.js';
+import { setObjectiveArchived } from './sampling.js';
 import * as rules from './rules.js';
 import * as scorecard from './scorecard.js';
 
@@ -31,7 +32,7 @@ export async function scorecardRoutes(app: FastifyInstance): Promise<void> {
   app.put('/objectives/:id', async (req) => objectives.updateObjective(params(req).id!, objectives.objectiveUpdate.parse(req.body)));
   // archived, never deleted: the history of an objective stays (scorecard.ts counts a recently archived one)
   app.post('/objectives/:id/archive', async (req) =>
-    objectives.setObjectiveArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
+    setObjectiveArchived(params(req).id!, z.object({ archived: z.boolean() }).strict().parse(req.body).archived),
   );
 
   app.get('/scorecard', async () => scorecard.scorecardOverview());

@@ -37,7 +37,7 @@ The values are **Gatus' own uptime figures**. Steward does not calculate service
 5. Tick _Send a message when it falls below target_ if the owners should hear about it.
 6. _Save_.
 
-_Edit_ (pencil) changes an objective. Objectives are **archived, never deleted** (_Archive_, box icon): an archived objective is no longer sampled, its samples and breaches stay until the retention removes them, and it still counts on the scorecard with the status of its last sample until its longest window has passed (for "24 h ≥ 99 %, 7 days ≥ 99 %" that is 7 days). So archiving an objective that is below target does not clean the scorecard. Archived objectives are listed under the active ones; _Restore_ brings one back.
+_Edit_ (pencil) changes an objective. Objectives are **archived, never deleted** (_Archive_, box icon): archiving first takes a **final sample** from the newest figures Steward has read from Gatus (a breach that began since the last hourly sample is recorded and announced; without figures the final sample says _no data_). An archived objective is no longer sampled, its samples and breaches stay until the retention removes them, and it still counts on the scorecard with the status of its final sample until its longest window has passed (for "24 h ≥ 99 %, 7 days ≥ 99 %" that is 7 days) – also _no data for more than 24 hours_, measured up to the archive. So archiving an objective that is below target does not clean the scorecard. Archived objectives are listed under the active ones; _Restore_ brings one back.
 
 ## Status of an objective
 
@@ -63,7 +63,7 @@ No data for **more than 24 hours** – since the last sample with data, or since
 
 Once an hour, Steward stores a **sample** of each objective: the values it had read from Gatus and the status. Samples are kept for **90 days**. _Show history_ on an objective shows the last 30 days (a line of its first window, the number of samples below target and the breaches); the API has all of them (`/api/v1/objectives/{objectiveId}/samples`).
 
-A **breach** starts with the first sample below target and ends with the first sample that meets every target again. _No data_ neither starts nor ends a breach. Ended breaches are kept for 400 days.
+A **breach** starts with the first sample below target and ends with the first sample that meets every target again (_met again_) – or when the objective is archived (_ended by archiving_, which is not a recovery; _Show history_, the API's `endReason` and the report say which). _No data_ neither starts nor ends a breach. Ended breaches are kept for 400 days.
 
 With _Send a message …_ on, the service owners (administrators when it has none) get **one message per breach** – not one per sample, and at most one per objective a day: an objective that flaps between met and below target records every breach, but sends no second message within 24 hours (notification event `objective.breached`, in-app by default; route it to e-mail, Teams or a webhook in _Settings → Notifications_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)).
 
@@ -89,7 +89,7 @@ A service shows **Attention needed** when any part has the status _Attention_.
 
 Details:
 
-- **Duties** are read from the stored periods of [service duties](DUTIES.md): met means done, late or skipped (an approved exception). **Recommended** duties are counted separately and never set _Attention needed_; **optional** duties are only shown. A duty **archived** during its current period still counts until that period ends, with its last status (_1 duty archived this period_) – archiving a duty whose last period was missed does not clean the scorecard.
+- **Duties** are read from the stored periods of [service duties](DUTIES.md): met means done, late or skipped (an approved exception). **Recommended** duties are counted separately and never set _Attention needed_; **optional** duties are only shown. A duty **archived** during its current period still counts until that period ends, with its last status (_1 duty archived this period_). The moment of the archive comes from the duty's stored periods (closed with the note _duty archived_), so it survives a migration package – archiving a duty whose last period was missed does not clean the scorecard.
 - **Documentation** counts the living documents linked to the service (either way) and those that apply to its applications. A document counts as present once it has an approved edition and is not withdrawn; drafts do not.
 - **Protection need** follows the maximum principle of [APPLICATIONS.md](APPLICATIONS.md): a level from an override is enough; a derived level needs every application rated in that dimension.
 

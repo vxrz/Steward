@@ -43,6 +43,7 @@ const source = {
   serviceId: '',
   dutyId: '',
   objectiveId: '',
+  archivedDutyId: '',
   snapshotDay: '',
   runId: '',
   waitingRunId: '',
@@ -128,6 +129,16 @@ beforeAll(async () => {
     owners: ['user:dana'],
   });
   source.dutyId = duty.id;
+  // a mandatory duty archived during its current period (#86): it still counts on the scorecard until the period ends
+  const archivedDuty = await s.api('POST', '/duties', {
+    serviceId: svc.id,
+    name: 'Moved archived check',
+    processId: p.id,
+    interval: 'yearly',
+    level: 'mandatory',
+  });
+  await s.api('POST', `/duties/${archivedDuty.id}/archive`, { archived: true });
+  source.archivedDutyId = archivedDuty.id;
   // what is encrypted on the source, decrypted (to compare with the target)
   const { db } = await import('../src/db.js');
   const { vault } = await import('../src/vault.js');
@@ -588,6 +599,10 @@ describe('import into SQLite through the web API', () => {
     });
     expect(movedDuty.periods.find((x: any) => x.key === '2020-01')).toMatchObject({ status: 'missed', closed: true, snapshot: { name: 'Moved restore test' } });
     // availability objectives move with their samples and breaches, the rules and the snapshots too (owners mapped)
+    // the archived duty still counts on the target until its (yearly) period ends: the archive moment is in the duty data
+    const movedDuties = (await max('GET', `/scorecard/services/${source.serviceId}`)).duties;
+    expect(movedDuties.archivedThisPeriod).toBe(1);
+    expect(movedDuties.items.find((i: any) => i.dutyId === source.archivedDutyId)).toMatchObject({ archivedAt: expect.any(String), result: 'notMet' });
     const movedObjective = await max('GET', `/objectives/${source.objectiveId}`);
     expect(movedObjective).toMatchObject({ name: 'Moved portal', serviceId: source.serviceId, targets: { h24: 99.5, d30: 99.9 }, notify: true });
     expect(movedObjective.samples.find((x: any) => x.at === '2020-01-01T00:00:00.000Z')).toMatchObject({ status: 'below', values: { h24: 98 } });

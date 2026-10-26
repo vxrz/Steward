@@ -39,6 +39,8 @@ const en = {
   targets: 'Targets',
   statusEnd: 'At the end',
   breaches: 'Breaches',
+  endedByArchiving: '{n} ended by archiving',
+  archivedObjective: 'archived',
   noObjectives: 'No availability objectives.',
   none: 'No services.',
   more: '{n} more not shown.',
@@ -68,6 +70,8 @@ const de: Texts = {
   targets: 'Zielwerte',
   statusEnd: 'Am Ende',
   breaches: 'Unterschreitungen',
+  endedByArchiving: '{n} durch Archivieren beendet',
+  archivedObjective: 'archiviert',
   noObjectives: 'Keine Verfügbarkeitsziele.',
   none: 'Keine Services.',
   more: '{n} weitere nicht angezeigt.',
@@ -99,6 +103,9 @@ interface ObjectiveRow {
   targets: Partial<Record<string, number>>;
   status: ObjectiveStatus | null;
   breaches: number;
+  /** Breaches that ended because the objective was archived */
+  endedByArchiving: number;
+  archived: boolean;
 }
 
 export interface ScorecardSectionData {
@@ -140,27 +147,30 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
   out.trend = points.filter((_, i) => i % step === 0 || i === points.length - 1).map((p) => ({ day: p.day, services: p.services, attention: p.attention }));
   const fromIso = new Date(ctx.from).toISOString();
   const toIso = new Date(Math.min(ctx.to, ctx.now + DAY)).toISOString();
-  for (const v of listObjectiveViews({}, ctx.now)) {
-    if (!want(v.row.service_id)) continue;
+  for (const v of listObjectiveViews({ archived: true }, ctx.now)) {
+    // objectives archived before the report period are left out; those archived in it are reported
+    if (!want(v.row.service_id) || (v.row.archived_at && v.row.archived_at < fromIso)) continue;
     const last = db().get<{ status: ObjectiveStatus }>(
       'SELECT status FROM objective_samples WHERE objective_id = ? AND bucket < ? ORDER BY bucket DESC LIMIT 1',
       v.row.id,
       toIso,
     );
-    const breaches =
-      db().get<{ n: number }>(
-        'SELECT COUNT(*) AS n FROM objective_breaches WHERE objective_id = ? AND started_at >= ? AND started_at < ?',
-        v.row.id,
-        fromIso,
-        toIso,
-      )?.n ?? 0;
+    const b = db().get<{ n: number; archived: number | null }>(
+      `SELECT COUNT(*) AS n, SUM(CASE WHEN end_reason = 'archived' THEN 1 ELSE 0 END) AS archived
+       FROM objective_breaches WHERE objective_id = ? AND started_at >= ? AND started_at < ?`,
+      v.row.id,
+      fromIso,
+      toIso,
+    );
     const t = rowTargets(v.row);
     out.objectives.push({
       service: v.summary.serviceName,
       objective: v.summary.name,
       targets: Object.fromEntries(OBJECTIVE_WINDOWS.filter((w) => t[w] !== null).map((w) => [w, t[w]!])),
       status: last?.status ?? null,
-      breaches: Number(breaches),
+      breaches: Number(b?.n ?? 0),
+      endedByArchiving: Number(b?.archived ?? 0),
+      archived: !!v.row.archived_at,
     });
   }
   return out;
@@ -236,12 +246,15 @@ registerReportSection<ScorecardConfig, ScorecardSectionData>({
       ],
       d.objectives.slice(0, MAX_ROWS).map((o): CellInput[] => [
         o.service,
-        { text: o.objective, bold: true },
+        { text: o.archived ? `${o.objective} (${x.archivedObjective})` : o.objective, bold: true },
         Object.entries(o.targets)
           .map(([k, v]) => `${x.windows[k]} ≥ ${pct(v!)}`)
           .join(', '),
         { text: o.status ? x.objectiveStatuses[o.status] : x.objectiveStatuses.noData, tone: objTone(o.status) },
-        { text: String(o.breaches), tone: o.breaches ? 'danger' : 'default' },
+        {
+          text: o.endedByArchiving ? `${o.breaches} (${fill(x.endedByArchiving, { n: o.endedByArchiving })})` : String(o.breaches),
+          tone: o.breaches ? 'danger' : 'default',
+        },
       ]),
       { empty: x.noObjectives, size: 7.4 },
     );
