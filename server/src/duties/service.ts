@@ -3,6 +3,7 @@ import {
   DUTY_INTERVALS,
   DUTY_LEVELS,
   DUTY_LIMITS,
+  DUTY_NOT_MET,
   type DutyDetail,
   type DutyPeriod,
   type DutyScheduleRef,
@@ -24,7 +25,7 @@ import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
 import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
-import { closeEnded, persistDuty, storeInactiveGap } from './store.js';
+import { closeForChange, persistDuty, storeInactiveGap } from './store.js';
 import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } from './periods.js';
 
 /**
@@ -433,10 +434,8 @@ export function createDuty(input: DutyInputData): DutyDetail {
   return getDuty(dutyId);
 }
 
-/** Changes of the rules a period is judged by: the periods that ended are closed first, under the old rules. */
-const JUDGED_BY = ['process_id', 'interval_kind', 'grace_days', 'level'] as const;
-/** Changes after which the current period is judged again from scratch. */
-const REJUDGE_CURRENT = ['process_id', 'interval_kind', 'grace_days'] as const;
+/** Changes of the rules a period is judged by: the open periods are closed first, under the old rules (closeForChange). */
+export const JUDGED_BY = ['process_id', 'interval_kind', 'grace_days', 'level'] as const;
 
 export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const u = me();
@@ -460,13 +459,13 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getDuty(dutyId);
   const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
-  const rejudge = changes.some((k) => (REJUDGE_CURRENT as readonly string[]).includes(k));
   db().tx(() => {
-    // periods that ended – also one still in its grace period – keep the result of the rules they ran under
-    const closedEarly = rules ? closeEnded(cur, s, Date.now(), 'duty changed') : [];
+    // the open periods keep the result of the rules they ran under; the new rules start at the change (or after a
+    // current period that is done already)
+    const change = rules ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
     db().run(
       `UPDATE service_duties SET application_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
-       remind_days = ?, owners = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+       remind_days = ?, owners = ?, updated_at = ?, updated_by = ?${change ? ', rules_from = ?' : ''} WHERE id = ?`,
       next.application_id,
       next.name,
       next.description,
@@ -479,10 +478,9 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
       next.owners,
       nowIso(),
       u.username,
+      ...(change ? [new Date(change.rulesFrom).toISOString()] : []),
       dutyId,
     );
-    // the current period starts over with the new rules
-    const dropped = rejudge ? db().run('DELETE FROM duty_periods WHERE duty_id = ? AND closed_at IS NULL', dutyId).changes : 0;
     audit({
       action: 'duty.updated',
       entityType: 'duty',
@@ -492,8 +490,8 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
         changes,
         before: Object.fromEntries(changes.map((k) => [k, cur[k]])),
         after: Object.fromEntries(changes.map((k) => [k, next[k]])),
-        openPeriodsReevaluated: dropped,
-        periodsClosedEarly: closedEarly.map((e) => ({ key: e.period.key, status: e.status })),
+        periodsClosedEarly: (change?.closed ?? []).map((e) => ({ key: e.period.key, status: e.status })),
+        ...(change ? { rulesFrom: new Date(change.rulesFrom).toISOString() } : {}),
       },
     });
   });
@@ -512,10 +510,20 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
     // archiving ends the duty: the periods that ended are closed as they stand (and a current period that is done
     // already), the rest of the current period is not judged; a restored duty stores the periods it was archived
     // through as inactive and is judged again from the current period on
-    const closedEarly = archived ? closeEnded(cur, s, Date.now(), 'duty archived', true) : [];
-    if (archived) db().run('DELETE FROM duty_periods WHERE duty_id = ? AND closed_at IS NULL', dutyId);
-    const inactive = archived ? 0 : storeInactiveGap(cur, Date.now());
-    db().run('UPDATE service_duties SET archived = ?, updated_at = ?, updated_by = ? WHERE id = ?', archived ? 1 : 0, nowIso(), u.username, dutyId);
+    const now = Date.now();
+    // archiving closes the open periods as for a change of the rules (rules_from keeps the moment of the archive);
+    // restoring stores the periods entirely inside the archive window as inactive and starts again now
+    const change = archived ? closeForChange(cur, s, now, 'duty archived') : null;
+    const closedEarly = change?.closed ?? [];
+    const inactive = archived ? 0 : storeInactiveGap(cur, Date.parse(cur.rules_from ?? cur.updated_at), now);
+    db().run(
+      'UPDATE service_duties SET archived = ?, rules_from = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      archived ? 1 : 0,
+      new Date(change ? Math.min(change.rulesFrom, now) : now).toISOString(),
+      nowIso(),
+      u.username,
+      dutyId,
+    );
     audit({
       action: archived ? 'duty.archived' : 'duty.restored',
       entityType: 'duty',
@@ -707,7 +715,7 @@ const dueRows = (open: PeriodRow[], now: number, days: number) =>
   open.filter((r) => r.status === 'due' && now < Date.parse(r.grace_end) && now >= addLocalDays(Date.parse(r.period_end), -days, r.time_zone));
 /** The last period that ended was missed or failed (and no ended period is still in its grace period). */
 const missedLast = (x: { open: PeriodRow[]; last: PeriodRow | null }, now: number) =>
-  !!x.last && (x.last.status === 'missed' || x.last.status === 'failed') && !x.open.some((r) => Date.parse(r.period_end) <= now);
+  !!x.last && DUTY_NOT_MET.includes(x.last.status) && !x.open.some((r) => Date.parse(r.period_end) <= now);
 
 /** The start page tile: mandatory duties due within a week or missed (their last period); null without any for the user. */
 export function dutyAttention(now = Date.now()): { missed: number; dueSoon: number } | null {
@@ -728,7 +736,7 @@ export interface DutyDueItem {
   serviceName: string;
   level: string;
   periodKey: string;
-  status: 'due' | 'missed' | 'failed';
+  status: 'due' | 'missed' | 'failed' | 'ended';
   /** Last day of the period (missed, failed, due) or of its grace period (due in the grace period) */
   dueAt: string;
 }
@@ -743,7 +751,7 @@ export function dutiesDueFor(u: AuthUser, since: number, until: number): DutyDue
   const state = storedState().filter((x) => isResponsible(u, x.d, x.s));
   const byId = new Map(state.map((x) => [x.d.id, x]));
   for (const r of db().all<PeriodRow>(
-    "SELECT * FROM duty_periods WHERE closed_at IS NOT NULL AND status IN ('missed', 'failed') AND level <> 'optional' AND grace_end >= ? AND grace_end < ? ORDER BY grace_end",
+    "SELECT * FROM duty_periods WHERE closed_at IS NOT NULL AND status IN ('missed', 'failed', 'ended') AND level <> 'optional' AND grace_end >= ? AND grace_end < ? ORDER BY grace_end",
     iso(since),
     iso(until),
   )) {

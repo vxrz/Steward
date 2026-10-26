@@ -13,7 +13,8 @@ import { DutyLevelBadge, DutyStatusBadge, PeriodLine } from '../components/dutie
 /** Due (current period not done, or the last one in its grace period) or missed/failed (the last period). */
 const needsAttention = (d: DutySummary) =>
   d.current?.status === 'due' ||
-  (!!d.previous && (d.previous.status === 'missed' || d.previous.status === 'failed' || (d.previous.status === 'due' && d.previous.inGrace)));
+  (!!d.previous &&
+    (d.previous.status === 'missed' || d.previous.status === 'failed' || d.previous.status === 'ended' || (d.previous.status === 'due' && d.previous.inGrace)));
 
 /** Every duty of every service, with the status of the current and the last period. The start page tile links here. */
 export function DutiesPage() {

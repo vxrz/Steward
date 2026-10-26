@@ -74,7 +74,8 @@
     "failed": "Fehlgeschlagen",
     "missed": "Versäumt",
     "skipped": "Ausgesetzt",
-    "inactive": "Inaktiv"
+    "inactive": "Inaktiv",
+    "ended": "Ohne Ausführung beendet"
   },
   "filters": {
     "level": "Stufe",
@@ -119,9 +120,13 @@
   },
   "closedEarly": {
     "changed": "vorzeitig beendet: die Pflicht wurde geändert",
-    "archived": "vorzeitig beendet: die Pflicht wurde archiviert"
+    "archived": "vorzeitig beendet: die Pflicht wurde archiviert",
+    "endedArchived": "Ohne Ausführung beendet – Pflicht archiviert",
+    "endedChanged": "Ohne Ausführung beendet – Pflicht geändert"
   },
   "runVersion": "Prozessversion {{version}}",
   "plannedSkips_one": "{{count}} Ausnahme im Voraus geplant",
-  "plannedSkips_other": "{{count}} Ausnahmen im Voraus geplant"
+  "plannedSkips_other": "{{count}} Ausnahmen im Voraus geplant",
+  "endsCurrentArchive": "Der aktuelle Zeitraum {{period}} hat noch keine Ausführung, die zählt. Beim Archivieren wird er als „ohne Ausführung beendet“ erfasst und zählt als nicht erfüllt.",
+  "endsCurrentChange": "Sie ändern, wie die Pflicht beurteilt wird. Der aktuelle Zeitraum {{period}} hat noch keine Ausführung, die zählt: Er wird als „ohne Ausführung beendet“ erfasst und zählt als nicht erfüllt. Die neuen Regeln gelten ab jetzt."
 }

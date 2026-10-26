@@ -33,12 +33,19 @@ const en = {
   none: 'No period of a duty ended in the report period.',
   noneOpen: 'Every duty is done for its current period.',
   more: '{n} more not shown.',
+  notMet: 'Not met (missed, failed, ended)',
   version: 'version {n}',
   levels: { mandatory: 'Mandatory', recommended: 'Recommended', optional: 'Optional' } as Record<DutyLevel, string>,
-  statuses: { due: 'Due', done: 'Done', late: 'Late', skipped: 'Skipped', failed: 'Failed', missed: 'Missed', inactive: 'Inactive (archived)' } as Record<
-    DutyPeriodStatus,
-    string
-  >,
+  statuses: {
+    due: 'Due',
+    done: 'Done',
+    late: 'Late',
+    skipped: 'Skipped',
+    failed: 'Failed',
+    missed: 'Missed',
+    inactive: 'Inactive (archived)',
+    ended: 'Ended without a run',
+  } as Record<DutyPeriodStatus, string>,
 };
 type Texts = typeof en;
 const de: Texts = {
@@ -57,6 +64,7 @@ const de: Texts = {
   none: 'Im Berichtszeitraum endete kein Zeitraum einer Pflicht.',
   noneOpen: 'Jede Pflicht ist für ihren aktuellen Zeitraum erledigt.',
   more: '{n} weitere nicht angezeigt.',
+  notMet: 'Nicht erfüllt (versäumt, fehlgeschlagen, beendet)',
   version: 'Version {n}',
   levels: { mandatory: 'Verpflichtend', recommended: 'Empfohlen', optional: 'Freiwillig' },
   statuses: {
@@ -67,6 +75,7 @@ const de: Texts = {
     failed: 'Fehlgeschlagen',
     missed: 'Versäumt',
     inactive: 'Inaktiv (archiviert)',
+    ended: 'Ohne Ausführung beendet',
   },
 };
 const tx = (l: ReportLang): Texts => (l === 'de' ? de : en);
@@ -99,11 +108,11 @@ export interface DutiesSectionData {
   open: Row[];
 }
 
-const STATUSES: DutyPeriodStatus[] = ['done', 'late', 'skipped', 'failed', 'missed', 'due', 'inactive'];
+const STATUSES: DutyPeriodStatus[] = ['done', 'late', 'skipped', 'failed', 'missed', 'ended', 'due', 'inactive'];
 const iso = (t: number) => new Date(t).toISOString();
 
 function build(c: DutiesConfig, ctx: { from: number; to: number; now: number }): DutiesSectionData {
-  const out: DutiesSectionData = { counts: { due: 0, done: 0, late: 0, skipped: 0, failed: 0, missed: 0, inactive: 0 }, ended: [], open: [] };
+  const out: DutiesSectionData = { counts: { due: 0, done: 0, late: 0, skipped: 0, failed: 0, missed: 0, inactive: 0, ended: 0 }, ended: [], open: [] };
   if (!currentUser()) return out;
   const at = Math.min(ctx.to, ctx.now);
   for (const b of listDutyViews({ archived: true }, ctx.now)) {
@@ -154,10 +163,10 @@ registerReportSection<DutiesConfig, DutiesSectionData>({
   title: (l) => tx(l).title,
   build,
   glance: (d, l) => {
-    const bad = d.counts.missed + d.counts.failed;
+    const bad = d.counts.missed + d.counts.failed + d.counts.ended;
     return [
       { label: tx(l).statuses.done, value: String(d.counts.done + d.counts.late), tone: 'success' as Tone },
-      { label: `${tx(l).statuses.missed} / ${tx(l).statuses.failed}`, value: String(bad), tone: (bad ? 'danger' : 'default') as Tone },
+      { label: tx(l).notMet, value: String(bad), tone: (bad ? 'danger' : 'default') as Tone },
     ];
   },
   render: (d, { w, lang, section }) => {

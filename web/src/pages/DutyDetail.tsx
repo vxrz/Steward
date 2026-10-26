@@ -4,13 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconCalendarOff, IconEdit } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { DutyDetail, DutySkip, ServiceDetail } from '@sm/shared';
+import type { DutyDetail, DutyPeriod, DutySkip, ServiceDetail } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
 import { DetailState, PageHeader, subjectLabel } from '../components/common';
 import { Field } from '../components/records/common';
 import { MarkdownView } from '../components/records/MarkdownView';
 import { confirmDanger } from '../components/confirm';
-import { DutyFormModal, DutyLevelBadge, DutyStatusBadge, lastDay, SkipModal } from '../components/duties/common';
+import { DutyFormModal, DutyLevelBadge, DutyStatusBadge, lastDay, periodLabel, SkipModal } from '../components/duties/common';
 import { fmtDate } from '../format';
 
 export function DutyDetailPage() {
@@ -23,6 +23,10 @@ export function DutyDetailPage() {
   const [editing, setEditing] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const [deciding, setDeciding] = useState<{ skip: DutySkip; decision: 'approve' | 'reject' } | null>(null);
+  const closeNoteText = (p: DutyPeriod) =>
+    p.status === 'ended'
+      ? t(p.closeNote === 'duty archived' ? 'closedEarly.endedArchived' : 'closedEarly.endedChanged')
+      : t(p.closeNote === 'duty archived' ? 'closedEarly.archived' : 'closedEarly.changed');
   const refresh = (x?: DutyDetail) => {
     if (x) qc.setQueryData(['duty', id], x);
     else void qc.invalidateQueries({ queryKey: ['duty', id] });
@@ -30,7 +34,8 @@ export function DutyDetailPage() {
   };
   if (!d) return <DetailState query={q} back="duties" />;
   const archive = async () => {
-    if (!d.archived && !(await confirmDanger({ action: 'archive', message: t('archiveConfirm', { name: d.name }) }))) return;
+    const ends = d.current?.status === 'due' ? ` ${t('endsCurrentArchive', { period: periodLabel(d.current.key) })}` : '';
+    if (!d.archived && !(await confirmDanger({ action: 'archive', message: `${t('archiveConfirm', { name: d.name })}${ends}` }))) return;
     try {
       refresh(await post<DutyDetail>(`/duties/${d.id}/archive`, { archived: !d.archived }));
     } catch (e) {
@@ -180,11 +185,11 @@ export function DutyDetailPage() {
                       <Table.Tr key={p.key} data-testid={`period-${p.key}`}>
                         <Table.Td>
                           <Text size="sm" ff="monospace">
-                            {p.key}
+                            {periodLabel(p.key)}
                           </Text>
                           <Text size="xs" c="dimmed">
                             {t('dueBy', { date: lastDay(p.end, p.snapshot.timeZone) })} · {p.closed ? t('stateClosed') : t('stateOpen')}
-                            {p.closeNote ? ` · ${t(p.closeNote === 'duty archived' ? 'closedEarly.archived' : 'closedEarly.changed')}` : ''}
+                            {p.closeNote ? ` · ${closeNoteText(p)}` : ''}
                           </Text>
                         </Table.Td>
                         <Table.Td>

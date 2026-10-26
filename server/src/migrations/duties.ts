@@ -107,4 +107,10 @@ export const DUTY_MIGRATIONS: NamedMigration[] = [
     name: 'duties-004-skip-deciders',
     sql: `ALTER TABLE duty_skips ADD COLUMN decider_subjects TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    // when the current rules of a duty started (a change of process, interval, grace or level, an archive or a restore):
+    // runs before it never count under them
+    name: 'duties-005-rules-from',
+    sql: `ALTER TABLE service_duties ADD COLUMN rules_from TEXT;`,
+  },
 ];

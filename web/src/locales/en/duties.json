@@ -74,7 +74,8 @@
     "failed": "Failed",
     "missed": "Missed",
     "skipped": "Skipped",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "ended": "Ended without a run"
   },
   "filters": {
     "level": "Level",
@@ -119,9 +120,13 @@
   },
   "closedEarly": {
     "changed": "closed early: the duty changed",
-    "archived": "closed early: the duty was archived"
+    "archived": "closed early: the duty was archived",
+    "endedArchived": "Ended without a run – duty archived",
+    "endedChanged": "Ended without a run – duty changed"
   },
   "runVersion": "Process version {{version}}",
   "plannedSkips_one": "{{count}} exception planned ahead",
-  "plannedSkips_other": "{{count}} exceptions planned ahead"
+  "plannedSkips_other": "{{count}} exceptions planned ahead",
+  "endsCurrentArchive": "The current period {{period}} has no run that counts yet. Archiving records it as “ended without a run”, and it counts as not met.",
+  "endsCurrentChange": "You change how the duty is judged. The current period {{period}} has no run that counts yet: it is recorded as “ended without a run” and counts as not met. The new rules start now."
 }

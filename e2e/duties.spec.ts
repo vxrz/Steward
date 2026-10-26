@@ -33,6 +33,14 @@ test('a duty is due until its process ran, and an exception needs a second perso
   await expect(card.getByTestId('duty-status').first()).toHaveText('Due');
   await expect(card).toContainText('Monthly');
   await expect(card).toContainText('Mandatory');
+  // changing how it is judged while the period has no run: the dialog says the period ends without a run
+  await card.getByRole('button', { name: `Edit “${dutyName}”` }).click();
+  const edit = page.getByRole('dialog', { name: `Edit “${dutyName}”` });
+  await expect(edit.getByTestId('duty-ends-current')).toHaveCount(0);
+  await chooseOption(page, /^Level/, /^Recommended$/);
+  await expect(edit.getByTestId('duty-ends-current')).toContainText('ended without a run');
+  await edit.getByRole('button', { name: 'Cancel' }).click();
+  await expect(edit).toBeHidden();
   await settle(page);
   await expectAccessible(page, 'service page with duties');
 

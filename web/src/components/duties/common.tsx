@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Badge, Button, Group, Modal, NumberInput, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, NumberInput, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -28,6 +28,7 @@ export const DUTY_STATUS_COLORS: Record<DutyPeriodStatus, string> = {
   failed: TONE.bad,
   missed: TONE.bad,
   inactive: TONE.neutral,
+  ended: TONE.bad,
 };
 const LEVEL_COLORS: Record<DutyLevel, string> = { mandatory: 'red', recommended: 'blue', optional: 'gray' };
 
@@ -50,6 +51,9 @@ export function DutyLevelBadge({ level }: { level: DutyLevel }) {
   );
 }
 
+/** A period key as people read it: a period that ended early is stored as 2026-10~1 next to the rest, 2026-10. */
+export const periodLabel = (key: string): string => key.split('~')[0]!;
+
 /** The last day of a period (its end is the midnight after it), in the instance time zone. */
 export function lastDay(endIso: string, tz: string): string {
   return dateTimeFormat({ day: 'numeric', month: 'short', year: 'numeric', timeZone: tz }).format(new Date(Date.parse(endIso) - 1));
@@ -68,7 +72,7 @@ export function PeriodLine({ period, tz }: { period: DutyPeriod; tz: string }) {
   if (period.skip?.status === 'pending') parts.push(t('skips.statuses.pending'));
   return (
     <Text size="xs" c="dimmed">
-      {period.key}
+      {periodLabel(period.key)}
       {parts.length ? ` · ${parts.join(' · ')}` : ''}
     </Text>
   );
@@ -139,6 +143,10 @@ export function DutyFormModal({
     name: !name.trim() && t('common:validation.required'),
     process: !processId && t('common:validation.required'),
   });
+  // a change of how the duty is judged closes the current period; without a run that counts, as "ended without a run"
+  const rulesChange =
+    !!duty && ((duty.processId !== null && processId !== duty.processId) || interval !== duty.interval || graceDays !== duty.graceDays || level !== duty.level);
+  const endsCurrent = rulesChange && duty?.current?.status === 'due';
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);
@@ -260,6 +268,11 @@ export function DutyFormModal({
             minRows={2}
             maxLength={DUTY_LIMITS.description}
           />
+          {endsCurrent && (
+            <Alert color="orange" variant="light" data-testid="duty-ends-current">
+              {t('endsCurrentChange', { period: periodLabel(duty!.current!.key) })}
+            </Alert>
+          )}
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

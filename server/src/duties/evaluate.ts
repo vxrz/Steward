@@ -42,6 +42,8 @@ export interface DutyRow {
   owners: string;
   archived: number;
   active_from: string;
+  /** When the current rules started (the last change of process, interval, grace or level, an archive or a restore) */
+  rules_from: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -220,8 +222,10 @@ export function evaluateDuty(d: DutyRow, now: number, tz: string, active = true)
   const lastClosedEnd = closed.reduce((m, r) => Math.max(m, Date.parse(r.period_end)), 0);
   // the first period counts runs from the moment the duty (or its current rules) started, not from the period start:
   // runs before the duty existed, and runs the closed periods before a rule change were judged by, never count again
-  const since = Math.max(Date.parse(d.active_from), lastClosedEnd);
+  const since = Math.max(Date.parse(d.active_from), d.rules_from ? Date.parse(d.rules_from) : 0, lastClosedEnd);
   let p = periodAt(d.interval_kind, since, tz);
+  // a partial first period: from the moment the duty (or its current rules) started
+  if (p.start < since) p = { ...p, start: since };
   for (let i = 0; i < MAX_PERIODS && p.start <= now; i++, p = nextPeriod(d.interval_kind, p, tz)) {
     if (closedKeys.has(p.key)) continue;
     const g = graceEnd(p, d.grace_days, tz);

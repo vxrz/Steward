@@ -107,43 +107,55 @@ export function persistDuty(d: DutyRow, s: ServiceRef, now: number, tz = instanc
 }
 
 /**
- * Before a duty is archived or the rules a period is judged by change (process, interval, grace period, level): every
- * period that has ended – also one still in its grace period – is closed now, under the old rules and as it stands:
- * done or late with a run that counts, skipped with an approved exception, else failed or missed. The new rules apply
- * from the current period on. With `keepCurrent` (archiving), the current period is closed too when it is done,
- * late or skipped already – that result stays; otherwise it is left open (and dropped by the caller). Runs in the
- * transaction of the change.
+ * Before a duty is archived or the rules a period is judged by change (process, interval, grace period, level), at
+ * `now`. Runs in the transaction of the change and returns the closed periods and the moment the new rules start.
+ *
+ * - Every period that has ended – also one still in its grace period – is closed under the old rules, as it stands:
+ *   done or late with a run that counts, skipped with an approved exception, else failed or missed.
+ * - The current period: done, late or skipped already – closed with that status, as a whole; the new rules start
+ *   when it ends. Otherwise it is closed now as **ended** (without a run – it counts as not met, like missed, but sends
+ *   no "missed" message): its stored end is the moment of the change, and the new rules start then, with a partial
+ *   first period up to the end of the period of the (new) interval that contains it.
  */
-export function closeEnded(d: DutyRow, s: ServiceRef, now: number, note: string, keepCurrent = false, tz = instanceTimeZone()): Evaluated[] {
-  if (d.archived || s.archived) return [];
-  const out: Evaluated[] = [];
+export function closeForChange(d: DutyRow, s: ServiceRef, now: number, note: string, tz = instanceTimeZone()): { closed: Evaluated[]; rulesFrom: number } {
+  const closed: Evaluated[] = [];
+  let rulesFrom = now;
+  if (d.archived || s.archived) return { closed, rulesFrom };
+  const keys = new Set(storedPeriods(d.id).map((r) => r.period_key));
   for (const e of evaluateDuty(d, now, tz)) {
     if (e.closed) continue;
-    if (e.period.end > now && !(keepCurrent && (e.status === 'done' || e.status === 'late' || e.status === 'skipped'))) continue;
-    const final: Evaluated = e.status === 'due' ? { ...e, status: e.failedRuns > 0 ? 'failed' : 'missed', final: true } : { ...e, final: true };
+    let final: Evaluated;
+    if (e.period.end <= now) final = e.status === 'due' ? { ...e, status: e.failedRuns > 0 ? 'failed' : 'missed', final: true } : { ...e, final: true };
+    else if (e.status === 'done' || e.status === 'late' || e.status === 'skipped') {
+      final = { ...e, final: true };
+      rulesFrom = Math.max(rulesFrom, e.period.end);
+    } else {
+      // the rest of the period is judged under the new rules under its own key: this part gets a key of its own
+      let n = 1;
+      while (keys.has(`${e.period.key}~${n}`)) n++;
+      final = { ...e, period: { ...e.period, key: `${e.period.key}~${n}`, end: now }, graceEnd: now, status: 'ended', final: true };
+    }
     if (!write(d, final, tz, true, now, note)) continue;
     closedAudit(d, s, final, note);
-    out.push(final);
+    closed.push(final);
   }
-  return out;
+  return { closed, rulesFrom };
 }
 
 /**
- * A restored duty: the periods it was archived through are stored as inactive (from the end of its last stored
- * period – or the period it was defined in – up to the current period), so they are neither judged nor lost. The
- * current period is judged as usual.
+ * A restored duty: the periods that lay entirely inside the archive window (after `archivedAt`, before `now`) are
+ * stored as inactive, so they are neither judged nor lost. The duty is judged again from `now` on (a partial first
+ * period).
  */
-export function storeInactiveGap(d: DutyRow, now: number, tz = instanceTimeZone()): number {
-  const rows = storedPeriods(d.id);
-  const lastEnd = rows.reduce((m, r) => Math.max(m, Date.parse(r.period_end)), 0);
-  const current = periodAt(d.interval_kind, now, tz);
+export function storeInactiveGap(d: DutyRow, archivedAt: number, now: number, tz = instanceTimeZone()): number {
+  const rows = storedPeriods(d.id).filter((r) => r.closed_at);
+  const from = Math.max(
+    archivedAt,
+    rows.reduce((m, r) => Math.max(m, Date.parse(r.period_end)), 0),
+  );
   let n = 0;
-  for (
-    let p = periodAt(d.interval_kind, Math.max(lastEnd, Date.parse(d.active_from)), tz);
-    p.start < current.start && n < 600;
-    p = nextPeriod(d.interval_kind, p, tz)
-  ) {
-    if (rows.some((r) => r.period_key === p.key)) continue;
+  for (let p = periodAt(d.interval_kind, from, tz); p.end <= now && n < 600; p = nextPeriod(d.interval_kind, p, tz)) {
+    if (p.start < from || rows.some((r) => r.period_key === p.key)) continue;
     const e: Evaluated = {
       period: p,
       graceEnd: graceEnd(p, d.grace_days, tz),

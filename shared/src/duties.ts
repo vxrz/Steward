@@ -16,9 +16,12 @@ export type DutyLevel = (typeof DUTY_LEVELS)[number];
  * due: the period (or its grace period) has not ended and nothing counts yet; done: a successful run started in the
  * period and ended by the end of the grace period; late: done, but the run started in the grace period; failed: only
  * failed or rejected runs; missed: no run at all; skipped: an approved exception for the period; inactive: the duty
- * was archived during the period (not judged).
+ * was archived during the whole period (not judged); ended: the duty was archived or its rules changed during the
+ * period before anything counted – closed then, and not met like missed (but without a "missed" message).
  */
-export const DUTY_PERIOD_STATUSES = ['due', 'done', 'late', 'failed', 'missed', 'skipped', 'inactive'] as const;
+/** Statuses of a period that count as not met (the start page, the summary, the report, the scorecard). */
+export const DUTY_NOT_MET: readonly DutyPeriodStatus[] = ['failed', 'missed', 'ended'];
+export const DUTY_PERIOD_STATUSES = ['due', 'done', 'late', 'failed', 'missed', 'skipped', 'inactive', 'ended'] as const;
 export type DutyPeriodStatus = (typeof DUTY_PERIOD_STATUSES)[number];
 
 export const DUTY_SKIP_STATUSES = ['pending', 'approved', 'rejected', 'withdrawn'] as const;

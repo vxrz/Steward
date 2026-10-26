@@ -189,7 +189,8 @@
     "dutyStatus": {
       "due": "fällig",
       "missed": "versäumt",
-      "failed": "nur fehlgeschlagene Ausführungen"
+      "failed": "nur fehlgeschlagene Ausführungen",
+      "ended": "ohne Ausführung beendet"
     }
   },
   "accessUndocumented": {

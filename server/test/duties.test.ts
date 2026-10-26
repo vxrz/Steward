@@ -114,6 +114,8 @@ async function duty(
   });
   const proc = `proc_dty_${++procNo}`;
   db().run('UPDATE service_duties SET process_id = ?, active_from = ? WHERE id = ?', proc, o.activeFrom ?? '2025-01-01T00:00:00.000Z', d.id);
+  // the periods stored when it was created belong to the real time
+  db().run('DELETE FROM duty_periods WHERE duty_id = ?', d.id);
   return { id: d.id as string, proc, service: svc, row: () => db().get<any>('SELECT * FROM service_duties WHERE id = ?', d.id) };
 }
 
@@ -341,31 +343,98 @@ describe('archiving a duty or changing its rules', () => {
     return { ...d, body };
   }
   const period = (x: any, key: string) => x.periods.find((p: any) => p.key === key);
+  const svcRow = (id: string) => db().get<any>('SELECT id, name, owners, archived FROM services WHERE id = ?', id);
 
-  it('closes the ended periods as they stand before archiving, and stores the archived periods as inactive on restore', async () => {
+  it('archiving closes the ended periods as they stand and the current one as "ended without a run"; restoring starts again', async () => {
     const d = await graceDuty();
     const before = await dana('GET', `/duties/${d.id}`);
     expect(before.previous).toMatchObject({ key: prev().key, status: 'due', inGrace: true });
     await dana('POST', `/duties/${d.id}/archive`, { archived: true });
     const archived = await dana('GET', `/duties/${d.id}`);
     expect(period(archived, prev().key)).toMatchObject({ status: 'missed', closed: true, closeNote: 'duty archived' });
-    // restore in the same period: the previous period stays missed, the current one is judged again
-    const restored = await dana('POST', `/duties/${d.id}/archive`, { archived: false });
-    expect(period(restored, prev().key)).toMatchObject({ status: 'missed', closed: true });
-    expect(restored.current).toMatchObject({ key: cur().key, status: 'due' });
+    const ended = period(archived, `${cur().key}~1`);
+    expect(ended).toMatchObject({ status: 'ended', closed: true, closeNote: 'duty archived' });
+    expect(Date.parse(ended.end)).toBeLessThanOrEqual(Date.now());
     const audit = await s.api('GET', `/audit?entityType=duty&entityId=${d.id}&limit=50`);
-    expect(audit.find((a: any) => a.action === 'duty.period_closed' && a.details.periodKey === prev().key).details.closedEarly).toBe('duty archived');
-    // archived over months: the periods in between are stored as inactive
-    await dana('POST', `/duties/${d.id}/archive`, { archived: true });
-    db().run('UPDATE service_duties SET archived = 0 WHERE id = ?', d.id);
-    expect(store.storeInactiveGap(d.row(), now + 70 * 86400000)).toBeGreaterThanOrEqual(2);
-    expect(db().get<any>('SELECT status, close_note FROM duty_periods WHERE duty_id = ? AND period_key = ?', d.id, cur().key)).toEqual({
-      status: 'inactive',
-      close_note: 'duty archived',
+    expect(audit.find((a: any) => a.action === 'duty.period_closed' && a.details.periodKey === `${cur().key}~1`).details).toMatchObject({
+      status: 'ended',
+      closedEarly: 'duty archived',
     });
+    // restored in the same month: the rest of the month is a new (partial) period from the restore on
+    const restored = await dana('POST', `/duties/${d.id}/archive`, { archived: false });
+    expect(restored.current).toMatchObject({ key: cur().key, status: 'due' });
+    expect(Date.parse(restored.current.start)).toBeGreaterThan(cur().start);
+    expect(period(restored, `${cur().key}~1`)).toMatchObject({ status: 'ended' });
   });
 
-  it('a period done before archiving stays done', async () => {
+  it('archived on the last day of a month and restored on the 1st: the month ended without a run, nothing in between is judged', async () => {
+    const d = await duty({ owners: ['user:olivia'], activeFrom: '2025-11-01T00:00:00Z' });
+    const s0 = svcRow(d.service.id);
+    // 30 Nov 2025, 20:00 in Berlin: no run this month
+    const t1 = Z('2025-11-30T19:00:00Z');
+    const change = store.closeForChange(d.row(), s0, t1, 'duty archived', TZ);
+    expect(change.closed.map((e) => [e.period.key, e.status])).toEqual([['2025-11~1', 'ended']]);
+    db().run('UPDATE service_duties SET archived = 1, rules_from = ? WHERE id = ?', iso(t1), d.id);
+    // restored on 1 Jan 2026: December lies entirely inside the archive window
+    const t2 = Z('2026-01-01T09:00:00Z');
+    expect(store.storeInactiveGap(d.row(), t1, t2, TZ)).toBe(1);
+    db().run('UPDATE service_duties SET archived = 0, rules_from = ? WHERE id = ?', iso(t2), d.id);
+    const rows = db().all<any>('SELECT period_key, status, period_end FROM duty_periods WHERE duty_id = ? ORDER BY period_start', d.id);
+    expect(rows.map((r) => [r.period_key, r.status])).toEqual([
+      ['2025-11~1', 'ended'],
+      ['2025-12', 'inactive'],
+    ]);
+    expect(rows[0].period_end).toBe(iso(t1));
+    // January runs from the restore on
+    const jan = ev.evaluateDuty(d.row(), Z('2026-01-05T09:00:00Z'), TZ).find((e) => e.period.key === '2026-01')!;
+    expect([jan.status, iso(jan.period.start)]).toEqual(['due', iso(t2)]);
+    // "ended" is not met like missed: start page tile and daily summary – but no "missed" message
+    jobs.runDutyJob(Z('2026-01-05T09:00:00Z'));
+    expect(db().get('SELECT 1 FROM duty_notifications WHERE duty_id = ? AND kind = ?', d.id, 'missed')).toBeUndefined();
+    const sum = await import('../src/notifications/summary.js');
+    const { DEFAULT_DAILY_SUMMARY } = await import('@sm/shared');
+    const ou = (await s.api('GET', '/users')).find((u: any) => u.username === 'olivia');
+    const prefs = { ...DEFAULT_DAILY_SUMMARY, enabled: true, timeZone: TZ, sections: ['duties'] } as any;
+    const items = sum.buildSummary(ou, prefs, Z('2025-11-30T00:00:00Z'), Z('2025-12-01T00:00:00Z')).sections[0]!.items;
+    expect(items.some((i) => i.link === `/duties/${d.id}` && i.detail?.startsWith('ended without a run'))).toBe(true);
+  });
+
+  it('monthly → yearly on the last day: the month ended without a run, the partial year starts at the change', async () => {
+    const d = await duty({ activeFrom: '2025-11-01T00:00:00Z' });
+    const t = Z('2025-11-30T19:00:00Z');
+    store.closeForChange(d.row(), svcRow(d.service.id), t, 'duty changed', TZ);
+    db().run("UPDATE service_duties SET interval_kind = 'yearly', rules_from = ? WHERE id = ?", iso(t), d.id);
+    // a run earlier in November never counts for the new year
+    run(d.proc, { status: 'succeeded', start: '2025-11-10T08:00:00Z', end: '2025-11-10T08:10:00Z' });
+    const e = ev.evaluateDuty(d.row(), Z('2025-12-15T09:00:00Z'), TZ);
+    expect(e.map((x) => [x.period.key, x.status])).toEqual([
+      ['2025-11~1', 'ended'],
+      ['2025', 'due'],
+    ]);
+    expect(iso(e[1]!.period.start)).toBe(iso(t));
+    expect(iso(e[1]!.period.end)).toBe('2025-12-31T23:00:00.000Z');
+  });
+
+  it('new rules count no run from before the change, and judge no past period', async () => {
+    // a switch to a process that ran earlier in the month: that run does not count
+    const d = await duty({ activeFrom: '2025-10-01T00:00:00Z' });
+    run('proc_dty_other', { status: 'succeeded', start: '2025-10-03T08:00:00Z', end: '2025-10-03T08:10:00Z' });
+    const t = Z('2025-10-15T10:00:00Z');
+    store.closeForChange(d.row(), svcRow(d.service.id), t, 'duty changed', TZ);
+    db().run("UPDATE service_duties SET process_id = 'proc_dty_other', rules_from = ? WHERE id = ?", iso(t), d.id);
+    expect(ev.evaluateDuty(d.row(), Z('2025-10-20T10:00:00Z'), TZ).find((x) => x.period.key === '2025-10')?.status).toBe('due');
+    // yearly → monthly: the past months of the year are not judged as monthly periods
+    const y = await duty({ interval: 'yearly', activeFrom: '2025-01-01T00:00:00Z' });
+    const ty = Z('2025-09-15T10:00:00Z');
+    store.closeForChange(y.row(), svcRow(y.service.id), ty, 'duty changed', TZ);
+    db().run("UPDATE service_duties SET interval_kind = 'monthly', rules_from = ? WHERE id = ?", iso(ty), y.id);
+    expect(ev.evaluateDuty(y.row(), Z('2025-09-20T10:00:00Z'), TZ).map((x) => [x.period.key, x.status])).toEqual([
+      ['2025~1', 'ended'],
+      ['2025-09', 'due'],
+    ]);
+  });
+
+  it('a duty done in the current period stays done when it is archived', async () => {
     const d = await graceDuty();
     // the previous month is done; a later run is the current month's
     run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
@@ -375,16 +444,14 @@ describe('archiving a duty or changing its rules', () => {
     db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
   });
 
-  it('a new interval, grace period or process applies from the current period on; ended periods keep the old rules', async () => {
-    // monthly → yearly: the previous month is closed as it stands, and the year counts no run from before the change
+  it('a new grace period, process or level applies from the change on; ended periods keep the old rules', async () => {
+    // monthly → yearly through the API: the previous month is closed as it stands, the current one ended
     const d = await graceDuty();
     await dana('PUT', `/duties/${d.id}`, d.body({ interval: 'yearly' }));
     const y = await dana('GET', `/duties/${d.id}`);
     expect(period(y, prev().key)).toMatchObject({ status: 'missed', closed: true, closeNote: 'duty changed', snapshot: { interval: 'monthly' } });
-    expect(y.previous).toMatchObject({ key: prev().key, status: 'missed' });
-    run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
-    expect((await dana('GET', `/duties/${d.id}`)).current.status).toBe('due');
-    db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
+    expect(y.previous).toMatchObject({ key: `${cur().key}~1`, status: 'ended' });
+    expect(y.current.status).toBe('due');
     // a longer grace period does not turn a missed period into a late one
     const g = await graceDuty();
     await dana('PUT', `/duties/${g.id}`, g.body({ graceDays: 60 }));
@@ -401,7 +468,10 @@ describe('archiving a duty or changing its rules', () => {
     expect(period(await dana('GET', `/duties/${l.id}`), prev().key)).toMatchObject({ status: 'missed', snapshot: { level: 'mandatory' } });
     const audit = await s.api('GET', `/audit?entityType=duty&entityId=${l.id}&limit=50`);
     expect(audit.find((a: any) => a.action === 'duty.updated').details.periodsClosedEarly).toEqual(
-      expect.arrayContaining([{ key: prev().key, status: 'missed' }]),
+      expect.arrayContaining([
+        { key: prev().key, status: 'missed' },
+        { key: `${cur().key}~1`, status: 'ended' },
+      ]),
     );
   });
 });
@@ -432,7 +502,14 @@ describe('duties of a service', () => {
     expect((await vera('GET', `/duties?serviceId=${svc.id}&archived=1`)).length).toBe(1);
     expect((await olivia('POST', `/duties/${d.id}/archive`, { archived: false })).current.status).toBe('due');
     const audit = await s.api('GET', `/audit?entityType=duty&entityId=${d.id}&limit=50`);
-    expect(audit.map((a: any) => a.action).sort()).toEqual(['duty.archived', 'duty.created', 'duty.restored', 'duty.updated']);
+    expect(
+      audit
+        .map((a: any) => a.action)
+        .filter((x: string) => x !== 'duty.period_closed')
+        .sort(),
+    ).toEqual(['duty.archived', 'duty.created', 'duty.restored', 'duty.updated']);
+    // archiving closed the current period as "ended without a run"
+    expect(audit.find((a: any) => a.action === 'duty.period_closed').details).toMatchObject({ status: 'ended', closedEarly: 'duty archived' });
     expect(audit.find((a: any) => a.action === 'duty.updated').details.changes).toEqual(['level']);
     expect(await status(vera('GET', '/duties/dty_nothing'))).toBe(404);
   });

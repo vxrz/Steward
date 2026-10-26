@@ -189,7 +189,8 @@
     "dutyStatus": {
       "due": "due",
       "missed": "missed",
-      "failed": "only failed runs"
+      "failed": "only failed runs",
+      "ended": "ended without a run"
     }
   },
   "accessUndocumented": {
