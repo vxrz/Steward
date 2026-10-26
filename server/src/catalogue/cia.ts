@@ -181,6 +181,20 @@ export type ScaleInput = z.infer<typeof scaleInput>;
 const mappingFor = (m: ScaleInput['mapping'], d: CiaDimension): Map<string, string | null> =>
   new Map([...Object.entries(m.all ?? {}), ...Object.entries(m[d] ?? {})]);
 
+/** The rows that hold a level: application ratings and service overrides (fixed statements). */
+const RATED = {
+  ratings: {
+    select: 'SELECT application_id AS id, level, needs_rerating FROM application_ratings WHERE dimension = ?',
+    map: 'UPDATE application_ratings SET level = ?, previous_label = ? WHERE application_id = ? AND dimension = ?',
+    flag: 'UPDATE application_ratings SET needs_rerating = 1, previous_label = ? WHERE application_id = ? AND dimension = ?',
+  },
+  overrides: {
+    select: 'SELECT service_id AS id, level, needs_rerating FROM service_protection_overrides WHERE dimension = ?',
+    map: 'UPDATE service_protection_overrides SET level = ?, previous_label = ? WHERE service_id = ? AND dimension = ?',
+    flag: 'UPDATE service_protection_overrides SET needs_rerating = 1, previous_label = ? WHERE service_id = ? AND dimension = ?',
+  },
+} as const;
+
 /**
  * Saves a scale (administrators). Ratings and overrides whose level the new scale no longer has are mapped (mapping)
  * or flagged for re-rating – never deleted. One audit entry with the levels and what happened to the ratings.
@@ -221,27 +235,23 @@ export function saveScale(input: ScaleInput): CiaScale {
       const keys = new Set(next[d].map((l) => l.key));
       const map = mappingFor(input.mapping, d);
       const e = { mapped: 0, flagged: 0 };
-      const handle = (table: 'application_ratings' | 'service_protection_overrides', idCol: 'application_id' | 'service_id') => {
-        const rows = db().all<{ id: string; level: string; needs_rerating: number }>(
-          `SELECT ${idCol} AS id, level, needs_rerating FROM ${table} WHERE dimension = ?`,
-          d,
-        );
-        for (const r of rows) {
+      const handle = (q: (typeof RATED)[keyof typeof RATED]) => {
+        for (const r of db().all<{ id: string; level: string; needs_rerating: number }>(q.select, d)) {
           if (keys.has(r.level)) continue;
           const oldLabel = before.levels[d].find((l) => l.key === r.level)?.label ?? r.level;
           const to = map.get(r.level);
           if (to) {
             // mapped: valid again on the new scale (unless it waited for a re-rating anyway); the old label stays visible
-            db().run(`UPDATE ${table} SET level = ?, previous_label = ? WHERE ${idCol} = ? AND dimension = ?`, to, oldLabel, r.id, d);
+            db().run(q.map, to, oldLabel, r.id, d);
             e.mapped++;
           } else if (!r.needs_rerating) {
-            db().run(`UPDATE ${table} SET needs_rerating = 1, previous_label = ? WHERE ${idCol} = ? AND dimension = ?`, oldLabel, r.id, d);
+            db().run(q.flag, oldLabel, r.id, d);
             e.flagged++;
           }
         }
       };
-      handle('application_ratings', 'application_id');
-      handle('service_protection_overrides', 'service_id');
+      handle(RATED.ratings);
+      handle(RATED.overrides);
       effects.set(d, e);
     }
     const describe = (ls: CiaLevel[]) => ls.map((l) => l.key).join(' < ');
