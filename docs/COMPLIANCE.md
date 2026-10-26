@@ -4,6 +4,8 @@ Steward helps a service team keep evidence of how access to its platforms is man
 
 > **Steward provides evidence. It does not make you compliant.** Whether your controls are effective is for your organisation and its auditors to decide. The built-in catalogues contain control identifiers and short topic names written for Steward – not the text of the standards, which is copyrighted.
 
+Recurring tasks such as the quarterly access review are tracked as **service duties**: each period is done, late, failed, missed or skipped with a four-eyes exception, and the result is stored for good – see [DUTIES.md](DUTIES.md).
+
 The _Compliance_ section of the sidebar has four pages:
 
 | Page                      | What it does                                                                                                       |

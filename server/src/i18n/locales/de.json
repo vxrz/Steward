@@ -254,7 +254,7 @@
     "levels": {
       "mandatory": "verpflichtend",
       "recommended": "empfohlen",
-      "optional": "optional"
+      "optional": "freiwillig"
     }
   }
 }

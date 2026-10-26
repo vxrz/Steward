@@ -53,7 +53,7 @@ const de: Texts = {
   none: 'Im Berichtszeitraum endete kein Zeitraum einer Pflicht.',
   noneOpen: 'Jede Pflicht ist für ihren aktuellen Zeitraum erledigt.',
   more: '{n} weitere nicht angezeigt.',
-  levels: { mandatory: 'Verpflichtend', recommended: 'Empfohlen', optional: 'Optional' },
+  levels: { mandatory: 'Verpflichtend', recommended: 'Empfohlen', optional: 'Freiwillig' },
   statuses: { due: 'Fällig', done: 'Erledigt', late: 'Verspätet', skipped: 'Ausgesetzt', failed: 'Fehlgeschlagen', missed: 'Versäumt' },
 };
 const tx = (l: ReportLang): Texts => (l === 'de' ? de : en);
