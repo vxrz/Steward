@@ -102,6 +102,10 @@
       "exception": {
         "label": "Ausnahme einer Pflicht beantragt",
         "info": "Jemand hat beantragt, einen Zeitraum einer Service-Pflicht auszusetzen, für die Sie verantwortlich sind: Eine zweite Person entscheidet"
+      },
+      "ended": {
+        "label": "Zeitraum einer Pflicht ohne Ausführung beendet",
+        "info": "Jemand hat eine verpflichtende oder empfohlene Pflicht, für die Sie verantwortlich sind, archiviert oder geändert, und ihr aktueller Zeitraum endete ohne Ausführung"
       }
     }
   }

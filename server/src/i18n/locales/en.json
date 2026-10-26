@@ -258,6 +258,10 @@
       "optional": "optional"
     },
     "exceptionTitle": "Exception asked for: \"{{name}}\" ({{service}}), period {{period}}",
-    "exceptionBody": "{{user}} asks to skip the duty “{{name}}” of the service “{{service}}” for the period {{period}}: {{reason}}\nA second person approves or rejects it on the duty page."
+    "exceptionBody": "{{user}} asks to skip the duty “{{name}}” of the service “{{service}}” for the period {{period}}: {{reason}}\nA second person approves or rejects it on the duty page.",
+    "endedTitle": "Duty period ended without a run – \"{{name}}\", {{period}}, by {{user}}: {{why}}",
+    "endedBody": "{{user}} archived or changed the {{level}} duty “{{name}}” of the service “{{service}}” ({{why}}). Its period {{period}} had no run that counts yet: it ended without a run and counts as not met.",
+    "endedArchived": "duty archived",
+    "endedChanged": "duty changed"
   }
 }

@@ -22,7 +22,11 @@ const DutySkipEntry = z.object({
 });
 
 export const DutyPeriodEntry = z.object({
-  key: z.string().describe('2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026'),
+  key: z
+    .string()
+    .describe(
+      '2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key',
+    ),
   start: ts().describe('Local midnight of the first day of the period (instance time zone)'),
   end: ts().describe('Local midnight after the last day (exclusive)'),
   graceEndsAt: ts().describe('End of the grace period (= end without one)'),

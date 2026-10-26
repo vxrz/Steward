@@ -258,6 +258,10 @@
       "optional": "freiwillig"
     },
     "exceptionTitle": "Ausnahme beantragt: \"{{name}}\" ({{service}}), Zeitraum {{period}}",
-    "exceptionBody": "{{user}} beantragt, die Pflicht „{{name}}“ des Service „{{service}}“ im Zeitraum {{period}} auszusetzen: {{reason}}\nEine zweite Person genehmigt oder lehnt sie auf der Seite der Pflicht ab."
+    "exceptionBody": "{{user}} beantragt, die Pflicht „{{name}}“ des Service „{{service}}“ im Zeitraum {{period}} auszusetzen: {{reason}}\nEine zweite Person genehmigt oder lehnt sie auf der Seite der Pflicht ab.",
+    "endedTitle": "Zeitraum einer Pflicht ohne Ausführung beendet – \"{{name}}\", {{period}}, durch {{user}}: {{why}}",
+    "endedBody": "{{user}} hat die Pflicht „{{name}}“ ({{level}}) des Service „{{service}}“ archiviert oder geändert ({{why}}). Ihr Zeitraum {{period}} hatte noch keine Ausführung, die zählt: Er wurde ohne Ausführung beendet und zählt als nicht erfüllt.",
+    "endedArchived": "Pflicht archiviert",
+    "endedChanged": "Pflicht geändert"
   }
 }

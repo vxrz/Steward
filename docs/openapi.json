@@ -9339,7 +9339,7 @@
                 "properties": {
                   "key": {
                     "type": "string",
-                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026"
+                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
                   },
                   "start": {
                     "type": "string",
@@ -9611,7 +9611,7 @@
                 "properties": {
                   "key": {
                     "type": "string",
-                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026"
+                    "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
                   },
                   "start": {
                     "type": "string",
@@ -9935,7 +9935,7 @@
         "properties": {
           "key": {
             "type": "string",
-            "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026"
+            "description": "2026-W44, 2026-10, 2026-Q4, 2026-H2 or 2026. A period that ended early (status ended: the duty was archived or changed before anything counted) has a suffix ~n, e.g. 2026-10~1: the rest of that period, under the new rules, keeps the plain key"
           },
           "start": {
             "type": "string",

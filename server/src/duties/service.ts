@@ -19,7 +19,7 @@ import { matches, processPermissions } from '../auth/permissions.js';
 import { sameIdentity } from '../auth/aliases.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { logger } from '../log.js';
-import { t } from '../i18n/index.js';
+import { t, type MessageKey } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
@@ -471,12 +471,14 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
   if (!changes.length) return getDuty(dutyId);
   const rules = changes.some((k) => (JUDGED_BY as readonly string[]).includes(k));
   const stricter = rules && stricterOnly(cur, next, changes);
+  let endedNow: Evaluated[] = [];
   db().tx(() => {
     // the open periods keep the result of the rules they ran under; the new rules start at the change (or after a
     // current period that is done already). A change that only makes the duty stricter (a higher level, a shorter grace
     // period) applies to the current period as it is: only the ended periods are closed, with the old rules.
     const ended = stricter ? closeForChange(cur, s, Date.now(), 'duty changed', undefined, true) : null;
     const change = rules && !stricter ? closeForChange(cur, s, Date.now(), 'duty changed') : null;
+    endedNow = change?.closed ?? [];
     db().run(
       `UPDATE service_duties SET application_id = ?, name = ?, description = ?, process_id = ?, schedule_id = ?, interval_kind = ?, level = ?, grace_days = ?,
        remind_days = ?, owners = ?, updated_at = ?, updated_by = ?${change ? ', rules_from = ?' : ''} WHERE id = ?`,
@@ -510,6 +512,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
       },
     });
   });
+  notifyEnded(cur, s, endedNow, u, 'duty changed');
   refreshStored(dutyId);
   return getDuty(dutyId);
 }
@@ -521,6 +524,7 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
   if (!canEditDuty(u, s)) forbid('change duties of this service', 'changeService');
   if (!!cur.archived === archived) return getDuty(dutyId);
   if (!archived) checkName(s.id, cur.name, dutyId);
+  let endedNow: Evaluated[] = [];
   db().tx(() => {
     // archiving ends the duty: the periods that ended are closed as they stand (and a current period that is done
     // already), the rest of the current period is not judged; a restored duty stores the periods it was archived
@@ -530,6 +534,7 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
     // restoring stores the periods entirely inside the archive window as inactive and starts again now
     const change = archived ? closeForChange(cur, s, now, 'duty archived') : null;
     const closedEarly = change?.closed ?? [];
+    endedNow = closedEarly;
     const inactive = archived ? 0 : storeInactiveGap(cur, Date.parse(cur.rules_from ?? cur.updated_at), now);
     db().run(
       'UPDATE service_duties SET archived = ?, rules_from = ?, updated_at = ?, updated_by = ? WHERE id = ?',
@@ -547,8 +552,52 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
       details: { serviceId: s.id, periodsClosedEarly: closedEarly.map((e) => ({ key: e.period.key, status: e.status })), inactivePeriods: inactive },
     });
   });
+  notifyEnded(cur, s, endedNow, u, 'duty archived');
   refreshStored(dutyId);
   return getDuty(dutyId);
+}
+
+/**
+ * A period of a mandatory or recommended duty that a change or an archive ended without a run: the duty's and the
+ * service's owners (else the administrators) are told once – not the person who made the change.
+ */
+function notifyEnded(d: DutyRow, s: ServiceRef, closed: Evaluated[], by: AuthUser, why: 'duty changed' | 'duty archived'): void {
+  const ended = closed.filter((e) => e.status === 'ended');
+  if (!ended.length || d.level === 'optional') return;
+  try {
+    const all = listUsers().filter((x) => x.active && !sameIdentity(by.username, x));
+    const subjects = deciderSubjects(d, s);
+    const named = all.filter((x) => subjects.some((sub) => matches(toAuthUser(x), sub)));
+    for (const e of ended) {
+      const period = e.period.key.split('~')[0]!;
+      notify({
+        event: 'duty.ended',
+        text: (l) => ({
+          title: t(l, 'duty.endedTitle', {
+            name: titleName(d.name),
+            period,
+            user: by.username,
+            why: t(l, why === 'duty archived' ? 'duty.endedArchived' : 'duty.endedChanged'),
+          }),
+          body: t(l, 'duty.endedBody', {
+            name: d.name,
+            service: s.name,
+            level: t(l, `duty.levels.${d.level}` as MessageKey),
+            period,
+            user: by.username,
+            why: t(l, why === 'duty archived' ? 'duty.endedArchived' : 'duty.endedChanged'),
+          }),
+        }),
+        link: `/duties/${d.id}`,
+        recipients: named.length ? named : all.filter((x) => x.roles.includes('admin')),
+        inAppKey: `duty:${d.id}:${e.period.key}:ended`,
+        externalKey: `duty:${d.id}:${e.period.key}:ended`,
+        data: { dutyId: d.id, serviceId: s.id, periodKey: e.period.key, status: 'ended', level: d.level, by: by.username, reason: why },
+      });
+    }
+  } catch (err) {
+    logger.warn({ err, dutyId: d.id }, '"ended" notification could not be sent');
+  }
 }
 
 // ---------- skips (four-eyes) ----------

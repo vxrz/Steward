@@ -474,6 +474,30 @@ describe('archiving a duty or changing its rules', () => {
     expect(d.periods.find((p: any) => p.key === `${cur().key}~1`)).toMatchObject({ status: 'ended' });
   });
 
+  it('a period of a mandatory or recommended duty that ends without a run tells the owners – not who made the change', async () => {
+    const ids = Object.fromEntries((await s.api('GET', '/users')).map((u: any) => [u.username, u.id]));
+    const told = (user: string, dutyId: string) =>
+      db().all<any>("SELECT title FROM notifications WHERE user_id = ? AND event = 'duty.ended' AND link = ?", ids[user], `/duties/${dutyId}`);
+    const mk = async (level: string) => {
+      const d = await duty({ activeFrom: iso(cur().start), level, owners: ['user:olivia'], serviceOwners: ['user:dana'] });
+      db().run('UPDATE service_duties SET process_id = ? WHERE id = ?', freshProc, d.id);
+      return d;
+    };
+    const m = await mk('mandatory');
+    await dana('POST', `/duties/${m.id}/archive`, { archived: true });
+    expect(told('olivia', m.id).map((n) => n.title)).toEqual([`Duty period ended without a run – "${m.row().name}", ${cur().key}, by dana: duty archived`]);
+    expect(told('dana', m.id)).toEqual([]);
+    const r = await mk('recommended');
+    await s.api('PUT', `/duties/${r.id}`, { name: r.row().name, processId: freshProc, interval: 'yearly', level: 'recommended', owners: ['user:olivia'] });
+    expect(told('olivia', r.id).map((n) => n.title)).toEqual([`Duty period ended without a run – "${r.row().name}", ${cur().key}, by admin: duty changed`]);
+    expect(told('dana', r.id)).toHaveLength(1);
+    expect(told('admin', r.id)).toEqual([]);
+    // optional duties send none
+    const o = await mk('optional');
+    await dana('POST', `/duties/${o.id}/archive`, { archived: true });
+    expect(told('olivia', o.id)).toEqual([]);
+  });
+
   it('a duty done in the current period stays done when it is archived', async () => {
     const d = await graceDuty();
     // the previous month is done; a later run is the current month's

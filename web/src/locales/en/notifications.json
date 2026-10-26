@@ -102,6 +102,10 @@
       "exception": {
         "label": "Duty exception asked for",
         "info": "Someone asked to skip a period of a service duty you are responsible for: a second person decides"
+      },
+      "ended": {
+        "label": "Duty period ended without a run",
+        "info": "Someone archived or changed a mandatory or recommended duty you are responsible for, and its current period ended without a run"
       }
     }
   }
