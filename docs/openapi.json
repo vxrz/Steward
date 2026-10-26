@@ -10752,7 +10752,9 @@
                                 "late",
                                 "failed",
                                 "missed",
-                                "skipped"
+                                "skipped",
+                                "inactive",
+                                "ended"
                               ]
                             }
                           },
@@ -10783,7 +10785,9 @@
                                 "late",
                                 "failed",
                                 "missed",
-                                "skipped"
+                                "skipped",
+                                "inactive",
+                                "ended"
                               ]
                             }
                           },
@@ -11372,7 +11376,9 @@
                                       "late",
                                       "failed",
                                       "missed",
-                                      "skipped"
+                                      "skipped",
+                                      "inactive",
+                                      "ended"
                                     ]
                                   }
                                 },
@@ -11403,7 +11409,9 @@
                                       "late",
                                       "failed",
                                       "missed",
-                                      "skipped"
+                                      "skipped",
+                                      "inactive",
+                                      "ended"
                                     ]
                                   }
                                 },
@@ -12429,7 +12437,9 @@
                                 "late",
                                 "failed",
                                 "missed",
-                                "skipped"
+                                "skipped",
+                                "inactive",
+                                "ended"
                               ]
                             }
                           },
@@ -12460,7 +12470,9 @@
                                 "late",
                                 "failed",
                                 "missed",
-                                "skipped"
+                                "skipped",
+                                "inactive",
+                                "ended"
                               ]
                             }
                           },
