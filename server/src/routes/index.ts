@@ -420,8 +420,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         const text = result.ok ? serverT(lang, 'ssoTest.done') : serverT(lang, 'ssoTest.failed');
         const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
         return reply.type('text/html').send(
-          // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- fixed catalog texts, HTML-escaped; no request data
-          `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>${esc(serverT(lang, 'ssoTest.title'))}</title><p>${esc(text)}</p><script>setTimeout(function(){window.close()},1500)</script></html>`,
+          // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format, javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag -- lang is one of the supported locales (resolveLocale), the texts are fixed catalog texts, HTML-escaped; no request data
+          `<!doctype html><html lang="${esc(lang)}"><meta charset="utf-8"><title>${esc(serverT(lang, 'ssoTest.title'))}</title><p>${esc(text)}</p><script>setTimeout(function(){window.close()},1500)</script></html>`,
         );
       }
       const { token, returnTo, sessionKey, linkKey } = result;

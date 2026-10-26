@@ -30,8 +30,11 @@ export function claimAt(claims: Claims, path: string): unknown {
   if (parts.length > MAX_PATH_DEPTH || parts.some((p) => !p)) return undefined;
   let cur: unknown = claims;
   for (const part of parts) {
-    if (cur === null || typeof cur !== 'object' || Array.isArray(cur) || !Object.hasOwn(cur, part)) return undefined;
-    cur = (cur as Claims)[part];
+    if (cur === null || typeof cur !== 'object' || Array.isArray(cur)) return undefined;
+    // read only, and only an own property ("__proto__" and the like never resolve)
+    const own = Object.getOwnPropertyDescriptor(cur, part);
+    if (!own) return undefined;
+    cur = own.value;
   }
   return cur;
 }
