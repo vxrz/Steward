@@ -50,7 +50,10 @@
     "signInPassword": "A password",
     "signInProvider": "{{name}} (single sign-on, no password)",
     "signInHint": "A single sign-on account has no password. Only this provider can claim it at the first sign-in, with exactly this user name.",
-    "signInBindHint": "Choosing a provider removes the password and signs the account out; only that provider can then claim it, with exactly this user name."
+    "signInBindHint": "Choosing a provider removes the password and signs the account out; only that provider can then claim it, with exactly this user name.",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "managedHint": "Greyed-out fields come from the single sign-on provider at every sign-in."
   },
   "teamModal": {
     "saved": "Team \"{{name}}\" saved",
@@ -75,7 +78,10 @@
       "autoProvision": "auto-provision",
       "syncRoles": "role sync",
       "requireMapping": "mapping required",
-      "secretMissing": "secret missing"
+      "secretMissing": "secret missing",
+      "linkByName": "links by name",
+      "warnings_one": "{{count}} warning",
+      "warnings_other": "{{count}} warnings"
     }
   },
   "provider": {
@@ -132,6 +138,166 @@
     "syncRoles": "Sync roles and mapped teams at every sign-in",
     "syncRolesHint": "Roles come from the identity provider; changes made here are overwritten at the next sign-in.",
     "requireMapping": "Deny sign-in when no mapping matches",
-    "defaultOidcName": "Company login"
+    "defaultOidcName": "Company login",
+    "preset": "Identity provider",
+    "presetHint": "Pre-fills the settings below. Every value stays editable.",
+    "presetDocs": "Steps at {{provider}}",
+    "presetHints": {
+      "entra": "App roles in the app registration become the roles claim. Entra ID sends email_verified only as an optional claim, so the user name comes from preferred_username (the UPN) and people are identified by tenant + object id (tid, oid).",
+      "keycloak": "Add a “Group Membership” mapper (claim groups, without full path) to the client so groups reach the token. Keycloak sends email_verified.",
+      "okta": "Add a groups claim to the authorization server (or the app) and the scope groups. Okta sends email_verified.",
+      "google": "Google sends no groups and no preferred_username: the verified e-mail address names the account. Enter your Workspace domain as required value of the claim hd – otherwise any Google account may sign in.",
+      "authentik": "The issuer ends with the application slug and a slash. Authentik sends groups with the default “profile” scope mapping.",
+      "generic": "Any OpenID Connect provider: issuer, client and the claim names your provider uses."
+    },
+    "groupId": "group id",
+    "usernameTransform": "User name rule",
+    "usernameTransforms": {
+      "lowercase": "Lower case (max@contoso.com)",
+      "stripDomain": "Lower case without @domain (max)",
+      "none": "As sent by the provider"
+    },
+    "displayNameTemplate": "Display name template",
+    "displayNameTemplateHint": "Claims in braces, e.g. {given_name} {family_name}. Empty: the display name claim.",
+    "firstNameClaim": "First name claim",
+    "lastNameClaim": "Last name claim",
+    "emailVerifiedByProvider": "This provider verifies e-mail addresses",
+    "emailVerifiedByProviderHint": "Only for providers that never send email_verified. Then the e-mail claim may name or identify accounts without it – make sure the provider really verifies every address.",
+    "useUserinfo": "Also read the userinfo endpoint",
+    "useUserinfoHint": "For claims the ID token leaves out. Where both have a claim, the ID token wins.",
+    "groupValues": "The groups claim carries",
+    "groupValueOptions": {
+      "names": "Names (matched ignoring case)",
+      "ids": "IDs (matched exactly)"
+    },
+    "stableId": "Claims that identify a person for good",
+    "stableIdHint": "Together with the issuer. Use claims nobody can change (sub; Entra ID: tid and oid). After a change, each account is re-linked at its next sign-in through its issuer + sub.",
+    "stableIdRequired": "Enter at least one claim (usually sub)",
+    "accountsSection": "Accounts: linking, required claims, names and profile fields",
+    "linkExisting": "Existing accounts at the first sign-in",
+    "linkExistingHint": "What happens when someone signs in for the first time and an account with their user name exists already. A local administrator account is never linked by its name.",
+    "linkPolicies": {
+      "bound": "Only accounts an administrator bound to this provider",
+      "byName": "Any local account with the same user name",
+      "never": "Never – only new accounts"
+    },
+    "linkPolicyHints": {
+      "bound": "Recommended. Bind an account under Users & teams → Edit user → Signs in with.",
+      "byName": "Whoever has this user name at the provider gets the local account, its roles and its history.",
+      "never": "Existing accounts – also bound ones – are not linked; a new identity with a taken user name is refused."
+    },
+    "requiredClaims": "Required claims",
+    "requiredClaimsHint": "Sign-in only when the claim has one of the values, e.g. hd = your Google Workspace domain, tid = your Entra tenant id.",
+    "requiredClaim": "Claim",
+    "requiredValues": "Accepted values",
+    "requiredValuesPlaceholder": "Value, then Enter",
+    "requiredValuesMissing": "Enter at least one value",
+    "removeRequiredClaim": "Remove required claim",
+    "addRequiredClaim": "Add required claim",
+    "syncTitle": "Updates from the provider",
+    "syncFields": {
+      "displayName": "Display name",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "E-mail"
+    },
+    "syncFor": "Updates of {{field}}",
+    "syncRules": {
+      "always": "At every sign-in (not editable here)",
+      "create": "Only when the account is created or linked"
+    },
+    "profileFields": "Profile fields",
+    "profileFieldsHint": "Read-only fields on the account, shown on the user page and in the public API (users). Nested claims with dots, e.g. address.locality.",
+    "profileKey": "Key",
+    "profileLabel": "Label",
+    "profileClaim": "Claim",
+    "profileSync": "Updated",
+    "noProfileFields": "No profile fields.",
+    "removeProfileField": "Remove profile field",
+    "addProfileField": "Add profile field",
+    "keepLinks": "Keep the existing accounts linked to the new issuer",
+    "keepLinksHint": "Only when the new issuer issues the same subjects (e.g. a renamed host). Otherwise the links stay with the former issuer and those people get no access through the new one.",
+    "warnings": {
+      "title": "Check these settings",
+      "LINK_BY_NAME": "Existing local accounts are linked by their user name: whoever has that name at the provider gets the account. Prefer “Only accounts an administrator bound to this provider”.",
+      "MULTI_TENANT_ISSUER": "Accounts of any organisation can sign in with this issuer. Add a required claim tid with your tenant id.",
+      "TENANT_INFLUENCED_CLAIM": "The claim {{claim}} is set by each organisation’s administrators – with a multi-tenant issuer another organisation can send any value. Use claims your organisation controls (nOAuth).",
+      "USER_INFLUENCED_CLAIM": "People can often change the claim {{claim}} themselves – do not name or identify accounts by it.",
+      "MUTABLE_STABLE_ID": "The stable identifier uses claims that can change ({{claims}}): when they change, the person loses the account, and someone else may get it. Use sub (Entra ID: tid and oid).",
+      "STRIP_DOMAIN": "Only the listed domains are stripped. People with the same name in two listed domains get the same user name (max@a.com and max@b.com → max): whoever signs in first gets the account, the other one is refused.",
+      "NO_DOMAIN_RESTRICTION": "Any Google account can sign in. Add the required claim hd with your Workspace domain.",
+      "EMAIL_TRUSTED": "E-mail addresses are trusted without email_verified. Only when the provider verifies every address.",
+      "USERNAME_COLLISIONS": "Accounts of this provider that get the same user name under this rule: {{names}}.",
+      "EMAIL_VERIFIED_NOW_REQUIRED": "Since this version, sign-ins of this provider need email_verified=true (the claim {{claim}} names or identifies accounts). If the provider never sends it but verifies every address, turn on “This provider verifies e-mail addresses” – otherwise everyone is refused."
+    },
+    "test": {
+      "title": "Test sign-in",
+      "hint": "Sign in once through this provider in a new window: you see the claims it sends and what a sign-in would do with the settings in this form. Nothing signs in, no account is created, linked or changed.",
+      "saveFirst": "Save the provider first, then test the sign-in.",
+      "start": "Test sign-in",
+      "again": "Test again",
+      "notStarted": "The test sign-in could not start",
+      "waiting": "Waiting for the sign-in in the other window …",
+      "open": "Open the sign-in page",
+      "failed": "The test sign-in failed: {{error}}",
+      "preview": "Preview",
+      "idToken": "ID token ({{count}})",
+      "userinfo": "Userinfo ({{count}})",
+      "userinfoError": "Userinfo could not be read: {{error}}",
+      "noClaims": "No claims.",
+      "claim": "Claim",
+      "value": "Value",
+      "truncated": "(shortened)",
+      "previewHint": "With the settings in this form – unsaved changes included.",
+      "outcomes": {
+        "signIn": "Signs in to {{username}}",
+        "relink": "Re-links {{username}}",
+        "link": "Links the existing account {{username}}",
+        "create": "Creates the account {{username}}",
+        "refuse": "Refused"
+      },
+      "relinkFrom": {
+        "legacy": "Found by its link from an earlier version (provider + sub); the link is renewed with the stable identifier.",
+        "sub": "Found by its earlier issuer + sub; the link is renewed with the stable identifier."
+      },
+      "username": "User name",
+      "usernameFrom": "from claim {{claim}}: {{value}}",
+      "displayName": "Display name",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "email": "E-mail",
+      "emailVerified": "confirmed",
+      "emailNotVerified": "not confirmed",
+      "emailVerifiedMissing": "email_verified not sent",
+      "emailRequired": "(this configuration needs a confirmed address)",
+      "stableId": "Stable identifier",
+      "missing": "missing",
+      "issuer": "Issuer: {{issuer}}",
+      "groups": "Groups ({{claim}})",
+      "matched": "Matched mappings: {{values}}",
+      "roles": "Roles",
+      "teams": "Teams",
+      "none": "–",
+      "notes": {
+        "USERNAME_FALLBACK": "The claim {{claim}} was not sent – the user name comes from {{from}}.",
+        "USERNAME_TRANSFORMED": "User name rule: {{from}} → {{to}}",
+        "GROUPS_OVERAGE": "The token left the groups out (too many groups; claim {{claim}}). No roles come from them. Assign groups to the application, use app roles or a group filter.",
+        "USERINFO_USED": "Claims from the userinfo endpoint are used too."
+      }
+    },
+    "stripDomains": "Domains to strip",
+    "stripDomainsHint": "Only these domains are removed (max@contoso.com → max). A user name of any other domain is refused – otherwise boss@any-domain could claim the account “boss”.",
+    "stripDomainsPlaceholder": "contoso.com, then Enter",
+    "stripDomainsRequired": "Enter at least one domain",
+    "stripDomainsInvalid": "A domain such as contoso.com",
+    "stableIdNotUnique": "These claims do not name one person: include sub or oid, or confirm below that they are unique per person. Claims many people share (tid, groups, roles, hd …) never count on their own.",
+    "stableIdConfirm": "These claims are unique per person – I checked",
+    "stableIdConfirmHint": "Without sub or oid, two people with the same value would share one account. The confirmation is saved and audited.",
+    "emailNoticeDismiss": "Keep requiring email_verified – I checked that this provider sends it",
+    "emailNoticeDismissHint": "Removes this notice when you save. Turning on “This provider verifies e-mail addresses” or naming accounts by another claim removes it too."
+  },
+  "profileValues": {
+    "title": "From the sign-in provider",
+    "hint": "Read-only: updated by the single sign-on provider."
   }
 }

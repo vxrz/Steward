@@ -117,6 +117,8 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/sso/providers/:id': ADMIN,
   'DELETE /api/sso/providers/:id': ADMIN,
   'POST /api/sso/discover': ADMIN,
+  'POST /api/sso/providers/:id/test-sign-in': ADMIN,
+  'POST /api/sso/test-sign-ins/:id': ADMIN,
   'GET /api/sso/redirect-uri': ALL,
 
   // ---- settings, theme, notifications, maintenance ----
@@ -537,6 +539,8 @@ const SESSION_ONLY = [
   'POST /api/sso/providers',
   'PUT /api/sso/providers/:id',
   'DELETE /api/sso/providers/:id',
+  'POST /api/sso/providers/:id/test-sign-in',
+  'POST /api/sso/test-sign-ins/:id',
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',

@@ -32,6 +32,7 @@ import { fmtRelative } from '../format';
 import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 import i18n from '../i18n';
+import { ProfileValues } from '../components/users/ProfileValues';
 import { confirmDanger } from '../components/confirm';
 
 const ROLE_COLORS: Record<Role, string> = {
@@ -342,7 +343,11 @@ function UserModal({
   const { t } = useTranslation(['users', 'common']);
   const [username, setUsername] = useState(user?.username ?? '');
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [firstName, setFirstName] = useState(user?.firstName ?? '');
+  const [lastName, setLastName] = useState(user?.lastName ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
+  // fields the account's single sign-on provider updates at every sign-in are read-only here
+  const managed = (f: UserInfo['managedFields'][number]) => !!user?.managedFields.includes(f);
   const [roles, setRoles] = useState<string[]>(user?.roles ?? ['operator']);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -362,13 +367,22 @@ function UserModal({
     setBusy(true);
     try {
       if (user) {
-        await put(`/users/${user.id}`, { displayName, email: email || undefined, roles, ...(local && provider ? { provider } : {}) });
+        await put(`/users/${user.id}`, {
+          ...(managed('displayName') ? {} : { displayName }),
+          ...(managed('firstName') ? {} : { firstName }),
+          ...(managed('lastName') ? {} : { lastName }),
+          ...(managed('email') ? {} : { email: email || undefined }),
+          roles,
+          ...(local && provider ? { provider } : {}),
+        });
         notifyOk(t('userModal.updated', { user: user.username }));
         onSaved(undefined, user.username);
       } else {
         const r = await post<{ user: UserInfo; temporaryPassword?: string }>('/users', {
           username: username.trim(),
           displayName: displayName.trim() || undefined,
+          firstName: firstName.trim() || undefined,
+          lastName: lastName.trim() || undefined,
           email: email.trim() || undefined,
           roles,
           password: (!passwordsOff && !provider && password) || undefined,
@@ -395,8 +409,23 @@ function UserModal({
           onChange={(e) => setUsername(e.currentTarget.value)}
           error={v.error('username')}
         />
-        <TextInput label={t('userModal.displayName')} value={displayName} onChange={(e) => setDisplayName(e.currentTarget.value)} />
-        <TextInput label={t('userModal.email')} value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+        <TextInput
+          label={t('userModal.displayName')}
+          disabled={managed('displayName')}
+          value={displayName}
+          onChange={(e) => setDisplayName(e.currentTarget.value)}
+        />
+        <Group grow align="flex-start">
+          <TextInput label={t('userModal.firstName')} disabled={managed('firstName')} value={firstName} onChange={(e) => setFirstName(e.currentTarget.value)} />
+          <TextInput label={t('userModal.lastName')} disabled={managed('lastName')} value={lastName} onChange={(e) => setLastName(e.currentTarget.value)} />
+        </Group>
+        <TextInput label={t('userModal.email')} disabled={managed('email')} value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
+        {!!user?.managedFields.length && (
+          <Text size="xs" c="dimmed">
+            {t('userModal.managedHint')}
+          </Text>
+        )}
+        {user && <ProfileValues values={user.profile} />}
         <MultiSelect label={t('table.roles')} data={roleOptions()} value={roles} onChange={setRoles} comboboxProps={{ withinPortal: true }} />
         {!user && (
           <Text size="xs" c="dimmed">

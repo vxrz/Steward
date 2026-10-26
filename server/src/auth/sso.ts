@@ -1,39 +1,94 @@
+import crypto from 'node:crypto';
 import * as oidc from 'openid-client';
 import { EnvHttpProxyAgent, fetch as undiciFetch } from 'undici';
 import { z } from 'zod';
-import { ROLES, type Role, type SsoDiscoveryResult, type SsoProvider, type SsoProviderInput, type SsoProviderPublic } from '@sm/shared';
+import {
+  ROLES,
+  SSO_GROUP_VALUES,
+  SSO_LIMITS,
+  SSO_LINK_POLICIES,
+  SSO_PRESETS,
+  SSO_PROFILE_KEY,
+  SSO_SYNC_RULES,
+  SSO_USERNAME_TRANSFORMS,
+  SSO_DOMAIN,
+  emailIdentifies,
+  stableIdProblem,
+  ssoConfigWarnings,
+  type ErrorParams,
+  type Role,
+  type SsoConfigWarning,
+  type SsoDiscoveryResult,
+  type SsoProvider,
+  type SsoProviderInput,
+  type SsoProviderPublic,
+  type SsoSignInPreview,
+  type SsoTestResult,
+  type SsoTestStart,
+  type UserInfo,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { vault } from '../vault.js';
 import { audit } from '../audit.js';
+import { logger } from '../log.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
 import { checkMac, configMac } from '../integrity.js';
 import { readSetting, writeSetting } from '../settings.js';
-import { createSession, findUserByName, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
+import { createSession, getUser, listTeams, listUsers, type CreatedSession } from './users.js';
 import { BRAND } from '@sm/shared';
 import { config as appConfig } from '../config.js';
 import { aliasTarget } from './aliases.js';
+import {
+  claimAt,
+  claimList,
+  claimText,
+  emailVerified,
+  SSO_USERNAME,
+  groupOverage,
+  identityKeys,
+  keyClaimNames,
+  keyIssuer,
+  withIssuer,
+  profileValues,
+  renderTemplate,
+  shownClaims,
+  transformUsername,
+  withDefaults,
+  type ProviderConfig,
+} from './sso-claims.js';
 
 /**
  * Single sign-on with OpenID Connect (authorization code flow + PKCE).
  * Works with Microsoft Entra ID and any standard OIDC provider (Okta, Keycloak,
- * Google Workspace, ADFS 2019+ …). Tokens are validated by openid-client
+ * Google Workspace, Authentik, ADFS 2019+ …). Tokens are validated by openid-client
  * (issuer, audience, signature via JWKS, expiry, nonce, state, PKCE).
+ *
+ * How claims become an account (user name, names, profile fields, the stable identifier, which existing account an
+ * identity may link) is decided by `decide` without changing anything – the test sign-in shows exactly that – and
+ * applied by `provisionUser` at a real sign-in. See docs/SSO.md.
  */
+
+const claimName = z.string().trim().max(SSO_LIMITS.claimName);
+const syncRule = z.enum(SSO_SYNC_RULES);
 
 const providerSchema = z.object({
   displayName: z.string().min(1).max(80),
   type: z.enum(['entra', 'oidc']),
-  issuer: z.string().url(),
-  clientId: z.string().min(1),
+  issuer: z.string().url().max(500),
+  clientId: z.string().min(1).max(500),
   clientAuth: z.enum(['client_secret_post', 'client_secret_basic', 'none']).default('client_secret_post'),
-  scopes: z.string().default('openid profile email'),
-  usernameClaim: z.string().default('preferred_username'),
-  displayNameClaim: z.string().default('name'),
-  emailClaim: z.string().default('email'),
-  groupsClaim: z.string().default('roles'),
+  scopes: z.string().max(500).default('openid profile email'),
+  usernameClaim: claimName.default('preferred_username'),
+  displayNameClaim: claimName.default('name'),
+  emailClaim: claimName.default('email'),
+  groupsClaim: claimName.default('roles'),
   mappings: z
     .array(
-      z.object({ claimValue: z.string().min(1), roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]), teams: z.array(z.string()).max(100).default([]) }),
+      z.object({
+        claimValue: z.string().min(1).max(500),
+        roles: z.array(z.enum(ROLES)).max(ROLES.length).default([]),
+        teams: z.array(z.string().max(64)).max(100).default([]),
+      }),
     )
     .max(500)
     .default([]),
@@ -42,7 +97,46 @@ const providerSchema = z.object({
   syncRoles: z.boolean().default(true),
   requireMapping: z.boolean().default(false),
   enabled: z.boolean().default(true),
-  clientSecret: z.string().optional(),
+  clientSecret: z.string().max(4096).optional(),
+  /** Not stored: when the issuer changes, keep the accounts linked (the new issuer issues the same subjects, e.g. a renamed host) */
+  keepLinksOnIssuerChange: z.boolean().optional(),
+  // added with #77 – optional: a request without them keeps the stored values (new providers: the defaults)
+  preset: z.enum(SSO_PRESETS).optional(),
+  stableIdClaims: z.array(claimName.min(1)).min(1).max(SSO_LIMITS.stableIdClaims).optional(),
+  usernameTransform: z.enum(SSO_USERNAME_TRANSFORMS).optional(),
+  stripDomains: z.array(z.string().trim().toLowerCase().max(253).regex(SSO_DOMAIN, 'A domain such as contoso.com')).max(SSO_LIMITS.stripDomains).optional(),
+  /** The stable id claims the administrator confirmed as unique per person (must equal stableIdClaims) */
+  stableIdConfirmedClaims: z.array(claimName.min(1)).max(SSO_LIMITS.stableIdClaims).optional(),
+  /** false: the administrator decided about the email_verified notice of a provider from before #77 */
+  emailVerificationNotice: z.boolean().optional(),
+  displayNameTemplate: z.string().trim().max(SSO_LIMITS.template).optional(),
+  firstNameClaim: claimName.optional(),
+  lastNameClaim: claimName.optional(),
+  profileFields: z
+    .array(
+      z.object({
+        key: z.string().regex(SSO_PROFILE_KEY, 'Field key: a letter, then letters, digits or _ (at most 40)'),
+        label: z.string().trim().min(1).max(80),
+        claim: claimName.min(1),
+        sync: syncRule.default('always'),
+      }),
+    )
+    .max(SSO_LIMITS.profileFields)
+    .optional(),
+  sync: z.object({ displayName: syncRule.optional(), firstName: syncRule.optional(), lastName: syncRule.optional(), email: syncRule.optional() }).optional(),
+  groupValues: z.enum(SSO_GROUP_VALUES).optional(),
+  linkExisting: z.enum(SSO_LINK_POLICIES).optional(),
+  emailVerifiedByProvider: z.boolean().optional(),
+  useUserinfo: z.boolean().optional(),
+  requiredClaims: z
+    .array(
+      z.object({
+        claim: claimName.min(1),
+        values: z.array(z.string().trim().min(1).max(200)).min(1, 'Enter at least one accepted value').max(SSO_LIMITS.requiredClaimValues),
+      }),
+    )
+    .max(SSO_LIMITS.requiredClaims)
+    .optional(),
 });
 
 interface ProviderRow {
@@ -99,18 +193,72 @@ function requireIntactProvider(p: SsoProvider): void {
   }
 }
 
-function toProvider(r: ProviderRow): SsoProvider {
-  const c = parseJson<Omit<SsoProvider, 'id' | 'hasClientSecret' | 'enabled' | 'createdAt' | 'updatedAt'>>(r.config, {} as never);
-  return { ...c, id: r.id, enabled: !!r.enabled, hasClientSecret: !!r.secret, createdAt: r.created_at, updatedAt: r.updated_at };
+/** `warnings`: only for administrators (they read the accounts – never for the sign-in page or a sign-in). */
+function toProvider(r: ProviderRow, warnings = false): SsoProvider {
+  // settings a provider was saved without (it stays sealed as stored) are read with today's behaviour
+  const c = withDefaults(parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig));
+  const p = { ...c, id: r.id, enabled: !!r.enabled, hasClientSecret: !!r.secret, createdAt: r.created_at, updatedAt: r.updated_at };
+  return { ...p, warnings: warnings ? providerWarnings(p) : [] };
 }
 
+/**
+ * Providers saved before #77 whose sign-ins now need email_verified (the e-mail claim names or identifies accounts):
+ * at a provider that never sends it, everyone is refused until an administrator decides (see the startup log).
+ */
+function emailNowRequired(p: ProviderConfig): boolean {
+  return p.emailVerificationNotice && emailIdentifies(p) && !p.emailVerifiedByProvider;
+}
+
+/** Startup: name the providers whose sign-ins need email_verified since this version. */
+export function warnEmailVerifiedProviders(): void {
+  for (const r of db().all<ProviderRow>('SELECT * FROM identity_providers')) {
+    const stored = parseJson<ProviderConfig>(r.config, { type: 'oidc' } as ProviderConfig);
+    if (emailNowRequired(withDefaults(stored))) {
+      logger.warn(
+        { provider: r.id, name: stored.displayName },
+        'single sign-on: the e-mail claim names or identifies accounts of this provider – its sign-ins need email_verified=true now; if the provider never sends it but verifies every address, set "This provider verifies e-mail addresses" (docs/SSO.md#e-mail-confirmation)',
+      );
+    }
+  }
+}
+
+/**
+ * Accounts of this provider whose user names would be the same after the user name rule: a new identity with such a
+ * name is refused (the account is linked to another identity) – the editor shows them after saving.
+ */
+function usernameCollisions(id: string, how: ProviderConfig['usernameTransform'], domains: string[]): string[] {
+  if (how !== 'stripDomain') return []; // user names are unique ignoring case already
+  const seen = new Map<string, string[]>();
+  for (const u of db().all<{ username: string }>('SELECT username FROM users WHERE auth_source = ?', id)) {
+    const k = transformUsername(u.username, how, domains);
+    if (k !== null) seen.set(k, [...(seen.get(k) ?? []), u.username]);
+  }
+  return [...seen.entries()]
+    .filter(([, names]) => names.length > 1)
+    .map(([k, names]) => `${k} ← ${names.slice(0, 5).join(', ')}`)
+    .slice(0, 10);
+}
+
+function providerWarnings(p: Omit<SsoProvider, 'warnings'>): SsoConfigWarning[] {
+  const out = ssoConfigWarnings(p);
+  if (emailNowRequired(p)) out.push({ code: 'EMAIL_VERIFIED_NOW_REQUIRED', params: { claim: p.emailClaim } });
+  const collisions = usernameCollisions(p.id, p.usernameTransform, p.stripDomains);
+  if (collisions.length) out.push({ code: 'USERNAME_COLLISIONS', params: { names: collisions, count: collisions.length } });
+  return out;
+}
+
+/** For administrators: with the warnings (they look at the accounts of each provider). */
 export function listProviders(): SsoProvider[] {
-  return db().all<ProviderRow>('SELECT * FROM identity_providers ORDER BY created_at').map(toProvider);
+  return db()
+    .all<ProviderRow>('SELECT * FROM identity_providers ORDER BY created_at')
+    .map((r) => toProvider(r, true));
 }
 
+/** The sign-in page's buttons (unauthenticated): no warnings, no account reads. */
 export function publicProviders(): SsoProviderPublic[] {
-  return listProviders()
-    .filter((p) => p.enabled)
+  return db()
+    .all<ProviderRow>('SELECT * FROM identity_providers WHERE enabled = 1 ORDER BY created_at')
+    .map((r) => toProvider(r))
     .map((p) => ({ id: p.id, displayName: p.displayName, type: p.type }));
 }
 
@@ -127,26 +275,113 @@ function providerSecret(id: string): string | undefined {
   return vault().decrypt<string>(r.secret);
 }
 
+type ParsedInput = z.infer<typeof providerSchema>;
+
+/** Every stored setting (in the order of the stored JSON). */
+const CONFIG_KEYS: (keyof ProviderConfig)[] = [
+  'displayName',
+  'type',
+  'preset',
+  'issuer',
+  'clientId',
+  'clientAuth',
+  'scopes',
+  'usernameClaim',
+  'usernameTransform',
+  'stripDomains',
+  'displayNameClaim',
+  'displayNameTemplate',
+  'firstNameClaim',
+  'lastNameClaim',
+  'emailClaim',
+  'emailVerifiedByProvider',
+  'stableIdClaims',
+  'stableIdConfirmedClaims',
+  'emailVerificationNotice',
+  'profileFields',
+  'sync',
+  'groupsClaim',
+  'groupValues',
+  'mappings',
+  'defaultRoles',
+  'autoProvision',
+  'syncRoles',
+  'requireMapping',
+  'linkExisting',
+  'requiredClaims',
+  'useUserinfo',
+];
+
+/** Settings named in the audit entry when they change (all but the button label). */
+const AUDITED_SETTINGS = CONFIG_KEYS.filter((k) => k !== 'displayName');
+
+/** The stored configuration from a request: settings left out keep the stored values (new providers: the defaults). */
+function configFrom(parsed: ParsedInput, before?: ProviderConfig): ProviderConfig {
+  const { clientSecret: _s, enabled: _e, keepLinksOnIssuerChange: _k, sync, ...rest } = parsed;
+  // new providers link only accounts an administrator bound to them (providers from before keep "by name", see withDefaults)
+  const base = before ?? { ...withDefaults({ type: rest.type } as ProviderConfig), linkExisting: 'bound' as const };
+  const defined = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) as Partial<ProviderConfig>;
+  const c: ProviderConfig = { ...base, ...defined, sync: { ...base.sync, ...Object.fromEntries(Object.entries(sync ?? {}).filter(([, v]) => v)) } };
+  c.issuer = c.issuer.trim().replace(/\/+$/, '');
+  const keys = new Set<string>();
+  for (const f of c.profileFields) {
+    if (keys.has(f.key.toLowerCase())) throw new HttpError(400, `The profile field "${f.key}" is listed twice`, 'SSO_PROFILE_FIELD_TWICE', { key: f.key });
+    keys.add(f.key.toLowerCase());
+  }
+  // stripping a domain anyone can have would let boss@evil.example claim "boss": only listed domains
+  c.stripDomains = [...new Set(c.stripDomains)];
+  if (c.usernameTransform === 'stripDomain' && !c.stripDomains.length) {
+    throw new HttpError(400, 'Name the domains to strip from user names (e.g. contoso.com)', 'SSO_STRIP_DOMAINS_REQUIRED');
+  }
+  // the e-mail notice of a provider from before #77 stays until an administrator decides: turns on "verifies e-mail
+  // addresses", dismisses it (emailVerificationNotice: false) or changes the settings by which e-mail names accounts
+  const emailSettings = (x: ProviderConfig) => JSON.stringify([x.usernameClaim, x.emailClaim, [...x.stableIdClaims].sort()]);
+  c.emailVerificationNotice =
+    !!before?.emailVerificationNotice && parsed.emailVerificationNotice !== false && !c.emailVerifiedByProvider && emailSettings(before) === emailSettings(c);
+  // every person needs an identifier of their own: a claim many people share (tid, groups …) would give them one
+  // account; a confirmation counts only for exactly the claims it was given for
+  if (stableIdProblem(c.stableIdClaims, c.stableIdConfirmedClaims)) {
+    throw new HttpError(
+      400,
+      `The stable identifier (${c.stableIdClaims.join(', ')}) must name one person: include sub or oid, or confirm that the claims are unique per person`,
+      'SSO_STABLE_ID_NOT_UNIQUE',
+      { claims: c.stableIdClaims },
+    );
+  }
+  return Object.fromEntries(CONFIG_KEYS.map((k) => [k, c[k]])) as ProviderConfig;
+}
+
 export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider {
   const parsed = providerSchema.parse(input);
-  const { clientSecret, enabled, ...config } = parsed;
-  config.issuer = config.issuer.replace(/\/+$/, '');
+  const { clientSecret, enabled } = parsed;
+  const before = id ? getProvider(id) : undefined;
+  const config = configFrom(parsed, before);
   const pid = id ?? newId('idp_');
   const ts = nowIso();
   db().tx(() => {
-    if (id) {
-      const before = getProvider(id);
-      db().run('UPDATE identity_providers SET config = ?, enabled = ?, updated_at = ? WHERE id = ?', JSON.stringify(config), enabled ? 1 : 0, ts, id);
+    if (before) {
+      const changed = AUDITED_SETTINGS.filter((k) => JSON.stringify(before[k]) !== JSON.stringify(config[k]));
+      db().run('UPDATE identity_providers SET config = ?, enabled = ?, updated_at = ? WHERE id = ?', JSON.stringify(config), enabled ? 1 : 0, ts, pid);
       if (clientSecret !== undefined) {
-        db().run('UPDATE identity_providers SET secret = ? WHERE id = ?', clientSecret ? vault().encrypt(clientSecret) : null, id);
+        db().run('UPDATE identity_providers SET secret = ? WHERE id = ?', clientSecret ? vault().encrypt(clientSecret) : null, pid);
       }
-      sealProvider(id);
+      const moved = before.issuer !== config.issuer;
+      const kept = moved && parsed.keepLinksOnIssuerChange ? moveLinksToIssuer(pid, before.issuer, config.issuer) : 0;
+      const rescoped = moved && !parsed.keepLinksOnIssuerChange ? rescopeLegacyLinks(pid, before.issuer) : 0;
+      sealProvider(pid);
       audit({
         action: 'sso.provider_updated',
         entityType: 'sso',
-        entityId: id,
-        summary: `Sign-in provider "${config.displayName}" updated${clientSecret !== undefined ? ' (client secret changed)' : ''}${before.enabled !== enabled ? (enabled ? ', enabled' : ', disabled') : ''}`,
-        details: { ...config, enabled },
+        entityId: pid,
+        summary: `Sign-in provider "${config.displayName}" updated${clientSecret !== undefined ? ' (client secret changed)' : ''}${before.enabled !== enabled ? (enabled ? ', enabled' : ', disabled') : ''}${changed.length ? `; changed: ${changed.join(', ')}` : ''}${rescoped ? `; ${rescoped} link(s) kept to the former issuer` : ''}${kept ? `; ${kept} link(s) moved to the new issuer` : ''}`,
+        details: {
+          ...config,
+          enabled,
+          changed,
+          before: Object.fromEntries(changed.map((k) => [k, before[k]])),
+          ...(rescoped ? { linksKeptToFormerIssuer: rescoped } : {}),
+          ...(moved ? { keepLinksOnIssuerChange: !!parsed.keepLinksOnIssuerChange, linksMoved: kept } : {}),
+        },
       });
     } else {
       db().run(
@@ -169,7 +404,53 @@ export function saveProvider(input: SsoProviderInput, id?: string): SsoProvider 
     }
   });
   configCache.delete(pid);
-  return getProvider(pid);
+  return toProvider(db().get<ProviderRow>('SELECT * FROM identity_providers WHERE id = ?', pid)!, true);
+}
+
+/**
+ * A new issuer is another namespace of subjects. Links from before the stable identifier setting (`<provider>:<sub>`)
+ * name no issuer, so they are tied to the former one here – a person at the new issuer with the same sub cannot take
+ * such an account over. (Every newer link names its issuer already.)
+ */
+function rescopeLegacyLinks(providerId: string, formerIssuer: string): number {
+  let n = 0;
+  for (const u of db().all<{ id: string; external_id: string | null }>('SELECT id, external_id FROM users WHERE auth_source = ?', providerId)) {
+    if (!u.external_id?.startsWith(`${providerId}:`)) continue;
+    const sub = u.external_id.slice(providerId.length + 1);
+    const { subKey } = identityKeys(providerId, { iss: formerIssuer, sub }, ['sub']);
+    // (an identity linked to two accounts cannot be told apart: the link is retired – it matches nobody)
+    const taken = !!db().get('SELECT 1 FROM users WHERE external_id = ?', subKey);
+    const key = taken ? `${providerId}#retired=${crypto.randomBytes(9).toString('base64url')}` : subKey;
+    db().run('UPDATE users SET external_id = ?, external_sub = ? WHERE id = ?', key, taken ? null : subKey, u.id);
+    n++;
+  }
+  return n;
+}
+
+/**
+ * The administrator says the new issuer issues the same subjects (a renamed host, a new URL of the same realm): the
+ * links that name the former issuer name the new one. Links from before the stable identifier setting name no issuer
+ * and keep working as they are.
+ */
+function moveLinksToIssuer(providerId: string, formerIssuer: string, issuer: string): number {
+  const former = formerIssuer.replace(/\/+$/, '');
+  let n = 0;
+  for (const u of db().all<{ id: string; external_id: string | null; external_sub: string | null }>(
+    'SELECT id, external_id, external_sub FROM users WHERE auth_source = ?',
+    providerId,
+  )) {
+    const move = (k: string | null) => (k && keyIssuer(k, providerId) === former ? withIssuer(k, providerId, issuer) : k);
+    const sub = move(u.external_sub);
+    // a hashed link names its issuer only inside the hash: it is re-linked at the next sign-in through the moved issuer +
+    // sub (audited as user.sso_relinked) – a marker that matches nothing else
+    const hashed = !!u.external_id?.startsWith(`${providerId}#h#`) && sub !== u.external_sub;
+    const id = hashed ? `${providerId}#moved=${crypto.randomBytes(9).toString('base64url')}` : move(u.external_id);
+    if (id === u.external_id && sub === u.external_sub) continue;
+    if (id !== u.external_id && db().get('SELECT 1 FROM users WHERE external_id = ?', id)) continue; // linked there already
+    db().run('UPDATE users SET external_id = ?, external_sub = ? WHERE id = ?', id, sub, u.id);
+    n++;
+  }
+  return n;
 }
 
 export function deleteProvider(id: string): void {
@@ -191,6 +472,29 @@ const isLocalHttp = (issuer: string) => /^http:\/\/(localhost|127\.0\.0\.1|\[::1
 
 const configCache = new Map<string, { stamp: string; config: oidc.Configuration }>();
 
+/**
+ * Discovery that accepts the issuer with or without a trailing slash (it is stored without one; Authentik's issuer
+ * ends with one): openid-client compares the discovered issuer exactly, so a difference of only the slash is retried
+ * with the discovered value. Any other difference is refused as before.
+ */
+async function discovery(issuer: string, clientId: string, auth: oidc.ClientAuth): Promise<oidc.Configuration> {
+  const opts = (url: string) => ({
+    [oidc.customFetch]: proxiedFetch,
+    timeout: 15,
+    // plain http is only accepted for an identity provider on this machine (demo / development)
+    execute: isLocalHttp(url) ? [oidc.allowInsecureRequests] : [],
+  });
+  try {
+    return await oidc.discovery(new URL(issuer), clientId, undefined, auth, opts(issuer));
+  } catch (e) {
+    const found = (e as { cause?: { body?: { issuer?: unknown } } }).cause?.body?.issuer;
+    if (typeof found === 'string' && found !== issuer && found.replace(/\/+$/, '') === issuer.replace(/\/+$/, '')) {
+      return oidc.discovery(new URL(found), clientId, undefined, auth, opts(found));
+    }
+    throw e;
+  }
+}
+
 async function clientConfig(p: SsoProvider): Promise<oidc.Configuration> {
   requireIntactProvider(p);
   const hit = configCache.get(p.id);
@@ -198,23 +502,14 @@ async function clientConfig(p: SsoProvider): Promise<oidc.Configuration> {
   const secret = p.clientAuth === 'none' ? undefined : providerSecret(p.id);
   if (p.clientAuth !== 'none' && !secret) throw new HttpError(400, `No client secret stored for "${p.displayName}"`);
   const auth = p.clientAuth === 'none' ? oidc.None() : p.clientAuth === 'client_secret_basic' ? oidc.ClientSecretBasic(secret) : oidc.ClientSecretPost(secret);
-  const config = await oidc.discovery(new URL(p.issuer), p.clientId, undefined, auth, {
-    [oidc.customFetch]: proxiedFetch,
-    timeout: 15,
-    // plain http is only accepted for an identity provider on this machine (demo / development)
-    execute: isLocalHttp(p.issuer) ? [oidc.allowInsecureRequests] : [],
-  });
+  const config = await discovery(p.issuer, p.clientId, auth);
   configCache.set(p.id, { stamp: p.updatedAt, config });
   return config;
 }
 
 export async function discover(issuer: string): Promise<SsoDiscoveryResult> {
   try {
-    const config = await oidc.discovery(new URL(issuer.replace(/\/+$/, '')), 'discovery-test', undefined, oidc.None(), {
-      [oidc.customFetch]: proxiedFetch,
-      timeout: 15,
-      execute: isLocalHttp(issuer) ? [oidc.allowInsecureRequests] : [],
-    });
+    const config = await discovery(issuer.replace(/\/+$/, ''), 'discovery-test', oidc.None());
     const m = config.serverMetadata();
     return {
       ok: true,
@@ -239,6 +534,8 @@ interface Pending {
   redirectUri: string;
   returnTo: string;
   expires: number;
+  /** A test sign-in by an administrator: records the claims, never signs in or changes an account */
+  test?: { testId: string };
 }
 const pending = new Map<string, Pending>();
 const STATE_TTL_MS = 10 * 60 * 1000;
@@ -252,48 +549,48 @@ function safeReturnTo(path: unknown): string {
   return typeof path === 'string' && path.length <= MAX_RETURN_TO && /^\/(?!\/)[\w\-./?=&%#]*$/.test(path) && !path.startsWith('/api/') ? path : '/';
 }
 
-export async function startSignIn(providerId: string, redirectUri: string, returnTo?: string): Promise<string> {
-  const p = getProvider(providerId);
-  if (!p.enabled) throw new HttpError(400, 'This sign-in provider is disabled');
-  const config = await clientConfig(p);
+async function authorizationUrl(p: SsoProvider, config: oidc.Configuration, flow: Omit<Pending, 'verifier' | 'nonce' | 'expires'>): Promise<string> {
   const now = Date.now();
   for (const [k, v] of pending) if (v.expires < now) pending.delete(k);
   while (pending.size >= MAX_PENDING_SIGN_INS) pending.delete(pending.keys().next().value!);
   const state = oidc.randomState();
   const nonce = oidc.randomNonce();
   const verifier = oidc.randomPKCECodeVerifier();
-  pending.set(state, { providerId, verifier, nonce, redirectUri, returnTo: safeReturnTo(returnTo), expires: now + STATE_TTL_MS });
+  pending.set(state, { ...flow, verifier, nonce, expires: now + STATE_TTL_MS });
+  // a test asks for the account again (it may be another one than the administrator's own)
+  const prompt = p.type === 'entra' ? 'select_account' : flow.test ? 'login' : undefined;
   const url = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: redirectUri,
+    redirect_uri: flow.redirectUri,
     scope: p.scopes || 'openid profile email',
     response_type: 'code',
     state,
     nonce,
     code_challenge: await oidc.calculatePKCECodeChallenge(verifier),
     code_challenge_method: 'S256',
-    ...(p.type === 'entra' ? { prompt: 'select_account' } : {}),
+    ...(prompt ? { prompt } : {}),
   });
   return url.href;
 }
 
-function claimList(v: unknown): string[] {
-  if (Array.isArray(v)) return v.map(String);
-  if (typeof v === 'string') return v.split(/[\s,]+/).filter(Boolean);
-  return [];
+export async function startSignIn(providerId: string, redirectUri: string, returnTo?: string): Promise<string> {
+  const p = getProvider(providerId);
+  if (!p.enabled) throw new HttpError(400, 'This sign-in provider is disabled');
+  const config = await clientConfig(p);
+  return authorizationUrl(p, config, { providerId, redirectUri, returnTo: safeReturnTo(returnTo) });
 }
 
-/** Handle the redirect back from the identity provider. Returns a session token and where to go next. */
-export async function finishSignIn(
-  currentUrl: URL,
-  meta: { ip?: string; userAgent?: string },
-): Promise<CreatedSession & { returnTo: string; username: string }> {
-  const state = currentUrl.searchParams.get('state') ?? '';
-  const flow = pending.get(state);
-  if (!flow || flow.expires < Date.now()) throw new HttpError(400, 'The sign-in attempt expired or is unknown – please try again');
-  pending.delete(state);
+type Claims = Record<string, unknown>;
+
+interface ReceivedClaims {
+  idToken: Claims;
+  userinfo?: Claims;
+  userinfoError?: string;
+}
+
+/** The claims of the redirect back from the identity provider (code exchange, ID token validation, optionally userinfo). */
+async function receiveClaims(p: SsoProvider, flow: Pending, state: string, currentUrl: URL, wantUserinfo: boolean): Promise<ReceivedClaims> {
   const idpError = currentUrl.searchParams.get('error');
-  if (idpError) throw new HttpError(400, `Identity provider: ${currentUrl.searchParams.get('error_description') ?? idpError}`);
-  const p = getProvider(flow.providerId);
+  if (idpError) throw new HttpError(400, `Identity provider: ${(currentUrl.searchParams.get('error_description') ?? idpError).slice(0, 300)}`);
   const config = await clientConfig(p);
   // openid-client compares the callback URL with the registered redirect URI
   const callback = new URL(flow.redirectUri);
@@ -304,111 +601,438 @@ export async function finishSignIn(
     expectedNonce: flow.nonce,
     idTokenExpected: true,
   });
-  const claims = tokens.claims() as Record<string, unknown> | undefined;
-  if (!claims?.sub) throw new HttpError(400, 'The identity provider did not return an ID token');
-  const user = provisionUser(p, claims);
-  const session = createSession(user.id, user.username, meta, p.displayName);
-  return { ...session, returnTo: flow.returnTo, username: user.username };
+  const idToken = tokens.claims() as Claims | undefined;
+  if (!idToken?.sub) throw new HttpError(400, 'The identity provider did not return an ID token');
+  const out: ReceivedClaims = { idToken: { ...idToken } };
+  if (wantUserinfo && config.serverMetadata().userinfo_endpoint && tokens.access_token) {
+    try {
+      // the userinfo response must name the same subject (checked by openid-client)
+      out.userinfo = { ...(await oidc.fetchUserInfo(config, tokens.access_token, String(idToken.sub))) } as Claims;
+    } catch (e) {
+      out.userinfoError = (e as Error).message.slice(0, 300);
+    }
+  }
+  return out;
 }
 
-function provisionUser(p: SsoProvider, claims: Record<string, unknown>) {
-  const externalId = `${p.id}:${String(claims.sub)}`;
-  const own = claims[p.usernameClaim];
-  // without the user name claim the e-mail claim names the account – only when the provider confirmed the address
-  const fromEmail = (own === undefined || own === null || own === '') && !!claims[p.emailClaim];
-  const username = String((fromEmail ? undefined : own) ?? claims[p.emailClaim] ?? claims.sub)
-    .trim()
-    .toLowerCase();
-  const displayName = String(claims[p.displayNameClaim] ?? username);
-  const email = claims[p.emailClaim] ? String(claims[p.emailClaim]) : undefined;
-  const values = claimList(claims[p.groupsClaim]).map((v) => v.toLowerCase());
-  const matched = p.mappings.filter((m) => values.includes(m.claimValue.trim().toLowerCase()));
-  const deny = (reason: string): never => {
-    audit({
-      actor: username,
-      action: 'auth.login_failed',
-      entityType: 'sso',
-      entityId: p.id,
-      summary: `Single sign-on of "${username}" via ${p.displayName} denied: ${reason}`,
-    });
-    throw new HttpError(403, reason);
-  };
-  if (fromEmail && claims.email_verified !== true) {
-    deny(`The identity provider did not confirm the e-mail address the user name comes from (claim "email_verified")`);
-  }
-  if (p.requireMapping && matched.length === 0) {
-    deny(`Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")`);
-  }
+/** The claims a decision uses: the ID token's, completed by userinfo when the provider is set to read it (the ID token wins). */
+function mergedClaims(c: Pick<ProviderConfig, 'useUserinfo' | 'emailClaim'>, r: ReceivedClaims): Claims {
+  if (!c.useUserinfo || !r.userinfo) return r.idToken;
+  const merged: Claims = { ...r.userinfo, ...r.idToken };
+  // the confirmation belongs to the address it was given for: email_verified from the source of the e-mail claim
+  const source = claimAt(r.idToken, c.emailClaim) !== undefined ? r.idToken : claimAt(r.userinfo, c.emailClaim) !== undefined ? r.userinfo : r.idToken;
+  if (source.email_verified === undefined) delete merged.email_verified;
+  else merged.email_verified = source.email_verified;
+  return merged;
+}
+
+export type CallbackResult = ({ kind: 'session'; returnTo: string; username: string } & CreatedSession) | { kind: 'test'; ok: boolean; locale: string | null };
+
+/** Handle the redirect back from the identity provider. A sign-in returns a session; a test sign-in only records the claims. */
+export async function finishSignIn(currentUrl: URL, meta: { ip?: string; userAgent?: string }): Promise<CallbackResult> {
+  const state = currentUrl.searchParams.get('state') ?? '';
+  const flow = pending.get(state);
+  if (!flow || flow.expires < Date.now()) throw new HttpError(400, 'The sign-in attempt expired or is unknown – please try again');
+  pending.delete(state);
+  if (flow.test) return finishTest(flow, state, currentUrl);
+  const p = getProvider(flow.providerId);
+  const received = await receiveClaims(p, flow, state, currentUrl, p.useUserinfo);
+  if (p.useUserinfo && received.userinfoError) throw new HttpError(502, `Could not read the userinfo of ${p.displayName}: ${received.userinfoError}`);
+  const user = provisionUser(p, mergedClaims(p, received));
+  const session = createSession(user.id, user.username, meta, p.displayName);
+  return { kind: 'session', ...session, returnTo: flow.returnTo, username: user.username };
+}
+
+// ---------- from claims to an account ----------
+
+interface AccountRow {
+  id: string;
+  username: string;
+  display_name: string;
+  active: number;
+  auth_source: string | null;
+  external_id: string | null;
+  external_sub: string | null;
+  roles: string;
+}
+const ACCOUNT_COLUMNS = 'id, username, display_name, active, auth_source, external_id, external_sub, roles';
+
+/** The provider settings a decision uses, with the provider's id and name. */
+type DecisionProvider = ProviderConfig & { id: string };
+
+interface Decision {
+  preview: SsoSignInPreview;
+  key?: string;
+  subKey: string;
+  account?: AccountRow;
+  mappedRoles: Role[];
+  managedTeams: Set<string>;
+  wantedTeams: Set<string>;
+}
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+const MAX_USERNAME = 128;
+
+/**
+ * What a sign-in with these claims does – read-only (the test sign-in shows this preview). The first reason to refuse
+ * wins, in this order: required claims, user name, e-mail confirmation, stable id, role mapping, account.
+ */
+function decide(p: DecisionProvider, claims: Claims): Decision {
+  const ownName = claimText(claimAt(claims, p.usernameClaim), 256);
+  const email = claimText(claimAt(claims, p.emailClaim), 254);
+  // without the user name claim the e-mail claim names the account, else the subject
+  const usernameFrom =
+    ownName !== undefined
+      ? { claim: p.usernameClaim, value: ownName }
+      : email
+        ? { claim: p.emailClaim, value: email }
+        : { claim: 'sub', value: String(claims.sub) };
+  const transformed = transformUsername(usernameFrom.value, p.usernameTransform, p.stripDomains);
+  const username = transformed ?? usernameFrom.value.normalize('NFKC').trim().toLowerCase();
+  const notes: SsoSignInPreview['notes'] = [];
+  if (ownName === undefined) notes.push({ code: 'USERNAME_FALLBACK', params: { claim: p.usernameClaim, from: usernameFrom.claim } });
+  if (username !== usernameFrom.value) notes.push({ code: 'USERNAME_TRANSFORMED', params: { from: usernameFrom.value, to: username } });
+  const fromTemplate = p.displayNameTemplate ? renderTemplate(p.displayNameTemplate, claims) : '';
+  const displayName = fromTemplate || claimText(claimAt(claims, p.displayNameClaim), 100) || username.slice(0, 100);
+  const firstName = claimText(claimAt(claims, p.firstNameClaim), 100);
+  const lastName = claimText(claimAt(claims, p.lastNameClaim), 100);
+  const verified = emailVerified(claims);
+  const emailNames = usernameFrom.claim === p.emailClaim || usernameFrom.claim === 'email';
+  const verificationRequired = (emailNames || emailIdentifies(p)) && !p.emailVerifiedByProvider;
+  const profile = profileValues(p, claims);
+
+  const groupValues = claimList(claimAt(claims, p.groupsClaim));
+  const overage = groupOverage(claims, p.groupsClaim);
+  if (overage) notes.push({ code: 'GROUPS_OVERAGE', params: { claim: p.groupsClaim } });
+  // names are matched ignoring case, ids exactly
+  const norm = (v: string) => (p.groupValues === 'ids' ? v.trim() : v.trim().toLowerCase());
+  const values = new Set(groupValues.map(norm));
+  const matched = p.mappings.filter((m) => values.has(norm(m.claimValue)));
   const mappedRoles = [...new Set([...p.defaultRoles, ...matched.flatMap((m) => m.roles)])] as Role[];
   const managedTeams = new Set(p.mappings.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
   const wantedTeams = new Set(matched.flatMap((m) => m.teams.map((t) => t.toLowerCase())));
+  const teamNames = listTeams()
+    .filter((t) => wantedTeams.has(t.name.toLowerCase()))
+    .map((t) => t.name);
 
-  // ----- decide (read-only) – denials are audited outside any transaction -----
-  const linked = db().get<{ id: string; active: number }>('SELECT id, active FROM users WHERE external_id = ?', externalId);
-  const existing = linked ? undefined : findUserByName(username);
-  if (existing && existing.authSource !== 'local' && existing.authSource !== p.id) deny(`The user name "${username}" belongs to another sign-in provider`);
-  // an account of this provider that is linked already belongs to that identity, not to whoever has the name now
-  const linkedTo = existing ? db().get<{ external_id: string | null }>('SELECT external_id FROM users WHERE id = ?', existing.id)?.external_id : null;
-  if (existing && existing.authSource === p.id && linkedTo && linkedTo !== externalId)
-    deny(`The account "${username}" is linked to another ${p.displayName} identity`);
-  // a local administrator is never taken over by a name: an administrator binds it to this provider first (Users & teams)
-  if (existing && existing.authSource === 'local' && existing.roles.includes('admin')) {
-    deny(`"${username}" is a local administrator account – an administrator has to bind it to ${p.displayName} first`);
+  const keys = identityKeys(p.id, claims, p.stableIdClaims);
+  const preview: SsoSignInPreview = {
+    outcome: 'create',
+    username,
+    usernameFrom,
+    displayName,
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(email ? { email } : {}),
+    emailVerified: verified,
+    emailVerificationRequired: verificationRequired,
+    profile,
+    stableId: { issuer: keys.issuer, claims: keys.parts },
+    groups: { claim: p.groupsClaim, values: groupValues.slice(0, 200), matched: matched.map((m) => m.claimValue), overage, valuesAre: p.groupValues },
+    roles: mappedRoles,
+    teams: teamNames,
+    notes,
+  };
+  const d: Decision = { preview, key: keys.key, subKey: keys.subKey, mappedRoles, managedTeams, wantedTeams };
+  const refuse = (refusal: { code: string; message: string; params?: ErrorParams }): Decision => {
+    preview.outcome = 'refuse';
+    preview.refusal = refusal;
+    return d;
+  };
+
+  if (stableIdProblem(p.stableIdClaims, p.stableIdConfirmedClaims)) {
+    return refuse({
+      code: 'SSO_STABLE_ID_NOT_UNIQUE',
+      message: `The stable identifier of ${p.displayName} (${p.stableIdClaims.join(', ')}) does not name one person – an administrator has to fix it`,
+      params: { claims: p.stableIdClaims },
+    });
   }
-  if (!linked && !existing && !p.autoProvision) deny(`No ${BRAND.name} account exists for "${username}" – ask an administrator`);
-  // a former name of an imported account (aliases.ts) must not become a new account: it would inherit that account's grants
-  if (!linked && !existing && aliasTarget(username)) deny(`"${username}" is the former name of an imported account – ask an administrator`);
-  if ((linked && !linked.active) || (existing && !existing.active)) deny(`Your ${BRAND.name} account is disabled`);
+  // The user name only matters when it links an existing account by name or names a new one – an identity that is
+  // linked already signs in by its stable identifier, whatever its name at the provider is now (no lockout of accounts
+  // with names older versions accepted).
+  const usernameRefusal = (): Decision | undefined => {
+    if (transformed === null) {
+      return refuse({
+        code: 'SSO_USERNAME_DOMAIN',
+        message: `The user name "${usernameFrom.value}" is not of a domain this provider strips (${p.stripDomains.join(', ')})`,
+        params: { claim: usernameFrom.claim, domains: p.stripDomains },
+      });
+    }
+    // the same characters as local user names (plus "+"), after NFKC: no look-alikes that the database's case-insensitive
+    // comparison would match with another account, no invisible or bidi characters
+    if (!SSO_USERNAME.test(username)) {
+      return refuse({
+        code: 'SSO_USERNAME_INVALID',
+        message: `The user name from claim "${usernameFrom.claim}" is not usable: 2–${MAX_USERNAME} characters, letters, digits and . _ @ + - only`,
+        params: { claim: usernameFrom.claim, max: MAX_USERNAME },
+      });
+    }
+    return undefined;
+  };
+  for (const rule of p.requiredClaims) {
+    const v = claimAt(claims, rule.claim);
+    const got = (Array.isArray(v) ? claimList(v) : [claimText(v, 500)]).filter((x): x is string => !!x).map((x) => x.toLowerCase());
+    if (!rule.values.some((x) => got.includes(x.trim().toLowerCase()))) {
+      return refuse({
+        code: 'SSO_REQUIRED_CLAIM',
+        message: `Your account does not belong to the organisation this sign-in is for (claim "${rule.claim}")`,
+        params: {
+          claim: rule.claim,
+        },
+      });
+    }
+  }
+  if (verificationRequired && verified !== true) {
+    return refuse({
+      code: 'SSO_EMAIL_NOT_VERIFIED',
+      message: 'The identity provider did not confirm the e-mail address the account is named or identified by (claim "email_verified")',
+      params: { claim: p.emailClaim },
+    });
+  }
+  if (!keys.key) {
+    const missing = keys.parts.filter((x) => x.value === null).map((x) => x.name);
+    return refuse({
+      code: 'SSO_STABLE_ID_MISSING',
+      message: `The identity provider did not send usable values for the claims that identify you (${missing.join(', ')}): one string of at most 256 characters or a number each`,
+      params: { claims: missing },
+    });
+  }
+  if (p.requireMapping && matched.length === 0) {
+    return refuse({
+      code: 'SSO_NO_ROLE_MAPPING',
+      message: `Your account has no role assigned for ${BRAND.name} (claim "${p.groupsClaim}")${overage ? ' – the token left the groups out (too many groups)' : ''}`,
+      params: { claim: p.groupsClaim, ...(overage ? { context: 'overage' } : {}) },
+    });
+  }
 
-  // ----- apply -----
-  let userId = linked?.id ?? existing?.id ?? '';
-  const created = !linked && !existing;
-  db().tx(() => {
+  // ----- which account: the stable id, else the identity's earlier link (re-linked), else the user name -----
+  let account = db().get<AccountRow>(`SELECT ${ACCOUNT_COLUMNS} FROM users WHERE external_id = ?`, keys.key);
+  if (account) {
+    preview.outcome = 'signIn';
+  } else {
+    // An earlier link of this identity: from before the stable id setting (<provider>:<sub>), or by issuer + sub when the
+    // stable id claims changed since. Never an account linked by the stable id claims configured now (that is another
+    // identity, whose sub only happens to be recorded), and only accounts of this provider.
+    const candidates = db()
+      .all<AccountRow>(
+        `SELECT ${ACCOUNT_COLUMNS} FROM users WHERE auth_source = ? AND (external_id = ? OR external_id = ? OR external_sub = ?)`,
+        p.id,
+        keys.legacyKey,
+        keys.subKey,
+        keys.subKey,
+      )
+      .filter((r) => {
+        const names = r.external_id ? keyClaimNames(r.external_id, p.id) : null;
+        if (names === 'legacy') return r.external_id === keys.legacyKey;
+        // a hashed link whose issuer the administrator moved: only through the issuer + sub recorded at linking
+        if (names === 'moved') return r.external_sub === keys.subKey;
+        return names !== null && !sameSet(names, p.stableIdClaims);
+      });
+    if (candidates.length > 1) {
+      return refuse({ code: 'SSO_LINK_AMBIGUOUS', message: `More than one ${BRAND.name} account was linked to this identity before – ask an administrator` });
+    }
+    if (candidates[0]) {
+      account = candidates[0];
+      preview.outcome = 'relink';
+      preview.relinkFrom = keyClaimNames(account.external_id!, p.id) === 'legacy' ? 'legacy' : 'sub';
+    }
+  }
+
+  if (!account) {
+    const invalid = usernameRefusal();
+    if (invalid) return invalid;
+    const existing = db().get<AccountRow>(`SELECT ${ACCOUNT_COLUMNS} FROM users WHERE username = ?`, username);
     if (existing) {
+      const source = existing.auth_source ?? 'local';
+      preview.account = { id: existing.id, username: existing.username, displayName: existing.display_name, authSource: source };
+      if (source !== 'local' && source !== p.id)
+        return refuse({ code: 'SSO_OTHER_PROVIDER', message: `The user name "${username}" belongs to another sign-in provider`, params: { username } });
+      // an account of this provider that is linked already belongs to that identity, not to whoever has the name now
+      if (source === p.id && existing.external_id)
+        return refuse({
+          code: 'SSO_LINKED_TO_OTHER_IDENTITY',
+          message: `The account "${username}" is linked to another ${p.displayName} identity`,
+          params: { username },
+        });
+      // a local administrator is never taken over by a name: an administrator binds it to this provider first (Users & teams)
+      if (source === 'local' && parseJson<Role[]>(existing.roles, []).includes('admin')) {
+        return refuse({
+          code: 'SSO_LOCAL_ADMIN',
+          message: `"${username}" is a local administrator account – an administrator has to bind it to ${p.displayName} first`,
+          params: {
+            username,
+          },
+        });
+      }
+      if (p.linkExisting === 'never') {
+        return refuse({
+          code: 'SSO_LINK_NEVER',
+          message: `An account "${username}" exists already and ${p.displayName} does not link existing accounts – ask an administrator`,
+          params: {
+            username,
+          },
+        });
+      }
+      if (p.linkExisting === 'bound' && source !== p.id) {
+        return refuse({
+          code: 'SSO_LINK_BOUND_ONLY',
+          message: `An account "${username}" exists already – an administrator has to bind it to ${p.displayName} first (Users & teams → Edit user → Signs in with)`,
+          params: { username },
+        });
+      }
+      account = existing;
+      preview.outcome = 'link';
+    }
+  }
+  if (account) {
+    preview.account = { id: account.id, username: account.username, displayName: account.display_name, authSource: account.auth_source ?? 'local' };
+    d.account = account;
+    if (!account.active) return refuse({ code: 'SSO_ACCOUNT_DISABLED', message: `Your ${BRAND.name} account is disabled` });
+    return d;
+  }
+  if (!p.autoProvision)
+    return refuse({ code: 'SSO_NO_ACCOUNT', message: `No ${BRAND.name} account exists for "${username}" – ask an administrator`, params: { username } });
+  // a former name of an imported account (aliases.ts) must not become a new account: it would inherit that account's grants
+  if (aliasTarget(username))
+    return refuse({
+      code: 'SSO_USERNAME_IS_ALIAS',
+      message: `"${username}" is the former name of an imported account – ask an administrator`,
+      params: { username },
+    });
+  return d;
+}
+
+/** The profile after a sign-in: "always" fields from the claims, "create" fields kept (set when the account was created or linked). */
+function nextProfile(p: DecisionProvider, current: string | null, values: SsoSignInPreview['profile'], fresh: boolean): SsoSignInPreview['profile'] {
+  const stored = new Map(parseJson<{ key: string; label: string; value: string }[]>(current, []).map((x) => [x.key, x]));
+  const now = new Map(values.map((x) => [x.key, x]));
+  const out: SsoSignInPreview['profile'] = [];
+  for (const f of p.profileFields) {
+    const v = fresh || f.sync === 'always' ? now.get(f.key) : stored.get(f.key);
+    if (v) out.push({ key: f.key, label: f.label, value: v.value });
+  }
+  return out;
+}
+
+function provisionUser(p: SsoProvider, claims: Claims): UserInfo {
+  const d = decide(p, claims);
+  const v = d.preview;
+  const actor = v.username.slice(0, MAX_USERNAME);
+  if (v.groups.overage) {
+    // the token left the groups out: the person gets no mapped roles from them (fail safe) – the administrator needs to know
+    logger.warn({ provider: p.id, username: actor, claim: p.groupsClaim }, 'single sign-on: the token left the groups out (group overage)');
+    audit({
+      actor,
+      action: 'sso.groups_overage',
+      entityType: 'sso',
+      entityId: p.id,
+      summary: `Single sign-on of "${actor}" via ${p.displayName}: the token left the groups out (too many groups) – no mapped roles from claim "${p.groupsClaim}"`,
+      details: { claim: p.groupsClaim },
+    });
+  }
+  if (v.outcome === 'refuse') {
+    // the person gets a reference, not the reason: the reason would tell whether an account exists, is an administrator,
+    // is linked … – administrators find it in the audit log by the reference (and in the test sign-in)
+    const ref = crypto.randomBytes(4).toString('hex');
+    audit({
+      actor,
+      action: 'auth.login_failed',
+      entityType: 'sso',
+      entityId: p.id,
+      summary: `Single sign-on of "${actor}" via ${p.displayName} denied (reference ${ref}): ${v.refusal!.message}`,
+      details: { code: v.refusal!.code, reference: ref },
+    });
+    throw new HttpError(403, `Your sign-in was refused – ask an administrator (reference ${ref})`, 'SSO_SIGN_IN_REFUSED', { reference: ref });
+  }
+
+  let userId = d.account?.id ?? '';
+  const created = v.outcome === 'create';
+  const fresh = created || v.outcome === 'link';
+  db().tx(() => {
+    const ts = nowIso();
+    if (v.outcome === 'relink') {
+      db().run('UPDATE users SET external_id = ?, external_sub = ?, updated_at = ? WHERE id = ?', d.key, d.subKey, ts, userId);
+      audit({
+        actor,
+        action: 'user.sso_relinked',
+        entityType: 'user',
+        entityId: userId,
+        summary: `Account "${d.account!.username}" re-linked to ${p.displayName} by its stable identifier (${p.stableIdClaims.join(' + ')}), found by its earlier link (${v.relinkFrom === 'legacy' ? 'provider + sub' : 'issuer + sub'})`,
+
+        details: { from: v.relinkFrom, stableIdClaims: p.stableIdClaims },
+      });
+    } else if (v.outcome === 'link') {
       // pre-created (or local) account with the same user name → link it
       db().run(
-        'UPDATE users SET external_id = ?, auth_source = ?, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?',
-        externalId,
+        'UPDATE users SET external_id = ?, external_sub = ?, auth_source = ?, password_hash = ?, must_change_password = 0, updated_at = ? WHERE id = ?',
+        d.key,
+        d.subKey,
         p.id,
         '!sso',
-        nowIso(),
-        existing.id,
+        ts,
+        userId,
       );
+      // like binding it: the account's sessions (password sessions of a local account) end; the new one comes after this
+      db().run('DELETE FROM sessions WHERE user_id = ?', userId);
       audit({
         action: 'user.linked_sso',
         entityType: 'user',
-        entityId: existing.id,
-        actor: username,
-        summary: `Account "${username}" linked to ${p.displayName}`,
+        entityId: userId,
+        actor,
+        summary: `Account "${v.username}" linked to ${p.displayName}`,
+        details: { linkExisting: p.linkExisting, bound: d.account!.auth_source === p.id },
       });
     } else if (created) {
       userId = newId('usr_');
-      const ts = nowIso();
       db().run(
-        `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source, external_id)
-         VALUES (?, ?, ?, ?, '!sso', '[]', 1, 0, ?, ?, ?, ?)`,
+        `INSERT INTO users (id, username, display_name, email, password_hash, roles, active, must_change_password, created_at, updated_at, auth_source, external_id, external_sub)
+         VALUES (?, ?, ?, ?, '!sso', '[]', 1, 0, ?, ?, ?, ?, ?)`,
         userId,
-        username,
-        displayName,
-        email ?? null,
+        v.username,
+        v.displayName,
+        v.email ?? null,
         ts,
         ts,
         p.id,
-        externalId,
+        d.key,
+        d.subKey,
       );
       audit({
-        actor: username,
+        actor,
         action: 'user.created',
         entityType: 'user',
         entityId: userId,
-        summary: `User "${username}" created on first sign-in via ${p.displayName}`,
-        details: { claimValues: matched.map((m) => m.claimValue) },
+        summary: `User "${v.username}" created on first sign-in via ${p.displayName}`,
+        details: { claimValues: v.groups.matched },
       });
     }
-    db().run('UPDATE users SET display_name = ?, email = COALESCE(?, email) WHERE id = ?', displayName, email ?? null, userId);
+    // issuer + sub is recorded when an identity is linked (created, linked, re-linked) – never on a plain sign-in, so a
+    // later sign-in cannot move an account's earlier link to whoever signed in last; it belongs to this identity only
+    if (v.outcome !== 'signIn') db().run('UPDATE users SET external_sub = NULL WHERE external_sub = ? AND id <> ?', d.subKey, userId);
+
+    const current = db().get<{ profile: string | null }>('SELECT profile FROM users WHERE id = ?', userId);
+    const set = (field: keyof ProviderConfig['sync']) => fresh || p.sync[field] === 'always';
+    db().run(
+      `UPDATE users SET display_name = CASE WHEN ? = 1 THEN ? ELSE display_name END,
+         first_name = CASE WHEN ? = 1 THEN ? ELSE first_name END,
+         last_name = CASE WHEN ? = 1 THEN ? ELSE last_name END,
+         email = CASE WHEN ? = 1 THEN ? ELSE email END,
+         profile = ?
+       WHERE id = ?`,
+      set('displayName') ? 1 : 0,
+      v.displayName,
+      set('firstName') && v.firstName ? 1 : 0,
+      v.firstName ?? null,
+      set('lastName') && v.lastName ? 1 : 0,
+      v.lastName ?? null,
+      set('email') && v.email ? 1 : 0,
+      v.email ?? null,
+      JSON.stringify(nextProfile(p, current?.profile ?? null, v.profile, fresh)),
+      userId,
+    );
     if (created || p.syncRoles) {
       const user = getUser(userId);
-      syncRolesAndTeams(p, user.id, user.username, user.roles, mappedRoles, managedTeams, wantedTeams);
+      syncRolesAndTeams(p, user.id, user.username, user.roles, d.mappedRoles, d.managedTeams, d.wantedTeams);
     }
   });
   return getUser(userId);
@@ -455,6 +1079,114 @@ function syncRolesAndTeams(
       details: { roles, teams: teamChanges },
     });
   }
+}
+
+// ---------- test sign-in (administrators): the claims and what a sign-in would do, without signing in ----------
+
+interface TestEntry {
+  testId: string;
+  providerId: string;
+  adminId: string;
+  adminName: string;
+  startedAt: string;
+  expires: number;
+  status: SsoTestResult['status'];
+  error?: string;
+  finishedAt?: string;
+  received?: ReceivedClaims;
+}
+const tests = new Map<string, TestEntry>();
+const TEST_TTL_MS = 15 * 60 * 1000;
+const MAX_TESTS = 100;
+/** Larger claim sets are not kept (memory): the test reports it. */
+const MAX_TEST_CLAIMS_BYTES = 256 * 1024;
+
+/**
+ * Starts a test sign-in through a provider (also a disabled one): the administrator opens the returned URL in a new
+ * window and signs in there. The callback records the claims for this administrator only – no session, no account
+ * created, linked or changed.
+ */
+export async function startTestSignIn(providerId: string, admin: { id: string; username: string }, redirectUri: string): Promise<SsoTestStart> {
+  const p = getProvider(providerId);
+  const config = await clientConfig(p);
+  const now = Date.now();
+  for (const [k, v] of tests) if (v.expires < now) tests.delete(k);
+  while (tests.size >= MAX_TESTS) tests.delete(tests.keys().next().value!);
+  const testId = crypto.randomBytes(16).toString('base64url');
+  const expires = now + TEST_TTL_MS;
+  tests.set(testId, { testId, providerId, adminId: admin.id, adminName: admin.username, startedAt: nowIso(), expires, status: 'pending' });
+  const url = await authorizationUrl(p, config, { providerId, redirectUri, returnTo: '/', test: { testId } });
+  return { testId, authorizationUrl: url, expiresAt: new Date(expires).toISOString() };
+}
+
+const OUTCOME_TEXT: Record<SsoSignInPreview['outcome'], string> = {
+  signIn: 'sign in to the linked account',
+  relink: 're-link the account by its stable identifier',
+  link: 'link an existing account',
+  create: 'create a new account',
+  refuse: 'be refused',
+};
+
+async function finishTest(flow: Pending, state: string, currentUrl: URL): Promise<CallbackResult> {
+  const entry = tests.get(flow.test!.testId);
+  if (!entry || entry.expires < Date.now()) throw new HttpError(400, 'The test sign-in expired – start it again');
+  const locale = db().get<{ locale: string | null }>('SELECT locale FROM users WHERE id = ?', entry.adminId)?.locale ?? null;
+  const p = getProvider(flow.providerId);
+  try {
+    const received = await receiveClaims(p, flow, state, currentUrl, true);
+    if (JSON.stringify(received).length > MAX_TEST_CLAIMS_BYTES) throw new HttpError(413, 'The identity provider sent more than 256 KB of claims');
+    entry.received = received;
+    entry.status = 'done';
+    const d = decide(p, mergedClaims(p, received));
+    audit({
+      actor: entry.adminName,
+      action: 'sso.test_sign_in',
+      entityType: 'sso',
+      entityId: p.id,
+      summary: `Test sign-in via ${p.displayName} as "${d.preview.username.slice(0, MAX_USERNAME)}": a sign-in would ${OUTCOME_TEXT[d.preview.outcome]} (no account or session was changed)`,
+      details: { outcome: d.preview.outcome, ...(d.preview.refusal ? { refusal: d.preview.refusal.code } : {}), groupsOverage: d.preview.groups.overage },
+    });
+  } catch (e) {
+    entry.status = 'failed';
+    entry.error = (e as Error).message.slice(0, 500);
+    audit({
+      actor: entry.adminName,
+      action: 'sso.test_sign_in',
+      entityType: 'sso',
+      entityId: p.id,
+      summary: `Test sign-in via ${p.displayName} failed: ${entry.error}`,
+      details: { outcome: 'failed' },
+    });
+  }
+  entry.finishedAt = nowIso();
+  return { kind: 'test', ok: entry.status === 'done', locale };
+}
+
+/**
+ * The result of a test sign-in, for the administrator who started it. `draft`: the editor's unsaved settings (the
+ * connection – issuer, client, secret – stays the saved one); the preview is computed with them.
+ */
+export function testResult(testId: string, adminId: string, draft?: unknown): SsoTestResult {
+  const entry = tests.get(testId);
+  if (!entry || entry.adminId !== adminId || entry.expires < Date.now()) throw new HttpError(404, 'Test sign-in not found or expired', 'SSO_TEST_NOT_FOUND');
+  const saved = getProvider(entry.providerId);
+  const out: SsoTestResult = { testId, providerId: entry.providerId, status: entry.status, startedAt: entry.startedAt };
+  if (entry.finishedAt) out.finishedAt = entry.finishedAt;
+  if (entry.error) out.error = entry.error;
+  if (entry.received) {
+    const r = entry.received;
+    let c: DecisionProvider = saved;
+    if (draft !== undefined && draft !== null) {
+      const fromDraft = configFrom(providerSchema.parse(draft), saved);
+      c = { ...fromDraft, id: saved.id, issuer: saved.issuer, clientId: saved.clientId, displayName: saved.displayName };
+    }
+    out.idToken = shownClaims(r.idToken);
+    if (r.userinfo) out.userinfo = shownClaims(r.userinfo);
+    if (r.userinfoError) out.userinfoError = r.userinfoError;
+    out.preview = decide(c, mergedClaims(c, r)).preview;
+    if (c.useUserinfo && r.userinfo) out.preview.notes.push({ code: 'USERINFO_USED' });
+  }
+  return out;
 }
 
 /** Redirect URI to register at the identity provider. */

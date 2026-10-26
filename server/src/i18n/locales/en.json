@@ -191,5 +191,10 @@
     "bodyBefore": "The periodic review of {{number}} “{{title}}” (edition {{edition}}) is due on {{date}}.",
     "bodyOverdue": "The periodic review of {{number}} “{{title}}” (edition {{edition}}) was due on {{date}}.",
     "howTo": "Open the document, check that the current edition is still right, and choose “Reviewed – no change” or “Needs update”."
+  },
+  "ssoTest": {
+    "title": "Test sign-in",
+    "done": "Test sign-in finished. Return to Steward – the claims and the preview are shown in the sign-in provider's settings. You can close this window.",
+    "failed": "The test sign-in failed. Return to Steward to see why. You can close this window."
   }
 }

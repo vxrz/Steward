@@ -50,7 +50,10 @@
     "signInPassword": "Einem Passwort",
     "signInProvider": "{{name}} (Single Sign-on, kein Passwort)",
     "signInHint": "Ein Single-Sign-on-Konto hat kein Passwort. Nur dieser Anbieter kann es bei der ersten Anmeldung übernehmen, mit genau diesem Benutzernamen.",
-    "signInBindHint": "Die Wahl eines Anbieters entfernt das Passwort und meldet das Konto ab; danach kann nur dieser Anbieter es übernehmen, mit genau diesem Benutzernamen."
+    "signInBindHint": "Die Wahl eines Anbieters entfernt das Passwort und meldet das Konto ab; danach kann nur dieser Anbieter es übernehmen, mit genau diesem Benutzernamen.",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "managedHint": "Ausgegraute Felder kommen bei jeder Anmeldung vom Single-Sign-on-Anbieter."
   },
   "teamModal": {
     "saved": "Team „{{name}}“ gespeichert",
@@ -75,7 +78,10 @@
       "autoProvision": "automatisch anlegen",
       "syncRoles": "Rollen-Sync",
       "requireMapping": "Zuordnung erforderlich",
-      "secretMissing": "Secret fehlt"
+      "secretMissing": "Secret fehlt",
+      "linkByName": "verknüpft per Name",
+      "warnings_one": "{{count}} Warnung",
+      "warnings_other": "{{count}} Warnungen"
     }
   },
   "provider": {
@@ -132,6 +138,166 @@
     "syncRoles": "Rollen und zugeordnete Teams bei jeder Anmeldung abgleichen",
     "syncRolesHint": "Rollen kommen vom Identity Provider; hier vorgenommene Änderungen werden bei der nächsten Anmeldung überschrieben.",
     "requireMapping": "Anmeldung verweigern, wenn keine Zuordnung passt",
-    "defaultOidcName": "Firmenanmeldung"
+    "defaultOidcName": "Firmenanmeldung",
+    "preset": "Identitätsanbieter",
+    "presetHint": "Füllt die Einstellungen unten vor. Jeder Wert bleibt änderbar.",
+    "presetDocs": "Schritte bei {{provider}}",
+    "presetHints": {
+      "entra": "App-Rollen der App-Registrierung werden zum Claim roles. Entra ID sendet email_verified nur als optionalen Claim, daher kommt der Benutzername aus preferred_username (dem UPN), und Personen werden über Mandant + Objekt-ID (tid, oid) erkannt.",
+      "keycloak": "Fügen Sie dem Client einen Mapper „Group Membership“ hinzu (Claim groups, ohne vollständigen Pfad), damit die Gruppen ins Token kommen. Keycloak sendet email_verified.",
+      "okta": "Legen Sie am Autorisierungsserver (oder an der App) einen Claim groups an und fordern Sie den Scope groups an. Okta sendet email_verified.",
+      "google": "Google sendet keine Gruppen und kein preferred_username: Die bestätigte E-Mail-Adresse benennt das Konto. Tragen Sie Ihre Workspace-Domain als geforderten Wert des Claims hd ein – sonst kann sich jedes Google-Konto anmelden.",
+      "authentik": "Der Aussteller endet mit dem Slug der Anwendung und einem Schrägstrich. Authentik sendet Gruppen mit der Standard-Scope-Zuordnung „profile“.",
+      "generic": "Jeder OpenID-Connect-Anbieter: Aussteller, Client und die Claim-Namen Ihres Anbieters."
+    },
+    "groupId": "Gruppen-ID",
+    "usernameTransform": "Regel für den Benutzernamen",
+    "usernameTransforms": {
+      "lowercase": "Kleinbuchstaben (max@contoso.com)",
+      "stripDomain": "Kleinbuchstaben ohne @Domain (max)",
+      "none": "Wie vom Anbieter gesendet"
+    },
+    "displayNameTemplate": "Vorlage für den Anzeigenamen",
+    "displayNameTemplateHint": "Claims in geschweiften Klammern, z. B. {given_name} {family_name}. Leer: der Claim für den Anzeigenamen.",
+    "firstNameClaim": "Claim für den Vornamen",
+    "lastNameClaim": "Claim für den Nachnamen",
+    "emailVerifiedByProvider": "Dieser Anbieter prüft E-Mail-Adressen",
+    "emailVerifiedByProviderHint": "Nur für Anbieter, die nie email_verified senden. Dann darf der E-Mail-Claim Konten auch ohne ihn benennen oder erkennen – stellen Sie sicher, dass der Anbieter wirklich jede Adresse prüft.",
+    "useUserinfo": "Auch den Userinfo-Endpunkt lesen",
+    "useUserinfoHint": "Für Claims, die das ID-Token weglässt. Wo beide einen Claim haben, gilt das ID-Token.",
+    "groupValues": "Der Gruppen-Claim enthält",
+    "groupValueOptions": {
+      "names": "Namen (Groß-/Kleinschreibung egal)",
+      "ids": "IDs (exakter Vergleich)"
+    },
+    "stableId": "Claims, die eine Person dauerhaft erkennen",
+    "stableIdHint": "Zusammen mit dem Aussteller. Verwenden Sie Claims, die niemand ändern kann (sub; Entra ID: tid und oid). Nach einer Änderung wird jedes Konto bei seiner nächsten Anmeldung über Aussteller + sub neu verknüpft.",
+    "stableIdRequired": "Mindestens einen Claim eingeben (meist sub)",
+    "accountsSection": "Konten: Verknüpfung, geforderte Claims, Namen und Profilfelder",
+    "linkExisting": "Vorhandene Konten bei der ersten Anmeldung",
+    "linkExistingHint": "Was passiert, wenn sich jemand zum ersten Mal anmeldet und es schon ein Konto mit diesem Benutzernamen gibt. Ein lokales Administratorkonto wird nie über seinen Namen verknüpft.",
+    "linkPolicies": {
+      "bound": "Nur Konten, die eine Administratorin oder ein Administrator an diesen Anbieter gebunden hat",
+      "byName": "Jedes lokale Konto mit gleichem Benutzernamen",
+      "never": "Nie – nur neue Konten"
+    },
+    "linkPolicyHints": {
+      "bound": "Empfohlen. Konto binden unter Benutzer & Teams → Benutzer bearbeiten → Meldet sich an mit.",
+      "byName": "Wer beim Anbieter diesen Benutzernamen hat, erhält das lokale Konto mit seinen Rollen und seiner Historie.",
+      "never": "Vorhandene Konten – auch gebundene – werden nicht verknüpft; eine neue Identität mit vergebenem Benutzernamen wird abgewiesen."
+    },
+    "requiredClaims": "Geforderte Claims",
+    "requiredClaimsHint": "Anmeldung nur, wenn der Claim einen der Werte hat, z. B. hd = Ihre Google-Workspace-Domain, tid = Ihre Entra-Mandanten-ID.",
+    "requiredClaim": "Claim",
+    "requiredValues": "Erlaubte Werte",
+    "requiredValuesPlaceholder": "Wert, dann Enter",
+    "requiredValuesMissing": "Mindestens einen Wert eingeben",
+    "removeRequiredClaim": "Geforderten Claim entfernen",
+    "addRequiredClaim": "Geforderten Claim hinzufügen",
+    "syncTitle": "Aktualisierung vom Anbieter",
+    "syncFields": {
+      "displayName": "Anzeigename",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail"
+    },
+    "syncFor": "Aktualisierung von {{field}}",
+    "syncRules": {
+      "always": "Bei jeder Anmeldung (hier nicht änderbar)",
+      "create": "Nur wenn das Konto angelegt oder verknüpft wird"
+    },
+    "profileFields": "Profilfelder",
+    "profileFieldsHint": "Nur lesbare Felder am Konto, sichtbar auf der Benutzerseite und in der öffentlichen API (users). Verschachtelte Claims mit Punkten, z. B. address.locality.",
+    "profileKey": "Schlüssel",
+    "profileLabel": "Bezeichnung",
+    "profileClaim": "Claim",
+    "profileSync": "Aktualisiert",
+    "noProfileFields": "Keine Profilfelder.",
+    "removeProfileField": "Profilfeld entfernen",
+    "addProfileField": "Profilfeld hinzufügen",
+    "keepLinks": "Vorhandene Konten mit dem neuen Aussteller verknüpft lassen",
+    "keepLinksHint": "Nur wenn der neue Aussteller dieselben Subjects ausgibt (z. B. ein umbenannter Host). Sonst bleiben die Verknüpfungen beim bisherigen Aussteller, und diese Personen erhalten über den neuen keinen Zugang.",
+    "warnings": {
+      "title": "Prüfen Sie diese Einstellungen",
+      "LINK_BY_NAME": "Vorhandene lokale Konten werden über ihren Benutzernamen verknüpft: Wer beim Anbieter diesen Namen hat, erhält das Konto. Besser „Nur Konten, die an diesen Anbieter gebunden sind“.",
+      "MULTI_TENANT_ISSUER": "Mit diesem Aussteller können sich Konten jeder Organisation anmelden. Fordern Sie den Claim tid mit Ihrer Mandanten-ID.",
+      "TENANT_INFLUENCED_CLAIM": "Den Claim {{claim}} setzen die Administratoren jeder Organisation – bei einem mandantenübergreifenden Aussteller kann eine andere Organisation beliebige Werte senden. Verwenden Sie Claims, die Ihre Organisation kontrolliert (nOAuth).",
+      "USER_INFLUENCED_CLAIM": "Den Claim {{claim}} können Personen oft selbst ändern – benennen oder erkennen Sie Konten nicht darüber.",
+      "MUTABLE_STABLE_ID": "Die dauerhafte Kennung nutzt Claims, die sich ändern können ({{claims}}): Ändern sie sich, verliert die Person das Konto, und jemand anderes kann es erhalten. Verwenden Sie sub (Entra ID: tid und oid).",
+      "STRIP_DOMAIN": "Nur die aufgeführten Domains werden entfernt. Personen mit gleichem Namen in zwei aufgeführten Domains erhalten denselben Benutzernamen (max@a.com und max@b.com → max): Wer sich zuerst anmeldet, erhält das Konto, die andere Person wird abgewiesen.",
+      "NO_DOMAIN_RESTRICTION": "Jedes Google-Konto kann sich anmelden. Fordern Sie den Claim hd mit Ihrer Workspace-Domain.",
+      "EMAIL_TRUSTED": "E-Mail-Adressen gelten ohne email_verified als bestätigt. Nur wenn der Anbieter jede Adresse prüft.",
+      "USERNAME_COLLISIONS": "Konten dieses Anbieters, die mit dieser Regel denselben Benutzernamen erhalten: {{names}}.",
+      "EMAIL_VERIFIED_NOW_REQUIRED": "Seit dieser Version brauchen Anmeldungen dieses Anbieters email_verified=true (der Claim {{claim}} benennt oder erkennt Konten). Sendet der Anbieter ihn nie, prüft aber jede Adresse, schalten Sie „Dieser Anbieter prüft E-Mail-Adressen“ ein – sonst wird jede Anmeldung abgewiesen."
+    },
+    "test": {
+      "title": "Test-Anmeldung",
+      "hint": "Melden Sie sich einmal in einem neuen Fenster über diesen Anbieter an: Sie sehen die gesendeten Claims und was eine Anmeldung mit den Einstellungen in diesem Formular täte. Niemand wird angemeldet, kein Konto angelegt, verknüpft oder geändert.",
+      "saveFirst": "Speichern Sie den Anbieter zuerst, dann testen Sie die Anmeldung.",
+      "start": "Anmeldung testen",
+      "again": "Erneut testen",
+      "notStarted": "Die Test-Anmeldung konnte nicht starten",
+      "waiting": "Warte auf die Anmeldung im anderen Fenster …",
+      "open": "Anmeldeseite öffnen",
+      "failed": "Die Test-Anmeldung ist fehlgeschlagen: {{error}}",
+      "preview": "Vorschau",
+      "idToken": "ID-Token ({{count}})",
+      "userinfo": "Userinfo ({{count}})",
+      "userinfoError": "Userinfo konnte nicht gelesen werden: {{error}}",
+      "noClaims": "Keine Claims.",
+      "claim": "Claim",
+      "value": "Wert",
+      "truncated": "(gekürzt)",
+      "previewHint": "Mit den Einstellungen in diesem Formular – auch ungespeicherten Änderungen.",
+      "outcomes": {
+        "signIn": "Meldet bei {{username}} an",
+        "relink": "Verknüpft {{username}} neu",
+        "link": "Verknüpft das vorhandene Konto {{username}}",
+        "create": "Legt das Konto {{username}} an",
+        "refuse": "Abgewiesen"
+      },
+      "relinkFrom": {
+        "legacy": "Über die Verknüpfung einer früheren Version gefunden (Anbieter + sub); die Verknüpfung wird mit der dauerhaften Kennung erneuert.",
+        "sub": "Über den früheren Aussteller + sub gefunden; die Verknüpfung wird mit der dauerhaften Kennung erneuert."
+      },
+      "username": "Benutzername",
+      "usernameFrom": "aus Claim {{claim}}: {{value}}",
+      "displayName": "Anzeigename",
+      "firstName": "Vorname",
+      "lastName": "Nachname",
+      "email": "E-Mail",
+      "emailVerified": "bestätigt",
+      "emailNotVerified": "nicht bestätigt",
+      "emailVerifiedMissing": "email_verified nicht gesendet",
+      "emailRequired": "(diese Konfiguration braucht eine bestätigte Adresse)",
+      "stableId": "Dauerhafte Kennung",
+      "missing": "fehlt",
+      "issuer": "Aussteller: {{issuer}}",
+      "groups": "Gruppen ({{claim}})",
+      "matched": "Passende Zuordnungen: {{values}}",
+      "roles": "Rollen",
+      "teams": "Teams",
+      "none": "–",
+      "notes": {
+        "USERNAME_FALLBACK": "Der Claim {{claim}} wurde nicht gesendet – der Benutzername kommt aus {{from}}.",
+        "USERNAME_TRANSFORMED": "Regel für den Benutzernamen: {{from}} → {{to}}",
+        "GROUPS_OVERAGE": "Das Token hat die Gruppen weggelassen (zu viele Gruppen; Claim {{claim}}). Aus ihnen kommen keine Rollen. Weisen Sie der Anwendung Gruppen zu, nutzen Sie App-Rollen oder einen Gruppenfilter.",
+        "USERINFO_USED": "Claims vom Userinfo-Endpunkt werden mitverwendet."
+      }
+    },
+    "stripDomains": "Zu entfernende Domains",
+    "stripDomainsHint": "Nur diese Domains werden entfernt (max@contoso.com → max). Ein Benutzername einer anderen Domain wird abgewiesen – sonst könnte boss@beliebige-domain das Konto „boss“ übernehmen.",
+    "stripDomainsPlaceholder": "contoso.com, dann Enter",
+    "stripDomainsRequired": "Mindestens eine Domain eingeben",
+    "stripDomainsInvalid": "Eine Domain wie contoso.com",
+    "stableIdNotUnique": "Diese Claims benennen keine einzelne Person: Nehmen Sie sub oder oid auf, oder bestätigen Sie unten, dass sie je Person eindeutig sind. Claims, die viele teilen (tid, groups, roles, hd …), zählen allein nie.",
+    "stableIdConfirm": "Diese Claims sind je Person eindeutig – ich habe es geprüft",
+    "stableIdConfirmHint": "Ohne sub oder oid teilen sich zwei Personen mit demselben Wert ein Konto. Die Bestätigung wird gespeichert und protokolliert.",
+    "emailNoticeDismiss": "email_verified weiter verlangen – ich habe geprüft, dass dieser Anbieter ihn sendet",
+    "emailNoticeDismissHint": "Entfernt diesen Hinweis beim Speichern. Auch „Dieser Anbieter prüft E-Mail-Adressen“ oder ein anderer Claim für die Kontonamen entfernt ihn."
+  },
+  "profileValues": {
+    "title": "Vom Anmeldeanbieter",
+    "hint": "Nur lesbar: wird vom Single-Sign-on-Anbieter aktualisiert."
   }
 }

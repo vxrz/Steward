@@ -10,13 +10,126 @@ import { config } from '../config.js';
 
 export const DEMO_OIDC = { clientId: 'service-manager-demo', clientSecret: 'demo-oidc-secret' };
 
-export const DEMO_IDENTITIES = [
-  { sub: 'a1f3', name: 'Max Admin', preferred_username: 'max@contoso.example', roles: ['SM.Admins'] },
-  { sub: 'b2e4', name: 'Erik Engineer', preferred_username: 'erik@contoso.example', roles: ['SM.Designers'] },
-  { sub: 'c3d5', name: 'Oskar Operator', preferred_username: 'oskar@contoso.example', roles: ['SM.Operators'] },
-  { sub: 'd4c6', name: 'Sofia Approver', preferred_username: 'sofia@contoso.example', roles: ['SM.Approvers'] },
-  { sub: 'e5b7', name: 'Nina Nobody', preferred_username: 'nina@contoso.example', roles: [] as string[] },
+/** The demo tenant (Entra ID's "tid"). */
+export const DEMO_TENANT_ID = '6f1b2c3d-0000-4000-8000-00000000c0de';
+
+interface MockIdentity {
+  sub: string;
+  name: string;
+  preferred_username: string;
+  roles: string[];
+  given_name?: string;
+  family_name?: string;
+  /** Entra ID's object id in the tenant */
+  oid?: string;
+}
+
+export const DEMO_IDENTITIES: MockIdentity[] = [
+  {
+    sub: 'a1f3',
+    name: 'Max Admin',
+    given_name: 'Max',
+    family_name: 'Admin',
+    oid: '0a1f3000-0000-4000-8000-000000000001',
+    preferred_username: 'max@contoso.example',
+    roles: ['SM.Admins'],
+  },
+  {
+    sub: 'b2e4',
+    name: 'Erik Engineer',
+    given_name: 'Erik',
+    family_name: 'Engineer',
+    oid: '0b2e4000-0000-4000-8000-000000000002',
+    preferred_username: 'erik@contoso.example',
+    roles: ['SM.Designers'],
+  },
+  {
+    sub: 'c3d5',
+    name: 'Oskar Operator',
+    given_name: 'Oskar',
+    family_name: 'Operator',
+    oid: '0c3d5000-0000-4000-8000-000000000003',
+    preferred_username: 'oskar@contoso.example',
+    roles: ['SM.Operators'],
+  },
+  {
+    sub: 'd4c6',
+    name: 'Sofia Approver',
+    given_name: 'Sofia',
+    family_name: 'Approver',
+    oid: '0d4c6000-0000-4000-8000-000000000004',
+    preferred_username: 'sofia@contoso.example',
+    roles: ['SM.Approvers'],
+  },
+  {
+    sub: 'e5b7',
+    name: 'Nina Nobody',
+    given_name: 'Nina',
+    family_name: 'Nobody',
+    oid: '0e5b7000-0000-4000-8000-000000000005',
+    preferred_username: 'nina@contoso.example',
+    roles: [] as string[],
+  },
 ];
+
+/**
+ * Claims a test sets for one identity (demo mode only): `idToken` and `userinfo` are merged into what the mock sends
+ * (a null value removes a claim), so tests can emit given_name, oid, tid, nested address, email_verified, group overage
+ * indicators (_claim_names / _claim_sources, hasgroups) or any custom claim. A sub that is not a demo identity becomes
+ * a new account on the sign-in page.
+ */
+export interface MockIdentitySpec {
+  name?: string;
+  preferred_username?: string;
+  idToken?: Record<string, unknown>;
+  userinfo?: Record<string, unknown>;
+}
+const custom = new Map<string, MockIdentitySpec>();
+const MAX_CUSTOM = 50;
+const MAX_SPEC_BYTES = 32 * 1024;
+
+export function setMockIdentity(sub: string, spec: MockIdentitySpec): void {
+  if (!/^[\w.-]{1,40}$/.test(sub)) throw new Error('sub: 1–40 letters, digits, . _ -');
+  if (JSON.stringify(spec).length > MAX_SPEC_BYTES) throw new Error('identity too large');
+  if (!custom.has(sub) && custom.size >= MAX_CUSTOM) throw new Error('too many identities');
+  custom.set(sub, spec);
+}
+export function resetMockIdentities(sub?: string): void {
+  if (sub) custom.delete(sub);
+  else custom.clear();
+}
+
+function identityOf(sub: string): MockIdentity | undefined {
+  const known = DEMO_IDENTITIES.find((i) => i.sub === sub);
+  const spec = custom.get(sub);
+  if (!known && !spec) return undefined;
+  const base: MockIdentity = known ?? { sub, name: spec?.name ?? sub, preferred_username: spec?.preferred_username ?? `${sub}@contoso.example`, roles: [] };
+  return { ...base, ...(spec?.name ? { name: spec.name } : {}), ...(spec?.preferred_username ? { preferred_username: spec.preferred_username } : {}) };
+}
+
+const listed = (): MockIdentity[] => [
+  ...DEMO_IDENTITIES.map((i) => identityOf(i.sub)!),
+  ...[...custom.keys()].filter((s) => !DEMO_IDENTITIES.some((i) => i.sub === s)).map((s) => identityOf(s)!),
+];
+
+/** Standard claims of an identity, with the test's changes (null removes a claim). */
+function claimsOf(i: MockIdentity, extra: Record<string, unknown> | undefined): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    name: i.name,
+    preferred_username: i.preferred_username,
+    email: i.preferred_username,
+    roles: i.roles,
+    ...(i.given_name ? { given_name: i.given_name } : {}),
+    ...(i.family_name ? { family_name: i.family_name } : {}),
+    oid: i.oid ?? `0000${i.sub}-0000-4000-8000-000000000000`.slice(0, 36),
+    tid: DEMO_TENANT_ID,
+  };
+  for (const [k, v] of Object.entries(extra ?? {})) {
+    if (v === null) delete out[k];
+    else out[k] = v;
+  }
+  return out;
+}
 
 const b64url = (b: Buffer | string) => Buffer.from(b).toString('base64url');
 
@@ -24,10 +137,9 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
   const kid = crypto.randomBytes(6).toString('hex');
   const jwk = { ...(publicKey.export({ format: 'jwk' }) as Record<string, string>), kid, alg: 'RS256', use: 'sig' };
-  const codes = new Map<
-    string,
-    { identity: (typeof DEMO_IDENTITIES)[number]; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }
-  >();
+  const codes = new Map<string, { identity: MockIdentity; clientId: string; redirectUri: string; nonce?: string; challenge?: string; expires: number }>();
+  /** Access tokens for the userinfo endpoint (bounded, short-lived). */
+  const accessTokens = new Map<string, { sub: string; expires: number }>();
 
   const issuerOf = (host: string | undefined) => `http://${host}${config.basePath}/mock/oidc`;
 
@@ -38,13 +150,14 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
       authorization_endpoint: `${iss}/authorize`,
       token_endpoint: `${iss}/token`,
       jwks_uri: `${iss}/jwks`,
+      userinfo_endpoint: `${iss}/userinfo`,
       response_types_supported: ['code'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
       scopes_supported: ['openid', 'profile', 'email'],
       token_endpoint_auth_methods_supported: ['client_secret_post', 'client_secret_basic', 'none'],
       code_challenge_methods_supported: ['S256'],
-      claims_supported: ['sub', 'name', 'preferred_username', 'email', 'roles'],
+      claims_supported: ['sub', 'name', 'given_name', 'family_name', 'preferred_username', 'email', 'email_verified', 'roles', 'oid', 'tid'],
     };
   });
 
@@ -57,12 +170,14 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     if (q.client_id !== DEMO_OIDC.clientId) return reply.code(400).type('text/plain').send('unknown client_id');
     if (q.response_type !== 'code') return reply.code(400).type('text/plain').send('unsupported response_type');
     const params = new URLSearchParams(q);
-    const rows = DEMO_IDENTITIES.map((i) => {
-      const p = new URLSearchParams(params);
-      p.set('login', i.sub);
-      // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- every value is HTML-escaped with esc(); dev/demo-only mock identity provider
-      return `<li><a class="acc" href="${config.basePath}/mock/oidc/authorize/approve?${esc(p.toString())}"><b>${esc(i.name)}</b><br><small>${esc(i.preferred_username)} · roles: ${esc(i.roles.join(', ') || 'none')}</small></a></li>`;
-    }).join('');
+    const rows = listed()
+      .map((i) => {
+        const p = new URLSearchParams(params);
+        p.set('login', i.sub);
+        // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- every value is HTML-escaped with esc(); dev/demo-only mock identity provider
+        return `<li><a class="acc" href="${config.basePath}/mock/oidc/authorize/approve?${esc(p.toString())}"><b>${esc(i.name)}</b><br><small>${esc(i.preferred_username)} · roles: ${esc(i.roles.join(', ') || 'none')}</small></a></li>`;
+      })
+      .join('');
     return reply
       .type('text/html')
       .send(
@@ -72,7 +187,7 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
 
   app.get('/oidc/authorize/approve', async (req, reply) => {
     const q = req.query as Record<string, string>;
-    const identity = DEMO_IDENTITIES.find((i) => i.sub === q.login);
+    const identity = identityOf(String(q.login ?? ''));
     if (!identity || q.client_id !== DEMO_OIDC.clientId || !q.redirect_uri) return reply.code(400).type('text/plain').send('invalid request');
     const code = crypto.randomBytes(16).toString('base64url');
     codes.set(code, { identity, clientId: q.client_id, redirectUri: q.redirect_uri, nonce: q.nonce, challenge: q.code_challenge, expires: Date.now() + 60000 });
@@ -105,20 +220,51 @@ export async function mockOidc(app: FastifyInstance): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const i = entry.identity;
     const payload = {
+      ...claimsOf(i, custom.get(i.sub)?.idToken),
       iss: issuerOf(req.headers.host),
       sub: i.sub,
       aud: clientId,
       iat: now,
       exp: now + 600,
       nonce: entry.nonce,
-      name: i.name,
-      preferred_username: i.preferred_username,
-      email: i.preferred_username,
-      roles: i.roles,
     };
     const head = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT', kid }));
     const body = b64url(JSON.stringify(payload));
     const sig = crypto.sign('RSA-SHA256', Buffer.from(`${head}.${body}`), privateKey).toString('base64url');
-    return { access_token: crypto.randomBytes(16).toString('hex'), token_type: 'Bearer', expires_in: 600, id_token: `${head}.${body}.${sig}` };
+    const accessToken = crypto.randomBytes(16).toString('hex');
+    for (const [k, v] of accessTokens) if (v.expires < Date.now()) accessTokens.delete(k);
+    if (accessTokens.size >= 1000) accessTokens.delete(accessTokens.keys().next().value!);
+    accessTokens.set(accessToken, { sub: i.sub, expires: Date.now() + 600_000 });
+    return { access_token: accessToken, token_type: 'Bearer', expires_in: 600, id_token: `${head}.${body}.${sig}` };
+  });
+
+  app.get('/oidc/userinfo', async (req, reply) => {
+    const bearer = /^Bearer (.+)$/i.exec(String(req.headers.authorization ?? ''))?.[1];
+    const t = bearer ? accessTokens.get(bearer) : undefined;
+    const i = t && t.expires > Date.now() ? identityOf(t.sub) : undefined;
+    if (!i) return reply.code(401).send({ error: 'invalid_token' });
+    const spec = custom.get(i.sub);
+    return { ...claimsOf(i, { ...spec?.idToken, ...spec?.userinfo }), sub: i.sub };
+  });
+
+  // tests (demo mode only, like the whole mock): claims of an identity, see MockIdentitySpec
+  app.put('/oidc/identities/:sub', async (req, reply) => {
+    try {
+      const b = (req.body ?? {}) as MockIdentitySpec;
+      if (typeof b !== 'object' || Array.isArray(b)) throw new Error('JSON object expected');
+      setMockIdentity((req.params as { sub: string }).sub, {
+        ...(typeof b.name === 'string' ? { name: b.name.slice(0, 100) } : {}),
+        ...(typeof b.preferred_username === 'string' ? { preferred_username: b.preferred_username.slice(0, 200) } : {}),
+        ...(b.idToken && typeof b.idToken === 'object' ? { idToken: b.idToken } : {}),
+        ...(b.userinfo && typeof b.userinfo === 'object' ? { userinfo: b.userinfo } : {}),
+      });
+      return { ok: true };
+    } catch (e) {
+      return reply.code(400).send({ error: (e as Error).message });
+    }
+  });
+  app.delete('/oidc/identities/:sub', async (req) => {
+    resetMockIdentities((req.params as { sub: string }).sub);
+    return { ok: true };
   });
 }

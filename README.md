@@ -157,6 +157,8 @@ Retention of runs and notifications, and the notification channels, are set unde
 
 ### Single sign-on (Microsoft Entra ID / OpenID Connect)
 
+Any OpenID Connect provider works: presets pre-fill Microsoft Entra ID, Keycloak, Okta, Google Workspace and Authentik. You choose which claims give the user name, first and last name, e-mail, read-only profile fields (department, job title …) and the stable identifier, how each field is kept in sync, and which existing accounts a first sign-in may link. A **test sign-in** in the provider editor shows the claims a provider sends and the account a sign-in would get – without signing in. See [docs/SSO.md](docs/SSO.md).
+
 Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [openid-client](https://github.com/panva/openid-client) library. Tokens are checked for issuer, audience, signature (JWKS), expiry, nonce and state. The client secret is stored encrypted with the master passphrase.
 
 **Set it up in Microsoft Entra ID:**
@@ -174,11 +176,11 @@ Sign-in uses the OpenID Connect authorization code flow with PKCE, through the [
 - **Auto-provision.** New users get an account on their first sign-in.
 - **Role sync.** Roles, and the teams named in the mappings, are updated from the token at every sign-in.
 - **Mapping required.** Users without a mapped role are rejected.
-- **Pre-created accounts.** An account with the same user name (e.g. the UPN) is linked on its first SSO sign-in.
+- **Pre-created accounts.** An account created for the provider, or a local account an administrator bound to it, is linked on its first SSO sign-in by its user name (e.g. the UPN). Linking any local account by name is a setting per provider ([linking existing accounts](docs/SSO.md#linking-existing-accounts)). After that, the account is found by the identity's stable identifier (issuer + `sub`, or Entra `tid` + `oid`), not by its name.
 - **No passwords.** SSO accounts have no password in Steward.
 - **SSO only.** Under **Settings → Sign-in**, password sign-in can be limited to administrators. Local admin accounts stay as break-glass access, e.g. to unlock the vault after a restart.
 
-Any other OIDC provider works the same way with the _Generic OIDC_ preset: issuer URL, client ID and secret (or a public client with PKCE), and claim names. In demo mode a simulated Entra ID is preconfigured. Its accounts (Max Admin, Erik Engineer, Oskar Operator, Sofia Approver, Nina Nobody) show the mappings in action.
+Any other OIDC provider works the same way with its preset or _Generic OIDC_: issuer URL, client ID and secret (or a public client with PKCE), and claim names – the steps per provider are in [docs/SSO.md](docs/SSO.md#presets). In demo mode a simulated Entra ID is preconfigured. Its accounts (Max Admin, Erik Engineer, Oskar Operator, Sofia Approver, Nina Nobody) show the mappings in action.
 
 ### Using it as a team
 

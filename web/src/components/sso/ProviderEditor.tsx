@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Button,
   Checkbox,
   Code,
@@ -11,7 +12,6 @@ import {
   Modal,
   MultiSelect,
   PasswordInput,
-  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -21,14 +21,30 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { IconBrandWindows, IconChevronDown, IconChevronRight, IconKey, IconPlus, IconPlugConnected, IconTrash } from '@tabler/icons-react';
-import { ROLES, type Role, type SsoDiscoveryResult, type SsoProvider, type SsoProviderInput, type SsoRoleMapping, type Team } from '@sm/shared';
+import { IconChevronDown, IconChevronRight, IconExternalLink, IconPlus, IconPlugConnected, IconTrash } from '@tabler/icons-react';
+import {
+  BRAND,
+  ROLES,
+  SSO_PRESETS,
+  SSO_DOMAIN,
+  SSO_PRESET_INFO,
+  ssoConfigWarnings,
+  stableIdProblem,
+  type Role,
+  type SsoDiscoveryResult,
+  type SsoPreset,
+  type SsoProvider,
+  type SsoProviderInput,
+  type SsoRoleMapping,
+  type Team,
+} from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { get, notifyError, notifyOk, post, put } from '../../api';
 import { errorText } from '../../i18n/errors';
 import i18n from '../../i18n';
-
-type Kind = 'entra' | 'oidc';
+import { ClaimFields, LinkingAndRequired, ProfileAndSync, StableIdField, type ProviderForm } from './ClaimSettings';
+import { ConfigWarnings } from './ConfigWarnings';
+import { TestSignIn } from './TestSignIn';
 
 const ENTRA_PREFIX = 'https://login.microsoftonline.com/';
 const entraIssuer = (tenant: string) => `${ENTRA_PREFIX}${tenant.trim()}/v2.0`;
@@ -37,73 +53,63 @@ const tenantFromIssuer = (issuer: string) => {
   return m ? m[1]! : '';
 };
 
-const DEFAULTS: Record<Kind, Omit<SsoProviderInput, 'type'>> = {
-  entra: {
-    displayName: 'Microsoft',
-    issuer: '',
+/** Warnings only the server can tell (they need the accounts or how the provider was stored). */
+const SERVER_WARNINGS = new Set(['USERNAME_COLLISIONS', 'EMAIL_VERIFIED_NOW_REQUIRED']);
+
+/** Where the provider-side steps of a preset are described. */
+export const presetDocsUrl = (preset: SsoPreset) => `${BRAND.repoUrl}/blob/HEAD/docs/SSO.md#${SSO_PRESET_INFO[preset].docsAnchor}`;
+
+/** A new provider's settings from a preset (pre-fill only: everything stays editable). */
+function presetForm(preset: SsoPreset, buttonLabel: string): ProviderForm {
+  const d = SSO_PRESET_INFO[preset].defaults;
+  return {
+    ...(d as Required<typeof d>),
+    displayName: buttonLabel,
+    issuer: preset === 'google' ? SSO_PRESET_INFO.google.issuerPattern : '',
     clientId: '',
-    clientAuth: 'client_secret_post',
-    scopes: 'openid profile email',
-    usernameClaim: 'preferred_username',
-    displayNameClaim: 'name',
-    emailClaim: 'email',
-    groupsClaim: 'roles',
     mappings: [],
     defaultRoles: [],
-    autoProvision: true,
-    syncRoles: true,
-    requireMapping: true,
     enabled: true,
-  },
-  oidc: {
-    displayName: 'Company login',
-    issuer: '',
-    clientId: '',
-    clientAuth: 'client_secret_basic',
-    scopes: 'openid profile email',
-    usernameClaim: 'preferred_username',
-    displayNameClaim: 'name',
-    emailClaim: 'email',
-    groupsClaim: 'groups',
-    mappings: [],
-    defaultRoles: [],
-    autoProvision: true,
-    syncRoles: false,
-    requireMapping: false,
-    enabled: true,
-  },
-};
+    // a fresh copy: the preset objects are shared
+    stableIdClaims: [...(d.stableIdClaims ?? ['sub'])],
+    requiredClaims: (d.requiredClaims ?? []).map((r) => ({ ...r, values: [...r.values] })),
+    profileFields: [],
+    sync: { ...d.sync! },
+  };
+}
 
 const roleOptions = () => ROLES.map((r) => ({ value: r, label: i18n.t(`common:roles.${r}`) }));
 
 export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoProvider | null; onClose: () => void; onSaved: () => void }) {
   const { t } = useTranslation(['users', 'common', 'auth']);
-  const [kind, setKind] = useState<Kind>(provider?.type ?? 'entra');
-  const [form, setForm] = useState<Omit<SsoProviderInput, 'type'>>(() => {
-    if (!provider) return { ...DEFAULTS.entra };
-    const { id: _id, hasClientSecret: _h, createdAt: _c, updatedAt: _u, type: _t, ...rest } = provider;
+  const defaultLabel = (p: SsoPreset) => (p === 'entra' ? 'Microsoft' : p === 'google' ? 'Google' : t('provider.defaultOidcName'));
+  const [preset, setPreset] = useState<SsoPreset>(provider?.preset ?? 'entra');
+  const kind = SSO_PRESET_INFO[preset].type;
+  const [form, setForm] = useState<ProviderForm>(() => {
+    if (!provider) return presetForm('entra', 'Microsoft');
+    const { id: _id, hasClientSecret: _h, createdAt: _c, updatedAt: _u, type: _t, warnings: _w, ...rest } = provider;
     return rest;
   });
   const [tenant, setTenant] = useState(() => tenantFromIssuer(provider?.issuer ?? ''));
   const [secret, setSecret] = useState('');
   const [removeSecret, setRemoveSecret] = useState(false);
+  const [keepLinks, setKeepLinks] = useState(false);
   const [advanced, setAdvanced] = useState(false);
+  const [accounts, setAccounts] = useState(false);
   const [discovery, setDiscovery] = useState<SsoDiscoveryResult | null>(null);
   const [testing, setTesting] = useState(false);
   const [busy, setBusy] = useState(false);
   const teams = useQuery({ queryKey: ['teams'], queryFn: () => get<Team[]>('/teams') });
   const teamOptions = useMemo(() => (teams.data ?? []).map((team) => team.name), [teams.data]);
 
-  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof ProviderForm>(k: K, v: ProviderForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const switchKind = (k: Kind) => {
-    setKind(k);
+  const switchPreset = (p: SsoPreset) => {
+    setPreset(p);
     if (!provider) {
       setForm((f) => ({
-        ...DEFAULTS[k],
-        // the button text on the sign-in page: a sensible default in the administrator's language (it stays as saved)
-        ...(k === 'oidc' ? { displayName: t('provider.defaultOidcName') } : {}),
-        issuer: k === 'entra' && tenant ? entraIssuer(tenant) : f.issuer,
+        ...presetForm(p, defaultLabel(p)),
+        issuer: p === 'entra' && tenant ? entraIssuer(tenant) : p === 'google' ? SSO_PRESET_INFO.google.issuerPattern : f.issuer,
         clientId: f.clientId,
       }));
     }
@@ -128,15 +134,10 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
 
   const save = async () => {
     setBusy(true);
-    const body: SsoProviderInput = {
-      ...form,
-      type: kind,
-      issuer: form.issuer.trim(),
-      clientId: form.clientId.trim(),
-      mappings: form.mappings.filter((m) => m.claimValue.trim()).map((m) => ({ ...m, claimValue: m.claimValue.trim() })),
-    };
+    const body = draft();
     if (removeSecret) body.clientSecret = '';
     else if (secret) body.clientSecret = secret;
+    if (issuerMoved) body.keepLinksOnIssuerChange = keepLinks;
     try {
       if (provider) await put(`/sso/providers/${provider.id}`, body);
       else await post('/sso/providers', body);
@@ -149,34 +150,70 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
     }
   };
 
+  /** The settings as the server takes them (also the draft the test sign-in previews). */
+  function draft(): SsoProviderInput {
+    return {
+      ...form,
+      type: kind,
+      preset,
+      issuer: form.issuer.trim(),
+      clientId: form.clientId.trim(),
+      mappings: form.mappings.filter((m) => m.claimValue.trim()).map((m) => ({ ...m, claimValue: m.claimValue.trim() })),
+      profileFields: form.profileFields
+        .filter((f) => f.key.trim() || f.claim.trim())
+        .map((f) => ({ ...f, key: f.key.trim(), claim: f.claim.trim(), label: f.label.trim() || f.key.trim() })),
+      requiredClaims: form.requiredClaims.filter((r) => r.claim.trim()).map((r) => ({ ...r, claim: r.claim.trim() })),
+    };
+  }
+  const issuerMoved = !!provider && provider.issuer !== form.issuer.trim().replace(/\/+$/, '');
+  // checked while typing; collisions of existing accounts come from the server (saved settings)
+  const warnings = [
+    ...ssoConfigWarnings({ ...form, type: kind }),
+    ...(provider?.warnings ?? []).filter(
+      (w) => SERVER_WARNINGS.has(w.code) && (w.code !== 'EMAIL_VERIFIED_NOW_REQUIRED' || (form.emailVerificationNotice && !form.emailVerifiedByProvider)),
+    ),
+  ];
   const needsSecret = form.clientAuth !== 'none';
-  const valid = form.displayName.trim() && /^https?:\/\//.test(form.issuer.trim()) && form.clientId.trim();
+  const valid =
+    form.displayName.trim() &&
+    /^https?:\/\//.test(form.issuer.trim()) &&
+    form.clientId.trim() &&
+    !stableIdProblem(form.stableIdClaims, form.stableIdConfirmedClaims) &&
+    (form.usernameTransform !== 'stripDomain' || (form.stripDomains.length > 0 && form.stripDomains.every((d) => SSO_DOMAIN.test(d)))) &&
+    form.requiredClaims.every((r) => !r.claim.trim() || r.values.length > 0);
 
   return (
     <Modal opened onClose={onClose} title={provider ? t('provider.edit', { name: provider.displayName }) : t('provider.add')} size="xl">
       <Stack>
-        {!provider && (
-          <SegmentedControl
-            value={kind}
-            onChange={(v) => switchKind(v as Kind)}
-            data={[
-              {
-                value: 'entra',
-                label: (
-                  <Group gap={6} justify="center" wrap="nowrap">
-                    <IconBrandWindows size={16} /> Microsoft Entra ID
-                  </Group>
-                ),
-              },
-              {
-                value: 'oidc',
-                label: (
-                  <Group gap={6} justify="center" wrap="nowrap">
-                    <IconKey size={16} /> {t('provider.genericOidc')}
-                  </Group>
-                ),
-              },
-            ]}
+        {!provider ? (
+          <Select
+            label={t('provider.preset')}
+            description={t('provider.presetHint')}
+            data={SSO_PRESETS.map((p) => ({ value: p, label: p === 'generic' ? t('provider.genericOidc') : SSO_PRESET_INFO[p].label }))}
+            value={preset}
+            onChange={(v) => v && switchPreset(v as SsoPreset)}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: true }}
+            data-testid="sso-preset"
+          />
+        ) : null}
+        <Alert variant="light" color="blue" p="xs">
+          <Text size="xs">{t(`provider.presetHints.${preset}`)}</Text>
+          <Anchor href={presetDocsUrl(preset)} target="_blank" rel="noopener noreferrer" size="xs">
+            <Group gap={4} component="span">
+              {t('provider.presetDocs', { provider: preset === 'generic' ? t('provider.genericOidc') : SSO_PRESET_INFO[preset].label })}
+              <IconExternalLink size={12} />
+            </Group>
+          </Anchor>
+        </Alert>
+        <ConfigWarnings warnings={warnings} />
+        {provider?.emailVerificationNotice && (
+          <Checkbox
+            label={t('provider.emailNoticeDismiss')}
+            description={t('provider.emailNoticeDismissHint')}
+            checked={!form.emailVerificationNotice}
+            onChange={(e) => set('emailVerificationNotice', !e.currentTarget.checked)}
+            data-testid="sso-email-notice"
           />
         )}
         <TextInput
@@ -203,7 +240,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           label={t('provider.issuer')}
           description={kind === 'entra' ? t('provider.issuerEntraHint') : t('provider.issuerHint')}
           required
-          placeholder="https://idp.example.com/realms/company"
+          placeholder={SSO_PRESET_INFO[preset].issuerPattern}
           value={form.issuer}
           onChange={(e) => {
             set('issuer', e.currentTarget.value);
@@ -257,6 +294,14 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
             )}
           </Alert>
         )}
+        {issuerMoved && (
+          <Checkbox
+            label={t('provider.keepLinks')}
+            description={t('provider.keepLinksHint')}
+            checked={keepLinks}
+            onChange={(e) => setKeepLinks(e.currentTarget.checked)}
+          />
+        )}
         <Group grow align="flex-start">
           <TextInput
             label={kind === 'entra' ? t('provider.appClientId') : t('provider.clientId')}
@@ -295,7 +340,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           </Stack>
         )}
 
-        <UnstyledButton onClick={() => setAdvanced((a) => !a)}>
+        <UnstyledButton onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
           <Group gap={4}>
             {advanced ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
             <Text size="sm" fw={500}>
@@ -318,24 +363,23 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                 allowDeselect={false}
               />
             )}
-            <TextInput label={t('provider.scopes')} value={form.scopes} onChange={(e) => set('scopes', e.currentTarget.value)} />
-            <Group grow align="flex-start">
-              <TextInput label={t('provider.usernameClaim')} value={form.usernameClaim} onChange={(e) => set('usernameClaim', e.currentTarget.value)} />
-              <TextInput
-                label={t('provider.displayNameClaim')}
-                value={form.displayNameClaim}
-                onChange={(e) => set('displayNameClaim', e.currentTarget.value)}
-              />
-            </Group>
-            <Group grow align="flex-start">
-              <TextInput label={t('provider.emailClaim')} value={form.emailClaim} onChange={(e) => set('emailClaim', e.currentTarget.value)} />
-              <TextInput
-                label={t('provider.groupsClaim')}
-                description={t('provider.groupsClaimHint')}
-                value={form.groupsClaim}
-                onChange={(e) => set('groupsClaim', e.currentTarget.value)}
-              />
-            </Group>
+            <ClaimFields form={form} set={set} />
+            <StableIdField form={form} set={set} />
+          </Stack>
+        </Collapse>
+
+        <UnstyledButton onClick={() => setAccounts((a) => !a)} aria-expanded={accounts}>
+          <Group gap={4}>
+            {accounts ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+            <Text size="sm" fw={500}>
+              {t('provider.accountsSection')}
+            </Text>
+          </Group>
+        </UnstyledButton>
+        <Collapse in={accounts}>
+          <Stack gap="sm">
+            <LinkingAndRequired form={form} set={set} />
+            <ProfileAndSync form={form} set={set} />
           </Stack>
         </Collapse>
 
@@ -371,7 +415,8 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                     <TextInput
                       size="xs"
                       classNames={{ input: 'mono' }}
-                      placeholder={kind === 'entra' ? 'SM.Operators' : t('provider.groupName')}
+                      aria-label={t('provider.claimValue', { claim: form.groupsClaim || 'claim' })}
+                      placeholder={form.groupValues === 'ids' ? t('provider.groupId') : kind === 'entra' ? 'SM.Operators' : t('provider.groupName')}
                       value={m.claimValue}
                       onChange={(e) => setMapping(i, { claimValue: e.currentTarget.value })}
                     />
@@ -379,6 +424,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                   <Table.Td>
                     <MultiSelect
                       size="xs"
+                      aria-label={t('table.roles')}
                       data={roleOptions()}
                       value={m.roles}
                       onChange={(v) => setMapping(i, { roles: v as Role[] })}
@@ -388,6 +434,7 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
                   <Table.Td>
                     <MultiSelect
                       size="xs"
+                      aria-label={t('table.teams')}
                       data={teamOptions}
                       value={m.teams}
                       onChange={(v) => setMapping(i, { teams: v })}
@@ -451,6 +498,8 @@ export function ProviderEditor({ provider, onClose, onSaved }: { provider: SsoPr
           />
           <Switch label={t('provider.requireMapping')} checked={form.requireMapping} onChange={(e) => set('requireMapping', e.currentTarget.checked)} />
         </Stack>
+
+        <TestSignIn providerId={provider?.id ?? null} draft={draft()} />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

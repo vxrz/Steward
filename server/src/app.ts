@@ -60,6 +60,9 @@ export const SESSION_ONLY_ROUTES: ReadonlySet<string> = new Set([
   'POST /api/sso/providers',
   'PUT /api/sso/providers/:id',
   'DELETE /api/sso/providers/:id',
+  // a test sign-in shows a person's claims to the administrator who started it
+  'POST /api/sso/providers/:id/test-sign-in',
+  'POST /api/sso/test-sign-ins/:id',
   'PUT /api/settings',
   'POST /api/vault/passphrase',
   'POST /api/vault/lock',

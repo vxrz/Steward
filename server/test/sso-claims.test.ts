@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type Client, type TestServer } from './helpers.js';
+import { setup, startTestServer, withRefusalReason, type Client, type TestServer } from './helpers.js';
 
 /**
  * Who may claim an account at its first single sign-on: accounts without a password belong to one provider, a local
@@ -32,7 +32,7 @@ async function signIn(provider: string, login: string): Promise<{ client?: Clien
   authorize.searchParams.set('login', login);
   const approve = await fetch(authorize, { redirect: 'manual' });
   const res = await fetch(new URL(approve.headers.get('location')!), { redirect: 'manual' });
-  if (res.status !== 200) return { error: decodeURIComponent(res.headers.get('location') ?? String(res.status)) };
+  if (res.status !== 200) return { error: await withRefusalReason(s, res.headers.get('location') ?? String(res.status)) };
   const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
   const key = /localStorage\.setItem\("sm\.sessionKey","([^"]+)"\)/.exec(await res.text())![1]!;
   const client = (async (method: string, url: string, body?: unknown) => {
@@ -93,8 +93,12 @@ describe('claiming accounts with single sign-on', () => {
     const { db } = await import('../src/db.js');
     db().run("UPDATE users SET must_change_password = 0 WHERE username = 'oskar@contoso.example'");
     const byPassword = await s.as('oskar@contoso.example', 'Oskar-local-pw-123');
+    const pa = (await s.api('GET', '/sso/providers')).find((x: { id: string }) => x.id === a);
+    await s.api('PUT', `/sso/providers/${a}`, { ...pa, linkExisting: 'byName' }); // a local account with a password: linked by its name
     const linked = await signIn(a, 'c3d5'); // links the local account to the provider
     expect((await linked.client!('GET', '/auth/me')).user.authSource).toBe(a);
+    // linking ends the account's other sessions, like binding it does
+    await expect(byPassword('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });
     process.env.SM_PASSWORD_LOGIN = 'none';
     try {
       await expect(byPassword('GET', '/auth/me')).rejects.toMatchObject({ status: 401 });

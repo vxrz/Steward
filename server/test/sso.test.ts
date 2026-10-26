@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { setup, startTestServer, type TestServer } from './helpers.js';
+import { setup, startTestServer, withRefusalReason, type TestServer } from './helpers.js';
 
 let s: TestServer;
 let providerId: string;
@@ -66,7 +66,10 @@ describe('single sign-on (OIDC)', () => {
   it('denies users without a mapped role', async () => {
     const r = await ssoSignIn('e5b7'); // Nina, no roles
     expect(r.res.status).toBe(302);
-    expect(decodeURIComponent(r.location)).toContain('no role assigned');
+    // the person sees a reference, not the reason (it would tell whether an account exists); the audit entry has it
+    expect(decodeURIComponent(r.location)).toMatch(/Your sign-in was refused – ask an administrator \(reference [0-9a-f]{8}\)/);
+    expect(decodeURIComponent(r.location)).not.toContain('role');
+    expect(await withRefusalReason(s, r.location)).toContain('no role assigned');
     expect(r.cookie).toBeUndefined();
   });
 
@@ -86,14 +89,22 @@ describe('single sign-on (OIDC)', () => {
     await s.api('PUT', `/sso/providers/${p.id}`, p); // restore
   });
 
-  it('links a pre-created account with the same user name', async () => {
+  it('links a local account with the same user name only when the provider links by name', async () => {
     const { user } = await s.api('POST', '/users', { username: 'sofia@contoso.example', roles: ['auditor'] });
+    // new providers link only accounts an administrator bound to them
+    const [p] = await s.api('GET', '/sso/providers');
+    expect(p.linkExisting).toBe('bound');
+    const refused = await ssoSignIn('d4c6');
+    expect(await withRefusalReason(s, refused.location)).toContain('has to bind it to');
+    await s.api('PUT', `/sso/providers/${p.id}`, { ...p, linkExisting: 'byName' });
+    expect((await s.api('GET', '/sso/providers'))[0].warnings).toContainEqual({ code: 'LINK_BY_NAME' });
     const r = await ssoSignIn('d4c6');
     const info = await me(r.cookie!);
     expect(info.user.id).toBe(user.id);
     expect(info.user.roles).toEqual(['approver']);
     expect(info.user.mustChangePassword).toBe(false);
     expect(await (await fetch(`${s.base}/api/processes`, { headers: auth(r.cookie!) })).status).toBe(200);
+    await s.api('PUT', `/sso/providers/${p.id}`, { ...p, linkExisting: 'bound' });
   });
 
   it('can restrict password sign-in to administrators', async () => {

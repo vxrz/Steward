@@ -63,7 +63,10 @@
     "username": "Username",
     "displayName": "Display name",
     "email": "E-mail",
-    "ssoHint": "Name and e-mail come from your single sign-on provider and are updated when you sign in."
+    "ssoHint": "Name and e-mail come from your single sign-on provider and are updated when you sign in.",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "ssoPartlyHint": "Greyed-out fields come from your single sign-on provider and are updated when you sign in."
   },
   "notifications": {
     "title": "Notifications",

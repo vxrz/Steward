@@ -124,7 +124,9 @@
       "Git",
       "Ticket",
       "Cloud",
-      "Code"
+      "Code",
+      "Claim",
+      "Userinfo ({{count}})"
     ]
   }
 }

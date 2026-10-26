@@ -92,7 +92,18 @@ describe('server error codes', () => {
   const VALUE_CODES = ['RECORD_STATUS', 'RECORD_FIELD', 'RUN_STATUS'];
   /** The theme card shows its upload errors itself (system:theme.errors.<CODE>). */
   const themeErrors = JSON.parse(fs.readFileSync(path.join(root, 'web/src/locales/en/system.json'), 'utf8')).theme.errors as Record<string, string>;
-  const known = (code: string) => code in en || `${code}_other` in en || VALUE_CODES.includes(code) || (code.startsWith('THEME_') && code in themeErrors);
+  /** Single sign-on configuration warnings and test sign-in notes are not errors: users:provider.warnings / provider.test.notes. */
+  const ssoTexts = JSON.parse(fs.readFileSync(path.join(root, 'web/src/locales/en/users.json'), 'utf8')).provider as {
+    warnings: Record<string, string>;
+    test: { notes: Record<string, string> };
+  };
+  const known = (code: string) =>
+    code in en ||
+    `${code}_other` in en ||
+    VALUE_CODES.includes(code) ||
+    (code.startsWith('THEME_') && code in themeErrors) ||
+    code in ssoTexts.warnings ||
+    code in ssoTexts.test.notes;
 
   it('finds the errors (the scan works)', () => {
     expect(throws.length).toBeGreaterThan(300);

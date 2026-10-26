@@ -2249,11 +2249,47 @@
           "displayName": {
             "type": "string"
           },
+          "firstName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "email": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "profile": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label",
+                "value"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Read-only fields from the single sign-on provider (department, job title …), in the order the provider lists them"
           },
           "roles": {
             "type": "array",
@@ -2308,7 +2344,10 @@
           "id",
           "username",
           "displayName",
+          "firstName",
+          "lastName",
           "email",
+          "profile",
           "roles",
           "teams",
           "active",
