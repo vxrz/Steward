@@ -79,6 +79,7 @@ export const USER_REFS: UserRef[] = [
   { table: 'run_tasks', column: 'verifiers', kind: 'subjects' },
   { table: 'credentials', column: 'owner_subjects', kind: 'subjects' },
   { table: 'services', column: 'owners', kind: 'subjects' },
+  { table: 'applications', column: 'owners', kind: 'subjects' },
   { table: 'ticket_refs', column: 'responsible', kind: 'subjects' },
 ];
 
@@ -88,6 +89,11 @@ export const USER_REFS: UserRef[] = [
  */
 export const HISTORY_COLUMNS: string[] = [
   'access_checks.updated_by',
+  'application_platforms.created_by',
+  'application_ratings.rated_by',
+  'applications.created_by',
+  'applications.updated_by',
+  'cia_scales.updated_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',
@@ -110,6 +116,7 @@ export const HISTORY_COLUMNS: string[] = [
   'record_editions.submitted_by',
   'record_editions.approved_by',
   'record_events.actor',
+  'record_applications.created_by',
   'record_attachments.created_by',
   'record_reviews.reviewer',
   'record_types.updated_by',
@@ -124,6 +131,8 @@ export const HISTORY_COLUMNS: string[] = [
   'run_tasks.verified_by',
   'run_task_evidence.uploaded_by',
   'runs.actor',
+  'service_applications.created_by',
+  'service_protection_overrides.set_by',
   'services.created_by',
   'services.updated_by',
   'ticket_ref_events.actor',

@@ -37,6 +37,7 @@ export const NAMESPACES = [
   'mcp',
   'records',
   'services',
+  'applications',
   'gitSync',
   'tickets',
   'compliance',

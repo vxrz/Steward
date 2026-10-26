@@ -14,6 +14,8 @@ import { CriticalityBadge, ServiceFormModal } from './Services';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 import { ServiceDocumentsPanel } from '../components/records/ServiceDocuments';
 import { confirmDanger } from '../components/confirm';
+import { ProtectionNeedPanel } from '../components/catalogue/cia';
+import { ServiceApplicationsPanel } from '../components/catalogue/ServiceApplications';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -25,6 +27,7 @@ export function ServiceDetailPage() {
     if (s) qc.setQueryData(['service', id], s);
     else void qc.invalidateQueries({ queryKey: ['service', id] });
     void qc.invalidateQueries({ queryKey: ['services'] });
+    void qc.invalidateQueries({ queryKey: ['applications'] });
   };
   const s = q.data;
   if (!s) return <DetailState query={q} back="services" />;
@@ -75,6 +78,8 @@ export function ServiceDetailPage() {
                 {t('noDescription')}
               </Text>
             )}
+            <ProtectionNeedPanel service={s} onSaved={refresh} />
+            <ServiceApplicationsPanel service={s} onSaved={refresh} />
             <ServiceDocumentsPanel service={s} documents={s.documents} />
             <LinksPanel
               links={s.links}

@@ -284,6 +284,8 @@ _Records_ holds the team's **change requests** and **decision records** (ADR, DR
 
 _Services_ is a minimal service catalogue: contacts, criticality, the entry in your CMDB and links. See [docs/RECORDS.md](docs/RECORDS.md).
 
+_Applications_ are what services consist of – Insights Hub, Industrial Edge and smaller applications – with the Steward platforms mapped to them, a CIA rating (BSI protection needs normal / high / very high, or your own scale) and the documents that apply to them. Services derive their protection need with the maximum principle, overridable with a reason. See [docs/APPLICATIONS.md](docs/APPLICATIONS.md).
+
 _Tickets_ documents tickets that live elsewhere – incidents users reported through ServiceNow and cases opened with vendors: source, number and link, status, who looks after it on our side, and the affected services, platforms, credentials and records. No workflow, just tracking with a history, optional "not checked for N days" reminders, a report section and a badge of open vendor tickets in the service catalogue. See [docs/TICKETS.md](docs/TICKETS.md).
 
 Everyone can turn on an optional **daily summary** on their profile page (failed runs, decisions waiting, monitor changes, credentials due, their open tickets, records, reports – only what they may see), in the app or by e-mail. See [docs/NOTIFICATIONS.md](docs/NOTIFICATIONS.md#daily-summary).

@@ -229,6 +229,7 @@
       "changeAuditAnchoring": "change where audit checkpoints go",
       "exportMigration": "export this instance",
       "applyMigration": "import an instance",
+      "changeCiaScale": "change the CIA scale (protection needs)",
       "other": "a sensitive action"
     },
     "scope_one": "The confirmation applies to all sensitive actions of this session for {{count}} minute.",

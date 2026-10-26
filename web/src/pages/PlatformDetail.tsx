@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import {
@@ -44,11 +44,17 @@ interface TestResult {
 }
 
 export function PlatformDetailPage() {
-  const { t } = useTranslation(['platforms', 'tickets', 'common']);
+  const { t } = useTranslation(['platforms', 'tickets', 'common', 'applications']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const platform = useQuery({ queryKey: ['platform', id], queryFn: () => get<Platform>(`/platforms/${id}`), enabled: !!id });
+  // the application of the service catalogue the platform belongs to (#84)
+  const application = useQuery({
+    queryKey: ['platform', id, 'application'],
+    queryFn: () => get<{ application: { id: string; name: string; archived: boolean } | null }>(`/platforms/${id}/application`),
+    enabled: !!id,
+  });
   const [tab, setTab] = useState<string | null>('settings');
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
@@ -117,6 +123,14 @@ export function PlatformDetailPage() {
             <Text span size="xs" className="mono" style={{ wordBreak: 'break-all' }}>
               {p.baseUrl}
             </Text>
+            {application.data?.application && (
+              <Text span size="xs" data-testid="platform-application">
+                {t('applications:integrations.belongsTo')}{' '}
+                <Anchor component={Link} to={`/applications/${application.data.application.id}`} size="xs">
+                  {application.data.application.name}
+                </Anchor>
+              </Text>
+            )}
           </Group>
         }
         actions={

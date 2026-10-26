@@ -421,6 +421,8 @@ _Services_ lists the services your team runs. A service has:
 
 Keep the real configuration data in your CMDB and link to it. Steward only keeps what it needs to connect its own items to a service.
 
+A service consists of **applications** (Insights Hub, Industrial Edge, smaller applications) with a role; their CIA rating gives the service its **protection need** (maximum principle, with overrides). The service page shows both, and groups its documents by the applications they apply to. See [APPLICATIONS.md](APPLICATIONS.md).
+
 To create one: _Services → New service_ (designers and administrators), fill in the form, _Save_. On the service page, _Add link_ connects platforms, monitors and so on; records that name the service (e.g. a change request with the note _affected_) appear under _Linked from_, and the record shows the service the same way.
 
 ### Documentation of a service

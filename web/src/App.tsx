@@ -66,6 +66,9 @@ const RecordTypesPage = page(() => import('./pages/RecordTypes'), 'RecordTypesPa
 const LinkTypesPage = page(() => import('./pages/LinkTypes'), 'LinkTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
+const ApplicationsPage = page(() => import('./pages/Applications'), 'ApplicationsPage');
+const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
+const CiaScalePage = page(() => import('./pages/CiaScale'), 'CiaScalePage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
 const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
@@ -228,6 +231,9 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/records/:id/edit" element={<RecordEditorPage />} />
                 <Route path="/services" element={<ServicesPage />} />
                 <Route path="/services/:id" element={<ServiceDetailPage />} />
+                <Route path="/applications" element={<ApplicationsPage />} />
+                <Route path="/applications/cia-scale" element={<CiaScalePage />} />
+                <Route path="/applications/:id" element={<ApplicationDetailPage />} />
                 <Route path="/credentials" element={<CredentialsPage />} />
                 <Route path="/tickets" element={<TicketsPage />} />
                 <Route path="/tickets/:id" element={<TicketDetailPage />} />

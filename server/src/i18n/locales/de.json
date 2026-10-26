@@ -229,6 +229,7 @@
       "changeAuditAnchoring": "ändern, wohin Audit-Checkpoints gehen",
       "exportMigration": "diese Instanz exportieren",
       "applyMigration": "eine Instanz importieren",
+      "changeCiaScale": "die CIA-Skala (Schutzbedarf) ändern",
       "other": "eine sensible Aktion"
     },
     "scope_one": "Die Bestätigung gilt {{count}} Minute lang für alle sensiblen Aktionen dieser Sitzung.",

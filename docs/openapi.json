@@ -4517,6 +4517,30 @@
               ]
             },
             "description": "How the document and the service are linked: record – the document links to the service; service – the service links to the document"
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "archived"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The applications the document applies to (its scope); empty: the whole service"
           }
         },
         "required": [
@@ -4530,7 +4554,8 @@
           "reviewStatus",
           "nextReviewAt",
           "daysLeft",
-          "linkedFrom"
+          "linkedFrom",
+          "applications"
         ],
         "additionalProperties": false
       },
@@ -4929,7 +4954,7 @@
                     "null",
                     "string"
                   ],
-                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
                 },
                 "targetId": {
                   "type": [
@@ -5311,7 +5336,7 @@
               "string",
               "null"
             ],
-            "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
+            "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
           },
           "targetId": {
             "type": [
@@ -7025,6 +7050,426 @@
             "type": "integer",
             "description": "Of these, the documents whose periodic review is overdue"
           },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "dependency",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "primary, dependency, or other (roleText says what)"
+                },
+                "roleText": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "archived",
+                "role",
+                "roleText"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The applications the service consists of, with their role"
+          },
+          "protectionNeed": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              },
+              "integrity": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              },
+              "availability": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Protection need per dimension: derived from the applications (maximum principle), override and effective level"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -7055,6 +7500,8 @@
           "linkCount",
           "documentCount",
           "overdueDocuments",
+          "applications",
+          "protectionNeed",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -7181,6 +7628,426 @@
             "type": "integer",
             "description": "Of these, the documents whose periodic review is overdue"
           },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "dependency",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "primary, dependency, or other (roleText says what)"
+                },
+                "roleText": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "archived",
+                "role",
+                "roleText"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The applications the service consists of, with their role"
+          },
+          "protectionNeed": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              },
+              "integrity": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              },
+              "availability": {
+                "type": "object",
+                "properties": {
+                  "derived": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "Highest level across the service’s applications that are not archived (maximum principle); null: none rated"
+                  },
+                  "derivedLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  },
+                  "derivedFrom": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the applications whose rating gave the derived level"
+                  },
+                  "rated": {
+                    "type": "integer",
+                    "description": "Applications (not archived) with a valid rating of this dimension"
+                  },
+                  "total": {
+                    "type": "integer",
+                    "description": "Applications of the service that are not archived"
+                  },
+                  "needsRerating": {
+                    "type": "integer",
+                    "description": "Applications whose rating needs re-rating after a scale change (not counted)"
+                  },
+                  "archived": {
+                    "type": "integer",
+                    "description": "Archived applications of the service (not counted, not in total)"
+                  },
+                  "scaleInvalid": {
+                    "type": "boolean",
+                    "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+                  },
+                  "override": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "level": {
+                            "type": "string"
+                          },
+                          "levelLabel": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "type": "string",
+                            "description": "Why the derived level does not apply, e.g. a cumulation or distribution effect"
+                          },
+                          "setAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "ISO 8601 timestamp (UTC)"
+                          },
+                          "setBy": {
+                            "type": "string"
+                          },
+                          "needsRerating": {
+                            "type": "boolean"
+                          },
+                          "previousLabel": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "level",
+                          "levelLabel",
+                          "reason",
+                          "setAt",
+                          "setBy",
+                          "needsRerating",
+                          "previousLabel"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "effective": {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "description": "The override when set (and valid), else the derived level"
+                  },
+                  "effectiveLabel": {
+                    "type": [
+                      "null",
+                      "string"
+                    ]
+                  }
+                },
+                "required": [
+                  "derived",
+                  "derivedLabel",
+                  "derivedFrom",
+                  "rated",
+                  "total",
+                  "needsRerating",
+                  "archived",
+                  "scaleInvalid",
+                  "override",
+                  "effective",
+                  "effectiveLabel"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Protection need per dimension: derived from the applications (maximum principle), override and effective level"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -7207,7 +8074,7 @@
                     "null",
                     "string"
                   ],
-                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential); null for an external URL"
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
                 },
                 "targetId": {
                   "type": [
@@ -7276,11 +8143,1100 @@
           "linkCount",
           "documentCount",
           "overdueDocuments",
+          "applications",
+          "protectionNeed",
           "createdAt",
           "createdBy",
           "updatedAt",
           "updatedBy",
           "links"
+        ],
+        "additionalProperties": false
+      },
+      "ApplicationEntry": {
+        "title": "ApplicationEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description (Markdown)"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "http(s) link to the application, or empty"
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible for the application: user:<name>, team:<name>"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cmdb": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "system": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "http(s) link to the entry, or empty"
+                  }
+                },
+                "required": [
+                  "system",
+                  "id",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry in the CMDB (e.g. ServiceNow); null when none is set"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "dependency",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "primary, dependency, or other (roleText says what)"
+                },
+                "roleText": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "archived",
+                "role",
+                "roleText"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Services that consist of the application, with the application’s role in each (id and name of the service here)"
+          },
+          "integrationCount": {
+            "type": "integer",
+            "description": "Steward platforms mapped to the application (also those the token owner may not see)"
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "CIA rating (protection need) per dimension; null: not rated"
+          },
+          "scaleInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Living documents that apply to the application and that the token owner may read"
+          },
+          "overdueDocuments": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "vendor",
+          "version",
+          "url",
+          "criticality",
+          "owners",
+          "tags",
+          "cmdb",
+          "archived",
+          "services",
+          "integrationCount",
+          "rating",
+          "scaleInvalid",
+          "documentCount",
+          "overdueDocuments",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "ApplicationEntryDetail": {
+        "title": "ApplicationEntryDetail",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description (Markdown)"
+          },
+          "vendor": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "http(s) link to the application, or empty"
+          },
+          "criticality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible for the application: user:<name>, team:<name>"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cmdb": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "system": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "description": "http(s) link to the entry, or empty"
+                  }
+                },
+                "required": [
+                  "system",
+                  "id",
+                  "url"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The entry in the CMDB (e.g. ServiceNow); null when none is set"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "services": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "role": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "primary",
+                        "dependency",
+                        "other"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "primary, dependency, or other (roleText says what)"
+                },
+                "roleText": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "archived",
+                "role",
+                "roleText"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Services that consist of the application, with the application’s role in each (id and name of the service here)"
+          },
+          "integrationCount": {
+            "type": "integer",
+            "description": "Steward platforms mapped to the application (also those the token owner may not see)"
+          },
+          "rating": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "integrity": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "availability": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "level": {
+                        "type": "string",
+                        "description": "Key of a level of the dimension’s scale (default: normal, high, very_high)"
+                      },
+                      "levelLabel": {
+                        "type": "string",
+                        "description": "Label of the level (English for the built-in levels)"
+                      },
+                      "justification": {
+                        "type": "string"
+                      },
+                      "ratedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "ratedBy": {
+                        "type": "string"
+                      },
+                      "needsRerating": {
+                        "type": "boolean",
+                        "description": "The scale changed and the level is no longer on it: the rating does not count until it is rated again"
+                      },
+                      "previousLabel": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Set by a scale change: the label the level had before (mapped or flagged)"
+                      }
+                    },
+                    "required": [
+                      "level",
+                      "levelLabel",
+                      "justification",
+                      "ratedAt",
+                      "ratedBy",
+                      "needsRerating",
+                      "previousLabel"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "CIA rating (protection need) per dimension; null: not rated"
+          },
+          "scaleInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+          },
+          "documentCount": {
+            "type": "integer",
+            "description": "Living documents that apply to the application and that the token owner may read"
+          },
+          "overdueDocuments": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          },
+          "integrations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "visible": {
+                  "type": "boolean",
+                  "description": "false: a platform the token owner may not see (no id or name)"
+                },
+                "platformId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "environment": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "mappedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "mappedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "visible",
+                "platformId",
+                "name",
+                "kind",
+                "environment",
+                "mappedAt",
+                "mappedBy"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Steward platforms mapped to the application; a platform belongs to at most one application"
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Internal item kind (process, run, monitor, platform, dashboard, record, service, credential, application); null for an external URL"
+                },
+                "targetId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Id of the internal item – null for an external URL and when the token owner may not see the item"
+                },
+                "url": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External http(s) URL"
+                },
+                "linkType": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "External links: key of the link type – built-in runbook, repository, monitoring, vendor-portal, documentation, ticket-system, other, or one an administrator added; null for internal links and external links without a type"
+                },
+                "linkTypeName": {
+                  "type": [
+                    "null",
+                    "string"
+                  ],
+                  "description": "Name of the link type (built-in types in English); null when the link has no type"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Name of the target – empty when the token owner may not see it"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "visible": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "kind",
+                "targetId",
+                "url",
+                "linkType",
+                "linkTypeName",
+                "label",
+                "note",
+                "visible"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Links of the application: internal items and external URLs. Items the token owner may not see are listed with visible false, without id or name."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "vendor",
+          "version",
+          "url",
+          "criticality",
+          "owners",
+          "tags",
+          "cmdb",
+          "archived",
+          "services",
+          "integrationCount",
+          "rating",
+          "scaleInvalid",
+          "documentCount",
+          "overdueDocuments",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy",
+          "integrations",
+          "links"
+        ],
+        "additionalProperties": false
+      },
+      "ApplicationDocument": {
+        "title": "ApplicationDocument",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string",
+            "description": "Record number, e.g. DOC-2026-0001"
+          },
+          "title": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "typeName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "edition": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The edition valid now; null while there is no approved edition"
+          },
+          "reviewStatus": {
+            "type": "string",
+            "enum": [
+              "current",
+              "dueSoon",
+              "overdue",
+              "none"
+            ]
+          },
+          "nextReviewAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "daysLeft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "title",
+          "typeKey",
+          "typeName",
+          "status",
+          "edition",
+          "reviewStatus",
+          "nextReviewAt",
+          "daysLeft"
+        ],
+        "additionalProperties": false
+      },
+      "CiaScaleEntry": {
+        "title": "CiaScaleEntry",
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "default",
+              "shared",
+              "perDimension"
+            ],
+            "description": "default: the BSI protection needs (normal, high, very high); shared: one custom scale; perDimension: one per dimension"
+          },
+          "levels": {
+            "type": "object",
+            "properties": {
+              "confidentiality": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "green",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "violet",
+                        "grape",
+                        "pink",
+                        "yellow",
+                        "orange",
+                        "red"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "description",
+                    "color"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "integrity": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "green",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "violet",
+                        "grape",
+                        "pink",
+                        "yellow",
+                        "orange",
+                        "red"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "description",
+                    "color"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "availability": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string",
+                      "enum": [
+                        "gray",
+                        "green",
+                        "teal",
+                        "cyan",
+                        "blue",
+                        "indigo",
+                        "violet",
+                        "grape",
+                        "pink",
+                        "yellow",
+                        "orange",
+                        "red"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label",
+                    "description",
+                    "color"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "confidentiality",
+              "integrity",
+              "availability"
+            ],
+            "additionalProperties": false,
+            "description": "Ordered levels of each dimension, lowest first (the maximum principle uses this order)"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "storedInvalid": {
+            "type": "boolean",
+            "description": "The stored CIA scale is not valid: the BSI default is shown, and ratings and protection needs cannot be relied on (nor changed) until an administrator saves a scale"
+          }
+        },
+        "required": [
+          "mode",
+          "levels",
+          "updatedAt",
+          "updatedBy",
+          "storedInvalid"
         ],
         "additionalProperties": false
       }
@@ -12130,6 +14086,343 @@
         }
       }
     },
+    "/applications": {
+      "get": {
+        "operationId": "listApplications",
+        "summary": "List applications",
+        "tags": [
+          "Services"
+        ],
+        "description": "The applications of the service catalogue (what people call a platform, e.g. Insights Hub, and smaller applications), ordered by name: vendor, version, criticality, responsible users and teams, the services that consist of them, the number of mapped Steward platforms, and the CIA rating. Archived applications are left out unless `archived` says otherwise.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "include",
+                "only"
+              ],
+              "default": "exclude"
+            },
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "description": "Archived applications: left out (default), included, or only these"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of applications",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of applications",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApplicationEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/applications/{applicationId}": {
+      "get": {
+        "operationId": "getApplication",
+        "summary": "Get an application with its integrations and links",
+        "tags": [
+          "Services"
+        ],
+        "description": "Archived applications too. Platforms the token owner may not see are listed with visible false. Its living documents: `/applications/{applicationId}/documents`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "description": "Application id (app_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationEntryDetail"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/applications/{applicationId}/documents": {
+      "get": {
+        "operationId": "listApplicationDocuments",
+        "summary": "Living documents that apply to an application",
+        "tags": [
+          "Services"
+        ],
+        "description": "Records of the workflow \"document\" whose scope names the application (e.g. an ICAM concept for Insights Hub), ordered by number, with the current edition and review status. Documents the token owner may not read are left out.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "applicationId",
+            "required": true,
+            "description": "Application id (app_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of documents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of documents",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ApplicationDocument"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/cia-scale": {
+      "get": {
+        "operationId": "getCiaScale",
+        "summary": "The CIA scale (protection need levels)",
+        "tags": [
+          "Services"
+        ],
+        "description": "The levels ratings and protection needs use, lowest first: by default the BSI IT-Grundschutz protection needs normal, high and very high; administrators can define one custom scale for all three dimensions or one per dimension.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CiaScaleEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/ticket-references": {
       "get": {
         "operationId": "listTicketReferences",
@@ -13042,7 +15335,7 @@
     },
     {
       "name": "Services",
-      "description": "The service catalogue: services with contacts, responsible people, criticality, CMDB entry and links"
+      "description": "The service catalogue: services with contacts, responsible people, criticality, CMDB entry and links; their applications with integrations and CIA rating; protection needs"
     },
     {
       "name": "Ticket references",

@@ -46,6 +46,7 @@ import { attachmentRows, contentHash, recordRow, requireRecordRow, toAttachment,
 import { requireType, toType, typeRow, type TypeRow } from './types.js';
 import { addLink, listBacklinks, listLinks, type LinkInput } from './links.js';
 import { emit } from '../events.js';
+import { scopeOf } from '../catalogue/scope.js';
 import {
   DOC_LIMITS,
   docRow,
@@ -539,8 +540,10 @@ export function documentInfo(u: AuthUser | null, r: RecordRow, t: TypeRow): Docu
     editions: rows.map((e) => toEditionSummary(e, current, intact.has(e.edition))),
     reviews: reviewsOf(r.id),
     review: reviewState(r, t, d, cur?.approved_at ?? null),
+    appliesTo: scopeOf(r.id),
     permissions: {
       review: !!current && ['published', 'revising'].includes(r.status) && canReviewDocument(u, r, d),
+      scope: canEditRecord(u, r) && r.status !== 'withdrawn',
       settings: (canEditRecord(u, r) || canApproveRecords(u)) && r.status !== 'withdrawn',
       reviewOwner: canApproveRecords(u) && r.status !== 'withdrawn',
       reviewInterval: canApproveRecords(u) && r.status !== 'withdrawn',

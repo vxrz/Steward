@@ -405,6 +405,26 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/link-types/:key': ADMIN,
   'PATCH /api/services/:id/links/:linkId': DESIGN,
   'DELETE /api/services/:id/links/:linkId': DESIGN,
+  // applications of the service catalogue: everyone reads them; designers, administrators (and the owners) change them
+  'GET /api/applications': ALL,
+  'POST /api/applications': DESIGN,
+  'GET /api/applications/:id': ALL,
+  'PUT /api/applications/:id': DESIGN,
+  'POST /api/applications/:id/archive': DESIGN,
+  'PUT /api/applications/:id/rating': DESIGN,
+  'POST /api/applications/:id/platforms': DESIGN,
+  'DELETE /api/applications/:id/platforms/:platformId': DESIGN,
+  'POST /api/applications/:id/links': DESIGN,
+  'PATCH /api/applications/:id/links/:linkId': DESIGN,
+  'DELETE /api/applications/:id/links/:linkId': DESIGN,
+  'GET /api/platforms/:id/application': USE,
+  'PUT /api/services/:id/applications/:applicationId': DESIGN,
+  'DELETE /api/services/:id/applications/:applicationId': DESIGN,
+  'PUT /api/services/:id/protection-need': DESIGN,
+  'GET /api/catalogue/cia-scale': ALL,
+  'PUT /api/catalogue/cia-scale': ADMIN,
+  // the scope of a living document: whoever may edit records (the fixture record is a change request: 400 for them)
+  'PUT /api/records/:id/applications': RUN,
 
   // ---- credentials register ----
   'GET /api/credentials': ALL,
@@ -492,6 +512,10 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services': ALL,
   'GET /api/v1/services/:serviceId': ALL,
   'GET /api/v1/services/:serviceId/documents': ALL,
+  'GET /api/v1/applications': ALL,
+  'GET /api/v1/applications/:applicationId': ALL,
+  'GET /api/v1/applications/:applicationId/documents': ALL,
+  'GET /api/v1/cia-scale': ALL,
   'GET /api/v1/access-changes': ALL,
   'GET /api/v1/access-findings': ALL,
   'GET /api/v1/control-catalogues': ALL,
@@ -612,6 +636,7 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'GET /api/credentials/export.csv': 'always',
   'POST /api/migration/export': 'always',
   'POST /api/migration/imports/staged/:id/apply': 'always',
+  'PUT /api/catalogue/cia-scale': 'always',
 };
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
@@ -670,6 +695,7 @@ function fill(url: string): string {
     .replace(/:monitorId/g, fx.monitor!)
     .replace(/:recordId/g, fx.record!)
     .replace(/:serviceId/g, fx.service!)
+    .replace(/:applicationId/g, fx.application!)
     .replace(/:accessChangeId/g, fx.accessChange!)
     .replace(/:accessCheckId/g, fx.accessCheck!)
     .replace(/:snapshotId/g, fx.snapshot!)
@@ -684,7 +710,7 @@ function fill(url: string): string {
     .replace(/:file/g, fx.monitorExample!)
     .replace(/:attId/g, 'att_none')
     .replace(/:evidenceId/g, 'tev_none')
-    .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : fx.recordLink!)
+    .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : url.startsWith('/api/applications') ? fx.applicationLink! : fx.recordLink!)
     .replace(/:id/g, () => {
       const prefix = url.split('/')[2]!;
       const map: Record<string, string> = {
@@ -704,6 +730,7 @@ function fill(url: string): string {
         credentials: 'credential',
         'ticket-references': 'ticket',
         services: 'service',
+        applications: 'application',
         'report-schedules': 'reportSchedule',
         reports: 'report',
         users: 'user',
@@ -766,6 +793,17 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/services/:id/links': { url: 'https://cmdb.example.com/8', label: 'x', linkType: 'runbook' },
   'PATCH /api/records/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
   'PATCH /api/services/:id/links/:linkId': { label: 'changed', note: 'n', linkType: 'repository' },
+  'POST /api/applications': { name: 'app x', owners: [] },
+  'PUT /api/applications/:id': { name: 'app x', owners: [] },
+  'POST /api/applications/:id/archive': { archived: true },
+  'PUT /api/applications/:id/rating': { confidentiality: { level: 'high', justification: 'x' } },
+  'POST /api/applications/:id/platforms': { platformId: fx.platform },
+  'POST /api/applications/:id/links': { url: 'https://cmdb.example.com/7', label: 'x' },
+  'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
+  'PUT /api/services/:id/applications/:applicationId': { role: 'primary' },
+  'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
+  'PUT /api/catalogue/cia-scale': { mode: 'default' },
+  'PUT /api/records/:id/applications': { applicationIds: [] },
   'POST /api/link-types': { name: 'Matrix link type', icon: 'book' },
   'PUT /api/link-types/:key': { name: 'Matrix link type 2', icon: 'git' },
   'POST /api/credentials': CREDENTIAL,
@@ -908,6 +946,9 @@ beforeAll(async () => {
   const recLink = await a('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
   const svc = await a('POST', '/services', { name: 'Matrix service', owners: [] });
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
+  const application = await a('POST', '/applications', { name: 'Matrix application', owners: [] });
+  const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
+  await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
@@ -943,6 +984,8 @@ beforeAll(async () => {
     ticket: (await a('POST', '/ticket-references', TICKET)).id,
     service: svc.id,
     serviceLink: svcLink.id,
+    application: application.id,
+    applicationLink: appLink.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
     user: users.find((u: { username: string }) => u.username === 'vera').id,

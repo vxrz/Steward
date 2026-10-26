@@ -463,6 +463,11 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   }
   for (const x of (await listAll('/services', '/services?archived=include')).slice(0, 5)) await get('/services/{serviceId}', `/services/${x.id}`);
   if (apiService) await listAll('/services/{serviceId}/documents', `/services/${apiService}/documents`);
+  for (const x of (await listAll('/applications', '/applications?archived=include')).slice(0, 5)) {
+    await get('/applications/{applicationId}', `/applications/${x.id}`);
+    await listAll('/applications/{applicationId}/documents', `/applications/${x.id}/documents`);
+  }
+  await get('/cia-scale', '/cia-scale');
   await listAll('/access-changes', '/access-changes');
   await listAll('/access-findings', '/access-findings');
   await get('/control-catalogues', '/control-catalogues');
@@ -524,6 +529,14 @@ describe('every endpoint', () => {
     await dana('POST', `/records/${doc.id}/transition`, { action: 'submit', changeSummary: 'First edition' });
     await s.api('POST', `/records/${doc.id}/transition`, { action: 'approve' });
     await s.api('POST', `/records/${doc.id}/review`, { outcome: 'no_change', comment: 'ok' });
+    // an application of the service with a platform, a rating, a link and the document's scope
+    const app = await s.api('POST', '/applications', { name: 'API application', vendor: 'Vendor', owners: ['user:dana'] });
+    await s.api('POST', `/applications/${app.id}/platforms`, { platformId: (await s.api('GET', '/platforms'))[0].id });
+    await s.api('PUT', `/applications/${app.id}/rating`, { confidentiality: { level: 'high', justification: 'Customer data' } });
+    await s.api('POST', `/applications/${app.id}/links`, { url: 'https://wiki.example.com/app', label: 'Wiki' });
+    await s.api('PUT', `/services/${apiService}/applications/${app.id}`, { role: 'primary' });
+    await s.api('PUT', `/services/${apiService}/protection-need`, { availability: { level: 'very_high', reason: 'Cumulation' } });
+    await s.api('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
     adminCrawl = await crawl(tokens.admin);
   });
 

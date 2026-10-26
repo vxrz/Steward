@@ -271,6 +271,7 @@
       "record": "Dokument",
       "service": "Service",
       "credential": "Zugangsdaten",
+      "application": "Anwendung",
       "external": "Externer Link"
     },
     "target": "Ziel",

@@ -19,6 +19,7 @@ The _Compliance_ section of the sidebar has four pages:
 - [Access reconciliation](#access-reconciliation)
 - [Controls and coverage](#controls-and-coverage)
 - [Evidence packs](#evidence-packs)
+- [Protection needs (CIA)](#protection-needs-cia)
 - [Who may do what](#who-may-do-what)
 - [API](#api)
 - [Try it in the demo](#try-it-in-the-demo)
@@ -162,7 +163,7 @@ The pack is built in the background and kept for download for 7 days (`SM_EVIDEN
 
 | Path                                              | Content                                                                                                                                                                                        |
 | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `index.pdf`, `index.json`                         | Summary (PDF/A): scope, controls with coverage, contents; the machine-readable index                                                                                                           |
+| `index.pdf`, `index.json`                         | Summary (PDF/A): scope, controls with coverage, the protection need (service and platform packs, see below), contents; the machine-readable index                                              |
 | `runs/<run>/…pdf`                                 | The run protocols (an archived report, or a new one; up to 100 are generated per pack)                                                                                                         |
 | `records/<number>/`                               | Record PDF, `record.json` (content, hashes, history) and the attached files                                                                                                                    |
 | `access-changes/`                                 | All access change entries of the pack as JSON and CSV                                                                                                                                          |
@@ -204,6 +205,21 @@ Work people do outside Steward – on site, by phone, in another tool – is doc
 - The run protocol PDF shows each step with its ticks, values, evidence, who completed and verified it and when; the protocol seal covers all of it. The audit log has `task.completed`, `task.backdated`, `task.evidence_added`, `task.verified` and `task.verification_rejected`.
 
 Map such processes to your controls under _Controls_ like any other process.
+
+## Protection needs (CIA)
+
+Applications of the service catalogue have a CIA rating – confidentiality, integrity and availability, each with a justification, who rated it and when – and services derive their protection need from them ([APPLICATIONS.md](APPLICATIONS.md)).
+
+**The maximum principle.** BSI-Standard 200-2 (IT-Grundschutz methodology) determines the protection need of a business process or service from the systems it uses: per basic value, the highest protection need of those systems applies. Steward does this per dimension across the applications of a service that are not archived. Two effects can change the result, and the standard asks you to document them:
+
+- the **cumulation effect** – several damages of normal need add up, or one failure hits many processes: the need is higher than the maximum;
+- the **distribution effect** – the system only carries a part of the data, or a redundant setup spreads the risk: the need is lower than the maximum.
+
+In Steward you record both as an **override** of a dimension with a reason. The service page shows the derived level, the override and the effective level side by side, and every rating, override and change of the scale is in the audit log.
+
+**Evidence packs.** A pack of a service has a section _Protection need (CIA)_ in `index.pdf`: per dimension the effective level and its basis (derived from how many rated applications, or set by whom with which reason), and the rating of each application. `index.json` holds the same data under `catalogue` (`service.protectionNeed`, `service.applications[].rating`, the scale mode), as it was when the pack was built. A pack of a platform names the application the platform belongs to and its rating.
+
+The default scale is the BSI one (normal, high, very high). Administrators can define their own levels; a scale change maps or flags ratings for re-rating and never deletes one. Ratings that need re-rating do not count for the derived level, and the pack says how many there are.
 
 ## Who may do what
 

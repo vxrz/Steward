@@ -16,6 +16,7 @@ import type reports from '../locales/en/reports.json';
 import type runs from '../locales/en/runs.json';
 import type schedules from '../locales/en/schedules.json';
 import type services from '../locales/en/services.json';
+import type applications from '../locales/en/applications.json';
 import type settings from '../locales/en/settings.json';
 import type system from '../locales/en/system.json';
 import type tasks from '../locales/en/tasks.json';
@@ -64,6 +65,7 @@ export interface Resources {
   mcp: typeof mcp;
   records: typeof records;
   services: typeof services;
+  applications: typeof applications;
   gitSync: typeof gitSync;
   tickets: typeof tickets;
   compliance: typeof compliance;

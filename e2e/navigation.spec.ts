@@ -23,6 +23,7 @@ test.describe('navigation (admin)', () => {
     await expect(automate.getByRole('link')).toHaveText(['Processes', 'Schedules', 'Triggers', 'Updates from Git']);
     await expect(nav.getByRole('group', { name: 'Service management' }).getByRole('link')).toHaveText([
       'Services',
+      'Applications',
       'Platforms',
       'Credentials',
       'Tickets',
