@@ -267,6 +267,10 @@ Steward creates PDF reports without a browser, also in the desktop executable.
 
 API: `POST /api/runs/:id/reports` `{ lang, comment, classification, timeZone }`, `GET /api/runs/:id/reports`, `GET /api/reports/:id/download`, `POST /api/reports/summary` `{ processIds, from, to, lang, comment, title }`. `GET /api/runs/:id/report.pdf?lang=de` generates, stores and returns a report in one step. Generating and downloading needs view rights on the process; branding needs the _settings_ capability.
 
+## Manual procedures
+
+Work people do outside Steward can be documented step by step: **manual steps** have Markdown instructions, a checklist, fields (text, number, date and time, link, ticket reference) and evidence files, and a second person can verify them before the run continues (maker–checker). Work done earlier can be entered after the fact with its real time. _Processes → New manual procedure_ starts one; the run protocol PDF and the audit log record everything. See [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md).
+
 ## Records and services
 
 _Records_ holds the team's **change requests** and **decision records** (ADR, DR, SDR), numbered per type and year (`CR-2026-0001`):
@@ -305,6 +309,7 @@ Processes are built on the canvas or as YAML (_Source_ tab, or _Import YAML_).
   - _if_ fires `true` or `false`.
   - _for each_ runs everything wired to `each item` once per item, then continues on `done`. Leave the last node of the loop body unconnected.
   - An approval fires `approved` or `rejected`. If `rejected` is not connected, a rejection fails the run.
+  - A manual step (user task in mode _manual_) fires `out` once it is done – and verified by a second person when it asks for that. See [docs/MANUAL-STEPS.md](docs/MANUAL-STEPS.md).
   - API call and browser nodes fire `error` instead of failing the run if that output is connected.
 - **Joins and cycles.** A node reached from both branches of an _if_ runs once. Wires may not form cycles; use _for each_ for repetition.
 - **Skipped nodes.** A node whose _Only run when_ condition is false is skipped and passes the flow on.

@@ -27,14 +27,15 @@ The _Compliance_ section of the sidebar has four pages:
 
 The table shows which Steward evidence is typically relevant to which requirement. Map your own processes, record types, monitors, report schedules and checks under _Controls_.
 
-| Requirement                                                             | Steward evidence                                                                                                                                 |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ISO/IEC 27001 A.5.15 (access control), A.5.18 (access rights)           | Access change entries with reason, request, approval and performer; access reviews (example processes 10–12) with their sealed PDF protocols     |
-| ISO/IEC 27001 A.5.16 (identity management)                              | Onboarding and offboarding runs (examples 13, 20) and their automatic access change entries; the reconciliation reports new and removed accounts |
-| ISO/IEC 27001 A.8.2 (privileged access rights)                          | Privileged access review (example 12, four-eyes removal); the reconciliation reports an administrator role granted outside Steward               |
-| ISO/IEC 27001 A.8.15 (logging)                                          | The HMAC-chained audit log with signed checkpoints; the audit log excerpt in every evidence pack                                                 |
-| IEC 62443-2-1 4.3.3.5 (account administration), 4.3.3.7 (authorization) | As for A.5.16 and A.5.18; snapshots prove who had access when                                                                                    |
-| NIS2 Art. 21(2)(i) (access control policies, asset management)          | As above                                                                                                                                         |
+| Requirement                                                                        | Steward evidence                                                                                                                                                        |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ISO/IEC 27001 A.5.15 (access control), A.5.18 (access rights)                      | Access change entries with reason, request, approval and performer; access reviews (example processes 10–12) with their sealed PDF protocols                            |
+| ISO/IEC 27001 A.5.16 (identity management)                                         | Onboarding and offboarding runs (examples 13, 20) and their automatic access change entries; the reconciliation reports new and removed accounts                        |
+| ISO/IEC 27001 A.8.2 (privileged access rights)                                     | Privileged access review (example 12, four-eyes removal); the reconciliation reports an administrator role granted outside Steward                                      |
+| ISO/IEC 27001 A.8.15 (logging)                                                     | The HMAC-chained audit log with signed checkpoints; the audit log excerpt in every evidence pack                                                                        |
+| IEC 62443-2-1 4.3.3.5 (account administration), 4.3.3.7 (authorization)            | As for A.5.16 and A.5.18; snapshots prove who had access when                                                                                                           |
+| NIS2 Art. 21(2)(i) (access control policies, asset management)                     | As above                                                                                                                                                                |
+| ISO/IEC 27001 A.5.37 (documented operating procedures), A.8.32 (change management) | Manual procedures: checklists, fields and evidence files per step, second-person verification (maker–checker), sealed PDF protocol ([MANUAL-STEPS.md](MANUAL-STEPS.md)) |
 
 By default, the access change record type and the demo reconciliation check are mapped to ISO/IEC 27001 5.15, 5.16, 5.18 and 8.2, IEC 62443-2-1 4.3.3.5 and 4.3.3.7 and NIS2 21(2)(i).
 
@@ -194,21 +195,33 @@ Exit status: 0 the pack is intact and signed with the trusted key, 1 a check fai
 
 Manifest signatures are domain-separated from the audit checkpoints signed with the same key (version 2 manifests sign `steward-evidence-manifest-v2` plus the manifest); packs built before this change (version 1) still verify.
 
+## Manual work and second-person verification
+
+Work people do outside Steward – on site, by phone, in another tool – is documented with **manual steps** ([MANUAL-STEPS.md](MANUAL-STEPS.md)): a checklist, fields, evidence files with their SHA-256 and, where the step asks for it, the verification by a second person (maker–checker) before the run continues.
+
+- The verifier is never the person who completed the step (also not under a former name from a moved instance) and, if the step says so, not the run starter. A list of verifiers is strict.
+- _Not available, because …_ (required evidence or a required field) and entries made **after the fact** (a stated _done at_ time, never in the future, not before the run unless the step allows up to 30 days) are always verified, and both reasons are in the audit log.
+- The run protocol PDF shows each step with its ticks, values, evidence, who completed and verified it and when; the protocol seal covers all of it. The audit log has `task.completed`, `task.backdated`, `task.evidence_added`, `task.verified` and `task.verification_rejected`.
+
+Map such processes to your controls under _Controls_ like any other process.
+
 ## Who may do what
 
-| Action                                         | Who                                                                                                  |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Read controls and coverage                     | everyone who can sign in (items they may not see are left out)                                       |
-| Read access change entries                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                |
-| Document access changes, document findings     | operator, designer, admin who may use the platform (findings: and read the check) – never their own  |
-| Verify an access change entry                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver) |
-| Read checks, snapshots and findings            | admin, auditor, the owner of the check, and who may use the platform                                 |
-| Set up checks                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)    |
-| Change, run, disable a check; dismiss findings | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)    |
-| Set or change ignored rights                   | admin                                                                                                |
-| Map items to controls                          | designer, admin (remove: only items they may see)                                                    |
-| Edit and import catalogues                     | admin                                                                                                |
-| Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                |
+| Action                                         | Who                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Read controls and coverage                     | everyone who can sign in (items they may not see are left out)                                         |
+| Read access change entries                     | admin, auditor, approver, the owner of the entry, and who has a right on its platform                  |
+| Document access changes, document findings     | operator, designer, admin who may use the platform (findings: and read the check) – never their own    |
+| Verify an access change entry                  | approver, admin – four-eyes (not the subject, performer, author, owner, run starter or run approver)   |
+| Complete a manual step                         | the step's assignees, otherwise who may run or approve the process (four-eyes: not the run starter)    |
+| Verify a manual step                           | the step's verifiers, otherwise who may run or approve the process – never the person who completed it |
+| Read checks, snapshots and findings            | admin, auditor, the owner of the check, and who may use the platform                                   |
+| Set up checks                                  | designer, admin (with the right to use the platform; dataset: and to view the publishing process)      |
+| Change, run, disable a check; dismiss findings | the owner of the check, admin (dismiss: never the subject; four-eyes dismissals: a second person)      |
+| Set or change ignored rights                   | admin                                                                                                  |
+| Map items to controls                          | designer, admin (remove: only items they may see)                                                      |
+| Edit and import catalogues                     | admin                                                                                                  |
+| Create evidence packs                          | everyone but viewers; download: the creator, auditors, administrators                                  |
 
 ## API
 
