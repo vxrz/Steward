@@ -459,7 +459,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const head =
       // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- catalog texts and an ISO time, HTML-escaped; no request data
       `<!doctype html><html lang="${lang}"><meta charset="utf-8"><title>${esc(serverT(lang, 'stepUp.title'))}</title>` +
-      `<p>${esc(serverT(lang, 'stepUp.what', { actions: what }))}</p><p>${esc(serverT(lang, 'stepUp.started'))} <time datetime="${esc(started)}">${esc(started.slice(11, 16))} UTC</time></p>` +
+      `<p>${esc(serverT(lang, 'stepUp.what', { actions: what }))}</p><p>${esc(serverT(lang, 'stepUp.scope', { count: Math.round(config.session.stepUpMs / 60_000) }))}</p><p>${esc(serverT(lang, 'stepUp.started'))} <time datetime="${esc(started)}">${esc(started.slice(11, 16))} UTC</time></p>` +
       `<script>(function(){var t=document.querySelector('time');try{t.textContent=new Date(t.getAttribute('datetime')).toLocaleTimeString(document.documentElement.lang,{hour:'2-digit',minute:'2-digit'})}catch(e){}})()</script>`;
     if (!r.ok) {
       stepUp.recordStepUpFailure(r.sessionId, r.code, r.message);

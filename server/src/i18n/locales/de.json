@@ -204,7 +204,7 @@
     "notHere": "Die Bestätigung konnte hier nicht abgeschlossen werden: Öffnen Sie sie in dem Browser, in dem Sie bei Steward angemeldet sind, und versuchen Sie es erneut.",
     "failed": "Die Bestätigung wurde abgelehnt. Kehren Sie zu Steward zurück und versuchen Sie es erneut.",
     "back": "Zurück zu Steward",
-    "what": "Sie bestätigen: {{actions}}.",
+    "what": "Angefordert für: {{actions}}.",
     "started": "Begonnen um",
     "actions": {
       "createToken": "ein API-Token erstellen",
@@ -218,7 +218,7 @@
       "changeSignInSettings": "Anmelde-, Ausgangs- oder Vier-Augen-Einstellungen ändern",
       "changeNotificationDelivery": "ändern, wohin Benachrichtigungen gehen",
       "changeTeamMembers": "Teammitglieder hinzufügen",
-      "grantAccess": "Verwaltungsrechte oder Besitz vergeben",
+      "grantAccess": "jemandem Rechte in einer Zugriffsliste geben",
       "exportEvidencePack": "ein Nachweispaket exportieren",
       "exportAuditLog": "das Audit-Log exportieren",
       "exportCredentials": "das Zugangsdatenregister exportieren",
@@ -226,6 +226,8 @@
       "exportMigration": "diese Instanz exportieren",
       "applyMigration": "eine Instanz importieren",
       "other": "eine sensible Aktion"
-    }
+    },
+    "scope_one": "Die Bestätigung gilt {{count}} Minute lang für alle sensiblen Aktionen dieser Sitzung.",
+    "scope_other": "Die Bestätigung gilt {{count}} Minuten lang für alle sensiblen Aktionen dieser Sitzung."
   }
 }
