@@ -255,7 +255,11 @@ function build(d: DutyRow, s: ServiceRef, c: ViewCtx, appName: string | null): B
   };
   const active = activeDuty(d, s);
   const cur = active ? periods.filter((p) => p.period.start <= c.now && c.now < p.period.end).pop() : undefined;
-  const before = periods.filter((p) => p.period.end <= (cur ? cur.period.start : c.now)).pop();
+  // the period that ended last (after an interval change it can lie inside the current period of the new interval)
+  const before = periods
+    .filter((p) => p !== cur && p.period.end <= c.now)
+    .sort((a, b) => a.period.end - b.period.end)
+    .pop();
   const visible = c.processVisible(d.process_id);
   return {
     row: d,

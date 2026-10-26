@@ -381,6 +381,7 @@ describe('archiving a duty or changing its rules', () => {
     await dana('PUT', `/duties/${d.id}`, d.body({ interval: 'yearly' }));
     const y = await dana('GET', `/duties/${d.id}`);
     expect(period(y, prev().key)).toMatchObject({ status: 'missed', closed: true, closeNote: 'duty changed', snapshot: { interval: 'monthly' } });
+    expect(y.previous).toMatchObject({ key: prev().key, status: 'missed' });
     run(freshProc, { status: 'succeeded', start: iso(prev().start + 3600000), end: iso(prev().start + 3700000) });
     expect((await dana('GET', `/duties/${d.id}`)).current.status).toBe('due');
     db().run('DELETE FROM runs WHERE process_id = ?', freshProc);
