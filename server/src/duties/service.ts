@@ -23,8 +23,8 @@ import { notify, titleName } from '../notifications/service.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { canEditService, forbid, me } from '../records/access.js';
 import { getSchedule } from '../scheduler.js';
-import { evaluateDuty, type DutyRow, type Evaluated } from './evaluate.js';
-import { closeEnded, storeInactiveGap } from './store.js';
+import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
+import { closeEnded, persistDuty, storeInactiveGap } from './store.js';
 import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } from './periods.js';
 
 /**
@@ -33,8 +33,8 @@ import { addLocalDays, instanceTimeZone, nextPeriod, periodAt, periodOfKey } fro
  *
  * Permissions follow the service: everyone who can sign in reads duties (like services); whoever may edit the
  * service (designers, administrators, its owners) defines and changes them. The duty's owners and the service's
- * editors ask for a skip; a second person – a service editor, a duty owner or an approver, never the one who asked
- * (former names count as the same person) – approves or rejects it. Names of processes the reader may not view are
+ * editors ask for a skip; a second person – an administrator, a designer, or an owner of the duty or the service as of
+ * the request, never the one who asked (former names count as the same person) – approves or rejects it. Names of processes the reader may not view are
  * left out (the status stays visible: it belongs to the service).
  */
 
@@ -346,6 +346,16 @@ export function getDuty(dutyId: string, now = Date.now()): DutyDetail {
 
 // ---------- changes ----------
 
+/** Stores the open periods of a duty right after it changed, so the start page and the daily summary see it now. */
+function refreshStored(dutyId: string): void {
+  try {
+    const d = dutyRow(dutyId);
+    persistDuty(d, serviceRef(d.service_id), Date.now());
+  } catch (err) {
+    logger.warn({ err, dutyId }, 'duty periods could not be stored');
+  }
+}
+
 function checkReferences(serviceId: string, input: DutyUpdateData): void {
   if (input.applicationId && !db().get('SELECT 1 FROM service_applications WHERE service_id = ? AND application_id = ?', serviceId, input.applicationId))
     throw new HttpError(400, 'The application is not part of the service', 'DUTY_APPLICATION_NOT_IN_SERVICE', { id: input.applicationId });
@@ -415,6 +425,7 @@ export function createDuty(input: DutyInputData): DutyDetail {
       },
     });
   });
+  refreshStored(dutyId);
   return getDuty(dutyId);
 }
 
@@ -482,6 +493,7 @@ export function updateDuty(dutyId: string, input: DutyUpdateData): DutyDetail {
       },
     });
   });
+  refreshStored(dutyId);
   return getDuty(dutyId);
 }
 
@@ -508,6 +520,7 @@ export function setDutyArchived(dutyId: string, archived: boolean): DutyDetail {
       details: { serviceId: s.id, periodsClosedEarly: closedEarly.map((e) => ({ key: e.period.key, status: e.status })), inactivePeriods: inactive },
     });
   });
+  refreshStored(dutyId);
   return getDuty(dutyId);
 }
 
@@ -629,6 +642,7 @@ export function decideSkip(dutyId: string, skipId: string, input: z.infer<typeof
       details: { skipId, periodKey: r.period_key, requestedBy: r.requested_by, reason: r.reason, comment: input.comment },
     });
   });
+  refreshStored(dutyId);
   return getDuty(dutyId);
 }
 
@@ -656,24 +670,51 @@ export function withdrawSkip(dutyId: string, skipId: string): DutyDetail {
 /** Service editors, auditors and administrators see every duty on the start page; the others the duties they are responsible for. */
 const seesAll = (u: AuthUser) => u.roles.some((r) => r === 'admin' || r === 'designer' || r === 'auditor');
 
-/** Open periods that are not done and end within `days` (or are in their grace period), oldest first. */
-export function duePeriods(b: Built, now: number, days: number, tz: string): Evaluated[] {
-  if (!activeDuty(b.row, b.service)) return [];
-  return b.periods.filter((e) => !e.closed && e.status === 'due' && now < e.graceEnd && now >= addLocalDays(e.period.end, -days, tz));
+/**
+ * The stored state of the active duties, as the duty job keeps it (every five minutes, and right after a duty or one
+ * of its exceptions changes): their open periods and their last closed period. The start page and the daily summary
+ * read this instead of judging every duty on every request – it is at most one job tick old.
+ */
+function storedState(): { d: DutyRow; s: ServiceRef; open: PeriodRow[]; last: PeriodRow | null }[] {
+  const services = new Map(
+    db()
+      .all<ServiceRef>('SELECT id, name, owners, archived FROM services WHERE archived = 0')
+      .map((x) => [x.id, x]),
+  );
+  const open = new Map<string, PeriodRow[]>();
+  for (const r of db().all<PeriodRow>('SELECT * FROM duty_periods WHERE closed_at IS NULL ORDER BY period_start'))
+    open.set(r.duty_id, [...(open.get(r.duty_id) ?? []), r]);
+  const last = new Map(
+    db()
+      .all<PeriodRow>(
+        `SELECT p.* FROM duty_periods p WHERE p.closed_at IS NOT NULL
+         AND p.period_end = (SELECT MAX(q.period_end) FROM duty_periods q WHERE q.duty_id = p.duty_id AND q.closed_at IS NOT NULL)`,
+      )
+      .map((r) => [r.duty_id, r]),
+  );
+  return db()
+    .all<DutyRow>('SELECT * FROM service_duties WHERE archived = 0 ORDER BY id')
+    .filter((d) => services.has(d.service_id))
+    .map((d) => ({ d, s: services.get(d.service_id)!, open: open.get(d.id) ?? [], last: last.get(d.id) ?? null }));
 }
-const missedLast = (b: Built) => !!b.summary.previous && (b.summary.previous.status === 'missed' || b.summary.previous.status === 'failed');
+
+/** Stored open periods that are not done and end within `days` (or are in their grace period). */
+const dueRows = (open: PeriodRow[], now: number, days: number) =>
+  open.filter((r) => r.status === 'due' && now < Date.parse(r.grace_end) && now >= addLocalDays(Date.parse(r.period_end), -days, r.time_zone));
+/** The last period that ended was missed or failed (and no ended period is still in its grace period). */
+const missedLast = (x: { open: PeriodRow[]; last: PeriodRow | null }, now: number) =>
+  !!x.last && (x.last.status === 'missed' || x.last.status === 'failed') && !x.open.some((r) => Date.parse(r.period_end) <= now);
 
 /** The start page tile: mandatory duties due within a week or missed (their last period); null without any for the user. */
 export function dutyAttention(now = Date.now()): { missed: number; dueSoon: number } | null {
   const u = currentUser();
   if (!u) return null;
-  const tz = instanceTimeZone();
-  const all = listDutyViews({}, now).filter((b) => b.row.level === 'mandatory' && activeDuty(b.row, b.service));
-  const mine = seesAll(u) ? all : all.filter((b) => isResponsible(u, b.row, b.service));
+  const all = storedState().filter((x) => x.d.level === 'mandatory');
+  const mine = seesAll(u) ? all : all.filter((x) => isResponsible(u, x.d, x.s));
   if (!seesAll(u) && !mine.length) return null;
   return {
-    missed: mine.filter(missedLast).length,
-    dueSoon: mine.filter((b) => duePeriods(b, now, 7, tz).length > 0).length,
+    missed: mine.filter((x) => missedLast(x, now)).length,
+    dueSoon: mine.filter((x) => dueRows(x.open, now, 7).length > 0).length,
   };
 }
 
@@ -689,22 +730,43 @@ export interface DutyDueItem {
 }
 
 /**
- * The duties a user is responsible for that need them (daily summary): open periods due within the reminder days
- * (at least a week for duties without a reminder) or in their grace period, and periods that ended missed or failed
- * between `since` and `until`.
+ * The duties a user is responsible for that need them (daily summary), from the stored periods: open periods due
+ * within the reminder days (at least a week for duties without a reminder) or in their grace period, and periods of
+ * mandatory and recommended duties that ended missed or failed between `since` and `until`.
  */
 export function dutiesDueFor(u: AuthUser, since: number, until: number): DutyDueItem[] {
-  const tz = instanceTimeZone();
   const out: DutyDueItem[] = [];
-  for (const b of listDutyViews({}, until)) {
-    if (!activeDuty(b.row, b.service) || !isResponsible(u, b.row, b.service)) continue;
-    const base = { dutyId: b.row.id, name: b.row.name, serviceName: b.service.name, level: b.row.level };
-    for (const e of b.periods) {
-      if ((e.status === 'missed' || e.status === 'failed') && e.graceEnd >= since && e.graceEnd < until && b.row.level !== 'optional')
-        out.push({ ...base, periodKey: e.period.key, status: e.status, dueAt: iso(e.period.end - 1) });
-    }
-    for (const e of duePeriods(b, until, b.row.remind_days || 7, tz))
-      out.push({ ...base, periodKey: e.period.key, status: 'due', dueAt: iso((until >= e.period.end ? e.graceEnd : e.period.end) - 1) });
+  const state = storedState().filter((x) => isResponsible(u, x.d, x.s));
+  const byId = new Map(state.map((x) => [x.d.id, x]));
+  for (const r of db().all<PeriodRow>(
+    "SELECT * FROM duty_periods WHERE closed_at IS NOT NULL AND status IN ('missed', 'failed') AND level <> 'optional' AND grace_end >= ? AND grace_end < ? ORDER BY grace_end",
+    iso(since),
+    iso(until),
+  )) {
+    const x = byId.get(r.duty_id);
+    if (x)
+      out.push({
+        dutyId: x.d.id,
+        name: x.d.name,
+        serviceName: x.s.name,
+        level: r.level,
+        periodKey: r.period_key,
+        status: r.status as 'missed',
+        dueAt: iso(Date.parse(r.period_end) - 1),
+      });
   }
+  for (const x of state)
+    for (const r of dueRows(x.open, until, x.d.remind_days || 7)) {
+      const end = Date.parse(r.period_end);
+      out.push({
+        dutyId: x.d.id,
+        name: x.d.name,
+        serviceName: x.s.name,
+        level: x.d.level,
+        periodKey: r.period_key,
+        status: 'due',
+        dueAt: iso((until >= end ? Date.parse(r.grace_end) : end) - 1),
+      });
+    }
   return out;
 }

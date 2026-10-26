@@ -263,7 +263,7 @@ describe('stored periods', () => {
     run(d.proc, { status: 'failed', start: '2026-03-12T08:00:00Z', end: '2026-03-12T08:10:00Z' });
     const out = jobs.runDutyJob(Z('2026-04-06T08:00:00Z'));
     expect(out.closed).toBeGreaterThanOrEqual(2);
-    const rows = db().all<any>('SELECT * FROM duty_periods WHERE duty_id = ? ORDER BY period_start', d.id);
+    const rows = db().all<any>('SELECT * FROM duty_periods WHERE duty_id = ? AND closed_at IS NOT NULL ORDER BY period_start', d.id);
     expect(rows.map((x) => [x.period_key, x.status, !!x.closed_at])).toEqual([
       ['2026-02', 'done', true],
       ['2026-03', 'failed', true],
@@ -639,6 +639,24 @@ describe('reminders and missed periods', () => {
     // olivia is responsible for no duty of a service in real time (only the fake-time ones above, which are mandatory too)
     const o = await tile(olivia);
     expect(o === undefined || typeof o.missed === 'number').toBe(true);
+    // the tile reads what the duty job stored: a run counts there after the next job tick
+    const before = (await tile(vera)).dueSoon;
+    const done = await dana('POST', '/duties', {
+      serviceId: svc.id,
+      name: 'Vera done',
+      processId: freshProc,
+      interval: 'weekly',
+      level: 'mandatory',
+      owners: ['user:vera'],
+    });
+    db().run("UPDATE service_duties SET process_id = 'proc_tile' WHERE id = ?", done.id);
+    db().run('DELETE FROM duty_periods WHERE duty_id = ?', done.id);
+    jobs.runDutyJob(Date.now());
+    expect((await tile(vera)).dueSoon).toBe(before + 1);
+    run('proc_tile', { status: 'succeeded', start: new Date().toISOString(), end: new Date(Date.now() + 1000).toISOString() });
+    expect((await tile(vera)).dueSoon).toBe(before + 1);
+    jobs.runDutyJob(Date.now());
+    expect((await tile(vera)).dueSoon).toBe(before);
   });
 
   it('the daily summary lists the duties due and missed for the responsible person', async () => {
@@ -648,13 +666,21 @@ describe('reminders and missed periods', () => {
     const users = await s.api('GET', '/users');
     const vu = users.find((u: any) => u.username === 'vera');
     const prefs = { ...DEFAULT_DAILY_SUMMARY, enabled: true, timeZone: TZ, sections: ['duties'] } as any;
-    const at = (iso: string) => sum.buildSummary(vu, prefs, Z(iso) - 86400000, Z(iso)).sections[0]!;
+    // the summary reads the periods the duty job stored (it runs every five minutes)
+    const at = (iso: string) => {
+      jobs.runDutyJob(Z(iso));
+      return sum.buildSummary(vu, prefs, Z(iso) - 86400000, Z(iso)).sections[0]!;
+    };
     // 29 Aug: due within the reminder days
     expect(at('2025-08-29T06:00:00Z').items.map((i) => i.title)).toContain(`${d.row().name} (${d.service.name}) – period 2025-08`);
     // 1 Sep: August was missed in the last day
     const sep = at('2025-09-01T06:00:00Z');
     expect(sep.items.some((i) => i.title.includes('2025-08') && i.detail?.startsWith('missed'))).toBe(true);
-    expect(at('2025-08-10T06:00:00Z').items.filter((i) => i.link === `/duties/${d.id}`)).toHaveLength(0);
+    expect(
+      sum
+        .buildSummary(vu, prefs, Z('2025-08-10T06:00:00Z') - 86400000, Z('2025-08-10T06:00:00Z'))
+        .sections[0]!.items.filter((i) => i.link === `/duties/${d.id}`),
+    ).toHaveLength(0);
   });
 
   it('the "duties" report section and the public API show the stored periods', async () => {

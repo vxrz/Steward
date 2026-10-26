@@ -7,7 +7,7 @@ import { nowIso } from '../util.js';
 import { listUsers } from '../auth/users.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
-import { evaluateDuty, type DutyRow, type Evaluated, type PeriodRow } from './evaluate.js';
+import type { DutyRow, Evaluated, PeriodRow } from './evaluate.js';
 import { persistDuty, type ServiceRef } from './store.js';
 import { addLocalDays, instanceTimeZone } from './periods.js';
 import { responsibleUsers } from './service.js';
@@ -95,9 +95,10 @@ export function runDutyJob(now = Date.now()): { closed: number; reminders: numbe
     const s = services.get(d.service_id);
     if (!s) continue;
     try {
-      out.closed += persistDuty(d, s, now, tz).length;
+      const { periods, closed } = persistDuty(d, s, now, tz);
+      out.closed += closed.length;
       if (d.archived || s.archived || d.remind_days <= 0) continue;
-      for (const e of evaluateDuty(d, now, tz)) {
+      for (const e of periods) {
         if (e.closed || e.status !== 'due' || now >= e.period.end || now < addLocalDays(e.period.end, -d.remind_days, tz)) continue;
         if (!claim(d.id, e.period.key, 'due')) continue;
         const to = users(d, s);

@@ -89,20 +89,21 @@ function closedAudit(d: DutyRow, s: ServiceRef, e: Evaluated, note: string | nul
   });
 }
 
-/** Stores the open periods of a duty that have something to keep and closes the ended ones. Returns the newly closed. */
-export function persistDuty(d: DutyRow, s: ServiceRef, now: number, tz = instanceTimeZone()): Evaluated[] {
+/** Stores the open periods of a duty and closes the ended ones. Returns the periods as evaluated and the newly closed. */
+export function persistDuty(d: DutyRow, s: ServiceRef, now: number, tz = instanceTimeZone()): { periods: Evaluated[]; closed: Evaluated[] } {
   const closed: Evaluated[] = [];
-  for (const e of evaluateDuty(d, now, tz, !d.archived && !s.archived)) {
+  const periods = evaluateDuty(d, now, tz, !d.archived && !s.archived);
+  for (const e of periods) {
     if (e.closed) continue;
-    const worth = e.status !== 'due' || e.failedRuns > 0;
-    if (!e.final && !(e.row ? differs(e.row, e) : worth)) continue;
+    // every open period is stored (the start page and the daily summary read them), written again only when it changed
+    if (!e.final && e.row && !differs(e.row, e)) continue;
     db().tx(() => {
       if (!write(d, e, tz, e.final, now)) return;
       closed.push(e);
       closedAudit(d, s, e, null);
     });
   }
-  return closed;
+  return { periods, closed };
 }
 
 /**
