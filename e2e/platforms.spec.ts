@@ -84,3 +84,31 @@ test('API specs: the path prefix from the server URL can be edited, with a previ
 
   await api.delete(`/api/platforms/${p.id}`);
 });
+
+test('access: a team or role picked from the list can be added', async ({ page, apiAs }) => {
+  // Picking an option puts its label into the field ("Team …"); "Add" used to stay disabled because it expected "team:…".
+  const api = await apiAs('admin');
+  const team = uniq('Access team');
+  await json(await api.post('/api/teams', { data: { name: team, members: [] } }));
+  const id = await platformId(api, 'insights-hub');
+  await page.goto(`/platforms/${id}`);
+  await page.getByRole('tab', { name: 'Access' }).click();
+
+  const field = page.getByRole('textbox', { name: 'Add user, team or role' });
+  const add = page.getByRole('button', { name: 'Add', exact: true });
+  await expect(add).toBeDisabled();
+  await field.fill(team.slice(0, 12));
+  await page.getByRole('option', { name: `Team ${team}` }).click();
+  await expect(field).toHaveValue(`Team ${team}`);
+  await expect(add).toBeEnabled();
+  await add.click();
+  await expect(page.getByRole('table').getByText(`Team ${team}`, { exact: true })).toBeVisible();
+  await expect(field).toHaveValue('');
+
+  // a role works the same way; nothing is saved (other tests use this platform)
+  await field.fill('operator');
+  await page.getByRole('option', { name: 'Everyone with role operator' }).click();
+  await expect(add).toBeEnabled();
+  await add.click();
+  await expect(page.getByRole('table').getByText('Everyone with role operator', { exact: true })).toBeVisible();
+});

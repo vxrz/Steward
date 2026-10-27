@@ -50,10 +50,16 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
   const kindColor = (s: string) => (s.startsWith('user:') ? 'blue' : s.startsWith('team:') ? 'grape' : 'gray');
   const users = (subjects.data ?? []).filter((s) => s.kind === 'user').map((s) => ({ value: s.value.slice(5), label: s.label }));
 
+  const options = (subjects.data ?? []).filter((s) => !rows.some((r) => r.subject === s.value)).map((s) => ({ value: s.value, label: subjectOptionLabel(s) }));
+  // Picking an option puts its label ("Team Service desk") into the field, not its value, so map labels back to
+  // subjects; typing a subject ("team:service desk") works as well.
+  const byLabel = new Map(options.map((o) => [o.label.toLowerCase(), o.value]));
+  const typed = draft.trim();
+  const subject = byLabel.get(typed.toLowerCase()) ?? (/^(user|team|role):.+/i.test(typed) ? typed.toLowerCase() : undefined);
+
   const add = () => {
-    const v = draft.trim().toLowerCase();
-    if (!/^(user|team|role):.+/.test(v) || rows.some((r) => r.subject === v)) return;
-    setRows([...rows, { subject: v, permissions: kind === 'platform' ? ['use'] : ['view'] }]);
+    if (!subject || rows.some((r) => r.subject === subject)) return;
+    setRows([...rows, { subject, permissions: kind === 'platform' ? ['use'] : ['view'] }]);
     setDraft('');
   };
 
@@ -164,16 +170,13 @@ export function AccessEditor({ kind, acl, owner, onSave, readOnly }: AccessEdito
               size="xs"
               label={t('addLabel')}
               placeholder={t('addPlaceholder')}
-              data={(subjects.data ?? [])
-                .filter((s) => !rows.some((r) => r.subject === s.value))
-                .map((s) => ({ value: s.value, label: subjectOptionLabel(s) }))}
+              data={options}
               value={draft}
               onChange={setDraft}
-              onOptionSubmit={(v) => setDraft(v)}
               style={{ flex: 1, minWidth: 220 }}
               limit={50}
             />
-            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={add} disabled={!/^(user|team|role):.+/i.test(draft.trim())}>
+            <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={add} disabled={!subject || rows.some((r) => r.subject === subject)}>
               {t('common:add')}
             </Button>
           </Group>
