@@ -33,8 +33,13 @@ function healthUrl(env: NodeJS.ProcessEnv): URL {
 
 function check(url: URL): Promise<number> {
   return new Promise((resolve) => {
+    const options: https.RequestOptions = { timeout: TIMEOUT_MS };
+    if (url.protocol === 'https:') {
+      // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification -- only 127.0.0.1 inside the container, no credentials sent, the answer's body is discarded; the certificate is issued for the public host name
+      options.rejectUnauthorized = false;
+    }
     const get = url.protocol === 'https:' ? https.get : http.get;
-    const req = get(url, { timeout: TIMEOUT_MS, ...(url.protocol === 'https:' ? { rejectUnauthorized: false } : {}) }, (res) => {
+    const req = get(url, options, (res) => {
       res.resume();
       resolve(res.statusCode ?? 0);
     });
