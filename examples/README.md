@@ -98,6 +98,11 @@ The flows were built against the documented Insights Hub APIs and the simulated 
 - **Your own YAML:** use **Processes → Import YAML**, or the YAML/import option on the Dashboards page.
 - **Many at once:** use a bundle (`GET /api/bundle/export` / `POST /api/bundle/import`). A bundle carries processes and dashboards together, e.g. from a test to a production instance.
 - **Share with the team:** drop files into `examples/processes` or `examples/dashboards` and commit them. They show up as templates after a restart.
+- **Keep them up to date:** turn on the Git sync source **Steward example library** (_Settings → Git sync_; it exists disabled in every installation since 0.2.1). It follows the tag of your Steward version (`v{version}`), so improved examples of that release arrive in **Updates from Git** for review, and after an upgrade those of the new release. Allow `api.github.com` in the outbound policy first. See [docs/GIT-SYNC.md](../docs/GIT-SYNC.md#stewards-example-library).
+
+### Files for a newer Steward
+
+An example that uses something a release added says so in a comment line at the top, e.g. `# steward-min-version: 0.2.1`. Git sync lists it as _Needs Steward 0.2.1 or newer_ on older installations instead of staging it; for every importer it is a plain comment, so the file still imports into older versions as before. None of the current examples needs it: they all work with 0.2.0. Add the line when an example starts to use a function, node or field of a newer release.
 
 ## Monitors
 

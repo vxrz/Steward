@@ -35,6 +35,7 @@ interface UpdateRow {
   errors: string;
   content: string | null;
   content_hash: string;
+  min_version?: string | null;
   created_at: string;
   decided_by: string | null;
   decided_at: string | null;
@@ -72,6 +73,7 @@ function toUpdate(r: UpdateRow): SyncUpdate {
     conflictReason: r.conflict_reason,
     status: r.status,
     errors: parseJson(r.errors, []),
+    minVersion: r.min_version ?? null,
     createdAt: r.created_at,
     decidedBy: r.decided_by,
     decidedAt: r.decided_at,

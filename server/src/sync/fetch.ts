@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { SYNC_LIMITS, SYNC_RETENTION_DAYS, type SyncFetchResult, type SyncKind } from '@sm/shared';
+import { config } from '../config.js';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { logger } from '../log.js';
@@ -7,8 +8,8 @@ import { runAs } from '../auth/context.js';
 import { findUserByName, toAuthUser } from '../auth/users.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { gitApi, gitBlobSha, objectFormatOf, resolveRepo, type CommitCheck, type GitApi, type TreeEntry } from './providers.js';
-import { requireSource, sourceToken, type SourceRow } from './service.js';
-import { findLocal, localById, localHash, parseFile, sameAsLocal, type ParsedItem } from './items.js';
+import { requireSource, resolveRefName, sourceToken, type SourceRow } from './service.js';
+import { findLocal, localById, localHash, minVersionOf, newerThan, parseFile, sameAsLocal, type ParsedItem } from './items.js';
 
 /**
  * One fetch of a source: read the branch head, list the configured folder, download changed
@@ -33,7 +34,11 @@ interface UpdateRow {
   id: string;
   status: string;
   content_hash: string;
+  min_version: string | null;
 }
+
+/** "branch main", "tag v0.2.1" – for messages and the audit log. */
+const refLabel = (r: Pick<SourceRow, 'ref_type'>, name: string) => `${r.ref_type === 'tag' ? 'tag' : 'branch'} ${name}`;
 
 /** Paths below the folder only, no traversal, no odd characters (path confinement). */
 export function confined(p: string, folder: string): boolean {
@@ -79,13 +84,17 @@ export function fetchSource(id: string, trigger: 'manual' | 'schedule' | 'webhoo
 
 export const isFetching = (id: string) => running.has(id);
 
-function finish(r: SourceRow, patch: { status: 'ok' | 'error'; error?: string | null; commit?: string | null; verified?: boolean | null }) {
+function finish(
+  r: SourceRow,
+  patch: { status: 'ok' | 'error'; error?: string | null; commit?: string | null; ref?: string | null; verified?: boolean | null },
+) {
   db().run(
-    'UPDATE sync_sources SET last_fetch_at = ?, last_status = ?, last_error = ?, last_commit = COALESCE(?, last_commit), last_verified = ? WHERE id = ?',
+    'UPDATE sync_sources SET last_fetch_at = ?, last_status = ?, last_error = ?, last_commit = COALESCE(?, last_commit), last_ref = COALESCE(?, last_ref), last_verified = ? WHERE id = ?',
     nowIso(),
     patch.status,
     patch.error ?? null,
     patch.commit ?? null,
+    patch.commit ? (patch.ref ?? null) : null,
     patch.verified === undefined || patch.verified === null ? null : patch.verified ? 1 : 0,
     r.id,
   );
@@ -110,14 +119,17 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
   try {
     const ref = resolveRepo(r.provider, r.repo_url, r.api_url);
     const api = gitApi(ref, sourceToken(r));
-    const head = await api.head(r.branch);
+    // {version}: this installation's version, so after an upgrade the source follows the new release
+    const name = resolveRefName(r.branch);
+    result.ref = name;
+    const head = r.ref_type === 'tag' ? await api.tag(name) : await api.head(name);
     result.commit = head.sha;
     result.verified = head.verified;
     // before anything is downloaded or staged: a refused fetch stages nothing
-    if (r.require_signed) await checkSignatures(r, api, head);
-    if (head.sha === r.last_commit && trigger !== 'manual') {
+    if (r.require_signed) await checkSignatures(r, api, head, r.ref_type === 'tag' ? refLabel(r, name) : name);
+    if (head.sha === r.last_commit && trigger !== 'manual' && !waitingForThisVersion(id)) {
       result.upToDate = true;
-      finish(r, { status: 'ok', commit: head.sha, verified: head.verified });
+      finish(r, { status: 'ok', commit: head.sha, ref: name, verified: head.verified });
       return result;
     }
     const entries = (await api.tree(head.sha, r.folder)).filter((e) => e.type === 'blob' && DEFINITION.test(e.path));
@@ -152,11 +164,13 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         continue;
       }
       const latest = db().get<UpdateRow & { blob_sha: string }>(
-        'SELECT id, status, content_hash, blob_sha FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+        'SELECT id, status, content_hash, blob_sha, min_version FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
         id,
         f.path,
       );
-      if (latest && latest.blob_sha === f.sha && ['pending', 'rejected', 'invalid'].includes(latest.status)) {
+      // a file that waited for a newer Steward is looked at again once this installation is new enough
+      const waited = latest?.status === 'invalid' && !!latest.min_version && !newerThan(latest.min_version, config.version);
+      if (latest && latest.blob_sha === f.sha && ['pending', 'rejected', 'invalid'].includes(latest.status) && !waited) {
         result.unchanged++;
         continue;
       }
@@ -177,7 +191,16 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         );
       if (gitBlobSha(content, objectFormatOf(f.sha)) !== f.sha)
         throw new HttpError(502, `File ${f.path}: the content does not match its Git object id`, 'GIT_BAD_RESPONSE');
-      const parsed = await parseFile(f.path, content.toString('utf8'), kinds);
+      const text = content.toString('utf8');
+      const minVersion = minVersionOf(f.path, text);
+      if (minVersion && newerThan(minVersion, config.version)) {
+        const errors = [`Needs Steward ${minVersion} or newer – this installation runs ${config.version}. It is staged after the upgrade.`];
+        stageInvalid(r, f, head, null, null, errors, gitBlobKey(f.sha), minVersion);
+        result.invalid++;
+        staged.push({ path: f.path, kind: null, action: 'invalid', status: 'invalid' });
+        continue;
+      }
+      const parsed = await parseFile(f.path, text, kinds);
       if (!parsed.ok) {
         if (latest?.status === 'invalid' && latest.content_hash === parsed.hash) {
           result.unchanged++;
@@ -197,17 +220,19 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         if (r.auto_accept_new && outcome.action === 'create' && !outcome.conflict) autoAccept.push(outcome.id);
       }
     }
-    finish(r, { status: 'ok', commit: head.sha, verified: head.verified });
+    finish(r, { status: 'ok', commit: head.sha, ref: name, verified: head.verified });
     audit({
       actor: actor ?? (trigger === 'manual' ? undefined : 'git-sync'),
       action: 'sync.fetched',
       entityType: 'sync_source',
       entityId: id,
       summary:
-        `Git sync "${r.name}"${via}: fetched ${r.branch}@${head.sha.slice(0, 10)}${head.verified ? ' (signed)' : ''} – ` +
+        `Git sync "${r.name}"${via}: fetched ${refLabel(r, name)}@${head.sha.slice(0, 10)}${head.verified ? ' (signed)' : ''} – ` +
         `${result.files} file(s), ${result.staged} staged for review, ${result.invalid} invalid, ${result.unchanged} unchanged`,
       details: {
         trigger,
+        refType: r.ref_type ?? 'branch',
+        ref: name,
         commit: head.sha,
         verified: head.verified,
         files: result.files,
@@ -230,7 +255,7 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
       entityType: 'sync_source',
       entityId: id,
       summary: `Git sync "${r.name}"${via} failed: ${msg}`,
-      details: { trigger, commit: result.commit, error: msg },
+      details: { trigger, ...(result.ref ? { ref: result.ref } : {}), commit: result.commit, error: msg },
     });
     logger.warn({ source: id, err: msg }, 'git sync fetch failed');
     if (trigger === 'manual') throw e;
@@ -243,9 +268,8 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
  * signature the Git host verified (and, with an allowed-signer list, by one of those accounts).
  * The first fetch (no last commit) checks the head commit only – the history up to it is trusted.
  */
-async function checkSignatures(r: SourceRow, api: GitApi, head: CommitCheck): Promise<void> {
+async function checkSignatures(r: SourceRow, api: GitApi, head: CommitCheck, branch: string): Promise<void> {
   const allowed = parseJson<string[]>(r.allowed_signers, []);
-  const branch = r.branch;
   const check = (c: CommitCheck, history: boolean) => {
     const commit = c.sha.slice(0, 10);
     if (c.verified !== true) {
@@ -253,7 +277,7 @@ async function checkSignatures(r: SourceRow, api: GitApi, head: CommitCheck): Pr
         409,
         history
           ? `Commit ${commit} on ${branch} (new since the last fetched commit ${r.last_commit!.slice(0, 10)}) is not signed with a key the Git host verified – this source requires signed commits, nothing was staged`
-          : `The head commit ${commit} of ${branch} is not signed with a key the Git host verified – this source requires signed commits`,
+          : `The commit ${commit} of ${branch} is not signed with a key the Git host verified – this source requires signed commits`,
         'GIT_COMMIT_UNSIGNED',
         { commit, branch, ...(history ? { context: 'history', since: r.last_commit!.slice(0, 10) } : {}) },
       );
@@ -281,6 +305,7 @@ function stageInvalid(
   identity: string | null,
   errors: string[],
   hash: string,
+  minVersion: string | null = null,
 ) {
   db().tx(() => {
     supersede(r.id, f.path);
@@ -294,6 +319,7 @@ function stageInvalid(
       errors: errors.slice(0, 20).map((e) => e.slice(0, 500)),
       content: null,
       hash,
+      minVersion,
     });
   });
 }
@@ -317,12 +343,13 @@ function insertUpdate(
     errors?: string[];
     content: unknown;
     hash: string;
+    minVersion?: string | null;
   },
 ): string {
   const id = newId('gsu_');
   db().run(
-    `INSERT INTO sync_updates (id, source_id, kind, path, commit_sha, commit_verified, blob_sha, identity, entity_id, entity_name, action, conflict, conflict_reason, status, errors, content, content_hash, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sync_updates (id, source_id, kind, path, commit_sha, commit_verified, blob_sha, identity, entity_id, entity_name, action, conflict, conflict_reason, status, errors, content, content_hash, min_version, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id,
     r.id,
     u.kind,
@@ -340,9 +367,20 @@ function insertUpdate(
     JSON.stringify(u.errors ?? []),
     u.content === null ? null : JSON.stringify(u.content),
     u.hash,
+    u.minVersion ?? null,
     nowIso(),
   );
   return id;
+}
+
+/** The content hash of a file that was not parsed (it waits for a newer Steward): its Git object id. */
+const gitBlobKey = (sha: string) => `blob:${sha}`;
+
+/** Files of this source that waited for a newer Steward and can be used now: the next fetch looks at them even without a new commit. */
+function waitingForThisVersion(sourceId: string): boolean {
+  return db()
+    .all<{ min_version: string }>("SELECT min_version FROM sync_updates WHERE source_id = ? AND status = 'invalid' AND min_version IS NOT NULL", sourceId)
+    .some((u) => !newerThan(u.min_version, config.version));
 }
 
 export type ConflictReason = 'notFromGit' | 'changedLocally';

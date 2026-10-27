@@ -1,7 +1,20 @@
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { GIT_PROVIDERS, SYNC_KINDS, SYNC_LIMITS, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
+import {
+  GIT_PROVIDERS,
+  STEWARD_EXAMPLES_SOURCE_ID,
+  SYNC_KINDS,
+  SYNC_LIMITS,
+  SYNC_REF_TYPES,
+  SYNC_VERSION_PLACEHOLDER,
+  type SyncRefType,
+  type SyncSource,
+  type SyncSourceSecret,
+  type SyncSourceSettings,
+} from '@sm/shared';
+import { config } from '../config.js';
 import { db } from '../db.js';
+import { logger } from '../log.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { currentUser } from '../auth/context.js';
@@ -23,7 +36,9 @@ export interface SourceRow {
   provider: SyncSourceSettings['provider'];
   repo_url: string;
   api_url: string;
+  ref_type: SyncRefType;
   branch: string;
+  last_ref: string | null;
   folder: string;
   kinds: string;
   token_enc: string | null;
@@ -47,18 +62,33 @@ export interface SourceRow {
 }
 
 export const SOURCE_ID_RE = /^gsr_[A-Za-z0-9_-]{8,40}$/;
+/** The settings row that records that Steward's example source was offered once (a deleted one is not brought back). */
+export const EXAMPLES_SOURCE_SEEDED_KEY = 'system.gitSyncExamplesSeeded';
 export const WEBHOOK_SECRET_PREFIX = 'gsw_';
 export const syncHookPath = (id: string) => `/api/hooks/sync/${id}`;
 
 const FOLDER = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/;
 const BRANCH = /^(?!\/)(?!.*\.\.)(?!.*\/\/)[A-Za-z0-9._/-]{1,200}(?<![/.])$/;
+const VERSION_TOKEN = /\{version\}/g;
+
+/** The branch or tag name with {version} replaced by this installation's Steward version. */
+export function resolveRefName(name: string, version = config.version): string {
+  return name.replace(VERSION_TOKEN, version);
+}
+
+/** A branch or tag name: Git's rules for the characters Steward allows, {version} as the only placeholder. */
+const refName = z
+  .string()
+  .trim()
+  .refine((b) => BRANCH.test(b.replace(VERSION_TOKEN, '0.0.0')), `Invalid branch or tag name (letters, digits, . _ - / and ${SYNC_VERSION_PLACEHOLDER})`);
 
 export const sourceSchema = z.object({
   name: z.string().trim().min(1).max(100),
   provider: z.enum(GIT_PROVIDERS),
   repoUrl: z.string().trim().min(1).max(500),
   apiUrl: z.string().trim().max(500).optional().default(''),
-  branch: z.string().trim().regex(BRANCH, 'Invalid branch name').default('main'),
+  refType: z.enum(SYNC_REF_TYPES).default('branch'),
+  branch: refName.default('main'),
   folder: z
     .string()
     .trim()
@@ -110,7 +140,11 @@ export function toSource(r: SourceRow & { pending_count?: number }): SyncSource 
     provider: r.provider,
     repoUrl: r.repo_url,
     apiUrl: r.api_url,
+    refType: r.ref_type ?? 'branch',
     branch: r.branch,
+    resolvedRef: resolveRefName(r.branch),
+    lastRef: r.last_ref ?? null,
+    builtIn: r.id === STEWARD_EXAMPLES_SOURCE_ID,
     folder: r.folder,
     kinds: parseJson(r.kinds, []),
     intervalMinutes: r.interval_minutes,
@@ -178,6 +212,7 @@ const auditable = (s: SourceInput) => ({
   provider: s.provider,
   repoUrl: s.repoUrl,
   apiUrl: s.apiUrl || null,
+  refType: s.refType,
   branch: s.branch,
   folder: s.folder,
   kinds: s.kinds,
@@ -198,14 +233,15 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
   const sec = newWebhookSecret();
   db().tx(() => {
     db().run(
-      `INSERT INTO sync_sources (id, name, provider, repo_url, api_url, branch, folder, kinds, token_enc, interval_minutes, webhook_enabled,
+      `INSERT INTO sync_sources (id, name, provider, repo_url, api_url, ref_type, branch, folder, kinds, token_enc, interval_minutes, webhook_enabled,
          webhook_secret_enc, webhook_secret_hash, webhook_secret_prefix, require_signed, allowed_signers, auto_accept_new, enabled, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       s.name,
       s.provider,
       s.repoUrl,
       s.apiUrl ?? '',
+      s.refType,
       s.branch,
       s.folder,
       JSON.stringify(s.kinds),
@@ -227,7 +263,7 @@ export function createSource(raw: SourceInput): SyncSourceSecret {
       action: 'sync.source_created',
       entityType: 'sync_source',
       entityId: id,
-      summary: `Git sync source "${s.name}" created (${s.provider} ${s.repoUrl}, branch ${s.branch}${s.folder ? `, folder ${s.folder}` : ''})`,
+      summary: `Git sync source "${s.name}" created (${s.provider} ${s.repoUrl}, ${s.refType} ${s.branch}${s.folder ? `, folder ${s.folder}` : ''})`,
       details: { ...auditable(s), token: token ? 'set' : 'none', webhookSecretPrefix: sec.prefix },
     });
   });
@@ -244,15 +280,21 @@ export function updateSource(id: string, raw: SourceInput): SyncSource {
   const token = s.token === undefined ? undefined : s.token.trim();
   const tokenEnc = token === undefined ? before.token_enc : token ? vault().encrypt(token) : null;
   // another repository or branch: the last commit says nothing about the new one
-  const moved = before.repo_url !== s.repoUrl || before.branch !== s.branch || before.folder !== s.folder || before.provider !== s.provider;
+  const moved =
+    before.repo_url !== s.repoUrl ||
+    before.branch !== s.branch ||
+    (before.ref_type ?? 'branch') !== s.refType ||
+    before.folder !== s.folder ||
+    before.provider !== s.provider;
   db().tx(() => {
     db().run(
-      `UPDATE sync_sources SET name = ?, provider = ?, repo_url = ?, api_url = ?, branch = ?, folder = ?, kinds = ?, token_enc = ?, interval_minutes = ?,
-         webhook_enabled = ?, require_signed = ?, allowed_signers = ?, auto_accept_new = ?, enabled = ?, updated_at = ?${moved ? ', last_commit = NULL' : ''} WHERE id = ?`,
+      `UPDATE sync_sources SET name = ?, provider = ?, repo_url = ?, api_url = ?, ref_type = ?, branch = ?, folder = ?, kinds = ?, token_enc = ?, interval_minutes = ?,
+         webhook_enabled = ?, require_signed = ?, allowed_signers = ?, auto_accept_new = ?, enabled = ?, updated_at = ?${moved ? ', last_commit = NULL, last_ref = NULL' : ''} WHERE id = ?`,
       s.name,
       s.provider,
       s.repoUrl,
       s.apiUrl ?? '',
+      s.refType,
       s.branch,
       s.folder,
       JSON.stringify(s.kinds),
@@ -318,4 +360,66 @@ export function deleteSource(id: string): void {
       details: { repoUrl: r.repo_url, droppedUpdates: pending, unlinkedItems: items },
     });
   });
+}
+
+/** Steward's own example library as a ready source: disabled, no token, no webhook secret, reviewed like any source. */
+export const STEWARD_EXAMPLES_SOURCE = {
+  name: 'Steward example library',
+  provider: 'github',
+  repoUrl: 'https://github.com/vxrz/Steward',
+  refType: 'tag',
+  branch: `v${SYNC_VERSION_PLACEHOLDER}`,
+  folder: 'examples',
+  kinds: ['process', 'dashboard', 'monitor'],
+} as const satisfies Partial<SourceInput>;
+
+/**
+ * Adds the example source once per installation (new ones and upgrades alike). A settings row
+ * remembers it, so a source the administrator deleted is not brought back, and an existing source
+ * is never changed. Runs at start-up, not as a migration: `db:copy` needs an empty target database.
+ */
+export function seedExamplesSource(): boolean {
+  if (db().get('SELECT 1 FROM settings WHERE key = ?', EXAMPLES_SOURCE_SEEDED_KEY)) return false;
+  const e = STEWARD_EXAMPLES_SOURCE;
+  const ts = nowIso();
+  const added = db().tx(() => {
+    const n = db().run(
+      `INSERT INTO sync_sources (id, name, provider, repo_url, api_url, ref_type, branch, folder, kinds, interval_minutes, webhook_enabled,
+         require_signed, allowed_signers, auto_accept_new, enabled, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, 0, 0, 0, '[]', 0, 0, 'system', ?, ?) ON CONFLICT (id) DO NOTHING`,
+      STEWARD_EXAMPLES_SOURCE_ID,
+      e.name,
+      e.provider,
+      e.repoUrl,
+      e.refType,
+      e.branch,
+      e.folder,
+      JSON.stringify(e.kinds),
+      ts,
+      ts,
+    ).changes;
+    db().run('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING', EXAMPLES_SOURCE_SEEDED_KEY, JSON.stringify(ts));
+    return n > 0;
+  });
+  if (!added) return false;
+  audit({
+    actor: 'system',
+    action: 'sync.source_created',
+    entityType: 'sync_source',
+    entityId: STEWARD_EXAMPLES_SOURCE_ID,
+    summary: `Git sync source "${e.name}" added, disabled (${e.provider} ${e.repoUrl}, tag ${e.branch}, folder ${e.folder}) – nothing is fetched until an administrator turns it on`,
+    details: {
+      provider: e.provider,
+      repoUrl: e.repoUrl,
+      refType: e.refType,
+      branch: e.branch,
+      folder: e.folder,
+      kinds: e.kinds,
+      enabled: false,
+      token: 'none',
+      builtIn: true,
+    },
+  });
+  logger.info({ source: STEWARD_EXAMPLES_SOURCE_ID }, 'git sync: Steward example library added as a disabled source');
+  return true;
 }

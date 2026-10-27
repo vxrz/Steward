@@ -29,6 +29,11 @@ test('admin configures a Git source, reviews the diff and accepts a new process 
   await page.goto('/settings');
   await page.getByRole('link', { name: 'Manage Git sync' }).click();
   await expect(page).toHaveURL(/\/settings\/git-sync$/);
+  // Steward's own example library is there, disabled, following the tag of this version
+  const examples = page.getByTestId('sync-source').filter({ hasText: 'Steward example library' });
+  await expect(examples).toContainText('Steward examples');
+  await expect(examples).toContainText('disabled');
+  await expect(examples).toContainText(/tag v\d+\.\d+\.\d+/);
   await page.getByRole('button', { name: 'New source' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'New Git sync source' });
   await dialog.getByRole('textbox', { name: 'Name' }).fill(sourceName);

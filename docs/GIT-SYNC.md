@@ -2,13 +2,13 @@
 
 Git sync keeps processes, dashboards, monitors and record types in a Git repository and brings changes into Steward after a review. Use it to version your library in Git, to review changes in pull requests, and to roll the same library out to several Steward installations (local, test, production).
 
-- **Optional.** Git sync is off until an administrator adds a source.
-- **Pull only.** Steward only reads the repository. It never pushes, and it never changes the repository.
+- **Optional.** Git sync is off until an administrator adds a source or turns on [Steward's example library](#stewards-example-library), which every installation has as a disabled source.
+- **Pull only.** Steward only reads the repository. It never pushes, and it never changes the repository (pushing changes back is planned, see issue #20).
 - **Nothing is applied by itself.** Every new or changed file waits in **Updates from Git**. A designer or administrator looks at the difference and accepts it (a new version) or rejects it.
 
 ## How it works
 
-1. An administrator adds a **source**: Git host, repository, branch, folder, what to sync and, for private repositories, a read-only access token.
+1. An administrator adds a **source**: Git host, repository, branch or tag, folder, what to sync and, for private repositories, a read-only access token.
 2. Steward **fetches** the source by hand (_Fetch now_), on a schedule (every N minutes) or when the Git host calls its **webhook** after a push.
 3. Every `.yaml`, `.yml` and `.json` file below the folder is checked with the same validators as an import (`npm run validate`). Each new or changed file becomes a **pending update**. Files that cannot be used are listed as **invalid** with the reason.
 4. In **Updates from Git** (sidebar, _Automate_) a reviewer opens an update, reads the diff against the item in Steward and accepts or rejects it.
@@ -60,6 +60,20 @@ Platforms are referenced **by name or id only** (monitor checks, process binding
 
 Deleting a file in Git does not delete anything in Steward.
 
+### Files that need a newer Steward
+
+A YAML file can name the oldest Steward version that can use it, in a comment line at the top:
+
+```yaml
+# Uses $ts(), new in 0.2.1
+# steward-min-version: 0.2.1
+name: Insights Hub – inactive users
+```
+
+On an older Steward the file is listed as **invalid** with _Needs Steward 0.2.1 or newer_ and is not staged. After the upgrade, the next fetch stages it, even when nothing changed in Git. For every importer the line is a comment, so the same file still imports into versions that don't know the marker (0.2.0 and older). JSON files have no comments and no marker.
+
+The marker matters when a source follows a branch such as `main`. A source that follows the tag of its own version (`v{version}`) only sees files of that release.
+
 ### Auto-accept new items (optional)
 
 _Accept new items automatically_ creates items that do not exist in Steward yet right away, with the rights of the administrator who created the source. Monitors are created **disabled**. Changes to existing items still wait for a review. The default is off.
@@ -73,7 +87,8 @@ _Settings → Git sync → Manage Git sync → New source._
 | Git host               | Forgejo / Gitea, GitHub or GitLab                                                                                             |
 | Repository URL         | The web address, e.g. `https://git.example.com/team/steward-library`. `https://` only (`http://` only for `localhost`).       |
 | API URL                | Usually empty. GitHub Enterprise: `https://github.example.com/api/v3`; GitLab under a sub-path: `https://host/gitlab/api/v4`. |
-| Branch                 | e.g. `main`                                                                                                                   |
+| Follow                 | **Branch** (its newest commit) or **Tag** (the commit the tag points to). See [Branches and tags](#branches-and-tags).        |
+| Branch / Tag           | e.g. `main`, `release-2026-10` or `v{version}`                                                                                |
 | Folder                 | e.g. `steward` – only files below it are read. Empty = the whole repository.                                                  |
 | What to sync           | Processes, dashboards, monitors, record types                                                                                 |
 | Access token           | A read-only token (see below). Empty for public repositories.                                                                 |
@@ -81,6 +96,23 @@ _Settings → Git sync → Manage Git sync → New source._
 | Accept webhook calls   | On: the Git host calls Steward after every push                                                                               |
 | Require signed commits | On: a fetch fails and stages nothing unless the Git host verified every new commit (see [Signed commits](#signed-commits))    |
 | Allowed signers        | Optional, with signed commits: Git host logins or e-mail addresses whose signatures are accepted. Empty = any verified one.   |
+
+### Branches and tags
+
+- A **branch** source fetches the newest commit of the branch.
+- A **tag** source fetches the commit the tag points to; annotated tags are followed to their commit. When the tag is moved to another commit, the next fetch stages the changes like a new commit on a branch. A tag that is pushed again sends a push event with `refs/tags/<tag>`, which the webhook accepts.
+- **`{version}`** in the name stands for this installation's Steward version: `v{version}` is `v0.2.1` on Steward 0.2.1. It is resolved at every fetch, so after an upgrade the source follows the new release's tag by itself. The source list shows the resolved name, the audit entry `sync.fetched` names the branch or tag and the commit.
+- Signed commits work for tags too: the commits between the last fetched commit and the tag's commit are checked, so a tag moved to unrelated history is refused like a rewritten branch.
+- Changing the branch, tag or type starts over: the next fetch is treated as a first fetch.
+
+### Steward's example library
+
+Every installation has the source **Steward example library** (badge _Steward examples_): GitHub, `https://github.com/vxrz/Steward`, tag `v{version}`, folder `examples`, processes, dashboards and monitors. It brings improved example templates of your version into **Updates from Git**, where you review them like any other change; with `v{version}` it only shows examples made for the Steward you run.
+
+- It is **disabled**: nothing is fetched until an administrator turns it on (_Edit source → Enabled_). No token, no schedule, no webhook, no automatic acceptance.
+- To use it, allow `api.github.com` in the outbound policy (_Settings → Outbound access_).
+- It is added **once**: on a new installation and on the upgrade to 0.2.1, after the vault is unlocked (audit entry `sync.source_created` by `system`). Your changes to it stay, and a deleted one is not brought back.
+- Examples you imported by hand before have the same ids (the file name without its number). The first fetch shows them as conflicts (_The item exists in Steward but did not come from this source_) or links them when they are identical, so nothing you changed is overwritten without a decision.
 
 **The repository host must be allowed by the outbound policy** (_Settings → Outbound access_): add its host to the allow-list, e.g. `git.example.com` or, for GitHub, `api.github.com`. Otherwise the fetch fails with _Blocked by the outbound policy_.
 
@@ -127,6 +159,7 @@ Git sync uses the Git hosts' HTTP APIs, not the Git protocol. This needs no `git
 - **No secrets in Git.** A file that looks like it contains a key, token or password (the credentials register's checks: private keys, GitHub/GitLab/AWS/Slack tokens, passwords in URLs, …) is refused as a whole. Platforms are referenced by name or id; credentials stay in Steward's vault.
 - **Rights.** Sources are managed by administrators in a signed-in session (API tokens cannot create, change or delete them). Reviewing needs the designer role; accepting needs the same right as the change by hand (create processes, edit this process, manage record types, …). Updates of processes and monitors the reviewer cannot see are hidden.
 - **Webhook.** Authenticated by the source's secret (HMAC-SHA256 of the body for Forgejo/Gitea/GitHub, the secret token for GitLab), at most 12 calls per minute per source, unknown or disabled sources answer 404. The payload only says _something changed_: Steward reads the repository through the API like any other fetch.
+- **Example library.** The built-in source is created disabled, without a token or webhook secret, and reads a public repository through the same outbound policy as every source. Turning it on is a source change in the audit log.
 - **Audit.** Every source change, fetch, acceptance (with the resulting version), rejection and refused webhook call is in the audit log. A fetch writes one `sync.fetched` entry with the commit and the staged and invalid files (the first 100 listed by path, all counted); a refused fetch writes `sync.fetch_failed` with the reason.
 
 ## API
@@ -149,4 +182,4 @@ The demo server includes a small Git host (`server/src/mock/mockGit.ts`) that sp
 - GitHub: `…/mock/github/steward/library`.
 - GitLab: `…/mock/gitlab/steward/library` with the API URL `…/mock/gitlab/api/v4`.
 
-The repository holds one process, dashboard, monitor and record type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository) and serve wrong file content with `POST /mock/git/_tamper`.
+The repository holds one process, dashboard, monitor and record type. `steward/private` needs the token `mock-git-token-0123456789`. Tests add commits with `POST /mock/git/_commit` (`signed`, `signer`, `email`, and `objectFormat: "sha256"` for a new SHA-256 repository), create or move tags with `POST /mock/git/_tag` (`annotated: true` for a tag object) and serve wrong file content with `POST /mock/git/_tamper`.

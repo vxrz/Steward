@@ -30,7 +30,10 @@
     "webhookOn": "Webhook",
     "disabled": "deaktiviert",
     "manageLink": "Git-Synchronisierung verwalten",
-    "settingsCard": "Prozesse, Dashboards, Monitore und Dokumentarten aus Forgejo, GitHub oder GitLab holen. Aus, bis Sie eine Quelle anlegen."
+    "settingsCard": "Prozesse, Dashboards, Monitore und Dokumentarten aus Forgejo, GitHub oder GitLab holen. Aus, bis Sie eine Quelle anlegen.",
+    "builtIn": "Steward-Beispiele",
+    "builtInHint": "Stewards eigene Beispielbibliothek am Tag dieser Version. Schalten Sie sie ein, um verbesserte Beispiele unter Änderungen aus Git zu prüfen. Steward muss github.com erreichen (Einstellungen → Ausgehender Zugriff).",
+    "refTag": "Tag {{ref}}"
   },
   "form": {
     "titleNew": "Neue Git-Quelle",
@@ -70,7 +73,15 @@
     "allowedSignersHint": "Anmeldenamen beim Git-Host oder E-Mail-Adressen. Nur Commits, die eines dieser Konten signiert hat, werden angenommen. Leer = jede vom Git-Host bestätigte Signatur.",
     "autoAccept": "Neue Elemente automatisch übernehmen",
     "autoAcceptHint": "Elemente, die es in Steward noch nicht gibt, werden sofort angelegt (Monitore deaktiviert). Änderungen an bestehenden Elementen werden weiter geprüft.",
-    "enabled": "Aktiv"
+    "enabled": "Aktiv",
+    "refType": "Folgen",
+    "refTypes": {
+      "branch": "Branch",
+      "tag": "Tag"
+    },
+    "tag": "Tag",
+    "refHint": "{version} steht für die Steward-Version dieser Installation ({{version}}): v{version} folgt dem passenden Release und zieht nach einem Update mit.",
+    "refResolved": "Ruft {{ref}} ab"
   },
   "secret": {
     "title": "Webhook-Secret",
