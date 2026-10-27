@@ -208,6 +208,8 @@ One person (an admin) unlocks the vault after a restart, or you provide the pass
 
 `none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, _accept self-signed certificates_ (common for on-prem IEM), a timeout and default headers.
 
+Tokens from `oauth2_client_credentials` and `token_request` are kept in memory until shortly before they expire (`expires_in`). A new one is fetched when the platform's settings or credentials are saved, when Steward restarts, or once after a 401. Roles granted to the technical user in the meantime only appear in a new token, so the platform answers 403 until then: _Test connection_ shows how old the token is, and **Get a new token** (platform → … menu, `POST /api/platforms/{id}/token/renew`, needs `manage`, audited as `platform.token_renewed`) fetches a new one right away.
+
 ## Dashboards
 
 1. **Publish data from a flow.** Add a **Publish to dashboard** node. Give it a dataset key such as `iem.devices`, the rows (an expression), optionally compact `columns`, a `status` expression per row (good / warning / serious / critical / unknown), a reason text, and `metrics` (numbers kept as history).

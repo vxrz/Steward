@@ -11,6 +11,7 @@ import {
   IconLock,
   IconPlug,
   IconPlugConnected,
+  IconRefresh,
   IconRobot,
   IconTicket,
   IconSettings,
@@ -24,7 +25,7 @@ import { AccessEditor } from '../components/AccessEditor';
 import { useMe } from '../auth';
 import { DetailState, JsonView, PageHeader } from '../components/common';
 import { PlatformIntegrityAlert } from '../components/security/PlatformIntegrityAlert';
-import { fmtNumber } from '../format';
+import { fmtNumber, fmtRelative } from '../format';
 import { KIND_COLORS } from './Platforms';
 import { SettingsTab } from '../components/platform/SettingsTab';
 import { CredentialsTab } from '../components/platform/CredentialsTab';
@@ -35,12 +36,19 @@ import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 
+interface TokenInfo {
+  fetchedAt: string;
+  expiresAt: string;
+}
+
 interface TestResult {
   ok: boolean;
   status: number;
   durationMs: number;
   message: string;
   body?: unknown;
+  /** The cached access token the test used (OAuth2 or custom login) */
+  token?: TokenInfo | null;
 }
 
 export function PlatformDetailPage() {
@@ -70,6 +78,7 @@ export function PlatformDetailPage() {
   const p = platform.data;
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
+  const tokenLogin = p.config.auth?.type === 'oauth2_client_credentials' || p.config.auth?.type === 'token_request';
 
   const saveAccess = async (acl: AclEntry[]) => {
     try {
@@ -91,6 +100,17 @@ export function PlatformDetailPage() {
       notifyError(e, t('detail.testFailed'));
     } finally {
       setTesting(false);
+    }
+  };
+
+  // roles granted to the platform's technical user only appear in a new token
+  const renewToken = async () => {
+    try {
+      const r = await post<{ ok: boolean; message?: string; token: TokenInfo | null }>(`/platforms/${p.id}/token/renew`);
+      if (r.ok && r.token) notifyOk(t('detail.tokenRenewed', { expires: fmtRelative(r.token.expiresAt) }));
+      else notifyError(new Error(r.message ?? ''), t('detail.tokenNotRenewed'));
+    } catch (e) {
+      notifyError(e, t('detail.tokenNotRenewed'));
     }
   };
 
@@ -148,6 +168,11 @@ export function PlatformDetailPage() {
                   </Button>
                 </Menu.Target>
                 <Menu.Dropdown>
+                  {canManage && tokenLogin && (
+                    <Menu.Item leftSection={<IconRefresh size={14} />} onClick={renewToken}>
+                      {t('detail.renewToken')}
+                    </Menu.Item>
+                  )}
                   {isAdmin && (
                     <Menu.Item leftSection={<IconPlug size={14} />} onClick={() => setSaveType(true)}>
                       {t('detail.saveAsType')}
@@ -177,6 +202,19 @@ export function PlatformDetailPage() {
             {test.status ? `HTTP ${test.status} · ${fmtNumber(test.durationMs)} ms · ` : ''}
             {test.message}
           </Text>
+          {test.token && (
+            <Text size="xs" c="dimmed" data-testid="platform-token-age">
+              {t('detail.tokenAge', { fetched: fmtRelative(test.token.fetchedAt), expires: fmtRelative(test.token.expiresAt) })}
+              {canManage && (
+                <>
+                  {' · '}
+                  <Anchor size="xs" onClick={renewToken}>
+                    {t('detail.renewToken')}
+                  </Anchor>
+                </>
+              )}
+            </Text>
+          )}
           {test.body !== undefined && (
             <>
               <Anchor size="xs" onClick={() => setShowBody((s) => !s)}>

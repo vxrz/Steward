@@ -40,11 +40,37 @@ export interface HttpResult {
 
 interface CachedToken {
   header: [string, string];
+  fetchedAt: number;
   expiresAt: number;
 }
 
 const tokenCache = new Map<string, CachedToken>();
 const dispatcherCache = new Map<string, { stamp: string; dispatcher: Dispatcher }>();
+
+/** The cached access token of a platform (login or OAuth2), without the token itself. */
+export function tokenInfo(platformId: string): { fetchedAt: string; expiresAt: string } | null {
+  const t = tokenCache.get(platformId);
+  return t ? { fetchedAt: new Date(t.fetchedAt).toISOString(), expiresAt: new Date(t.expiresAt).toISOString() } : null;
+}
+
+/** Whether the platform logs in for a token that Steward caches (OAuth2 client credentials or a custom login). */
+export function usesCachedToken(p: Platform): boolean {
+  const type = p.config.auth?.type;
+  return type === 'oauth2_client_credentials' || type === 'token_request';
+}
+
+/**
+ * Drops the cached token and logs in again right away – for roles or permissions granted since the
+ * token was issued, which only a new token carries. Throws what the login request throws.
+ */
+export async function renewToken(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<{ fetchedAt: string; expiresAt: string }> {
+  if (!usesCachedToken(p)) throw new Error('This platform does not log in for a token');
+  tokenCache.delete(p.id);
+  await obtainAuthHeader(p, secrets, signal);
+  const info = tokenInfo(p.id);
+  if (!info) throw new Error('The login did not return a token');
+  return info;
+}
 
 export function invalidatePlatformCaches(platformId: string): void {
   tokenCache.delete(platformId);
@@ -359,7 +385,8 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
       const headerName = (auth.headerName || 'Authorization').toLowerCase();
       const headerValue = await renderString(auth.headerValue || 'Bearer {{ token }}', { ...scope, token });
       const header: [string, string] = [headerName, headerValue];
-      tokenCache.set(p.id, { header, expiresAt: Date.now() + expiresIn * 1000 });
+      const now = Date.now();
+      tokenCache.set(p.id, { header, fetchedAt: now, expiresAt: now + expiresIn * 1000 });
       return header;
     }
     default:

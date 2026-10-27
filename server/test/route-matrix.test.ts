@@ -179,6 +179,7 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/secrets': ADMIN,
   'POST /api/platforms/:id/test': USE,
   'POST /api/platforms/:id/request': USE,
+  'POST /api/platforms/:id/token/renew': ADMIN,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
