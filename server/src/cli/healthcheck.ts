@@ -56,7 +56,7 @@ function check(url: URL, tls: https.RequestOptions): Promise<number> {
     });
     req.on('timeout', () => req.destroy(new Error('timeout')));
     req.on('error', (e) => {
-      if (url.protocol === 'https:') console.error(`healthcheck: ${e.message}`);
+      if (url.protocol === 'https:') console.error(`healthcheck: ${e.message.replace(/[\r\n]+/g, ' ')}`);
       resolve(0);
     });
   });
