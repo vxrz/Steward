@@ -27,6 +27,26 @@ Exit codes:
   1  no answer, or another status`;
 
 const TIMEOUT_MS = 4000;
+const PIN_MISMATCH = 'the certificate is not the one in SM_TLS_CERT';
+
+/** Why a request failed, as a fixed text (an error message can carry what the environment set). */
+function reason(e: NodeJS.ErrnoException): string {
+  if (e.message === PIN_MISMATCH) return PIN_MISMATCH;
+  switch (e.code) {
+    case 'ECONNREFUSED':
+      return 'nothing listens on the port';
+    case 'CERT_HAS_EXPIRED':
+      return 'the certificate has expired';
+    case 'DEPTH_ZERO_SELF_SIGNED_CERT':
+    case 'SELF_SIGNED_CERT_IN_CHAIN':
+    case 'UNABLE_TO_VERIFY_LEAF_SIGNATURE':
+    case 'UNABLE_TO_GET_ISSUER_CERT':
+    case 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY':
+      return 'the certificate is not the one in SM_TLS_CERT (renewed? restart Steward)';
+    default:
+      return 'the request failed';
+  }
+}
 
 function healthUrl(env: NodeJS.ProcessEnv): URL {
   const { basePath } = resolveBasePath(env);
@@ -43,7 +63,7 @@ function pinnedTls(certFile: string): https.RequestOptions {
     ca: pem,
     // the file may hold Steward's certificate with its chain but without the root: trust it as it is
     allowPartialTrustChain: true,
-    checkServerIdentity: (_host, cert) => (cert.fingerprint256 === fingerprint ? undefined : new Error('the certificate is not the one in SM_TLS_CERT')),
+    checkServerIdentity: (_host, cert) => (cert.fingerprint256 === fingerprint ? undefined : new Error(PIN_MISMATCH)),
   };
 }
 
@@ -56,7 +76,7 @@ function check(url: URL, tls: https.RequestOptions): Promise<number> {
     });
     req.on('timeout', () => req.destroy(new Error('timeout')));
     req.on('error', (e) => {
-      if (url.protocol === 'https:') console.error(`healthcheck: ${e.message.replace(/[\r\n]+/g, ' ')}`);
+      console.error(`healthcheck: ${reason(e)}`);
       resolve(0);
     });
   });
