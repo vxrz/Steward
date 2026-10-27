@@ -75,7 +75,13 @@ function validate(template: string, res: Res): void {
   if (!fn(res.body)) throw new Error(`${key} does not match the OpenAPI document: ${ajv.errorsText(fn.errors)}\n${res.text.slice(0, 500)}`);
 }
 
+// The crawls below send several hundred requests with one token within a minute, close to the
+// default limit of 600 per token, so a fast runner got 429s. Rate limiting has its own test
+// (it sets a limit of 3 and restores this value).
+const rateLimitBefore = process.env.SM_API_RATE_LIMIT;
+
 beforeAll(async () => {
+  process.env.SM_API_RATE_LIMIT = 'off';
   s = await startTestServer();
   await setup(s);
   await s.api('POST', '/demo/setup', {});
@@ -161,6 +167,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await s?.app.close();
+  if (rateLimitBefore === undefined) delete process.env.SM_API_RATE_LIMIT;
+  else process.env.SM_API_RATE_LIMIT = rateLimitBefore;
 });
 
 describe('authentication', () => {
