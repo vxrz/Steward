@@ -96,6 +96,10 @@ beforeAll(async () => {
     body: form,
   });
   expect(up.status).toBe(200);
+  // an own notification logo (#99): a stored file below branding/ that moves with the package
+  const logo = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 0x22)]);
+  await s.api('POST', '/settings/notifications/look/logo', { contentBase64: logo.toString('base64') });
+  await s.api('PUT', '/settings/notifications/look', { logoSource: 'custom', headerStyle: 'line' });
   const procs = await s.api('GET', '/processes');
   const p = procs[0];
   await s.api('PUT', `/processes/${p.id}/access`, {
@@ -243,6 +247,7 @@ describe('export (source)', () => {
     source.auditEntries = r.auditEntries;
     source.files = filesBelow(s.dataDir);
     expect([...source.files.keys()].some((f) => f.startsWith('records/'))).toBe(true);
+    expect(source.files.has('branding/notification-logo.jpg')).toBe(true);
   });
 
   it('refuses a wrong transfer passphrase, a changed package and content the manifest does not list', async () => {

@@ -10,7 +10,7 @@ import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
 import { emailContent, sendEmail, sendTeams, sendWebhook, teamsCard, type OutgoingMessage } from './channels.js';
-import { logoDataUrl, lookProblems, resolveLook } from './look.js';
+import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
@@ -154,6 +154,8 @@ export function notify(n: Notice): void {
       }
     }
   }
+  // a dry run is a test: with "in the app only" it never reaches a mailbox, Teams or a webhook
+  if (isDryRun(n.data) && dryRunDelivery() === 'inAppOnly') return;
   const external = channels.filter((c) => c !== 'inApp' && settings[c].enabled);
   if (!external.length) return;
   if (!vault().unlocked) {
@@ -459,12 +461,27 @@ function testMessage(name: string): OutgoingMessage {
   };
 }
 
-/** The test message as an e-mail and a Teams card with unsaved look settings (nothing is sent or stored). */
-export function previewLook(draft: Partial<NotificationLookInput>): NotificationLookPreview {
+/** A failed dry run, as the preview of how dry runs look (never sent). */
+function dryRunSample(): OutgoingMessage {
+  const locale = defaultLocale();
+  const process = t(locale, 'dryRun.sampleProcess');
+  return {
+    event: 'run.failed',
+    title: t(locale, 'runFailed.titleDryRun', { process }),
+    body: t(locale, 'runFailed.body', { error: t(locale, 'dryRun.sampleError') }),
+    locale,
+    link: absoluteLink('/runs'),
+    ts: nowIso(),
+    data: { dryRun: true },
+  };
+}
+
+/** The test message (or a failed dry run) as an e-mail and a Teams card with unsaved look settings (nothing is sent or stored). */
+export function previewLook(draft: Partial<NotificationLookInput>, sample: 'test' | 'dryRun' = 'test'): NotificationLookPreview {
   const problems = lookProblems(draft);
   if (problems.length) throw new HttpError(400, problems.join('; '), 'NOTIFICATION_LOOK_INVALID');
   const look = resolveLook(draft);
-  const msg = testMessage(look.name);
+  const msg = sample === 'dryRun' ? dryRunSample() : testMessage(look.name);
   const mail = emailContent(msg, look, look.logo ? logoDataUrl(look.logo) : undefined);
   return { subject: mail.subject, html: mail.html, teams: teamsCard(msg, look) };
 }

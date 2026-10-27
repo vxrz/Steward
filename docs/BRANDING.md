@@ -52,6 +52,8 @@ Changes are audited: `theme.updated` (changed fields, old and new value), `theme
 
 API (administrators): `GET`/`PUT /api/settings/theme`, `POST /api/settings/theme/reset`, `POST`/`DELETE /api/settings/theme/logo` (multipart or `{ "contentBase64": "…" }`).
 
+**E-mails and Teams messages** have their own look (_Settings → Look of e-mails and Teams messages_): name, colour, logo (the app logo, the report logo or an own one), footer, header style, logo size and position, button colour, corners and font. Empty fields follow the Appearance settings. See [NOTIFICATIONS.md](NOTIFICATIONS.md#look-of-e-mails-and-teams-messages).
+
 ## Footer
 
 > Made with ❤️ in Erlangen, Germany · Metropolregion Nürnberg [Franconian rake] · Designed & built by uebelacker.io with AI

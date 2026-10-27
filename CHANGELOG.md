@@ -16,6 +16,12 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - **Git sync no longer copies an item created after the fetch** – a file staged as _new_ whose process, dashboard or monitor was created in Steward afterwards (e.g. from the same built-in template) became a second item (`…-2`) when accepted. Accepting now changes the existing item (shown as a conflict, since it never came from Git), and the next fetch drops the _new_ update when the item is identical.
 - **Monitor templates in the example list** showed their parameter placeholder as the name ("{{ params.title }} (template)"); they are listed by a readable name now.
+- **An own logo and more style for e-mails and Teams messages** (#99): _Logo → Own logo_ takes a PNG or JPEG up to 512 KB just for messages (`POST`/`DELETE /api/settings/notifications/look/logo`, audited as `notifications.logo_uploaded` / `notifications.logo_removed`, moves with migration packages). New style settings: logo size and position, header (coloured, white with a line, minimal), button colour, corners and font (system, Arial, serif). The defaults keep the look of 0.2.1; Teams cards take only the logo's size and position.
+- **Dry runs: where their notifications go** – _Dry runs_ in the same card: e-mail, Teams and webhook marked as a test (default), or only in the app.
+
+### Changed
+
+- **Notifications about dry runs no longer look urgent** (#99): the subject and the in-app title start with _Dry run –_ (German _Probelauf –_) instead of ending in "(dry run)", e-mails get a grey banner _Dry run – a test, nothing was changed. No action needed._ and a grey strip instead of the red one, and Teams cards the same sentence in a grey card. Webhooks keep `data.dryRun: true`. The look preview can show a failed dry run.
 
 ## [0.2.1] - 2026-10-27
 

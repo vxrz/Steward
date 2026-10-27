@@ -312,7 +312,7 @@
   },
   "look": {
     "title": "Aussehen von E-Mails und Teams-Nachrichten",
-    "intro": "Name, Farbe, Logo und Fußzeile der Nachrichten, die Steward verschickt. Leere Felder folgen Einstellungen → Erscheinungsbild.",
+    "intro": "Name, Farbe, Logo, Fußzeile und Stil der Nachrichten, die Steward verschickt, und wie Probeläufe gemeldet werden. Leere Felder folgen Einstellungen → Erscheinungsbild.",
     "name": "Name",
     "nameHint": "Im Kopf der E-Mail, im Betreff und in der Teams-Karte. Leer: {{name}}",
     "color": "Farbe der Kopfzeile",
@@ -323,13 +323,15 @@
     "logoSource": {
       "app": "App-Logo",
       "report": "Bericht-Logo",
-      "none": "Keines"
+      "none": "Keines",
+      "custom": "Eigenes Logo"
     },
     "logoHint": "Das Logo steckt in der E-Mail selbst und wird angezeigt, ohne etwas von Steward zu laden. Teams-Karten enthalten Logos nur bis 12 KB.",
     "logoProblem": {
       "missing": "Es ist kein App-Logo hochgeladen (Einstellungen → Erscheinungsbild): Nachrichten gehen ohne Logo hinaus.",
       "type": "Das App-Logo ist ein WebP-Bild, das viele Mailprogramme nicht anzeigen: Nachrichten gehen ohne Logo hinaus. Ein PNG oder JPEG hochladen oder das Bericht-Logo verwenden.",
-      "size": "Das Logo ist größer als 512 KB und wird in Nachrichten weggelassen."
+      "size": "Das Logo ist größer als 512 KB und wird in Nachrichten weggelassen.",
+      "missingCustom": "Es ist noch kein eigenes Logo hochgeladen: Nachrichten gehen ohne Logo hinaus, bis eines hochgeladen ist."
     },
     "footer": "Fußzeile",
     "footerHint": "Kleingedrucktes am Ende jeder E-Mail und Teams-Karte, z. B. „Intern – IT-Betrieb“",
@@ -342,6 +344,60 @@
     "previewTeams": "Teams-Karte",
     "previewTeamsHint": "Teams zeichnet die Karte selbst; hier sind Inhalt, Logo und Farbstreifen zu sehen.",
     "showPreview": "Vorschau zeigen",
-    "hidePreview": "Vorschau ausblenden"
+    "hidePreview": "Vorschau ausblenden",
+    "customLogo": "Eigenes Logo für Nachrichten",
+    "customLogoInfo": "{{type}}, {{size}} KB",
+    "customLogoNone": "Kein eigenes Logo hochgeladen",
+    "customLogoHint": "PNG oder JPEG, höchstens 512 KB. Nur für E-Mails und Teams-Nachrichten; App und Berichte behalten ihre Logos.",
+    "uploadLogo": "Logo hochladen",
+    "replaceLogo": "Logo ersetzen",
+    "removeLogo": "Entfernen",
+    "logoUploaded": "Benachrichtigungslogo hochgeladen",
+    "logoRemoved": "Benachrichtigungslogo entfernt",
+    "logoNotUploaded": "Logo nicht hochgeladen",
+    "logoTooLarge": "Die Datei ist größer als 512 KB.",
+    "styleTitle": "Stil",
+    "styleHint": "E-Mails übernehmen alles davon. Teams-Karten übernehmen nur Größe und Position des Logos; den Rest zeichnet Teams selbst.",
+    "logoSize": "Logogröße",
+    "logoSizes": {
+      "small": "Klein",
+      "medium": "Mittel",
+      "large": "Groß"
+    },
+    "logoAlign": "Logoposition",
+    "logoAligns": {
+      "left": "Links",
+      "center": "Mittig"
+    },
+    "headerStyle": "Kopfzeile",
+    "headerStyles": {
+      "solid": "Farbig",
+      "line": "Weiß mit Linie",
+      "minimal": "Schlicht"
+    },
+    "buttonColor": "Farbe der Schaltfläche",
+    "buttonColorHint": "Leer: die Farbe der Kopfzeile",
+    "corners": "Ecken",
+    "cornerStyles": {
+      "rounded": "Abgerundet",
+      "square": "Eckig"
+    },
+    "font": "Schrift",
+    "fonts": {
+      "system": "System",
+      "arial": "Arial",
+      "serif": "Serifenschrift"
+    },
+    "dryRunTitle": "Probeläufe",
+    "dryRunHint": "Nachrichten zu Probeläufen (ein fehlgeschlagener Testlauf, eine fehlgeschlagene Prüfung darin) sind als Test gekennzeichnet: „Probelauf“ im Betreff, ein grauer Hinweis „Kein Handlungsbedarf“ und kein roter Streifen.",
+    "dryRunDelivery": {
+      "marked": "E-Mail, Teams und Webhook, als Test gekennzeichnet",
+      "inAppOnly": "Nur in der App"
+    },
+    "previewSample": "Beispiel",
+    "previewSamples": {
+      "test": "Testnachricht",
+      "dryRun": "Fehlgeschlagener Probelauf"
+    }
   }
 }

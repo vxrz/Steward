@@ -312,7 +312,7 @@
   },
   "look": {
     "title": "Look of e-mails and Teams messages",
-    "intro": "Name, colour, logo and footer of the messages Steward sends. Empty fields follow Settings → Appearance.",
+    "intro": "Name, colour, logo, footer and style of the messages Steward sends, and how dry runs are sent. Empty fields follow Settings → Appearance.",
     "name": "Name",
     "nameHint": "In the e-mail header, the subject and the Teams card. Empty: {{name}}",
     "color": "Header colour",
@@ -323,13 +323,15 @@
     "logoSource": {
       "app": "App logo",
       "report": "Report logo",
-      "none": "None"
+      "none": "None",
+      "custom": "Own logo"
     },
     "logoHint": "The logo travels inside the e-mail, so it shows without loading anything from Steward. Teams cards only carry logos up to 12 KB.",
     "logoProblem": {
       "missing": "No app logo is uploaded (Settings → Appearance): messages go out without a logo.",
       "type": "The app logo is a WebP image, which many mail clients cannot show: messages go out without a logo. Upload a PNG or JPEG, or use the report logo.",
-      "size": "The logo is larger than 512 KB and is left out of messages."
+      "size": "The logo is larger than 512 KB and is left out of messages.",
+      "missingCustom": "No own logo is uploaded yet: messages go out without a logo until you upload one."
     },
     "footer": "Footer text",
     "footerHint": "Small print at the bottom of every e-mail and Teams card, e.g. “Internal – IT operations”",
@@ -342,6 +344,60 @@
     "previewTeams": "Teams card",
     "previewTeamsHint": "Teams draws the card itself; this shows its content, logo and colour strip.",
     "showPreview": "Show preview",
-    "hidePreview": "Hide preview"
+    "hidePreview": "Hide preview",
+    "customLogo": "Own logo for messages",
+    "customLogoInfo": "{{type}}, {{size}} KB",
+    "customLogoNone": "No own logo uploaded",
+    "customLogoHint": "PNG or JPEG, at most 512 KB. Only for e-mails and Teams messages; the app and reports keep their logos.",
+    "uploadLogo": "Upload logo",
+    "replaceLogo": "Replace logo",
+    "removeLogo": "Remove",
+    "logoUploaded": "Notification logo uploaded",
+    "logoRemoved": "Notification logo removed",
+    "logoNotUploaded": "Logo not uploaded",
+    "logoTooLarge": "The file is larger than 512 KB.",
+    "styleTitle": "Style",
+    "styleHint": "E-mails follow all of these. Teams cards only take the logo size and position; Teams draws the rest itself.",
+    "logoSize": "Logo size",
+    "logoSizes": {
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large"
+    },
+    "logoAlign": "Logo position",
+    "logoAligns": {
+      "left": "Left",
+      "center": "Centred"
+    },
+    "headerStyle": "Header",
+    "headerStyles": {
+      "solid": "Coloured",
+      "line": "White with a line",
+      "minimal": "Minimal"
+    },
+    "buttonColor": "Button colour",
+    "buttonColorHint": "Empty: the header colour",
+    "corners": "Corners",
+    "cornerStyles": {
+      "rounded": "Rounded",
+      "square": "Square"
+    },
+    "font": "Font",
+    "fonts": {
+      "system": "System",
+      "arial": "Arial",
+      "serif": "Serif"
+    },
+    "dryRunTitle": "Dry runs",
+    "dryRunHint": "Messages about dry runs (a failed test run, a failed check in one) are marked as a test: “Dry run” in the subject, a grey banner “No action needed” and no red strip.",
+    "dryRunDelivery": {
+      "marked": "E-mail, Teams and webhook, marked as a test",
+      "inAppOnly": "Only in the app"
+    },
+    "previewSample": "Sample",
+    "previewSamples": {
+      "test": "Test message",
+      "dryRun": "Failed dry run"
+    }
   }
 }

@@ -136,6 +136,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/settings/notifications/look': ADMIN,
   'PUT /api/settings/notifications/look': ADMIN,
   'POST /api/settings/notifications/look/preview': ADMIN,
+  'GET /api/settings/notifications/look/logo': ADMIN,
+  'POST /api/settings/notifications/look/logo': ADMIN,
+  'DELETE /api/settings/notifications/look/logo': ADMIN,
   'GET /api/settings/theme': ADMIN,
   'PUT /api/settings/theme': ADMIN,
   'POST /api/settings/theme/reset': ADMIN,
@@ -693,6 +696,7 @@ const NO_POSITIVE = new Set([
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet
   'GET /api/reports/branding/logo', // no logo uploaded
+  'GET /api/settings/notifications/look/logo',
   'GET /api/theme/logo',
   'GET /api/docs/*', // no such asset
   'GET /api/docs/static/*',

@@ -20,13 +20,13 @@
   },
   "runFailed": {
     "title": "Ausführung fehlgeschlagen: {{process}}",
-    "titleDryRun": "Ausführung fehlgeschlagen: {{process}} (Probelauf)",
+    "titleDryRun": "Probelauf – Ausführung fehlgeschlagen: {{process}}",
     "body": "Fehler: {{error}}",
     "bodyNoError": "Die Ausführung ist fehlgeschlagen."
   },
   "checkFailed": {
     "title": "Prüfung fehlgeschlagen: {{check}} in {{process}}",
-    "titleDryRun": "Prüfung fehlgeschlagen: {{check}} in {{process}} (Probelauf)",
+    "titleDryRun": "Probelauf – Prüfung fehlgeschlagen: {{check}} in {{process}}",
     "body": "{{severity}}: {{message}}"
   },
   "scheduleSkipped": {
@@ -274,5 +274,10 @@
       "d7": "7 Tage",
       "d30": "30 Tage"
     }
+  },
+  "dryRun": {
+    "banner": "Probelauf – ein Test, es wurde nichts geändert. Kein Handlungsbedarf.",
+    "sampleProcess": "Inventarexport",
+    "sampleError": "Plattform antwortete mit HTTP 503"
   }
 }

@@ -20,13 +20,13 @@
   },
   "runFailed": {
     "title": "Run failed: {{process}}",
-    "titleDryRun": "Run failed: {{process}} (dry run)",
+    "titleDryRun": "Dry run – Run failed: {{process}}",
     "body": "Error: {{error}}",
     "bodyNoError": "The run failed."
   },
   "checkFailed": {
     "title": "Check failed: {{check}} in {{process}}",
-    "titleDryRun": "Check failed: {{check}} in {{process}} (dry run)",
+    "titleDryRun": "Dry run – Check failed: {{check}} in {{process}}",
     "body": "{{severity}}: {{message}}"
   },
   "scheduleSkipped": {
@@ -274,5 +274,10 @@
       "d7": "7 days",
       "d30": "30 days"
     }
+  },
+  "dryRun": {
+    "banner": "Dry run – a test, nothing was changed. No action needed.",
+    "sampleProcess": "Inventory export",
+    "sampleError": "Platform answered HTTP 503"
   }
 }
