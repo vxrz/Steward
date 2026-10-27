@@ -17,7 +17,7 @@ Moves:
 
 - Processes with all versions, runs with journals, decisions, logs and protocols, schedules, webhook triggers, platforms with their credentials, connector types, dashboards and datasets, monitors with their history, heartbeat gateways, records and living documents with editions, reviews and attachments, services, the credentials register, ticket references, access checks, snapshots, findings and access change entries, control catalogues and mappings, evidence packs, reports and report schedules, Gatus sources and their metrics.
 - The audit log, unchanged (see [Audit log](#the-audit-log)).
-- Settings: the default language, retention, browser options, the four-eyes rule for findings, the theme and logo, report branding, the credential reminders, the ticket settings and the daily summary switch.
+- Settings: the default language, retention, browser options, the four-eyes rule for findings, the theme and logo, report branding, the credential reminders, the ticket settings, the daily summary switch and the look of e-mails and Teams messages.
 
 Does not move (the dry run lists it):
 

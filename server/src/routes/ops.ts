@@ -1,6 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { API_TOKEN_SCOPES, LOCALE_CODES, NOTIFICATION_EVENTS, type NotificationSettingsInput } from '@sm/shared';
+import {
+  API_TOKEN_SCOPES,
+  LOCALE_CODES,
+  NOTIFICATION_EVENTS,
+  NOTIFICATION_LOGO_SOURCES,
+  NOTIFICATION_LOOK_FOOTER_MAX,
+  NOTIFICATION_LOOK_NAME_MAX,
+  type NotificationSettingsInput,
+} from '@sm/shared';
 import { HttpError } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
@@ -9,7 +17,9 @@ import { createToken, listTokens, revokeToken } from '../auth/tokens.js';
 import { changesNotificationDelivery } from '../auth/step-up-rules.js';
 import { listInApp, markAllRead, markRead } from '../notifications/store.js';
 import { getNotificationSettings, saveNotificationSettings } from '../notifications/settings.js';
-import { initNotifications, sendTest } from '../notifications/service.js';
+import { initNotifications, previewLook, sendTest } from '../notifications/service.js';
+import { getLook, updateLook } from '../notifications/look.js';
+import { audit } from '../audit.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
@@ -26,6 +36,21 @@ const admin = (what: string): AuthUser => {
 };
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 const viaToken = (req: FastifyRequest) => !!(req as unknown as { smToken?: string }).smToken;
+
+const lookBody = z
+  .object({
+    name: z
+      .string()
+      .max(NOTIFICATION_LOOK_NAME_MAX * 2)
+      .optional(),
+    color: z.string().max(16).optional(),
+    logoSource: z.enum(NOTIFICATION_LOGO_SOURCES).optional(),
+    footer: z
+      .string()
+      .max(NOTIFICATION_LOOK_FOOTER_MAX * 2)
+      .optional(),
+  })
+  .strict();
 
 const channelList = z.array(z.enum(['inApp', 'email', 'teams', 'webhook'])).max(4);
 const notificationSettingsBody = z.object({
@@ -133,6 +158,29 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
     const u = admin('test notification channels');
     const b = z.object({ channel: z.enum(['email', 'teams', 'webhook']), to: z.string().max(254).optional() }).parse(req.body);
     return sendTest(b.channel, b.to?.trim() || getUser(u.id).email);
+  });
+
+  // look of e-mails and Teams messages (name, colour, logo, footer; empty = Settings → Appearance)
+  app.get('/settings/notifications/look', async () => {
+    admin('view the look of notifications');
+    return getLook();
+  });
+  app.put('/settings/notifications/look', async (req) => {
+    const u = admin('change the look of notifications');
+    const { look, changed } = updateLook(lookBody.parse(req.body ?? {}), u.username);
+    if (Object.keys(changed).length)
+      audit({
+        action: 'notifications.look_updated',
+        entityType: 'settings',
+        entityId: 'notifications.look',
+        summary: `Look of e-mails and Teams messages changed (${Object.keys(changed).join(', ')})`,
+        details: changed,
+      });
+    return look;
+  });
+  app.post('/settings/notifications/look/preview', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    admin('view the look of notifications');
+    return previewLook(lookBody.parse(req.body ?? {}));
   });
 
   // ---------- maintenance ----------

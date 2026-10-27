@@ -29,6 +29,7 @@ import { fmtBytes, fmtDate, fmtNumber, fmtRelative } from '../format';
 import { DEFAULT_LOCALE, LANGUAGES, isLocale } from '../i18n/languages';
 import i18n from '../i18n';
 import { ApiTokenTable } from '../components/ApiTokenTable';
+import { NotificationLookCard } from '../components/notifications/NotificationLookCard';
 import { NotificationSettingsCard } from '../components/notifications/NotificationSettingsCard';
 import { PublicApiInfo, usePublicApi } from '../components/PublicApiInfo';
 import { ReportBrandingCard } from '../components/reports/ReportBrandingCard';
@@ -284,6 +285,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
         {!readOnly && <NotificationSettingsCard />}
+        {!readOnly && <NotificationLookCard />}
         {!readOnly && <DailySummaryAdminCard />}
         {!readOnly && <CredentialReminderSettingsCard />}
         {!readOnly && <TicketSettingsCard />}

@@ -81,6 +81,54 @@ export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'te
   webhook: { enabled: boolean; url?: string };
 };
 
+// ---------- Look of e-mails and Teams messages ----------
+
+/** Where the logo in e-mails and Teams cards comes from: the Appearance logo, the report logo, or none. */
+export const NOTIFICATION_LOGO_SOURCES = ['app', 'report', 'none'] as const;
+export type NotificationLogoSource = (typeof NOTIFICATION_LOGO_SOURCES)[number];
+
+export const NOTIFICATION_LOOK_NAME_MAX = 60;
+export const NOTIFICATION_LOOK_FOOTER_MAX = 300;
+
+/**
+ * Settings → Notifications → Look (administrators). Empty fields follow Settings → Appearance:
+ * the app name (else the product name) and the primary colour.
+ */
+export interface NotificationLookInput {
+  /** Shown in the e-mail header, the subject prefix and the Teams card; '' = Appearance app name */
+  name: string;
+  /** Hex colour of the e-mail header (#rrggbb); '' = Appearance primary colour */
+  color: string;
+  logoSource: NotificationLogoSource;
+  /** Small print at the bottom of every e-mail, e.g. "Internal – IT operations"; '' = none */
+  footer: string;
+}
+
+export interface NotificationLook extends NotificationLookInput {
+  /** What the messages use right now (the fallbacks applied) */
+  effective: {
+    name: string;
+    color: string;
+    /** The chosen logo exists and can be embedded (PNG or JPEG) */
+    logo: boolean;
+    /** Why there is no logo although one was chosen: missing, a WebP image mail clients cannot show, or larger than 512 KB */
+    logoProblem?: 'missing' | 'type' | 'size';
+  };
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+export const NOTIFICATION_LOOK_DEFAULTS: NotificationLookInput = { name: '', color: '', logoSource: 'app', footer: '' };
+
+/** POST /api/settings/notifications/look/preview: the sample message as it would be sent with the given draft. */
+export interface NotificationLookPreview {
+  subject: string;
+  /** The complete HTML e-mail; the logo is inlined as a data URL for the preview only */
+  html: string;
+  /** The Teams card (Adaptive Card JSON) */
+  teams: unknown;
+}
+
 // ---------- API tokens ----------
 
 /**

@@ -36,6 +36,7 @@ import { passwordLoginMode } from '../settings.js';
 import { publicProviders } from '../auth/sso.js';
 import { checkedLogo, checkedThemeSettings } from '../theme/service.js';
 import { checkedBranding } from '../reports/branding.js';
+import { checkedLook } from '../notifications/look.js';
 import { sniff } from '../records/attachments.js';
 import { hashPassword, temporaryPassword } from '../auth/passwords.js';
 import { NO_PASSWORD } from '../auth/users.js';
@@ -1105,6 +1106,7 @@ export function checkedSettings(settings: Record<string, unknown>, dataDir: stri
     else if (k === 'defaultLocale') ok = typeof v === 'string' && (LOCALE_CODES as readonly string[]).includes(v) ? v : undefined;
     else if (k === 'theme.settings') ok = checkedThemeSettings(v) ?? undefined;
     else if (k === 'theme.logo') ok = checkedLogo(v) ?? undefined;
+    else if (k === 'notifications.look') ok = checkedLook(v) ?? undefined;
     else if (k === 'reports.branding') {
       const mime = object(v) ? (v as { logoMime?: unknown }).logoMime : null;
       const file = mime === 'image/jpeg' ? 'logo.jpg' : 'logo.png';

@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  BRAND,
   DAILY_SUMMARY_SECTIONS,
   DEFAULT_DAILY_SUMMARY,
   type DailySummaryAdmin,
@@ -35,6 +34,7 @@ import { getRecord } from '../records/service.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp } from './store.js';
 import { sendEmail } from './channels.js';
+import { resolveLook } from './look.js';
 import { domainAllowed } from './domains.js';
 import { userLocale } from './service.js';
 
@@ -467,7 +467,11 @@ export function buildSummary(u: UserInfo, prefs: DailySummaryPrefs, since: numbe
 const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 const TONE_COLOR = { bad: '#c92a2a', attention: '#e8590c', ok: '#2b8a3e', info: '#1971c2' } as const;
 
-export function renderSummary(c: DailySummaryContent, l: Locale, timeZone: string): { title: string; inApp: string; text: string; html: string } {
+export function renderSummary(
+  c: DailySummaryContent,
+  l: Locale,
+  timeZone: string,
+): { title: string; inApp: string; text: string; html: string; note: string; button: { label: string; href: string } } {
   const title = t(l, 'dailySummary.title', { date: dateOnly(l, c.until, timeZone) });
   const intro = t(l, 'dailySummary.intro', { since: dateTime(l, c.since, timeZone) });
   const label = (id: DailySummarySection) => t(l, `dailySummary.sections.${id}` as MessageKey);
@@ -497,9 +501,9 @@ export function renderSummary(c: DailySummaryContent, l: Locale, timeZone: strin
     const dot = i.tone ? `<span style="color:${TONE_COLOR[i.tone]}">●</span> ` : '';
     return `<li style="margin:2px 0">${dot}${head}${i.detail ? `<br><span style="color:#868e96;font-size:12px">${esc(i.detail)}</span>` : ''}</li>`;
   };
+  // the content inside the standard e-mail layout (look.ts): header, the "Open" button and the footer come from there
   const html = [
-    `<div lang="${l}" style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;color:#212529;max-width:640px">`,
-    `<p style="margin:0 0 4px"><strong style="font-size:16px">${esc(title)}</strong></p>`,
+    `<div lang="${l}">`,
     `<p style="margin:0 0 12px;color:#868e96">${esc(intro)}</p>`,
     ...(c.empty
       ? [`<p>${esc(t(l, 'dailySummary.nothing'))}</p>`]
@@ -507,11 +511,11 @@ export function renderSummary(c: DailySummaryContent, l: Locale, timeZone: strin
           (s) =>
             `<p style="margin:12px 0 2px"><strong>${esc(label(s.id))}</strong> <span style="color:#868e96">(${s.count})</span></p><ul style="margin:0;padding-left:18px">${s.items.map(item).join('')}${s.more ? `<li style="list-style:none;color:#868e96">${esc(t(l, 'dailySummary.more', { count: s.more }))}</li>` : ''}</ul>`,
         )),
-    `<p style="margin:16px 0 8px"><a href="${esc(home)}">${esc(t(l, 'dailySummary.open', { brand: BRAND.name }))}</a></p>`,
-    `<p style="margin:0;color:#868e96;font-size:12px">${esc(t(l, 'dailySummary.footer', { link: '' }))}<a href="${esc(profile)}" style="color:#868e96">${esc(profile)}</a></p>`,
     '</div>',
   ].join('');
-  return { title, inApp, text, html };
+  const note = `${esc(t(l, 'dailySummary.footer', { link: '' }))}<a href="${esc(profile)}" style="color:#5c636a">${esc(profile)}</a>`;
+  const button = { label: t(l, 'dailySummary.open', { brand: resolveLook().name }), href: home };
+  return { title, inApp, text, html, note, button };
 }
 
 /** The current user's summary as it would be sent now (preview on the profile page; nothing is sent or claimed). */
@@ -589,7 +593,7 @@ export function runDailySummaries(now = Date.now()): number {
           locale: l,
           link: absoluteLink('/'),
           ts: nowIso(),
-          emailParts: { text: m.text, html: m.html },
+          emailParts: { text: m.text, html: m.html, note: m.note, button: m.button },
         })
           .then(() => logger.debug({ user: u.username }, 'daily summary e-mailed'))
           .catch((err) => logger.warn({ err: { message: (err as Error).message }, user: u.username }, 'daily summary could not be e-mailed'))

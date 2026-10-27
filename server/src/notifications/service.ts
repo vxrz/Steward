@@ -1,16 +1,16 @@
-import type { AclEntry, Locale, NotificationEvent, ProcessPermission, UserInfo } from '@sm/shared';
+import type { AclEntry, Locale, NotificationEvent, NotificationLookInput, NotificationLookPreview, ProcessPermission, UserInfo } from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
 import { logger } from '../log.js';
 import { vault } from '../vault.js';
-import { nowIso, parseJson } from '../util.js';
+import { HttpError, nowIso, parseJson } from '../util.js';
 import { listUsers, toAuthUser } from '../auth/users.js';
 import { matches, processPermissions, verificationCheck } from '../auth/permissions.js';
 import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
-import { sendEmail, sendTeams, sendWebhook, type OutgoingMessage } from './channels.js';
-import { BRAND } from '@sm/shared';
+import { emailContent, sendEmail, sendTeams, sendWebhook, teamsCard, type OutgoingMessage } from './channels.js';
+import { logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
@@ -445,19 +445,34 @@ export function stopNotificationJobs(): void {
   staleTimer = undefined;
 }
 
-/** Sends a test message on one channel (ignores routes and de-duplication). */
-export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: string | undefined): Promise<{ ok: boolean; error?: string }> {
-  const settings = getNotificationSettings();
+/** The test message (also the sample of the look preview). */
+function testMessage(name: string): OutgoingMessage {
   const locale = defaultLocale();
-  const msg: OutgoingMessage = {
+  return {
     event: 'test',
     title: t(locale, 'test.title'),
-    body: t(locale, 'test.body', { brand: BRAND.name }),
+    body: t(locale, 'test.body', { brand: name }),
     locale,
     link: absoluteLink('/'),
     ts: nowIso(),
     data: { test: true },
   };
+}
+
+/** The test message as an e-mail and a Teams card with unsaved look settings (nothing is sent or stored). */
+export function previewLook(draft: Partial<NotificationLookInput>): NotificationLookPreview {
+  const problems = lookProblems(draft);
+  if (problems.length) throw new HttpError(400, problems.join('; '), 'NOTIFICATION_LOOK_INVALID');
+  const look = resolveLook(draft);
+  const msg = testMessage(look.name);
+  const mail = emailContent(msg, look, look.logo ? logoDataUrl(look.logo) : undefined);
+  return { subject: mail.subject, html: mail.html, teams: teamsCard(msg, look) };
+}
+
+/** Sends a test message on one channel (ignores routes and de-duplication). */
+export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: string | undefined): Promise<{ ok: boolean; error?: string }> {
+  const settings = getNotificationSettings();
+  const msg = testMessage(resolveLook().name);
   try {
     const secrets = channelSecrets();
     if (channel === 'email') {

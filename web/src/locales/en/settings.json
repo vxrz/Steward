@@ -309,5 +309,39 @@
       "noEntries": "No entries.",
       "actorNow": "{{actor}} → {{now}}"
     }
+  },
+  "look": {
+    "title": "Look of e-mails and Teams messages",
+    "intro": "Name, colour, logo and footer of the messages Steward sends. Empty fields follow Settings → Appearance.",
+    "name": "Name",
+    "nameHint": "In the e-mail header, the subject and the Teams card. Empty: {{name}}",
+    "color": "Header colour",
+    "colorHint": "Empty: the primary colour of the Appearance settings",
+    "colorInvalid": "Use a hex colour like #1c7ed6, or leave it empty",
+    "eyeDropper": "Pick a colour from the screen",
+    "logo": "Logo",
+    "logoSource": {
+      "app": "App logo",
+      "report": "Report logo",
+      "none": "None"
+    },
+    "logoHint": "The logo travels inside the e-mail, so it shows without loading anything from Steward. Teams cards only carry logos up to 12 KB.",
+    "logoProblem": {
+      "missing": "No app logo is uploaded (Settings → Appearance): messages go out without a logo.",
+      "type": "The app logo is a WebP image, which many mail clients cannot show: messages go out without a logo. Upload a PNG or JPEG, or use the report logo.",
+      "size": "The logo is larger than 512 KB and is left out of messages."
+    },
+    "footer": "Footer text",
+    "footerHint": "Small print at the bottom of every e-mail and Teams card, e.g. “Internal – IT operations”",
+    "save": "Save look",
+    "reset": "Back to the Appearance settings",
+    "saved": "Look of e-mails and Teams messages saved",
+    "testHint": "Send a test under Notifications to see it in your mail client and in Teams.",
+    "previewEmail": "E-mail",
+    "subject": "Subject: {{subject}}",
+    "previewTeams": "Teams card",
+    "previewTeamsHint": "Teams draws the card itself; this shows its content, logo and colour strip.",
+    "showPreview": "Show preview",
+    "hidePreview": "Hide preview"
   }
 }
