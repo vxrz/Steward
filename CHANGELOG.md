@@ -10,6 +10,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 - **Get a new access token on demand** (#101): platforms with an OAuth2 or custom login cache their token until shortly before it expires, so roles granted to the technical user in the meantime only worked after up to 30 minutes (the platform answered 403). _Get a new token_ (platform → … menu, and next to the token age in the connection test) drops the cached token and logs in again right away; `POST /api/platforms/{id}/token/renew` does the same. Needs `manage` on the platform, audited as `platform.token_renewed`; the token itself is never shown or logged. _Test connection_ now shows when the cached token was issued and when it expires.
 
+### Fixed
+
+- **Git sync no longer copies an item created after the fetch** – a file staged as _new_ whose process, dashboard or monitor was created in Steward afterwards (e.g. from the same built-in template) became a second item (`…-2`) when accepted. Accepting now changes the existing item (shown as a conflict, since it never came from Git), and the next fetch drops the _new_ update when the item is identical.
+
 ## [0.2.1] - 2026-10-27
 
 Fixes from running 0.2.0 in a real setup – API specs keep their server URL path, access lists accept picked users, teams and roles, the Insights Hub and Industrial Edge examples handle epoch and empty timestamps, the container health check works under a path prefix – plus Git sync that follows tags with Steward's own example library as a ready (disabled) source, and branded e-mails and Teams messages. Upgrading from 0.2.0 adds only columns and settings; no data is rewritten.

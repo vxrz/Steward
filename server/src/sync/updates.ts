@@ -8,7 +8,7 @@ import * as processes from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
 import { fileWebUrl } from './providers.js';
 import { requireSource, type SourceRow } from './service.js';
-import { applyItem, canDecide, canView, incomingText, localById, localText } from './items.js';
+import { applyItem, canDecide, canView, findLocal, incomingText, localById, localText } from './items.js';
 import { CONFLICT_TEXT, conflictOf, link } from './fetch.js';
 
 /**
@@ -138,8 +138,9 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
   if (!canDecide(kind, r.entity_id))
     throw new HttpError(403, `You are not allowed to ${r.action === 'create' ? 'create' : 'change'} this ${kind}`, 'FORBIDDEN', { context: 'decideGitUpdate' });
   const src = requireSource(r.source_id);
-  // check again: the local item may have changed (or appeared) since the fetch
-  const target = r.entity_id ? localById(kind, r.entity_id) : null;
+  // check again: the local item may have changed since the fetch – or appeared, when it was created after the fetch
+  // (e.g. from the same template). Then the update changes that item instead of creating a copy with "-2" appended.
+  const target = r.entity_id ? localById(kind, r.entity_id) : r.identity ? findLocal(kind, r.identity) : null;
   if (r.entity_id && !target) throw new HttpError(409, 'The local item no longer exists – fetch again to stage it as a new item', 'SYNC_ITEM_GONE');
   const item = target
     ? db().get<Parameters<typeof conflictOf>[2] & object>(

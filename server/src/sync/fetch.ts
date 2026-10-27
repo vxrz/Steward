@@ -163,14 +163,17 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         result.unchanged++;
         continue;
       }
-      const latest = db().get<UpdateRow & { blob_sha: string }>(
-        'SELECT id, status, content_hash, blob_sha, min_version FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+      const latest = db().get<UpdateRow & { blob_sha: string; action: string; kind: SyncKind | null; identity: string | null }>(
+        'SELECT id, status, content_hash, blob_sha, min_version, action, kind, identity FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
         id,
         f.path,
       );
       // a file that waited for a newer Steward is looked at again once this installation is new enough
       const waited = latest?.status === 'invalid' && !!latest.min_version && !newerThan(latest.min_version, config.version);
-      if (latest && latest.blob_sha === f.sha && ['pending', 'rejected', 'invalid'].includes(latest.status) && !waited) {
+      // a "new" item that was created in Steward after the fetch (e.g. from the same template) is looked at again
+      const appeared =
+        latest?.status === 'pending' && latest.action === 'create' && !!latest.kind && !!latest.identity && !!findLocal(latest.kind, latest.identity);
+      if (latest && latest.blob_sha === f.sha && ['pending', 'rejected', 'invalid'].includes(latest.status) && !waited && !appeared) {
         result.unchanged++;
         continue;
       }
@@ -427,7 +430,8 @@ function stage(
       return 'error';
     }
     if (sameAsLocal(it, local.id)) {
-      // identical content: just remember the origin
+      // identical content: just remember the origin (and drop a "new" update staged before the item existed)
+      supersede(r.id, f.path);
       link(r, f, head, it, local.id, 'git-sync');
       audit({
         actor: 'git-sync',

@@ -407,6 +407,36 @@ describe('fetching and staging', () => {
     const [u] = await pending(src.id);
     expect(u).toMatchObject({ action: 'update', entityId: 'local-first', conflict: true });
   });
+
+  it('a "new" item created in Steward after the fetch is updated, not copied', async () => {
+    const repo = uniqueRepo();
+    await commit(repo, { 'steward/created-later.yaml': proc('Created later', 'from git') });
+    const { source: src } = await source(repo);
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    const [u] = await pending(src.id);
+    expect(u).toMatchObject({ action: 'create' });
+    // the same process is created in Steward afterwards (e.g. from the built-in template)
+    await s.api('POST', '/processes', { text: proc('Created later') });
+    // accepting must not create "created-later-2": it is a change of the existing process, which never came from Git
+    expect(await errorOf(s.api('POST', `/sync-updates/${u.id}/accept`, {}))).toContain('accept anyway');
+    await s.api('POST', `/sync-updates/${u.id}/accept`, { force: true });
+    const ids = ((await s.api('GET', '/processes')) as any[]).map((p) => p.id).filter((id: string) => id.startsWith('created-later'));
+    expect(ids).toEqual(['created-later']);
+    expect((await s.api('GET', '/processes/created-later')).currentVersion).toBe(2);
+  });
+
+  it('a fetch drops a "new" item that now exists identically in Steward', async () => {
+    const repo = uniqueRepo();
+    const text = proc('Same later');
+    await commit(repo, { 'steward/same-later.yaml': text });
+    const { source: src } = await source(repo);
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(await pending(src.id)).toHaveLength(1);
+    await s.api('POST', '/processes', { text });
+    await s.api('POST', `/sync-sources/${src.id}/fetch`);
+    expect(await pending(src.id)).toHaveLength(0);
+    expect((await s.api('GET', '/sync-origins?kind=process')).some((o: any) => o.entityId === 'same-later')).toBe(true);
+  });
 });
 
 describe('visibility and retention', () => {
