@@ -23,6 +23,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, ConnectionSlot, NodeOf, Platform } from '@sm/shared';
 import i18n from '../../i18n';
 import { get } from '../../api';
+import { OperationPath } from '../platform/OperationPath';
 
 type HttpNode = NodeOf<'http'>;
 type Param = NonNullable<ApiOperation['parameters']>[number];
@@ -225,7 +226,7 @@ function OperationList({ ops, loading, onPick }: { ops?: ApiOperation[]; loading
                   </Badge>
                   <Box style={{ minWidth: 0 }}>
                     <Text size="xs" className="mono" truncate>
-                      {o.path}
+                      <OperationPath op={o} />
                     </Text>
                     {(o.summary || o.operationId) && (
                       <Text size="xs" c="dimmed" truncate>
@@ -287,7 +288,7 @@ function OperationDetails({ node, op, onChange }: { node: HttpNode; op: ApiOpera
           {op.method}
         </Badge>
         <Text size="xs" className="mono" truncate>
-          {op.path}
+          <OperationPath op={op} />
         </Text>
       </Group>
       {op.summary && (

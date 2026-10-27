@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActionIcon,
@@ -18,12 +18,13 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { IconExternalLink, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconExternalLink, IconPencil, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, Platform, PlatformSpec } from '@sm/shared';
-import { del, get, notifyError, notifyOk, post, apiUrl } from '../../api';
+import { del, get, notifyError, notifyOk, patch, post, apiUrl } from '../../api';
 import { Hint } from '../common';
 import { fmtDate } from '../../format';
+import { OperationPath } from './OperationPath';
 
 export const METHOD_COLORS: Record<string, string> = {
   GET: 'blue',
@@ -39,6 +40,79 @@ export function MethodBadge({ method }: { method: string }) {
     <Badge color={METHOD_COLORS[method] ?? 'gray'} variant="light" size="sm" w={62}>
       {method}
     </Badge>
+  );
+}
+
+/** Mirrors the server rule (platforms/pathPrefix.ts): empty or "/seg/seg" of unreserved characters, no dot segments. */
+export function validPathPrefix(prefix: string): boolean {
+  return prefix.length <= 200 && /^(?:\/[A-Za-z0-9._~-]+)*$/.test(prefix) && !prefix.split('/').some((seg) => seg === '.' || seg === '..');
+}
+
+/** "Requests go to: https://host/base/prefix/…" */
+function RequestPreview({ baseUrl, prefix }: { baseUrl: string; prefix: string }) {
+  const { t } = useTranslation('platforms');
+  return (
+    <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
+      {t('specs.requestsGoTo')}{' '}
+      <span className="mono">
+        {baseUrl.replace(/\/+$/, '')}
+        {prefix}/…
+      </span>
+    </Text>
+  );
+}
+
+function PrefixModal({ platform, spec, onClose }: { platform: Platform; spec: PlatformSpec | null; onClose: () => void }) {
+  const { t } = useTranslation(['platforms', 'common']);
+  const qc = useQueryClient();
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setValue(spec?.pathPrefix ?? ''), [spec]);
+  const prefix = value.trim().replace(/\/+$/, '');
+  const valid = validPathPrefix(prefix);
+  const save = async () => {
+    if (!spec) return;
+    setBusy(true);
+    try {
+      await patch<PlatformSpec>(`/platforms/${platform.id}/specs/${spec.id}`, { pathPrefix: prefix });
+      notifyOk(t('specs.prefixSaved'), spec.name);
+      await qc.invalidateQueries({ queryKey: ['platform', platform.id] });
+      onClose();
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened={!!spec} onClose={onClose} title={t('specs.prefixTitle')}>
+      <Stack>
+        <TextInput
+          label={t('specs.pathPrefix')}
+          description={t('specs.prefixHint')}
+          placeholder="/api/v1"
+          classNames={{ input: 'mono' }}
+          value={value}
+          onChange={(e) => setValue(e.currentTarget.value)}
+          error={valid ? undefined : t('specs.prefixInvalid')}
+          data-autofocus
+        />
+        {spec?.serverUrl && (
+          <Text size="xs" c="dimmed" style={{ wordBreak: 'break-all' }}>
+            {t('specs.serverUrl')} <span className="mono">{spec.serverUrl}</span>
+          </Text>
+        )}
+        <RequestPreview baseUrl={platform.baseUrl} prefix={valid ? prefix : ''} />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('common:cancel')}
+          </Button>
+          <Button onClick={save} loading={busy} disabled={!valid}>
+            {t('common:save')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -62,6 +136,7 @@ export function SpecsTab({
   const [filter, setFilter] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   const [removing, setRemoving] = useState<PlatformSpec | null>(null);
+  const [editing, setEditing] = useState<PlatformSpec | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id] });
 
@@ -177,6 +252,7 @@ export function SpecsTab({
                   <Table.Th>{t('common:name')}</Table.Th>
                   <Table.Th>{t('specs.version')}</Table.Th>
                   <Table.Th>{t('specs.format')}</Table.Th>
+                  <Table.Th>{t('specs.pathPrefix')}</Table.Th>
                   <Table.Th>{t('specs.operations')}</Table.Th>
                   <Table.Th>{t('specs.added')}</Table.Th>
                   <Table.Th />
@@ -197,6 +273,21 @@ export function SpecsTab({
                     </Table.Td>
                     <Table.Td>{s.version ?? '–'}</Table.Td>
                     <Table.Td className="nowrap">{s.format}</Table.Td>
+                    <Table.Td>
+                      <Group gap={4} wrap="nowrap">
+                        <Text size="sm" className="mono" style={{ wordBreak: 'break-all' }}>
+                          {s.pathPrefix || '–'}
+                        </Text>
+                        {!readOnly && (
+                          <Tooltip label={t('specs.editPrefix')}>
+                            <ActionIcon variant="subtle" size="sm" onClick={() => setEditing(s)} aria-label={t('specs.editPrefixOf', { name: s.name })}>
+                              <IconPencil size={14} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
+                      </Group>
+                      <RequestPreview baseUrl={platform.baseUrl} prefix={s.pathPrefix} />
+                    </Table.Td>
                     <Table.Td>{s.operationCount}</Table.Td>
                     <Table.Td className="nowrap">{fmtDate(s.createdAt)}</Table.Td>
                     <Table.Td>
@@ -260,7 +351,7 @@ export function SpecsTab({
                       <MethodBadge method={o.method} />
                     </Table.Td>
                     <Table.Td className="mono" style={{ wordBreak: 'break-all' }}>
-                      {o.path}
+                      <OperationPath op={o} />
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm" lineClamp={2}>
@@ -282,6 +373,7 @@ export function SpecsTab({
         </Paper>
       )}
 
+      <PrefixModal platform={platform} spec={editing} onClose={() => setEditing(null)} />
       <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('specs.deleteTitle')}>
         <Text size="sm">
           <Trans

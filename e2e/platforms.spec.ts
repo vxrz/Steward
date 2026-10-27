@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { platformId } from './support/helpers';
+import { json, platformId, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -51,4 +51,36 @@ test('operator may use the explorer read-only', async ({ loginAs }) => {
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('HTTP 200', { exact: true })).toBeVisible();
   await expect(page.getByText(/edge-line-1/).first()).toBeVisible();
+});
+
+test('API specs: the path prefix from the server URL can be edited, with a preview of the request URL', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const name = uniq('Prefix platform');
+  const p = await json<{ id: string }>(await api.post('/api/platforms', { data: { name, kind: 'generic', baseUrl: 'https://edge.example.com' } }));
+  const spec = {
+    openapi: '3.0.3',
+    info: { title: 'Edge devices', version: '1' },
+    servers: [{ url: 'https://edge.example.com/device/api/v1' }],
+    paths: { '/things': { get: { operationId: 'listThings', summary: 'List things', responses: { '200': { description: 'OK' } } } } },
+  };
+  await json(await api.post(`/api/platforms/${p.id}/specs`, { data: { name: 'Edge devices', content: JSON.stringify(spec) } }));
+
+  await page.goto(`/platforms/${p.id}`);
+  await page.getByRole('tab', { name: 'API specs' }).click();
+  await expect(page.getByRole('cell', { name: /Requests go to: https:\/\/edge\.example\.com\/device\/api\/v1\/…/ })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '/device/api/v1/things', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Edit path prefix of Edge devices' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Path prefix of the specification' });
+  const input = dialog.getByRole('textbox', { name: 'Path prefix' });
+  await input.fill('/../admin');
+  await expect(dialog.getByText(/Use \/segment\/segment/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await input.fill('/device/api/v2');
+  await expect(dialog.getByText('https://edge.example.com/device/api/v2/…')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('cell', { name: '/device/api/v2/things', exact: true })).toBeVisible();
+
+  await api.delete(`/api/platforms/${p.id}`);
 });
