@@ -61,7 +61,7 @@ describe.each(versions)('upgrade from %s', (version) => {
   const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_${version.replace(/\W/g, '')}_${process.pid}`;
   const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
   let pending: string[] = [];
-  /** The operations of every API spec as the old version stored them (method and full path). */
+  /** The operations of every API spec as the old version stored them, with the path each request went to then. */
   let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
   let proc: ChildProcess | undefined;
   let stdout = '';
@@ -114,9 +114,11 @@ describe.each(versions)('upgrade from %s', (version) => {
     pending = pendingMigrations(sqlite);
     const old = new Db(sqlite, { migrate: false });
     try {
-      oldOperations = old
-        .all<{ platform_id: string; operations: string }>('SELECT platform_id, operations FROM platform_specs')
-        .map((r) => ({ platformId: r.platform_id, ops: JSON.parse(r.operations) }));
+      // before 0.2.1 the stored paths were the full request paths; from 0.2.1 on they are relative to path_prefix
+      oldOperations = old.all<{ platform_id: string; operations: string; path_prefix?: string | null }>('SELECT * FROM platform_specs').map((r) => ({
+        platformId: r.platform_id,
+        ops: (JSON.parse(r.operations) as { method: string; path: string }[]).map((o) => ({ method: o.method, path: (r.path_prefix ?? '') + o.path })),
+      }));
     } finally {
       old.close();
     }
@@ -247,7 +249,7 @@ describe.each(versions)('upgrade from %s', (version) => {
     for (const { platformId, ops } of oldOperations) {
       const specs = await admin('GET', `/platforms/${platformId}/specs`);
       for (const spec of specs) expect(typeof spec.pathPrefix).toBe('string');
-      // the demo specs already repeat their server URL's path in their paths: no prefix is added twice
+      // every request still goes to the same path: no prefix lost and none added twice
       const now = new Set((await admin('GET', `/platforms/${platformId}/operations`)).map((o: any) => `${o.method} ${o.path}`));
       for (const o of ops) expect(now, `${platformId}: ${o.method} ${o.path}`).toContain(`${o.method} ${o.path}`);
     }
