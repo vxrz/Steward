@@ -517,6 +517,8 @@ healthcheck:
   test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4310/steward/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 ```
 
+With Steward's own TLS (`SM_TLS_CERT`), the check accepts only the certificate in that file. Steward reads the file at start, so after renewing the certificate the container shows _unhealthy_ until Steward is restarted, which it needs anyway to serve the new certificate.
+
 A monitor that gets **401** asks a path Steward does not know (a trailing slash, `/api/healthz`): unknown API paths answer _please sign in_ rather than revealing which routes exist. Monitors need no credentials for these two endpoints.
 
 For Zabbix, use an _HTTP agent_ item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.

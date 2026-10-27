@@ -4,9 +4,12 @@
  * from SM_BASE_PATH or SM_PUBLIC_URL, and HTTPS when SM_TLS_CERT/SM_TLS_KEY are set – so the check keeps
  * working under a path prefix, on another port and with Steward's own TLS.
  *
- * It only talks to 127.0.0.1 and sends nothing secret, so the TLS certificate (issued for the public host
- * name) is not verified here.
+ * With Steward's own TLS it trusts exactly the certificate in SM_TLS_CERT: the certificate is issued for the
+ * public host name, not 127.0.0.1, so it is pinned by its fingerprint instead of checking the name. Steward
+ * reads that file at start, so after a renewal the check fails until Steward is restarted.
  */
+import { X509Certificate } from 'node:crypto';
+import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import { resolveBasePath } from '../basePath.js';
@@ -17,6 +20,7 @@ Usage:
   node --import tsx server/src/cli/healthcheck.ts
 
 Reads SM_PORT (default 4310), SM_BASE_PATH or SM_PUBLIC_URL, and SM_TLS_CERT/SM_TLS_KEY like the server.
+With SM_TLS_CERT it accepts only the certificate in that file.
 
 Exit codes:
   0  Steward answered 200
@@ -31,20 +35,30 @@ function healthUrl(env: NodeJS.ProcessEnv): URL {
   return new URL(`${scheme}://127.0.0.1:${port}${basePath}/api/health`);
 }
 
-function check(url: URL): Promise<number> {
+/** TLS options that accept only the certificate in SM_TLS_CERT (the first one in the file is Steward's own). */
+function pinnedTls(certFile: string): https.RequestOptions {
+  const pem = fs.readFileSync(certFile);
+  const fingerprint = new X509Certificate(pem).fingerprint256;
+  return {
+    ca: pem,
+    // the file may hold Steward's certificate with its chain but without the root: trust it as it is
+    allowPartialTrustChain: true,
+    checkServerIdentity: (_host, cert) => (cert.fingerprint256 === fingerprint ? undefined : new Error(`the certificate is not the one in ${certFile}`)),
+  };
+}
+
+function check(url: URL, tls: https.RequestOptions): Promise<number> {
   return new Promise((resolve) => {
-    const options: https.RequestOptions = { timeout: TIMEOUT_MS };
-    if (url.protocol === 'https:') {
-      // nosemgrep: problem-based-packs.insecure-transport.js-node.bypass-tls-verification.bypass-tls-verification -- only 127.0.0.1 inside the container, no credentials sent, the answer's body is discarded; the certificate is issued for the public host name
-      options.rejectUnauthorized = false;
-    }
     const get = url.protocol === 'https:' ? https.get : http.get;
-    const req = get(url, options, (res) => {
+    const req = get(url, { timeout: TIMEOUT_MS, ...tls }, (res) => {
       res.resume();
       resolve(res.statusCode ?? 0);
     });
     req.on('timeout', () => req.destroy(new Error('timeout')));
-    req.on('error', () => resolve(0));
+    req.on('error', (e) => {
+      if (url.protocol === 'https:') console.error(`healthcheck: ${e.message}`);
+      resolve(0);
+    });
   });
 }
 
@@ -54,12 +68,14 @@ if (process.argv.includes('--help') || process.argv.includes('-h')) {
 }
 
 let url: URL;
+let tls: https.RequestOptions = {};
 try {
   url = healthUrl(process.env);
+  if (url.protocol === 'https:') tls = pinnedTls(process.env.SM_TLS_CERT ?? '');
 } catch (e) {
   console.error(`healthcheck: ${(e as Error).message}`);
   process.exit(1);
 }
-const status = await check(url);
+const status = await check(url, tls);
 if (status !== 200) console.error(`healthcheck: ${url.href} answered ${status || 'nothing'}`);
 process.exit(status === 200 ? 0 : 1);

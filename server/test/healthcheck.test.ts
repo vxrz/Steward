@@ -1,6 +1,8 @@
 import http from 'node:http';
 import https from 'node:https';
+import fs from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -14,17 +16,28 @@ const TSX = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32'
 const SCRIPT = path.join(ROOT, 'server/src/cli/healthcheck.ts');
 
 const servers: (http.Server | https.Server)[] = [];
-afterAll(() => servers.forEach((s) => s.close()));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sm-healthcheck-'));
+afterAll(() => {
+  servers.forEach((s) => s.close());
+  fs.rmSync(dir, { recursive: true, force: true });
+});
 
-/** A stand-in for Steward that answers 200 only at `path`. */
-async function stub(healthPath: string, tls = false): Promise<number> {
+/** A self-signed certificate for the public host name (not 127.0.0.1), written to a file like SM_TLS_CERT. */
+function certificateFile(name: string) {
+  const cert = selfSignedCertificate({ commonName: 'steward.example', notAfter: new Date(Date.now() + 86400000) });
+  const file = path.join(dir, `${name}.pem`);
+  fs.writeFileSync(file, cert.pem);
+  return { ...cert, file };
+}
+
+/** A stand-in for Steward that answers 200 only at `path`, over HTTPS with `tls`. */
+async function stub(healthPath: string, tls?: { pem: string; privateKeyPem: string }): Promise<number> {
   const handler: http.RequestListener = (req, res) => {
     res.writeHead(req.url === healthPath ? 200 : 404, { 'content-type': 'application/json' }).end('{}');
   };
   let server: http.Server | https.Server;
   if (tls) {
-    const cert = selfSignedCertificate({ commonName: 'steward.example', notAfter: new Date(Date.now() + 86400000) });
-    server = https.createServer({ cert: cert.pem, key: cert.privateKeyPem }, handler);
+    server = https.createServer({ cert: tls.pem, key: tls.privateKeyPem }, handler);
   } else {
     server = http.createServer(handler);
   }
@@ -59,9 +72,18 @@ describe('container health check', () => {
     expect(r.stderr).toContain('answered 404');
   });
 
-  it('uses HTTPS when Steward serves TLS itself', async () => {
-    const port = await stub('/api/health', true);
-    expect((await run({ SM_PORT: String(port), SM_TLS_CERT: '/x/cert.pem', SM_TLS_KEY: '/x/key.pem' })).code).toBe(0);
+  it('uses HTTPS when Steward serves TLS itself and accepts only the certificate in SM_TLS_CERT', async () => {
+    const own = certificateFile('own');
+    const port = await stub('/api/health', own);
+    expect((await run({ SM_PORT: String(port), SM_TLS_CERT: own.file, SM_TLS_KEY: '/x/key.pem' })).code).toBe(0);
+    // another certificate in the file (e.g. renewed, but Steward not restarted yet) fails
+    const other = certificateFile('other');
+    const renewed = await run({ SM_PORT: String(port), SM_TLS_CERT: other.file, SM_TLS_KEY: '/x/key.pem' });
+    expect(renewed.code).toBe(1);
+    // an unreadable certificate file fails with its error
+    const missing = await run({ SM_PORT: String(port), SM_TLS_CERT: path.join(dir, 'missing.pem'), SM_TLS_KEY: '/x/key.pem' });
+    expect(missing.code).toBe(1);
+    expect(missing.stderr).toContain('missing.pem');
     // plain HTTP against a TLS port gets no answer
     expect((await run({ SM_PORT: String(port) })).code).toBe(1);
   });
