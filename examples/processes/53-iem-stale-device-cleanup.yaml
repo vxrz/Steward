@@ -39,7 +39,7 @@ steps:
     name: Find stale devices
     values:
       all: "{{ [vars.devices.body.data ? vars.devices.body.data : vars.devices.body] }}"
-      stale: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue and $exists(lastSeen) and $daysSince(lastSeen) >= $inputs.offlineDays]] }}"
+      stale: "{{ [vars.all[$lookup($, $inputs.statusField) != $inputs.onlineValue and $ts(lastSeen) and $daysSince(lastSeen) >= $inputs.offlineDays]] }}"
   - id: pick
     type: userTask
     name: Select devices to remove
@@ -53,7 +53,7 @@ steps:
     itemKey: id
     columns:
       - { label: Device, value: name }
-      - { label: Last seen, value: "$substring(lastSeen, 0, 10)" }
+      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01]') : '–'" }
       - { label: Days offline, value: "$daysSince(lastSeen)" }
       - { label: Firmware, value: firmware }
     preselect: "true"
@@ -67,7 +67,7 @@ steps:
     instructions: |
       Requested by {{ run.actor }}.
 
-      {{ $join(vars.selection.selected.('- ' & name & ' (last seen ' & $substring(lastSeen, 0, 10) & ')'), '\n') }}
+      {{ $join(vars.selection.selected.('- ' & name & ' (last seen ' & ($ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01]') : 'unknown') & ')'), '\n') }}
     assignees: [role:approver, role:admin]
     fourEyes: true
     onReject: continue

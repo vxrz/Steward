@@ -69,9 +69,9 @@ steps:
     columns:
       - { label: User, value: userName }
       - { label: Role, value: role }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
-      - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
-    preselect: "$exists(lastLogonTime) and $daysSince(lastLogonTime) <= $inputs.activeWithinDays"
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }
+      - { label: Days, value: "$ts(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
+    preselect: "$ts(lastLogonTime) and $daysSince(lastLogonTime) <= $inputs.activeWithinDays"
     saveAs: attestation
   - id: confirm
     type: userTask
@@ -123,20 +123,20 @@ steps:
     columns:
       - { label: User, value: userName }
       - { label: Role, value: role }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
-      - { label: Days, value: "$daysSince(lastLogonTime)" }
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }
+      - { label: Days, value: "$ts(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
       - label: Review
         value: >-
           key in $vars.attestation.selectedKeys ? 'kept'
             : ($vars.removal.approved = true ? ($vars.dry ? 'removed (dry run)' : 'removed')
             : ($exists($vars.attestation) ? 'removal rejected' : 'not reviewed'))
     status: >-
-      $not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90 ? 'critical'
+      ($ts(lastLogonTime) ? $daysSince(lastLogonTime) >= 90 : true) ? 'critical'
         : ($daysSince(lastLogonTime) >= 30 ? 'warning' : 'good')
-    statusText: "$exists(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
+    statusText: "$ts(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
     metrics:
       privileged: "$count(vars.privileged)"
-      stale90: "$count(vars.privileged[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= 90])"
+      stale90: "$count(vars.privileged[($ts(lastLogonTime) ? $daysSince(lastLogonTime) >= 90 : true)])"
       removed: "vars.removal.approved = true ? $count(vars.attestation.unselected) : 0"
     staleAfterMinutes: 46080
   - id: summary

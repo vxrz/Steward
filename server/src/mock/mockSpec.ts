@@ -76,7 +76,11 @@ export function mockIdentitySpec(): Record<string, unknown> {
             userName: { type: 'string', format: 'email' },
             name: { type: 'object', properties: { givenName: { type: 'string' }, familyName: { type: 'string' } } },
             active: { type: 'boolean' },
-            lastLogonTime: { type: 'string', format: 'date-time' },
+            lastLogonTime: {
+              type: ['string', 'integer', 'null'],
+              description:
+                'Not in the official spec. An ISO 8601 date-time or epoch milliseconds, depending on the tenant; missing or null when the user never signed in.',
+            },
             groups: {
               type: 'array',
               items: {

@@ -82,7 +82,7 @@ Dashboards only read stored datasets: opening them never calls a platform. A dat
 
 The flows were built against the documented Insights Hub APIs and the simulated platforms. Check these points with a dry run and the platform's **API explorer** before relying on the results:
 
-- **Insights Hub `lastLogonTime`:** returned by the user API, but not in the official spec (used by #10–#15).
+- **Insights Hub `lastLogonTime`:** returned by the user API, but not in the official spec (used by #10–#15). Tenants send an ISO date-time **or epoch milliseconds**, and leave it out or send `null` for people who never signed in. The examples read it with `$ts(lastLogonTime)` (milliseconds, or nothing when empty) and show it with `$fromMillis(…)`; `$exists()` alone is not enough, it is true for `null`. The same applies to `lastSeen` of Industrial Edge devices (#50–#53).
 - **Insights Hub API paths:** taken from the platform variables `idmPath`, `assetPath` and `tsPath`, which matters for the new `siemens.app` gateway.
 - **IEM device fields:** `connectionState`, `deviceStatus`, `lastSeen` and `firmware` differ between IEM releases. The state field and online value are inputs; adapt the firmware/lastSeen expressions if needed.
 - **Insights Hub usage (#32):** the aggregated usage path of the Usage Transparency Service and the agent paging fields are assumptions. See [docs/INSIGHTS-HUB-USAGE.md](../docs/INSIGHTS-HUB-USAGE.md).
