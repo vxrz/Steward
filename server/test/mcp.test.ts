@@ -581,6 +581,10 @@ describe('MCP platform gateway (read-only)', () => {
       pathParams: { id },
     });
     expect(one.data.status).toBe(200);
+    // references from before specs had path prefixes ("METHOD /spec-path") still work
+    const old = await call(tok.olivia, 'platform_call_operation', { platformId: ih.id, operation: 'GET /Users/{id}', pathParams: { id } });
+    expect(old.isError, String(old.data)).toBe(false);
+    expect(old.data.status).toBe(200);
     const audit = await call(tok.admin, 'search_audit_log', { action: 'mcp.gateway_call', entityId: ih.id, limit: 5 });
     const e = audit.data.items[0];
     expect(e.actor).toBe('olivia');

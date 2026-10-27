@@ -82,6 +82,8 @@
     "TEAM_NOT_FOUND": "Team „{{name}}“ nicht gefunden.",
     "PLATFORM_NOT_FOUND": "Plattform {{id}} nicht gefunden.",
     "PLATFORM_NOT_FOUND_kind": "Plattform „{{id}}“ nicht gefunden (erwartet wird eine Plattform vom Typ {{kind}}).",
+    "SPEC_NOT_FOUND": "API-Spezifikation nicht gefunden.",
+    "SPEC_PATH_PREFIX_INVALID": "Das Pfad-Präfix ist ungültig. Verwenden Sie /segment/segment mit Buchstaben, Ziffern und . _ ~ - (keine ..-Segmente, höchstens 200 Zeichen), oder lassen Sie es leer.",
     "PLATFORM_AMBIGUOUS": "Mehrere Plattformen heißen „{{name}}“ – verwenden Sie die ID der Plattform.",
     "PLATFORM_USE_FORBIDDEN": "Sie dürfen die Plattform „{{name}}“ nicht verwenden.",
     "PROCESS_NOT_FOUND": "Prozess {{id}} nicht gefunden.",

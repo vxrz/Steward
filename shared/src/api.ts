@@ -449,7 +449,7 @@ export interface ConnectorPackage {
   config: PlatformConfig;
   secretFields: { key: string; label: string; help?: string }[];
   docs: { title: string; url: string }[];
-  specs: { name: string; content: string }[];
+  specs: { name: string; content: string; pathPrefix?: string }[];
 }
 
 export interface ParamSchema {
@@ -463,7 +463,10 @@ export interface ApiOperation {
   specId: string;
   operationId?: string;
   method: string;
+  /** Effective path: the spec's path prefix (from its server URL, editable per spec) followed by specPath. */
   path: string;
+  /** The path as written in the specification, without the prefix (only set when it differs from path). */
+  specPath?: string;
   summary?: string;
   tag?: string;
   description?: string;
@@ -485,6 +488,11 @@ export interface PlatformSpec {
   title?: string;
   version?: string;
   serverUrl?: string;
+  /**
+   * Put in front of every operation path of this spec (relative to the platform base URL): empty, or
+   * "/seg/seg" – by default the path of the spec's server URL, unless the base URL already ends with it.
+   */
+  pathPrefix: string;
   operationCount: number;
   createdAt: string;
 }

@@ -7,7 +7,8 @@ import { audit } from '../audit.js';
 import { config } from '../config.js';
 import { HttpError, newId, nowIso, parseJson, pathInside, sha256 } from '../util.js';
 import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
-import { invalidatePlatformCaches } from './http.js';
+import { invalidatePlatformCaches, resolveBaseUrl } from './http.js';
+import { derivePathPrefix, literalBasePath, pathPrefixProblem, withPrefix } from './pathPrefix.js';
 import { deleteSource as deleteGatusSource } from '../gatus/metrics.js';
 import { platformIntegrity, requireIntact, sealPlatform } from './integrity.js';
 import { paramSchema, requestBodyInfo, resolveRef, successStatuses } from './openapi.js';
@@ -265,6 +266,8 @@ export function parseSpec(content: string): {
   title?: string;
   version?: string;
   serverUrl?: string;
+  /** OpenAPI 3 server variables of the first server (their defaults fill the server URL). */
+  serverVariables?: Record<string, { default?: unknown }>;
   operations: Omit<ApiOperation, 'specId'>[];
 } {
   let doc: Record<string, unknown>;
@@ -280,8 +283,12 @@ export function parseSpec(content: string): {
   if (!isOas3 && !isSwagger) throw new HttpError(400, 'Not an OpenAPI 3.x or Swagger 2.0 document');
   const info = (doc.info ?? {}) as { title?: string; version?: string };
   let serverUrl: string | undefined;
-  if (isOas3) serverUrl = ((doc.servers as { url: string }[] | undefined) ?? [])[0]?.url;
-  else if (doc.host) serverUrl = `${((doc.schemes as string[]) ?? ['https'])[0]}://${doc.host}${doc.basePath ?? ''}`;
+  let serverVariables: Record<string, { default?: unknown }> | undefined;
+  if (isOas3) {
+    const server = ((doc.servers as { url?: unknown; variables?: unknown }[] | undefined) ?? [])[0];
+    serverUrl = typeof server?.url === 'string' ? server.url : undefined;
+    if (server?.variables && typeof server.variables === 'object') serverVariables = server.variables as Record<string, { default?: unknown }>;
+  } else if (doc.host) serverUrl = `${((doc.schemes as string[]) ?? ['https'])[0]}://${doc.host}${doc.basePath ?? ''}`;
   else if (doc.basePath) serverUrl = String(doc.basePath);
 
   const operations: Omit<ApiOperation, 'specId'>[] = [];
@@ -319,7 +326,7 @@ export function parseSpec(content: string): {
       });
     }
   }
-  return { format: isOas3 ? `openapi ${doc.openapi}` : 'swagger 2.0', title: info.title, version: info.version, serverUrl, operations };
+  return { format: isOas3 ? `openapi ${doc.openapi}` : 'swagger 2.0', title: info.title, version: info.version, serverUrl, serverVariables, operations };
 }
 
 interface SpecRow {
@@ -330,30 +337,106 @@ interface SpecRow {
   title: string | null;
   version: string | null;
   server_url: string | null;
+  /** null: imported before path prefixes existed – derived from server_url when read */
+  path_prefix: string | null;
   operations: string;
   created_at: string;
 }
 
-const toSpec = (r: SpecRow): PlatformSpec => ({
-  id: r.id,
-  platformId: r.platform_id,
-  name: r.name,
-  format: r.format,
-  title: r.title ?? undefined,
-  version: r.version ?? undefined,
-  serverUrl: r.server_url ?? undefined,
-  operationCount: parseJson<unknown[]>(r.operations, []).length,
-  createdAt: r.created_at,
-});
+/** The path of the platform's base URL as written, when it has no template (sync, cheap). */
+function literalPlatformBasePath(platformId: string): string | undefined {
+  const r = db().get<{ base_url: string }>('SELECT base_url FROM platforms WHERE id = ?', platformId);
+  return r ? literalBasePath(r.base_url) : undefined;
+}
 
-export function addSpec(platformId: string, name: string, content: string): PlatformSpec {
+/**
+ * The path of the platform's base URL, with templates ({{ vars.x }}) rendered (undefined: not resolvable).
+ * Rendered without credentials: only the path is used, to decide the default path prefix of a new spec.
+ */
+export async function platformBasePath(platformId: string): Promise<string | undefined> {
+  const p = getPlatform(platformId);
+  const literal = literalBasePath(p.baseUrl);
+  if (literal !== undefined || !p.baseUrl.includes('{{')) return literal;
+  try {
+    return new URL(await resolveBaseUrl(p, {})).pathname.replace(/\/+$/, '');
+  } catch {
+    return undefined;
+  }
+}
+
+/** Prefixes of specs imported before path prefixes existed, derived once per process (server URL and operations never change). */
+const legacyPrefixes = new Map<string, string>();
+
+function serverVariablesOf(specId: string): Record<string, { default?: unknown }> | undefined {
+  try {
+    return parseSpec(getSpecContent(specId)).serverVariables;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The prefix in front of a spec's operation paths. Stored values are re-checked (a value changed outside the
+ * application never reaches a request). Legacy rows: derived from server_url (server variables from the stored
+ * content), and empty when the platform base URL path – as written – already ends with it.
+ */
+function specPrefix(r: Pick<SpecRow, 'id' | 'server_url' | 'path_prefix'>, ops: { path: string }[], basePath: string | undefined): string {
+  if (r.path_prefix !== null) return pathPrefixProblem(r.path_prefix) ? '' : r.path_prefix;
+  let derived = legacyPrefixes.get(r.id);
+  if (derived === undefined) {
+    const variables = r.server_url && /\{[^{}]+\}/.test(r.server_url) ? serverVariablesOf(r.id) : undefined;
+    derived = derivePathPrefix(r.server_url, { variables, opPaths: ops.map((o) => o.path) }).prefix;
+    if (legacyPrefixes.size >= 1000) legacyPrefixes.clear();
+    legacyPrefixes.set(r.id, derived);
+  }
+  return derived && basePath?.endsWith(derived) ? '' : derived;
+}
+
+const toSpec = (r: SpecRow, basePath: string | undefined): PlatformSpec => {
+  const ops = parseJson<{ path: string }[]>(r.operations, []);
+  return {
+    id: r.id,
+    platformId: r.platform_id,
+    name: r.name,
+    format: r.format,
+    title: r.title ?? undefined,
+    version: r.version ?? undefined,
+    serverUrl: r.server_url ?? undefined,
+    pathPrefix: specPrefix(r, ops, basePath),
+    operationCount: ops.length,
+    createdAt: r.created_at,
+  };
+};
+
+const getSpecRow = (platformId: string, specId: string): SpecRow => {
+  const r = db().get<SpecRow>('SELECT * FROM platform_specs WHERE id = ? AND platform_id = ?', specId, platformId);
+  if (!r) throw new HttpError(404, 'Spec not found', 'SPEC_NOT_FOUND');
+  return r;
+};
+
+function checkedPrefix(prefix: string): string {
+  const problem = pathPrefixProblem(prefix);
+  if (problem) throw new HttpError(400, `Invalid path prefix: ${problem}`, 'SPEC_PATH_PREFIX_INVALID');
+  return prefix;
+}
+
+/**
+ * Import a specification. The path prefix defaults to the path of its server URL (see derivePathPrefix);
+ * `basePath` is the platform's resolved base URL path (default: the base URL as written, when it has no template).
+ */
+export function addSpec(platformId: string, name: string, content: string, opts: { pathPrefix?: string; basePath?: string } = {}): PlatformSpec {
   const p = getPlatform(platformId);
   const parsed = parseSpec(content);
+  const basePath = opts.basePath ?? literalPlatformBasePath(platformId);
+  const pathPrefix =
+    opts.pathPrefix !== undefined
+      ? checkedPrefix(opts.pathPrefix)
+      : derivePathPrefix(parsed.serverUrl, { variables: parsed.serverVariables, basePath, opPaths: parsed.operations.map((o) => o.path) }).prefix;
   const id = newId('sp_');
   db().tx(() => {
     db().run(
-      `INSERT INTO platform_specs (id, platform_id, name, format, title, version, server_url, content, operations, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO platform_specs (id, platform_id, name, format, title, version, server_url, path_prefix, content, operations, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       platformId,
       name || parsed.title || 'API specification',
@@ -361,6 +444,7 @@ export function addSpec(platformId: string, name: string, content: string): Plat
       parsed.title ?? null,
       parsed.version ?? null,
       parsed.serverUrl ?? null,
+      pathPrefix,
       content,
       JSON.stringify(parsed.operations),
       nowIso(),
@@ -370,14 +454,36 @@ export function addSpec(platformId: string, name: string, content: string): Plat
       entityType: 'platform',
       entityId: platformId,
       summary: `API spec "${name || parsed.title}" added to "${p.name}" (${parsed.operations.length} operations)`,
-      details: { specId: id, sha256: sha256(content), format: parsed.format, version: parsed.version },
+      details: { specId: id, sha256: sha256(content), format: parsed.format, version: parsed.version, serverUrl: parsed.serverUrl, pathPrefix },
     });
   });
-  return toSpec(db().get<SpecRow>('SELECT * FROM platform_specs WHERE id = ?', id)!);
+  return toSpec(db().get<SpecRow>('SELECT * FROM platform_specs WHERE id = ?', id)!, basePath);
+}
+
+/** Change the path prefix of a spec (empty: operation paths are relative to the base URL as they are). */
+export function setSpecPathPrefix(platformId: string, specId: string, pathPrefix: string): PlatformSpec {
+  const r = getSpecRow(platformId, specId);
+  const next = checkedPrefix(pathPrefix);
+  const basePath = literalPlatformBasePath(platformId);
+  const before = specPrefix(r, parseJson<{ path: string }[]>(r.operations, []), basePath);
+  db().tx(() => {
+    db().run('UPDATE platform_specs SET path_prefix = ? WHERE id = ?', next, specId);
+    audit({
+      action: 'platform.spec_updated',
+      entityType: 'platform',
+      entityId: platformId,
+      summary: `API spec "${r.name}": path prefix ${before ? `"${before}"` : '(none)'} → ${next ? `"${next}"` : '(none)'}`,
+      details: { specId, before: { pathPrefix: before }, after: { pathPrefix: next } },
+    });
+  });
+  return toSpec(getSpecRow(platformId, specId), basePath);
 }
 
 export function listSpecs(platformId: string): PlatformSpec[] {
-  return db().all<SpecRow>('SELECT * FROM platform_specs WHERE platform_id = ? ORDER BY created_at', platformId).map(toSpec);
+  const basePath = literalPlatformBasePath(platformId);
+  return db()
+    .all<SpecRow>('SELECT * FROM platform_specs WHERE platform_id = ? ORDER BY created_at', platformId)
+    .map((r) => toSpec(r, basePath));
 }
 
 /** The platform a specification belongs to (undefined: no such specification). */
@@ -392,17 +498,29 @@ export function getSpecContent(specId: string): string {
 }
 
 export function deleteSpec(platformId: string, specId: string): void {
-  const r = db().get<SpecRow>('SELECT * FROM platform_specs WHERE id = ? AND platform_id = ?', specId, platformId);
-  if (!r) throw new HttpError(404, 'Spec not found');
+  const r = getSpecRow(platformId, specId);
   db().tx(() => {
     db().run('DELETE FROM platform_specs WHERE id = ?', specId);
     audit({ action: 'platform.spec_deleted', entityType: 'platform', entityId: platformId, summary: `API spec "${r.name}" removed` });
   });
+  legacyPrefixes.delete(specId);
 }
 
+/**
+ * The operations of all specs of a platform (oldest spec first). `path` is the effective path – the spec's
+ * path prefix followed by the path of the specification, which is kept in `specPath` when they differ.
+ */
 export function listOperations(platformId: string): ApiOperation[] {
-  const rows = db().all<{ id: string; operations: string }>('SELECT id, operations FROM platform_specs WHERE platform_id = ?', platformId);
-  return rows.flatMap((r) => parseJson<Omit<ApiOperation, 'specId'>[]>(r.operations, []).map((o) => ({ ...o, specId: r.id })));
+  const basePath = literalPlatformBasePath(platformId);
+  const rows = db().all<Pick<SpecRow, 'id' | 'server_url' | 'path_prefix' | 'operations'>>(
+    'SELECT id, server_url, path_prefix, operations FROM platform_specs WHERE platform_id = ? ORDER BY created_at',
+    platformId,
+  );
+  return rows.flatMap((r) => {
+    const ops = parseJson<Omit<ApiOperation, 'specId'>[]>(r.operations, []);
+    const prefix = specPrefix(r, ops, basePath);
+    return ops.map((o) => (prefix ? { ...o, path: withPrefix(prefix, o.path), specPath: o.path, specId: r.id } : { ...o, specId: r.id }));
+  });
 }
 
 // ---------- Documentation ----------

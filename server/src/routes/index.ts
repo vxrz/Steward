@@ -36,6 +36,7 @@ import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../u
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
+import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -947,7 +948,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .refine((x) => x.content || x.url, 'Provide content or url')
       .parse(req.body);
     const content = b.content ?? (await connectors.fetchSpec(params(req).id!, b.url!));
-    return platforms.addSpec(params(req).id!, b.name ?? '', content);
+    return platforms.addSpec(params(req).id!, b.name ?? '', content, { basePath: await platforms.platformBasePath(params(req).id!) });
+  });
+  app.patch('/platforms/:id/specs/:specId', async (req) => {
+    requirePlatform(params(req).id!, 'manage', 'change API specifications');
+    // validated in setSpecPathPrefix (same rules as the default taken from the server URL)
+    const b = z
+      .object({ pathPrefix: z.string().max(PATH_PREFIX_MAX) })
+      .strict()
+      .parse(req.body);
+    return platforms.setSpecPathPrefix(params(req).id!, params(req).specId!, b.pathPrefix);
   });
   app.delete('/platforms/:id/specs/:specId', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'remove API specifications');

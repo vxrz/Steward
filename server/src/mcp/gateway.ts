@@ -5,9 +5,10 @@
  *
  * - opt-in per platform (config.mcpGateway, changed with the "manage" right), the token owner needs "use";
  * - only GET/HEAD; any other method is refused (Phase 2 extension point: writeDecision());
- * - the path comes from the operation's template (path parameters validated and URL-encoded) or, for
- *   platforms without a specification, from an allow-list of GET path prefixes; no absolute URLs, no
- *   dot segments, no encoded separators – the request always goes to the platform's own base URL;
+ * - the path comes from the operation's template (the spec's validated path prefix in front, path parameters
+ *   validated and URL-encoded) or, for platforms without a specification, from an allow-list of GET path
+ *   prefixes; no absolute URLs, no dot segments, no encoded separators – the request always goes to the
+ *   platform's own base URL;
  * - query parameters must be declared by the operation and match their schema; no headers, no body;
  * - the outbound (SSRF) policy and the credential-origin rules apply; redirects are not followed;
  * - responses are size-capped, credentials redacted, only a few harmless response headers are kept;
@@ -83,17 +84,22 @@ export function anyGatewayPlatform(): boolean {
   }
 }
 
-/** Stable reference of an operation: its operationId, else "METHOD /path/template". */
+/** Stable reference of an operation: its operationId, else "METHOD /path/template" (the effective path, with the spec's path prefix). */
 const opRef = (o: ApiOperation) => o.operationId || `${o.method} ${o.path}`;
 
-function findOperation(platformId: string, ref: string): ApiOperation {
+/**
+ * The operation a reference names. "METHOD /path" matches the effective path first and then the path as written in
+ * the specification, so references saved before specs had path prefixes ("GET /Groups") keep working.
+ */
+export function findOperation(platformId: string, ref: string): ApiOperation {
   const ops = platforms.listOperations(platformId);
   const r = ref.trim();
   const byId = ops.filter((o) => o.operationId === r);
   if (byId.length === 1) return byId[0]!;
   const m = /^([A-Za-z]+)\s+(\S+)$/.exec(r);
   if (m) {
-    const hit = ops.find((o) => o.method === m[1]!.toUpperCase() && o.path === m[2]);
+    const method = m[1]!.toUpperCase();
+    const hit = ops.find((o) => o.method === method && o.path === m[2]) ?? ops.find((o) => o.method === method && o.specPath === m[2]);
     if (hit) return hit;
   }
   if (byId.length > 1) throw new ToolError(`Operation id "${r}" is ambiguous – use "METHOD /path" instead`);
@@ -145,7 +151,7 @@ export function trimSchema(doc: Record<string, unknown>, schema: unknown, depth 
 }
 
 function responseSchema(doc: Record<string, unknown>, op: ApiOperation): { status: string; contentType?: string; schema?: unknown } | null {
-  const item = (doc.paths as Record<string, Record<string, unknown>> | undefined)?.[op.path];
+  const item = (doc.paths as Record<string, Record<string, unknown>> | undefined)?.[op.specPath ?? op.path];
   const raw = item?.[op.method.toLowerCase()] as { responses?: Record<string, unknown> } | undefined;
   if (!raw?.responses) return null;
   const status = Object.keys(raw.responses).find((c) => /^2\d\d$/.test(c)) ?? (raw.responses.default ? 'default' : undefined);

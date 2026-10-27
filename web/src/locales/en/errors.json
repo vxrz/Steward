@@ -82,6 +82,8 @@
     "TEAM_NOT_FOUND": "Team “{{name}}” not found.",
     "PLATFORM_NOT_FOUND": "Platform {{id}} not found.",
     "PLATFORM_NOT_FOUND_kind": "Platform “{{id}}” not found (expected a platform of kind {{kind}}).",
+    "SPEC_NOT_FOUND": "API specification not found.",
+    "SPEC_PATH_PREFIX_INVALID": "The path prefix is not valid. Use /segment/segment with letters, digits and . _ ~ - only (no .. segments, at most 200 characters), or leave it empty.",
     "PLATFORM_AMBIGUOUS": "Several platforms are called “{{name}}” – use the platform id.",
     "PLATFORM_USE_FORBIDDEN": "You are not allowed to use platform “{{name}}”.",
     "PROCESS_NOT_FOUND": "Process {{id}} not found.",
