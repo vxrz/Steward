@@ -43,7 +43,7 @@ function pinnedTls(certFile: string): https.RequestOptions {
     ca: pem,
     // the file may hold Steward's certificate with its chain but without the root: trust it as it is
     allowPartialTrustChain: true,
-    checkServerIdentity: (_host, cert) => (cert.fingerprint256 === fingerprint ? undefined : new Error(`the certificate is not the one in ${certFile}`)),
+    checkServerIdentity: (_host, cert) => (cert.fingerprint256 === fingerprint ? undefined : new Error('the certificate is not the one in SM_TLS_CERT')),
   };
 }
 

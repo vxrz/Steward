@@ -80,6 +80,7 @@ describe('container health check', () => {
     const other = certificateFile('other');
     const renewed = await run({ SM_PORT: String(port), SM_TLS_CERT: other.file, SM_TLS_KEY: '/x/key.pem' });
     expect(renewed.code).toBe(1);
+    expect(renewed.stderr).toContain('certificate');
     // an unreadable certificate file fails with its error
     const missing = await run({ SM_PORT: String(port), SM_TLS_CERT: path.join(dir, 'missing.pem'), SM_TLS_KEY: '/x/key.pem' });
     expect(missing.code).toBe(1);
