@@ -53,6 +53,8 @@ describe('deriving the prefix', () => {
     expect(derivePathPrefix('https://h/api/{tenant}')).toMatchObject({ prefix: '', invalid: expect.any(String) });
     expect(derivePathPrefix('https://h/api/v1', { basePath: '/gw/api/v1' }).prefix).toBe('');
     expect(derivePathPrefix('https://h/api/v1', { basePath: '/xapi/v1' }).prefix).toBe('/api/v1');
+    // only whole segments count: a base path /apiv2 does not already contain the prefix /v2
+    expect(derivePathPrefix('https://h/v2', { basePath: '/apiv2' }).prefix).toBe('/v2');
     expect(derivePathPrefix('https://h/api/v1', { basePath: undefined }).prefix).toBe('/api/v1');
   });
 
