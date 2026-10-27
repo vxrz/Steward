@@ -118,6 +118,18 @@ Per run the process reads all statuses, computes per endpoint
 
 and publishes the dataset **`gatus-uptime`**: row status `critical` when down, `warning` below `minUptimePercent` (99) or above `maxResponseMs` (1000 ms average), otherwise `good`; metrics `endpoints`, `down`, `avgUptime`. The check _All endpoints healthy_ (severity warning) fails while an endpoint is down, so the failed-check notification fires, but the run itself succeeds. Gatus remains the place for alerting; you do not need to alert on this check twice.
 
+### Without a Gatus login: the overview from `/metrics`
+
+With Gatus' API behind OIDC (`security.oidc`), the overview above cannot read `/api/v1/endpoints/statuses`. _Gatus – uptime overview (from /metrics)_ (`examples/processes/74-gatus-uptime-overview-from-metrics.yaml`) reads only what Gatus serves without a login, so the platform's authentication can be `none`:
+
+| Column                     | From                                                                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Healthy, last response     | `gatus_results_endpoint_success`, `gatus_results_duration_seconds`                                                                                                                       |
+| Uptime (%), avg response   | `/api/v1/endpoints/{key}/uptimes/{window}` and `…/response-times/{window}` (open in Gatus); with `uptimeWindow: counters` `gatus_results_total` since Gatus last started, no extra calls |
+| Certificate expires (days) | `gatus_results_certificate_expiration_seconds`; warns below `certWarnDays` (14)                                                                                                          |
+
+It publishes **`gatus-uptime-metrics`** (a dataset belongs to the process that first published it, so it does not share `gatus-uptime`), with the metrics `endpoints`, `down`, `avgUptime` and `certificatesExpiring`, for the dashboard _Uptime (from /metrics)_ (`examples/dashboards/41-uptime-from-metrics.yaml`). Gatus' metrics carry no error text and no time of the newest result; the API-based overview or Gatus itself show those. Metrics mode on the platform (below) is independent of this process: it keeps Steward's own history for monitors, reports and the credentials register.
+
 ## 3. Push Steward check results into Gatus
 
 Gatus can show results that someone else measured, as _external endpoints_. Steward can be that someone: a scheduled check (e.g. a login flow or an API sequence Gatus cannot do) reports pass/fail, and Gatus shows it on the status page and alerts on it, including when results stop arriving (`heartbeat`).

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Gatus uptime overview from `/metrics`** – process _Gatus – uptime overview (from /metrics)_ (74) and dashboard _Uptime (from /metrics)_ for a Gatus whose API is behind OIDC: it reads only `/metrics` and Gatus' open uptime and response-time API, needs no Gatus login, and adds TLS certificate expiry (dataset `gatus-uptime-metrics`). The demo feeds it every 10 minutes.
+
 ### Fixed
 
 - **Adding a user, team or role to an access list** (platforms, processes, monitors): picking an entry from the list put its label into the field ("Team Service desk"), and _Add_ stayed disabled because it expected `team:…`. Picked entries are added now; typing `user:…`, `team:…` or `role:…` still works.
