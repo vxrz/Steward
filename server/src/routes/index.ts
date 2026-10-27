@@ -76,6 +76,7 @@ import { reportScheduleRoutes } from './report-schedules.js';
 import { startReportSchedules } from '../reports/schedules.js';
 import { syncRoutes } from '../sync/routes.js';
 import { startGitSync } from '../sync/engine.js';
+import { seedExamplesSource } from '../sync/service.js';
 import { currentActor, currentUser, runAs, type AuthUser } from '../auth/context.js';
 import * as users from '../auth/users.js';
 import * as sso from '../auth/sso.js';
@@ -108,6 +109,8 @@ async function onUnlocked(): Promise<void> {
   // configuration integrity: seal platforms that have no seal yet (installations from before it existed)
   sealPlatformConfigs();
   sso.sealProviderConfigs();
+  // Steward's example library as a disabled Git sync source, once per installation
+  seedExamplesSource();
   if (started) return;
   started = true;
   await recoverRuns();

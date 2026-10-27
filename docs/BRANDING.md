@@ -12,7 +12,7 @@ The product is called **Steward**. The tagline is _Repeatable, auditable service
 | Theme set by an administrator (colours, display name, logo)                  | _Settings → Appearance_, see [Theming](#theming-settings--appearance)                                                                                                                                     |
 | Franconian rake shown in the footer                                          | `web/src/components/brand/FrankenRechen.tsx`                                                                                                                                                              |
 
-The page title, PWA manifest, app window, console banner, notifications (e-mail subject, Teams card), protocols, log/trace service name, executable name (`steward[.exe]`), per-user data folder, container and release file names are all derived from `brand.ts`.
+The page title, PWA manifest, app window, console banner, notifications (e-mail subject, Teams card – unless an administrator sets an app name or a [look for notifications](NOTIFICATIONS.md#look-of-e-mails-and-teams-messages)), protocols, log/trace service name, executable name (`steward[.exe]`), per-user data folder, container and release file names are all derived from `brand.ts`.
 
 These technical identifiers keep their old names, so existing data keeps working:
 

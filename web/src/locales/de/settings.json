@@ -309,5 +309,39 @@
       "noEntries": "Keine Einträge.",
       "actorNow": "{{actor}} → {{now}}"
     }
+  },
+  "look": {
+    "title": "Aussehen von E-Mails und Teams-Nachrichten",
+    "intro": "Name, Farbe, Logo und Fußzeile der Nachrichten, die Steward verschickt. Leere Felder folgen Einstellungen → Erscheinungsbild.",
+    "name": "Name",
+    "nameHint": "Im Kopf der E-Mail, im Betreff und in der Teams-Karte. Leer: {{name}}",
+    "color": "Farbe der Kopfzeile",
+    "colorHint": "Leer: die Primärfarbe aus dem Erscheinungsbild",
+    "colorInvalid": "Eine Hex-Farbe wie #1c7ed6 eingeben oder leer lassen",
+    "eyeDropper": "Farbe vom Bildschirm übernehmen",
+    "logo": "Logo",
+    "logoSource": {
+      "app": "App-Logo",
+      "report": "Bericht-Logo",
+      "none": "Keines"
+    },
+    "logoHint": "Das Logo steckt in der E-Mail selbst und wird angezeigt, ohne etwas von Steward zu laden. Teams-Karten enthalten Logos nur bis 12 KB.",
+    "logoProblem": {
+      "missing": "Es ist kein App-Logo hochgeladen (Einstellungen → Erscheinungsbild): Nachrichten gehen ohne Logo hinaus.",
+      "type": "Das App-Logo ist ein WebP-Bild, das viele Mailprogramme nicht anzeigen: Nachrichten gehen ohne Logo hinaus. Ein PNG oder JPEG hochladen oder das Bericht-Logo verwenden.",
+      "size": "Das Logo ist größer als 512 KB und wird in Nachrichten weggelassen."
+    },
+    "footer": "Fußzeile",
+    "footerHint": "Kleingedrucktes am Ende jeder E-Mail und Teams-Karte, z. B. „Intern – IT-Betrieb“",
+    "save": "Aussehen speichern",
+    "reset": "Zurück zum Erscheinungsbild",
+    "saved": "Aussehen von E-Mails und Teams-Nachrichten gespeichert",
+    "testHint": "Unter Benachrichtigungen einen Test senden, um es im Mailprogramm und in Teams zu sehen.",
+    "previewEmail": "E-Mail",
+    "subject": "Betreff: {{subject}}",
+    "previewTeams": "Teams-Karte",
+    "previewTeamsHint": "Teams zeichnet die Karte selbst; hier sind Inhalt, Logo und Farbstreifen zu sehen.",
+    "showPreview": "Vorschau zeigen",
+    "hidePreview": "Vorschau ausblenden"
   }
 }

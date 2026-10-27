@@ -53,6 +53,8 @@ export interface CommitCheck {
 export interface GitApi {
   /** Head commit of the branch. */
   head(branch: string): Promise<CommitCheck>;
+  /** The commit a tag points to (annotated tags are followed to their commit). */
+  tag(name: string): Promise<CommitCheck>;
   /**
    * The commits reachable from `head` but not from `base` (git log base..head), at most
    * SYNC_LIMITS.maxCheckedCommits – more fail with GIT_TOO_MANY_COMMITS; an unknown base fails
@@ -276,6 +278,11 @@ function decodeBlob(j: { content?: string; encoding?: string }, max: number): Bu
   return buf;
 }
 
+/** Tag names in API paths: each segment encoded, the slashes kept (GitHub's ref API takes them as they are). */
+const encPath = (name: string) => name.split('/').map(enc).join('/');
+
+const notATag = (name: string) => new HttpError(502, `Tag ${name}: the tag does not point to a commit`, 'GIT_BAD_RESPONSE', { context: 'tag' });
+
 const inFolder = (path: string, folder: string) => !folder || path.startsWith(`${folder}/`);
 
 interface GiteaVerification {
@@ -304,6 +311,17 @@ function forgejo(ref: RepoRef, token?: string): GitApi {
     async head(branch) {
       const j = await c.json<{ commit?: { id?: string; verification?: GiteaVerification } }>(`${repo}/branches/${enc(branch)}`, 'Branch');
       return giteaCheck(checkSha(j.commit?.id, 'Branch'), j.commit?.verification);
+    },
+    async tag(name) {
+      // the tag's commit is already peeled (annotated tags too); its signature comes from the commit
+      const t = await c.json<{ commit?: { sha?: string } }>(`${repo}/tags/${enc(name)}`, 'Tag');
+      const sha = checkSha(t.commit?.sha, 'Tag');
+      const j = await c.json<{ sha?: string; commit?: { verification?: GiteaVerification } }>(
+        `${repo}/git/commits/${sha}?stat=false&verification=true&files=false`,
+        'Tag commit',
+      );
+      if (j.sha !== sha) throw new HttpError(502, 'Tag commit: the Git host answered for another commit', 'GIT_BAD_RESPONSE');
+      return giteaCheck(sha, j.commit?.verification);
     },
     async newCommits(base, head) {
       // Gitea ≥ 1.22 / Forgejo ≥ 7; without file lists, with the signature verification
@@ -359,6 +377,20 @@ function github(ref: RepoRef, token?: string): GitApi {
       const j = await c.json<{ commit?: GithubCommit }>(`${repo}/branches/${enc(branch)}`, 'Branch');
       return githubCheck(j.commit, 'Branch');
     },
+    async tag(name) {
+      // refs/tags/<name> points to the commit (lightweight tag) or to a tag object (annotated, possibly nested)
+      let obj = (await c.json<{ object?: { type?: string; sha?: string } }>(`${repo}/git/ref/tags/${encPath(name)}`, 'Tag')).object;
+      for (let depth = 0; obj?.type === 'tag' && depth < 5; depth++) {
+        obj = (await c.json<{ object?: { type?: string; sha?: string } }>(`${repo}/git/tags/${checkSha(obj.sha, 'Tag')}`, 'Tag')).object;
+      }
+      if (obj?.type !== 'commit') throw notATag(name);
+      const sha = checkSha(obj.sha, 'Tag');
+      // the commit with its signature; per_page=1 keeps the file list short
+      const j = await c.json<GithubCommit>(`${repo}/commits/${sha}?per_page=1`, 'Tag commit');
+      const check = githubCheck(j, 'Tag commit');
+      if (check.sha !== sha) throw new HttpError(502, 'Tag commit: the Git host answered for another commit', 'GIT_BAD_RESPONSE');
+      return check;
+    },
     async newCommits(base, head) {
       const out: CommitCheck[] = [];
       const per = 100;
@@ -411,6 +443,11 @@ function gitlab(ref: RepoRef, token?: string): GitApi {
     async head(branch) {
       const j = await c.json<{ commit?: GitlabCommit }>(`${project}/repository/branches/${enc(branch)}`, 'Branch');
       return check(checkSha(j.commit?.id, 'Branch'), j.commit);
+    },
+    async tag(name) {
+      // "commit" is the commit the tag points to (annotated tags are peeled by GitLab)
+      const j = await c.json<{ commit?: GitlabCommit }>(`${project}/repository/tags/${enc(name)}`, 'Tag');
+      return check(checkSha(j.commit?.id, 'Tag'), j.commit);
     },
     async newCommits(base, head) {
       const known = await c.get(`${project}/repository/commits/${base}?stats=false`, 'Commit', { allow404: true });

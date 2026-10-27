@@ -85,4 +85,14 @@ export const GITSYNC_MIGRATIONS: NamedMigration[] = [
     name: 'gitsync-002-allowed-signers',
     sql: `ALTER TABLE sync_sources ADD COLUMN allowed_signers TEXT NOT NULL DEFAULT '[]';`,
   },
+  {
+    // 0.2.1: a source follows a branch or a tag (the name may hold {version}); the resolved name of the
+    // last fetch; files that need a newer Steward wait as invalid with the version they name
+    name: 'gitsync-003-refs-min-version',
+    sql: `
+      ALTER TABLE sync_sources ADD COLUMN ref_type TEXT NOT NULL DEFAULT 'branch';
+      ALTER TABLE sync_sources ADD COLUMN last_ref TEXT;
+      ALTER TABLE sync_updates ADD COLUMN min_version TEXT;
+    `,
+  },
 ];

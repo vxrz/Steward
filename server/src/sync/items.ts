@@ -1,6 +1,14 @@
 import path from 'node:path';
 import YAML from 'yaml';
-import { BUNDLE_FORMATS, SYNC_LIMITS, dashboardDefinitionSchema, validateProcess, type ProcessDefinition, type SyncKind } from '@sm/shared';
+import {
+  BUNDLE_FORMATS,
+  SYNC_LIMITS,
+  SYNC_MIN_VERSION_RE,
+  dashboardDefinitionSchema,
+  validateProcess,
+  type ProcessDefinition,
+  type SyncKind,
+} from '@sm/shared';
 import { parseYamlDocument } from '../yaml-safe.js';
 import { db } from '../db.js';
 import { canonicalJson, HttpError, parseJson, sha256, slugify } from '../util.js';
@@ -43,6 +51,32 @@ export function parseData(text: string, file: string): unknown {
   if (doc.errors.length) throw new Error(doc.errors[0]!.message);
   if (doc.warnings.some((w) => w.code === 'TAG_RESOLVE_FAILED')) throw new Error('unknown YAML tags are not allowed');
   return doc.toJS({ maxAliasCount: 100 });
+}
+
+/**
+ * `# steward-min-version: 0.2.1` in the comment lines at the top of a YAML file (JSON has no comments).
+ * Read by Git sync only: for every importer it is a comment, so older versions import the file as before.
+ */
+export function minVersionOf(file: string, text: string): string | null {
+  if (!/\.ya?ml$/i.test(file)) return null;
+  for (const line of text.split(/\r?\n/, 30)) {
+    const l = line.trim();
+    if (l === '' || l === '---') continue;
+    if (!l.startsWith('#')) break;
+    const m = SYNC_MIN_VERSION_RE.exec(l);
+    if (m) return m[1]!;
+  }
+  return null;
+}
+
+/** Whether version `a` is newer than `b` (major.minor.patch; a pre-release suffix of `b` counts as that release). */
+export function newerThan(a: string, b: string): boolean {
+  const parts = (v: string) => (/^v?(\d+)\.(\d+)\.(\d+)/.exec(v) ?? []).slice(1, 4).map(Number);
+  const x = parts(a);
+  const y = parts(b);
+  if (x.length !== 3 || y.length !== 3) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! > y[i]!;
+  return false;
 }
 
 /** "10-ih-health-check.yaml" → "ih-health-check" (the example library's numbering is dropped, like for templates). */

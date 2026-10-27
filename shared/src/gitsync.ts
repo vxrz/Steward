@@ -11,6 +11,22 @@ export type GitProvider = (typeof GIT_PROVIDERS)[number];
 export const SYNC_KINDS = ['process', 'dashboard', 'monitor', 'recordType'] as const;
 export type SyncKind = (typeof SYNC_KINDS)[number];
 
+/** What a source follows: a branch (its newest commit) or a tag (the commit it points to). */
+export const SYNC_REF_TYPES = ['branch', 'tag'] as const;
+export type SyncRefType = (typeof SYNC_REF_TYPES)[number];
+
+/** Placeholder in a source's branch or tag name: this installation's Steward version (`v{version}` → `v0.2.1`). */
+export const SYNC_VERSION_PLACEHOLDER = '{version}';
+
+/**
+ * Optional first-lines comment of a YAML definition file: the oldest Steward version that can use it,
+ * e.g. `# steward-min-version: 0.2.1`. A comment, so versions that don't know it import the file as before.
+ */
+export const SYNC_MIN_VERSION_RE = /^#\s*steward-min-version:\s*v?(\d+\.\d+\.\d+)\s*$/;
+
+/** Id of the ready source for Steward's own example library (created disabled). */
+export const STEWARD_EXAMPLES_SOURCE_ID = 'gsr_steward-examples';
+
 export const SYNC_UPDATE_STATUSES = ['pending', 'accepted', 'rejected', 'superseded', 'invalid'] as const;
 export type SyncUpdateStatus = (typeof SYNC_UPDATE_STATUSES)[number];
 
@@ -41,6 +57,9 @@ export interface SyncSourceSettings {
   repoUrl: string;
   /** API base URL; empty = derived from the repository URL (github.com → api.github.com, Forgejo → /api/v1, GitLab → /api/v4) */
   apiUrl?: string;
+  /** Follow a branch or a tag; default branch */
+  refType: SyncRefType;
+  /** Name of the branch or tag; may contain {version} (this installation's Steward version) */
   branch: string;
   /** Folder inside the repository; only files below it are read ('' = whole repository) */
   folder: string;
@@ -74,6 +93,12 @@ export interface SyncSource extends SyncSourceSettings {
   webhookSecretPrefix: string | null;
   lastFetchAt: string | null;
   lastCommit: string | null;
+  /** Branch or tag name of the last fetch, with {version} resolved */
+  lastRef: string | null;
+  /** The branch or tag name the next fetch uses ({version} resolved) */
+  resolvedRef: string;
+  /** Steward's own example library, created by Steward (disabled until an administrator turns it on) */
+  builtIn: boolean;
   lastStatus: 'ok' | 'error' | null;
   lastError: string | null;
   lastVerified: boolean | null;
@@ -90,8 +115,10 @@ export interface SyncFetchResult {
   sourceId: string;
   commit: string | null;
   verified: boolean | null;
-  /** Nothing new on the branch since the last fetch */
+  /** Nothing new on the branch or tag since the last fetch */
   upToDate: boolean;
+  /** The branch or tag that was fetched ({version} resolved) */
+  ref?: string;
   files: number;
   staged: number;
   unchanged: number;
@@ -132,6 +159,8 @@ export interface SyncUpdate {
   conflictReason: 'notFromGit' | 'changedLocally' | null;
   status: SyncUpdateStatus;
   errors: string[];
+  /** The file needs a newer Steward (`# steward-min-version`): listed as invalid until this installation is upgraded */
+  minVersion: string | null;
   createdAt: string;
   decidedBy: string | null;
   decidedAt: string | null;

@@ -65,3 +65,29 @@ test('readiness and metrics endpoints', async ({ request }) => {
   expect(metrics.status()).toBe(200);
   expect(await metrics.text()).toContain('# HELP');
 });
+
+test('settings: look of e-mails and Teams messages, with a preview', async ({ page }) => {
+  await page.goto('/settings');
+  const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
+  await expect(card).toBeVisible();
+  const name = card.getByRole('textbox', { name: 'Name' });
+  await name.fill('E2E Service desk');
+  await card.getByRole('textbox', { name: 'Footer text' }).fill('Internal – E2E');
+  // the preview (on demand) follows the unsaved draft: subject, the e-mail in a sandboxed frame and the Teams card
+  await card.getByRole('button', { name: 'Show preview' }).click();
+  await expect(card.getByText('Subject: [E2E Service desk] ')).toBeVisible();
+  const mail = card.frameLocator('iframe[title="E-mail"]');
+  await expect(mail.getByText('E2E Service desk', { exact: true })).toBeVisible();
+  await expect(mail.getByText('Internal – E2E')).toBeVisible();
+  await expect(card.getByText('Open in E2E Service desk')).toBeVisible();
+  await card.getByRole('button', { name: 'Save look' }).click();
+  await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
+  await page.reload();
+  await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('E2E Service desk');
+  // back to the Appearance settings
+  await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
+  await card.getByRole('button', { name: 'Save look' }).click();
+  await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
+  await page.reload();
+  await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('');
+});

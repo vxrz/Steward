@@ -16,6 +16,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
  * Test helpers (demo mode only, like everything under /mock):
  *   POST /mock/git/_commit {repo, branch?, files: {path: content | null}, signed?, signer?, email?, message?, objectFormat?} → {sha}
  *        (signer/email: the account that signed – default steward-bot; objectFormat 'sha256' for a new SHA-256 repository)
+ *   POST /mock/git/_tag {repo, tag, branch? | sha?, annotated?}   creates or moves a tag (annotated: a tag object in between) → {sha}
  *   POST /mock/git/_tamper {repo, path, content}   serves other content under the blob id of path at the head of main
  *   POST /mock/git/_reset
  *   GET  /mock/git/_calls?repo=…   requests seen per repository (whether a token was sent, never its value)
@@ -37,6 +38,8 @@ interface Repo {
   /** Object format: SHA-1 (default) or SHA-256 object ids */
   format: 'sha1' | 'sha256';
   branches: Map<string, string>;
+  /** tag name → the commit, and the tag object's id for annotated tags */
+  tags: Map<string, { commit: string; object?: string }>;
   commits: Map<string, Commit>;
   blobs: Map<string, Buffer>;
   calls: { path: string; token: boolean; tokenOk: boolean }[];
@@ -105,7 +108,7 @@ fields:
 };
 
 function newRepo(isPrivate: boolean, files: Record<string, string>): Repo {
-  const repo: Repo = { isPrivate, format: 'sha1', branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
+  const repo: Repo = { isPrivate, format: 'sha1', branches: new Map(), tags: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
   commit(repo, 'main', files, { signed: true, message: 'Initial library' });
   return repo;
 }
@@ -227,10 +230,20 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     let repo = repos.get(b.repo);
     if (!repo) {
       const format = b.objectFormat === 'sha256' ? 'sha256' : 'sha1';
-      repo = { isPrivate: !!b.private, format, branches: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
+      repo = { isPrivate: !!b.private, format, branches: new Map(), tags: new Map(), commits: new Map(), blobs: new Map(), calls: [] };
       repos.set(b.repo, repo);
     }
     return { sha: commit(repo, b.branch ?? 'main', b.files, { signed: b.signed, signer: b.signer, email: b.email, message: b.message }) };
+  });
+  app.post('/git/_tag', async (req, reply) => {
+    const b = (req.body ?? {}) as { repo?: string; tag?: string; branch?: string; sha?: string; annotated?: boolean };
+    const repo = repos.get(String(b.repo));
+    const sha = b.sha ?? repo?.branches.get(b.branch ?? 'main');
+    if (!repo || !b.tag || !/^[\w.-]+$/.test(b.tag) || !sha || !repo.commits.has(sha))
+      return reply.code(400).send({ error: 'repo, tag and a known commit are required' });
+    const object = b.annotated ? crypto.createHash(repo.format).update(`tag:${b.tag}:${sha}:${Math.random()}`).digest('hex') : undefined;
+    repo.tags.set(b.tag, { commit: sha, ...(object ? { object } : {}) });
+    return { sha };
   });
   app.post('/git/_tamper', async (req, reply) => {
     const b = (req.body ?? {}) as { repo?: string; path?: string; content?: string };
@@ -258,6 +271,21 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     if (!sha) return reply.code(404).send({ message: 'branch not found' });
     const c = repo.commits.get(sha)!;
     return { name: p(req).branch, commit: { id: sha, message: c.message, verification: giteaVerification(c) } };
+  });
+  // the tag with its (peeled) commit, and a single commit with its signature
+  app.get(`${G}/tags/:tag`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, giteaToken);
+    if (!repo) return reply;
+    const t = repo.tags.get(p(req).tag!);
+    if (!t) return reply.code(404).send({ message: 'tag not found' });
+    return { name: p(req).tag, id: t.object ?? t.commit, message: '', commit: { sha: t.commit, url: '' } };
+  });
+  app.get(`${G}/git/commits/:sha`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, giteaToken);
+    if (!repo) return reply;
+    const c = commitOf(repo, p(req).sha!, reply);
+    if (!c) return reply;
+    return { sha: c.sha, commit: { message: c.message, verification: giteaVerification(c) } };
   });
   // Gitea/Forgejo ≥ 1.22 / 7: commits between two revisions (newest first, like git log)
   app.get(`${G}/compare/:basehead`, async (req, reply) => {
@@ -316,6 +344,28 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const c = repo.commits.get(sha)!;
     return { name: p(req).branch, commit: githubCommit(c) };
   });
+  // refs/tags/<tag> → a commit (lightweight) or a tag object (annotated) that points to it
+  app.get(`${H}/git/ref/tags/:tag`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
+    if (!repo) return reply;
+    const t = repo.tags.get(p(req).tag!);
+    if (!t) return reply.code(404).send({ message: 'Not Found' });
+    return { ref: `refs/tags/${p(req).tag}`, object: t.object ? { type: 'tag', sha: t.object } : { type: 'commit', sha: t.commit } };
+  });
+  app.get(`${H}/git/tags/:sha`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
+    if (!repo) return reply;
+    const t = [...repo.tags.values()].find((x) => x.object === p(req).sha);
+    if (!t) return reply.code(404).send({ message: 'Not Found' });
+    return { sha: t.object, object: { type: 'commit', sha: t.commit } };
+  });
+  app.get(`${H}/commits/:sha`, async (req, reply) => {
+    const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
+    if (!repo) return reply;
+    const c = commitOf(repo, p(req).sha!, reply);
+    if (!c) return reply;
+    return { ...githubCommit(c), files: [] };
+  });
   app.get(`${H}/compare/:basehead`, async (req, reply) => {
     const repo = access(req, reply, `${p(req).owner}/${p(req).repo}`, githubToken);
     if (!repo) return reply;
@@ -368,6 +418,13 @@ export async function mockGit(app: FastifyInstance): Promise<void> {
     const sha = repo.branches.get(p(req).branch!);
     if (!sha) return reply.code(404).send({ message: '404 Branch Not Found' });
     return { name: p(req).branch, commit: gitlabCommit(repo.commits.get(sha)!) };
+  });
+  app.get(`${L}/repository/tags/:tag`, async (req, reply) => {
+    const repo = access(req, reply, p(req).project!, gitlabToken);
+    if (!repo) return reply;
+    const t = repo.tags.get(p(req).tag!);
+    if (!t) return reply.code(404).send({ message: '404 Tag Not Found' });
+    return { name: p(req).tag, target: t.object ?? t.commit, commit: gitlabCommit(repo.commits.get(t.commit)!) };
   });
   app.get(`${L}/repository/commits`, async (req, reply) => {
     const repo = access(req, reply, p(req).project!, gitlabToken);

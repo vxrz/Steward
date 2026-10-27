@@ -104,6 +104,7 @@
     "YAML_INVALID": "Ungültiges YAML: {{detail}}",
     "EXPRESSION_INVALID": "{{where}}: ungültiger Ausdruck – {{detail}}",
     "COLOR_INVALID": "Geben Sie eine Hex-Farbe wie #1c7ed6 ein.",
+    "NOTIFICATION_LOOK_INVALID": "Bitte Name, Farbe, Logo und Fußzeile der Benachrichtigungen prüfen.",
     "TIME_ZONE_UNKNOWN": "Unbekannte Zeitzone „{{tz}}“.",
     "ACL_INVALID": "Die Zugriffsliste ist ungültig.",
     "ACL_SUBJECT_INVALID": "Ungültiger Eintrag „{{subject}}“ – verwenden Sie user:<name>, team:<name> oder role:<role>.",

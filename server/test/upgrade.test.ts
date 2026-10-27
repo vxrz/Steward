@@ -253,6 +253,16 @@ describe.each(versions)('upgrade from %s', (version) => {
     }
   });
 
+  it("adds Steward's example library as a disabled Git sync source, once (0.2.1)", async () => {
+    const sources = await admin('GET', '/sync-sources');
+    const examples = sources.filter((x: any) => x.builtIn);
+    expect(examples).toHaveLength(1);
+    expect(examples[0]).toMatchObject({ id: 'gsr_steward-examples', enabled: false, hasToken: false, refType: 'tag', branch: 'v{version}', lastFetchAt: null });
+    const created = await admin('GET', '/audit?action=sync.source_created&entityId=gsr_steward-examples&limit=10');
+    expect(created).toHaveLength(1);
+    expect(created[0].actor).toBe('system');
+  });
+
   it('resumes the run that waited for an approval', async () => {
     const before = await admin('GET', `/runs/${m.ids.waitingRun}`);
     expect(before.status).toBe('waiting');

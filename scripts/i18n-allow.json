@@ -68,6 +68,7 @@
       "KeePass: IT-Ops.kdbx → Insights Hub/Agents/IoT2050-17",
       "Kubernetes: livenessProbe → /api/health, readinessProbe → /api/ready.",
       "Link",
+      "Logo",
       "Markdown",
       "Microsoft Teams",
       "Monitor",

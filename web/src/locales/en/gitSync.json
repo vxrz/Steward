@@ -30,7 +30,10 @@
     "webhookOn": "webhook",
     "disabled": "disabled",
     "manageLink": "Manage Git sync",
-    "settingsCard": "Fetch processes, dashboards, monitors and record types from Forgejo, GitHub or GitLab. Off until you add a source."
+    "settingsCard": "Fetch processes, dashboards, monitors and record types from Forgejo, GitHub or GitLab. Off until you add a source.",
+    "builtIn": "Steward examples",
+    "builtInHint": "Steward's own example library at the tag of this version. Turn it on to review improved examples in Updates from Git. Steward needs to reach github.com (Settings → Outbound access).",
+    "refTag": "tag {{ref}}"
   },
   "form": {
     "titleNew": "New Git sync source",
@@ -70,7 +73,15 @@
     "allowedSignersHint": "Git host logins or e-mail addresses. Only commits signed by these accounts are accepted. Empty = any signature the Git host verified.",
     "autoAccept": "Accept new items automatically",
     "autoAcceptHint": "Items that do not exist in Steward yet are created right away (monitors disabled). Changes to existing items still need a review.",
-    "enabled": "Enabled"
+    "enabled": "Enabled",
+    "refType": "Follow",
+    "refTypes": {
+      "branch": "Branch",
+      "tag": "Tag"
+    },
+    "tag": "Tag",
+    "refHint": "{version} stands for this installation's Steward version ({{version}}): v{version} follows the matching release and moves along after an upgrade.",
+    "refResolved": "Fetches {{ref}}"
   },
   "secret": {
     "title": "Webhook secret",

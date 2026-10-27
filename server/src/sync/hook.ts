@@ -3,7 +3,7 @@ import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { logger } from '../log.js';
 import { sha256 } from '../util.js';
-import { sourceRow, type SourceRow } from './service.js';
+import { resolveRefName, sourceRow, type SourceRow } from './service.js';
 import { fetchSource } from './fetch.js';
 
 /**
@@ -121,7 +121,9 @@ export function handleSyncHook(req: SyncHookRequest): SyncHookResponse {
   } catch {
     return reject(r, req, 'invalid JSON', { status: 400, body: { error: 'Invalid JSON' } });
   }
-  if (typeof ref === 'string' && ref !== `refs/heads/${r.branch}`) return { status: 202, body: { skipped: 'other branch' } };
+  // push events name the ref: refs/heads/<branch>, or refs/tags/<tag> for a tag that was pushed (or moved)
+  const expected = `refs/${r.ref_type === 'tag' ? 'tags' : 'heads'}/${resolveRefName(r.branch)}`;
+  if (typeof ref === 'string' && ref !== expected) return { status: 202, body: { skipped: r.ref_type === 'tag' ? 'other ref' : 'other branch' } };
   void fetchSource(r.id, 'webhook', 'webhook').catch((e) => logger.warn({ sourceId: r.id, err: (e as Error).message }, 'git sync webhook fetch failed'));
   return { status: 202, body: { fetching: true } };
 }

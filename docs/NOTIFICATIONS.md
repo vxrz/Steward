@@ -31,6 +31,23 @@ Steward notifies people in the app (the bell in the header) and – depending on
 
 Plain addresses (credential owners, report recipients) only get e-mail when their domain is allowed: _Settings → Notifications → Allowed e-mail domains for addresses outside Steward_. An empty list means the domains of the Steward users' own addresses.
 
+## Look of e-mails and Teams messages
+
+_Settings → Look of e-mails and Teams messages_ (administrators) gives the messages Steward sends the company's name, colour and logo, like the web UI (_Appearance_) and the PDF reports (_Report branding_). Every field is optional: an empty field follows _Settings → Appearance_, so a Steward with its own app name and colour already sends messages in that look.
+
+| Setting     | Used for                                                                                      | When empty                              |
+| ----------- | --------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Name        | The e-mail header, the subject prefix (`[Name] …`), the Teams card and the "Open in …" button | The Appearance app name, else "Steward" |
+| Colour      | The e-mail header and button                                                                  | The Appearance primary colour           |
+| Logo        | App logo (Appearance), report logo (Report branding) or none                                  | The app logo                            |
+| Footer text | Small print at the bottom of every e-mail and Teams card                                      | No footer                               |
+
+- **E-mails** (every notification, the daily summary, test messages) use one layout: a header bar in the colour with logo and name, a thin strip that shows how the message reads (red: something failed, orange: something to do, green: a monitor is up again, blue: information), the text, a button and the footer. It is built from tables and inline styles, so Outlook and web mail show it, and the plain-text part is kept.
+- **The logo travels inside the e-mail** as an inline attachment (`cid:`). Mail clients block remote images, and Steward is usually not reachable from outside, so nothing is loaded from Steward. PNG and JPEG up to 512 KB; a WebP app logo is left out (many mail clients cannot show it) – upload a PNG or JPEG, or use the report logo.
+- **Teams cards** carry the name, the footer and a coloured strip with the same meaning. Adaptive Cards only know named colours (`good`, `warning`, `attention`, `accent`), not the hex colour. The logo is embedded only up to 12 KB, because Teams refuses cards over 28 KB.
+- **Generic webhooks** get the same JSON as before.
+- The card's **preview** shows the test message as an e-mail and a Teams card with the unsaved settings. _Send test_ under _Notifications_ sends it with the saved ones. Changes are audited as `notifications.look_updated`; the setting moves with a [migration package](MIGRATION.md).
+
 ## Daily summary
 
 Once a day, a short summary of what concerns you. It is **off by default**; turn it on in your profile under _Daily summary_.

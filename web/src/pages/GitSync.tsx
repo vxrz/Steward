@@ -26,12 +26,22 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { IconBrandGit, IconCheck, IconCopy, IconDownload, IconEdit, IconKey, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { GIT_PROVIDERS, SYNC_KINDS, SYNC_LIMITS, type SyncFetchResult, type SyncSource, type SyncSourceSecret, type SyncSourceSettings } from '@sm/shared';
+import {
+  GIT_PROVIDERS,
+  SYNC_KINDS,
+  SYNC_LIMITS,
+  SYNC_REF_TYPES,
+  type SyncFetchResult,
+  type SyncSource,
+  type SyncSourceSecret,
+  type SyncSourceSettings,
+} from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, useFieldErrors } from '../components/common';
 import { fmtDate, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { WEB_BUILD } from '../buildInfo';
 import { appUrl } from '../basePath';
 
 type Draft = SyncSourceSettings & { id?: string; token?: string; hasToken?: boolean; removeToken?: boolean };
@@ -41,6 +51,7 @@ const emptyDraft = (): Draft => ({
   provider: 'forgejo',
   repoUrl: '',
   apiUrl: '',
+  refType: 'branch',
   branch: 'main',
   folder: '',
   kinds: [...SYNC_KINDS],
@@ -144,6 +155,11 @@ export function GitSyncPage() {
                   <Badge variant="light" color="gray">
                     {t(`form.providers.${s.provider}`)}
                   </Badge>
+                  {s.builtIn && (
+                    <Badge variant="light" color={TONE.active}>
+                      {t('sources.builtIn')}
+                    </Badge>
+                  )}
                   {!s.enabled && (
                     <Badge variant="light" color={TONE.neutral}>
                       {t('sources.disabled')}
@@ -156,9 +172,14 @@ export function GitSyncPage() {
                   )}
                 </Group>
                 <Text size="sm" className="mono" style={{ overflowWrap: 'anywhere' }}>
-                  {s.repoUrl} · {s.branch}
+                  {s.repoUrl} · {s.refType === 'tag' ? t('sources.refTag', { ref: s.resolvedRef }) : s.resolvedRef}
                   {s.folder ? ` · ${s.folder}/` : ''}
                 </Text>
+                {s.builtIn && (
+                  <Text size="xs" c="dimmed">
+                    {t('sources.builtInHint')}
+                  </Text>
+                )}
                 <Text size="xs" c="dimmed">
                   {s.kinds.map((k) => t(`form.kind.${k}`)).join(', ')} ·{' '}
                   {s.intervalMinutes ? t('sources.schedule', { count: s.intervalMinutes }) : t('sources.noSchedule')}
@@ -231,7 +252,9 @@ export function GitSyncPage() {
 
 function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onClose: () => void; onSaved: (r: SyncSourceSecret) => void }) {
   const { t } = useTranslation(['gitSync', 'common']);
-  const [d, setD] = useState<Draft>(initial);
+  const [d, setD] = useState<Draft>({ ...initial, refType: initial.refType ?? 'branch' });
+  // the web app is built with the server's version (one release)
+  const version = WEB_BUILD.version;
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((x) => ({ ...x, [k]: v }));
   const v = useFieldErrors({
@@ -247,6 +270,7 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
       provider: d.provider,
       repoUrl: d.repoUrl,
       apiUrl: d.apiUrl ?? '',
+      refType: d.refType,
       branch: d.branch,
       folder: d.folder,
       kinds: d.kinds,
@@ -281,8 +305,25 @@ function SourceDialog({ draft: initial, onClose, onSaved }: { draft: Draft; onCl
             allowDeselect={false}
             onChange={(v) => v && set('provider', v as Draft['provider'])}
           />
-          <TextInput label={t('form.branch')} required value={d.branch} onChange={(e) => set('branch', e.currentTarget.value)} />
+          <Select
+            label={t('form.refType')}
+            data={SYNC_REF_TYPES.map((r) => ({ value: r, label: t(`form.refTypes.${r}`) }))}
+            value={d.refType}
+            allowDeselect={false}
+            onChange={(v) => v && set('refType', v as Draft['refType'])}
+          />
         </SimpleGrid>
+        <TextInput
+          label={d.refType === 'tag' ? t('form.tag') : t('form.branch')}
+          required
+          value={d.branch}
+          onChange={(e) => set('branch', e.currentTarget.value)}
+          description={
+            d.branch.includes('{version}')
+              ? `${t('form.refHint', { version })} ${t('form.refResolved', { ref: d.branch.replaceAll('{version}', version) })}`
+              : t('form.refHint', { version })
+          }
+        />
         <TextInput
           label={t('form.repoUrl')}
           description={t('form.repoUrlHint')}

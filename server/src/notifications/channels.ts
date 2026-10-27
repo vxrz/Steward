@@ -4,6 +4,7 @@ import type { Locale, NotificationSettings } from '@sm/shared';
 import type { ChannelSecrets } from './settings.js';
 import { BRAND } from '@sm/shared';
 import { t } from '../i18n/index.js';
+import { LOGO_CID, TEAMS_CARD_MAX_CHARS, TEAMS_LOGO_MAX_BYTES, bodyHtml, emailHtml, eventTone, logoDataUrl, resolveLook, type ResolvedLook } from './look.js';
 
 /** What every external channel receives. `link` is absolute. */
 export interface OutgoingMessage {
@@ -18,8 +19,11 @@ export interface OutgoingMessage {
   data?: Record<string, unknown>;
   /** E-mail only (e.g. the PDF of a scheduled report) */
   attachments?: { filename: string; content: Buffer; contentType: string }[];
-  /** E-mail only: a complete text and HTML part instead of the standard layout (the daily summary; HTML already escaped) */
-  emailParts?: { text: string; html: string };
+  /**
+   * E-mail only: own content instead of the message body (the daily summary). `html` is the content inside the
+   * standard layout (already escaped), `note` small print above the footer, `button` replaces "Open in …".
+   */
+  emailParts?: { text: string; html: string; note?: string; button?: { label: string; href: string } };
 }
 
 const TIMEOUT_MS = 10000;
@@ -43,8 +47,8 @@ export async function sendWebhook(url: string, m: OutgoingMessage): Promise<void
 }
 
 /** Adaptive Card message – accepted by Teams Workflows ("post to a channel") and classic incoming webhooks. */
-export function teamsCard(m: OutgoingMessage): unknown {
-  return {
+export function teamsCard(m: OutgoingMessage, look: ResolvedLook = resolveLook()): unknown {
+  const card = (withLogo: boolean) => ({
     type: 'message',
     attachments: [
       {
@@ -55,24 +59,75 @@ export function teamsCard(m: OutgoingMessage): unknown {
           type: 'AdaptiveCard',
           version: '1.4',
           body: [
-            { type: 'TextBlock', text: m.title, weight: 'Bolder', size: 'Medium', wrap: true },
+            {
+              // Adaptive Cards take named colours only: the strip shows how the message reads (failed, to do, up again)
+              type: 'Container',
+              style: eventTone(m.event, m.data),
+              bleed: true,
+              items: [
+                {
+                  type: 'ColumnSet',
+                  columns: [
+                    ...(withLogo && look.logo
+                      ? [
+                          {
+                            type: 'Column',
+                            width: 'auto',
+                            verticalContentAlignment: 'Center',
+                            items: [{ type: 'Image', url: logoDataUrl(look.logo), height: '24px', altText: look.name }],
+                          },
+                        ]
+                      : []),
+                    {
+                      type: 'Column',
+                      width: 'stretch',
+                      verticalContentAlignment: 'Center',
+                      items: [{ type: 'TextBlock', text: look.name, weight: 'Bolder', wrap: true }],
+                    },
+                  ],
+                },
+              ],
+            },
+            { type: 'TextBlock', text: m.title, weight: 'Bolder', size: 'Medium', wrap: true, spacing: 'Medium' },
             ...(m.body ? [{ type: 'TextBlock', text: m.body, wrap: true }] : []),
-            { type: 'TextBlock', text: `${BRAND.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
+            { type: 'TextBlock', text: `${look.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
+            ...(look.footer ? [{ type: 'TextBlock', text: look.footer, isSubtle: true, size: 'Small', wrap: true, spacing: 'None' }] : []),
           ],
-          actions: [{ type: 'Action.OpenUrl', title: t(m.locale, 'common.openIn', { brand: BRAND.name }), url: m.link }],
+          actions: [{ type: 'Action.OpenUrl', title: t(m.locale, 'common.openIn', { brand: look.name }), url: m.link }],
         },
       },
     ],
-  };
+  });
+  // a card may be at most 28 KB: the logo is embedded only when it is small and the card stays well below that
+  const small = !!look.logo && look.logo.data.length <= TEAMS_LOGO_MAX_BYTES;
+  const withLogo = card(small);
+  return small && JSON.stringify(withLogo).length > TEAMS_CARD_MAX_CHARS ? card(false) : withLogo;
 }
 
 export async function sendTeams(url: string, m: OutgoingMessage): Promise<void> {
   await postJson(url, teamsCard(m));
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+/** Subject, text and HTML part of an e-mail in the configured look. `logoSrc` defaults to the attached logo (cid). */
+export function emailContent(m: OutgoingMessage, look: ResolvedLook = resolveLook(), logoSrc = `cid:${LOGO_CID}`) {
+  const parts = m.emailParts;
+  const open = { label: t(m.locale, 'common.openIn', { brand: look.name }), href: m.link };
+  const text = (parts?.text ?? `${m.title}\n\n${m.body}\n\n${m.link}\n`) + (look.footer ? `\n--\n${look.footer}\n` : '');
+  const html = emailHtml({
+    look,
+    locale: m.locale,
+    title: m.title,
+    content: parts ? parts.html : bodyHtml(m.body),
+    tone: parts ? undefined : eventTone(m.event, m.data),
+    button: parts?.button ?? open,
+    note: parts?.note,
+    logoSrc,
+  });
+  return { subject: `[${look.name}] ${m.title}`, text, html };
+}
 
 export async function sendEmail(cfg: NotificationSettings['email'], secrets: ChannelSecrets, to: string, m: OutgoingMessage): Promise<void> {
+  const look = resolveLook();
   const transport = nodemailer.createTransport({
     host: cfg.host,
     port: cfg.port,
@@ -82,17 +137,16 @@ export async function sendEmail(cfg: NotificationSettings['email'], secrets: Cha
     greetingTimeout: TIMEOUT_MS,
     socketTimeout: TIMEOUT_MS * 2,
   });
+  const { subject, text, html } = emailContent(m, look);
+  // the logo travels inside the message (cid): mail clients block remote images, and Steward is often not reachable from outside
+  const attachments = [
+    ...(look.logo
+      ? [{ filename: look.logo.mime === 'image/png' ? 'logo.png' : 'logo.jpg', content: look.logo.data, contentType: look.logo.mime, cid: LOGO_CID }]
+      : []),
+    ...(m.attachments ?? []).map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })),
+  ];
   try {
-    await transport.sendMail({
-      from: cfg.from,
-      to,
-      subject: `[${BRAND.name}] ${m.title}`,
-      text: m.emailParts?.text ?? `${m.title}\n\n${m.body}\n\n${m.link}\n`,
-      html:
-        m.emailParts?.html ??
-        `<div lang="${m.locale}"><p><strong>${esc(m.title)}</strong></p><p>${esc(m.body).replace(/\n/g, '<br>')}</p><p><a href="${esc(m.link)}">${esc(t(m.locale, 'common.openIn', { brand: BRAND.name }))}</a></p></div>`,
-      ...(m.attachments?.length ? { attachments: m.attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) } : {}),
-    });
+    await transport.sendMail({ from: cfg.from, to, subject, text, html, ...(attachments.length ? { attachments } : {}) });
   } finally {
     transport.close();
   }

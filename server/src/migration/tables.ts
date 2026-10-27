@@ -193,6 +193,7 @@ export const SETTINGS_MOVED = [
   'credentials.reminders',
   'tickets.settings',
   'notifications.dailySummary',
+  'notifications.look',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */
