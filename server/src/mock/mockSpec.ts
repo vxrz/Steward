@@ -20,7 +20,7 @@ export function mockIdentitySpec(): Record<string, unknown> {
     info: { title: 'Identity Management (demo)', version: '3.0.0', description: 'Subset of the Insights Hub Identity Management API served by the demo mock.' },
     servers: [{ url: '/api/identitymanagement/v3' }],
     paths: {
-      '/api/identitymanagement/v3/Users': {
+      '/Users': {
         get: { operationId: 'listUsers', tags: ['Users'], summary: 'List users', parameters: paging, responses: ok(scimList('User')) },
         post: {
           operationId: 'createUser',
@@ -30,15 +30,15 @@ export function mockIdentitySpec(): Record<string, unknown> {
           responses: { '201': { description: 'Created' } },
         },
       },
-      '/api/identitymanagement/v3/Users/{id}': {
+      '/Users/{id}': {
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
         get: { operationId: 'getUser', tags: ['Users'], summary: 'Get a user', responses: ok({ $ref: '#/components/schemas/User' }) },
         delete: { operationId: 'deleteUser', tags: ['Users'], summary: 'Delete a user', responses: { '200': { description: 'Deleted' } } },
       },
-      '/api/identitymanagement/v3/Groups': {
+      '/Groups': {
         get: { operationId: 'listGroups', tags: ['Groups'], summary: 'List groups and roles', parameters: paging, responses: ok(scimList('Group')) },
       },
-      '/api/identitymanagement/v3/Groups/{id}/members': {
+      '/Groups/{id}/members': {
         parameters: [{ name: 'id', in: 'path', required: true, description: 'Group id', schema: { type: 'string' } }],
         get: {
           operationId: 'listGroupMembers',
@@ -54,7 +54,7 @@ export function mockIdentitySpec(): Record<string, unknown> {
           responses: { '201': { description: 'Added' }, '409': { description: 'Already a member' } },
         },
       },
-      '/api/identitymanagement/v3/Groups/{id}/members/{memberId}': {
+      '/Groups/{id}/members/{memberId}': {
         parameters: [
           { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
           { name: 'memberId', in: 'path', required: true, schema: { type: 'string' } },
@@ -76,7 +76,11 @@ export function mockIdentitySpec(): Record<string, unknown> {
             userName: { type: 'string', format: 'email' },
             name: { type: 'object', properties: { givenName: { type: 'string' }, familyName: { type: 'string' } } },
             active: { type: 'boolean' },
-            lastLogonTime: { type: 'string', format: 'date-time' },
+            lastLogonTime: {
+              type: ['string', 'integer', 'null'],
+              description:
+                'Not in the official spec. An ISO 8601 date-time or epoch milliseconds, depending on the tenant; missing or null when the user never signed in.',
+            },
             groups: {
               type: 'array',
               items: {

@@ -73,7 +73,7 @@ steps:
         {{ vars.users.body[
              $not(userName in $inputs.exempt)
              and $not($inputs.reviewGroup in groups.display)
-             and ($exists(lastLogonTime)
+             and ($ts(lastLogonTime)
                    ? $daysSince(lastLogonTime) >= $inputs.inactiveDays
                    : $inputs.includeNeverLoggedIn)
            ][] }}
@@ -91,8 +91,8 @@ steps:
     columns:
       - { label: User, value: userName }
       - { label: Name, value: "name.givenName & ' ' & name.familyName" }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
-      - { label: Days, value: "$exists(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }
+      - { label: Days, value: "$ts(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
       - { label: Groups, value: "$join(groups.display, ', ')" }
     preselect: "true"
     saveAs: decision
@@ -125,4 +125,4 @@ steps:
     rows: vars.decision.selected
     columns:
       - { label: User, value: userName }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }

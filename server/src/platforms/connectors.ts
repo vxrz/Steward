@@ -18,6 +18,7 @@ import {
   type PlatformInput,
 } from './service.js';
 import { platformRequest, resolveBaseUrl } from './http.js';
+import { PATH_PREFIX_MAX, isValidPathPrefix } from './pathPrefix.js';
 import { assertOutboundAllowed, guardedLookup } from './outbound.js';
 
 /**
@@ -44,7 +45,13 @@ const packageSchema = z.object({
     .max(100)
     .default([]),
   specs: z
-    .array(z.object({ name: z.string(), content: z.string() }))
+    .array(
+      z.object({
+        name: z.string(),
+        content: z.string(),
+        pathPrefix: z.string().max(PATH_PREFIX_MAX).refine(isValidPathPrefix, 'invalid path prefix').optional(),
+      }),
+    )
     .max(100)
     .default([]),
 });
@@ -110,7 +117,7 @@ export function createTypeFromPlatform(platformId: string, opts: { kind?: string
     docs: listDocs(platformId)
       .filter((d) => d.kind === 'link' && d.url)
       .map((d) => ({ title: d.title, url: d.url! })),
-    specs: listSpecs(platformId).map((s) => ({ name: s.name, content: getSpecContent(s.id) })),
+    specs: listSpecs(platformId).map((s) => ({ name: s.name, content: getSpecContent(s.id), pathPrefix: s.pathPrefix })),
   };
   return store(pkg, 'connector.created');
 }
@@ -137,8 +144,9 @@ export function createPlatformFromType(input: PlatformInput & { typeKind?: strin
   const pkg = typeKind ? getPackage(typeKind) : undefined;
   const platform = createPlatform({ ...rest, kind: rest.kind || pkg?.kind });
   // built-in presets (no typeKind) bring their API specs by kind, e.g. Gatus
-  const specs = pkg ? pkg.specs : (PRESET_SPECS[platform.kind]?.() ?? []);
-  for (const s of specs) addSpec(platform.id, s.name, s.content);
+  const specs: ConnectorPackage['specs'] = pkg ? pkg.specs : (PRESET_SPECS[platform.kind]?.() ?? []);
+  // a connector type keeps the path prefix of each spec; without one it is derived from the spec's server URL
+  for (const s of specs) addSpec(platform.id, s.name, s.content, { pathPrefix: s.pathPrefix });
   return getPlatform(platform.id);
 }
 

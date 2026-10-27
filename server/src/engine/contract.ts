@@ -1,8 +1,6 @@
 import type { ApiOperation, ContractCheckResult } from '@sm/shared';
-import { db } from '../db.js';
 import { audit } from '../audit.js';
-import { parseJson } from '../util.js';
-import { getPlatform, getSecrets } from '../platforms/service.js';
+import { getPlatform, getSecrets, getSpecContent, listOperations } from '../platforms/service.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
 import { resolveRef } from '../platforms/openapi.js';
 import { parseYaml, SPEC_YAML } from '../yaml-safe.js';
@@ -46,7 +44,8 @@ function flatten(doc: Doc, s: unknown, depth = 0): Schema | undefined {
 
 function responseSchema(doc: Doc | undefined, op: ApiOperation, status: number): Schema | undefined {
   if (!doc) return undefined;
-  const pathItem = (doc.paths as Record<string, Record<string, unknown>> | undefined)?.[op.path];
+  // the specification's own path (without the spec's path prefix)
+  const pathItem = (doc.paths as Record<string, Record<string, unknown>> | undefined)?.[op.specPath ?? op.path];
   const operation = pathItem?.[op.method.toLowerCase()] as Record<string, unknown> | undefined;
   const responses = (operation?.responses ?? {}) as Record<string, unknown>;
   const pick = responses[String(status)] ?? responses[`${String(status)[0]}XX`] ?? responses[String(op.successStatus?.[0] ?? 200)] ?? responses.default;
@@ -107,27 +106,26 @@ export function shapeProblems(doc: Doc, schema: Schema, body: unknown): string[]
 export async function contractCheck(platformId: string): Promise<ContractCheckResult> {
   const p = getPlatform(platformId);
   const secrets = getSecrets(platformId);
-  const specs = db().all<{ id: string; content: string; operations: string }>(
-    'SELECT id, content, operations FROM platform_specs WHERE platform_id = ? ORDER BY created_at',
-    platformId,
-  );
+  // effective paths: each spec's path prefix in front of the specification's path
+  const docs = new Map<string, Doc | undefined>();
+  const docOf = (specId: string) => {
+    if (!docs.has(specId)) docs.set(specId, parseDoc(getSpecContent(specId)));
+    return docs.get(specId);
+  };
   const candidates: { op: ApiOperation; doc?: Doc }[] = [];
   let skipped = 0;
-  for (const s of specs) {
-    const doc = parseDoc(s.content);
-    for (const op of parseJson<ApiOperation[]>(s.operations, [])) {
-      if (op.method.toUpperCase() !== 'GET') continue;
-      const pathParams = (op.parameters ?? []).filter((x) => x.in === 'path' && x.required);
-      if (pathParams.length || /\{[^}]+\}/.test(op.path)) {
-        skipped++;
-        continue;
-      }
-      if (candidates.length >= MAX_OPERATIONS) {
-        skipped++;
-        continue;
-      }
-      candidates.push({ op: { ...op, specId: s.id }, doc });
+  for (const op of listOperations(platformId)) {
+    if (op.method.toUpperCase() !== 'GET') continue;
+    const pathParams = (op.parameters ?? []).filter((x) => x.in === 'path' && x.required);
+    if (pathParams.length || /\{[^}]+\}/.test(op.path)) {
+      skipped++;
+      continue;
     }
+    if (candidates.length >= MAX_OPERATIONS) {
+      skipped++;
+      continue;
+    }
+    candidates.push({ op, doc: docOf(op.specId) });
   }
   const mask = (text: string) => secretValues(secrets).reduce((t, v) => (v && t.includes(v) ? t.split(v).join('***') : t), text);
   const results: ContractCheckResult['results'] = [];

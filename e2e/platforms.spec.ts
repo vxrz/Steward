@@ -1,6 +1,6 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
-import { platformId } from './support/helpers';
+import { json, platformId, uniq } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -51,4 +51,64 @@ test('operator may use the explorer read-only', async ({ loginAs }) => {
   await page.getByRole('button', { name: 'Send' }).click();
   await expect(page.getByText('HTTP 200', { exact: true })).toBeVisible();
   await expect(page.getByText(/edge-line-1/).first()).toBeVisible();
+});
+
+test('API specs: the path prefix from the server URL can be edited, with a preview of the request URL', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const name = uniq('Prefix platform');
+  const p = await json<{ id: string }>(await api.post('/api/platforms', { data: { name, kind: 'generic', baseUrl: 'https://edge.example.com' } }));
+  const spec = {
+    openapi: '3.0.3',
+    info: { title: 'Edge devices', version: '1' },
+    servers: [{ url: 'https://edge.example.com/device/api/v1' }],
+    paths: { '/things': { get: { operationId: 'listThings', summary: 'List things', responses: { '200': { description: 'OK' } } } } },
+  };
+  await json(await api.post(`/api/platforms/${p.id}/specs`, { data: { name: 'Edge devices', content: JSON.stringify(spec) } }));
+
+  await page.goto(`/platforms/${p.id}`);
+  await page.getByRole('tab', { name: 'API specs' }).click();
+  await expect(page.getByRole('cell', { name: /Requests go to: https:\/\/edge\.example\.com\/device\/api\/v1\/…/ })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '/device/api/v1/things', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Edit path prefix of Edge devices' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Path prefix of the specification' });
+  const input = dialog.getByRole('textbox', { name: 'Path prefix' });
+  await input.fill('/../admin');
+  await expect(dialog.getByText(/Use \/segment\/segment/)).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled();
+  await input.fill('/device/api/v2');
+  await expect(dialog.getByText('https://edge.example.com/device/api/v2/…')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('cell', { name: '/device/api/v2/things', exact: true })).toBeVisible();
+
+  await api.delete(`/api/platforms/${p.id}`);
+});
+
+test('access: a team or role picked from the list can be added', async ({ page, apiAs }) => {
+  // Picking an option puts its label into the field ("Team …"); "Add" used to stay disabled because it expected "team:…".
+  const api = await apiAs('admin');
+  const team = uniq('Access team');
+  await json(await api.post('/api/teams', { data: { name: team, members: [] } }));
+  const id = await platformId(api, 'insights-hub');
+  await page.goto(`/platforms/${id}`);
+  await page.getByRole('tab', { name: 'Access' }).click();
+
+  const field = page.getByRole('textbox', { name: 'Add user, team or role' });
+  const add = page.getByRole('button', { name: 'Add', exact: true });
+  await expect(add).toBeDisabled();
+  await field.fill(team.slice(0, 12));
+  await page.getByRole('option', { name: `Team ${team}` }).click();
+  await expect(field).toHaveValue(`Team ${team}`);
+  await expect(add).toBeEnabled();
+  await add.click();
+  await expect(page.getByRole('table').getByText(`Team ${team}`, { exact: true })).toBeVisible();
+  await expect(field).toHaveValue('');
+
+  // a role works the same way; nothing is saved (other tests use this platform)
+  await field.fill('operator');
+  await page.getByRole('option', { name: 'Everyone with role operator' }).click();
+  await expect(add).toBeEnabled();
+  await add.click();
+  await expect(page.getByRole('table').getByText('Everyone with role operator', { exact: true })).toBeVisible();
 });

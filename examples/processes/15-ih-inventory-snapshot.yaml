@@ -103,20 +103,20 @@ steps:
     columns:
       - { label: User, value: userName }
       - { label: Name, value: "name.givenName & ' ' & name.familyName" }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
-      - { label: Days, value: "$daysSince(lastLogonTime)" }
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }
+      - { label: Days, value: "$ts(lastLogonTime) ? $daysSince(lastLogonTime) : '–'" }
       - { label: Groups, value: "$count(groups)" }
       - { label: Admin, value: "$count(groups[display in $inputs.privilegedRoles]) > 0 ? 'yes' : 'no'" }
     status: >-
-      $not($exists(lastLogonTime)) ? 'critical'
+      ($ts(lastLogonTime) ? false : true) ? 'critical'
         : ($daysSince(lastLogonTime) >= $inputs.inactiveDays ? 'critical'
         : ($daysSince(lastLogonTime) >= $inputs.activeDays ? 'warning' : 'good'))
-    statusText: "$exists(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
+    statusText: "$ts(lastLogonTime) ? 'last login ' & $daysSince(lastLogonTime) & ' days ago' : 'never signed in'"
     metrics:
       total: "$count(vars.users.body)"
-      active30: "$count(vars.users.body[$exists(lastLogonTime) and $daysSince(lastLogonTime) < $inputs.activeDays])"
-      inactive90: "$count(vars.users.body[$not($exists(lastLogonTime)) or $daysSince(lastLogonTime) >= $inputs.inactiveDays])"
-      neverLoggedIn: "$count(vars.users.body[$not($exists(lastLogonTime))])"
+      active30: "$count(vars.users.body[$ts(lastLogonTime) and $daysSince(lastLogonTime) < $inputs.activeDays])"
+      inactive90: "$count(vars.users.body[($ts(lastLogonTime) ? $daysSince(lastLogonTime) >= $inputs.inactiveDays : true)])"
+      neverLoggedIn: "$count(vars.users.body[($ts(lastLogonTime) ? false : true)])"
       admins: "$count(vars.users.body[$count(groups[display in $inputs.privilegedRoles]) > 0])"
     staleAfterMinutes: 180
   - id: publishGroups

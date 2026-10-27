@@ -1,0 +1,207 @@
+name: "Gatus – uptime overview (from /metrics)"
+description: |
+  The "Gatus – uptime overview" for a Gatus whose API is protected by OIDC
+  (`security.oidc`), or whenever you prefer not to give Steward a Gatus login.
+  It reads only what Gatus serves without authentication:
+
+  - `/metrics` (Prometheus, needs `metrics: true` in the Gatus configuration):
+    the endpoints, whether the newest result succeeded, the newest response
+    time and the TLS certificate expiry;
+  - `/api/v1/endpoints/{key}/uptimes/{window}` and `…/response-times/{window}`
+    for uptime and average response time over 1h, 24h, 7d or 30d. With
+    "counters" it uses Gatus' result counters instead – uptime since Gatus'
+    last start, no extra calls.
+
+  Gatus' metrics carry no error text and no time of the newest result; for
+  those use the API-based overview or Gatus itself. Restrict `/metrics` to
+  Steward's network (docs/GATUS.md).
+
+  Recommended schedule: every 10 minutes (`*/10 * * * *`). Publishes
+  `gatus-uptime-metrics` (one row per endpoint; metrics endpoints, down,
+  avgUptime, certificatesExpiring) for the dashboard "Uptime (from
+  /metrics)". A dataset belongs to the process that first published it, so
+  this one does not share `gatus-uptime` with the API-based overview. Needs a
+  platform of kind `gatus`; its authentication can be `none`.
+tags: [status, health, uptime, gatus, metrics]
+connections:
+  - slot: gatus
+    kind: gatus
+    description: Gatus instance (base URL of the status page; no login needed)
+inputs:
+  - name: metricsPath
+    label: Path of the Prometheus endpoint
+    type: string
+    default: /metrics
+  - name: uptimeWindow
+    label: Uptime window ("counters" = since Gatus' last start, no extra calls)
+    type: select
+    options: [counters, 1h, 24h, 7d, 30d]
+    default: 24h
+  - name: minUptimePercent
+    label: Warn below this uptime (%)
+    type: number
+    default: 99
+  - name: maxResponseMs
+    label: Warn above this average response time (ms)
+    type: number
+    default: 1000
+  - name: certWarnDays
+    label: Warn when a TLS certificate expires within (days)
+    type: number
+    default: 14
+steps:
+  - id: metrics
+    type: http
+    name: Read Gatus' Prometheus metrics
+    connection: gatus
+    method: GET
+    path: "{{ inputs.metricsPath }}"
+    saveAs: metrics
+  - id: parse
+    type: set
+    name: Endpoints from the metrics
+    values:
+      # One row per endpoint from gatus_results_endpoint_success{group,key,name,type}; the other
+      # series are matched by key. Prometheus text: name{label="value",…} value
+      endpoints: >-
+        {{ (
+          $lines := $split($string(vars.metrics.body), "\n")[$substring($, 0, 14) = 'gatus_results_'];
+          $label := function($l, $n) {(
+            $p := $contains($l, '{' & $n & '="') ? '{' & $n & '="' : ',' & $n & '="';
+            $contains($l, $p) ? $substringBefore($substringAfter($l, $p), '"') : ''
+          )};
+          $num := function($l) {(
+            $v := $split($trim($substringAfter($l, '} ')), ' ')[0];
+            $v in ['NaN', '+Inf', '-Inf', ''] ? null : $number($v)
+          )};
+          $series := function($name) { $lines[$substringBefore($, '{') = $name] };
+          $success := $series('gatus_results_endpoint_success');
+          $durations := $series('gatus_results_duration_seconds');
+          $certs := $series('gatus_results_certificate_expiration_seconds');
+          $totals := $series('gatus_results_total');
+          [$map($success, function($l) {(
+            $k := $label($l, 'key');
+            $d := $durations[$label($, 'key') = $k][0];
+            $c := $certs[$label($, 'key') = $k][0];
+            $ok := $sum($totals[$label($, 'key') = $k and $label($, 'success') = 'true'].$num($));
+            $fail := $sum($totals[$label($, 'key') = $k and $label($, 'success') = 'false'].$num($));
+            $cert := $c ? $num($c) : null;
+            {
+              "key": $k,
+              "endpoint": $label($l, 'name'),
+              "group": $label($l, 'group'),
+              "type": $label($l, 'type'),
+              "healthy": $num($l) = 1,
+              "lastMs": $d and $num($d) != null ? $round($num($d) * 1000) : null,
+              "certDays": $cert != null and $cert > 0 ? $floor($cert / 86400) : null,
+              "counterUptime": $ok + $fail > 0 ? $round(100 * $ok / ($ok + $fail), 2) : null
+            }
+          )})]
+        ) }}
+  - id: found
+    type: check
+    name: Gatus publishes endpoint metrics
+    severity: warning
+    condition: "$count(vars.endpoints) > 0"
+    message: "{{ $count(vars.endpoints) > 0 ? $count(vars.endpoints) & ' endpoint(s) in ' & inputs.metricsPath : 'No gatus_results_endpoint_success series in ' & inputs.metricsPath & ' – is metrics: true set in the Gatus configuration?' }}"
+  - id: useWindowApi
+    type: if
+    name: Uptime for a window from Gatus' open uptime API?
+    condition: "inputs.uptimeWindow != 'counters'"
+    then:
+      - id: windows
+        type: forEach
+        name: Uptime and response time per endpoint (4 in parallel)
+        items: "vars.endpoints"
+        as: ep
+        concurrency: 4
+        maxItems: 500
+        saveAs: windows
+        steps:
+          - id: uptimeCall
+            type: http
+            name: Read uptime
+            connection: gatus
+            method: GET
+            path: "/api/v1/endpoints/{{ $encodeUrlComponent(vars.ep.key) }}/uptimes/{{ inputs.uptimeWindow }}"
+            onError: continue
+            saveAs: up
+          - id: responseCall
+            type: http
+            name: Read average response time
+            connection: gatus
+            method: GET
+            path: "/api/v1/endpoints/{{ $encodeUrlComponent(vars.ep.key) }}/response-times/{{ inputs.uptimeWindow }}"
+            onError: continue
+            saveAs: rt
+          - id: keepWindow
+            type: set
+            name: Keep the window figures
+            values:
+              key: "{{ vars.ep.key }}"
+              fraction: "{{ $exists(vars.up.error) ? null : $number($trim($string(vars.up.body))) }}"
+              avgMs: "{{ $exists(vars.rt.error) ? null : $round($number($trim($string(vars.rt.body)))) }}"
+  - id: evaluate
+    type: set
+    name: Evaluate endpoints
+    values:
+      rows: >-
+        {{ [$map(vars.endpoints, function($e) {(
+          $w := $vars.windows.results[key = $e.key][0];
+          $merge([$e, {
+            "uptime": $exists($w.fraction) and $w.fraction != null ? $round($w.fraction * 100, 2) : $e.counterUptime,
+            "avgMs": $exists($w.avgMs) and $w.avgMs != null ? $w.avgMs : null
+          }])
+        )})] }}
+      down: "{{ [vars.rows[healthy = false]] }}"
+      expiring: "{{ [vars.rows[certDays != null and certDays < $inputs.certWarnDays]] }}"
+  - id: allHealthy
+    type: check
+    name: All endpoints healthy
+    severity: warning
+    condition: "$count(vars.down) = 0"
+    message: "{{ $count(vars.down) = 0 ? 'All ' & $count(vars.rows) & ' endpoint(s) healthy' : $count(vars.down) & ' of ' & $count(vars.rows) & ' endpoint(s) down: ' & $join(vars.down.(group ? group & '/' & endpoint : endpoint), ', ') }}"
+  - id: certificates
+    type: check
+    name: No TLS certificate expires soon
+    severity: warning
+    condition: "$count(vars.expiring) = 0"
+    message: "{{ $count(vars.expiring) = 0 ? 'No certificate expires within ' & inputs.certWarnDays & ' days' : $join(vars.expiring.(endpoint & ' in ' & certDays & ' day(s)'), ', ') }}"
+  - id: report
+    type: report
+    name: Uptime overview
+    title: Gatus endpoints (from /metrics)
+    text: "Uptime: {{ inputs.uptimeWindow = 'counters' ? 'since Gatus last started' : 'last ' & inputs.uptimeWindow }}. Down: {{ $count(vars.down) }} of {{ $count(vars.rows) }}."
+    rows: vars.rows
+    columns:
+      - { label: Group, value: group }
+      - { label: Endpoint, value: endpoint }
+      - { label: Healthy, value: "healthy = true ? 'yes' : 'NO'" }
+      - { label: Uptime (%), value: "uptime != null ? uptime : '–'" }
+      - { label: Avg (ms), value: "avgMs != null ? avgMs : '–'" }
+      - { label: Last (ms), value: "lastMs != null ? lastMs : '–'" }
+      - { label: Certificate (days), value: "certDays != null ? certDays : '–'" }
+  - id: publish
+    type: publish
+    name: Publish endpoint uptime
+    dataset: gatus-uptime-metrics
+    title: Gatus endpoint uptime
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Endpoint, value: endpoint }
+      - { label: Group, value: group }
+      - { label: Healthy, value: "healthy = true ? 'yes' : 'no'" }
+      - { label: Uptime (%), value: "uptime != null ? uptime : '–'" }
+      - { label: Avg response (ms), value: "avgMs != null ? avgMs : '–'" }
+      - { label: Last response (ms), value: "lastMs != null ? lastMs : '–'" }
+      - { label: Certificate expires in (days), value: "certDays != null ? certDays : '–'" }
+      - { label: Type, value: type }
+    status: "healthy = false ? 'critical' : ((uptime != null and uptime < $inputs.minUptimePercent) or (avgMs != null and avgMs > $inputs.maxResponseMs) or (certDays != null and certDays < $inputs.certWarnDays) ? 'warning' : 'good')"
+    statusText: "healthy = false ? 'down' : (uptime != null and uptime < $inputs.minUptimePercent ? 'uptime ' & uptime & ' %' : (avgMs != null and avgMs > $inputs.maxResponseMs ? avgMs & ' ms average' : (certDays != null and certDays < $inputs.certWarnDays ? 'certificate expires in ' & certDays & ' day(s)' : 'up')))"
+    metrics:
+      endpoints: "$count(vars.rows)"
+      down: "$count(vars.down)"
+      avgUptime: "$round($average(vars.rows[uptime != null].uptime), 2)"
+      certificatesExpiring: "$count(vars.expiring)"
+    staleAfterMinutes: 30

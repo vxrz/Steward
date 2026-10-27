@@ -6,6 +6,27 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Gatus uptime overview from `/metrics`** – process _Gatus – uptime overview (from /metrics)_ (74) and dashboard _Uptime (from /metrics)_ for a Gatus whose API is behind OIDC: it reads only `/metrics` and Gatus' open uptime and response-time API, needs no Gatus login, and adds TLS certificate expiry (dataset `gatus-uptime-metrics`). The demo feeds it every 10 minutes.
+
+### Fixed
+
+- **Platform connection test and login errors say which request failed**: _Test connection_ shows the request it made (`GET /openness/… answered HTTP 401`), and without a test path it says that the base URL itself was asked – often a portal with its own login, whose 401 looked like a failed API login. A failed custom login or OAuth2 token request names its method and address (`Login request POST https://gateway:9443/openness/iam/api/v1/token failed with HTTP 401`), never its query.
+- **Adding a user, team or role to an access list** (platforms, processes, monitors): picking an entry from the list put its label into the field ("Team Service desk"), and _Add_ stayed disabled because it expected `team:…`. Picked entries are added now; typing `user:…`, `team:…` or `role:…` still works.
+- **API specs keep the path of their server URL** (e.g. `/api/identitymanagement/v3` in the Insights Hub Identity Management spec): operations used only the spec's paths, so _Pick from API spec_ built `https://gateway.eu1.mindsphere.io/Groups` instead of `…/api/identitymanagement/v3/Groups`; Industrial Edge specs had the same problem. On import, the path of the server URL (OpenAPI 3 `servers[0].url` with the defaults of its variables, or Swagger 2 `basePath`) becomes the spec's **path prefix**, unless the platform's base URL already ends with it; the prefix can be edited per spec in the list of API specs (`PATCH /api/platforms/{id}/specs/{specId}`, audited as `platform.spec_updated`), which also shows where requests go. The editor's operation picker, the API explorer, the contract check and the MCP gateway use the prefixed path; MCP references in the old form (`GET /Groups`) still work. Specs imported earlier get their prefix from the stored server URL when read (migration `platforms-001-spec-path-prefix` adds the column). **HTTP steps already saved with the short path must be corrected by hand: open the step and pick the operation again.** The demo's Identity Management spec now has the same shape as the real one.
+- **Insights Hub and Industrial Edge examples with last login or last seen**: tenants send `lastLogonTime` as epoch milliseconds, and `null` for people who never signed in. The examples failed with _Argument 3 of function "substring" does not match function signature_, and `$exists()` counted `null` as signed in. The access reviews (10–12), group hygiene (14), inventory snapshot (15) and the device examples (50, 51, 53) now read the time with `$ts()` and show it with `$fromMillis()`, so ISO dates, numbers, `null` and a missing attribute all work. The demo's mock platform sends all of these, so the example tests cover them. Processes imported from 0.2.0 examples keep the old expressions: import the fixed files again or paste them into the process's _Source_ tab.
+- **The container health check under a path**: the image's `HEALTHCHECK` always asked `http://127.0.0.1:4310/api/health`, so a container under `SM_PUBLIC_URL=…/steward` was reported _unhealthy_ (and the log warned about requests outside the base path); with `SM_PORT` or `SM_TLS_CERT` it failed too. It now uses the server's own base path, port and TLS settings (`server/src/cli/healthcheck.ts`); with Steward's own TLS it accepts only the certificate in `SM_TLS_CERT`.
+
+### Changed
+
+- `docs/INSTALL.md`:
+  - **the passphrase file in Docker**: owned by the container user (uid 1000), with user namespaces (`userns-remap`) and SELinux; the comments in both compose files said "a file only root can read", which Steward cannot open;
+  - **Steward in Docker**: which address `SM_TRUST_PROXY` must name when the proxy runs on the host or in another container, with a Caddy example on a shared network;
+  - **company proxy and TLS inspection**: `HTTPS_PROXY`/`NO_PROXY`, `NODE_EXTRA_CA_CERTS` and the per-platform settings;
+  - **health checks under a path**, and why a monitor can get 401.
+- `docs/GATUS.md`: Gatus OIDC cannot be combined with an API login – keep OIDC with metrics mode, or use `security.basic` (now with how to make the `password-bcrypt-base64` value); reading Gatus over the Docker network.
+
 ## [0.2.0] - 2026-10-26
 
 A service catalogue with applications, CIA ratings and derived protection needs, service duties, and a service scorecard with availability objectives per Gatus endpoint; manual steps with checklists, optional evidence and second-person verification; single sign-on only, with vendor-neutral claim mapping and emergency access from the command line; step-up re-authentication for sensitive actions; migration packages to move an instance; and a signed container image on the GitHub Container Registry. **If you use single sign-on, read the upgrade note on `email_verified` under _Changed_ before updating.**

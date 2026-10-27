@@ -61,7 +61,7 @@ steps:
           [vars.all.$merge([$, {
             "online": $lookup($, $inputs.statusField) = $inputs.onlineValue,
             "fwCompliant": $norm(firmware) >= $norm($inputs.minFirmware),
-            "offlineHours": $exists(lastSeen) ? $round(($toMillis($now()) - $toMillis(lastSeen)) / 3600000, 1)
+            "offlineHours": $ts(lastSeen) ? $round(($toMillis($now()) - $ts(lastSeen)) / 3600000, 1)
           }])]
         ) }}
   - id: publishDevices
@@ -77,7 +77,7 @@ steps:
       - { label: Onboarding, value: deviceStatus }
       - { label: Firmware, value: firmware }
       - { label: Compliant, value: "fwCompliant ? 'yes' : 'no'" }
-      - { label: Last seen, value: "$exists(lastSeen) ? $substring(lastSeen, 0, 16) : '–'" }
+      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
     status: >-
       deviceStatus = 'INACTIVE' ? 'critical'
         : ($not(online) ? ($exists(offlineHours) and offlineHours >= $inputs.offlineCriticalHours ? 'critical' : 'serious')

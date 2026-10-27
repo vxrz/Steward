@@ -105,4 +105,4 @@ steps:
     rows: vars.onlyDefault
     columns:
       - { label: User, value: userName }
-      - { label: Last login, value: "$exists(lastLogonTime) ? $substring(lastLogonTime, 0, 10) : 'never'" }
+      - { label: Last login, value: "$ts(lastLogonTime) ? $fromMillis($ts(lastLogonTime), '[Y0001]-[M01]-[D01]') : 'never'" }

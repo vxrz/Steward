@@ -1,0 +1,20 @@
+name: Uptime (from /metrics)
+description: Endpoint availability as monitored by Gatus – endpoints down, uptime, response times and certificate expiry. Fed by "Gatus – uptime overview (from /metrics)" (every 10 minutes), which needs no Gatus login – for a Gatus behind OIDC. Gatus stays the monitor, Steward only shows its results.
+refreshSeconds: 60
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Uptime** – read from Gatus' `/metrics` and its open uptime API by the process *Gatus – uptime overview (from /metrics)*. Opening this page never calls Gatus.
+      Alerts and the status page stay in Gatus; a Gatus alert can start the runbook *Diagnose endpoint outage* through a webhook trigger.
+  - { id: endpoints, type: kpi, title: Endpoints, dataset: gatus-uptime-metrics, metric: endpoints, width: 3 }
+  - { id: down, type: kpi, title: Down, dataset: gatus-uptime-metrics, metric: down, goodWhen: down, width: 3 }
+  - { id: avgUptime, type: kpi, title: Average uptime (%), dataset: gatus-uptime-metrics, metric: avgUptime, goodWhen: up, width: 3, days: 30 }
+  - { id: certs, type: kpi, title: Certificates expiring, dataset: gatus-uptime-metrics, metric: certificatesExpiring, goodWhen: down, width: 3 }
+  - { id: status, type: status, title: Endpoint status, dataset: gatus-uptime-metrics, width: 4 }
+  - { id: trend, type: trend, title: Down and average uptime, dataset: gatus-uptime-metrics, metrics: [down, avgUptime], days: 7, width: 8 }
+  - { id: problems, type: table, title: Endpoints needing attention, dataset: gatus-uptime-metrics, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: All endpoints, dataset: gatus-uptime-metrics, width: 12 }
+  - { id: checks, type: checks, title: Latest Gatus read-out, process: gatus-uptime-overview-from-metrics, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

@@ -137,6 +137,17 @@ Retention of runs and notifications, and the notification channels, are set unde
 | **Monitor**         | A graph of checks (ping, TCP, HTTP, platform API, data freshness, heartbeat, Gatus, sub-monitor) with soft or hard links. Every check runs on its own interval; links explain failures (root cause) and suppress follow-up alerts. See [docs/MONITORS.md](docs/MONITORS.md).                                                                  |
 | **Audit log**       | Everything that changed anything, attributed to the signed-in user: sign-ins, user/role/access changes, platform/credential changes, process versions, runs, every write call, skipped (dry-run) writes, decisions, failed checks, screenshots, exports.                                                                                      |
 
+### API specifications and path prefixes
+
+Import OpenAPI 3.x or Swagger 2.0 specifications under _Platforms → (platform) → API specs_, by file, paste or URL. Their operations appear in the editor's _Pick from API spec_, the API explorer, the contract check and the MCP gateway.
+
+Many specifications put part of the path in their server URL. The Insights Hub Identity Management spec has the server URL `https://gateway.{region}.mindsphere.io/api/identitymanagement/v3` and the path `/Groups`; the API needs `/api/identitymanagement/v3/Groups`. Steward keeps that part as the spec's **path prefix** and puts it in front of every operation path:
+
+- On import, the prefix is the path of the server URL: OpenAPI 3 `servers[0].url` (server variables take their default) or Swagger 2 `basePath`. A spec without a server URL has no prefix.
+- If the platform's base URL already ends with that path, the prefix stays empty, so the path is not doubled.
+- The list of specs shows each prefix and where requests go (_Requests go to: base URL + prefix/…_). Click the pencil to change it. A prefix is empty or `/segment/segment` (letters, digits and `. _ ~ -`); it can never change the host or leave the base URL.
+- Specs imported before Steward had path prefixes get their prefix from the stored server URL when they are read. HTTP steps that were saved with the short path keep it: open the step and pick the operation again.
+
 ## Users, roles and access
 
 | Role     | Default rights                                                                                        |

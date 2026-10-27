@@ -23,15 +23,18 @@ services:
       - no-new-privileges:true
     pids_limit: 512
     mem_limit: 2g
-    # Unattended unlock so schedules run after a restart: the passphrase as a Docker secret (a file only root
-    # can read on the host, e.g. created with: install -m 600 /dev/null passphrase.txt && $EDITOR passphrase.txt)
+    # Unattended unlock so schedules run after a restart: the passphrase as a Docker secret. Compose mounts the
+    # file as it is, so it must belong to the container user (uid 1000) and nobody else may read it:
+    #   sudo install -m 400 -o 1000 -g 1000 /dev/null passphrase.txt && sudoedit passphrase.txt
+    # With userns-remap or SELinux see docs/INSTALL.md ("The passphrase file in Docker"). Set Steward up in the
+    # browser first (with the same passphrase), then turn this on: the file unlocks a vault, it does not create one.
     # secrets: [steward_passphrase]
     environment:
       # Host names users type in the browser (besides localhost)
       SM_ALLOWED_HOSTS: ""
       # SM_MASTER_PASSPHRASE_FILE: /run/secrets/steward_passphrase
       # Behind a reverse proxy (TLS terminated there): its address, and the public https URL (Secure cookie, HSTS)
-      # SM_TRUST_PROXY: "1"
+      # SM_TRUST_PROXY: "172.30.0.1"   # the address the proxy comes from as the container sees it, see docs/INSTALL.md ("Steward in Docker")
       # SM_PUBLIC_URL: "https://steward.example.com"
       # OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
       # Error reporting to Sentry/GlitchTip/Bugsink (off by default, see docs/ERROR-REPORTING.md)

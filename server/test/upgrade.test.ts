@@ -61,6 +61,8 @@ describe.each(versions)('upgrade from %s', (version) => {
   const schema = `${process.env.SM_TEST_SCHEMA_PREFIX ?? 'smt_adhoc'}_upg_${version.replace(/\W/g, '')}_${process.pid}`;
   const pg: DatabaseTarget | undefined = PG_TEST_URL ? { kind: 'postgres', url: PG_TEST_URL, schema } : undefined;
   let pending: string[] = [];
+  /** The operations of every API spec as the old version stored them (method and full path). */
+  let oldOperations: { platformId: string; ops: { method: string; path: string }[] }[] = [];
   let proc: ChildProcess | undefined;
   let stdout = '';
   let base = '';
@@ -110,6 +112,14 @@ describe.each(versions)('upgrade from %s', (version) => {
   beforeAll(async () => {
     fs.cpSync(path.join(fixture, 'datadir'), dataDir, { recursive: true });
     pending = pendingMigrations(sqlite);
+    const old = new Db(sqlite, { migrate: false });
+    try {
+      oldOperations = old
+        .all<{ platform_id: string; operations: string }>('SELECT platform_id, operations FROM platform_specs')
+        .map((r) => ({ platformId: r.platform_id, ops: JSON.parse(r.operations) }));
+    } finally {
+      old.close();
+    }
     if (pg) {
       // the way an installation moves to PostgreSQL: npm run db:copy (it migrates both databases first)
       const { copyDatabase } = await import('../src/cli/db-copy.js');
@@ -230,6 +240,17 @@ describe.each(versions)('upgrade from %s', (version) => {
     const entries = await admin('GET', '/audit?action=system.upgraded&limit=10');
     expect(entries).toHaveLength(pending.length ? 1 : 0);
     if (pending.length) expect(entries[0].details.migrations).toEqual(pending);
+  });
+
+  it('keeps the request paths of API specs imported before path prefixes existed (0.2.1)', async () => {
+    expect(oldOperations.length).toBeGreaterThan(0);
+    for (const { platformId, ops } of oldOperations) {
+      const specs = await admin('GET', `/platforms/${platformId}/specs`);
+      for (const spec of specs) expect(typeof spec.pathPrefix).toBe('string');
+      // the demo specs already repeat their server URL's path in their paths: no prefix is added twice
+      const now = new Set((await admin('GET', `/platforms/${platformId}/operations`)).map((o: any) => `${o.method} ${o.path}`));
+      for (const o of ops) expect(now, `${platformId}: ${o.method} ${o.path}`).toContain(`${o.method} ${o.path}`);
+    }
   });
 
   it('resumes the run that waited for an approval', async () => {

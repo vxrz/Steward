@@ -123,6 +123,17 @@ describe('example library', () => {
     expect([r.status, r.error]).toEqual(['succeeded', null]);
   });
 
+  it('Gatus – uptime overview (from /metrics) publishes what the Gatus metrics say', async () => {
+    // runs after "runs 74-…" above: the mock Gatus' /metrics (server/src/mock/mockGatusMetrics.ts), no Gatus login
+    const d = await s.api('GET', '/datasets/gatus-uptime-metrics');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r.Endpoint, r]));
+    expect(Object.keys(by).sort()).toEqual(['Historian API', 'MES frontend', 'OPC UA gateway', 'Steward API']);
+    expect(by['Historian API']).toMatchObject({ Group: 'plant', Healthy: 'no', _status: 'critical' });
+    expect(by['Steward API']).toMatchObject({ Healthy: 'yes', 'Last response (ms)': 14, 'Certificate expires in (days)': 61, Type: 'HTTP' });
+    expect(by['OPC UA gateway']).toMatchObject({ 'Certificate expires in (days)': '–', Type: 'TCP' });
+    expect(typeof by['MES frontend']['Uptime (%)']).toBe('number');
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);

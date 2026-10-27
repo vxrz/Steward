@@ -108,10 +108,34 @@ Images are published from 0.2.0 on. For older versions, build the image from the
   - set `SM_ALLOWED_HOSTS` to the DNS name and `SM_PUBLIC_URL` to the external URL;
   - configure single sign-on.
 - `/api/health` (liveness) and `/api/ready` (readiness) are available for orchestrators, see [Health and readiness](#health-and-readiness). `/api/metrics` serves Prometheus metrics.
-- For unattended unlock after restarts, mount the passphrase as a Docker secret and set `SM_MASTER_PASSPHRASE_FILE=/run/secrets/steward_passphrase` (commented example in `docker-compose.yml`).
-- Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=1` (or the proxy's address), `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`. Examples for nginx, Traefik and Caddy, on an own host name or under a path: [Behind a reverse proxy](#behind-a-reverse-proxy).
+- For unattended unlock after restarts, mount the passphrase as a Docker secret and set `SM_MASTER_PASSPHRASE_FILE=/run/secrets/steward_passphrase` (commented example in `docker-compose.yml`). The file must be readable by the container's user – see [The passphrase file in Docker](#the-passphrase-file-in-docker).
+- Behind a reverse proxy that terminates TLS: `SM_TRUST_PROXY=<the proxy's address>`, `SM_PUBLIC_URL=https://…` (Secure cookie, HSTS) and `SM_ALLOWED_HOSTS=<DNS name>`. Examples for nginx, Traefik and Caddy, on an own host name or under a path: [Behind a reverse proxy](#behind-a-reverse-proxy); which address Steward sees in Docker: [Steward in Docker](#steward-in-docker).
+- Behind a company proxy or TLS inspection (Steward cannot reach a platform, or reports `unable to verify the first certificate`): [Company proxy and TLS inspection](#company-proxy-and-tls-inspection).
 - The complete checklist for a work deployment: [SECURITY-HARDENING.md](SECURITY-HARDENING.md).
 - Build information for the About page: `docker build --build-arg SM_BUILD_COMMIT=$(git rev-parse HEAD) --build-arg SM_BUILD_DATE=$(date -u +%FT%TZ) -t steward .` (the container workflow does this). Without it the image reports a "development" build.
+
+### The passphrase file in Docker
+
+The container runs as user **1000**. Docker Compose (without Swarm) mounts a file secret as it is – with the owner and mode it has on the host – so the file must belong to that user. Otherwise Steward stops at start-up with `SM_MASTER_PASSPHRASE_FILE: cannot read … EACCES`.
+
+```bash
+sudo install -m 400 -o 1000 -g 1000 /dev/null passphrase.txt   # next to docker-compose.yml
+sudo nano passphrase.txt                                       # the master passphrase, one line
+```
+
+- **User namespaces** (`"userns-remap"` in `/etc/docker/daemon.json`): user 1000 in the container is another user on the host – the start of the `dockremap` range in `/etc/subuid` and `/etc/subgid` plus 1000:
+  ```bash
+  U=$(( $(awk -F: '$1=="dockremap"{print $2}' /etc/subuid) + 1000 ))
+  G=$(( $(awk -F: '$1=="dockremap"{print $2}' /etc/subgid) + 1000 ))
+  sudo chown "$U:$G" passphrase.txt && sudo chmod 400 passphrase.txt
+  ```
+- **SELinux** (RHEL and relatives, enforcing): the file also needs the container label – a secret cannot take the `:z` option of a volume:
+  ```bash
+  sudo semanage fcontext -a -t container_file_t "$PWD/passphrase\.txt" && sudo restorecon -v passphrase.txt
+  ```
+- The folder must be passable for that user (`chmod 755` on the folder is fine; the file stays `400`).
+- Check it: `docker compose run --rm --no-deps --entrypoint sh steward -c 'id; cat /run/secrets/steward_passphrase >/dev/null && echo readable'`.
+- The file only **unlocks** a vault. Set Steward up in the browser first – with exactly the passphrase from the file – and turn the secret on afterwards.
 
 ## 5. Database: SQLite or PostgreSQL
 
@@ -395,6 +419,74 @@ Steward: `SM_PUBLIC_URL=https://apps.corp.example/steward`, `SM_ALLOWED_HOSTS=ap
 
 The desktop executable is not affected: it always runs on its own local address.
 
+### Steward in Docker
+
+`SM_TRUST_PROXY` names the address the proxy's requests **come from as Steward sees them**. In a container that is often not the address you expect:
+
+- **The proxy runs on the host** and Steward's port is published (`127.0.0.1:4310:4310`): the requests come from the gateway of the container's Docker network, not from `127.0.0.1` – `loopback` does not match. Give the network a fixed subnet and trust its gateway:
+  ```yaml
+  services:
+    steward:
+      networks: [steward]
+      environment:
+        SM_TRUST_PROXY: '172.30.0.1'
+  networks:
+    steward:
+      ipam:
+        config:
+          - subnet: 172.30.0.0/24
+            gateway: 172.30.0.1
+  ```
+- **The proxy runs in Docker too** (e.g. Caddy on a network `caddy-bridge`): put Steward on that network, publish no port, and trust the proxy's address on it. Give the proxy a fixed address (`ipv4_address`, which needs a network created with `--subnet`); trusting the whole subnet lets every container on it claim any client address.
+  ```yaml
+  services:
+    steward:
+      # no "ports:" – only containers on caddy-bridge reach it
+      networks:
+        caddy-bridge:
+          aliases: [steward]
+      environment:
+        SM_PUBLIC_URL: 'https://apps.corp.example/steward'
+        SM_ALLOWED_HOSTS: 'apps.corp.example'
+        SM_TRUST_PROXY: '172.20.0.10' # the proxy's fixed address on caddy-bridge
+  networks:
+    caddy-bridge:
+      external: true
+  ```
+  ```caddyfile
+  apps.corp.example {
+    redir /steward /steward/
+    handle /steward/* {
+      reverse_proxy steward:4310
+    }
+  }
+  ```
+- Avoid a hop count (`SM_TRUST_PROXY=1`) in Docker: it trusts any private address, and every container is one.
+- Check it: after signing in through the proxy, the audit log shows your own address – not one of the Docker network.
+
+## Company proxy and TLS inspection
+
+Steward in a container does not use the host's or your PC's proxy settings, and Node.js trusts only the public certificate authorities – not your company's. A platform that works in Postman or the browser can therefore fail in Steward:
+
+| Message                                                                                   | Cause and fix                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ETIMEDOUT`, `ECONNREFUSED`, `fetch failed`, `getaddrinfo ENOTFOUND` for an internet host | Outbound traffic must go through a proxy. Set it for all of Steward (`HTTPS_PROXY`, `NO_PROXY` below) or per platform (_Platform → HTTP → Proxy_: a URL, empty = the environment, `none` = direct).             |
+| `unable to verify the first certificate`                                                  | The server sends its certificate without the intermediate CA (browsers fetch it themselves, Node.js does not). Fix the server: its certificate file must contain the intermediate(s). Or trust the CA as below. |
+| `unable to get local issuer certificate`, `self-signed certificate in certificate chain`  | Your network re-signs HTTPS (TLS inspection) or the server uses a company CA. Trust that CA as below.                                                                                                           |
+
+```yaml
+services:
+  steward:
+    volumes:
+      - ./corp-ca.pem:/etc/steward/corp-ca.pem:ro # root (and intermediate) certificates, PEM; readable by the container user
+    environment:
+      HTTPS_PROXY: 'http://proxy.corp.example:8080'
+      NO_PROXY: 'localhost,127.0.0.1,.corp.example' # add internal hosts and the names of other containers
+      NODE_EXTRA_CA_CERTS: /etc/steward/corp-ca.pem
+```
+
+Per platform, _Additional CA certificate (PEM)_ trusts a CA for that platform only. Do not use _Accept self-signed certificates_ for this – it turns the certificate check off. The hint `--use-system-ca` in Node.js' message does not help in the container: its system store does not know your company CA either. Single sign-on and notifications use the same `HTTPS_PROXY`/`NO_PROXY` and `NODE_EXTRA_CA_CERTS`.
+
 ## Health and readiness
 
 Every installation answers two public endpoints, without signing in:
@@ -417,6 +509,17 @@ endpoints:
     url: https://steward.example.com/api/ready
     conditions: ['[STATUS] == 200', '[BODY].ready == true']
 ```
+
+**Under a path**, both live below it: `https://apps.corp.example/steward/api/ready`. The image's own `HEALTHCHECK` follows the base path, the port and `SM_TLS_CERT` by itself (before 0.2.1 it always asked `/api/health` at the root, so a container under a path showed _unhealthy_). With 0.2.0, override it in the compose file:
+
+```yaml
+healthcheck:
+  test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:4310/steward/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+```
+
+With Steward's own TLS (`SM_TLS_CERT`), the check accepts only the certificate in that file. Steward reads the file at start, so after renewing the certificate the container shows _unhealthy_ until Steward is restarted, which it needs anyway to serve the new certificate.
+
+A monitor that gets **401** asks a path Steward does not know (a trailing slash, `/api/healthz`): unknown API paths answer _please sign in_ rather than revealing which routes exist. Monitors need no credentials for these two endpoints.
 
 For Zabbix, use an _HTTP agent_ item on `/api/ready` with a trigger on the status code (or the JSON path `$.ready`). [docs/MONITORS.md](MONITORS.md) and [docs/GATUS.md](GATUS.md) cover how Steward itself monitors other systems.
 

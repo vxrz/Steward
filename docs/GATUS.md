@@ -60,19 +60,31 @@ _Platforms → Add platform → Gatus (status monitoring)_:
 | Authentication | `none` if the Gatus API is open. `basic` if Gatus has `security.basic`: enter the user name and the **plain** password as the credentials `username`/`password` (Gatus itself only stores the bcrypt hash). |
 | Credentials    | `externalToken` only for direction 3                                                                                                                                                                        |
 
-- **Gatus OIDC** (`security.oidc`) protects the API with a browser session cookie only; automation cannot use it. Either use `security.basic` instead (with both configured, Gatus applies OIDC), or expose the read-only status API through a reverse proxy that checks a token. In that case choose `bearer` and set the credential `token`.
+- **Gatus OIDC** (`security.oidc`) protects the API with Gatus' own browser session cookie; automation cannot use it, and a proxy in front does not help (Gatus still asks for its session). Gatus has one setting for the dashboard and the API: with both `basic` and `oidc` configured it applies OIDC. So either keep OIDC and use **metrics mode**, which needs no Gatus authentication (see below), or switch Gatus to `security.basic`.
+- **`security.basic`** wants the password as a bcrypt hash, base64-encoded:
+  ```bash
+  htpasswd -nBC 10 "" | tr -d ':\n' | base64 -w0; echo      # asks for the password (RHEL: httpd-tools, Debian: apache2-utils)
+  ```
+  ```yaml
+  security:
+    basic:
+      username: 'steward'
+      password-bcrypt-base64: 'JDJ5JDEwJ…'
+  ```
+  Steward gets the **plain** password. Cost 10 keeps each API call fast; Gatus checks the hash on every request.
+- **Same server?** Point the base URL at Gatus' address on the Docker network (e.g. `http://gatus:8080` when both containers share one) instead of its public name: no TLS, no proxy, and the password stays on the internal network. Then `/metrics` need not be reachable from outside at all (see [Metrics mode](#5-metrics-mode)).
 - Use a Gatus account that can only read. The status API is read-only anyway.
 - The platform comes with an OpenAPI description of the Gatus routes Steward uses, so _Pick from API spec_ in the editor and the API explorer list them. _Test connection_ calls `/api/v1/endpoints/statuses?pageSize=1`.
 
 ### Two ways to read Gatus: API mode and metrics mode
 
-|                         | API mode (default)                                                                                                           | Metrics mode                                                                                                    |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Reads                   | `GET /api/v1/endpoints/statuses` (the newest results)                                                                        | `GET /metrics` (Prometheus text), every 60 s by default                                                         |
-| Authentication in Gatus | `security.basic` (Steward sends the platform's basic auth); with `security.oidc` only through a token-checking reverse proxy | **none** – `/metrics` is always open in Gatus; restrict it in the network (see [Metrics mode](#5-metrics-mode)) |
-| History                 | What Gatus returns (at most `maximum-number-of-results` per endpoint)                                                        | Steward's own: hourly figures for 90 days, single samples for 14 days (configurable)                            |
-| Provides                | Status of the newest result, recent failures, response time of the newest results                                            | Status, uptime from result counters, outages, response times (avg, p95), TLS certificate and domain expiry      |
-| Used by                 | Monitor check _Gatus endpoint_, processes, dashboards                                                                        | Monitor check _Gatus endpoint_ (data source _metrics_), scheduled reports, credentials register (expiry sync)   |
+|                         | API mode (default)                                                                            | Metrics mode                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Reads                   | `GET /api/v1/endpoints/statuses` (the newest results)                                         | `GET /metrics` (Prometheus text), every 60 s by default                                                         |
+| Authentication in Gatus | `security.basic` (Steward sends the platform's basic auth); not possible with `security.oidc` | **none** – `/metrics` is always open in Gatus; restrict it in the network (see [Metrics mode](#5-metrics-mode)) |
+| History                 | What Gatus returns (at most `maximum-number-of-results` per endpoint)                         | Steward's own: hourly figures for 90 days, single samples for 14 days (configurable)                            |
+| Provides                | Status of the newest result, recent failures, response time of the newest results             | Status, uptime from result counters, outages, response times (avg, p95), TLS certificate and domain expiry      |
+| Used by                 | Monitor check _Gatus endpoint_, processes, dashboards                                         | Monitor check _Gatus endpoint_ (data source _metrics_), scheduled reports, credentials register (expiry sync)   |
 
 Both can be used at the same time. With metrics mode on, a monitor's _Gatus endpoint_ check reads the scraped state automatically (data source _Automatic_); choose _Gatus status API_ to keep using the API.
 
@@ -105,6 +117,18 @@ Per run the process reads all statuses, computes per endpoint
 | Last check (UTC), last error | timestamp and `errors` of the latest result                                                                                                                            |
 
 and publishes the dataset **`gatus-uptime`**: row status `critical` when down, `warning` below `minUptimePercent` (99) or above `maxResponseMs` (1000 ms average), otherwise `good`; metrics `endpoints`, `down`, `avgUptime`. The check _All endpoints healthy_ (severity warning) fails while an endpoint is down, so the failed-check notification fires, but the run itself succeeds. Gatus remains the place for alerting; you do not need to alert on this check twice.
+
+### Without a Gatus login: the overview from `/metrics`
+
+With Gatus' API behind OIDC (`security.oidc`), the overview above cannot read `/api/v1/endpoints/statuses`. _Gatus – uptime overview (from /metrics)_ (`examples/processes/74-gatus-uptime-overview-from-metrics.yaml`) reads only what Gatus serves without a login, so the platform's authentication can be `none`:
+
+| Column                     | From                                                                                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Healthy, last response     | `gatus_results_endpoint_success`, `gatus_results_duration_seconds`                                                                                                                       |
+| Uptime (%), avg response   | `/api/v1/endpoints/{key}/uptimes/{window}` and `…/response-times/{window}` (open in Gatus); with `uptimeWindow: counters` `gatus_results_total` since Gatus last started, no extra calls |
+| Certificate expires (days) | `gatus_results_certificate_expiration_seconds`; warns below `certWarnDays` (14)                                                                                                          |
+
+It publishes **`gatus-uptime-metrics`** (a dataset belongs to the process that first published it, so it does not share `gatus-uptime`), with the metrics `endpoints`, `down`, `avgUptime` and `certificatesExpiring`, for the dashboard _Uptime (from /metrics)_ (`examples/dashboards/41-uptime-from-metrics.yaml`). Gatus' metrics carry no error text and no time of the newest result; the API-based overview or Gatus itself show those. Metrics mode on the platform (below) is independent of this process: it keeps Steward's own history for monitors, reports and the credentials register.
 
 ## 3. Push Steward check results into Gatus
 
@@ -232,7 +256,8 @@ Extra labels Gatus adds (`extra-labels`) are summed up per endpoint key.
 1. Set `metrics: true` in Gatus and restart it.
 2. **Restrict access to `/metrics`.** Gatus serves it without authentication, also when `security.basic` or `security.oidc` protects the rest. It reveals endpoint names, groups, response times and certificate dates. Options:
    - a reverse proxy in front of Gatus that forwards `/metrics` only from Steward's host (allow-list by source address), or
-   - a Gatus that is only reachable from Steward's host (firewall, internal network).
+   - a Gatus that is only reachable from Steward's host (firewall, internal network), or
+   - when Steward reads Gatus over the Docker network (`http://gatus:8080`), close `/metrics` on the public name, e.g. in Caddy with `respond /metrics 404` in Gatus' site.
      If the proxy expects credentials, configure the platform's authentication (_basic_ or _bearer_): Steward sends them, and only to the platform's own origin.
 3. _Platforms → your Gatus platform → Metrics → Turn on metrics mode_. Settings:
 

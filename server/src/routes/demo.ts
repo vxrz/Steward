@@ -46,6 +46,7 @@ const FEEDERS: { process: string; cron: string }[] = [
   { process: 'ih-group-hygiene', cron: '30 6 * * 1' },
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
   { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
+  { process: 'gatus-uptime-overview-from-metrics', cron: '*/10 * * * *' },
 ];
 
 export async function setupDemo(): Promise<{

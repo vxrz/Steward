@@ -60,7 +60,7 @@ steps:
     columns:
       - { label: Device, value: name }
       - { label: State, value: "$lookup($, $inputs.statusField)" }
-      - { label: Last seen, value: "$substring(lastSeen, 0, 16)" }
+      - { label: Last seen, value: "$ts(lastSeen) ? $fromMillis($ts(lastSeen), '[Y0001]-[M01]-[D01] [H01]:[m01]') : '–'" }
     status: "$lookup($, $inputs.statusField) = $inputs.onlineValue ? 'good' : 'critical'"
     statusText: "$lookup($, $inputs.statusField)"
     metrics:

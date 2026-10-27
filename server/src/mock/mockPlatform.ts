@@ -25,7 +25,8 @@ interface User {
   emails: { value: string }[];
   active: boolean;
   meta: { created: string; lastModified: string };
-  lastLogonTime?: string;
+  /** Tenants differ: an ISO string or epoch milliseconds, and missing or null for people who never signed in. */
+  lastLogonTime?: string | number | null;
 }
 interface Group {
   id: string;
@@ -61,7 +62,13 @@ function seed() {
     ['Olga', 'Peters', 8],
   ];
   const users = new Map<string, User>();
-  for (const [g, f, d] of people) {
+  // Like real tenants, the mock mixes the shapes of lastLogonTime: every second person as epoch milliseconds,
+  // the rest as ISO strings; of the two who never signed in, one has no attribute and one has null.
+  const lastLogon = (i: number, d: number | null): Pick<User, 'lastLogonTime'> => {
+    if (d === null) return i % 2 ? { lastLogonTime: null } : {};
+    return { lastLogonTime: i % 2 ? Date.parse(daysAgo(d)) : daysAgo(d) };
+  };
+  for (const [i, [g, f, d]] of people.entries()) {
     const u: User = {
       id: uid(`user:${g}.${f}`),
       userName: `${g}.${f}@example.com`.toLowerCase(),
@@ -69,7 +76,7 @@ function seed() {
       emails: [{ value: `${g}.${f}@example.com`.toLowerCase() }],
       active: true,
       meta: { created: daysAgo(400), lastModified: daysAgo(30) },
-      ...(d === null ? {} : { lastLogonTime: daysAgo(d) }),
+      ...lastLogon(i, d),
     };
     users.set(u.id, u);
   }
@@ -143,7 +150,7 @@ function seed() {
     { id: 'dev-004', name: 'edge-warehouse', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.01), firmware: '1.9.0' },
     { id: 'dev-005', name: 'edge-lab', deviceStatus: 'INACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(40), firmware: '2.4.0' },
     { id: 'dev-006', name: 'edge-press-hall', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.003), firmware: '2.2.1' },
-    { id: 'dev-007', name: 'edge-old-line-7', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(45), firmware: '1.9.4' },
+    { id: 'dev-007', name: 'edge-old-line-7', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: Date.parse(daysAgo(45)), firmware: '1.9.4' }, // epoch millis, as some IEM versions send
     { id: 'dev-008', name: 'edge-test-bench', deviceStatus: 'ACTIVE', connectionState: 'OFFLINE', lastSeen: daysAgo(0.4), firmware: '2.4.0' },
     { id: 'dev-009', name: 'edge-qa', deviceStatus: 'ACTIVE', connectionState: 'ONLINE', lastSeen: daysAgo(0.002), firmware: '2.3.0' },
   ];

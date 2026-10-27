@@ -36,6 +36,7 @@ import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../u
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
+import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
 import { platformRequest, secretValues } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
@@ -901,7 +902,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         entityId: id,
         summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
       });
-      return { ok, status: res.status, durationMs: res.durationMs, message: ok ? 'Connection works' : `HTTP ${res.status}`, body: redact(res.body, secrets) };
+      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
+      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
+      return {
+        ok,
+        status: res.status,
+        durationMs: res.durationMs,
+        message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
+        body: redact(res.body, secrets),
+      };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
       audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
@@ -947,7 +956,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .refine((x) => x.content || x.url, 'Provide content or url')
       .parse(req.body);
     const content = b.content ?? (await connectors.fetchSpec(params(req).id!, b.url!));
-    return platforms.addSpec(params(req).id!, b.name ?? '', content);
+    return platforms.addSpec(params(req).id!, b.name ?? '', content, { basePath: await platforms.platformBasePath(params(req).id!) });
+  });
+  app.patch('/platforms/:id/specs/:specId', async (req) => {
+    requirePlatform(params(req).id!, 'manage', 'change API specifications');
+    // validated in setSpecPathPrefix (same rules as the default taken from the server URL)
+    const b = z
+      .object({ pathPrefix: z.string().max(PATH_PREFIX_MAX) })
+      .strict()
+      .parse(req.body);
+    return platforms.setSpecPathPrefix(params(req).id!, params(req).specId!, b.pathPrefix);
   });
   app.delete('/platforms/:id/specs/:specId', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'remove API specifications');
