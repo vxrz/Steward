@@ -104,6 +104,7 @@
     "YAML_INVALID": "Invalid YAML: {{detail}}",
     "EXPRESSION_INVALID": "{{where}}: invalid expression – {{detail}}",
     "COLOR_INVALID": "Enter a hex colour like #1c7ed6.",
+    "NOTIFICATION_LOOK_INVALID": "Check the name, colour, logo and footer text of the notifications.",
     "TIME_ZONE_UNKNOWN": "Unknown time zone “{{tz}}”.",
     "ACL_INVALID": "The access list is not valid.",
     "ACL_SUBJECT_INVALID": "Invalid entry “{{subject}}” – use user:<name>, team:<name> or role:<role>.",
