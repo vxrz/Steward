@@ -168,6 +168,8 @@ The gateway offers three meta-tools instead of one tool per endpoint:
 2. `platform_describe_operation` shows the parameters and a trimmed response schema.
 3. `platform_call_operation` calls the operation with `pathParams` and `query`.
 
+An operation is named by its `operationId`, or as `METHOD /path` when it has none. The path includes the spec's path prefix (the path of its server URL, e.g. `GET /api/identitymanagement/v3/Groups`). References in the older form without the prefix (`GET /Groups`) still work.
+
 Platforms **without an API specification** can still be read: list GET path prefixes under _Allowed GET path prefixes_ (e.g. `/api/v1/devices`). Then `platform_call_operation` accepts a literal `path` below one of them. Without prefixes, such a platform offers nothing.
 
 ### Rules
