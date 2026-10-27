@@ -902,7 +902,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         entityId: id,
         summary: `Connection test "${p.name}": GET ${testPath} → HTTP ${res.status} (${res.durationMs} ms)`,
       });
-      return { ok, status: res.status, durationMs: res.durationMs, message: ok ? 'Connection works' : `HTTP ${res.status}`, body: redact(res.body, secrets) };
+      // say which request was made: without a test path it is the base URL itself (often a portal behind its own login)
+      const what = `GET ${testPath}${p.config.testPath ? '' : ' (no test path set: the base URL itself)'}`;
+      return {
+        ok,
+        status: res.status,
+        durationMs: res.durationMs,
+        message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
+        body: redact(res.body, secrets),
+      };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
       audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });

@@ -328,7 +328,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
         }
         const r = await rawRequest(p, { method: 'POST', url, headers, body: form, bodyType: 'form' }, signal);
         const b = r.body as { access_token?: string; expires_in?: number } | null;
-        if (!r.ok || !b?.access_token) throw new Error(`Token request failed with HTTP ${r.status}: ${short(r.body)}`);
+        if (!r.ok || !b?.access_token) throw new Error(`Token request POST ${where(url)} failed with HTTP ${r.status}: ${short(r.body)}`);
         token = b.access_token;
         if (b.expires_in) expiresIn = Number(b.expires_in);
       } else {
@@ -347,7 +347,7 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
           },
           signal,
         );
-        if (!r.ok) throw new Error(`Login request failed with HTTP ${r.status}: ${short(r.body)}`);
+        if (!r.ok) throw new Error(`Login request ${rq.method ?? 'POST'} ${where(fullUrl)} failed with HTTP ${r.status}: ${short(r.body)}`);
         const t = await evalExpr(auth.tokenPath || 'access_token', r.body, { headers: r.headers });
         if (!t || typeof t !== 'string') throw new Error(`Login response did not contain a token at "${auth.tokenPath}"`);
         token = t;
@@ -364,6 +364,16 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
     }
     default:
       throw new Error(`Unsupported auth type ${(auth as AuthConfig).type}`);
+  }
+}
+
+/** Where a login or token request went, for error messages: origin and path, never the query (it may hold credentials). */
+function where(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return 'an invalid URL';
   }
 }
 
