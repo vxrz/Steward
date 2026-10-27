@@ -76,7 +76,8 @@ ENV SM_BUILD_COMMIT=$SM_BUILD_COMMIT \
 USER 1000:1000
 VOLUME ["/data"]
 EXPOSE 4310
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:4310/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+# Follows SM_PORT, the base path (SM_BASE_PATH / SM_PUBLIC_URL) and SM_TLS_CERT like the server does
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s \
+  CMD ["node", "--import", "tsx", "server/src/cli/healthcheck.ts"]
 # node directly (not npm) so SIGTERM reaches the server and it shuts down cleanly
 CMD ["node", "--import", "tsx", "server/src/index.ts"]
