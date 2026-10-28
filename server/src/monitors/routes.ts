@@ -74,7 +74,7 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
   }));
   app.get('/monitors/examples', async () => svc.listExamples());
   // the platform chosen for each platform reference in the file (reference → platform id); without it names are resolved as before
-  const platformChoices = z.record(z.string().min(1).max(200), z.string().min(1).max(64)).refine((m) => Object.keys(m).length <= 100, 'Too many platforms');
+  const platformChoices = boundedRecord(z.string().min(1).max(64), 100).refine((m) => Object.keys(m).every((k) => k.length <= 200), 'Platform name too long');
   app.post('/monitors/examples/:file', async (req) =>
     svc.importExample(params(req).file!, z.object({ platforms: platformChoices.optional() }).parse(req.body ?? {})),
   );

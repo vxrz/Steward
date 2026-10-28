@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { SYNC_KINDS, SYNC_UPDATE_STATUSES, SYNC_WEBHOOK_MAX_BODY_BYTES } from '@sm/shared';
+import { boundedRecord, SYNC_KINDS, SYNC_UPDATE_STATUSES, SYNC_WEBHOOK_MAX_BODY_BYTES } from '@sm/shared';
 import { currentActor } from '../auth/context.js';
 import * as sources from './service.js';
 import * as updates from './updates.js';
@@ -23,9 +23,8 @@ const listQuery = z.object({
 const decision = z.object({ comment: z.string().max(2000).optional(), force: z.boolean().optional() });
 /** Monitors: the platform chosen for each platform reference of the file (reference → platform id). */
 const acceptBody = decision.extend({
-  platforms: z
-    .record(z.string().min(1).max(200), z.string().min(1).max(64))
-    .refine((m) => Object.keys(m).length <= 100, 'Too many platforms')
+  platforms: boundedRecord(z.string().min(1).max(64), 100)
+    .refine((m) => Object.keys(m).every((k) => k.length <= 200), 'Platform name too long')
     .optional(),
 });
 
