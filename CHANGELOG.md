@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-28
+
+Applications list their components with a tech stack – entered by hand or imported from an SBOM – and Steward reads the end of life of every version from endoflife.date: coloured badges, messages to the owners and an optional scorecard part. Platforms keep recorded responses, so processes and monitors can be tried in test runs without calling the platform. Failed checks of scheduled runs notify on change instead of after every run, credentials document the applications that use them and the roles they hold, and two new integrations show how to build Streamlit apps and Grafana dashboards on Steward data. Seven database migrations, all additive: `catalogue-002-components`, `catalogue-003-lifecycle`, `ops-004-check-notifications`, `credentials-002-roles`, `scorecard-003-lifecycle`, `platforms-002-recordings` and `engine-003-test-runs`.
+
 ### Added
 
 - **Components and tech stack of applications** (#103): an application lists what it consists of – repositories, container images, Kafka topics, Snowflake databases, cloud accounts, Kubernetes namespaces, platforms, other – with only a type and a name required. Each component has a tech stack of [endoflife.date](https://endoflife.date) products and versions (the list ships with Steward), entered by hand or imported from a CycloneDX or SPDX SBOM (file or URL): only products endoflife.date knows are kept, libraries stay out, the import shows its changes first, and entries entered by hand win. The application page shows the stack of all components together. Permissions follow the application; audited as `application.component_added` / `_changed` / `_removed` and `application.sbom_imported`; in the public API (`components`, `stack`, `componentCount`) and in migration packages. Migration `catalogue-002-components` adds two tables.
@@ -403,7 +407,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/vxrz/steward/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/vxrz/steward/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/vxrz/steward/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vxrz/steward/compare/v0.1.2...v0.2.0
