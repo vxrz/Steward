@@ -1,0 +1,5 @@
+# Keep secrets and local clutter out of the image
+.streamlit/secrets.toml
+**/__pycache__
+*.pyc
+.venv/

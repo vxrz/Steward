@@ -27,7 +27,8 @@
     "duties": "Duties",
     "availability": "Availability",
     "documentation": "Documentation",
-    "protection": "Protection need"
+    "protection": "Protection need",
+    "lifecycle": "Tech stack"
   },
   "windows": {
     "h1": "1 h",
@@ -163,5 +164,11 @@
     "minLevel": "From level",
     "note": "Note",
     "enabled": "Applied"
+  },
+  "lifecycle": {
+    "none": "No tech stack in the service's applications.",
+    "summary": "{{entries}} tech-stack entries: {{eol}} past their end of life, {{ending}} ending soon",
+    "eolItem": "{{component}}: {{product}} – end of life since {{date}}",
+    "endingItem": "{{component}}: {{product}} – end of life on {{date}}"
   }
 }

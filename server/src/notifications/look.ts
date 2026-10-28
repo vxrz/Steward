@@ -286,6 +286,7 @@ const WARN_EVENTS = new Set([
   'credential.due',
   'ticket.unchecked',
   'document.review',
+  'stack.eol',
   'duty.due',
   'duty.exception',
   'duty.ended',

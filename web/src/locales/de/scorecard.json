@@ -27,7 +27,8 @@
     "duties": "Pflichten",
     "availability": "Verfügbarkeit",
     "documentation": "Dokumentation",
-    "protection": "Schutzbedarf"
+    "protection": "Schutzbedarf",
+    "lifecycle": "Tech-Stack"
   },
   "windows": {
     "h1": "1 Std.",
@@ -163,5 +164,11 @@
     "minLevel": "Ab Stufe",
     "note": "Notiz",
     "enabled": "Angewendet"
+  },
+  "lifecycle": {
+    "none": "Kein Tech-Stack in den Anwendungen des Service.",
+    "summary": "{{entries}} Einträge im Tech-Stack: {{eol}} nach dem Supportende, {{ending}} enden bald",
+    "eolItem": "{{component}}: {{product}} – Supportende seit {{date}}",
+    "endingItem": "{{component}}: {{product}} – Supportende am {{date}}"
   }
 }

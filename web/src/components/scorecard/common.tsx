@@ -12,13 +12,22 @@ import {
   type ObjectiveSummary,
   type ObjectiveTargets,
   type ObjectiveWindow,
+  type ScorecardPart,
   type ScorecardPartStatus,
+  type ServiceScorecard,
+  SCORECARD_PARTS,
 } from '@sm/shared';
 import { get, getOptional, notifyError, notifyOk, post, put } from '../../api';
 import { TONE, useFieldErrors } from '../common';
 import { fmtNumber } from '../../format';
 
 /** Colours of the part statuses (the label always says the status, too). */
+/** The parts to show: "Tech stack" only while it is turned on in the end-of-life settings (#104). */
+export function shownParts(cards: Pick<ServiceScorecard, 'lifecycle'>[]): ScorecardPart[] {
+  const lifecycle = cards.some((c) => c.lifecycle?.enabled);
+  return SCORECARD_PARTS.filter((p) => p !== 'lifecycle' || lifecycle);
+}
+
 export const PART_COLORS: Record<ScorecardPartStatus | 'hidden', string> = {
   ok: TONE.ok,
   attention: TONE.bad,

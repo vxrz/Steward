@@ -78,7 +78,7 @@ export function RunDetailPage() {
             <StatusBadge status={r.status} size="md" />
             {r.dryRun && (
               <Badge color="yellow" variant="light" size="md">
-                {t('common:status.dryrun')}
+                {r.recorded ? t('detail.testRun') : t('common:status.dryrun')}
               </Badge>
             )}
           </Group>

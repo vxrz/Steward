@@ -648,9 +648,9 @@ export function hasInput(type: NodeType): boolean {
 /**
  * `secret`: stored encrypted only, shown as *** everywhere (protocol, audit log, reports, API) and masked in step data and logs.
  * `application`: an application of the service catalogue, given by id or name; the run reads its components and tech
- * stack when it starts.
+ * stack when it starts. `applications`: several (a list of ids or names; empty: every application not archived).
  */
-export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json', 'secret', 'application'] as const;
+export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json', 'secret', 'application', 'applications'] as const;
 export type InputType = (typeof INPUT_TYPES)[number];
 
 export const inputDefSchema = z.object({

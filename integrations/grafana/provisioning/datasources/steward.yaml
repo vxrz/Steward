@@ -1,0 +1,27 @@
+# Steward's read-only API as a Grafana data source (Infinity plugin, yesoreyeram-infinity-datasource).
+# Grafana replaces ${…} with environment variables of the Grafana container:
+#   STEWARD_API_URL  Steward's API base without a trailing slash, with the base path if Steward runs under one,
+#                    e.g. https://apps.corp.example/steward/api/v1 or http://steward:4310/steward/api/v1
+#   STEWARD_TOKEN    read-only API token of a technical user (Profile → API tokens, scope "Read only")
+apiVersion: 1
+
+datasources:
+  - name: Steward
+    uid: steward
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    # Queries use paths relative to this URL, e.g. /datasets/gatus-uptime/metrics
+    url: ${STEWARD_API_URL}
+    editable: false
+    jsonData:
+      auth_method: bearerToken
+      # The token is only sent to URLs that start with this prefix: the dataset endpoints.
+      # Add more prefixes (e.g. ${STEWARD_API_URL}/runs) only if your dashboards need them.
+      allowedHosts:
+        - ${STEWARD_API_URL}/datasets
+      timeoutInSeconds: 30
+      # "Save & test" reads one dataset entry: checks the URL, the token and the host allow-list in Steward
+      customHealthCheckEnabled: true
+      customHealthCheckUrl: ${STEWARD_API_URL}/datasets?limit=1
+    secureJsonData:
+      bearerToken: ${STEWARD_TOKEN}

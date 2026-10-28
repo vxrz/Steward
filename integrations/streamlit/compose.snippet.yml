@@ -1,0 +1,45 @@
+# The Streamlit example next to Steward, behind the same reverse proxy (here Caddy on the Docker
+# network "caddy-bridge", as in docs/INSTALL.md "Steward in Docker"). Merge the service into the
+# compose file that runs Steward, or keep it in its own file on the same network.
+#
+# Steward:  SM_PUBLIC_URL=https://apps.corp.example/steward
+#           SM_ALLOWED_HOSTS=apps.corp.example,steward   ("steward" because the app calls http://steward:4310)
+#
+# Caddy (prefix kept, like for Steward – "handle", not "handle_path"):
+#   apps.corp.example {
+#     redir /steward /steward/
+#     handle /steward/* {
+#       reverse_proxy steward:4310
+#     }
+#     redir /dashboards /dashboards/
+#     handle /dashboards/* {
+#       reverse_proxy steward-streamlit:8501
+#     }
+#   }
+#
+# secrets.toml: base_url = "http://steward:4310/steward"; the file must be readable by uid 10001:
+#   sudo install -m 400 -o 10001 -g 10001 /dev/null streamlit-secrets.toml && sudoedit streamlit-secrets.toml
+services:
+  steward-streamlit:
+    build: ./integrations/streamlit
+    image: steward-streamlit:local
+    restart: unless-stopped
+    # no "ports:" – only the proxy on caddy-bridge reaches the app
+    networks: [caddy-bridge]
+    environment:
+      STREAMLIT_SERVER_BASE_URL_PATH: dashboards # the path in the proxy, without slashes
+    volumes:
+      - ./streamlit-secrets.toml:/app/.streamlit/secrets.toml:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /home/app
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+
+networks:
+  caddy-bridge:
+    external: true

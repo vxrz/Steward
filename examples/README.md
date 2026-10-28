@@ -37,6 +37,7 @@ The processes are written in the compact sequential YAML format and become node 
 | 72  | Gatus – report Steward check to Gatus                  | Runs a check and pushes the result to a Gatus external endpoint                                                                                 | 5–15 min (below the Gatus heartbeat) | yes (Gatus result)       | –                                            |
 | 73  | Diagnose endpoint outage (from Gatus alert)            | Runbook for a webhook trigger: Gatus history, probe below the probe platform, evidence, approval (four-eyes) before the placeholder remediation | started by a Gatus alert             | no (example placeholder) | –                                            |
 | 74  | Gatus – uptime overview (from /metrics)                | The same overview for a Gatus behind OIDC: reads only `/metrics` and the open uptime API, adds TLS certificate expiry; no Gatus login needed    | every 10 min                         | no                       | `gatus-uptime-metrics`                       |
+| 77  | End of life – tech stack overview                      | Every component of the applications with the end of life of its release cycle (from endoflife.date); warns about versions past it               | weekly                               | no                       | `eol-overview`                               |
 | 81  | Cross-platform – Weekly service report                 | Reachability and key figures of both platforms in one report                                                                                    | weekly (Mon 07:00)                   | no                       | `platform.service-report`                    |
 | 85  | Industrial Edge – Replace an Edge device on site       | Manual procedure: checklists, fields, evidence photos; the replacement and the final check are verified by a second person (maker–checker)      | on demand                            | no (manual work)         | –                                            |
 | 90  | Building block – Resolve an Insights Hub group         | Reusable sub-process: group/role by name → id and members (returned as `outputs`)                                                               | – (called by other processes)        | no                       | –                                            |
@@ -56,8 +57,18 @@ Processes 11, 12, 13 and 20 document the access changes they make with the step 
 | Uptime                 | Endpoints, endpoints down, average uptime, status distribution, problem table, freshness                                                                                      | 71                                             |
 | Uptime (from /metrics) | The same for a Gatus behind OIDC, plus certificates expiring                                                                                                                  | 74                                             |
 | Tenant usage           | Credits, storage, users, assets and agents in % of the licence; trends; figures above the warning level                                                                       | 32                                             |
+| End of life            | Components past their end of life, ending soon, supported and without data; trend; tables of what to upgrade                                                                  | 77                                             |
 
 Dashboards only read stored datasets: opening them never calls a platform. A dataset shows as _stale_ when it is older than the publishing step's `staleAfterMinutes`. That threshold is set to roughly 2–3× the suggested schedule, so a missed run becomes visible. _Refresh_ on a dashboard re-runs the feeding processes with the inputs and connections of their last run.
+
+## Dashboards in other tools
+
+These live in [`integrations/`](../integrations) rather than here, because they are not Steward definitions (the validator and Git sync read every YAML and JSON file in `examples/`). They show how to build on the published datasets elsewhere, through the read-only API.
+
+- **Streamlit** ([integrations/streamlit](../integrations/streamlit/README.md)): a small Python app with uptime from the metric history (71/74), the privileged access review (12, 16) and a place to join other data sources.
+- **Grafana** ([integrations/grafana](../integrations/grafana/README.md)): Infinity data source provisioning and two dashboards, uptime over time and every dataset with its rows and metrics.
+
+When to use them instead of Steward's dashboards, the API calls, tokens and security notes: [docs/EXTERNAL-DASHBOARDS.md](../docs/EXTERNAL-DASHBOARDS.md).
 
 ## Recommended operating model
 

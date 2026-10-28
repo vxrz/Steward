@@ -112,6 +112,7 @@ const mapRun = (r: ReturnType<typeof store.getRunSummary>) => ({
   processVersion: r.processVersion,
   status: r.status,
   dryRun: r.dryRun,
+  recorded: r.recorded,
   trigger: r.trigger,
   scheduleId: r.scheduleId ?? null,
   parentRunId: r.parentRunId ?? null,

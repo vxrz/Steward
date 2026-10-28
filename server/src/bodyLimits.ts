@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { COMPONENT_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, RECORDING_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -44,6 +44,8 @@ export interface LargeBody {
 
 /** The only routes that accept bodies above DEFAULT_BODY_LIMIT. Routes pass `bodyLimit: LARGE_BODIES.<name>.bytes`. */
 export const LARGE_BODIES = {
+  /** A recorded platform response (#105): RECORDING_LIMITS.bodyBytes (1 MB) as JSON, with headers and match */
+  recordings: { routes: ['POST /api/platforms/:id/recordings', 'PUT /api/platforms/:id/recordings/:recId'], bytes: jsonText(RECORDING_LIMITS.bodyBytes) },
   /** Markdown files of records: RECORD_IMPORT_LIMITS.totalBytes (2 MB) together */
   recordsImport: { routes: ['POST /api/records/import'], bytes: jsonText(RECORD_IMPORT_LIMITS.totalBytes) },
   /** A control catalogue (JSON, CSV or YAML): CATALOGUE_LIMITS.importBytes (1 MB) */

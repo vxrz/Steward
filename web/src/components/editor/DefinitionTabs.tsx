@@ -37,7 +37,7 @@ import { fmtDate } from '../../format';
 import { ExpressionInput } from './ExpressionInput';
 import { VersionCompare } from './VersionDiff';
 import { issueText } from '../../i18n/meta';
-import { ApplicationSelect } from '../catalogue/ApplicationSelect';
+import { ApplicationSelect, ApplicationsMultiSelect } from '../catalogue/ApplicationSelect';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -218,6 +218,17 @@ function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown)
           by="name"
           value={typeof v === 'string' && v ? v : null}
           onChange={(x) => onChange(x ?? undefined)}
+        />
+      );
+    case 'applications':
+      return (
+        <ApplicationsMultiSelect
+          size="xs"
+          label={t('inputs.defaultApplications')}
+          description={t('inputs.applicationsHint', { example: 'inputs.apps.stack[lifecycle.state="eol"]' })}
+          by="name"
+          value={Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []}
+          onChange={(x) => onChange(x.length ? x : undefined)}
         />
       );
     case 'list':

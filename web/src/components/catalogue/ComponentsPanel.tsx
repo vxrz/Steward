@@ -36,6 +36,7 @@ import { del, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtDate } from '../../format';
+import { LifecycleBadge } from './lifecycle';
 
 const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -133,14 +134,13 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     ) : (
                       <Group gap={4}>
                         {c.stack.map((s) => (
-                          <Tooltip
+                          <LifecycleBadge
                             key={s.product}
-                            label={s.source === 'sbom' ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}` : t('components.stackEditor.manual')}
-                          >
-                            <Badge size="sm" variant={s.source === 'sbom' ? 'light' : 'outline'} tt="none">
-                              {[s.label, s.version].filter(Boolean).join(' ')}
-                            </Badge>
-                          </Tooltip>
+                            text={[s.label, s.version].filter(Boolean).join(' ')}
+                            lifecycle={s.lifecycle}
+                            variant={s.source === 'sbom' ? 'light' : 'outline'}
+                            extra={s.source === 'sbom' ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}` : t('components.stackEditor.manual')}
+                          />
                         ))}
                       </Group>
                     )}
@@ -186,11 +186,13 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
       </Text>
       <Group gap={6} role="list" aria-labelledby="stack-title">
         {app.stack.map((s) => (
-          <Tooltip key={`${s.product} ${s.version}`} label={s.components.map((c) => c.name).join(', ')}>
-            <Badge role="listitem" variant="light" color="gray" tt="none">
-              {[s.label, s.version].filter(Boolean).join(' ')} · {t('components.rollup.used', { count: s.components.length })}
-            </Badge>
-          </Tooltip>
+          <LifecycleBadge
+            key={`${s.product} ${s.version}`}
+            role="listitem"
+            text={`${[s.label, s.version].filter(Boolean).join(' ')} · ${t('components.rollup.used', { count: s.components.length })}`}
+            lifecycle={s.lifecycle}
+            extra={s.components.map((c) => c.name).join(', ')}
+          />
         ))}
       </Group>
     </Stack>

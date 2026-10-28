@@ -35,7 +35,8 @@
     "failedSteps_one": "{{count}} Schritt fehlgeschlagen",
     "failedSteps_other": "{{count}} Schritte fehlgeschlagen",
     "webhook": "Webhook",
-    "monitor": "Monitor"
+    "monitor": "Monitor",
+    "test": "Test"
   },
   "bindings": {
     "noPermission": "{{name}} (keine Berechtigung zur Nutzung)",
@@ -58,7 +59,10 @@
     "writesTitle": "Diese Ausführung ändert Daten",
     "writesText": "Der Prozess enthält Schreibvorgänge, die auf den ausgewählten Plattformen ausgeführt werden.",
     "startDryRun": "Probelauf starten",
-    "startRun": "Ausführung starten"
+    "startRun": "Ausführung starten",
+    "recorded": "Aufgezeichnete Antworten verwenden (Testlauf)",
+    "recordedHint": "Plattformaufrufe werden mit den aufgezeichneten Antworten der Plattform beantwortet, nichts wird gesendet. Ein Aufruf ohne Aufzeichnung lässt den Lauf fehlschlagen und wird genannt.",
+    "startTestRun": "Testlauf starten"
   },
   "inputs": {
     "none": "Dieser Prozess hat keine Eingaben.",
@@ -68,7 +72,9 @@
     "loadCsv": "CSV-Datei laden",
     "secretHint": "Wird nur verschlüsselt gespeichert; im Protokoll, in Berichten und im Audit-Log als *** angezeigt",
     "applicationHint": "Der Lauf liest die Komponenten und den Tech-Stack der Anwendung beim Start",
-    "noApplications": "Keine Anwendung gefunden"
+    "noApplications": "Keine Anwendung gefunden",
+    "allApplications": "Alle Anwendungen",
+    "applicationsHint": "Leer: alle Anwendungen. Der Lauf liest beim Start ihre Komponenten und den Tech-Stack"
   },
   "trigger": {
     "manual": "manuell",
@@ -160,7 +166,8 @@
       "more_one": "{{count}} weitere anzeigen",
       "more_other": "{{count}} weitere anzeigen",
       "all": "Alle anzeigen"
-    }
+    },
+    "testRun": "Testlauf (aufgezeichnete Antworten)"
   },
   "emptyState": {
     "title": "Noch keine Ausführungen",

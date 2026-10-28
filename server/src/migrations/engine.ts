@@ -18,4 +18,9 @@ export const ENGINE_MIGRATIONS: NamedMigration[] = [
     name: 'engine-002-readiness-probe',
     sql: `CREATE TABLE engine_probe (id INTEGER PRIMARY KEY CHECK (id = 1), ts TEXT NOT NULL);`,
   },
+  {
+    // Test runs (#105): dry runs whose platform calls are answered by recorded responses
+    name: 'engine-003-test-runs',
+    sql: `ALTER TABLE runs ADD COLUMN recorded INTEGER NOT NULL DEFAULT 0;`,
+  },
 ];

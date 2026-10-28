@@ -564,6 +564,10 @@
           "dryRun": {
             "type": "boolean"
           },
+          "recorded": {
+            "type": "boolean",
+            "description": "Test run: a dry run whose platform calls were answered by recorded responses"
+          },
           "trigger": {
             "type": "string",
             "enum": [
@@ -668,6 +672,7 @@
           "processVersion",
           "status",
           "dryRun",
+          "recorded",
           "trigger",
           "scheduleId",
           "parentRunId",
@@ -737,6 +742,10 @@
           },
           "dryRun": {
             "type": "boolean"
+          },
+          "recorded": {
+            "type": "boolean",
+            "description": "Test run: a dry run whose platform calls were answered by recorded responses"
           },
           "trigger": {
             "type": "string",
@@ -1187,6 +1196,7 @@
           "processVersion",
           "status",
           "dryRun",
+          "recorded",
           "trigger",
           "scheduleId",
           "parentRunId",
@@ -9092,6 +9102,81 @@
                       },
                       "setBy": {
                         "type": "string"
+                      },
+                      "lifecycle": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "supported",
+                                  "ending",
+                                  "eol",
+                                  "unknown"
+                                ],
+                                "description": "supported; ending: within the warning period; eol: past its end of life; unknown: no matching release cycle"
+                              },
+                              "cycle": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The release cycle of the version, e.g. 24 for 24.11.0"
+                              },
+                              "eolFrom": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "End of life, YYYY-MM-DD"
+                              },
+                              "eoasFrom": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "End of active support, YYYY-MM-DD"
+                              },
+                              "isLts": {
+                                "type": "boolean"
+                              },
+                              "latest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Latest version of the cycle"
+                              },
+                              "daysLeft": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days until the end of life (negative: past)"
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "cycle",
+                              "eolFrom",
+                              "eoasFrom",
+                              "isLts",
+                              "latest",
+                              "daysLeft"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
                       }
                     },
                     "required": [
@@ -9101,7 +9186,8 @@
                       "source",
                       "sbomRef",
                       "setAt",
-                      "setBy"
+                      "setBy",
+                      "lifecycle"
                     ],
                     "additionalProperties": false
                   }
@@ -9192,6 +9278,80 @@
                 "version": {
                   "type": "string"
                 },
+                "lifecycle": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "supported",
+                            "ending",
+                            "eol",
+                            "unknown"
+                          ],
+                          "description": "supported; ending: within the warning period; eol: past its end of life; unknown: no matching release cycle"
+                        },
+                        "cycle": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The release cycle of the version, e.g. 24 for 24.11.0"
+                        },
+                        "eolFrom": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "End of life, YYYY-MM-DD"
+                        },
+                        "eoasFrom": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "End of active support, YYYY-MM-DD"
+                        },
+                        "isLts": {
+                          "type": "boolean"
+                        },
+                        "latest": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Latest version of the cycle"
+                        },
+                        "daysLeft": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Days until the end of life (negative: past)"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "cycle",
+                        "eolFrom",
+                        "eoasFrom",
+                        "isLts",
+                        "latest",
+                        "daysLeft"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "components": {
                   "type": "array",
                   "items": {
@@ -9230,6 +9390,7 @@
                 "product",
                 "label",
                 "version",
+                "lifecycle",
                 "components"
               ],
               "additionalProperties": false
@@ -11484,6 +11645,103 @@
               "dimensions"
             ],
             "additionalProperties": false
+          },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a component past its end of life; pending: one within the warning period; none: not counted (turned off) or no tech stack"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "The part is counted (Applications → End of life → Count on the scorecard)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Tech stack entries of the service’s applications"
+              },
+              "eol": {
+                "type": "integer"
+              },
+              "ending": {
+                "type": "integer"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "cycle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "eolFrom": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "YYYY-MM-DD"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ending",
+                        "eol"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "product",
+                    "label",
+                    "version",
+                    "cycle",
+                    "eolFrom",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "eol",
+              "ending",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
           }
         },
         "required": [
@@ -11495,7 +11753,8 @@
           "duties",
           "availability",
           "documentation",
-          "protection"
+          "protection",
+          "lifecycle"
         ],
         "additionalProperties": false
       },
@@ -12108,6 +12367,103 @@
                     "dimensions"
                   ],
                   "additionalProperties": false
+                },
+                "lifecycle": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none"
+                      ],
+                      "description": "attention: a component past its end of life; pending: one within the warning period; none: not counted (turned off) or no tech stack"
+                    },
+                    "enabled": {
+                      "type": "boolean",
+                      "description": "The part is counted (Applications → End of life → Count on the scorecard)"
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "description": "Tech stack entries of the service’s applications"
+                    },
+                    "eol": {
+                      "type": "integer"
+                    },
+                    "ending": {
+                      "type": "integer"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "applicationId": {
+                            "type": "string"
+                          },
+                          "applicationName": {
+                            "type": "string"
+                          },
+                          "componentName": {
+                            "type": "string"
+                          },
+                          "product": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "string"
+                          },
+                          "cycle": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "eolFrom": {
+                            "type": [
+                              "null",
+                              "string"
+                            ],
+                            "description": "YYYY-MM-DD"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "ending",
+                              "eol"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "applicationId",
+                          "applicationName",
+                          "componentName",
+                          "product",
+                          "label",
+                          "version",
+                          "cycle",
+                          "eolFrom",
+                          "state"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "enabled",
+                    "entries",
+                    "eol",
+                    "ending",
+                    "items"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
                 }
               },
               "required": [
@@ -12119,7 +12475,8 @@
                 "duties",
                 "availability",
                 "documentation",
-                "protection"
+                "protection",
+                "lifecycle"
               ],
               "additionalProperties": false
             }
@@ -12244,13 +12601,38 @@
                           "none"
                         ],
                         "additionalProperties": false
+                      },
+                      "lifecycle": {
+                        "type": "object",
+                        "properties": {
+                          "ok": {
+                            "type": "integer"
+                          },
+                          "attention": {
+                            "type": "integer"
+                          },
+                          "pending": {
+                            "type": "integer"
+                          },
+                          "none": {
+                            "type": "integer"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "attention",
+                          "pending",
+                          "none"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
                       "duties",
                       "availability",
                       "documentation",
-                      "protection"
+                      "protection",
+                      "lifecycle"
                     ],
                     "additionalProperties": false
                   }
@@ -12383,13 +12765,38 @@
                             "none"
                           ],
                           "additionalProperties": false
+                        },
+                        "lifecycle": {
+                          "type": "object",
+                          "properties": {
+                            "ok": {
+                              "type": "integer"
+                            },
+                            "attention": {
+                              "type": "integer"
+                            },
+                            "pending": {
+                              "type": "integer"
+                            },
+                            "none": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "ok",
+                            "attention",
+                            "pending",
+                            "none"
+                          ],
+                          "additionalProperties": false
                         }
                       },
                       "required": [
                         "duties",
                         "availability",
                         "documentation",
-                        "protection"
+                        "protection",
+                        "lifecycle"
                       ],
                       "additionalProperties": false
                     }
@@ -12551,13 +12958,43 @@
                   "hidden"
                 ],
                 "additionalProperties": false
+              },
+              "lifecycle": {
+                "type": "object",
+                "properties": {
+                  "ok": {
+                    "type": "integer"
+                  },
+                  "attention": {
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "type": "integer"
+                  },
+                  "none": {
+                    "type": "integer"
+                  },
+                  "hidden": {
+                    "type": "integer",
+                    "description": "Relied on documents the token owner may not read"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none",
+                  "hidden"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
               "duties",
               "availability",
               "documentation",
-              "protection"
+              "protection",
+              "lifecycle"
             ],
             "additionalProperties": false
           }
@@ -13170,6 +13607,103 @@
             ],
             "additionalProperties": false
           },
+          "lifecycle": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "attention",
+                  "pending",
+                  "none"
+                ],
+                "description": "attention: a component past its end of life; pending: one within the warning period; none: not counted (turned off) or no tech stack"
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "The part is counted (Applications → End of life → Count on the scorecard)"
+              },
+              "entries": {
+                "type": "integer",
+                "description": "Tech stack entries of the service’s applications"
+              },
+              "eol": {
+                "type": "integer"
+              },
+              "ending": {
+                "type": "integer"
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "applicationId": {
+                      "type": "string"
+                    },
+                    "applicationName": {
+                      "type": "string"
+                    },
+                    "componentName": {
+                      "type": "string"
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "string"
+                    },
+                    "cycle": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "eolFrom": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "YYYY-MM-DD"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ending",
+                        "eol"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "applicationId",
+                    "applicationName",
+                    "componentName",
+                    "product",
+                    "label",
+                    "version",
+                    "cycle",
+                    "eolFrom",
+                    "state"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "status",
+              "enabled",
+              "entries",
+              "eol",
+              "ending",
+              "items"
+            ],
+            "additionalProperties": false,
+            "description": "Tech stack: end of life of the components of the service’s applications (from endoflife.date)"
+          },
           "history": {
             "type": "array",
             "items": {
@@ -13223,13 +13757,24 @@
                         "none",
                         "hidden"
                       ]
+                    },
+                    "lifecycle": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "attention",
+                        "pending",
+                        "none",
+                        "hidden"
+                      ]
                     }
                   },
                   "required": [
                     "duties",
                     "availability",
                     "documentation",
-                    "protection"
+                    "protection",
+                    "lifecycle"
                   ],
                   "additionalProperties": false
                 }
@@ -13254,6 +13799,7 @@
           "availability",
           "documentation",
           "protection",
+          "lifecycle",
           "history"
         ],
         "additionalProperties": false
@@ -18825,7 +19371,7 @@
         "tags": [
           "Services"
         ],
-        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
+        "description": "Per service (not archived) four parts, each with its own status – duties, availability objectives, documentation, protection need – and the optional fifth, the tech stack’s end of life (`lifecycle`, status \"none\" unless counted), and `attention` when any part needs attention (no weighting). With the rollup overall and per owner (a user or a team). Documents the token owner may not read do not count.",
         "responses": {
           "200": {
             "description": "OK",

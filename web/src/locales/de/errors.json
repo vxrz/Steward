@@ -615,7 +615,14 @@
     "SBOM_FETCH_FAILED": "Die SBOM konnte von dieser Adresse nicht abgerufen werden.",
     "INPUT_APPLICATION_INVALID": "Die Eingabe „{{input}}“ muss eine Anwendung nennen.",
     "INPUT_APPLICATION_NOT_FOUND": "Eingabe „{{input}}“: Die Anwendung „{{name}}“ wurde nicht gefunden.",
-    "INPUT_APPLICATION_ARCHIVED": "Eingabe „{{input}}“: Die Anwendung „{{name}}“ ist archiviert."
+    "INPUT_APPLICATION_ARCHIVED": "Eingabe „{{input}}“: Die Anwendung „{{name}}“ ist archiviert.",
+    "LIFECYCLE_PLATFORM_KIND": "Wählen Sie eine Plattform vom Typ endoflife.date.",
+    "LIFECYCLE_NO_PLATFORM": "Es ist keine endoflife.date-Plattform eingerichtet. Legen Sie eine unter Plattformen an (Verbindungstyp endoflife.date).",
+    "INPUT_APPLICATIONS_TOO_MANY": "Die Eingabe „{{input}}“ nennt mehr als {{max}} Anwendungen.",
+    "RECORDING_LIMIT": "Eine Plattform speichert höchstens {{max}} aufgezeichnete Antworten. Entfernen Sie zuerst welche.",
+    "RECORDING_MATCH_TOO_LARGE": "Der zu vergleichende Body ist zu groß.",
+    "RECORDING_NOT_FOUND": "Die aufgezeichnete Antwort gibt es nicht (mehr).",
+    "RECORDING_TOO_LARGE": "Der aufgezeichnete Body ist größer als {{maxMb}} MB."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

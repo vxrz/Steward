@@ -6,6 +6,9 @@
 //   node scripts/endoflife-products.mjs                 # from https://endoflife.date/api/v1/products/full
 //   node scripts/endoflife-products.mjs --repo <dir>    # from a checkout of github.com/endoflife-date/endoflife.date
 //
+// With --repo it also copies the API description (api_v1/openapi.yml) to server/assets/endoflife/openapi.yml: the
+// preset "endoflife.date" brings it along as the platform's spec.
+//
 // The data is MIT licensed (Copyright endoflife.date contributors); the licence travels in the file.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -76,3 +79,22 @@ fs.mkdirSync(path.dirname(out), { recursive: true });
 const lines = data.products.map((p) => JSON.stringify(p));
 fs.writeFileSync(out, `{"source":${JSON.stringify(data.source)},"license":${JSON.stringify(LICENSE)},"products":[\n${lines.join(',\n')}\n]}\n`);
 console.log(`${data.products.length} products → ${path.relative(root, out)}`);
+
+if (repo) {
+  const specIn = path.join(repo, 'api_v1', 'openapi.yml');
+  const specOut = path.join(path.dirname(out), 'openapi.yml');
+  if (fs.existsSync(specIn)) {
+    const HEADER = [
+      '# OpenAPI description of the endoflife.date API v1, copied from github.com/endoflife-date/endoflife.date (api_v1/openapi.yml,',
+      '# MIT License, Copyright 2020 endoflife.date contributors). Only the Jekyll front matter was removed and the site address',
+      '# filled in. Refresh it together with products.json (scripts/endoflife-products.mjs).',
+    ].join('\n');
+    const spec = fs
+      .readFileSync(specIn, 'utf8')
+      .replace(/^---\n[\s\S]*?\n---\n/, '')
+      .replaceAll('{{ site.url }}', 'https://endoflife.date');
+    YAML.parse(spec); // refuse to write what does not parse
+    fs.writeFileSync(specOut, `${HEADER}\n${spec.trimStart()}`);
+    console.log(`API description → ${path.relative(root, specOut)}`);
+  } else console.warn(`${path.relative(process.cwd(), specIn)} not found: API description left as it is`);
+}

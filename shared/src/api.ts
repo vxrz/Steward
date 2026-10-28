@@ -560,6 +560,8 @@ export interface RunSummary {
   processVersion: number;
   status: RunStatus;
   dryRun: boolean;
+  /** Test run (#105): a dry run whose platform calls are answered by recorded responses */
+  recorded: boolean;
   trigger: 'manual' | 'schedule' | 'resume' | 'subprocess' | 'webhook' | 'monitor';
   scheduleId?: string | null;
   /** What started this run: the webhook trigger (trigger 'webhook') or the monitor (trigger 'monitor'), by id and name */
@@ -668,6 +670,40 @@ export interface StartRunRequest {
   inputs?: Record<string, unknown>;
   bindings?: Record<string, string>;
   dryRun?: boolean;
+  /** Test run (#105): platform calls are answered by the platforms' recorded responses; implies a dry run */
+  recorded?: boolean;
+}
+
+// ---------- Recorded platform responses (#105) ----------
+
+export const RECORDING_LIMITS = { perPlatform: 500, bodyBytes: 1024 * 1024, headers: 50, headerChars: 4000, pathChars: 2000, queryKeys: 50 } as const;
+
+export interface RecordingInput {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD';
+  /** Relative to the platform's base URL, as in process steps; `{name}` matches one segment, a trailing `*` the rest */
+  path: string;
+  /** Query parameters the request must have (others may be there too) */
+  query?: Record<string, string>;
+  /** Parts of the JSON body the request must have (objects match by their keys) */
+  bodyMatch?: unknown;
+  status: number;
+  headers?: Record<string, string>;
+  /** The answer: JSON, or a string for an answer that is not JSON */
+  body?: unknown;
+  note?: string;
+}
+
+export interface PlatformRecording extends Required<Omit<RecordingInput, 'bodyMatch' | 'body'>> {
+  id: string;
+  platformId: string;
+  bodyMatch: unknown;
+  body: unknown;
+  /** Stored bytes (body and headers) */
+  size: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
 }
 
 // ---------- Tasks ----------

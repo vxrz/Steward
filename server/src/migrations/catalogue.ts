@@ -129,4 +129,36 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #104: end of life of the products in the tech stacks, read from endoflife.date (a cache, filled again by the
+    // daily refresh), and the messages sent to application owners (once per application, product, cycle and kind).
+    name: 'catalogue-003-lifecycle',
+    sql: `
+      CREATE TABLE eol_releases (
+        product TEXT NOT NULL,
+        cycle TEXT NOT NULL,
+        label TEXT NOT NULL DEFAULT '',
+        release_date TEXT,
+        is_lts INTEGER NOT NULL DEFAULT 0,
+        eoas_from TEXT,
+        eol_from TEXT,
+        is_eol INTEGER NOT NULL DEFAULT 0,
+        latest TEXT,
+        PRIMARY KEY (product, cycle)
+      );
+      CREATE TABLE eol_products (
+        product TEXT PRIMARY KEY,
+        fetched_at TEXT NOT NULL,
+        error TEXT
+      );
+      CREATE TABLE eol_notices (
+        application_id TEXT NOT NULL,
+        product TEXT NOT NULL,
+        cycle TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        sent_at TEXT NOT NULL,
+        PRIMARY KEY (application_id, product, cycle, kind)
+      );
+    `,
+  },
 ];

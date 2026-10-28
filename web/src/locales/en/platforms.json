@@ -131,7 +131,8 @@
       "explorer": "Explorer",
       "access": "Access",
       "metrics": "Metrics",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "recordings": "Recorded responses"
     },
     "deleteText": "This deletes <b>{{name}}</b> including its stored credentials, API specs and documents. Processes and schedules that use it will fail until another platform is selected. The audit log is kept.",
     "typeToConfirm": "Type \"{{name}}\" to confirm"
@@ -342,5 +343,37 @@
     "confirmQuestion": "Confirm the current connection settings (base URL {{url}})? Check the settings and the audit log first.",
     "confirmed": "Settings confirmed",
     "askAdmin": "Ask an administrator to review and confirm the settings."
+  },
+  "recordings": {
+    "title": "Recorded responses",
+    "help": "Answers of this platform for test runs: a test run of a process or monitor uses them instead of calling the platform and names every call without one. Real runs and dry runs never use them. They can hold personal data – everyone who may use the platform sees them.",
+    "add": "Record a response",
+    "addTitle": "Record a response of {{name}}",
+    "editTitle": "Change the recorded response",
+    "empty": "No recorded responses yet",
+    "emptyHint": "Record one in the API explorer (Save as recorded response) or enter it here, e.g. copied from Swagger or Postman.",
+    "request": "Request",
+    "status": "Status",
+    "size": "Size",
+    "updated": "Changed",
+    "actions": "Actions",
+    "edit": "Change {{request}}",
+    "remove": "Remove {{request}}",
+    "removeConfirm": "Remove the recorded response for {{request}}? Test runs that use it fail at this call.",
+    "withBodyMatch": "matches part of the body",
+    "saved": "Recorded response saved",
+    "redactionHint": "The platform's credentials are replaced by *** and headers with credentials or cookies are dropped when you save.",
+    "pathHint": "As in process steps, relative to the base URL. {id} matches one segment, a trailing * the rest.",
+    "query": "Query parameters to match",
+    "queryHint": "One per line: name=value. The request must have them; others may be there too.",
+    "bodyMatch": "Body to match (JSON, optional)",
+    "bodyMatchHint": "Parts of the request body the request must have, e.g. {\"user\": \"u2\"}. Empty: any body.",
+    "bodyMatchInvalid": "This is not valid JSON.",
+    "headers": "Response headers",
+    "headersHint": "One per line: name: value",
+    "body": "Response body",
+    "bodyHint": "JSON, or any text for an answer that is not JSON. At most {{mb}} MB.",
+    "note": "Note",
+    "saveFromExplorer": "Save as recorded response"
   }
 }

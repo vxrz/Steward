@@ -13,6 +13,7 @@ import {
   type SbomFormat,
   type SbomPreview,
   type StackEntry,
+  type StackLifecycle,
   type StackProduct,
   type StackSource,
 } from '@sm/shared';
@@ -25,6 +26,7 @@ import { forbid, me } from '../records/access.js';
 import { httpUrl } from '../records/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { assetPath } from '../reports/pdf/assets.js';
+import { lifecycleOf, lifecycleSettings, releasesOf } from './lifecycle.js';
 
 /**
  * Components of an application (#103): what it consists of – repositories, container images, Kafka topics,
@@ -128,6 +130,9 @@ export function stackProducts(): { source: string; products: StackProduct[] } {
 
 const labelOf = (product: string) => loadIndex().byId.get(product)?.label ?? product;
 
+/** The name of a product of the list (its id when it is no longer on it); for jobs without a signed-in user. */
+export const productLabel = labelOf;
+
 // ---------- input ----------
 
 const stackEntryInput = z
@@ -189,7 +194,7 @@ interface StackRow {
   set_by: string;
 }
 
-const toEntry = (r: StackRow): StackEntry => ({
+const toEntry = (r: StackRow, releases: ReturnType<typeof releasesOf>, warnDays: number): StackEntry => ({
   product: r.product,
   label: labelOf(r.product),
   version: r.version,
@@ -197,16 +202,19 @@ const toEntry = (r: StackRow): StackEntry => ({
   sbomRef: r.sbom_ref,
   setAt: r.set_at,
   setBy: r.set_by,
+  lifecycle: lifecycleOf(r.product, r.version, releases, warnDays),
 });
 
-/** The stack of the components of one application, by component. */
+/** The stack of the components of one application, by component, with the end of life of each entry (#104). */
 function stackOf(appId: string): Map<string, StackEntry[]> {
   const out = new Map<string, StackEntry[]>();
-  for (const r of db().all<StackRow>(
+  const rows = db().all<StackRow>(
     'SELECT cs.* FROM component_stack cs JOIN application_components c ON c.id = cs.component_id WHERE c.application_id = ? ORDER BY cs.product',
     appId,
-  ))
-    out.set(r.component_id, [...(out.get(r.component_id) ?? []), toEntry(r)]);
+  );
+  const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
+  const { warnDays } = lifecycleSettings();
+  for (const r of rows) out.set(r.component_id, [...(out.get(r.component_id) ?? []), toEntry(r, releases, warnDays)]);
   return out;
 }
 
@@ -255,7 +263,7 @@ export function stackRollup(components: ApplicationComponent[]): ApplicationStac
   for (const c of components)
     for (const s of c.stack) {
       const k = `${s.product}\u0000${s.version}`;
-      const item = out.get(k) ?? { product: s.product, label: s.label, version: s.version, components: [] };
+      const item = out.get(k) ?? { product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle, components: [] };
       item.components.push({ id: c.id, name: c.name, type: c.type });
       out.set(k, item);
     }
@@ -769,8 +777,40 @@ export interface ApplicationInputValue {
   owners: string[];
   tags: string[];
   url: string;
-  components: { id: string; type: ComponentType; name: string; url: string; note: string; stack: { product: string; label: string; version: string }[] }[];
-  stack: { product: string; label: string; version: string; components: string[] }[];
+  components: {
+    id: string;
+    type: ComponentType;
+    name: string;
+    url: string;
+    note: string;
+    stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null }[];
+  }[];
+  stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null; components: string[] }[];
+}
+
+/** At most this many applications in one input of type applications */
+const MAX_INPUT_APPLICATIONS = 500;
+
+/**
+ * Resolves an input of type applications: a list of ids or names (or a text with one per line or comma), each like
+ * an input of type application; an empty list means every application that is not archived.
+ */
+export function applicationsInputValue(v: unknown, label: string): ApplicationInputValue[] {
+  const given = (Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[\n,;]/) : v == null ? [] : [v])
+    .map((x) => (typeof x === 'string' ? x.trim() : x))
+    .filter((x) => x !== '' && x != null);
+  const ids = given.length
+    ? given
+    : db()
+        .all<{ id: string }>('SELECT id FROM applications WHERE archived = 0 ORDER BY name')
+        .map((r) => r.id);
+  if (ids.length > MAX_INPUT_APPLICATIONS)
+    throw new HttpError(400, `Input "${label}" names more than ${MAX_INPUT_APPLICATIONS} applications`, 'INPUT_APPLICATIONS_TOO_MANY', {
+      input: label,
+      max: MAX_INPUT_APPLICATIONS,
+    });
+  const seen = new Set<string>();
+  return ids.map((x) => applicationInputValue(x, label)).filter((a) => (seen.has(a.id) ? false : (seen.add(a.id), true)));
 }
 
 /**
@@ -811,8 +851,14 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
       name: c.name,
       url: c.url,
       note: c.note,
-      stack: c.stack.map((s) => ({ product: s.product, label: s.label, version: s.version })),
+      stack: c.stack.map((s) => ({ product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle })),
     })),
-    stack: stackRollup(components).map((s) => ({ product: s.product, label: s.label, version: s.version, components: s.components.map((c) => c.name) })),
+    stack: stackRollup(components).map((s) => ({
+      product: s.product,
+      label: s.label,
+      version: s.version,
+      lifecycle: s.lifecycle,
+      components: s.components.map((c) => c.name),
+    })),
   };
 }

@@ -1,5 +1,6 @@
 import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
+import { readAsset } from '../reports/pdf/assets.js';
 
 /**
  * Starting points for new platforms. Everything is editable afterwards –
@@ -138,6 +139,24 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'endoflife-date',
+    label: 'endoflife.date (end-of-life dates)',
+    description:
+      'The public endoflife.date API (no login): release cycles, end of support and end of life of operating systems, runtimes, databases and frameworks. Steward reads it once a day for the products in the tech stacks of application components (Applications → End of life). The outbound policy must allow endoflife.date. See docs/APPLICATIONS.md.',
+    baseUrl: 'https://endoflife.date',
+    config: {
+      auth: { type: 'none' },
+      variables: {},
+      http: {},
+      testPath: '/api/v1/products/nodejs',
+    },
+    secretFields: [],
+    docs: [
+      { title: 'endoflife.date API v1', url: 'https://endoflife.date/docs/api/v1/' },
+      { title: 'endoflife.date products', url: 'https://endoflife.date/' },
+    ],
+  },
+  {
     kind: 'zabbix',
     label: 'Zabbix (monitor outputs)',
     description:
@@ -176,4 +195,6 @@ export const PRESETS: PlatformPreset[] = [
 /** API specifications attached to platforms created from a built-in preset of this kind. */
 export const PRESET_SPECS: Record<string, () => { name: string; content: string }[]> = {
   gatus: () => [{ name: 'Gatus API', content: JSON.stringify(gatusOpenApiSpec(), null, 2) }],
+  // the official description from github.com/endoflife-date/endoflife.date (MIT), bundled in server/assets
+  'endoflife-date': () => [{ name: 'endoflife.date API', content: readAsset('endoflife/openapi.yml').toString('utf8') }],
 };

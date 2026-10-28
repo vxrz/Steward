@@ -63,7 +63,7 @@ An application without components works as before. Within an application, a name
 
 ### Tech stack
 
-Each component can have a **tech stack**: products from the [endoflife.date](https://endoflife.date) list with the version in use – operating systems, runtimes, databases, major frameworks (_Node.js 24_, _PostgreSQL 16_, _Alpine Linux 3.20_). The product field offers the list, the version field its release cycles; any version text is accepted. The application page shows the stack of all components together (_Tech stack_), with the components that use each product and version. End-of-life dates and warnings follow with [#104](https://github.com/vxrz/Steward/issues/104).
+Each component can have a **tech stack**: products from the [endoflife.date](https://endoflife.date) list with the version in use – operating systems, runtimes, databases, major frameworks (_Node.js 24_, _PostgreSQL 16_, _Alpine Linux 3.20_). The product field offers the list, the version field its release cycles; any version text is accepted. The application page shows the stack of all components together (_Tech stack_), with the components that use each product and version, coloured by the [end of life](#end-of-life) of each version.
 
 The product list ships with Steward (`server/assets/endoflife/products.json`, MIT licensed by the endoflife.date contributors), so nothing is fetched at run time. `node scripts/endoflife-products.mjs` refreshes it.
 
@@ -77,6 +77,34 @@ _Import SBOM_ (the import icon of a component) reads a **CycloneDX** or **SPDX**
 - The component shows the last import (format, name, who, when).
 
 Libraries and their vulnerabilities belong in Dependency-Track (a later version), not here.
+
+### End of life
+
+Steward reads the release cycles of every product in a tech stack from [endoflife.date](https://endoflife.date) once a day and keeps them, so pages, the API and processes never wait for it. The badges of the tech stack show the state of each version:
+
+| Colour | State       | Meaning                                                                 |
+| ------ | ----------- | ----------------------------------------------------------------------- |
+| Green  | supported   | The release cycle's end of life is further away than the warning period |
+| Yellow | ends soon   | The end of life is within the warning period (default 90 days)          |
+| Red    | end of life | The end of life has passed                                              |
+| Grey   | no data     | No version given, or endoflife.date has no matching release cycle       |
+
+The tooltip names the release cycle (_Release cycle 24 (LTS) · end of life on 30 Apr 2028, in 547 days · latest 24.11.1_). A version belongs to the longest cycle it starts with: `24.11.0` and `v24` to `24`, `3.12.4` to `3.12`, `16.4-alpine` to `16`.
+
+**Set up:** add a platform with the connector type **endoflife.date** (_Platforms → New_; base URL `https://endoflife.date`, no credentials, the API description comes along) and allow it in the [outbound policy](SECURITY-HARDENING.md#outbound-connections) if needed. The demo has one against the simulated platform.
+
+_Applications → End of life_ shows how many products have data, when they were read last, and products that could not be read. Administrators change the settings:
+
+| Setting                          | Default | What it does                                                                                                                                                                                                                       |
+| -------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Platform                         | empty   | The endoflife.date platform to read; empty: the first platform of that type                                                                                                                                                        |
+| Warn days before the end of life | 90      | From then on a version counts as _ends soon_ (1–730)                                                                                                                                                                               |
+| Message the application owners   | on      | Event **Tech stack end of life** (`stack.eol`, [NOTIFICATIONS.md](NOTIFICATIONS.md)): once per application, product and cycle when it starts ending, once when it reached its end of life – to the owners, else the administrators |
+| Count on the scorecard           | off     | Adds the part **Tech stack** to the [scorecard](SCORECARD.md)                                                                                                                                                                      |
+
+_Refresh now_ (designers and administrators, `POST /api/catalogue/lifecycle/refresh`) reads the data right away, e.g. after adding a product. A newly entered product is read within a few minutes (when a refresh fails as a whole, e.g. because the outbound policy refuses endoflife.date, the next try is an hour later). The settings are audited as `catalogue.lifecycle_settings_changed`, a refresh as `catalogue.lifecycle_refreshed`, a message as `application.eol_notice_sent`. The settings move with migration packages; the data itself does not (it is read again).
+
+The stack entries carry the state in the API (`lifecycle`: `state`, `cycle`, `eolFrom`, `eoasFrom`, `isLts`, `latest`, `daysLeft`; `null` before the first refresh), in `GET /api/v1/applications/{id}` and in process inputs. The example **End of life – tech stack overview** (process 77) and the dashboard **End of life** list every component past or near its end of life.
 
 ### Processes: input type application
 
@@ -107,6 +135,19 @@ steps:
 ```
 
 The value is an application id or name (case does not matter); an archived or unknown application stops the run before it starts. Ordinary inputs stay for one-off runs.
+
+An input of type **Applications** takes several (ids or names); **empty means every application that is not archived**, at most 500. The run gets a list of the same objects, each stack entry with its `lifecycle`:
+
+```yaml
+inputs:
+  - name: apps
+    type: applications
+steps:
+  - id: eol
+    type: set
+    values:
+      past: inputs.apps.stack[lifecycle.state="eol"]
+```
 
 ## Add applications to a service
 

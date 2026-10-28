@@ -340,7 +340,8 @@ export function JsonView({ value, maxHeight = 360 }: { value: unknown; maxHeight
   const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   return (
     <Box pos="relative">
-      <ScrollArea.Autosize mah={maxHeight}>
+      {/* focusable, so the content can be scrolled with the keyboard */}
+      <ScrollArea.Autosize mah={maxHeight} viewportProps={{ tabIndex: 0 }}>
         <Code block style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
           {text ?? 'undefined'}
         </Code>

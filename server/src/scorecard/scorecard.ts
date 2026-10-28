@@ -18,6 +18,8 @@ import {
   type ScorecardPart,
   type ScorecardPartCounts,
   type ScorecardPartStatus,
+  type ScorecardLifecycle,
+  type ScorecardLifecycleItem,
   type ScorecardProtection,
   type ScorecardRollupGroup,
   type ScorecardTrendPoint,
@@ -47,6 +49,8 @@ import {
   type SampleFacts,
 } from './objectives.js';
 import { ruleRows, ruleValid } from './rules.js';
+import { lifecycleOf, lifecycleSettings, releasesOf } from '../catalogue/lifecycle.js';
+import { productLabel } from '../catalogue/components.js';
 
 /**
  * The service scorecard (#86): per service four parts, each with its own status – no weighting.
@@ -406,6 +410,65 @@ function protectionPart(need: ReturnType<typeof protectionNeeds> extends Map<str
   return { status: dimensions.every((x) => x.ok) ? 'ok' : 'attention', applications: apps, scaleInvalid, dimensions };
 }
 
+// ---------- tech stack (end of life, #104) ----------
+
+interface LifecycleCtx {
+  enabled: boolean;
+  /** stack entries per application (not archived) */
+  entries: Map<string, { component: string; product: string; version: string }[]>;
+  releases: ReturnType<typeof releasesOf>;
+  warnDays: number;
+}
+
+function lifecycleCtx(d: Data): LifecycleCtx {
+  const s = lifecycleSettings();
+  const entries = new Map<string, { component: string; product: string; version: string }[]>();
+  if (!s.scorecard) return { enabled: false, entries, releases: new Map(), warnDays: s.warnDays };
+  const apps = new Set([...d.members.values()].flat());
+  for (const r of db().all<{ application_id: string; component: string; product: string; version: string }>(
+    `SELECT c.application_id, c.name AS component, cs.product, cs.version
+     FROM component_stack cs JOIN application_components c ON c.id = cs.component_id JOIN applications a ON a.id = c.application_id
+     WHERE a.archived = 0 ORDER BY c.name, cs.product`,
+  ))
+    if (apps.has(r.application_id)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
+  const products = [...new Set([...entries.values()].flat().map((e) => e.product))];
+  return {
+    enabled: true,
+    entries,
+    releases: releasesOf(products),
+    warnDays: s.warnDays,
+  };
+}
+
+/** Attention when a component is past its end of life; pending when one is within the warning period. */
+function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: number): ScorecardLifecycle {
+  if (!ctx.enabled) return { status: 'none', enabled: false, entries: 0, eol: 0, ending: 0, items: [] };
+  const items: ScorecardLifecycleItem[] = [];
+  let entries = 0;
+  for (const appId of d.members.get(serviceId) ?? []) {
+    for (const e of ctx.entries.get(appId) ?? []) {
+      entries++;
+      const lc = lifecycleOf(e.product, e.version, ctx.releases, ctx.warnDays, now);
+      if (lc && (lc.state === 'eol' || lc.state === 'ending'))
+        items.push({
+          applicationId: appId,
+          applicationName: d.appNames.get(appId) ?? appId,
+          componentName: e.component,
+          product: e.product,
+          label: productLabel(e.product),
+          version: e.version,
+          cycle: lc.cycle,
+          eolFrom: lc.eolFrom,
+          state: lc.state,
+        });
+    }
+  }
+  items.sort((a, b) => (a.state === b.state ? (a.eolFrom ?? '').localeCompare(b.eolFrom ?? '') : a.state === 'eol' ? -1 : 1));
+  const eol = items.filter((i) => i.state === 'eol').length;
+  const ending = items.length - eol;
+  return { status: !entries ? 'none' : eol ? 'attention' : ending ? 'pending' : 'ok', enabled: true, entries, eol, ending, items };
+}
+
 // ---------- scorecards ----------
 
 export interface Computed {
@@ -424,22 +487,25 @@ export function computeScorecards(serviceIds: string[] | undefined, viewer: Auth
   const oc: ObjCtx = { cache: readingCache(now), facts: sampleFacts(), platforms: platformLookup(), viewer };
   const docs = docCtx(d, viewer);
   const needs = protectionNeeds(d.services.map((s) => s.id));
+  const lc = lifecycleCtx(d);
   return d.services.map((s) => {
     const duties = dutiesPart(d, s.id);
     const availability = availabilityPart(d, s.id, oc);
     const { ids, ...documentation } = documentationPart(d, s.id, docs);
     const protection = protectionPart(needs.get(s.id)!, (d.members.get(s.id) ?? []).length);
+    const lifecycle = lifecyclePart(d, s.id, lc, now);
     return {
       card: {
         serviceId: s.id,
         serviceName: s.name,
         owners: parseJson<string[]>(s.owners, []),
         criticality: (s.criticality as ServiceCriticality | null) ?? null,
-        attention: [duties, availability, documentation, protection].some((p) => p.status === 'attention'),
+        attention: [duties, availability, documentation, protection, lifecycle].some((p) => p.status === 'attention'),
         duties,
         availability,
         documentation,
         protection,
+        lifecycle,
       },
       documentIds: ids,
     };
@@ -491,6 +557,7 @@ export interface SnapshotRow {
   availability: ScorecardPartStatus;
   documentation: ScorecardPartStatus;
   protection: ScorecardPartStatus;
+  lifecycle?: ScorecardPartStatus;
   document_ids: string;
   details: string;
   updated_at: string;
@@ -519,6 +586,7 @@ function pointOf(r: SnapshotRow, readable: boolean): ServiceScorecardHistoryPoin
     availability: r.availability,
     documentation: readable ? r.documentation : ('hidden' as const),
     protection: r.protection,
+    lifecycle: r.lifecycle ?? 'none',
   };
   return { day: r.day, attention: SCORECARD_PARTS.some((p) => parts[p] === 'attention'), parts };
 }

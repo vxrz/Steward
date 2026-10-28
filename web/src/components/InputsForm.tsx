@@ -2,7 +2,7 @@ import { FileButton, Button, Group, JsonInput, NumberInput, PasswordInput, Selec
 import { IconUpload } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { InputDef } from '@sm/shared';
-import { ApplicationSelect } from './catalogue/ApplicationSelect';
+import { ApplicationSelect, ApplicationsMultiSelect } from './catalogue/ApplicationSelect';
 
 export function defaultInputs(defs: InputDef[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -95,6 +95,26 @@ export function InputsForm({ defs, value, onChange }: { defs: InputDef[]; value:
                 by="id"
                 value={typeof v === 'string' && v ? v : null}
                 onChange={(x) => set(d.name, x ?? '')}
+              />
+            );
+          case 'applications':
+            return (
+              <ApplicationsMultiSelect
+                key={d.name}
+                {...common}
+                description={d.description ?? t('inputs.applicationsHint')}
+                by="id"
+                value={
+                  Array.isArray(v)
+                    ? (v as string[])
+                    : typeof v === 'string' && v
+                      ? v
+                          .split(/[\n,;]/)
+                          .map((x) => x.trim())
+                          .filter(Boolean)
+                      : []
+                }
+                onChange={(x) => set(d.name, x)}
               />
             );
           case 'json':

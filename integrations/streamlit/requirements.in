@@ -1,0 +1,11 @@
+# Direct dependencies of the example app. requirements.txt pins these and everything they pull in.
+# After changing this file:
+#   uv pip compile requirements.in --universal --python-version 3.11 -o requirements.txt
+streamlit[auth]==1.66.1
+# Security fixes (Trivy HIGH/CRITICAL): Pillow 13.0.0 (Streamlit 1.66.1 is the first release that allows it),
+# Authlib 1.9.1 and certifi 2026.10.18
+pillow==13.0.0
+certifi==2026.10.18
+requests==2.34.2
+pandas==3.0.6
+Authlib==1.9.1

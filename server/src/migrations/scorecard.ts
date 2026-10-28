@@ -98,4 +98,9 @@ export const SCORECARD_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE objective_breaches ADD COLUMN end_reason TEXT;
     `,
   },
+  {
+    // #104: the scorecard part "Tech stack" (end of life); "none" for the days stored before it existed
+    name: 'scorecard-003-lifecycle',
+    sql: `ALTER TABLE scorecard_snapshots ADD COLUMN lifecycle TEXT NOT NULL DEFAULT 'none';`,
+  },
 ];

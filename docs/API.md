@@ -181,6 +181,8 @@ curl -sf -H "$H" "$STEWARD/api/v1/datasets/iem.devices/rows?status=critical&stat
 curl -sf -H "$H" "$STEWARD/api/v1/datasets/iem.devices/metrics?names=offline&days=90"
 ```
 
+Dashboards in Grafana and a Streamlit app on these dataset endpoints, with the token setup they need: [EXTERNAL-DASHBOARDS.md](EXTERNAL-DASHBOARDS.md).
+
 Evidence for an audit – entries about credential changes, and the chain check:
 
 ```bash

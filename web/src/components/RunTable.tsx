@@ -113,7 +113,7 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
           <StatusBadge status={r.status} />
           {r.dryRun && (
             <Badge ml={4} size="xs" color="yellow" variant="light">
-              {t('table.dry')}
+              {r.recorded ? t('table.test') : t('table.dry')}
             </Badge>
           )}
         </>
@@ -141,7 +141,7 @@ export function RunTable({ runs, compact = false, footer }: { runs: RunSummary[]
             <Group gap={4} wrap="nowrap">
               {r.dryRun && (
                 <Badge size="xs" color="yellow" variant="light">
-                  {t('table.dry')}
+                  {r.recorded ? t('table.test') : t('table.dry')}
                 </Badge>
               )}
               <StatusBadge status={r.status} size="xs" />

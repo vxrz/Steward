@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Alert, Anchor, Badge, Button, Checkbox, Collapse, Group, Paper, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
-import { IconSend } from '@tabler/icons-react';
+import { IconPlayerRecord, IconSend } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import type { Platform } from '@sm/shared';
+import type { Platform, RecordingInput } from '@sm/shared';
+import { RecordingModal } from './RecordingsTab';
 import { post } from '../../api';
 import { Hint, JsonView, KeyValueEditor } from '../common';
 import { errorText } from '../../i18n/errors';
@@ -30,6 +32,7 @@ const toStringMap = (v: Record<string, unknown> | undefined): Record<string, str
 
 export function ExplorerTab({ platform, preset, canWrite = true }: { platform: Platform; preset: ExplorerPreset | null; canWrite?: boolean }) {
   const { t } = useTranslation('platforms');
+  const qc = useQueryClient();
   const [method, setMethod] = useState('GET');
   const [path, setPath] = useState(platform.config.testPath || '/');
   const [query, setQuery] = useState<Record<string, unknown> | undefined>();
@@ -38,6 +41,9 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ExplorerResult | null>(null);
+  /** The request of the shown result, for "Save as recorded response" */
+  const [sent, setSent] = useState<{ method: string; path: string; query: Record<string, string>; body: unknown } | null>(null);
+  const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showHeaders, setShowHeaders] = useState(false);
 
@@ -80,6 +86,7 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
         body: parsedBody,
       });
       setResult(r);
+      setSent({ method, path: p, query: q, body: parsedBody });
       if (writes) setConfirmed(false);
     } catch (e) {
       setResult(null);
@@ -187,7 +194,33 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
             {t('explorer.responseBody')}
           </Text>
           <JsonView value={result.body} maxHeight={500} />
+          {canWrite && sent && (
+            <Group justify="flex-end" mt="sm">
+              <Button size="xs" variant="light" leftSection={<IconPlayerRecord size={14} />} onClick={() => setRecording(true)}>
+                {t('recordings.saveFromExplorer')}
+              </Button>
+            </Group>
+          )}
         </Paper>
+      )}
+      {recording && result && sent && (
+        <RecordingModal
+          platform={platform}
+          recording={null}
+          initial={{
+            method: sent.method as RecordingInput['method'],
+            path: sent.path,
+            query: sent.query,
+            status: result.status,
+            headers: Object.fromEntries(Object.entries(result.headers).filter(([k]) => /^(content-type|link|x-total-count|etag)$/i.test(k))),
+            body: result.body,
+          }}
+          onClose={() => setRecording(false)}
+          onSaved={() => {
+            setRecording(false);
+            void qc.invalidateQueries({ queryKey: ['platform-recordings', platform.id] });
+          }}
+        />
       )}
     </Stack>
   );

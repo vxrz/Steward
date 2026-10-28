@@ -1,0 +1,20 @@
+name: End of life
+description: Components of your applications by the end of life of their release cycle – past, ending within the warning period, supported. Fed by "End of life – tech stack overview" (weekly); the dates come from endoflife.date.
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **End of life** of the tech stack of application components – the dates come from endoflife.date (Applications → End of life),
+      the overview from the process *End of life – tech stack overview*. Opening this page never calls endoflife.date.
+  - { id: eol, type: kpi, title: Past end of life, dataset: eol-overview, metric: eol, goodWhen: down, width: 3 }
+  - { id: ending, type: kpi, title: Ending soon, dataset: eol-overview, metric: ending, goodWhen: down, width: 3 }
+  - { id: entries, type: kpi, title: Stack entries, dataset: eol-overview, metric: entries, width: 3 }
+  - { id: noData, type: kpi, title: Without data, dataset: eol-overview, metric: noData, goodWhen: down, width: 3 }
+  - { id: status, type: status, title: By state, dataset: eol-overview, width: 4 }
+  - { id: trend, type: trend, title: Past and ending, dataset: eol-overview, metrics: [eol, ending], days: 180, width: 8 }
+  - { id: problems, type: table, title: Past or ending, dataset: eol-overview, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: Whole tech stack, dataset: eol-overview, width: 12 }
+  - { id: checks, type: checks, title: Latest overview, process: end-of-life-tech-stack-overview, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

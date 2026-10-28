@@ -27,7 +27,6 @@ import { useTranslation } from 'react-i18next';
 import {
   CIA_DIMENSIONS,
   SCORECARD_LIMITS,
-  SCORECARD_PARTS,
   type CiaDimension,
   type RecordType,
   type ScorecardOverview,
@@ -39,7 +38,7 @@ import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useFieldErrors } from '../components/common';
 import { confirmDanger } from '../components/confirm';
 import { useCiaScale, useLevel } from '../components/catalogue/cia';
-import { AttentionBadge, PartBadge } from '../components/scorecard/common';
+import { AttentionBadge, PartBadge, shownParts } from '../components/scorecard/common';
 import { fmtNumber } from '../format';
 
 /**
@@ -69,6 +68,7 @@ export function ScorecardPage() {
     (c) => (!attentionOnly || c.attention) && (!owner || (owner === 'none' ? !c.owners.length : c.owners.includes(owner))),
   );
   const group = owner ? ownerOf(owner) : o?.rollup.overall;
+  const parts = shownParts(o?.services ?? []);
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
   return (
     <>
@@ -77,10 +77,10 @@ export function ScorecardPage() {
       {o && (
         <Stack gap="lg">
           {group && (
-            <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }} spacing="sm" data-testid="scorecard-rollup">
+            <SimpleGrid cols={{ base: 2, sm: 3, lg: parts.length + 2 }} spacing="sm" data-testid="scorecard-rollup">
               <Stat label={t('rollup.services')} value={group.services} />
               <Stat label={t('rollup.attention')} value={group.attention} tone={group.attention ? TONE.bad : TONE.ok} />
-              {SCORECARD_PARTS.map((p) => (
+              {parts.map((p) => (
                 <Stat
                   key={p}
                   label={t(`parts.${p}`)}
@@ -126,7 +126,7 @@ export function ScorecardPage() {
                     <AttentionBadge attention={c.attention} size="xs" />
                   </Group>
                   <SimpleGrid cols={2} spacing={6} verticalSpacing={4}>
-                    {SCORECARD_PARTS.map((p) => (
+                    {parts.map((p) => (
                       <Stack key={p} gap={2} align="flex-start">
                         <Text size="xs" c="dimmed">
                           {t(`parts.${p}`)}
@@ -145,7 +145,7 @@ export function ScorecardPage() {
                   <Table.Tr>
                     <Table.Th>{t('service')}</Table.Th>
                     <Table.Th>{t('overall')}</Table.Th>
-                    {SCORECARD_PARTS.map((p) => (
+                    {parts.map((p) => (
                       <Table.Th key={p}>{t(`parts.${p}`)}</Table.Th>
                     ))}
                     <Table.Th>{t('owners')}</Table.Th>
@@ -162,7 +162,7 @@ export function ScorecardPage() {
                       <Table.Td>
                         <AttentionBadge attention={c.attention} size="xs" />
                       </Table.Td>
-                      {SCORECARD_PARTS.map((p) => (
+                      {parts.map((p) => (
                         <Table.Td key={p}>
                           <PartBadge status={c[p].status} size="xs" />
                         </Table.Td>
@@ -250,6 +250,7 @@ function Trend({ points }: { points: ScorecardTrendPoint[] }) {
 
 function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick: (key: string) => void }) {
   const { t } = useTranslation('scorecard');
+  const parts = shownParts(overview.services);
   if (!overview.rollup.owners.length) return null;
   return (
     <Stack gap={4}>
@@ -263,7 +264,7 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
               <Table.Th>{t('rollup.owner')}</Table.Th>
               <Table.Th>{t('rollup.services')}</Table.Th>
               <Table.Th>{t('rollup.attention')}</Table.Th>
-              {SCORECARD_PARTS.map((p) => (
+              {parts.map((p) => (
                 <Table.Th key={p}>{t(`parts.${p}`)}</Table.Th>
               ))}
             </Table.Tr>
@@ -278,7 +279,7 @@ function OwnersTable({ overview, onPick }: { overview: ScorecardOverview; onPick
                 </Table.Td>
                 <Table.Td>{fmtNumber(g.services)}</Table.Td>
                 <Table.Td>{fmtNumber(g.attention)}</Table.Td>
-                {SCORECARD_PARTS.map((p) => (
+                {parts.map((p) => (
                   <Table.Td key={p}>{fmtNumber(g.parts[p].attention)}</Table.Td>
                 ))}
               </Table.Tr>

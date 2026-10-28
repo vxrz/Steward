@@ -1,0 +1,83 @@
+name: "End of life – tech stack overview"
+description: |
+  Which components of your applications run on a release cycle that reached
+  its end of life, or reaches it soon – one row per application, component
+  and product of the tech stack. Read-only.
+
+  The end-of-life dates come from endoflife.date: Steward reads them once a
+  day for every product in a tech stack (Applications → End of life, a platform
+  of kind endoflife.date). This process only reads the applications, so it
+  needs no connection.
+
+  Recommended schedule: weekly, e.g. Monday 07:00 (`0 7 * * 1`), with
+  "Failed checks notify: on change" – the check below then reports a new
+  end of life once and reminds while it lasts. Publishes `eol-overview`
+  (metrics entries, eol, ending, noData) for the "End of life" dashboard.
+  Application owners also get their own message from Steward when a
+  release cycle ends (Applications → End of life → Messages).
+tags: [catalogue, lifecycle, end-of-life]
+connections: []
+inputs:
+  - name: apps
+    label: Applications (empty = all)
+    type: applications
+steps:
+  - id: rows
+    type: set
+    name: One row per application, component and product
+    values:
+      rows: |-
+        {{ [inputs.apps.(
+          $app := name;
+          components.(
+            $comp := name;
+            stack.{
+              "key": $app & " / " & $comp & " / " & product,
+              "application": $app,
+              "component": $comp,
+              "product": label,
+              "version": version,
+              "cycle": lifecycle.cycle,
+              "endOfLife": lifecycle.eolFrom,
+              "daysLeft": lifecycle.daysLeft,
+              "latest": lifecycle.latest,
+              "state": $exists(lifecycle.state) ? lifecycle.state : "noData"
+            }
+          )
+        )] }}
+  - id: noEol
+    type: check
+    name: No component past its end of life
+    severity: warning
+    condition: "$count(vars.rows[state = 'eol']) = 0"
+    message: "{{ $count(vars.rows[state = 'eol']) = 0 ? 'No component past its end of life' : $join(vars.rows[state = 'eol'].(application & ': ' & product & ' ' & cycle & ' (' & component & ')'), ', ') }}"
+  - id: noEnding
+    type: check
+    name: No end of life within the warning period
+    severity: info
+    notify: false # informational: the owners get their own message
+    condition: "$count(vars.rows[state = 'ending']) = 0"
+    message: "{{ $count(vars.rows[state = 'ending']) = 0 ? 'Nothing ends soon' : $join(vars.rows[state = 'ending'].(application & ': ' & product & ' ' & cycle & ' on ' & endOfLife), ', ') }}"
+  - id: publish
+    type: publish
+    name: Publish the end-of-life overview
+    dataset: eol-overview
+    title: End of life of the tech stack
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Application, value: application }
+      - { label: Component, value: component }
+      - { label: Product, value: product }
+      - { label: Version, value: version }
+      - { label: Cycle, value: "cycle ? cycle : '–'" }
+      - { label: End of life, value: "endOfLife ? endOfLife : '–'" }
+      - { label: Latest in cycle, value: "latest ? latest : '–'" }
+    status: "state = 'eol' ? 'critical' : (state = 'ending' ? 'warning' : (state = 'supported' ? 'good' : 'unknown'))"
+    statusText: "state = 'eol' ? 'end of life since ' & endOfLife : (state = 'ending' ? 'end of life in ' & daysLeft & ' days' : (state = 'supported' ? (endOfLife ? 'supported until ' & endOfLife : 'supported') : (state = 'unknown' ? 'version not matched' : 'no end-of-life data')))"
+    metrics:
+      entries: "$count(vars.rows)"
+      eol: "$count(vars.rows[state = 'eol'])"
+      ending: "$count(vars.rows[state = 'ending'])"
+      noData: "$count(vars.rows[state = 'noData' or state = 'unknown'])"
+    staleAfterMinutes: 10080

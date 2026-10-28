@@ -40,6 +40,7 @@ export interface RunRow {
   definition_hash: string;
   status: RunStatus;
   dry_run: number;
+  recorded?: number;
   trigger: RunSummary['trigger'];
   schedule_id: string | null;
   actor: string;
@@ -134,6 +135,7 @@ function toSummary(r: RunRow & { open_tasks?: number }): RunSummary {
     processVersion: r.process_version,
     status: r.status,
     dryRun: !!r.dry_run,
+    recorded: !!r.recorded,
     trigger: r.trigger,
     scheduleId: r.schedule_id,
     ...(r.trigger_id ? { triggerId: r.trigger_id, triggerName: r.trigger_name ?? null } : {}),

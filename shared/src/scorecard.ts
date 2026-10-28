@@ -144,7 +144,8 @@ export interface ObjectiveDetail extends ObjectiveSummary {
 
 // ---------- scorecard ----------
 
-export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection'] as const;
+/** lifecycle: the tech stack's end of life (#104) – counted only when turned on (LifecycleSettings.scorecard), else "none". */
+export const SCORECARD_PARTS = ['duties', 'availability', 'documentation', 'protection', 'lifecycle'] as const;
 export type ScorecardPart = (typeof SCORECARD_PARTS)[number];
 
 /**
@@ -274,6 +275,31 @@ export interface ScorecardProtection {
   dimensions: ScorecardProtectionDimension[];
 }
 
+export interface ScorecardLifecycleItem {
+  applicationId: string;
+  applicationName: string;
+  componentName: string;
+  product: string;
+  label: string;
+  version: string;
+  cycle: string | null;
+  eolFrom: string | null;
+  state: 'ending' | 'eol';
+}
+
+export interface ScorecardLifecycle {
+  /** attention: a component past its end of life; pending: one within the warning period; none: turned off or no tech stack */
+  status: ScorecardPartStatus;
+  /** The part is counted (turned on in the end-of-life settings) */
+  enabled: boolean;
+  /** Stack entries of the service's applications (not archived) */
+  entries: number;
+  eol: number;
+  ending: number;
+  /** Past or ending, most urgent first */
+  items: ScorecardLifecycleItem[];
+}
+
 export interface ServiceScorecard {
   serviceId: string;
   serviceName: string;
@@ -285,6 +311,7 @@ export interface ServiceScorecard {
   availability: ScorecardAvailability;
   documentation: ScorecardDocumentation;
   protection: ScorecardProtection;
+  lifecycle: ScorecardLifecycle;
 }
 
 export type ScorecardPartCounts = Record<ScorecardPartStatus, number>;

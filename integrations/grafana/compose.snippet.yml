@@ -1,0 +1,58 @@
+# Grafana with Steward's dashboards, next to Steward behind the same reverse proxy (here Caddy on the
+# Docker network "caddy-bridge", as in docs/INSTALL.md "Steward in Docker"). Paths are relative to the
+# compose file in the Steward checkout; adjust them if you copy integrations/grafana elsewhere.
+#
+# Steward:  SM_ALLOWED_HOSTS=apps.corp.example,steward   ("steward" because Grafana calls http://steward:4310)
+#
+# Caddy (prefix kept – "handle", not "handle_path"):
+#   redir /grafana /grafana/
+#   handle /grafana/* {
+#     reverse_proxy grafana:3000
+#   }
+#
+# .env next to the compose file (chmod 600, never in Git):
+#   STEWARD_TOKEN=<read-only token of the technical user, starts with smt_>
+# grafana-admin-password.txt: the initial admin password, readable by the Grafana user (uid 472):
+#   sudo install -m 400 -o 472 -g 0 /dev/null grafana-admin-password.txt && sudoedit grafana-admin-password.txt
+services:
+  grafana:
+    image: grafana/grafana:13.2.3
+    restart: unless-stopped
+    # no "ports:" – only the proxy on caddy-bridge reaches Grafana
+    networks: [caddy-bridge]
+    environment:
+      GF_SERVER_ROOT_URL: https://apps.corp.example/grafana/
+      GF_SERVER_SERVE_FROM_SUB_PATH: 'true'
+      # The Infinity data source, installed before provisioning runs; the version is pinned
+      GF_PLUGINS_PREINSTALL_SYNC: yesoreyeram-infinity-datasource@4.1.1
+      GF_PLUGINS_PREINSTALL_AUTO_UPDATE: 'false'
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_SECURITY_COOKIE_SECURE: 'true'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+      # Read by provisioning/datasources/steward.yaml
+      STEWARD_API_URL: http://steward:4310/steward/api/v1
+      STEWARD_TOKEN: ${STEWARD_TOKEN:?set STEWARD_TOKEN in .env}
+    secrets: [grafana_admin_password]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./integrations/grafana/provisioning/datasources/steward.yaml:/etc/grafana/provisioning/datasources/steward.yaml:ro
+      - ./integrations/grafana/provisioning/dashboards/steward.yaml:/etc/grafana/provisioning/dashboards/steward.yaml:ro
+      - ./integrations/grafana/dashboards:/etc/grafana/dashboards/steward:ro
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+
+volumes:
+  grafana-data:
+
+secrets:
+  grafana_admin_password:
+    file: ./grafana-admin-password.txt
+
+networks:
+  caddy-bridge:
+    external: true
