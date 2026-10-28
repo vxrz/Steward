@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-28
+
+Notifications get an own logo and more styling, and messages from dry runs – failed runs, failed checks and their tasks – are clearly marked as tests (or kept in the app only). Platforms can fetch a new access token on demand, API specifications can be copied to other platforms of the same kind, and importing a monitor (or accepting it from Git) lets you choose the platform when its name fits several. Git sync no longer creates a copy of an item that was created after the fetch. No database migrations.
+
 ### Added
 
 - **Copy API specifications to other platforms of the same kind** – _Platforms → (platform) → API specs → Copy to other platforms_ (`POST /api/platforms/{id}/specs/{specId}/copy`). Each target gets an independent copy (platforms of one kind can run different API versions), with the path prefix unless the target's base URL already ends with it. A spec with the same title and version is skipped, or replaced under its id with _Replace_. Needs `manage` on the source and all targets; audited with `copiedFrom`.
@@ -389,7 +393,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/vxrz/steward/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/vxrz/steward/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/vxrz/steward/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/vxrz/steward/compare/v0.1.1...v0.1.2
