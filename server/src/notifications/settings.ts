@@ -30,6 +30,7 @@ export function defaultRoutes(): Record<NotificationEvent, NotificationChannel[]
     'task.assigned',
     'run.failed',
     'check.failed',
+    'check.resolved',
     'credential.due',
     'report.ready',
     'ticket.unchecked',

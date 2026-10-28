@@ -236,6 +236,8 @@ export interface CheckConfig {
   severity?: 'error' | 'warning' | 'info';
   message?: string;
   failRun?: boolean;
+  /** false: an informational check – shown in the run, never notified */
+  notify?: boolean;
 }
 export interface LogConfig {
   type: 'log';
@@ -434,6 +436,7 @@ const shapes = {
     severity: z.enum(['error', 'warning', 'info']).optional(),
     message: z.string().optional(),
     failRun: z.boolean().optional(),
+    notify: z.boolean().optional(),
   },
   log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },
   report: {

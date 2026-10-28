@@ -86,7 +86,7 @@ import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND, MANUAL_LIMITS, boundedRecord } from '@sm/shared';
+import { BRAND, MANUAL_LIMITS, SCHEDULE_NOTIFY_MODES, SCHEDULE_REMINDER_MAX_HOURS, boundedRecord } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -1266,6 +1266,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),
+    notify: z
+      .object({
+        mode: z.enum(SCHEDULE_NOTIFY_MODES),
+        reminderHours: z.number().int().min(0).max(SCHEDULE_REMINDER_MAX_HOURS),
+        resolved: z.boolean(),
+      })
+      .strict()
+      .optional(),
   });
   app.get('/schedules', async () => scheduler.listSchedules());
   app.post('/schedules', async (req) => {

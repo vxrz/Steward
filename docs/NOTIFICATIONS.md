@@ -13,6 +13,7 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Decision                        | People who may decide a task that waits                                                                                                        |
 | Run failed                      | Who started the run, the owner of the schedule                                                                                                 |
 | Check failed                    | Who started the run, the schedule owner, the process owner                                                                                     |
+| Check passes again              | The same, when a schedule asks for it (below)                                                                                                  |
 | Stale data                      | The process owner and administrators                                                                                                           |
 | Schedule skipped                | The schedule owner and administrators                                                                                                          |
 | Monitor status                  | Owners and subscribers of the monitor (root causes only)                                                                                       |
@@ -26,6 +27,27 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester                                                 |
 | Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md)) |
 | Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                              |
+
+## Failed checks of scheduled runs
+
+A scheduled process that runs every 10 minutes and finds the same failing endpoint would otherwise notify after every run. Each schedule decides (_Schedules → Edit → Failed checks notify_):
+
+| Setting                 | What notifies                                                                                                                                                                                                                                                                                      |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **On change** (default) | A check that starts failing; the same check with another result (its message or severity changed, e.g. other endpoints down); and – while it keeps failing with the same result – a reminder after _Reminder while still failing_ hours (default 4, `0` = none), with the time it started failing. |
+| **After every run**     | Every run in which a check fails, as before 0.2.3 (in the app every time; e-mail, Teams and webhook at most once an hour per process and check).                                                                                                                                                   |
+| **Never**               | Nothing for failed checks; they are shown in the runs. Failed runs still notify.                                                                                                                                                                                                                   |
+
+_Send a message when a check passes again_ adds **Check passes again** (with the time it had been failing since) for the first passing run. In the app, by e-mail, Teams and webhook alike; the webhook body carries `phase` (`new`, `changed`, `reminder`, `every`) and `since`. Existing schedules get _on change_ with a 4-hour reminder.
+
+- The state is kept per schedule and check (dry runs separately). Changing the setting starts over: a check that still fails notifies again at the next run.
+- A check compares its **message**, so keep values that change in every run (uptime percentages, timestamps) out of it, or put them in the run report instead.
+- Runs without a schedule – started by hand, by a webhook trigger, a monitor or a parent process – notify on every failed check, as before.
+- A check step with `notify: false` (_Notify when the check fails: No_ in the editor) never notifies: an informational check, shown in the run. The examples use it for _Gatus publishes endpoint metrics_, _The usage service answered_ and _No single-member groups_.
+
+### A monitor or a process check?
+
+Use a **monitor** ([MONITORS.md](MONITORS.md)) for the state of something that should be up: it sends status changes, waits for several failures before _down_, knows dependencies and root causes, can be acknowledged and has maintenance windows. Use a **check in a scheduled process** for findings of a job – an access review, a data freshness sweep, an uptime overview with a report – where the run, its report and its dataset are the point, and the notification only says that something needs a look.
 
 ## E-mail addresses outside Steward
 

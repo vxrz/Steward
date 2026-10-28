@@ -1,6 +1,6 @@
 import { Cron } from 'croner';
 import { openInputs, sealInputs } from './engine/secret-inputs.js';
-import type { RunStatus, Schedule } from '@sm/shared';
+import { DEFAULT_SCHEDULE_NOTIFY, type RunStatus, type Schedule, type ScheduleNotify, type ScheduleNotifyMode } from '@sm/shared';
 import { db } from './db.js';
 import { audit } from './audit.js';
 import { startRun } from './engine/runner.js';
@@ -32,7 +32,16 @@ interface ScheduleRow {
   process_name?: string;
   last_status?: RunStatus | null;
   owner: string | null;
+  notify_mode?: ScheduleNotifyMode;
+  notify_reminder_hours?: number;
+  notify_resolved?: number;
 }
+
+const notifyOf = (r: ScheduleRow): ScheduleNotify => ({
+  mode: r.notify_mode ?? DEFAULT_SCHEDULE_NOTIFY.mode,
+  reminderHours: Number(r.notify_reminder_hours ?? DEFAULT_SCHEDULE_NOTIFY.reminderHours),
+  resolved: !!(r.notify_resolved ?? 0),
+});
 
 const jobs = new Map<string, Cron>();
 
@@ -57,6 +66,7 @@ function toSchedule(r: ScheduleRow): Schedule {
     createdAt: r.created_at,
     owner: r.owner,
     canEdit: canEditSchedule(r),
+    notify: notifyOf(r),
   };
 }
 
@@ -111,6 +121,8 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
   const previous = id ? db().get<{ sealed_inputs: string | null }>('SELECT sealed_inputs FROM schedules WHERE id = ?', id)?.sealed_inputs : null;
   const { visible, sealed } = sealInputs(proc.definition.inputs, input.inputs ?? {}, previous);
   input = { ...input, inputs: visible };
+  const before = id ? db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id) : undefined;
+  const notify = input.notify ?? (before ? notifyOf(before) : DEFAULT_SCHEDULE_NOTIFY);
   db().tx(() => {
     if (id) {
       const r = db().run(
@@ -128,6 +140,8 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       );
       if (!r.changes) throw new HttpError(404, 'Schedule not found');
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, id);
+      // a schedule that stops notifying, or notifies after every run, starts over with its failing checks
+      if (before && before.notify_mode !== notify.mode) db().run('DELETE FROM check_alerts WHERE schedule_id = ?', id);
     } else {
       db().run(
         `INSERT INTO schedules (id, name, process_id, cron, timezone, inputs, bindings, dry_run, enabled, allow_overlap, created_at, owner)
@@ -147,12 +161,19 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       );
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, sid);
     }
+    db().run(
+      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ? WHERE id = ?',
+      notify.mode,
+      notify.reminderHours,
+      notify.resolved ? 1 : 0,
+      sid,
+    );
     audit({
       action: id ? 'schedule.updated' : 'schedule.created',
       entityType: 'schedule',
       entityId: sid,
       summary: `Schedule "${input.name}" ${id ? 'updated' : 'created'} (${input.cron}${input.enabled ? '' : ', disabled'}${input.dryRun ? ', dry run' : ''})`,
-      details: { processId: input.processId, cron: input.cron, timezone: input.timezone, inputs: input.inputs, bindings: input.bindings },
+      details: { processId: input.processId, cron: input.cron, timezone: input.timezone, inputs: input.inputs, bindings: input.bindings, notify },
     });
   });
   arm(sid);

@@ -60,7 +60,25 @@ export interface DomainEvents {
     comment: string;
     dryRun: boolean;
   };
-  'check.failed': { runId: string; processId: string; processName: string; check: string; severity: string; message: string; dryRun: boolean };
+  'check.failed': {
+    runId: string;
+    processId: string;
+    processName: string;
+    check: string;
+    severity: string;
+    message: string;
+    dryRun: boolean;
+    /**
+     * Scheduled runs (#127): new – started failing; changed – another result; reminder – still failing; every – the
+     * schedule notifies after every run. Missing: a run without a schedule (as before).
+     */
+    phase?: 'new' | 'changed' | 'reminder' | 'every';
+    scheduleId?: string;
+    /** When the check started failing (scheduled runs) */
+    since?: string;
+  };
+  /** A check of a scheduled run passes again (the schedule asked for this message) */
+  'check.resolved': { runId: string; processId: string; processName: string; check: string; dryRun: boolean; scheduleId: string; since: string };
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };
   'dataset.published': { key: string; title: string; processId: string; staleAfterMinutes?: number };
   /** A record moved to another status (records workflow) or went back to draft (action "revise") */

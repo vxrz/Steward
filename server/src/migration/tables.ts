@@ -23,6 +23,7 @@ export const NOT_MOVED: Record<string, string> = {
   notifications: 'in-app notifications are not moved',
   notification_sends: 'send bookkeeping of the source',
   notification_stale: 'send bookkeeping of the source',
+  check_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   daily_summary_sends: 'send bookkeeping of the source',
   duty_notifications: 'send bookkeeping of the source (a reminder of the current period may be sent again on the target)',
   engine_probe: 'internal',

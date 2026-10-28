@@ -172,6 +172,7 @@ steps:
   - id: usageService
     type: check
     name: The usage service answered
+    notify: false # informational: shown in the run, never notified
     severity: info
     condition: vars.usageAvailable
     message: "{{ vars.usageAvailable ? 'Usage Transparency figures read' : 'No aggregated usage – check the input utsPath and the rights of the technical user' }}"

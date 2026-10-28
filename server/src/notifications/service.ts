@@ -327,17 +327,49 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
   const all = activeUsers();
   const { actor, scheduleOwner } = runPeople(e.runId, all);
   const owner = userNamed(processAccess(e.processId).owner, all);
+  // scheduled runs decided themselves whether this result is news (#127): each message goes out; others keep the hourly limit
+  const decided = e.phase === 'new' || e.phase === 'changed' || e.phase === 'reminder';
+  const title = e.phase === 'changed' ? 'checkFailed.titleChanged' : e.phase === 'reminder' ? 'checkFailed.titleReminder' : 'checkFailed.title';
   notify({
     event: 'check.failed',
     text: (l) => ({
-      title: t(l, e.dryRun ? 'checkFailed.titleDryRun' : 'checkFailed.title', { check: e.check, process: e.processName }),
-      body: t(l, 'checkFailed.body', { severity: severityLabel(l, e.severity), message: e.message.slice(0, 500) }),
+      title: t(l, e.dryRun ? `${title}DryRun` : title, { check: e.check, process: e.processName }),
+      body:
+        t(l, 'checkFailed.body', { severity: severityLabel(l, e.severity), message: e.message.slice(0, 500) }) +
+        (e.phase === 'reminder' && e.since ? `\n${t(l, 'checkFailed.since', { since: formatDateTime(l, e.since) })}` : ''),
     }),
     link: `/runs/${e.runId}`,
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check:${e.runId}:${e.check}`,
-    externalKey: `check:${e.processId}:${e.check}`,
-    data: { runId: e.runId, processId: e.processId, processName: e.processName, check: e.check, severity: e.severity, message: e.message, dryRun: e.dryRun },
+    externalKey: decided ? `check:${e.scheduleId}:${e.check}:${e.runId}` : `check:${e.processId}:${e.check}`,
+    data: {
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      check: e.check,
+      severity: e.severity,
+      message: e.message,
+      dryRun: e.dryRun,
+      ...(e.phase ? { phase: e.phase, scheduleId: e.scheduleId, since: e.since } : {}),
+    },
+  });
+}
+
+export function onCheckResolved(e: DomainEvents['check.resolved']): void {
+  const all = activeUsers();
+  const { actor, scheduleOwner } = runPeople(e.runId, all);
+  const owner = userNamed(processAccess(e.processId).owner, all);
+  notify({
+    event: 'check.resolved',
+    text: (l) => ({
+      title: t(l, e.dryRun ? 'checkResolved.titleDryRun' : 'checkResolved.title', { check: e.check, process: e.processName }),
+      body: t(l, 'checkResolved.body', { since: formatDateTime(l, e.since) }),
+    }),
+    link: `/runs/${e.runId}`,
+    recipients: uniqueUsers([actor, scheduleOwner, owner]),
+    inAppKey: `check-resolved:${e.runId}:${e.check}`,
+    externalKey: `check-resolved:${e.scheduleId}:${e.check}:${e.runId}`,
+    data: { runId: e.runId, processId: e.processId, processName: e.processName, check: e.check, dryRun: e.dryRun, scheduleId: e.scheduleId, since: e.since },
   });
 }
 
@@ -428,6 +460,7 @@ export function initNotifications(): void {
   on('task.returned', deferred('task.returned', onTaskReturned));
   on('run.finished', deferred('run.finished', onRunFinished));
   on('check.failed', deferred('check.failed', onCheckFailed));
+  on('check.resolved', deferred('check.resolved', onCheckResolved));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));
   on('dataset.published', (e) => {
     db().run('DELETE FROM notification_stale WHERE dataset_key = ?', e.key);

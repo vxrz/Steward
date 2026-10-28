@@ -140,6 +140,10 @@
         },
         "failRun": {
           "label": "Fail the run when the check fails"
+        },
+        "notify": {
+          "label": "Notify when the check fails",
+          "help": "Default: yes. No: an informational check – shown in the run, never notified"
         }
       }
     },

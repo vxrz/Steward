@@ -140,6 +140,10 @@
         },
         "failRun": {
           "label": "Ausführung abbrechen, wenn die Prüfung fehlschlägt"
+        },
+        "notify": {
+          "label": "Melden, wenn die Prüfung fehlschlägt",
+          "help": "Standard: ja. Nein: eine informative Prüfung – im Lauf sichtbar, nie gemeldet"
         }
       }
     },

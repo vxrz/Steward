@@ -38,7 +38,23 @@
     "rightsYou": "Scheduled runs execute with the rights of you (the owner); they are skipped and logged if the owner loses access to the process or a platform.",
     "dryRun": "Dry run (simulate changes)",
     "overlap": "Allow overlapping runs",
-    "overlapHint": "Off: a new run is skipped while the previous one is still running or waiting for a decision."
+    "overlapHint": "Off: a new run is skipped while the previous one is still running or waiting for a decision.",
+    "notify": {
+      "label": "Failed checks notify",
+      "mode": {
+        "change": "On change (recommended)",
+        "every": "After every run",
+        "off": "Never"
+      },
+      "hint": {
+        "change": "When a check starts failing or its result changes, and as a reminder while it keeps failing.",
+        "every": "Every run in which a check fails (at most once an hour by e-mail, Teams and webhook).",
+        "off": "Failed checks are only shown in the runs. Failed runs still notify."
+      },
+      "reminder": "Reminder while still failing",
+      "reminderHint": "Hours; 0 = no reminder",
+      "resolved": "Send a message when a check passes again"
+    }
   },
   "emptyState": {
     "title": "No schedules yet",
