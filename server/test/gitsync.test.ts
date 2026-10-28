@@ -421,6 +421,13 @@ describe('fetching and staging', () => {
     expect(u).toMatchObject({ action: 'create' });
     // the same process is created in Steward afterwards (e.g. from the built-in template)
     await s.api('POST', '/processes', { text: proc('Created later') });
+    // shown as a change of the existing process, which never came from Git
+    expect(await s.api('GET', `/sync-updates/${u.id}`)).toMatchObject({
+      action: 'update',
+      entityId: 'created-later',
+      conflict: true,
+      conflictReason: 'notFromGit',
+    });
     // accepting must not create "created-later-2": it is a change of the existing process, which never came from Git
     expect(await errorOf(s.api('POST', `/sync-updates/${u.id}/accept`, {}))).toContain('accept anyway');
     await s.api('POST', `/sync-updates/${u.id}/accept`, { force: true });

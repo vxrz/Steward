@@ -124,9 +124,23 @@ function updateRow(id: string, checkVisible = true): UpdateRow {
 export function getUpdate(id: string): SyncUpdateDetail {
   requireReviewer();
   const r = updateRow(id);
-  const u = toUpdate(r);
+  // a "new" item that was created in Steward after the fetch (e.g. from the same template): accepting changes that
+  // item (see acceptUpdate), so it is shown as a change of it – a conflict, since it never came from Git
+  const found = r.status === 'pending' && r.action === 'create' && !r.entity_id && r.kind && r.identity ? findLocal(r.kind, r.identity) : null;
+  const appeared = found && r.kind && canView(r.kind, found.id) ? found : null;
+  const u: SyncUpdate = appeared
+    ? {
+        ...toUpdate(r),
+        action: 'update',
+        entityId: appeared.id,
+        entityName: appeared.name,
+        conflict: true,
+        conflictReason: 'notFromGit',
+        canDecide: canDecide(r.kind!, appeared.id),
+      }
+    : toUpdate(r);
   const content = r.content ? JSON.parse(r.content) : null;
-  const local = r.kind && r.entity_id ? localText(r.kind, r.entity_id) : null;
+  const local = r.kind && u.entityId ? localText(r.kind, u.entityId) : null;
   return {
     ...u,
     incomingText: r.kind && content !== null ? incomingText(r.kind, content) : '',
