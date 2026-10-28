@@ -102,3 +102,51 @@ test('viewers see monitors but cannot create or edit them', async ({ loginAs }) 
   await expect(page.getByTestId('monitor-graph')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0);
 });
+
+test('importing a monitor asks which platform a name stands for when it is not unique', async ({ page, apiAs }) => {
+  const admin = await apiAs('admin');
+  // a second Insights Hub platform next to the demo one: "Insights Hub" no longer names one platform
+  const second = await json(
+    await admin.post('/api/platforms', {
+      data: {
+        name: uniq('Insights Hub (second)'),
+        kind: 'insights-hub',
+        baseUrl: 'https://gateway.eu1.mindsphere.io',
+        config: { variables: {}, auth: { type: 'none' } },
+      },
+    }),
+  );
+  const key = `e2e-pick-${Date.now().toString(36)}`;
+  const yaml = [
+    'kind: monitor',
+    `key: ${key}`,
+    'name: E2E platform choice',
+    'checks:',
+    '  - id: ih',
+    '    name: Machine data in Insights Hub',
+    '    type: freshness',
+    '    source: insightsHub',
+    '    platform: Insights Hub',
+    '    assetId: 1ae6b74eebc51efc3d04f73c3ca5e5d3',
+    '    aspect: MachineData',
+    '    variables: [spindleSpeed]',
+    '    mode: maxAge',
+    '    maxAgeSeconds: 900',
+  ].join('\n');
+  await page.goto('/monitors');
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Import a monitor' });
+  await dialog.getByLabel('Or paste YAML').fill(yaml);
+  const pick = dialog.getByRole('textbox', { name: 'Platform for “Insights Hub”' });
+  await expect(pick).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Import YAML' })).toBeDisabled();
+  await pick.click();
+  await page.getByRole('option', { name: second.name }).click();
+  await dialog.getByRole('button', { name: 'Import YAML' }).click();
+  await expect(page.getByText('Import failed')).toHaveCount(0);
+  await expect(dialog).toBeHidden();
+  const m = await json(await admin.get(`/api/monitors/${key}`));
+  expect(m.definition.checks[0].platform).toBe(second.id);
+  await admin.delete(`/api/monitors/${m.id}`);
+  await admin.delete(`/api/platforms/${second.id}`);
+});

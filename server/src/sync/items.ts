@@ -20,7 +20,6 @@ import * as dashboards from '../dashboards/service.js';
 import * as monitors from '../monitors/service.js';
 import { validateMonitorFile } from '../monitors/validation.js';
 import { canCreateMonitors, monitorRow, permissionsOfRow } from '../monitors/model.js';
-import { resolvePlatformRef } from '../monitors/platforms.js';
 import * as recordTypes from '../records/types.js';
 import { canManageRecordTypes } from '../records/access.js';
 
@@ -99,17 +98,6 @@ export function classify(raw: unknown): SyncKind | 'bundle' | null {
   return null;
 }
 
-/** Platform references of a monitor file (checks and outputs) – names or ids, never credentials. */
-function monitorPlatformRefs(raw: Record<string, unknown>): string[] {
-  const refs: string[] = [];
-  for (const list of [raw.checks, raw.outputs]) {
-    if (!Array.isArray(list)) continue;
-    for (const c of list)
-      if (c && typeof c === 'object' && typeof (c as { platform?: unknown }).platform === 'string') refs.push((c as { platform: string }).platform);
-  }
-  return refs;
-}
-
 /** Validates one file with the existing validators. Never throws. */
 export async function parseFile(file: string, text: string, kinds: SyncKind[]): Promise<ParseResult> {
   const hash = sha256(text);
@@ -156,15 +144,8 @@ export async function parseFile(file: string, text: string, kinds: SyncKind[]): 
       const key = typeof o.key === 'string' && o.key.trim() ? o.key.trim().toLowerCase() : baseId(file);
       const r = await validateMonitorFile(raw);
       if (!r.ok) return fail(kind, r.issues, key);
-      const errors: string[] = [];
-      for (const ref of monitorPlatformRefs(o)) {
-        try {
-          resolvePlatformRef(ref);
-        } catch (e) {
-          errors.push((e as Error).message);
-        }
-      }
-      if (errors.length) return fail(kind, errors, key);
+      // platform names are not resolved here: a name that is not unique (several Insights Hub platforms) or not
+      // there yet is chosen by the reviewer when accepting (see acceptUpdate)
       const content = { ...o, key };
       return { ok: true, item: { kind, identity: key, name: String(o.name ?? key), content, hash: sha256(canonicalJson(content)) } };
     }
@@ -353,7 +334,7 @@ export async function applyItem(
   kind: SyncKind,
   content: unknown,
   target: string | null,
-  o: { identity: string; comment: string; disabled?: boolean },
+  o: { identity: string; comment: string; disabled?: boolean; platforms?: Record<string, string> },
 ): Promise<ApplyResult> {
   switch (kind) {
     case 'process': {
@@ -374,8 +355,9 @@ export async function applyItem(
       return { entityId: d.id, version: null };
     }
     case 'monitor': {
-      const { kind: k, key, enabled, ...definition } = content as Record<string, unknown>;
+      const { kind: k, key, enabled, ...raw } = content as Record<string, unknown>;
       const isTemplate = k === 'monitorTemplate';
+      const definition = monitors.applyPlatformMap(raw, o.platforms ?? {});
       if (target) {
         const r = await monitors.updateMonitor(target, { key: key as string, isTemplate, definition });
         return { entityId: r.monitor.id, version: r.monitor.version };

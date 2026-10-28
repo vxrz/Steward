@@ -468,5 +468,13 @@
     "textCreate": "Watch devices, APIs and data flows with composable checks. Create a monitor, or import an example from the library.",
     "action": "Create your first monitor",
     "import": "Import an example"
+  },
+  "platformChoices": {
+    "title": "Platforms",
+    "label": "Platform for “{{ref}}”",
+    "usedBy": "Used by {{usedBy}}",
+    "choose": "Choose a platform",
+    "noneOfKind": "You may use no platform of kind {{kind}}. Add one, or ask for the “use” right on one.",
+    "none": "You may use no platform. Add one, or ask for the “use” right on one."
   }
 }

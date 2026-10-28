@@ -1,13 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Code, CopyButton, FileButton, Group, Modal, NumberInput, Select, Stack, Table, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import { IconCheck, IconCopy, IconUpload } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { MONITOR_STATUSES, type MonitorDetail, type MonitorSaveResult, type MonitorStatus, type TemplateParam } from '@sm/shared';
+import {
+  MONITOR_STATUSES,
+  type MonitorDetail,
+  type MonitorPlatformReference,
+  type MonitorSaveResult,
+  type MonitorStatus,
+  type TemplateParam,
+} from '@sm/shared';
 import { useTranslation } from 'react-i18next';
 import { get, notifyError, post } from '../../api';
 import { fmtDate, fmtNumber } from '../../format';
 import { monitorStatusLabel } from './status';
 import { appUrl } from '../../basePath';
+import { PlatformChoices, chosenPlatforms, platformsComplete } from './PlatformChoices';
 
 export function CopyBlock({ label, text }: { label: string; text: string }) {
   const { t } = useTranslation('common');
@@ -270,12 +278,44 @@ interface Example {
   description: string;
 }
 
+/** The platform references of a monitor file, looked up while the user picks an example or edits YAML. */
+function usePlatformRefs(source: { example: string } | { yaml: string } | null) {
+  const [refs, setRefs] = useState<MonitorPlatformReference[]>([]);
+  const [choices, setChoices] = useState<Record<string, string>>({});
+  const key = source ? JSON.stringify(source) : '';
+  useEffect(() => {
+    setRefs([]);
+    setChoices({});
+    if (!source) return;
+    let live = true;
+    // a short pause while typing; an unreadable file shows its error on import instead
+    const timer = setTimeout(
+      () => {
+        const req =
+          'example' in source
+            ? post<{ platforms: MonitorPlatformReference[] }>(`/monitors/examples/${encodeURIComponent(source.example)}/preview`)
+            : post<{ platforms: MonitorPlatformReference[] }>('/monitors/import/preview', { yaml: source.yaml });
+        req.then((r) => live && setRefs(r.platforms)).catch(() => undefined);
+      },
+      'example' in source ? 0 : 500,
+    );
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for `source`
+  }, [key]);
+  return { refs, choices, setChoices, platforms: chosenPlatforms(refs, choices), complete: platformsComplete(refs, choices) };
+}
+
 export function ImportModal({ onClose, onImported }: { onClose: () => void; onImported: (r: MonitorSaveResult) => void }) {
   const examples = useQuery({ queryKey: ['monitor-examples'], queryFn: () => get<Example[]>('/monitors/examples') });
   const [yaml, setYaml] = useState('');
   const [example, setExample] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { t } = useTranslation('monitors');
+  const exampleRefs = usePlatformRefs(example ? { example } : null);
+  const yamlRefs = usePlatformRefs(yaml.trim() ? { yaml } : null);
   const run = async (fn: () => Promise<MonitorSaveResult>) => {
     setBusy(true);
     try {
@@ -305,8 +345,13 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
             {examples.data?.find((e) => e.file === example)?.description}
           </Text>
         )}
+        <PlatformChoices refs={exampleRefs.refs} choices={exampleRefs.choices} onChange={exampleRefs.setChoices} />
         <Group justify="flex-end">
-          <Button disabled={!example} loading={busy} onClick={() => run(() => post(`/monitors/examples/${encodeURIComponent(example!)}`))}>
+          <Button
+            disabled={!example || !exampleRefs.complete}
+            loading={busy}
+            onClick={() => run(() => post(`/monitors/examples/${encodeURIComponent(example!)}`, { platforms: exampleRefs.platforms }))}
+          >
             {t('importDialog.importExample')}
           </Button>
         </Group>
@@ -319,6 +364,7 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
           onChange={(e) => setYaml(e.currentTarget.value)}
           classNames={{ input: 'mono' }}
         />
+        <PlatformChoices refs={yamlRefs.refs} choices={yamlRefs.choices} onChange={yamlRefs.setChoices} />
         <Group justify="space-between">
           <FileButton accept=".yaml,.yml" onChange={async (f) => f && setYaml(await f.text())}>
             {(props) => (
@@ -327,7 +373,11 @@ export function ImportModal({ onClose, onImported }: { onClose: () => void; onIm
               </Button>
             )}
           </FileButton>
-          <Button disabled={!yaml.trim()} loading={busy} onClick={() => run(() => post('/monitors/import', { yaml }))}>
+          <Button
+            disabled={!yaml.trim() || !yamlRefs.complete}
+            loading={busy}
+            onClick={() => run(() => post('/monitors/import', { yaml, platforms: yamlRefs.platforms }))}
+          >
             {t('importDialog.importYaml')}
           </Button>
         </Group>

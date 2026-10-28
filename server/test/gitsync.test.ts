@@ -217,7 +217,7 @@ describe('fetching and staging', () => {
     expect(JSON.stringify(await s.api('GET', '/audit?limit=100'))).toContain('sync.update_rejected');
   });
 
-  it('marks invalid files, files with secrets, unknown platforms and oversized files – and ignores files outside the folder', async () => {
+  it('marks invalid files, files with secrets and oversized files – and ignores files outside the folder', async () => {
     const repo = uniqueRepo();
     await commit(repo, {
       'steward/broken.yaml': 'name: Broken\nsteps:\n  - id: x\n    type: nosuchnode\n',
@@ -232,13 +232,17 @@ describe('fetching and staging', () => {
     });
     const { source: src } = await source(repo);
     const r = await s.api('POST', `/sync-sources/${src.id}/fetch`);
-    expect(r).toMatchObject({ files: 6, staged: 0, invalid: 6 });
+    // a monitor naming a platform that is not there is no longer invalid: the reviewer chooses the platform when accepting
+    expect(r).toMatchObject({ files: 6, staged: 1, invalid: 5 });
     const list = await s.api('GET', `/sync-updates?sourceId=${src.id}&status=invalid`);
     const err = (file: string) => list.find((u: any) => u.path === `steward/${file}`).errors.join(' ');
     expect(err('broken.yaml')).toMatch(/nosuchnode|type/i);
     expect(err('leaky.yaml')).toContain('GitHub token');
     expect(err('leaky.yaml')).not.toContain('ghp_');
-    expect(err('mon.yaml')).toContain('not found');
+    const [mon] = (await s.api('GET', `/sync-updates?sourceId=${src.id}&status=pending`)) as any[];
+    expect(mon.path).toBe('steward/mon.yaml');
+    expect((await s.api('GET', `/sync-updates/${mon.id}`)).platforms[0]).toMatchObject({ ref: 'No such platform', resolved: null });
+    expect(await status(s.api('POST', `/sync-updates/${mon.id}/accept`, {}))).toBe(400);
     expect(err('big.yaml')).toContain('limit');
     expect(err('bundle.json')).toContain('Bundles');
     expect(err('tags.yaml')).toMatch(/tag/i);

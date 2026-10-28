@@ -468,5 +468,13 @@
     "textCreate": "Überwachen Sie Geräte, APIs und Datenflüsse mit kombinierbaren Prüfungen. Legen Sie einen Monitor an oder importieren Sie ein Beispiel aus der Bibliothek.",
     "action": "Ersten Monitor anlegen",
     "import": "Beispiel importieren"
+  },
+  "platformChoices": {
+    "title": "Plattformen",
+    "label": "Plattform für „{{ref}}“",
+    "usedBy": "Verwendet von {{usedBy}}",
+    "choose": "Plattform wählen",
+    "noneOfKind": "Sie dürfen keine Plattform der Art {{kind}} verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben.",
+    "none": "Sie dürfen keine Plattform verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben."
   }
 }

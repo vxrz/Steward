@@ -1,3 +1,4 @@
+import type { MonitorPlatformReference } from './monitors.js';
 /**
  * Git sync: pull processes, dashboards, monitors and record types from a Git repository
  * (Forgejo/Gitea, GitHub, GitLab) and stage every change as a pending update for review.
@@ -180,4 +181,6 @@ export interface SyncUpdateDetail extends SyncUpdate {
   /** Processes: both definitions for the node-level change summary */
   incomingDefinition?: unknown;
   currentDefinition?: unknown;
+  /** Monitors: the platform references of the file, to choose a platform for each when accepting */
+  platforms?: MonitorPlatformReference[];
 }

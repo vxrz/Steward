@@ -21,6 +21,13 @@ const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 const decision = z.object({ comment: z.string().max(2000).optional(), force: z.boolean().optional() });
+/** Monitors: the platform chosen for each platform reference of the file (reference → platform id). */
+const acceptBody = decision.extend({
+  platforms: z
+    .record(z.string().min(1).max(200), z.string().min(1).max(64))
+    .refine((m) => Object.keys(m).length <= 100, 'Too many platforms')
+    .optional(),
+});
 
 /**
  * Git sync API. Sources: administrators (creating, changing and deleting them needs a signed-in
@@ -76,8 +83,8 @@ export async function syncRoutes(app: FastifyInstance): Promise<void> {
   });
   app.get('/sync-updates/:id', async (req) => updates.getUpdate(params(req).id!));
   app.post('/sync-updates/:id/accept', async (req) => {
-    const b = decision.parse(req.body ?? {});
-    return updates.acceptUpdate(params(req).id!, { comment: b.comment, force: b.force });
+    const b = acceptBody.parse(req.body ?? {});
+    return updates.acceptUpdate(params(req).id!, { comment: b.comment, force: b.force, platforms: b.platforms });
   });
   app.post('/sync-updates/:id/reject', async (req) => {
     const b = decision.parse(req.body ?? {});

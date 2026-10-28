@@ -558,3 +558,16 @@ export function fillPlaceholders(text: string, ctx: Record<string, Record<string
     return v === undefined || v === null ? '' : String(v);
   });
 }
+
+/** A platform reference in a monitor file (import, Git sync), where it is used and which platforms may stand for it. */
+export interface MonitorPlatformReference {
+  /** The value in the file: a platform name or id */
+  ref: string;
+  /** Kind the checks and outputs need; null: any platform */
+  kind: string | null;
+  usedBy: { type: 'check' | 'output'; id: string; name: string }[];
+  /** What the reference resolves to without a choice (only a platform the user may use) */
+  resolved: { id: string; name: string } | null;
+  /** Platforms of that kind the user may use */
+  candidates: { id: string; name: string; kind: string }[];
+}

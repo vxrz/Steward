@@ -276,6 +276,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/monitors/examples': ALL,
   'POST /api/monitors/examples/:file': DESIGN,
   'POST /api/monitors/import': DESIGN,
+  'POST /api/monitors/import/preview': DESIGN,
+  'POST /api/monitors/examples/:file/preview': DESIGN,
   'POST /api/monitors/validate': ALL,
   'GET /api/monitors/:id': ALL,
   'PUT /api/monitors/:id': DESIGN,

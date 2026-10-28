@@ -56,7 +56,7 @@ fields:
   - { key: incident, label: Incident number, kind: text, required: true }
 ```
 
-Platforms are referenced **by name or id only** (monitor checks, process bindings stay in Steward). A file that refers to a platform Steward does not know is invalid. Bundles (`format: steward-bundle`) are not synced: keep one item per file.
+Platforms are referenced **by name or id only** (monitor checks, process bindings stay in Steward). A monitor file whose platform name does not point to exactly one of your platforms (several Insights Hub platforms, or none of that name) is staged anyway: when accepting it, the reviewer chooses the platform per reference (`platforms` on `POST /api/sync-updates/{id}/accept`). Auto-accept leaves such a monitor for review. Bundles (`format: steward-bundle`) are not synced: keep one item per file.
 
 Deleting a file in Git does not delete anything in Steward.
 

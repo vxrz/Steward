@@ -4,6 +4,7 @@ import path from 'node:path';
 import YAML from 'yaml';
 import {
   HIDDEN_MONITOR_REF,
+  type MonitorPlatformReference,
   MONITOR_KEY_RE,
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
@@ -34,7 +35,7 @@ import { parseYaml } from '../yaml-safe.js';
 export const MONITOR_YAML_BYTES = 1024 * 1024;
 import { currentUser } from '../auth/context.js';
 import { cleanAcl } from '../auth/permissions.js';
-import { getPlatform } from '../platforms/service.js';
+import { getPlatform, listPlatforms } from '../platforms/service.js';
 import { getProcess, permissionsFor } from '../processes/service.js';
 import {
   canCreateMonitors,
@@ -315,6 +316,94 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 // ---------- validation ----------
 
 const PLATFORM_KIND: Partial<Record<string, string>> = { freshness: 'insights-hub', gatus: 'gatus', zabbix: 'zabbix' };
+
+/** The platform kind a check or output needs (undefined: any platform). */
+function expectedKind(item: Record<string, unknown>, isOutput: boolean): string | undefined {
+  const type = String(item.type ?? '');
+  if (!isOutput && type === 'freshness') return 'insights-hub';
+  return PLATFORM_KIND[type];
+}
+
+export type PlatformReference = MonitorPlatformReference;
+
+/** Platform references of a parsed monitor or template definition (raw, not yet validated). `{{ params.x }}` values are set per instance and left out. */
+export function platformReferences(definition: Record<string, unknown>): PlatformReference[] {
+  const found = new Map<string, { kinds: Set<string>; usedBy: PlatformReference['usedBy'] }>();
+  const visit = (items: unknown, isOutput: boolean) => {
+    if (!Array.isArray(items)) return;
+    for (const raw of items) {
+      if (!raw || typeof raw !== 'object') continue;
+      const item = raw as Record<string, unknown>;
+      const ref = item.platform;
+      if (typeof ref !== 'string' || !ref.trim() || ref.includes('{{')) continue;
+      const entry = found.get(ref) ?? { kinds: new Set<string>(), usedBy: [] };
+      const kind = expectedKind(item, isOutput);
+      if (kind) entry.kinds.add(kind);
+      const id = String(item.id ?? '');
+      entry.usedBy.push({ type: isOutput ? 'output' : 'check', id, name: String(item.name ?? id) });
+      found.set(ref, entry);
+    }
+  };
+  visit(definition.checks, false);
+  visit(definition.outputs, true);
+  if (!found.size) return [];
+  const usable = listPlatforms().filter((p) => p.permissions.includes('use'));
+  return [...found].map(([ref, e]) => {
+    // one kind in practice; a reference used with two different kinds has no candidate
+    const kinds = [...e.kinds];
+    const candidates = usable.filter((p) => kinds.every((k) => p.kind === k)).map((p) => ({ id: p.id, name: p.name, kind: p.kind }));
+    let resolved: PlatformReference['resolved'] = null;
+    try {
+      const r = resolvePlatformRef(ref, kinds[0]);
+      const c = candidates.find((x) => x.id === r.id);
+      if (c) resolved = { id: c.id, name: c.name };
+    } catch {
+      /* not unique – the user chooses */
+    }
+    return { ref, kind: kinds[0] ?? null, usedBy: e.usedBy, resolved, candidates };
+  });
+}
+
+/**
+ * Replaces platform references by the platforms chosen for them (reference → platform id) before the
+ * usual resolution. A chosen platform must exist, be of the kind its checks and outputs need and be
+ * usable by the user.
+ */
+export function applyPlatformMap(definition: Record<string, unknown>, map: Record<string, string>): Record<string, unknown> {
+  if (!Object.keys(map).length) return definition;
+  const out = structuredClone(definition);
+  const apply = (items: unknown, isOutput: boolean) => {
+    if (!Array.isArray(items)) return;
+    for (const raw of items) {
+      if (!raw || typeof raw !== 'object') continue;
+      const item = raw as Record<string, unknown>;
+      if (typeof item.platform !== 'string' || !Object.hasOwn(map, item.platform)) continue;
+      const ref = item.platform;
+      const id = map[ref]!;
+      let p;
+      try {
+        p = getPlatform(id);
+      } catch {
+        p = null;
+      }
+      // a platform the user may not see answers like a missing one (no name is revealed)
+      if (!p || !p.permissions.length) throw new HttpError(400, `Platform ${id} chosen for "${ref}" does not exist`, 'PLATFORM_CHOICE_NOT_FOUND', { ref, id });
+      if (!p.permissions.includes('use'))
+        throw new HttpError(403, `You are not allowed to use platform "${p.name}"`, 'PLATFORM_USE_FORBIDDEN', { name: p.name });
+      const kind = expectedKind(item, isOutput);
+      if (kind && p.kind !== kind)
+        throw new HttpError(400, `Platform "${p.name}" chosen for "${ref}" is of kind ${p.kind}, not ${kind}`, 'PLATFORM_CHOICE_KIND', {
+          ref,
+          name: p.name,
+          kind,
+        });
+      item.platform = p.id;
+    }
+  };
+  apply(out.checks, false);
+  apply(out.outputs, true);
+  return out;
+}
 
 function requirePlatformUse(id: string): void {
   const p = getPlatform(id);
@@ -986,7 +1075,7 @@ export function exportMonitor(idOrKey: string): string {
   return YAML.stringify({ kind: r.is_template ? 'monitorTemplate' : 'monitor', key: r.key, ...portable }, { lineWidth: 0 });
 }
 
-export async function importMonitor(text: string, opts: { key?: string } = {}): Promise<MonitorSaveResult> {
+function parseMonitorFile(text: string): { kind: unknown; key: unknown; enabled: unknown; definition: Record<string, unknown> } {
   let raw: unknown;
   try {
     raw = parseYaml(text, { maxBytes: MONITOR_YAML_BYTES });
@@ -998,12 +1087,24 @@ export async function importMonitor(text: string, opts: { key?: string } = {}): 
   if (obj.kind !== 'monitor' && obj.kind !== 'monitorTemplate')
     throw new HttpError(400, 'Not a monitor file: "kind" must be monitor or monitorTemplate', 'MONITOR_FILE_KIND');
   const { kind, key, enabled, ...definition } = obj;
+  return { kind, key, enabled, definition };
+}
+
+/** `platforms`: the platform chosen for each platform reference in the file (reference → platform id). */
+export async function importMonitor(text: string, opts: { key?: string; platforms?: Record<string, string> } = {}): Promise<MonitorSaveResult> {
+  const { kind, key, enabled, definition } = parseMonitorFile(text);
   return createMonitor({
     key: opts.key ?? (key as string | undefined),
     enabled: enabled as boolean | undefined,
     isTemplate: kind === 'monitorTemplate',
-    definition,
+    definition: applyPlatformMap(definition, opts.platforms ?? {}),
   });
+}
+
+/** The platform references of a monitor file, to choose a platform for each before importing it. */
+export function importReferences(text: string): PlatformReference[] {
+  requireCreate();
+  return platformReferences(parseMonitorFile(text).definition);
 }
 
 const examplesDir = () => path.join(process.env.SM_EXAMPLES_DIR ?? path.join(config.templatesDir, '..'), 'monitors');
@@ -1018,18 +1119,44 @@ export function listExamples(): { file: string; kind: string; key: string | null
     .flatMap((f) => {
       try {
         const o = parseYaml(fs.readFileSync(path.join(dir, f), 'utf8'), { maxBytes: MONITOR_YAML_BYTES }) as Record<string, unknown>;
-        return [{ file: f, kind: String(o.kind), key: (o.key as string) ?? null, name: String(o.name ?? f), description: String(o.description ?? '') }];
+        const key = typeof o.key === 'string' ? o.key : null;
+        return [{ file: f, kind: String(o.kind), key, ...exampleLabel(o, key ?? f.replace(/^\d+-|\.ya?ml$/gi, '')) }];
       } catch {
         return [];
       }
     });
 }
 
-export async function importExample(file: string): Promise<MonitorSaveResult> {
+/**
+ * Name and description of an example for the library list. A template's name is usually a parameter
+ * ("{{ params.title }}"): it is listed by its key instead ("powermeter-machine" → "Powermeter machine"),
+ * and parameters in the description show their label ("PowerMeter ‹PowerMeter IP address›").
+ */
+function exampleLabel(o: Record<string, unknown>, key: string): { name: string; description: string } {
+  const labels = new Map<string, string>();
+  if (Array.isArray(o.parameters))
+    for (const p of o.parameters as Record<string, unknown>[])
+      if (p && typeof p.name === 'string') labels.set(p.name, typeof p.label === 'string' && p.label.trim() ? p.label : p.name);
+  const fill = (text: string) => text.replace(/\{\{\s*params\.([\w-]+)\s*\}\}/g, (_m, n: string) => `‹${labels.get(n) ?? n}›`);
+  const rawName = String(o.name ?? key);
+  const fromKey = key.replace(/[-_]+/g, ' ').trim();
+  const name = rawName.includes('{{') ? fromKey.charAt(0).toUpperCase() + fromKey.slice(1) : rawName;
+  return { name, description: fill(String(o.description ?? '')) };
+}
+
+function exampleText(file: string): string {
   if (!/^[\w.-]+\.ya?ml$/i.test(file)) throw new HttpError(400, 'Invalid example name', 'EXAMPLE_NOT_FOUND');
   const p = pathInside(examplesDir(), file);
   if (!fs.existsSync(p)) throw new HttpError(404, 'Example not found', 'EXAMPLE_NOT_FOUND');
-  return importMonitor(fs.readFileSync(p, 'utf8'));
+  return fs.readFileSync(p, 'utf8');
+}
+
+export async function importExample(file: string, opts: { platforms?: Record<string, string> } = {}): Promise<MonitorSaveResult> {
+  return importMonitor(exampleText(file), { platforms: opts.platforms });
+}
+
+export function exampleReferences(file: string): PlatformReference[] {
+  return importReferences(exampleText(file));
 }
 
 export const isMonitorId = (s: string) => MONITOR_ID_RE.test(s);
