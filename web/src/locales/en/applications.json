@@ -263,7 +263,7 @@
     },
     "rollup": {
       "title": "Tech stack",
-      "help": "All components together. End-of-life dates follow in a later version.",
+      "help": "All components together, coloured by the end of life of each version.",
       "used": "{{count}} component",
       "used_other": "{{count}} components"
     },
@@ -302,5 +302,42 @@
     "title": "Credentials",
     "help": "Entries of the credentials register that name this application under \"Used by\".",
     "empty": "No credential names this application."
+  },
+  "lifecycle": {
+    "button": "End of life",
+    "title": "End of life of the tech stack",
+    "help": "Steward reads the release cycles of the products in the tech stacks from endoflife.date once a day. Badges show whether a version is supported (green), ends soon (yellow) or has reached its end of life (red).",
+    "noPlatform": "No endoflife.date platform is set up. Add one under Platforms with the connector type endoflife.date (no credentials needed); the demo comes with one.",
+    "status": "{{count}} of {{total}} products have end-of-life data, last read {{when}}.",
+    "neverRefreshed": "{{count}} products in the tech stacks; no end-of-life data read yet.",
+    "errors": "Could not be read at the last refresh",
+    "platform": "Platform",
+    "platformHint": "The endoflife.date platform to read. Empty: the first platform of that type.",
+    "platformNone": "None of type endoflife.date",
+    "warnDays": "Warn days before the end of life",
+    "warnDaysHint": "From then on a version counts as ending.",
+    "notify": "Message the application owners",
+    "notifyHint": "Once when a component's release cycle starts ending and once when it reaches its end of life (event “Tech stack end of life” in the notification routes).",
+    "scorecard": "Count on the scorecard",
+    "scorecardHint": "Adds the part “Tech stack”: attention for a version past its end of life, pending for one that ends soon.",
+    "adminOnly": "Only administrators change these settings.",
+    "refresh": "Refresh now",
+    "refreshed": "End-of-life data read: {{count}} of {{total}} products",
+    "saved": "End-of-life settings saved",
+    "states": {
+      "supported": "supported",
+      "ending": "ends soon",
+      "eol": "end of life",
+      "unknown": "no end-of-life data"
+    },
+    "unknown": "No end-of-life data for this version",
+    "cycle": "Release cycle {{cycle}}",
+    "cycleLts": "Release cycle {{cycle}} (LTS)",
+    "eolSince": "end of life since {{date}}",
+    "eolIn": "end of life on {{date}}, in {{count}} day",
+    "eolIn_other": "end of life on {{date}}, in {{count}} days",
+    "eolOn": "end of life on {{date}}",
+    "noEolDate": "no end-of-life date announced",
+    "latest": "latest {{version}}"
   }
 }

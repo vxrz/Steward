@@ -249,6 +249,61 @@ export interface StackEntry {
   sbomRef: string;
   setAt: string;
   setBy: string;
+  /** End of life of the release cycle in use (#104); null when there is no end-of-life data for the product */
+  lifecycle: StackLifecycle | null;
+}
+
+// ---------- end of life (#104) ----------
+
+/**
+ * supported: end of life not in sight; ending: within the warning period (default 90 days); eol: past its end of
+ * life; unknown: no matching release cycle (version empty or not on endoflife.date).
+ */
+export const LIFECYCLE_STATES = ['supported', 'ending', 'eol', 'unknown'] as const;
+export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
+
+export interface StackLifecycle {
+  state: LifecycleState;
+  /** The release cycle the version belongs to (e.g. "24" for 24.11.0); null when none matched */
+  cycle: string | null;
+  /** End of life (YYYY-MM-DD); null when not known */
+  eolFrom: string | null;
+  /** End of active support (YYYY-MM-DD), for products that have one */
+  eoasFrom: string | null;
+  isLts: boolean;
+  /** Latest version of the cycle */
+  latest: string | null;
+  /** Whole days until the end of life (negative: past); null when not known */
+  daysLeft: number | null;
+}
+
+export const LIFECYCLE_LIMITS = { warnDaysMin: 1, warnDaysMax: 730, defaultWarnDays: 90 } as const;
+
+export interface LifecycleSettings {
+  /** The endoflife.date platform to read; null: the first platform of kind endoflife-date */
+  platformId: string | null;
+  /** "Ending" this many days before the end of life */
+  warnDays: number;
+  /** Message the application owners when a component's release cycle is ending and when it reached its end of life */
+  notify: boolean;
+  /** Count the tech stack on the scorecard (part "Tech stack") */
+  scorecard: boolean;
+}
+
+export const DEFAULT_LIFECYCLE_SETTINGS: LifecycleSettings = { platformId: null, warnDays: LIFECYCLE_LIMITS.defaultWarnDays, notify: true, scorecard: false };
+
+export interface LifecycleStatus {
+  settings: LifecycleSettings;
+  /** The platform in use (null: none of kind endoflife-date) */
+  platform: { id: string; name: string } | null;
+  /** Products in the tech stacks / of these with end-of-life data */
+  products: number;
+  withData: number;
+  refreshedAt: string | null;
+  /** Products that could not be read at the last refresh */
+  errors: { product: string; error: string }[];
+  canEdit: boolean;
+  canRefresh: boolean;
 }
 
 export interface ApplicationComponent {
@@ -271,6 +326,7 @@ export interface ApplicationStackItem {
   product: string;
   label: string;
   version: string;
+  lifecycle: StackLifecycle | null;
   components: { id: string; name: string; type: ComponentType }[];
 }
 

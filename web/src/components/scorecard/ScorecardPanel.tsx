@@ -2,12 +2,12 @@ import { Anchor, Box, Group, List, Paper, SimpleGrid, Stack, Text, Tooltip } fro
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SCORECARD_PARTS, type ScorecardPart, type ServiceScorecardDetail, type ServiceScorecardHistoryPoint } from '@sm/shared';
+import { type ScorecardPart, type ServiceScorecardDetail, type ServiceScorecardHistoryPoint } from '@sm/shared';
 import { get } from '../../api';
-import { fmtDate } from '../../format';
+import { fmtDate, fmtDay } from '../../format';
 import { QueryState } from '../common';
 import { useLevel } from '../catalogue/cia';
-import { AttentionBadge, PART_COLORS, PartBadge } from './common';
+import { AttentionBadge, PART_COLORS, PartBadge, shownParts } from './common';
 
 /** The scorecard of one service (service page): four parts side by side, each with its own status, and the stored days. */
 export function ScorecardPanel({ serviceId }: { serviceId: string }) {
@@ -27,7 +27,7 @@ export function ScorecardPanel({ serviceId }: { serviceId: string }) {
       {c && (
         <>
           <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs">
-            {SCORECARD_PARTS.map((p) => (
+            {shownParts([c]).map((p) => (
               <Paper key={p} withBorder p="sm" data-testid={`part-${p}`}>
                 <Group justify="space-between" mb={4} wrap="nowrap">
                   <Text size="sm" fw={600}>
@@ -137,6 +137,36 @@ function PartDetails({ card: c, part }: { card: ServiceScorecardDetail; part: Sc
           <Text size="xs" c="dimmed">
             {t('documentation.expectedPresent', { count: d.expected.length - missing.length })}
           </Text>
+        )}
+      </Stack>
+    );
+  }
+  if (part === 'lifecycle') {
+    const l = c.lifecycle;
+    if (!l.entries)
+      return (
+        <Text size="xs" c="dimmed">
+          {t('lifecycle.none')}
+        </Text>
+      );
+    return (
+      <Stack gap={2}>
+        <Text size="xs">{t('lifecycle.summary', { entries: l.entries, eol: l.eol, ending: l.ending })}</Text>
+        {l.items.length > 0 && (
+          <List size="xs" spacing={0} data-testid="lifecycle-items">
+            {l.items.slice(0, 10).map((i) => (
+              <List.Item key={`${i.applicationId} ${i.componentName} ${i.product}`}>
+                <Anchor component={Link} to={`/applications/${i.applicationId}`} size="xs">
+                  {i.applicationName}
+                </Anchor>{' '}
+                {t(i.state === 'eol' ? 'lifecycle.eolItem' : 'lifecycle.endingItem', {
+                  component: i.componentName,
+                  product: [i.label, i.version].filter(Boolean).join(' '),
+                  date: i.eolFrom ? fmtDay(i.eolFrom) : '–',
+                })}
+              </List.Item>
+            ))}
+          </List>
         )}
       </Stack>
     );

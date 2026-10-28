@@ -263,7 +263,7 @@
     },
     "rollup": {
       "title": "Tech-Stack",
-      "help": "Alle Komponenten zusammen. End-of-Life-Daten folgen in einer späteren Version.",
+      "help": "Alle Komponenten zusammen, eingefärbt nach dem Supportende jeder Version.",
       "used": "{{count}} Komponente",
       "used_other": "{{count}} Komponenten"
     },
@@ -302,5 +302,42 @@
     "title": "Zugangsdaten",
     "help": "Einträge des Zugangsdaten-Registers, die diese Anwendung unter „Verwendet von“ nennen.",
     "empty": "Keine Zugangsdaten nennen diese Anwendung."
+  },
+  "lifecycle": {
+    "button": "Supportende",
+    "title": "Supportende des Tech-Stacks",
+    "help": "Steward liest die Release-Zyklen der Produkte in den Tech-Stacks einmal täglich von endoflife.date. Die Kennzeichen zeigen, ob eine Version unterstützt wird (grün), bald endet (gelb) oder ihr Supportende erreicht hat (rot).",
+    "noPlatform": "Es ist keine endoflife.date-Plattform eingerichtet. Legen Sie unter Plattformen eine mit dem Verbindungstyp endoflife.date an (ohne Zugangsdaten); die Demo bringt eine mit.",
+    "status": "{{count}} von {{total}} Produkten haben Daten zum Supportende, zuletzt gelesen {{when}}.",
+    "neverRefreshed": "{{count}} Produkte in den Tech-Stacks; noch keine Daten zum Supportende gelesen.",
+    "errors": "Beim letzten Lesen nicht abrufbar",
+    "platform": "Plattform",
+    "platformHint": "Die endoflife.date-Plattform, die gelesen wird. Leer: die erste Plattform dieses Typs.",
+    "platformNone": "Keine vom Typ endoflife.date",
+    "warnDays": "Tage vor dem Supportende warnen",
+    "warnDaysHint": "Ab dann gilt eine Version als auslaufend.",
+    "notify": "Verantwortliche der Anwendung benachrichtigen",
+    "notifyHint": "Einmal, wenn der Release-Zyklus einer Komponente ausläuft, und einmal, wenn er sein Supportende erreicht (Ereignis „Supportende im Tech-Stack“ in den Benachrichtigungswegen).",
+    "scorecard": "Auf der Scorecard zählen",
+    "scorecardHint": "Ergänzt den Teil „Tech-Stack“: Handlungsbedarf bei einer Version nach ihrem Supportende, ausstehend bei einer, die bald endet.",
+    "adminOnly": "Nur Administratoren ändern diese Einstellungen.",
+    "refresh": "Jetzt aktualisieren",
+    "refreshed": "Daten zum Supportende gelesen: {{count}} von {{total}} Produkten",
+    "saved": "Einstellungen zum Supportende gespeichert",
+    "states": {
+      "supported": "unterstützt",
+      "ending": "endet bald",
+      "eol": "Supportende erreicht",
+      "unknown": "keine Daten zum Supportende"
+    },
+    "unknown": "Keine Daten zum Supportende dieser Version",
+    "cycle": "Release-Zyklus {{cycle}}",
+    "cycleLts": "Release-Zyklus {{cycle}} (LTS)",
+    "eolSince": "Supportende seit {{date}}",
+    "eolIn": "Supportende am {{date}}, in {{count}} Tag",
+    "eolIn_other": "Supportende am {{date}}, in {{count}} Tagen",
+    "eolOn": "Supportende am {{date}}",
+    "noEolDate": "kein Supportende angekündigt",
+    "latest": "neueste {{version}}"
   }
 }

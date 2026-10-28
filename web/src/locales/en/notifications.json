@@ -117,6 +117,12 @@
         "label": "Objective below target",
         "info": "An availability objective of a service you are responsible for fell below its target (once per breach)"
       }
+    },
+    "stack": {
+      "eol": {
+        "label": "Tech stack end of life",
+        "info": "A component of an application you own reaches the end of life of its release cycle soon (or reached it)"
+      }
     }
   }
 }

@@ -164,6 +164,30 @@ export const ScorecardServiceEntry = z.object({
       }),
     ),
   }),
+  lifecycle: z
+    .object({
+      status: partStatus().describe(
+        'attention: a component past its end of life; pending: one within the warning period; none: not counted (turned off) or no tech stack',
+      ),
+      enabled: z.boolean().describe('The part is counted (Applications → End of life → Count on the scorecard)'),
+      entries: z.number().int().describe('Tech stack entries of the service’s applications'),
+      eol: z.number().int(),
+      ending: z.number().int(),
+      items: z.array(
+        z.object({
+          applicationId: z.string(),
+          applicationName: z.string(),
+          componentName: z.string(),
+          product: z.string(),
+          label: z.string(),
+          version: z.string(),
+          cycle: z.string().nullable(),
+          eolFrom: z.string().nullable().describe('YYYY-MM-DD'),
+          state: z.enum(['ending', 'eol']),
+        }),
+      ),
+    })
+    .describe('Tech stack: end of life of the components of the service’s applications (from endoflife.date)'),
 });
 
 const PartCounts = z.object({ ok: z.number().int(), attention: z.number().int(), pending: z.number().int(), none: z.number().int() });
@@ -172,7 +196,7 @@ const RollupGroup = z.object({
   key: z.string(),
   services: z.number().int(),
   attention: z.number().int(),
-  parts: z.object({ duties: PartCounts, availability: PartCounts, documentation: PartCounts, protection: PartCounts }),
+  parts: z.object({ duties: PartCounts, availability: PartCounts, documentation: PartCounts, protection: PartCounts, lifecycle: PartCounts }),
 });
 
 export const ScorecardEntry = z.object({
@@ -187,7 +211,7 @@ export const ScorecardTrendEntry = z.object({
   day: z.string().describe('Local day (instance time zone), YYYY-MM-DD'),
   services: z.number().int(),
   attention: z.number().int(),
-  parts: z.object({ duties: TrendCounts, availability: TrendCounts, documentation: TrendCounts, protection: TrendCounts }),
+  parts: z.object({ duties: TrendCounts, availability: TrendCounts, documentation: TrendCounts, protection: TrendCounts, lifecycle: TrendCounts }),
 });
 
 export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
@@ -196,7 +220,7 @@ export const ServiceScorecardEntry = ScorecardServiceEntry.extend({
       z.object({
         day: z.string(),
         attention: z.boolean(),
-        parts: z.object({ duties: HistoryPart, availability: HistoryPart, documentation: HistoryPart, protection: HistoryPart }),
+        parts: z.object({ duties: HistoryPart, availability: HistoryPart, documentation: HistoryPart, protection: HistoryPart, lifecycle: HistoryPart }),
       }),
     )
     .describe('The stored daily snapshots of the last 90 days, oldest first'),

@@ -292,5 +292,11 @@
     "banner": "Probelauf – ein Test, es wurde nichts geändert. Kein Handlungsbedarf.",
     "sampleProcess": "Inventarexport",
     "sampleError": "Plattform antwortete mit HTTP 503"
+  },
+  "stackEol": {
+    "titleEnding": "Supportende bald: {{product}} in {{application}}",
+    "titleEol": "Supportende erreicht: {{product}} in {{application}}",
+    "bodyEnding": "{{product}} erreicht am {{date}} sein Supportende (in {{days}} Tagen). Komponenten: {{components}}.",
+    "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade."
   }
 }

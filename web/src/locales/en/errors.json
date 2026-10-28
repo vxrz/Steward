@@ -615,7 +615,10 @@
     "SBOM_FETCH_FAILED": "The SBOM could not be fetched from this address.",
     "INPUT_APPLICATION_INVALID": "Input “{{input}}” must name an application.",
     "INPUT_APPLICATION_NOT_FOUND": "Input “{{input}}”: application “{{name}}” not found.",
-    "INPUT_APPLICATION_ARCHIVED": "Input “{{input}}”: application “{{name}}” is archived."
+    "INPUT_APPLICATION_ARCHIVED": "Input “{{input}}”: application “{{name}}” is archived.",
+    "LIFECYCLE_PLATFORM_KIND": "Choose a platform of kind endoflife.date.",
+    "LIFECYCLE_NO_PLATFORM": "No endoflife.date platform is set up. Add one under Platforms (connector type endoflife.date).",
+    "INPUT_APPLICATIONS_TOO_MANY": "Input “{{input}}” names more than {{max}} applications."
   },
   "boundary": {
     "title": "Something went wrong on this page",

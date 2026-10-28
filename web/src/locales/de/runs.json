@@ -68,7 +68,9 @@
     "loadCsv": "CSV-Datei laden",
     "secretHint": "Wird nur verschlüsselt gespeichert; im Protokoll, in Berichten und im Audit-Log als *** angezeigt",
     "applicationHint": "Der Lauf liest die Komponenten und den Tech-Stack der Anwendung beim Start",
-    "noApplications": "Keine Anwendung gefunden"
+    "noApplications": "Keine Anwendung gefunden",
+    "allApplications": "Alle Anwendungen",
+    "applicationsHint": "Leer: alle Anwendungen. Der Lauf liest beim Start ihre Komponenten und den Tech-Stack"
   },
   "trigger": {
     "manual": "manuell",

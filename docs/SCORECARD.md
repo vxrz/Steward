@@ -86,12 +86,15 @@ A service shows **Attention needed** when any part has the status _Attention_.
 | **Availability**    | an objective is below target, or has had no data for more than 24 hours. _Open_ when one has no data for a shorter time                                                        |
 | **Documentation**   | no living document is released, a review is overdue, or an expected document is missing ([RECORDS.md](RECORDS.md))                                                             |
 | **Protection need** | it is not rated: the service has no applications, a dimension has no level, applications are not rated or must be re-rated after a scale change, or the CIA scale is not valid |
+| **Tech stack**      | (only when turned on, below) a component of the service's applications runs a version past its end of life. _Open_ when one ends within the warning period                     |
 
 Details:
 
 - **Duties** are read from the stored periods of [service duties](DUTIES.md): met means done, late or skipped (an approved exception). **Recommended** duties are counted separately and never set _Attention needed_; **optional** duties are only shown. A duty **archived** during its current period still counts until that period ends, with its last status (_1 duty archived this period_). The moment of the archive comes from the duty's stored periods (closed with the note _duty archived_), so it survives a migration package – archiving a duty whose last period was missed does not clean the scorecard.
 - **Documentation** counts the living documents linked to the service (either way) and those that apply to its applications. A document counts as present once it has an approved edition and is not withdrawn; drafts do not.
 - **Protection need** follows the maximum principle of [APPLICATIONS.md](APPLICATIONS.md): a level from an override is enough; a derived level needs every application rated in that dimension.
+
+**Tech stack** is a fifth part that is off by default: an administrator turns it on under _Applications → End of life → Count on the scorecard_ ([APPLICATIONS.md](APPLICATIONS.md#end-of-life)). Until then it is not shown and never sets _Attention needed_; the stored days record it as _nothing to judge_. It lists the components past or near their end of life, most urgent first.
 
 Archived services have no scorecard.
 

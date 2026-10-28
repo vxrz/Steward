@@ -46,7 +46,10 @@ const en = {
   more: '{n} more not shown.',
   yes: 'Attention',
   no: 'OK',
-  parts: { duties: 'Duties', availability: 'Availability', documentation: 'Documentation', protection: 'Protection need' } as Record<ScorecardPart, string>,
+  parts: { duties: 'Duties', availability: 'Availability', documentation: 'Documentation', protection: 'Protection need', lifecycle: 'Tech stack' } as Record<
+    ScorecardPart,
+    string
+  >,
   statuses: { ok: 'OK', attention: 'Attention', pending: 'Open', none: '–', hidden: 'Hidden' } as Record<ScorecardPartStatus | 'hidden', string>,
   objectiveStatuses: { met: 'Met', below: 'Below target', noData: 'No data' } as Record<ObjectiveStatus, string>,
   windows: { h1: '1 h', h24: '24 h', d7: '7 d', d30: '30 d' } as Record<string, string>,
@@ -77,7 +80,7 @@ const de: Texts = {
   more: '{n} weitere nicht angezeigt.',
   yes: 'Handlungsbedarf',
   no: 'OK',
-  parts: { duties: 'Pflichten', availability: 'Verfügbarkeit', documentation: 'Dokumentation', protection: 'Schutzbedarf' },
+  parts: { duties: 'Pflichten', availability: 'Verfügbarkeit', documentation: 'Dokumentation', protection: 'Schutzbedarf', lifecycle: 'Tech-Stack' },
   statuses: { ok: 'OK', attention: 'Handlungsbedarf', pending: 'Offen', none: '–', hidden: 'Verborgen' },
   objectiveStatuses: { met: 'Erfüllt', below: 'Unterschritten', noData: 'Keine Daten' },
   windows: { h1: '1 Std.', h24: '24 Std.', d7: '7 T.', d30: '30 T.' },
@@ -137,6 +140,7 @@ function build(c: ScorecardConfig, ctx: { from: number; to: number; now: number 
         availability: card.availability.status,
         documentation: card.documentation.status,
         protection: card.protection.status,
+        lifecycle: card.lifecycle.status,
       },
     }));
   }
@@ -205,22 +209,24 @@ registerReportSection<ScorecardConfig, ScorecardSectionData>({
     w.paragraph(x.intro, { tone: 'muted', size: 8 });
     w.paragraph(d.asOf ? fill(x.asOfSnapshot, { day: d.asOf }) : x.asOfLive, { tone: 'muted', size: 7.4 });
     const attention = d.services.filter((s) => s.attention).length;
+    // the tech stack part only when it is counted (it is off by default; reports made before 0.2.3 have no value)
+    const parts = SCORECARD_PARTS.filter((p) => p !== 'lifecycle' || d.services.some((s) => (s.parts.lifecycle ?? 'none') !== 'none'));
     w.stats([
       { label: x.services, value: String(d.services.length), tone: 'default' as Tone },
       { label: x.attention, value: String(attention), tone: (attention ? 'danger' : 'success') as Tone },
-      ...SCORECARD_PARTS.map((p) => {
+      ...parts.map((p) => {
         const n = d.services.filter((s) => s.parts[p] === 'attention').length;
         return { label: x.parts[p], value: String(n), tone: (n ? 'danger' : 'default') as Tone };
       }),
     ]);
     w.table(
-      [{ header: x.service, width: 2.6 }, { header: x.overall, width: 1.5 }, ...SCORECARD_PARTS.map((p) => ({ header: x.parts[p], width: 1.4 }))],
+      [{ header: x.service, width: 2.6 }, { header: x.overall, width: 1.5 }, ...parts.map((p) => ({ header: x.parts[p], width: 1.4 }))],
       d.services
         .slice(0, MAX_ROWS)
         .map((s): CellInput[] => [
           { text: s.service, bold: true },
           { text: s.attention ? x.yes : x.no, tone: s.attention ? 'danger' : 'success', bold: s.attention },
-          ...SCORECARD_PARTS.map((p): CellInput => ({ text: x.statuses[s.parts[p]], tone: tone(s.parts[p]) })),
+          ...parts.map((p): CellInput => ({ text: x.statuses[s.parts[p] ?? 'none'], tone: tone(s.parts[p] ?? 'none') })),
         ]),
       { empty: x.none, size: 7.4 },
     );

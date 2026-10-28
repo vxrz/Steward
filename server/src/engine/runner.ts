@@ -51,7 +51,7 @@ import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
-import { applicationInputValue } from '../catalogue/components.js';
+import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
 import { checkOutcome } from './check-alerts.js';
 
 // ---------------------------------------------------------------------------
@@ -292,7 +292,15 @@ function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<st
     if (v === undefined || v === '' || v === null) v = d.default;
     if (v === undefined || v === '' || v === null) {
       if (d.required) throw new HttpError(400, `Input "${d.label ?? d.name}" is required`);
-      out[d.name] = d.type === 'list' || d.type === 'table' ? [] : d.type === 'boolean' ? false : null;
+      // applications: empty means every application that is not archived
+      out[d.name] =
+        d.type === 'applications'
+          ? applicationsInputValue([], d.label ?? d.name)
+          : d.type === 'list' || d.type === 'table'
+            ? []
+            : d.type === 'boolean'
+              ? false
+              : null;
       continue;
     }
     switch (d.type) {
@@ -322,6 +330,9 @@ function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<st
         break;
       case 'application':
         out[d.name] = applicationInputValue(v, d.label ?? d.name);
+        break;
+      case 'applications':
+        out[d.name] = applicationsInputValue(v, d.label ?? d.name);
         break;
       case 'json':
         if (typeof v === 'string') {

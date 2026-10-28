@@ -9,6 +9,7 @@ import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
+import { PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
 import { createUser, findUserByName, saveTeam } from '../auth/users.js';
 import type { Role } from '@sm/shared';
@@ -130,6 +131,20 @@ export async function setupDemo(): Promise<{
       secrets: { username: DEMO_GATUS.username, password: DEMO_GATUS.password, externalToken: DEMO_GATUS.externalToken },
     });
     addSpec(g.id, 'Gatus API', JSON.stringify(gatusOpenApiSpec(), null, 2));
+    platforms++;
+  }
+  if (!existing.has('endoflife.date (demo)')) {
+    // end-of-life dates of the tech stacks (#104): the built-in mock with the real API's shape
+    const e = createPlatform({
+      name: 'endoflife.date (demo)',
+      kind: 'endoflife-date',
+      environment: 'demo',
+      description:
+        'Simulated endoflife.date API (made-up dates relative to today) served by the built-in mock. A real installation uses https://endoflife.date.',
+      baseUrl: `${base}/endoflife`,
+      config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/products/nodejs' },
+    });
+    for (const s of PRESET_SPECS['endoflife-date']!()) addSpec(e.id, s.name, s.content);
     platforms++;
   }
   if (!existing.has('Web probe (demo)')) {

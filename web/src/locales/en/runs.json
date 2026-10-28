@@ -68,7 +68,9 @@
     "loadCsv": "Load CSV file",
     "secretHint": "Stored encrypted only; shown as *** in the protocol, reports and the audit log",
     "applicationHint": "The run reads the application’s components and tech stack when it starts",
-    "noApplications": "No application found"
+    "noApplications": "No application found",
+    "allApplications": "All applications",
+    "applicationsHint": "Empty: all applications. The run reads their components and tech stack when it starts"
   },
   "trigger": {
     "manual": "manual",

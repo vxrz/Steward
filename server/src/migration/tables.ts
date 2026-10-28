@@ -23,6 +23,9 @@ export const NOT_MOVED: Record<string, string> = {
   notifications: 'in-app notifications are not moved',
   notification_sends: 'send bookkeeping of the source',
   notification_stale: 'send bookkeeping of the source',
+  eol_releases: 'a cache of endoflife.date (filled again on the target)',
+  eol_products: 'a cache of endoflife.date (filled again on the target)',
+  eol_notices: 'send bookkeeping of the source (a component past its end of life is reported again on the target)',
   check_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   daily_summary_sends: 'send bookkeeping of the source',
   duty_notifications: 'send bookkeeping of the source (a reminder of the current period may be sent again on the target)',
@@ -199,6 +202,7 @@ export const SETTINGS_MOVED = [
   'tickets.settings',
   'notifications.dailySummary',
   'notifications.look',
+  'catalogue.lifecycle',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */

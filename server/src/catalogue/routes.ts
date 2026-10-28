@@ -6,6 +6,8 @@ import { HttpError } from '../util.js';
 import * as apps from './applications.js';
 import * as cia from './cia.js';
 import * as comps from './components.js';
+import * as lifecycle from './lifecycle.js';
+import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
 
@@ -33,6 +35,11 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     apps.removeApplicationLink(params(req).id!, params(req).linkId!);
     return { ok: true };
   });
+
+  // ---------- end of life (#104) ----------
+  app.get('/catalogue/lifecycle', async () => lifecycle.lifecycleStatus());
+  app.put('/catalogue/lifecycle', async (req) => lifecycle.saveLifecycleSettings(lifecycle.settingsInput.parse(req.body)));
+  app.post('/catalogue/lifecycle/refresh', { config: { rateLimit: ROUTE_LIMITS.action } }, async () => lifecycle.refreshLifecycleNow());
 
   // ---------- components and tech stack ----------
   app.get('/catalogue/stack-products', async () => comps.stackProducts());

@@ -13,6 +13,7 @@ import { fmtDate, fmtRelative } from '../format';
 import { CriticalityBadge } from './Services';
 import { RatingBadges, levelText, useCiaScale } from '../components/catalogue/cia';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
+import { EndOfLifeButton } from '../components/catalogue/lifecycle';
 
 const NOT_RATED = '__none';
 
@@ -64,6 +65,7 @@ export function ApplicationsPage() {
             <Button size="xs" variant="default" component={Link} to="/applications/cia-scale" leftSection={<IconScale size={14} />}>
               {t('scale.link')}
             </Button>
+            <EndOfLifeButton />
             {canCreate && (
               <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setCreating(true)}>
                 {t('new')}

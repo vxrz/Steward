@@ -430,6 +430,10 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/applications/:id/links/:linkId': DESIGN,
   // components and tech stack (#103): like the application
   'GET /api/catalogue/stack-products': ALL,
+  // end of life (#104): everyone reads the status; administrators change the settings; designers and administrators refresh
+  'GET /api/catalogue/lifecycle': ALL,
+  'PUT /api/catalogue/lifecycle': ADMIN,
+  'POST /api/catalogue/lifecycle/refresh': DESIGN,
   'POST /api/applications/:id/components': DESIGN,
   'PUT /api/applications/:id/components/:componentId': DESIGN,
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
@@ -863,6 +867,7 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/links': { url: 'https://cmdb.example.com/7', label: 'x' },
   'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
   'POST /api/applications/:id/components': { type: 'other', name: `matrix ${Math.random()}` },
+  'PUT /api/catalogue/lifecycle': { platformId: null, warnDays: 90, notify: true, scorecard: false },
   'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },

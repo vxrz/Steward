@@ -103,7 +103,14 @@ describe('components', () => {
     image = a.components[0];
     expect(image.stack).toEqual([expect.objectContaining({ product: 'nodejs', label: 'Node.js', version: '22', source: 'manual', setBy: 'dana' })]);
     expect(a.stack).toEqual([
-      { product: 'nodejs', label: 'Node.js', version: '22', components: [{ id: image.id, name: 'ghcr.io/acme/orders', type: 'container-image' }] },
+      // no end-of-life data before the first refresh (#104)
+      {
+        product: 'nodejs',
+        label: 'Node.js',
+        version: '22',
+        lifecycle: null,
+        components: [{ id: image.id, name: 'ghcr.io/acme/orders', type: 'container-image' }],
+      },
     ]);
     // readers see them, without the right to edit
     const seen = await vera('GET', `/applications/${app.id}`);
@@ -303,6 +310,7 @@ describe('components', () => {
       product: 'nodejs',
       label: 'Node.js',
       version: '24',
+      lifecycle: null,
     });
     // … by name (portable, e.g. a default in Git), and the value of an earlier run
     r = await run({ app: 'orders' });

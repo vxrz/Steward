@@ -117,6 +117,12 @@
         "label": "Ziel unterschritten",
         "info": "Ein Verfügbarkeitsziel eines Service, für den Sie verantwortlich sind, ist unter seinen Zielwert gefallen (einmal je Unterschreitung)"
       }
+    },
+    "stack": {
+      "eol": {
+        "label": "Supportende im Tech-Stack",
+        "info": "Eine Komponente einer Anwendung, die Sie verantworten, erreicht bald das Supportende ihres Release-Zyklus (oder hat es erreicht)"
+      }
     }
   }
 }

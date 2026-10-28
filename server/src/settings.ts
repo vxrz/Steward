@@ -29,6 +29,7 @@ const INTERNAL = [
   'security.',
   'theme.',
   'credentials.',
+  'catalogue.',
   'gatus.',
   'mcp.',
   'tickets.',

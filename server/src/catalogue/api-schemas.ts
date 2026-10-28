@@ -4,6 +4,7 @@ import {
   CIA_COLORS,
   CIA_SCALE_MODES,
   COMPONENT_TYPES,
+  LIFECYCLE_STATES,
   REVIEW_STATUSES,
   SBOM_FORMATS,
   SERVICE_CONTACT_ROLES,
@@ -117,6 +118,16 @@ const cmdb = z
   .nullable()
   .describe('The entry in the CMDB (e.g. ServiceNow); null when none is set');
 
+const StackLifecycleEntry = z.object({
+  state: z.enum(LIFECYCLE_STATES).describe('supported; ending: within the warning period; eol: past its end of life; unknown: no matching release cycle'),
+  cycle: z.string().nullable().describe('The release cycle of the version, e.g. 24 for 24.11.0'),
+  eolFrom: z.string().nullable().describe('End of life, YYYY-MM-DD'),
+  eoasFrom: z.string().nullable().describe('End of active support, YYYY-MM-DD'),
+  isLts: z.boolean(),
+  latest: z.string().nullable().describe('Latest version of the cycle'),
+  daysLeft: z.number().int().nullable().describe('Days until the end of life (negative: past)'),
+});
+
 const StackEntry = z.object({
   product: z.string().describe('endoflife.date product id, e.g. nodejs'),
   label: z.string().describe('Product name, e.g. Node.js'),
@@ -125,6 +136,7 @@ const StackEntry = z.object({
   sbomRef: z.string().describe('sbom: the SBOM component it was read from (package URL, CPE or name)'),
   setAt: ts(),
   setBy: z.string(),
+  lifecycle: StackLifecycleEntry.nullable().describe('End of life of the release cycle in use (from endoflife.date); null: no data for the product'),
 });
 
 export const ApplicationEntry = z.object({
@@ -203,6 +215,7 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
         product: z.string(),
         label: z.string(),
         version: z.string(),
+        lifecycle: StackLifecycleEntry.nullable(),
         components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES) })),
       }),
     )

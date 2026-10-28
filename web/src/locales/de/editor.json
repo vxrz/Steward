@@ -617,7 +617,9 @@
     "defaultCsv": "Standard-CSV",
     "defaultJson": "Standard-JSON",
     "defaultApplication": "Standard-Anwendung",
-    "applicationHint": "Der Lauf erhält die Anwendung mit ihren Komponenten und ihrem Tech-Stack, z. B. {{example}}"
+    "applicationHint": "Der Lauf erhält die Anwendung mit ihren Komponenten und ihrem Tech-Stack, z. B. {{example}}",
+    "defaultApplications": "Standard-Anwendungen",
+    "applicationsHint": "Leer: alle nicht archivierten Anwendungen. Der Lauf erhält eine Liste von Anwendungen mit Komponenten und Tech-Stack, z. B. {{example}}"
   },
   "inputTypes": {
     "string": "Text",
@@ -628,7 +630,8 @@
     "table": "Tabelle (CSV)",
     "json": "JSON",
     "secret": "Geheim (verborgen)",
-    "application": "Anwendung (Komponenten, Tech-Stack)"
+    "application": "Anwendung (Komponenten, Tech-Stack)",
+    "applications": "Anwendungen (mehrere; leer: alle)"
   },
   "connections": {
     "hint": "Verbindungen halten den Prozess plattformunabhängig: Schritte verweisen auf eine Verbindung (z. B. <c>hub</c>), und die konkrete Plattform wird beim Start der Ausführung gewählt. Optional lässt sich eine Verbindung auf eine Plattformart beschränken.",

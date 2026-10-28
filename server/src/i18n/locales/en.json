@@ -292,5 +292,11 @@
     "banner": "Dry run – a test, nothing was changed. No action needed.",
     "sampleProcess": "Inventory export",
     "sampleError": "Platform answered HTTP 503"
+  },
+  "stackEol": {
+    "titleEnding": "End of life soon: {{product}} in {{application}}",
+    "titleEol": "End of life reached: {{product}} in {{application}}",
+    "bodyEnding": "{{product}} reaches its end of life on {{date}} (in {{days}} days). Components: {{components}}.",
+    "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade."
   }
 }
