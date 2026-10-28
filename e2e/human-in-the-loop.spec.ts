@@ -21,7 +21,7 @@ test.describe('human in the loop', () => {
     await adam.goto('/tasks');
     await adam.getByRole('button', { name: /^Notifications \(\d+ unread\)/ }).click();
     const drawer = adam.getByRole('dialog', { name: /Notifications/ });
-    await expect(drawer.getByRole('button', { name: /^Unread: Decision needed: Flag \d+ inactive user/ }).first()).toBeVisible();
+    await expect(drawer.getByRole('button', { name: /^Unread: Dry run – Decision needed: Flag \d+ inactive user/ }).first()).toBeVisible();
     await adam.keyboard.press('Escape');
     await expect(drawer).toBeHidden();
 
