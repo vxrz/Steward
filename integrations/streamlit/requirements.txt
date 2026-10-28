@@ -1,6 +1,7 @@
 # Generated from requirements.in with
-#   uv pip compile requirements.in --universal --python-version 3.11 --exclude-newer 2026-10-14T00:00:00Z -o requirements.txt
-# Every version is pinned; update them together (see README.md).
+#   uv pip compile requirements.in --universal --python-version 3.11 --exclude-newer 2026-10-14T00:00:00Z \
+#     --exclude-newer-package streamlit=2026-10-22T00:00:00Z --exclude-newer-package pillow=2026-10-22T00:00:00Z -o requirements.txt
+# (Streamlit and Pillow newer for the Pillow security fixes.) Every version is pinned; update them together (see README.md).
 altair==6.3.0
     # via streamlit
 anyio==4.15.1
@@ -39,8 +40,6 @@ h11==0.16.0
     #   uvicorn
 httpcore==1.0.9
     # via httpx
-httptools==0.9.0
-    # via streamlit
 httpx==0.28.1
     # via streamlit
 idna==3.20
@@ -82,8 +81,10 @@ pandas==3.0.6
     # via
     #   -r requirements.in
     #   streamlit
-pillow==12.3.0
-    # via streamlit
+pillow==13.0.0
+    # via
+    #   -r requirements.in
+    #   streamlit
 protobuf==7.36.2
     # via streamlit
 pyarrow==25.0.1
@@ -112,10 +113,8 @@ six==1.17.0
     # via python-dateutil
 starlette==1.8.0
     # via streamlit
-streamlit==1.65.0
+streamlit==1.66.1
     # via -r requirements.in
-toml==0.10.2
-    # via streamlit
 typing-extensions==4.16.0
     # via
     #   altair

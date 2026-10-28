@@ -118,7 +118,7 @@ Pinned in the examples, each released at least two weeks before 2026-10-28:
 | Component                                                | Version                                                 |
 | -------------------------------------------------------- | ------------------------------------------------------- |
 | Python image (Streamlit)                                 | `python:3.13.15-slim-trixie`                            |
-| Streamlit (with `[auth]`)                                | 1.65.0                                                  |
+| Streamlit (with `[auth]`)                                | 1.66.1 (with Pillow 13.0.0)                             |
 | pandas, requests, Authlib                                | 3.0.6, 2.34.2, 1.8.0 (all others in `requirements.txt`) |
 | Grafana image                                            | `grafana/grafana:13.2.3`                                |
 | Infinity data source (`yesoreyeram-infinity-datasource`) | 4.1.1                                                   |
