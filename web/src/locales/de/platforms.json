@@ -131,7 +131,8 @@
       "explorer": "Explorer",
       "access": "Zugriff",
       "metrics": "Metriken",
-      "mcp": "MCP"
+      "mcp": "MCP",
+      "recordings": "Aufgezeichnete Antworten"
     },
     "deleteText": "Damit wird <b>{{name}}</b> einschließlich gespeicherter Zugangsdaten, API-Spezifikationen und Dokumente gelöscht. Prozesse und Zeitpläne, die sie verwenden, schlagen fehl, bis eine andere Plattform gewählt wird. Das Audit-Log bleibt erhalten.",
     "typeToConfirm": "Zur Bestätigung „{{name}}“ eingeben"
@@ -342,5 +343,37 @@
     "confirmQuestion": "Die aktuellen Verbindungseinstellungen (Basis-URL {{url}}) bestätigen? Prüfen Sie vorher die Einstellungen und das Audit-Log.",
     "confirmed": "Einstellungen bestätigt",
     "askAdmin": "Bitten Sie einen Administrator, die Einstellungen zu prüfen und zu bestätigen."
+  },
+  "recordings": {
+    "title": "Aufgezeichnete Antworten",
+    "help": "Antworten dieser Plattform für Testläufe: Ein Testlauf eines Prozesses oder Monitors verwendet sie, statt die Plattform aufzurufen, und nennt jeden Aufruf ohne Aufzeichnung. Echte Läufe und Probeläufe verwenden sie nie. Sie können personenbezogene Daten enthalten – alle, die die Plattform verwenden dürfen, sehen sie.",
+    "add": "Antwort aufzeichnen",
+    "addTitle": "Antwort von {{name}} aufzeichnen",
+    "editTitle": "Aufgezeichnete Antwort ändern",
+    "empty": "Noch keine aufgezeichneten Antworten",
+    "emptyHint": "Zeichnen Sie eine im API-Explorer auf (Als aufgezeichnete Antwort speichern) oder geben Sie sie hier ein, z. B. aus Swagger oder Postman kopiert.",
+    "request": "Anfrage",
+    "status": "Status",
+    "size": "Größe",
+    "updated": "Geändert",
+    "actions": "Aktionen",
+    "edit": "{{request}} ändern",
+    "remove": "{{request}} entfernen",
+    "removeConfirm": "Die aufgezeichnete Antwort für {{request}} entfernen? Testläufe, die sie verwenden, schlagen bei diesem Aufruf fehl.",
+    "withBodyMatch": "vergleicht einen Teil des Bodys",
+    "saved": "Aufgezeichnete Antwort gespeichert",
+    "redactionHint": "Beim Speichern werden die Zugangsdaten der Plattform durch *** ersetzt und Header mit Zugangsdaten oder Cookies entfernt.",
+    "pathHint": "Wie in Prozessschritten, relativ zur Basis-URL. {id} passt auf ein Segment, ein * am Ende auf den Rest.",
+    "query": "Abfrageparameter, die passen müssen",
+    "queryHint": "Einer pro Zeile: name=wert. Die Anfrage muss sie haben; weitere dürfen dabei sein.",
+    "bodyMatch": "Body, der passen muss (JSON, optional)",
+    "bodyMatchHint": "Teile des Anfrage-Bodys, die die Anfrage haben muss, z. B. {\"user\": \"u2\"}. Leer: jeder Body.",
+    "bodyMatchInvalid": "Das ist kein gültiges JSON.",
+    "headers": "Antwort-Header",
+    "headersHint": "Einer pro Zeile: name: wert",
+    "body": "Antwort-Body",
+    "bodyHint": "JSON oder beliebiger Text für eine Antwort, die kein JSON ist. Höchstens {{mb}} MB.",
+    "note": "Notiz",
+    "saveFromExplorer": "Als aufgezeichnete Antwort speichern"
   }
 }

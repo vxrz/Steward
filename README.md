@@ -150,6 +150,17 @@ Many specifications put part of the path in their server URL. The Insights Hub I
 
 **Copying to other platforms.** A spec can be copied to other platforms of the same kind (API specs → _Copy to other platforms_, or `POST /api/platforms/{id}/specs/{specId}/copy` with `targets`), e.g. from one Insights Hub tenant to the next. Each platform gets its own, independent copy, since platforms of one kind can run different API versions. The path prefix comes along, unless the target's base URL already ends with it. A target that already has a spec with the same title and version is skipped, or – with _Replace_ – gets the new content under the same spec id, so processes using it keep working. Needs `manage` on the source and every target; audited as `platform.spec_added` / `platform.spec_updated` with `copiedFrom`.
 
+### Recorded responses and test runs
+
+While you model a process, the platform is often not reachable yet, or you do not want to call it. **Recorded responses** stand in for it: _Platforms → (platform) → Recorded responses_ keeps answers per operation – method and path, optionally query parameters and parts of a JSON body the request must have – with status, headers and body.
+
+- **Record** one in the API explorer (_Save as recorded response_ under the answer), or enter or paste it by hand, e.g. from Swagger or Postman.
+- **Match**: `{id}` in a path matches one segment, a trailing `*` the rest (`/users/{id}`, `/files/*`). When several fit, the most specific wins: more fixed path segments, then more query parameters, then a body to match, then the newest.
+- **Test run**: in _Run_, turn on _Use recorded responses (test run)_ (API: `POST /api/runs` with `recorded: true`). A test run is a dry run whose platform calls are answered by the recordings – nothing is sent. A read without a recording fails its step and names the call (_Test run: no recorded response for GET /users?active=true on "…"_). A write with a recording gets that answer; without one it is skipped as in a dry run. Paged reads stop when the same recording would answer the next page. Browser steps are skipped. Sub-processes run as test runs too. Runs show _Test run_; the public API has `recorded` on runs.
+- **Monitors**: _Test with recorded responses_ on a monitor runs its platform checks against the recordings and shows the results – nothing is stored, no status changes, no messages. Other check types need the network and are skipped (`POST /api/monitors/{id}/test-run`).
+- **Never** used by real runs, dry runs or monitors that run on their schedule.
+- Recordings can hold **personal data**: everyone who may use the platform reads them (a run would fetch the same data); changing them needs `manage`. When a recording is saved, the platform's credentials and cached tokens are replaced by `***`, and headers with credentials or cookies (`Authorization`, `Cookie`, `Set-Cookie`, `X-API-Key` …) are dropped. At most 500 per platform, 1 MB body each. Audited as `platform.recording_added` / `_changed` / `_removed`; they move with migration packages and are removed with their platform.
+
 ## Users, roles and access
 
 | Role     | Default rights                                                                                        |

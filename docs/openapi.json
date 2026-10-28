@@ -564,6 +564,10 @@
           "dryRun": {
             "type": "boolean"
           },
+          "recorded": {
+            "type": "boolean",
+            "description": "Test run: a dry run whose platform calls were answered by recorded responses"
+          },
           "trigger": {
             "type": "string",
             "enum": [
@@ -668,6 +672,7 @@
           "processVersion",
           "status",
           "dryRun",
+          "recorded",
           "trigger",
           "scheduleId",
           "parentRunId",
@@ -737,6 +742,10 @@
           },
           "dryRun": {
             "type": "boolean"
+          },
+          "recorded": {
+            "type": "boolean",
+            "description": "Test run: a dry run whose platform calls were answered by recorded responses"
           },
           "trigger": {
             "type": "string",
@@ -1187,6 +1196,7 @@
           "processVersion",
           "status",
           "dryRun",
+          "recorded",
           "trigger",
           "scheduleId",
           "parentRunId",

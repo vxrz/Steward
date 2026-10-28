@@ -476,5 +476,15 @@
     "choose": "Choose a platform",
     "noneOfKind": "You may use no platform of kind {{kind}}. Add one, or ask for the “use” right on one.",
     "none": "You may use no platform. Add one, or ask for the “use” right on one."
+  },
+  "testRun": {
+    "button": "Test with recorded responses",
+    "title": "Test run with recorded responses",
+    "help": "The platform checks answered by the recorded responses of their platforms. Nothing is stored: no results, no status change, no messages. Other check types need the network and are skipped.",
+    "check": "Check",
+    "result": "Result",
+    "message": "Message",
+    "skipped": "skipped",
+    "notRecorded": "no recording"
   }
 }

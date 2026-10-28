@@ -28,6 +28,7 @@ import { HttpError, newId, nowIso, parseJson, pathInside, sha256, sleep } from '
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { openInputs, sealInputs, secretValuesOf } from './secret-inputs.js';
 import { platformRequest, resolveBaseUrl, secretValues, buildUrl, credentialsAllowed, type HttpResult } from '../platforms/http.js';
+import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import {
   assertAddressSafe,
@@ -123,6 +124,8 @@ export class Redactor {
 const varScope = new AsyncLocalStorage<{ ctx: RunContext; vars: Record<string, unknown> }>();
 
 class RunContext {
+  /** Test run (#105): platform calls are answered by recorded responses (always also a dry run). */
+  recorded = false;
   /** Run-level variables (outside parallel loop bodies). */
   rootVars: Record<string, unknown> = {};
   journal: Map<string, store.StepRow>;
@@ -404,6 +407,9 @@ export async function startRun(
 ): Promise<string> {
   const proc = getProcess(req.processId, req.version);
   const def = proc.definition;
+  // a test run is a dry run whose platform calls are answered by recorded responses
+  const recorded = !!req.recorded;
+  if (recorded) req = { ...req, dryRun: true };
   const inputs = coerceInputs(def.inputs ?? [], req.inputs ?? {});
   // inputs of type "secret": only stored encrypted, "***" in the protocol and the audit log
   const { visible: storedInputs, sealed } = sealInputs(def.inputs, inputs);
@@ -416,14 +422,15 @@ export async function startRun(
   );
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, sealed_inputs)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, sealed_inputs)
+       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
       req.version ?? proc.currentVersion,
       proc.definitionHash,
       req.dryRun ? 1 : 0,
+      recorded ? 1 : 0,
       opts.trigger ?? 'manual',
       opts.scheduleId ?? null,
       actor,
@@ -443,19 +450,20 @@ export async function startRun(
       entityType: 'process',
       entityId: proc.id,
       runId,
-      summary: `${req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})`,
+      summary: `${recorded ? 'Test run' : req.dryRun ? 'Dry run' : 'Run'} of "${proc.name}" v${req.version ?? proc.currentVersion} started (${opts.trigger ?? 'manual'}${opts.parent ? ` by run ${opts.parent.runId}` : ''}${opts.webhook ? ` "${opts.webhook.triggerName}"${opts.webhook.test ? ', test' : ''}` : ''})`,
       details: {
         inputs: storedInputs,
         bindings: bindingInfo,
         definitionHash: proc.definitionHash,
         dryRun: !!req.dryRun,
+        ...(recorded ? { recorded: true } : {}),
         scheduleId: opts.scheduleId,
         ...(opts.webhook ? { triggerId: opts.webhook.triggerId, test: !!opts.webhook.test } : {}),
         ...(opts.parent ? { parentRunId: opts.parent.runId, parentStepKey: opts.parent.stepKey } : {}),
       },
     });
   });
-  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats());
+  launch(runId, def, inputs, bindings, !!req.dryRun, actor, startedAt, store.emptyStats(), undefined, recorded);
   return runId;
 }
 
@@ -469,8 +477,10 @@ function launch(
   startedAt: string,
   stats: RunStats,
   resumedBy?: string,
+  recorded = false,
 ): void {
-  const ctx = new RunContext(runId, def, inputs, bindings, dryRun, actor, startedAt, stats);
+  const ctx = new RunContext(runId, def, inputs, bindings, dryRun || recorded, actor, startedAt, stats);
+  ctx.recorded = recorded;
   ctx.redactor.add(...secretValuesOf(def.inputs, inputs));
   ctx.resumedBy = resumedBy;
   const done = execute(ctx).finally(() => active.delete(runId));
@@ -497,6 +507,7 @@ export async function resumeRun(runId: string, actor = currentActor()): Promise<
     r.started_at,
     { ...store.emptyStats(), ...parseJson(r.stats, {}) },
     actor,
+    !!r.recorded,
   );
 }
 
@@ -1043,7 +1054,7 @@ async function execSubprocess(step: NodeOf<'subprocess'>, ctx: RunContext, key: 
     const request = { process: step.process, version: step.version ?? proc.currentVersion, inputs, bindings };
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply(request));
     const id = await startRun(
-      { processId: step.process, version: step.version, inputs, bindings, dryRun: ctx.dryRun },
+      { processId: step.process, version: step.version, inputs, bindings, dryRun: ctx.dryRun, recorded: ctx.recorded },
       { trigger: 'subprocess', actor: ctx.actor, parent: { runId: ctx.runId, stepKey: key } },
     );
     store.updateStepInput(ctx.runId, key, ctx.redactor.apply({ ...request, childRunId: id }));
@@ -1252,9 +1263,11 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const requestInfo = { platform: b.platform.name, method: step.method, url: joinUrl(b.baseUrl, p), query, headers, body, write: writes };
   store.updateStepInput(ctx.runId, key, ctx.redactor.apply(requestInfo));
 
-  if (writes && ctx.dryRun) {
+  // test run: a write with a recorded response gets that answer; without one it is skipped as in a dry run
+  const replayWrite = writes && ctx.recorded && !!findRecording(b.platform.id, { method: step.method, url: p, query, body });
+  if (writes && ctx.dryRun && !replayWrite) {
     ctx.stats.skippedWrites++;
-    ctx.log('info', `DRY RUN – would call ${step.method} ${requestInfo.url}`, key, body);
+    ctx.log('info', `${ctx.recorded ? 'TEST RUN – no recorded response, would call' : 'DRY RUN – would call'} ${step.method} ${requestInfo.url}`, key, body);
     audit({
       actor: ctx.actor,
       action: 'api.write_skipped',
@@ -1269,7 +1282,19 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
 
   ctx.redactor.add(...secretValues(b.secrets));
   const accept = (s: number) => (step.expectStatus?.length ? step.expectStatus.includes(s) : s >= 200 && s < 300);
+  let lastRecording: string | null = null;
+  const replay = (url: string, q: Record<string, unknown>): HttpResult => {
+    const hit = findRecording(b.platform.id, { method: step.method, url, query: q, body });
+    if (!hit) throw missingRecording(b.platform.name, step.method, url, q);
+    // the same recording for the next page: the recording has no more pages
+    if (hit.recordingId === lastRecording) return { ...hit.result, body: [] };
+    lastRecording = hit.recordingId;
+    ctx.log('info', `TEST RUN – recorded response for ${step.method} ${hit.result.url} → HTTP ${hit.result.status}`, key);
+    if (!accept(hit.result.status)) throw new Error(`HTTP ${hit.result.status} from ${step.method} ${url} (recorded): ${snippet(hit.result.body)}`);
+    return hit.result;
+  };
   const doRequest = async (url: string, q: Record<string, unknown>) => {
+    if (ctx.recorded) return replay(url, q);
     const target = await buildUrl(b.platform, b.secrets, url, q);
     await enforceOutbound(ctx, target, headers, body);
     const res = await platformRequest(b.platform, b.secrets, { method: step.method, url, query: q, headers, body, bodyType: step.bodyType }, ctx.signal);
@@ -1282,7 +1307,7 @@ async function execHttp(step: NodeOf<'http'>, ctx: RunContext, key: string): Pro
   const pg = step.paginate;
   if (!pg || pg.mode === 'none') {
     const res = await doRequest(p, query);
-    if (writes) auditWrite(ctx, b, step, p, res, key);
+    if (writes && !ctx.recorded) auditWrite(ctx, b, step, p, res, key);
     return {
       output: {
         status: res.status,
@@ -1684,6 +1709,10 @@ function manualOutput(t: TaskRecord, ctx: RunContext, key: string, decision: Tas
 async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string): Promise<LeafResult> {
   const b = step.connection ? ctx.bindings[step.connection] : undefined;
   if (step.connection && !b) throw new Error(`Connection "${step.connection}" is not bound`);
+  if (ctx.recorded) {
+    ctx.log('info', 'TEST RUN – browser steps do not run in test runs (they would open the real site)', key);
+    return { status: 'dryrun', output: { dryRun: true, recorded: true }, summary: 'TEST RUN – skipped' };
+  }
   if (step.mutating && ctx.dryRun) {
     ctx.stats.skippedWrites++;
     ctx.log('info', 'DRY RUN – browser step changes data and was skipped', key);

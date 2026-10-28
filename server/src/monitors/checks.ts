@@ -2,9 +2,10 @@ import { execFile } from 'node:child_process';
 import net from 'node:net';
 import tls from 'node:tls';
 import { Agent, EnvHttpProxyAgent, fetch, type Dispatcher } from 'undici';
-import type { CheckOf, MonitorStatus } from '@sm/shared';
+import type { CheckOf, MonitorStatus, Platform } from '@sm/shared';
 import { evalExpr } from '../engine/expr.js';
-import { platformRequest } from '../platforms/http.js';
+import { platformRequest, type HttpResult } from '../platforms/http.js';
+import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND } from '@sm/shared';
@@ -31,6 +32,29 @@ export interface ExecContext {
   signal: AbortSignal;
   timeoutMs: number;
   now: () => number;
+  /** Test run (#105): platform calls are answered by recorded responses; `recorded` is set when one answered */
+  recorded?: { recorded: boolean };
+}
+
+/** A platform call of a check: the platform, or its recorded response in a test run (null: none recorded). */
+async function checkRequest(
+  ctx: ExecContext,
+  platform: Platform,
+  secrets: Record<string, string>,
+  req: { method: string; url: string; query?: Record<string, unknown>; headers?: Record<string, string>; body?: unknown },
+): Promise<HttpResult | { missing: string }> {
+  if (ctx.recorded) {
+    const hit = findRecording(platform.id, req);
+    if (!hit) return { missing: missingRecording(platform.name, req.method, req.url, req.query).message };
+    ctx.recorded.recorded = true;
+    return hit.result;
+  }
+  return platformRequest(
+    platform,
+    secrets,
+    { method: req.method as 'GET', url: req.url, query: req.query, headers: req.headers, body: req.body },
+    AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
+  );
 }
 
 const GUARD = { timeoutMs: 1000, maxDepth: 200 };
@@ -300,12 +324,15 @@ async function checkPlatform(c: CheckOf<'platform'>, ctx: ExecContext): Promise<
   const t0 = Date.now();
   let r;
   try {
-    r = await platformRequest(
-      platform,
-      secrets,
-      { method: c.method, url: c.path, query: c.query, headers: c.headers, body: c.method === 'POST' ? c.body : undefined },
-      AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
-    );
+    const res = await checkRequest(ctx, platform, secrets, {
+      method: c.method,
+      url: c.path,
+      query: c.query,
+      headers: c.headers,
+      body: c.method === 'POST' ? c.body : undefined,
+    });
+    if ('missing' in res) return { status: 'unknown', message: res.missing.slice(0, 500), durationMs: 0 };
+    r = res;
   } catch (e) {
     return {
       status: 'down',
@@ -364,12 +391,9 @@ async function checkFreshness(c: CheckOf<'freshness'>, ctx: ExecContext): Promis
   const { platform, secrets } = platformFor(ctx.owner, c.platform);
   let r;
   try {
-    r = await platformRequest(
-      platform,
-      secrets,
-      { method: 'GET', url: c.path!, query: c.query },
-      AbortSignal.any([ctx.signal, AbortSignal.timeout(ctx.timeoutMs)]),
-    );
+    const res = await checkRequest(ctx, platform, secrets, { method: 'GET', url: c.path!, query: c.query });
+    if ('missing' in res) return { status: 'unknown', message: res.missing.slice(0, 500), durationMs: 0 };
+    r = res;
   } catch (e) {
     return { status: 'unknown', message: `Freshness could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
   }

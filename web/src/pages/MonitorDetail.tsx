@@ -51,6 +51,7 @@ import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { AccessEditor } from '../components/AccessEditor';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { MonitorGraph } from '../components/monitors/MonitorGraph';
+import { TestRunButton } from '../components/monitors/TestRunButton';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { confirmDanger } from '../components/confirm';
@@ -114,6 +115,9 @@ export function MonitorDetailPage() {
               <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
                 {t('detail.checkNow')}
               </Button>
+            )}
+            {!m.isTemplate && can('acknowledge') && m.definition.checks.some((c) => c.type === 'platform' || c.type === 'freshness') && (
+              <TestRunButton monitorId={m.id} />
             )}
             {m.isTemplate && (
               <Button size="xs" onClick={() => setInstances(true)}>

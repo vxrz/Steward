@@ -94,6 +94,8 @@ Common fields: `id`, `name`, `description`, `intervalSeconds`, `timeoutSeconds`,
 
 **Insights Hub time series.** Steward reads `GET {tsPath}/timeseries/{assetId}/{aspect}?latestRecord=true` (`tsPath` is the platform variable, default `/api/iottimeseries/v3`). The latest record comes from the raw store but only contains the variables written at that moment, so for the other variables a second call reads `?from=<now − window>&to=<now>&select=<variables>` and takes the newest value per variable. `latestValue=true` is not used: it reads aggregated data that can lag 1–2 hours. **All checks on the same asset and aspect that are due in the same cycle share these calls** (checks with the same asset/aspect and interval are scheduled into the same cycle); answers are reused for 10 s. With 20–30 machines and a few variables each, that is one or two calls per asset/aspect and interval.
 
+**Trying checks without the platform.** _Test with recorded responses_ (monitor page) runs the monitor's platform checks against the [recorded responses](../README.md#recorded-responses-and-test-runs) of their platforms and shows the results; nothing is stored. Other check types are skipped.
+
 ## Heartbeat API for gateways
 
 ### One check

@@ -35,7 +35,8 @@
     "failedSteps_one": "{{count}} failed step",
     "failedSteps_other": "{{count}} failed steps",
     "webhook": "webhook",
-    "monitor": "monitor"
+    "monitor": "monitor",
+    "test": "test"
   },
   "bindings": {
     "noPermission": "{{name}} (no permission to use)",
@@ -58,7 +59,10 @@
     "writesTitle": "This run will change data",
     "writesText": "The process contains write operations that will be executed against the selected platform(s).",
     "startDryRun": "Start dry run",
-    "startRun": "Start run"
+    "startRun": "Start run",
+    "recorded": "Use recorded responses (test run)",
+    "recordedHint": "Platform calls are answered by the recorded responses of each platform, nothing is sent. A call without one fails the run and is named.",
+    "startTestRun": "Start test run"
   },
   "inputs": {
     "none": "This process has no inputs.",
@@ -162,7 +166,8 @@
       "more_one": "Show {{count}} more",
       "more_other": "Show {{count}} more",
       "all": "Show all"
-    }
+    },
+    "testRun": "Test run (recorded responses)"
   },
   "emptyState": {
     "title": "No runs yet",

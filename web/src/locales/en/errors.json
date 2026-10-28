@@ -618,7 +618,11 @@
     "INPUT_APPLICATION_ARCHIVED": "Input “{{input}}”: application “{{name}}” is archived.",
     "LIFECYCLE_PLATFORM_KIND": "Choose a platform of kind endoflife.date.",
     "LIFECYCLE_NO_PLATFORM": "No endoflife.date platform is set up. Add one under Platforms (connector type endoflife.date).",
-    "INPUT_APPLICATIONS_TOO_MANY": "Input “{{input}}” names more than {{max}} applications."
+    "INPUT_APPLICATIONS_TOO_MANY": "Input “{{input}}” names more than {{max}} applications.",
+    "RECORDING_LIMIT": "A platform keeps at most {{max}} recorded responses. Remove some first.",
+    "RECORDING_MATCH_TOO_LARGE": "The body to match is too large.",
+    "RECORDING_NOT_FOUND": "The recorded response does not exist (any more).",
+    "RECORDING_TOO_LARGE": "The recorded body is larger than {{maxMb}} MB."
   },
   "boundary": {
     "title": "Something went wrong on this page",

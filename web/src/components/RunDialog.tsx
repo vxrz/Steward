@@ -79,6 +79,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
   const [inputs, setInputs] = useState<Record<string, unknown>>({});
   const [bindings, setBindings] = useState<Record<string, string>>({});
   const [dryRun, setDryRun] = useState(true);
+  const [recorded, setRecorded] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
       setInputs(defaultInputs(proc.data.definition.inputs));
       setBindings(loadBindings(proc.data.id));
       setDryRun(true);
+      setRecorded(false);
     }
   }, [proc.data, opened]);
 
@@ -96,7 +98,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     setBusy(true);
     try {
       localStorage.setItem(bindingsKey(proc.data.id), JSON.stringify(bindings));
-      const r = await post<{ id: string }>('/runs', { processId: proc.data.id, inputs, bindings, dryRun });
+      const r = await post<{ id: string }>('/runs', { processId: proc.data.id, inputs, bindings, dryRun: dryRun || recorded, recorded: dryRun && recorded });
       onClose();
       navigate(`/runs/${r.id}`);
     } catch (e) {
@@ -120,6 +122,15 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
           <InputsForm defs={proc.data.definition.inputs} value={inputs} onChange={setInputs} />
           <Divider />
           <Switch checked={dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} label={t('dialog.dryRun')} description={t('dialog.dryRunHint')} />
+          {dryRun && (
+            <Switch
+              ml="lg"
+              checked={recorded}
+              onChange={(e) => setRecorded(e.currentTarget.checked)}
+              label={t('dialog.recorded')}
+              description={t('dialog.recordedHint')}
+            />
+          )}
           {!dryRun && hasWrites && (
             <Alert color="orange" title={t('dialog.writesTitle')}>
               {t('dialog.writesText')}
@@ -130,7 +141,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
               {t('common:cancel')}
             </Button>
             <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={dryRun ? 'blue' : 'orange'}>
-              {dryRun ? t('dialog.startDryRun') : t('dialog.startRun')}
+              {dryRun ? (recorded ? t('dialog.startTestRun') : t('dialog.startDryRun')) : t('dialog.startRun')}
             </Button>
           </Group>
         </Stack>

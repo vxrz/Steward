@@ -11,6 +11,7 @@ import {
   IconLock,
   IconPlug,
   IconPlugConnected,
+  IconPlayerRecord,
   IconRefresh,
   IconRobot,
   IconTicket,
@@ -33,6 +34,7 @@ import { SpecsTab } from '../components/platform/SpecsTab';
 import { DocsTab } from '../components/platform/DocsTab';
 import { ExplorerTab, type ExplorerPreset } from '../components/platform/ExplorerTab';
 import { GatusMetricsTab } from '../components/platform/GatusMetricsTab';
+import { RecordingsTab } from '../components/platform/RecordingsTab';
 import { McpGatewayTab } from '../components/mcp/McpGatewayTab';
 import { TicketsPanel } from '../components/tickets/TicketsPanel';
 
@@ -251,6 +253,11 @@ export function PlatformDetailPage() {
               {t('detail.tabs.explorer')}
             </Tabs.Tab>
           )}
+          {canUse && (
+            <Tabs.Tab value="recordings" leftSection={<IconPlayerRecord size={16} />}>
+              {t('detail.tabs.recordings')}
+            </Tabs.Tab>
+          )}
           {p.kind === 'gatus' && (
             <Tabs.Tab value="metrics" leftSection={<IconChartLine size={16} />}>
               {t('detail.tabs.metrics')}
@@ -288,6 +295,9 @@ export function PlatformDetailPage() {
         </Tabs.Panel>
         <Tabs.Panel value="explorer">
           <ExplorerTab platform={p} preset={explorerPreset} canWrite={canManage} />
+        </Tabs.Panel>
+        <Tabs.Panel value="recordings">
+          <RecordingsTab platform={p} readOnly={!canManage} />
         </Tabs.Panel>
         {p.kind === 'gatus' && (
           <Tabs.Panel value="metrics">

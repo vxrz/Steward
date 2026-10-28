@@ -476,5 +476,15 @@
     "choose": "Plattform wählen",
     "noneOfKind": "Sie dürfen keine Plattform der Art {{kind}} verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben.",
     "none": "Sie dürfen keine Plattform verwenden. Legen Sie eine an oder lassen Sie sich das Recht „Verwenden“ für eine geben."
+  },
+  "testRun": {
+    "button": "Mit aufgezeichneten Antworten testen",
+    "title": "Testlauf mit aufgezeichneten Antworten",
+    "help": "Die Plattform-Prüfungen, beantwortet mit den aufgezeichneten Antworten ihrer Plattformen. Nichts wird gespeichert: keine Ergebnisse, keine Statusänderung, keine Benachrichtigungen. Andere Prüfungsarten brauchen das Netzwerk und werden übersprungen.",
+    "check": "Prüfung",
+    "result": "Ergebnis",
+    "message": "Meldung",
+    "skipped": "übersprungen",
+    "notRecorded": "keine Aufzeichnung"
   }
 }

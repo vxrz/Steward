@@ -142,6 +142,7 @@ export const Run = z.object({
   processVersion: z.number().int(),
   status: z.enum(RUN_STATUSES),
   dryRun: z.boolean(),
+  recorded: z.boolean().describe('Test run: a dry run whose platform calls were answered by recorded responses'),
   trigger: z.enum(RUN_TRIGGERS),
   scheduleId: z.string().nullable(),
   parentRunId: z.string().nullable().describe('Run that started this one through a sub-process node'),

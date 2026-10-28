@@ -36,6 +36,7 @@ import { HttpError, parseJson, MAX_DEFINITION_TEXT, rasterImageType } from '../u
 import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
+import * as recordings from '../platforms/recordings.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
 import { platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
@@ -950,6 +951,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  // recorded responses for test runs (#105): read with "use", changed with "manage" (checked in recordings.ts)
+  app.get('/platforms/:id/recordings', async (req) => recordings.listRecordings(params(req).id!));
+  app.post('/platforms/:id/recordings', { bodyLimit: LARGE_BODIES.recordings.bytes }, async (req) =>
+    recordings.createRecording(params(req).id!, recordings.recordingInput.parse(req.body)),
+  );
+  app.put('/platforms/:id/recordings/:recId', { bodyLimit: LARGE_BODIES.recordings.bytes }, async (req) =>
+    recordings.updateRecording(params(req).id!, params(req).recId!, recordings.recordingInput.parse(req.body)),
+  );
+  app.delete('/platforms/:id/recordings/:recId', async (req) => {
+    recordings.deleteRecording(params(req).id!, params(req).recId!);
+    return { ok: true };
+  });
+
   app.post('/platforms/:id/request', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     const id = params(req).id!;
     const b = z
@@ -1137,6 +1151,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         inputs: boundedRecord(z.unknown(), 200).optional(),
         bindings: boundedRecord(z.string(), 100).optional(),
         dryRun: z.boolean().optional(),
+        recorded: z.boolean().optional(),
       })
       .parse(req.body) as StartRunRequest;
     requireProcess(b.processId, 'run', 'run this process');

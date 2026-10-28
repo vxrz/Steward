@@ -17,6 +17,7 @@ import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { monitorAccess } from '../auth/step-up-rules.js';
+import { testRunMonitor } from './test-run.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
 
@@ -154,6 +155,8 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     await engine.evaluateMonitorNow(r.id);
     return svc.getMonitor(r.id);
   });
+  // test run (#105): the platform checks against recorded responses; nothing is stored
+  app.post('/monitors/:id/test-run', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => testRunMonitor(params(req).id!));
   app.post('/monitors/:id/checks/:checkId/rotate', async (req) => svc.rotateHeartbeatSecret(params(req).id!, params(req).checkId!));
 
   /** Sends a sample report through the real heartbeat endpoint (secret added server-side). */

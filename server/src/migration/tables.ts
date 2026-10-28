@@ -99,6 +99,8 @@ export const USER_REFS: UserRef[] = [
 export const HISTORY_COLUMNS: string[] = [
   'access_checks.updated_by',
   'application_components.created_by',
+  'platform_recordings.created_by',
+  'platform_recordings.updated_by',
   'application_components.updated_by',
   'application_components.sbom_imported_by',
   'application_platforms.created_by',
