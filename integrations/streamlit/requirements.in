@@ -1,0 +1,7 @@
+# Direct dependencies of the example app. requirements.txt pins these and everything they pull in.
+# After changing this file:
+#   uv pip compile requirements.in --universal --python-version 3.11 -o requirements.txt
+streamlit[auth]==1.65.0
+requests==2.34.2
+pandas==3.0.6
+Authlib==1.8.0

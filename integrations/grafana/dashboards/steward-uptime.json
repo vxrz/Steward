@@ -1,0 +1,921 @@
+{
+  "uid": "steward-uptime",
+  "title": "Steward – Uptime",
+  "description": "Gatus uptime as published by Steward (datasets gatus-uptime and gatus-uptime-metrics)",
+  "tags": ["steward", "uptime"],
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "5m",
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "dataset",
+        "label": "Dataset",
+        "description": "gatus-uptime: process 71 (Gatus API), gatus-uptime-metrics: process 74 (Gatus /metrics)",
+        "query": "gatus-uptime,gatus-uptime-metrics",
+        "current": {
+          "text": "gatus-uptime",
+          "value": "gatus-uptime"
+        },
+        "options": [
+          {
+            "text": "gatus-uptime",
+            "value": "gatus-uptime",
+            "selected": true
+          },
+          {
+            "text": "gatus-uptime-metrics",
+            "value": "gatus-uptime-metrics",
+            "selected": false
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "type": "custom",
+        "name": "days",
+        "label": "History (days)",
+        "description": "Days of metric history to load (the API allows 1–400)",
+        "query": "1,7,30,90,180,365",
+        "current": {
+          "text": "30",
+          "value": "30"
+        },
+        "options": [
+          {
+            "text": "1",
+            "value": "1",
+            "selected": false
+          },
+          {
+            "text": "7",
+            "value": "7",
+            "selected": false
+          },
+          {
+            "text": "30",
+            "value": "30",
+            "selected": true
+          },
+          {
+            "text": "90",
+            "value": "90",
+            "selected": false
+          },
+          {
+            "text": "180",
+            "value": "180",
+            "selected": false
+          },
+          {
+            "text": "365",
+            "value": "365",
+            "selected": false
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Endpoints",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": []
+          },
+          "root_selector": "metrics",
+          "columns": [
+            {
+              "selector": "endpoints",
+              "text": "Endpoints",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Latest value of the metric endpoints"
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Down",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 5,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": []
+          },
+          "root_selector": "metrics",
+          "columns": [
+            {
+              "selector": "down",
+              "text": "Down",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Endpoints down at the last run (metric down)"
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Average uptime",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 10,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": []
+          },
+          "root_selector": "metrics",
+          "columns": [
+            {
+              "selector": "avgUptime",
+              "text": "Average uptime",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 99
+              },
+              {
+                "color": "green",
+                "value": 99.9
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Average uptime of all endpoints at the last run (metric avgUptime)"
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Data age",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 9,
+        "x": 15,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": []
+          },
+          "root_selector": "( { \"ageMinutes\": $round(($millis() - $toMillis(updatedAt)) / 60000) } )",
+          "columns": [
+            {
+              "selector": "ageMinutes",
+              "text": "Minutes since the last publish",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 30
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Minutes since the process last published the dataset. Red from 30 minutes, the staleAfterMinutes of processes 71 and 74."
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Average uptime (%)",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "timeseries",
+          "url": "/datasets/${dataset}/metrics",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "names",
+                "value": "avgUptime"
+              },
+              {
+                "key": "days",
+                "value": "${days}"
+              },
+              {
+                "key": "points",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "series.#.points|@flatten",
+          "columns": [
+            {
+              "selector": "ts",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "value",
+              "text": "Average uptime",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "One point per run of the process; long windows are thinned out to 1000 points"
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Endpoints and outages",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "timeseries",
+          "url": "/datasets/${dataset}/metrics",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "names",
+                "value": "endpoints"
+              },
+              {
+                "key": "days",
+                "value": "${days}"
+              },
+              {
+                "key": "points",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "series.#.points|@flatten",
+          "columns": [
+            {
+              "selector": "ts",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "value",
+              "text": "Endpoints",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "timeseries",
+          "url": "/datasets/${dataset}/metrics",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "names",
+                "value": "down"
+              },
+              {
+                "key": "days",
+                "value": "${days}"
+              },
+              {
+                "key": "points",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "series.#.points|@flatten",
+          "columns": [
+            {
+              "selector": "ts",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "value",
+              "text": "Down",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Metrics endpoints and down"
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Problems",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}/rows",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "status",
+                "value": "critical"
+              },
+              {
+                "key": "status",
+                "value": "serious"
+              },
+              {
+                "key": "status",
+                "value": "warning"
+              },
+              {
+                "key": "limit",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "items",
+          "columns": [],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "critical"
+                      },
+                      "serious": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "serious"
+                      },
+                      "warning": {
+                        "color": "yellow",
+                        "index": 2,
+                        "text": "warning"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 3,
+                        "text": "unknown"
+                      },
+                      "good": {
+                        "color": "green",
+                        "index": 4,
+                        "text": "good"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_key": true
+            },
+            "renameByName": {
+              "_status": "Status",
+              "_statusText": "Why"
+            },
+            "indexByName": {}
+          }
+        }
+      ],
+      "description": "Rows with the status critical, serious or warning"
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "All endpoints",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}/rows",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "limit",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "items",
+          "columns": [],
+          "filters": [],
+          "pagination_mode": "cursor",
+          "pagination_max_pages": 5,
+          "pagination_param_cursor_field_name": "cursor",
+          "pagination_param_cursor_field_type": "query",
+          "pagination_param_cursor_extraction_path": "nextCursor"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "critical"
+                      },
+                      "serious": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "serious"
+                      },
+                      "warning": {
+                        "color": "yellow",
+                        "index": 2,
+                        "text": "warning"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 3,
+                        "text": "unknown"
+                      },
+                      "good": {
+                        "color": "green",
+                        "index": 4,
+                        "text": "good"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_key": true
+            },
+            "renameByName": {
+              "_status": "Status",
+              "_statusText": "Why"
+            },
+            "indexByName": {}
+          }
+        }
+      ],
+      "description": "The current snapshot (up to 5 pages of 1000 rows)"
+    }
+  ]
+}

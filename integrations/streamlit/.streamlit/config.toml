@@ -1,0 +1,13 @@
+# Streamlit settings for the example (environment variables STREAMLIT_* override them).
+[server]
+headless = true
+# Under a path behind a proxy, e.g. https://apps.corp.example/dashboards:
+# baseUrlPath = "dashboards"
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Do not show tracebacks to viewers; they end up in the container log instead.
+showErrorDetails = "none"
+toolbarMode = "viewer"

@@ -1,0 +1,536 @@
+{
+  "uid": "steward-datasets",
+  "title": "Steward – Datasets",
+  "description": "Every dataset published by Steward: freshness, metric history and rows",
+  "tags": ["steward"],
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "refresh": "",
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "dataset",
+        "label": "Dataset",
+        "datasource": {
+          "type": "yesoreyeram-infinity-datasource",
+          "uid": "steward"
+        },
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "current": {},
+        "options": [],
+        "description": "Datasets the token's user may see",
+        "query": {
+          "queryType": "infinity",
+          "refId": "variable",
+          "query": "",
+          "infinityQuery": {
+            "refId": "variable",
+            "datasource": {
+              "type": "yesoreyeram-infinity-datasource",
+              "uid": "steward"
+            },
+            "type": "json",
+            "source": "url",
+            "parser": "backend",
+            "format": "table",
+            "url": "/datasets",
+            "url_options": {
+              "method": "GET",
+              "data": "",
+              "params": [
+                {
+                  "key": "limit",
+                  "value": "200"
+                }
+              ]
+            },
+            "root_selector": "items",
+            "columns": [
+              {
+                "selector": "key",
+                "text": "key",
+                "type": "string"
+              }
+            ],
+            "filters": []
+          }
+        },
+        "definition": "Steward datasets"
+      },
+      {
+        "type": "custom",
+        "name": "days",
+        "label": "History (days)",
+        "description": "Days of metric history to load (the API allows 1–400)",
+        "query": "1,7,30,90,180,365",
+        "current": {
+          "text": "30",
+          "value": "30"
+        },
+        "options": [
+          {
+            "text": "1",
+            "value": "1",
+            "selected": false
+          },
+          {
+            "text": "7",
+            "value": "7",
+            "selected": false
+          },
+          {
+            "text": "30",
+            "value": "30",
+            "selected": true
+          },
+          {
+            "text": "90",
+            "value": "90",
+            "selected": false
+          },
+          {
+            "text": "180",
+            "value": "180",
+            "selected": false
+          },
+          {
+            "text": "365",
+            "value": "365",
+            "selected": false
+          }
+        ],
+        "hide": 0,
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Datasets",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "limit",
+                "value": "200"
+              }
+            ]
+          },
+          "root_selector": "items",
+          "columns": [
+            {
+              "selector": "key",
+              "text": "Dataset",
+              "type": "string"
+            },
+            {
+              "selector": "title",
+              "text": "Title",
+              "type": "string"
+            },
+            {
+              "selector": "processName",
+              "text": "Process",
+              "type": "string"
+            },
+            {
+              "selector": "updatedAt",
+              "text": "Updated",
+              "type": "timestamp"
+            },
+            {
+              "selector": "rowCount",
+              "text": "Rows",
+              "type": "number"
+            },
+            {
+              "selector": "statusCounts.critical",
+              "text": "Critical",
+              "type": "number"
+            },
+            {
+              "selector": "statusCounts.warning",
+              "text": "Warning",
+              "type": "number"
+            },
+            {
+              "selector": "stale",
+              "text": "Stale",
+              "type": "boolean"
+            },
+            {
+              "selector": "dryRun",
+              "text": "Dry run",
+              "type": "boolean"
+            }
+          ],
+          "filters": [],
+          "pagination_mode": "cursor",
+          "pagination_max_pages": 5,
+          "pagination_param_cursor_field_name": "cursor",
+          "pagination_param_cursor_field_type": "query",
+          "pagination_param_cursor_extraction_path": "nextCursor"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stale"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "true": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "stale"
+                      },
+                      "false": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "fresh"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Updated"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsIso"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "renameByName": {},
+            "indexByName": {}
+          }
+        }
+      ],
+      "description": "Every dataset the token's user may see"
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Metrics of ${dataset}",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}/metrics",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "days",
+                "value": "${days}"
+              },
+              {
+                "key": "points",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "( [ series.( $n := name; points.{ \"ts\": ts, \"metric\": $n, \"value\": value } ) ] )",
+          "columns": [
+            {
+              "selector": "ts",
+              "text": "Time",
+              "type": "timestamp"
+            },
+            {
+              "selector": "metric",
+              "text": "metric",
+              "type": "string"
+            },
+            {
+              "selector": "value",
+              "text": "value",
+              "type": "number"
+            }
+          ],
+          "filters": []
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisSoftMin": 0
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "description": "Every metric of the dataset; one point per run",
+      "transformations": [
+        {
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "multi"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Rows of ${dataset}",
+      "datasource": {
+        "type": "yesoreyeram-infinity-datasource",
+        "uid": "steward"
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "yesoreyeram-infinity-datasource",
+            "uid": "steward"
+          },
+          "type": "json",
+          "source": "url",
+          "parser": "backend",
+          "format": "table",
+          "url": "/datasets/${dataset}/rows",
+          "url_options": {
+            "method": "GET",
+            "data": "",
+            "params": [
+              {
+                "key": "limit",
+                "value": "1000"
+              }
+            ]
+          },
+          "root_selector": "items",
+          "columns": [],
+          "filters": [],
+          "pagination_mode": "cursor",
+          "pagination_max_pages": 5,
+          "pagination_param_cursor_field_name": "cursor",
+          "pagination_param_cursor_field_type": "query",
+          "pagination_param_cursor_extraction_path": "nextCursor"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true,
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "critical"
+                      },
+                      "serious": {
+                        "color": "orange",
+                        "index": 1,
+                        "text": "serious"
+                      },
+                      "warning": {
+                        "color": "yellow",
+                        "index": 2,
+                        "text": "warning"
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 3,
+                        "text": "unknown"
+                      },
+                      "good": {
+                        "color": "green",
+                        "index": 4,
+                        "text": "good"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": ["sum"],
+          "fields": ""
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "_key": true
+            },
+            "renameByName": {
+              "_status": "Status",
+              "_statusText": "Why"
+            },
+            "indexByName": {}
+          }
+        }
+      ],
+      "description": "The current snapshot (up to 5 pages of 1000 rows)"
+    }
+  ]
+}

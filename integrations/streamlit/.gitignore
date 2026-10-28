@@ -1,0 +1,4 @@
+# Never commit the real secrets file (also listed in the repository's .gitignore)
+.streamlit/secrets.toml
+.venv/
+__pycache__/

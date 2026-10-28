@@ -1,0 +1,13 @@
+# Loads the Steward dashboards from files into the folder "Steward".
+apiVersion: 1
+
+providers:
+  - name: Steward
+    folder: Steward
+    type: file
+    disableDeletion: true
+    # Changes in the UI are not saved to the files; save a copy (Save as) to keep your own version.
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /etc/grafana/dashboards/steward

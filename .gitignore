@@ -9,3 +9,5 @@ playwright-report/
 blob-report/
 e2e/.auth/
 .tools/
+# Streamlit secrets (integrations/streamlit): only secrets.toml.example belongs in Git
+**/.streamlit/secrets.toml

@@ -61,6 +61,15 @@ Processes 11, 12, 13 and 20 document the access changes they make with the step 
 
 Dashboards only read stored datasets: opening them never calls a platform. A dataset shows as _stale_ when it is older than the publishing step's `staleAfterMinutes`. That threshold is set to roughly 2–3× the suggested schedule, so a missed run becomes visible. _Refresh_ on a dashboard re-runs the feeding processes with the inputs and connections of their last run.
 
+## Dashboards in other tools
+
+These live in [`integrations/`](../integrations) rather than here, because they are not Steward definitions (the validator and Git sync read every YAML and JSON file in `examples/`). They show how to build on the published datasets elsewhere, through the read-only API.
+
+- **Streamlit** ([integrations/streamlit](../integrations/streamlit/README.md)): a small Python app with uptime from the metric history (71/74), the privileged access review (12, 16) and a place to join other data sources.
+- **Grafana** ([integrations/grafana](../integrations/grafana/README.md)): Infinity data source provisioning and two dashboards, uptime over time and every dataset with its rows and metrics.
+
+When to use them instead of Steward's dashboards, the API calls, tokens and security notes: [docs/EXTERNAL-DASHBOARDS.md](../docs/EXTERNAL-DASHBOARDS.md).
+
 ## Recommended operating model
 
 1. **Dry run first.** Start every new or changed process as a dry run. Read calls are real, writes are only recorded, and the protocol shows exactly what would change.
