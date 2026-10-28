@@ -85,6 +85,43 @@ test('API specs: the path prefix from the server URL can be edited, with a previ
   await api.delete(`/api/platforms/${p.id}`);
 });
 
+test('API specs: a specification is copied to another platform of the same kind', async ({ page, apiAs }) => {
+  const api = await apiAs('admin');
+  const kind = `copykind${Date.now().toString(36)}`;
+  const make = async (label: string) =>
+    json<{ id: string }>(await api.post('/api/platforms', { data: { name: uniq(label), kind, baseUrl: 'https://edge.example.com' } }));
+  const a = await make('Copy source');
+  const b = await make('Copy target');
+  const other = await json<{ id: string }>(
+    await api.post('/api/platforms', { data: { name: uniq('Other kind'), kind: 'generic', baseUrl: 'https://x.example.com' } }),
+  );
+  const spec = {
+    openapi: '3.0.3',
+    info: { title: 'Edge devices', version: '1' },
+    servers: [{ url: 'https://edge.example.com/device/api/v1' }],
+    paths: { '/things': { get: { operationId: 'listThings', responses: { '200': { description: 'OK' } } } } },
+  };
+  await json(await api.post(`/api/platforms/${a.id}/specs`, { data: { name: 'Edge devices', content: JSON.stringify(spec) } }));
+  const targetName = ((await json<{ name: string }>(await api.get(`/api/platforms/${b.id}`))) as { name: string }).name;
+
+  await page.goto(`/platforms/${a.id}`);
+  await page.getByRole('tab', { name: 'API specs' }).click();
+  await page.getByRole('button', { name: 'Copy Edge devices to other platforms' }).click();
+  const dialog = page.getByRole('dialog', { name: /Copy .Edge devices. to other platforms/ });
+  await dialog.getByRole('textbox', { name: 'Platforms' }).click();
+  // only platforms of the same kind are offered
+  await expect(page.getByRole('option', { name: targetName })).toBeVisible();
+  await expect(page.getByRole('option')).toHaveCount(1);
+  await page.getByRole('option', { name: targetName }).click();
+  await dialog.getByRole('button', { name: 'Copy', exact: true }).click();
+  await expect(dialog.getByTestId('spec-copy-result')).toContainText(`${targetName}: copied`);
+
+  const copies = await json<{ title: string; pathPrefix: string }[]>(await api.get(`/api/platforms/${b.id}/specs`));
+  expect(copies).toMatchObject([{ title: 'Edge devices', pathPrefix: '/device/api/v1' }]);
+
+  for (const p of [a, b, other]) await api.delete(`/api/platforms/${p.id}`);
+});
+
 test('access: a team or role picked from the list can be added', async ({ page, apiAs }) => {
   // Picking an option puts its label into the field ("Team …"); "Add" used to stay disabled because it expected "team:…".
   const api = await apiAs('admin');

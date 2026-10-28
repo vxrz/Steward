@@ -283,7 +283,22 @@
     "deleteText_one": "Delete <b>{{name}}</b> and its {{count}} operation?",
     "deleteText_other": "Delete <b>{{name}}</b> and its {{count}} operations?",
     "noOperations": "The imported specifications contain no operations.",
-    "reload": "Reload"
+    "reload": "Reload",
+    "copyAction": "Copy to other platforms",
+    "copyActionOf": "Copy {{name}} to other platforms",
+    "copyTitle": "Copy “{{name}}” to other platforms",
+    "copyHint": "Each platform gets its own copy – later changes to one don't affect the others, since platforms of one kind can run different API versions. Only platforms of the kind {{kind}} that you may manage are offered.",
+    "copyNoTargets": "There is no other {{kind}} platform you may manage.",
+    "copyTargets": "Platforms",
+    "copyReplace": "Replace a specification with the same title and version (it keeps its id, so processes using it keep working)",
+    "copy": "Copy",
+    "copied_one": "Copied to {{count}} platform",
+    "copied_other": "Copied to {{count}} platforms",
+    "notCopied": "Not copied",
+    "copyDone": "{{name}}: copied",
+    "copyReplaced": "{{name}}: replaced",
+    "copySkippedExists": "{{name}}: already has this specification – skipped",
+    "copySkippedSource": "{{name}}: this is the platform it comes from – skipped"
   },
   "docs": {
     "added": "Documentation added",

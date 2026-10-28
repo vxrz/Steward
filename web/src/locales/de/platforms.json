@@ -283,7 +283,22 @@
     "deleteText_one": "<b>{{name}}</b> mit {{count}} Operation löschen?",
     "deleteText_other": "<b>{{name}}</b> mit {{count}} Operationen löschen?",
     "noOperations": "Die importierten Spezifikationen enthalten keine Operationen.",
-    "reload": "Neu laden"
+    "reload": "Neu laden",
+    "copyAction": "In andere Plattformen kopieren",
+    "copyActionOf": "{{name}} in andere Plattformen kopieren",
+    "copyTitle": "„{{name}}“ in andere Plattformen kopieren",
+    "copyHint": "Jede Plattform bekommt eine eigene Kopie – spätere Änderungen an einer betreffen die anderen nicht, denn Plattformen einer Art können unterschiedliche API-Versionen haben. Angeboten werden nur Plattformen der Art {{kind}}, die Sie verwalten dürfen.",
+    "copyNoTargets": "Es gibt keine andere Plattform der Art {{kind}}, die Sie verwalten dürfen.",
+    "copyTargets": "Plattformen",
+    "copyReplace": "Eine Spezifikation mit gleichem Titel und gleicher Version ersetzen (sie behält ihre ID, Prozesse, die sie nutzen, funktionieren weiter)",
+    "copy": "Kopieren",
+    "copied_one": "In {{count}} Plattform kopiert",
+    "copied_other": "In {{count}} Plattformen kopiert",
+    "notCopied": "Nicht kopiert",
+    "copyDone": "{{name}}: kopiert",
+    "copyReplaced": "{{name}}: ersetzt",
+    "copySkippedExists": "{{name}}: hat diese Spezifikation bereits – übersprungen",
+    "copySkippedSource": "{{name}}: ist die Plattform, aus der sie stammt – übersprungen"
   },
   "docs": {
     "added": "Dokumentation hinzugefügt",

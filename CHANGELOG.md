@@ -8,6 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Copy API specifications to other platforms of the same kind** – _Platforms → (platform) → API specs → Copy to other platforms_ (`POST /api/platforms/{id}/specs/{specId}/copy`). Each target gets an independent copy (platforms of one kind can run different API versions), with the path prefix unless the target's base URL already ends with it. A spec with the same title and version is skipped, or replaced under its id with _Replace_. Needs `manage` on the source and all targets; audited with `copiedFrom`.
 - **Get a new access token on demand** (#101): platforms with an OAuth2 or custom login cache their token until shortly before it expires, so roles granted to the technical user in the meantime only worked after up to 30 minutes (the platform answered 403). _Get a new token_ (platform → … menu, and next to the token age in the connection test) drops the cached token and logs in again right away; `POST /api/platforms/{id}/token/renew` does the same. Needs `manage` on the platform, audited as `platform.token_renewed`; the token itself is never shown or logged. _Test connection_ now shows when the cached token was issued and when it expires.
 
 ### Fixed
