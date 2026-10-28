@@ -5,6 +5,8 @@ import { getPlatform } from '../platforms/service.js';
 import { HttpError } from '../util.js';
 import * as apps from './applications.js';
 import * as cia from './cia.js';
+import * as comps from './components.js';
+import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
 
 const params = (req: FastifyRequest) => req.params as Record<string, string>;
@@ -30,6 +32,28 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/applications/:id/links/:linkId', async (req) => {
     apps.removeApplicationLink(params(req).id!, params(req).linkId!);
     return { ok: true };
+  });
+
+  // ---------- components and tech stack ----------
+  app.get('/catalogue/stack-products', async () => comps.stackProducts());
+  app.post('/applications/:id/components', async (req) => {
+    comps.addComponent(params(req).id!, comps.componentInput.parse(req.body), apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+  app.put('/applications/:id/components/:componentId', async (req) => {
+    comps.updateComponent(params(req).id!, params(req).componentId!, comps.componentInput.parse(req.body), apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+  app.delete('/applications/:id/components/:componentId', async (req) => {
+    comps.removeComponent(params(req).id!, params(req).componentId!, apps.canEditApplication);
+    return apps.getApplication(params(req).id!);
+  });
+  app.post('/applications/:id/components/:componentId/sbom/preview', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) =>
+    comps.previewSbom(params(req).id!, params(req).componentId!, comps.sbomInput.parse(req.body), apps.canEditApplication),
+  );
+  app.post('/applications/:id/components/:componentId/sbom', { bodyLimit: LARGE_BODIES.sbom.bytes }, async (req) => {
+    const r = await comps.importSbom(params(req).id!, params(req).componentId!, comps.sbomInput.parse(req.body), apps.canEditApplication);
+    return { preview: r.preview, application: apps.getApplication(params(req).id!) };
   });
 
   // the application a platform belongs to (platform page; 404 for platforms the user may not see)

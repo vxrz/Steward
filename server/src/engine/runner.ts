@@ -51,6 +51,7 @@ import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
+import { applicationInputValue } from '../catalogue/components.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -317,6 +318,9 @@ function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<st
         break;
       case 'table':
         out[d.name] = Array.isArray(v) ? v : parseCsv(String(v));
+        break;
+      case 'application':
+        out[d.name] = applicationInputValue(v, d.label ?? d.name);
         break;
       case 'json':
         if (typeof v === 'string') {

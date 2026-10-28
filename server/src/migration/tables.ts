@@ -94,11 +94,15 @@ export const USER_REFS: UserRef[] = [
  */
 export const HISTORY_COLUMNS: string[] = [
   'access_checks.updated_by',
+  'application_components.created_by',
+  'application_components.updated_by',
+  'application_components.sbom_imported_by',
   'application_platforms.created_by',
   'application_ratings.rated_by',
   'applications.created_by',
   'applications.updated_by',
   'cia_scales.updated_by',
+  'component_stack.set_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',

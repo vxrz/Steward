@@ -37,6 +37,7 @@ import { fmtDate } from '../../format';
 import { ExpressionInput } from './ExpressionInput';
 import { VersionCompare } from './VersionDiff';
 import { issueText } from '../../i18n/meta';
+import { ApplicationSelect } from '../catalogue/ApplicationSelect';
 
 type Def = ProcessDefinition;
 type SetDef = (d: Def) => void;
@@ -205,6 +206,17 @@ function DefaultField({ inp, onChange }: { inp: InputDef; onChange: (v: unknown)
           data={inp.options ?? []}
           clearable
           value={(v as string) ?? null}
+          onChange={(x) => onChange(x ?? undefined)}
+        />
+      );
+    case 'application':
+      return (
+        <ApplicationSelect
+          size="xs"
+          label={t('inputs.defaultApplication')}
+          description={t('inputs.applicationHint', { example: 'inputs.app.components[type="kafka-topic"].name' })}
+          by="name"
+          value={typeof v === 'string' && v ? v : null}
           onChange={(x) => onChange(x ?? undefined)}
         />
       );

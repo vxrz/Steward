@@ -66,7 +66,9 @@
     "csvHint": "CSV with header row (comma, semicolon or tab separated)",
     "csvHintColumns": "CSV with header row: {{columns}} (comma, semicolon or tab separated)",
     "loadCsv": "Load CSV file",
-    "secretHint": "Stored encrypted only; shown as *** in the protocol, reports and the audit log"
+    "secretHint": "Stored encrypted only; shown as *** in the protocol, reports and the audit log",
+    "applicationHint": "The run reads the application’s components and tech stack when it starts",
+    "noApplications": "No application found"
   },
   "trigger": {
     "manual": "manual",

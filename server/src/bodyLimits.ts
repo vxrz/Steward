@@ -15,7 +15,7 @@
  * The route permission matrix test checks that only the routes named in LARGE_BODIES accept more than
  * the default, so a new route stays at 1 MB unless it is added here.
  */
-import { REPORT_LOGO_MAX_BYTES } from '@sm/shared';
+import { COMPONENT_LIMITS, REPORT_LOGO_MAX_BYTES } from '@sm/shared';
 import { LIMITS as CATALOGUE_LIMITS } from './compliance/controls.js';
 import { MONITOR_IMPORT_LIMITS } from './monitors/model.js';
 import { IMPORT_LIMITS as RECORD_IMPORT_LIMITS } from './records/markdown-io.js';
@@ -86,6 +86,11 @@ export const LARGE_BODIES = {
    * a PDF of about 18 MB.
    */
   reportVerify: { routes: ['POST /api/reports/verify'], bytes: PREVIOUS_LIMIT },
+  /** An SBOM (CycloneDX or SPDX JSON) as text or parsed: COMPONENT_LIMITS.sbomBytes (10 MB) */
+  sbom: {
+    routes: ['POST /api/applications/:id/components/:componentId/sbom/preview', 'POST /api/applications/:id/components/:componentId/sbom'],
+    bytes: jsonText(COMPONENT_LIMITS.sbomBytes, 16 * KIB),
+  },
 } as const satisfies Record<string, LargeBody>;
 
 /** The answer to a body above the route's limit: 413 BODY_TOO_LARGE (or _KIB below 1 MB), with the limit. */

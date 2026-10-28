@@ -17,6 +17,7 @@ import { ApplicationFormModal } from './Applications';
 import { RatingPanel } from '../components/catalogue/cia';
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
+import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -81,6 +82,7 @@ export function ApplicationDetailPage() {
               </Text>
             )}
             <RatingPanel app={a} onSaved={refresh} />
+            <ComponentsPanel app={a} onSaved={refresh} />
             <IntegrationsPanel app={a} onSaved={refresh} />
             <Stack gap="xs" data-testid="application-services">
               <Text fw={600}>{t('services.title')}</Text>

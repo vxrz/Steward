@@ -6,6 +6,11 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Components and tech stack of applications** (#103): an application lists what it consists of – repositories, container images, Kafka topics, Snowflake databases, cloud accounts, Kubernetes namespaces, platforms, other – with only a type and a name required. Each component has a tech stack of [endoflife.date](https://endoflife.date) products and versions (the list ships with Steward), entered by hand or imported from a CycloneDX or SPDX SBOM (file or URL): only products endoflife.date knows are kept, libraries stay out, the import shows its changes first, and entries entered by hand win. The application page shows the stack of all components together. Permissions follow the application; audited as `application.component_added` / `_changed` / `_removed` and `application.sbom_imported`; in the public API (`components`, `stack`, `componentCount`) and in migration packages. Migration `catalogue-002-components` adds two tables.
+- **Process input type _Application_** (#103): the run gets the application with its components and tech stack (e.g. `inputs.app.components[type="kafka-topic"].name`), given by id or name – a name works in every installation, e.g. as a default in Git.
+
 ## [0.2.2] - 2026-10-28
 
 Notifications get an own logo and more styling, and messages from dry runs – failed runs, failed checks and their tasks – are clearly marked as tests (or kept in the app only). Platforms can fetch a new access token on demand, API specifications can be copied to other platforms of the same kind, and importing a monitor (or accepting it from Git) lets you choose the platform when its name fits several. Git sync no longer creates a copy of an item that was created after the fetch. No database migrations.

@@ -110,6 +110,7 @@ const mapApplication = (a: apps.ApplicationEntry, scale: Scale) => ({
   scaleInvalid: !!scale.storedInvalid,
   documentCount: a.documentCount,
   overdueDocuments: a.overdueDocuments,
+  componentCount: a.componentCount,
   createdAt: a.createdAt,
   createdBy: a.createdBy,
   updatedAt: a.updatedAt,
@@ -224,7 +225,7 @@ export function serviceApiRoutes(get: Get): void {
     {
       operationId: 'getApplication',
       tag: 'Services',
-      summary: 'Get an application with its integrations and links',
+      summary: 'Get an application with its integrations, links, components and tech stack',
       description:
         'Archived applications too. Platforms the token owner may not see are listed with visible false. Its living documents: `/applications/{applicationId}/documents`.',
       params: { applicationId: 'Application id (app_…)' },
@@ -244,6 +245,8 @@ export function serviceApiRoutes(get: Get): void {
           mappedBy: i.mappedBy,
         })),
         links: a.links.map(mapLink),
+        components: a.components,
+        stack: a.stack,
       };
     },
   );

@@ -37,6 +37,7 @@ import {
 } from './cia.js';
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopeOf } from './scope.js';
+import { componentCounts, componentsOf, stackRollup } from './components.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -200,7 +201,13 @@ function scopedRecordIds(appId: string): string[] {
 
 function toSummary(
   r: ApplicationRow,
-  x: { services: ApplicationServiceRef[]; integrations: number; rating: ApplicationSummary['rating']; docs: { documents: number; overdue: number } },
+  x: {
+    services: ApplicationServiceRef[];
+    integrations: number;
+    rating: ApplicationSummary['rating'];
+    docs: { documents: number; overdue: number };
+    components: number;
+  },
 ): ApplicationSummary {
   return {
     id: r.id,
@@ -218,6 +225,7 @@ function toSummary(
     rating: x.rating,
     documentCount: x.docs.documents,
     overdueDocuments: x.docs.overdue,
+    componentCount: x.components,
     updatedAt: r.updated_at,
   };
 }
@@ -236,12 +244,14 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
       .map((c) => [c.id, Number(c.n)]),
   );
   const docs = documentCounts(db().all<{ item: string; record: string }>('SELECT application_id AS item, record_id AS record FROM record_applications'), u);
+  const components = componentCounts();
   return rows.map((r) => ({
     ...toSummary(r, {
       services: services.get(r.id) ?? [],
       integrations: counts.get(r.id) ?? 0,
       rating: ratings.get(r.id) ?? emptyRating(),
       docs: docs.get(r.id) ?? { documents: 0, overdue: 0 },
+      components: components.get(r.id) ?? 0,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -265,12 +275,14 @@ export function getApplication(id: string): ApplicationDetail {
   const r = row(id);
   const integrations = integrationsOf([r.id], u).get(r.id) ?? [];
   const documents = readableDocuments(scopedRecordIds(r.id), u);
+  const components = componentsOf(r.id);
   return {
     ...toSummary(r, {
       services: servicesOf().get(r.id) ?? [],
       integrations: integrations.length,
       rating: ratingsOf([r.id]).get(r.id) ?? emptyRating(),
       docs: { documents: documents.length, overdue: documents.filter((d) => d.reviewStatus === 'overdue').length },
+      components: components.length,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -280,6 +292,8 @@ export function getApplication(id: string): ApplicationDetail {
     links: listLinks('application', r.id),
     backlinks: listBacklinks('application', r.id),
     documents,
+    components,
+    stack: stackRollup(components),
     canEdit: canEditApplication(u, r),
   };
 }

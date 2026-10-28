@@ -1,5 +1,15 @@
 import { z, type ZodTypeAny } from 'zod';
-import { APPLICATION_ROLES, CIA_COLORS, CIA_SCALE_MODES, REVIEW_STATUSES, SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES } from '@sm/shared';
+import {
+  APPLICATION_ROLES,
+  CIA_COLORS,
+  CIA_SCALE_MODES,
+  COMPONENT_TYPES,
+  REVIEW_STATUSES,
+  SBOM_FORMATS,
+  SERVICE_CONTACT_ROLES,
+  SERVICE_CRITICALITIES,
+  STACK_SOURCES,
+} from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
 /** Response and query schemas of the service catalogue endpoints of the public API (/api/v1/services…). */
@@ -107,6 +117,16 @@ const cmdb = z
   .nullable()
   .describe('The entry in the CMDB (e.g. ServiceNow); null when none is set');
 
+const StackEntry = z.object({
+  product: z.string().describe('endoflife.date product id, e.g. nodejs'),
+  label: z.string().describe('Product name, e.g. Node.js'),
+  version: z.string(),
+  source: z.enum(STACK_SOURCES).describe('manual: entered by hand (wins over an SBOM); sbom: read from an SBOM'),
+  sbomRef: z.string().describe('sbom: the SBOM component it was read from (package URL, CPE or name)'),
+  setAt: ts(),
+  setBy: z.string(),
+});
+
 export const ApplicationEntry = z.object({
   id: z.string(),
   name: z.string(),
@@ -131,6 +151,7 @@ export const ApplicationEntry = z.object({
     ),
   documentCount: z.number().int().describe('Living documents that apply to the application and that the token owner may read'),
   overdueDocuments: z.number().int(),
+  componentCount: z.number().int().describe('Components of the application (repositories, container images, Kafka topics, …)'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -156,6 +177,36 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
     .describe(
       'Links of the application: internal items and external URLs. Items the token owner may not see are listed with visible false, without id or name.',
     ),
+  components: z
+    .array(
+      z.object({
+        id: z.string(),
+        type: z.enum(COMPONENT_TYPES),
+        name: z.string(),
+        url: z.string().describe('http(s) link, or empty'),
+        note: z.string(),
+        stack: z.array(StackEntry),
+        sbom: z
+          .object({ format: z.enum(SBOM_FORMATS), name: z.string(), importedAt: ts(), importedBy: z.string() })
+          .nullable()
+          .describe('The last SBOM imported into this component'),
+        createdAt: ts(),
+        createdBy: z.string(),
+        updatedAt: ts(),
+        updatedBy: z.string(),
+      }),
+    )
+    .describe('What the application consists of, by type and name'),
+  stack: z
+    .array(
+      z.object({
+        product: z.string(),
+        label: z.string(),
+        version: z.string(),
+        components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES) })),
+      }),
+    )
+    .describe('The tech stack of all components together: one entry per product and version'),
 });
 
 export const ApplicationDocument = z.object({
