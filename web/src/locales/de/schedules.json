@@ -38,7 +38,23 @@
     "rightsYou": "Geplante Ausführungen laufen mit Ihren Rechten (als Eigentümer); sie werden übersprungen und protokolliert, wenn der Eigentümer den Zugriff auf den Prozess oder eine Plattform verliert.",
     "dryRun": "Probelauf (Änderungen simulieren)",
     "overlap": "Überlappende Ausführungen erlauben",
-    "overlapHint": "Aus: Eine neue Ausführung wird übersprungen, solange die vorherige noch läuft oder auf eine Entscheidung wartet."
+    "overlapHint": "Aus: Eine neue Ausführung wird übersprungen, solange die vorherige noch läuft oder auf eine Entscheidung wartet.",
+    "notify": {
+      "label": "Fehlgeschlagene Prüfungen melden",
+      "mode": {
+        "change": "Bei Änderung (empfohlen)",
+        "every": "Nach jedem Lauf",
+        "off": "Nie"
+      },
+      "hint": {
+        "change": "Wenn eine Prüfung fehlzuschlagen beginnt oder sich ihr Ergebnis ändert, und als Erinnerung, solange sie fehlschlägt.",
+        "every": "Jeder Lauf, in dem eine Prüfung fehlschlägt (per E-Mail, Teams und Webhook höchstens einmal pro Stunde).",
+        "off": "Fehlgeschlagene Prüfungen stehen nur in den Läufen. Fehlgeschlagene Läufe werden weiterhin gemeldet."
+      },
+      "reminder": "Erinnerung, solange sie fehlschlägt",
+      "reminderHint": "Stunden; 0 = keine Erinnerung",
+      "resolved": "Melden, wenn eine Prüfung wieder erfolgreich ist"
+    }
   },
   "emptyState": {
     "title": "Noch keine Zeitpläne",

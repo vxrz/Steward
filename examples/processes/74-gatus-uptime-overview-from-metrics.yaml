@@ -101,6 +101,7 @@ steps:
   - id: found
     type: check
     name: Gatus publishes endpoint metrics
+    notify: false # informational: shown in the run, never notified
     severity: warning
     condition: "$count(vars.endpoints) > 0"
     message: "{{ $count(vars.endpoints) > 0 ? $count(vars.endpoints) & ' endpoint(s) in ' & inputs.metricsPath : 'No gatus_results_endpoint_success series in ' & inputs.metricsPath & ' – is metrics: true set in the Gatus configuration?' }}"

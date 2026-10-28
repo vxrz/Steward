@@ -223,5 +223,84 @@
     "reorderLevels": "{{dimension}}: {{levels}}",
     "confirmReorder": "Bewertungen dieser Stufen zur Neubewertung markieren",
     "storedInvalid": "Die gespeicherte Skala ist ungültig (z. B. aus einem Migrationspaket). Bis ein Administrator eine Skala speichert, gilt der BSI-Standard."
+  },
+  "components": {
+    "title": "Komponenten",
+    "help": "Woraus die Anwendung besteht. Prozesse lesen sie über eine Eingabe vom Typ Anwendung, z. B. alle Kafka-Topics der Anwendung.",
+    "empty": "Noch keine Komponenten.",
+    "add": "Komponente hinzufügen",
+    "addTitle": "Komponente zu {{name}} hinzufügen",
+    "editTitle": "Komponente {{name}} bearbeiten",
+    "edit": "{{name}} bearbeiten",
+    "remove": "{{name}} entfernen",
+    "removeConfirm": "Die Komponente {{name}} mit ihrem Tech-Stack aus dieser Anwendung entfernen?",
+    "type": "Typ",
+    "name": "Name",
+    "nameHint": "So, wie Prozesse ihn verwenden, z. B. der Topic-Name oder das Image ohne Tag",
+    "url": "Link",
+    "note": "Notiz",
+    "stack": "Tech-Stack",
+    "noStack": "Kein Tech-Stack",
+    "types": {
+      "repository": "Repository",
+      "container-image": "Container-Image",
+      "kafka-topic": "Kafka-Topic",
+      "snowflake-database": "Snowflake-Datenbank",
+      "cloud-account": "Cloud-Konto",
+      "kubernetes-namespace": "Kubernetes-Namespace",
+      "platform": "Plattform",
+      "other": "Sonstiges"
+    },
+    "stackEditor": {
+      "help": "Produkte aus der Liste von endoflife.date mit der eingesetzten Version. Was Sie hier eintragen oder ändern, hat Vorrang vor einem SBOM-Import.",
+      "product": "Produkt",
+      "version": "Version",
+      "add": "Produkt hinzufügen",
+      "remove": "{{product}} entfernen",
+      "fromSbom": "aus SBOM",
+      "manual": "von Hand eingetragen",
+      "productSearch": "Produkte suchen"
+    },
+    "rollup": {
+      "title": "Tech-Stack",
+      "help": "Alle Komponenten zusammen. End-of-Life-Daten folgen in einer späteren Version.",
+      "used": "{{count}} Komponente",
+      "used_other": "{{count}} Komponenten"
+    },
+    "sbom": {
+      "import": "SBOM in {{name}} importieren",
+      "title": "SBOM in {{name}} importieren",
+      "help": "CycloneDX oder SPDX im JSON-Format, z. B. von Syft oder Trivy. Steward übernimmt nur Produkte, die endoflife.date kennt (Betriebssysteme, Laufzeitumgebungen, Datenbanken, große Frameworks); Bibliotheken bleiben draußen. Von Hand eingetragene Einträge bleiben, wie sie sind.",
+      "file": "Datei",
+      "url": "URL",
+      "chooseFile": "SBOM-Datei wählen",
+      "fileChosen": "{{name}} ({{size}} KB)",
+      "urlLabel": "Adresse der SBOM",
+      "urlHint": "https, ohne Weiterleitungen; die Richtlinie für ausgehende Verbindungen gilt",
+      "preview": "Änderungen zeigen",
+      "apply": "Importieren",
+      "summary": "{{format}} „{{name}}“: {{matched}} von {{total}} Einträgen sind Produkte, die endoflife.date kennt.",
+      "summaryNoName": "{{format}}: {{matched}} von {{total}} Einträgen sind Produkte, die endoflife.date kennt.",
+      "nothing": "Die SBOM ändert nichts.",
+      "last": "Letzte SBOM: {{format}} „{{name}}“, importiert von {{user}} am {{date}}",
+      "lastNoName": "Letzte SBOM: {{format}}, importiert von {{user}} am {{date}}",
+      "done": "SBOM importiert: {{added}} hinzugefügt, {{updated}} geändert, {{removed}} entfernt",
+      "actions": {
+        "add": "hinzufügen",
+        "update": "ändern",
+        "remove": "entfernen",
+        "keep": "unverändert",
+        "manual": "bleibt (von Hand eingetragen)"
+      },
+      "change": "Änderung",
+      "versionChange": "{{from}} → {{to}}",
+      "manualKept": "SBOM nennt {{version}}"
+    },
+    "actions": "Aktionen"
+  },
+  "credentials": {
+    "title": "Zugangsdaten",
+    "help": "Einträge des Zugangsdaten-Registers, die diese Anwendung unter „Verwendet von“ nennen.",
+    "empty": "Keine Zugangsdaten nennen diese Anwendung."
   }
 }

@@ -298,6 +298,7 @@ export function eventTone(event: string, data?: Record<string, unknown>): Messag
     const status = data?.status;
     return status === 'up' ? 'good' : status === 'down' ? 'attention' : status === 'degraded' || status === 'blocked' ? 'warning' : 'accent';
   }
+  if (event === 'check.resolved') return 'good';
   if (BAD_EVENTS.has(event)) return 'attention';
   if (WARN_EVENTS.has(event)) return 'warning';
   return 'accent';

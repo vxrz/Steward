@@ -30,7 +30,17 @@
   "checkFailed": {
     "title": "Prüfung fehlgeschlagen: {{check}} in {{process}}",
     "titleDryRun": "Probelauf – Prüfung fehlgeschlagen: {{check}} in {{process}}",
-    "body": "{{severity}}: {{message}}"
+    "body": "{{severity}}: {{message}}",
+    "titleChanged": "Prüfergebnis geändert: {{check}} in {{process}}",
+    "titleChangedDryRun": "Probelauf – Prüfergebnis geändert: {{check}} in {{process}}",
+    "titleReminder": "Weiterhin fehlgeschlagen: {{check}} in {{process}}",
+    "titleReminderDryRun": "Probelauf – Weiterhin fehlgeschlagen: {{check}} in {{process}}",
+    "since": "Fehlgeschlagen seit {{since}}."
+  },
+  "checkResolved": {
+    "title": "Prüfung wieder erfolgreich: {{check}} in {{process}}",
+    "titleDryRun": "Probelauf – Prüfung wieder erfolgreich: {{check}} in {{process}}",
+    "body": "Sie war seit {{since}} fehlgeschlagen."
   },
   "scheduleSkipped": {
     "title": "Zeitplan übersprungen: {{name}}",

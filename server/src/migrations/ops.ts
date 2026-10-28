@@ -53,4 +53,26 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     name: 'ops-003-user-locale',
     sql: `ALTER TABLE users ADD COLUMN locale TEXT;`,
   },
+  {
+    // #127: failed checks of scheduled runs notify on change (default), after every run, or never; a reminder while
+    // a check keeps failing, an optional message when it passes again. check_alerts: the checks failing now, per
+    // schedule (one row while a check fails; deleted when it passes).
+    name: 'ops-004-check-notifications',
+    sql: `
+    ALTER TABLE schedules ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'change';
+    ALTER TABLE schedules ADD COLUMN notify_reminder_hours INTEGER NOT NULL DEFAULT 4;
+    ALTER TABLE schedules ADD COLUMN notify_resolved INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE check_alerts (
+      schedule_id TEXT NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
+      check_name TEXT NOT NULL,
+      dry_run INTEGER NOT NULL,
+      failing_since TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      message TEXT NOT NULL,
+      notified_at TEXT NOT NULL,
+      last_run_id TEXT NOT NULL,
+      PRIMARY KEY (schedule_id, check_name, dry_run)
+    );
+    `,
+  },
 ];

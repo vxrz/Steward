@@ -4042,7 +4042,7 @@
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "description": "process, monitor, platform, service, …"
+                      "description": "process, monitor, platform, service, application, …"
                     },
                     "id": {
                       "type": "string"
@@ -4061,13 +4061,75 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "urls": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "http(s) address"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "External pages: Swagger page, vault entry, wiki page"
               }
             },
             "required": [
               "text",
-              "links"
+              "links",
+              "urls"
             ],
             "additionalProperties": false
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "Role or permission, e.g. mdsp:core:TenantAdmin"
+                },
+                "scope": {
+                  "type": "string",
+                  "description": "Where it applies, e.g. tenant modev; empty when not set"
+                },
+                "grantedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "scope",
+                "grantedAt",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Roles and permissions the credential holds (their changes: history event rolesChanged)"
           },
           "owners": {
             "type": "array",
@@ -4417,6 +4479,7 @@
           "environment",
           "description",
           "usedBy",
+          "roles",
           "owners",
           "ownerSubjects",
           "location",
@@ -8466,6 +8529,10 @@
           "overdueDocuments": {
             "type": "integer"
           },
+          "componentCount": {
+            "type": "integer",
+            "description": "Components of the application (repositories, container images, Kafka topics, …)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -8501,6 +8568,7 @@
           "scaleInvalid",
           "documentCount",
           "overdueDocuments",
+          "componentCount",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -8821,6 +8889,10 @@
           "overdueDocuments": {
             "type": "integer"
           },
+          "componentCount": {
+            "type": "integer",
+            "description": "Components of the application (repositories, container images, Kafka topics, …)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -8953,6 +9025,216 @@
               "additionalProperties": false
             },
             "description": "Links of the application: internal items and external URLs. Items the token owner may not see are listed with visible false, without id or name."
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "repository",
+                    "container-image",
+                    "kafka-topic",
+                    "snowflake-database",
+                    "cloud-account",
+                    "kubernetes-namespace",
+                    "platform",
+                    "other"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "http(s) link, or empty"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "stack": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "description": "endoflife.date product id, e.g. nodejs"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Product name, e.g. Node.js"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "sbom"
+                        ],
+                        "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
+                      },
+                      "sbomRef": {
+                        "type": "string",
+                        "description": "sbom: the SBOM component it was read from (package URL, CPE or name)"
+                      },
+                      "setAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "setBy": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "label",
+                      "version",
+                      "source",
+                      "sbomRef",
+                      "setAt",
+                      "setBy"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "sbom": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "format": {
+                          "type": "string",
+                          "enum": [
+                            "cyclonedx",
+                            "spdx"
+                          ]
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "importedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "importedBy": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "format",
+                        "name",
+                        "importedAt",
+                        "importedBy"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The last SBOM imported into this component"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "name",
+                "url",
+                "note",
+                "stack",
+                "sbom",
+                "createdAt",
+                "createdBy",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What the application consists of, by type and name"
+          },
+          "stack": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "components": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "repository",
+                          "container-image",
+                          "kafka-topic",
+                          "snowflake-database",
+                          "cloud-account",
+                          "kubernetes-namespace",
+                          "platform",
+                          "other"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "type"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "product",
+                "label",
+                "version",
+                "components"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The tech stack of all components together: one entry per product and version"
           }
         },
         "required": [
@@ -8973,12 +9255,15 @@
           "scaleInvalid",
           "documentCount",
           "overdueDocuments",
+          "componentCount",
           "createdAt",
           "createdBy",
           "updatedAt",
           "updatedBy",
           "integrations",
-          "links"
+          "links",
+          "components",
+          "stack"
         ],
         "additionalProperties": false
       },
@@ -16742,6 +17027,16 @@
             "name": "q",
             "required": false,
             "description": "Case-insensitive search"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "description": "Only entries holding this role or permission (exact, case-insensitive)"
           }
         ],
         "responses": {
@@ -17935,7 +18230,7 @@
     "/applications/{applicationId}": {
       "get": {
         "operationId": "getApplication",
-        "summary": "Get an application with its integrations and links",
+        "summary": "Get an application with its integrations, links, components and tech stack",
         "tags": [
           "Services"
         ],

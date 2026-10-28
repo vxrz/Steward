@@ -17,12 +17,13 @@ Open it with **Credentials** in the navigation (German: _Zugangsdaten_).
    - `keepass://…`, `*.kdbx`, `C:\…` or `\\server\share\…` paths are shown as text with a copy button, never as a link;
    - other link types (`javascript:`, `data:` …) are refused.
 5. **Ownership**: e-mail addresses with a role, for example _Business owner_ (the business owns the credential) and _IT operations_ (IT manages it), at most 10. Their domain must be allowed, see [E-mail addresses outside Steward](#e-mail-addresses-outside-steward). Add Steward users or teams as owners if they should get reminders in Steward and may edit the entry.
-6. **Used by**: a short description, and links to processes, monitors, platforms or catalogue services in Steward. The service's page then lists the entry under _Linked from_.
-7. **Dates**:
+6. **Used by**: a short description; links to processes, monitors, platforms, catalogue services or **applications** in Steward (the service's page lists the entry under _Linked from_, the application page under _Credentials_ with what is due); and **external links** with a label – a Swagger page, a vault entry, a wiki page (http(s) only, shown as plain links; other locations of the secret go under _Location_).
+7. **Roles and permissions** (optional): what the credential may do – role or permission (required, e.g. `mdsp:core:TenantAdmin`), scope (e.g. _tenant modev_, _group X_), granted on, note. Rights often change without the secret being rotated, so changing this list writes its own history entry (_Roles changed_ – added, removed and changed entries, with an optional reason such as a ticket number) and an audit entry `credential.roles_changed`. The overview shows the roles as chips and filters by role (_Role_ filter; search finds roles and scopes too).
+8. **Dates**:
    - _Expires_: the expiry date, if there is one;
    - _Rotate every (days)_ and _Last rotated_: the next rotation is computed from the last rotation (or the issue date);
    - _Review every (days)_ and _Last reviewed_: a regular check whether the credential is still needed and still owned by the right people (default for new entries: 365 days).
-8. Save.
+9. Save.
 
 ### Certificates
 
@@ -102,14 +103,14 @@ All checks happen on the server; the API answers 404 for entries you may not see
 
 ## Links to services and records
 
-- An entry's **Used by** links can name catalogue services. The service page shows the entry under _Linked from_ – but only to people who may read the entry (viewers see only the entries they own).
+- An entry's **Used by** links can name catalogue services and applications. The service page shows the entry under _Linked from_, the application page under _Credentials_ (with status and next due date) – but only to people who may read the entry (viewers see only the entries they own).
 - Records and services can link to an entry (_Add link → Credential_). The link picker only offers entries you may see. For readers who may not see the entry, the link shows as "not visible", without its name.
 - The entry's detail panel lists the records and services that link to it under _Linked from_ (`GET /api/backlinks?kind=credential&id=…`).
 
 ## Export and API
 
 - **CSV**: _Export CSV_ exports the entries you may see, with the current filters (archived entries included unless filtered). Values that start with `=`, `+`, `-` or `@` are prefixed with `'`, so spreadsheet programs do not run them as formulas. Exports are audited (`credential.exported`).
-- **Public API** (read-only, API token, see [API.md](API.md)): `GET /api/v1/credentials` (filters `status`, `type`, `platform`, `dueWithinDays`, `archived`, `q`; paginated) and `GET /api/v1/credentials/{credentialId}`. Same visibility as in the UI. Example: everything that expires or needs action within 30 days:
+- **Public API** (read-only, API token, see [API.md](API.md)): `GET /api/v1/credentials` (filters `status`, `type`, `platform`, `dueWithinDays`, `archived`, `q`, `role`; paginated; entries carry `roles` and `usedBy.urls`) and `GET /api/v1/credentials/{credentialId}`. Same visibility as in the UI. Example: everything that expires or needs action within 30 days:
 
   ```bash
   curl -H "Authorization: Bearer $STEWARD_TOKEN" "https://steward.corp.example/api/v1/credentials?dueWithinDays=30"
@@ -136,4 +137,4 @@ The checks are deliberately conservative to avoid false alarms. They cannot catc
 
 ## Audit
 
-`credential.created`, `credential.updated` (with the changed fields, before and after), `credential.rotated`, `credential.reviewed`, `credential.archived`, `credential.restored`, `credential.deleted`, `credential.expiry_synced`, `credential.exported`, `credential.settings_changed`. The entry's own history shows the same events plus the reminders that were sent.
+`credential.created`, `credential.updated` (with the changed fields, before and after), `credential.roles_changed` (added, removed, changed, reason), `credential.rotated`, `credential.reviewed`, `credential.archived`, `credential.restored`, `credential.deleted`, `credential.expiry_synced`, `credential.exported`, `credential.settings_changed`. The entry's own history shows the same events plus the reminders that were sent.

@@ -140,6 +140,10 @@
         },
         "failRun": {
           "label": "Fail the run when the check fails"
+        },
+        "notify": {
+          "label": "Notify when the check fails",
+          "help": "Default: yes. No: an informational check – shown in the run, never notified"
         }
       }
     },
@@ -611,7 +615,9 @@
     "default": "Default",
     "defaultList": "Default (one per line)",
     "defaultCsv": "Default CSV",
-    "defaultJson": "Default JSON"
+    "defaultJson": "Default JSON",
+    "defaultApplication": "Default application",
+    "applicationHint": "The run gets the application with its components and tech stack, e.g. {{example}}"
   },
   "inputTypes": {
     "string": "text",
@@ -621,7 +627,8 @@
     "list": "list",
     "table": "table (CSV)",
     "json": "JSON",
-    "secret": "secret (hidden)"
+    "secret": "secret (hidden)",
+    "application": "application (components, tech stack)"
   },
   "connections": {
     "hint": "Connection slots keep the process platform-agnostic: steps refer to a slot (e.g. <c>hub</c>) and the actual platform is chosen when the run starts. Optionally restrict a slot to a platform kind.",

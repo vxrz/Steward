@@ -30,7 +30,17 @@
   "checkFailed": {
     "title": "Check failed: {{check}} in {{process}}",
     "titleDryRun": "Dry run – Check failed: {{check}} in {{process}}",
-    "body": "{{severity}}: {{message}}"
+    "body": "{{severity}}: {{message}}",
+    "titleChanged": "Check result changed: {{check}} in {{process}}",
+    "titleChangedDryRun": "Dry run – Check result changed: {{check}} in {{process}}",
+    "titleReminder": "Still failing: {{check}} in {{process}}",
+    "titleReminderDryRun": "Dry run – Still failing: {{check}} in {{process}}",
+    "since": "Failing since {{since}}."
+  },
+  "checkResolved": {
+    "title": "Check passes again: {{check}} in {{process}}",
+    "titleDryRun": "Dry run – Check passes again: {{check}} in {{process}}",
+    "body": "It had been failing since {{since}}."
   },
   "scheduleSkipped": {
     "title": "Schedule skipped: {{name}}",

@@ -28,6 +28,10 @@
       "failed": {
         "label": "Prüfung fehlgeschlagen",
         "info": "Eine Prüfung ist in einer von Ihnen gestarteten Ausführung oder einem Ihrer Prozesse fehlgeschlagen"
+      },
+      "resolved": {
+        "label": "Prüfung wieder erfolgreich",
+        "info": "Eine Prüfung eines geplanten Laufs ist nach einem Fehlschlag wieder erfolgreich (wenn der Zeitplan das vorsieht)"
       }
     },
     "dataset": {

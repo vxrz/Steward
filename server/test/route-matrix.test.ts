@@ -428,6 +428,13 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/links': DESIGN,
   'PATCH /api/applications/:id/links/:linkId': DESIGN,
   'DELETE /api/applications/:id/links/:linkId': DESIGN,
+  // components and tech stack (#103): like the application
+  'GET /api/catalogue/stack-products': ALL,
+  'POST /api/applications/:id/components': DESIGN,
+  'PUT /api/applications/:id/components/:componentId': DESIGN,
+  'DELETE /api/applications/:id/components/:componentId': DESIGN,
+  'POST /api/applications/:id/components/:componentId/sbom/preview': DESIGN,
+  'POST /api/applications/:id/components/:componentId/sbom': DESIGN,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -741,6 +748,7 @@ function fill(url: string): string {
     .replace(/:recordId/g, fx.record!)
     .replace(/:serviceId/g, fx.service!)
     .replace(/:applicationId/g, fx.application!)
+    .replace(/:componentId/g, fx.component!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
     .replace(/:objectiveId/g, fx.objective!)
@@ -854,6 +862,10 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/platforms': { platformId: fx.platform },
   'POST /api/applications/:id/links': { url: 'https://cmdb.example.com/7', label: 'x' },
   'PATCH /api/applications/:id/links/:linkId': { label: 'changed', note: 'n' },
+  'POST /api/applications/:id/components': { type: 'other', name: `matrix ${Math.random()}` },
+  'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
+  'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'PUT /api/services/:id/applications/:applicationId': { role: 'primary' },
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
@@ -1020,6 +1032,7 @@ beforeAll(async () => {
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
   const application = await a('POST', '/applications', { name: 'Matrix application', owners: [] });
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
+  const component = (await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component' })).components[0];
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
@@ -1058,6 +1071,7 @@ beforeAll(async () => {
     serviceLink: svcLink.id,
     application: application.id,
     applicationLink: appLink.id,
+    component: component.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
     user: users.find((u: { username: string }) => u.username === 'vera').id,

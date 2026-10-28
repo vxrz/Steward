@@ -172,6 +172,12 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'severity', label: 'Severity', kind: 'select', options: ['error', 'warning', 'info'] },
       { key: 'message', label: 'Message', kind: 'template' },
       { key: 'failRun', label: 'Fail the run when the check fails', kind: 'boolean' },
+      {
+        key: 'notify',
+        label: 'Notify when the check fails',
+        kind: 'boolean',
+        help: 'Default: yes. No: an informational check – shown in the run, never notified',
+      },
     ],
     defaults: () => ({ condition: 'true', severity: 'error' }),
   },

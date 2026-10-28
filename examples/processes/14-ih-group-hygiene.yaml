@@ -70,6 +70,7 @@ steps:
   - id: checkSingle
     type: check
     name: No single-member groups
+    notify: false # informational: shown in the run, never notified
     severity: info
     condition: "$count(vars.single) = 0"
     message: "{{ $count(vars.single) }} group(s) with one member: {{ $join(vars.single.(name & ' (' & memberNames & ')'), ', ') }}"

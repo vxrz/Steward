@@ -16,6 +16,7 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Table,
   Text,
   TextInput,
   Textarea,
@@ -150,6 +151,37 @@ function CredentialTable({ items, onOpen }: { items: Credential[]; onOpen: (id: 
     },
     { key: 'type', header: t('table.type'), sortValue: (c) => t(`types.${c.type}`), cell: (c) => t(`types.${c.type}`) },
     {
+      key: 'roles',
+      header: t('table.roles'),
+      sortValue: (c) => c.roles.map((r) => r.role).join(', '),
+      cell: (c) =>
+        c.roles.length ? (
+          <Group gap={4}>
+            {c.roles.slice(0, 2).map((r) => (
+              <Tooltip key={`${r.role} ${r.scope}`} label={r.scope || r.role} disabled={!r.scope}>
+                <Badge size="xs" variant="light" color="gray" tt="none" maw={180}>
+                  {r.role}
+                </Badge>
+              </Tooltip>
+            ))}
+            {c.roles.length > 2 && (
+              <Tooltip
+                label={c.roles
+                  .slice(2)
+                  .map((r) => r.role)
+                  .join(', ')}
+              >
+                <Badge size="xs" variant="outline" color="gray">
+                  +{c.roles.length - 2}
+                </Badge>
+              </Tooltip>
+            )}
+          </Group>
+        ) : (
+          '–'
+        ),
+    },
+    {
       key: 'platform',
       header: t('table.platform'),
       sortValue: platformOf,
@@ -244,6 +276,7 @@ export function CredentialsPage() {
   );
   const [platform, setPlatform] = useState('');
   const [owner, setOwner] = useState('');
+  const [role, setRole] = useState('');
   const [dueWithin, setDueWithin] = useState<number | ''>('');
   const [archived, setArchived] = useState<'exclude' | 'include' | 'only'>('exclude');
   const [debounced] = useDebouncedValue({ q, platform, owner }, 300);
@@ -254,10 +287,11 @@ export function CredentialsPage() {
     if (statuses.length) u.set('status', statuses.join(','));
     if (debounced.platform) u.set('platform', debounced.platform);
     if (debounced.owner) u.set('owner', debounced.owner);
+    if (role) u.set('role', role);
     if (dueWithin !== '') u.set('dueWithinDays', String(dueWithin));
     if (archived !== 'exclude') u.set('archived', archived);
     return u.toString();
-  }, [debounced, types, statuses, dueWithin, archived]);
+  }, [debounced, types, statuses, role, dueWithin, archived]);
   const list = useQuery({ queryKey: ['credentials', qs], queryFn: () => get<CredentialList>(`/credentials${qs ? `?${qs}` : ''}`) });
   const openId = params.get('open');
   const [editing, setEditing] = useState<Credential | 'new' | null>(null);
@@ -270,6 +304,10 @@ export function CredentialsPage() {
     setParams(next, { replace: true });
   };
   const platforms = useMemo(() => [...new Set((list.data?.items ?? []).map((c) => c.platformName ?? c.platformText).filter(Boolean))].sort(), [list.data]);
+  const roles = useMemo(
+    () => [...new Set([...(list.data?.items ?? []).flatMap((c) => c.roles.map((r) => r.role)), ...(role ? [role] : [])])].sort(),
+    [list.data, role],
+  );
 
   return (
     <>
@@ -299,7 +337,7 @@ export function CredentialsPage() {
       <Alert icon={<IconShieldLock size={18} />} color="blue" variant="light" mb="md">
         {t('noSecretsHint')}
       </Alert>
-      <FilterPanel active={[q, types.length, statuses.length, platform, owner, dueWithin !== '', archived !== 'exclude'].filter(Boolean).length}>
+      <FilterPanel active={[q, types.length, statuses.length, platform, owner, role, dueWithin !== '', archived !== 'exclude'].filter(Boolean).length}>
         <SimpleGrid cols={{ base: 1, xs: 2, md: 4 }} spacing="xs" mb="md">
           <TextInput size="xs" label={t('filters.search')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
           <MultiSelect
@@ -336,6 +374,16 @@ export function CredentialsPage() {
             placeholder={t('filters.ownerPlaceholder')}
             value={owner}
             onChange={(e) => setOwner(e.currentTarget.value)}
+          />
+          <Select
+            size="xs"
+            label={t('filters.role')}
+            placeholder={t('filters.allRoles')}
+            data={roles}
+            value={role || null}
+            onChange={(v) => setRole(v ?? '')}
+            clearable
+            searchable
           />
           <NumberInput
             size="xs"
@@ -599,12 +647,51 @@ function CredentialDrawer({
                   )}
                 </Text>
               ))}
-              {!c.usedBy.text && !c.usedBy.links.length && (
+              {c.usedBy.urls.map((x) => (
+                <Text size="sm" key={x.url}>
+                  <Anchor href={x.url} target="_blank" rel="noopener noreferrer nofollow" size="sm" style={{ overflowWrap: 'anywhere' }}>
+                    {x.label || x.url}
+                  </Anchor>
+                </Text>
+              ))}
+              {!c.usedBy.text && !c.usedBy.links.length && !c.usedBy.urls.length && (
                 <Text size="sm" c="dimmed">
                   –
                 </Text>
               )}
             </Stack>
+          </Field>
+          <Field label={t('fields.roles')}>
+            {c.roles.length ? (
+              <div className="table-scroll">
+                <Table fz="sm" data-testid="credential-roles">
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>{t('roles.role')}</Table.Th>
+                      <Table.Th>{t('roles.scope')}</Table.Th>
+                      <Table.Th>{t('roles.grantedAt')}</Table.Th>
+                      <Table.Th>{t('roles.note')}</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {c.roles.map((r) => (
+                      <Table.Tr key={`${r.role} ${r.scope}`}>
+                        <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                          <Code>{r.role}</Code>
+                        </Table.Td>
+                        <Table.Td>{r.scope || '–'}</Table.Td>
+                        <Table.Td className="nowrap">{r.grantedAt ? fmtDay(r.grantedAt) : '–'}</Table.Td>
+                        <Table.Td>{r.note || '–'}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+              </div>
+            ) : (
+              <Text size="sm" c="dimmed">
+                {t('roles.none')}
+              </Text>
+            )}
           </Field>
           <Field label={t('detail.linkedFrom')}>
             <Stack gap={2}>
@@ -664,6 +751,7 @@ function CredentialDrawer({
                 <Text size="xs" c="dimmed">
                   {fmtDate(e.ts)} · {e.actor}
                 </Text>
+                {e.kind === 'rolesChanged' && <RolesChange details={e.details} />}
                 {e.comment && <Text size="sm">{e.comment}</Text>}
               </Timeline.Item>
             ))}
@@ -687,7 +775,9 @@ function LinkTo({ kind, id, label }: { kind: string; id: string; label: string }
           ? `/platforms/${id}`
           : kind === 'service'
             ? `/services/${id}`
-            : null;
+            : kind === 'application'
+              ? `/applications/${id}`
+              : null;
   return href ? (
     <Anchor component={Link} to={href} size="sm">
       {label}
@@ -767,5 +857,33 @@ function ActionForm({
         </Group>
       </Stack>
     </Paper>
+  );
+}
+
+/** What a "roles changed" history event added, removed and changed. */
+function RolesChange({ details }: { details: Record<string, unknown> }) {
+  const { t } = useTranslation('credentials');
+  type R = { role: string; scope: string };
+  const label = (r: R) => (r.scope ? `${r.role} (${r.scope})` : r.role);
+  const list = (k: string) => (Array.isArray(details[k]) ? (details[k] as R[]) : []);
+  const changed = (Array.isArray(details.changed) ? details.changed : []) as { to: R }[];
+  return (
+    <Stack gap={0}>
+      {list('added').map((r) => (
+        <Text size="xs" key={`+${label(r)}`}>
+          {t('roles.added', { role: label(r) })}
+        </Text>
+      ))}
+      {list('removed').map((r) => (
+        <Text size="xs" key={`-${label(r)}`}>
+          {t('roles.removed', { role: label(r) })}
+        </Text>
+      ))}
+      {changed.map((c) => (
+        <Text size="xs" key={`~${label(c.to)}`}>
+          {t('roles.changed', { role: label(c.to) })}
+        </Text>
+      ))}
+    </Stack>
   );
 }

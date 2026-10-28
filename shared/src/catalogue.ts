@@ -158,6 +158,8 @@ export interface ApplicationSummary {
   /** Living documents scoped to the application that the reader may read */
   documentCount: number;
   overdueDocuments: number;
+  /** Components (repositories, images, topics, …) of the application */
+  componentCount: number;
   updatedAt: string;
 }
 
@@ -184,7 +186,132 @@ export interface ApplicationDetail extends ApplicationSummary {
   links: ItemLink[];
   backlinks: Backlink[];
   documents: ApplicationDocument[];
+  components: ApplicationComponent[];
+  /** The tech stack of all components together: one entry per product and version */
+  stack: ApplicationStackItem[];
+  /** Credentials register entries that name the application under "used by" and that the reader may see (#125) */
+  credentials: ApplicationCredential[];
   canEdit: boolean;
+}
+
+export interface ApplicationCredential {
+  id: string;
+  name: string;
+  type: string;
+  status: 'ok' | 'dueSoon' | 'overdue' | 'expired';
+  nextDueAt: string | null;
+  roles: string[];
+}
+
+// ---------- components and tech stack (#103) ----------
+
+/**
+ * What an application consists of: a short fixed list of types, so processes can ask for "all Kafka topics of
+ * this application". Anything else is "other".
+ */
+export const COMPONENT_TYPES = [
+  'repository',
+  'container-image',
+  'kafka-topic',
+  'snowflake-database',
+  'cloud-account',
+  'kubernetes-namespace',
+  'platform',
+  'other',
+] as const;
+export type ComponentType = (typeof COMPONENT_TYPES)[number];
+
+/** Where a tech stack entry comes from: entered by hand (wins over an SBOM) or read from an SBOM. */
+export const STACK_SOURCES = ['manual', 'sbom'] as const;
+export type StackSource = (typeof STACK_SOURCES)[number];
+
+export const COMPONENT_LIMITS = {
+  perApplication: 200,
+  name: 200,
+  note: 2000,
+  stackPerComponent: 100,
+  version: 60,
+  /** An SBOM (CycloneDX or SPDX JSON), uploaded or fetched */
+  sbomBytes: 10 * 1024 * 1024,
+  /** Components and packages read from one SBOM */
+  sbomComponents: 50_000,
+} as const;
+
+/** One product of a component's tech stack: an endoflife.date product and the version in use. */
+export interface StackEntry {
+  /** endoflife.date product id (e.g. "nodejs") */
+  product: string;
+  /** Its name (e.g. "Node.js"); the id when the product is no longer on the list */
+  label: string;
+  version: string;
+  source: StackSource;
+  /** SBOM entries: the SBOM component it was read from (package URL, CPE or name) */
+  sbomRef: string;
+  setAt: string;
+  setBy: string;
+}
+
+export interface ApplicationComponent {
+  id: string;
+  type: ComponentType;
+  name: string;
+  url: string;
+  note: string;
+  stack: StackEntry[];
+  /** The last SBOM import */
+  sbom: { format: SbomFormat; name: string; importedAt: string; importedBy: string } | null;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+/** A product and version across the components of an application. */
+export interface ApplicationStackItem {
+  product: string;
+  label: string;
+  version: string;
+  components: { id: string; name: string; type: ComponentType }[];
+}
+
+/** A product of the endoflife.date list, offered when a stack is entered by hand. */
+export interface StackProduct {
+  id: string;
+  label: string;
+  category: string;
+  /** Release cycles, newest first (e.g. "24", "22") */
+  cycles: string[];
+}
+
+export const SBOM_FORMATS = ['cyclonedx', 'spdx'] as const;
+export type SbomFormat = (typeof SBOM_FORMATS)[number];
+
+/**
+ * What an SBOM import changes in a component's stack:
+ * add / update / remove (an SBOM entry the new SBOM no longer has), keep (same version), manual (the SBOM names
+ * another version, the entry entered by hand stays).
+ */
+export interface SbomChange {
+  action: 'add' | 'update' | 'remove' | 'keep' | 'manual';
+  product: string;
+  label: string;
+  /** The version afterwards (remove: the version removed) */
+  version: string;
+  /** update / manual: the version before (manual: the SBOM's version) */
+  other: string | null;
+  /** The SBOM component it was read from */
+  sbomRef: string;
+}
+
+export interface SbomPreview {
+  format: SbomFormat;
+  /** Name of what the SBOM describes (its metadata), if any */
+  name: string;
+  /** Components and packages in the SBOM */
+  total: number;
+  /** Of these, the ones endoflife.date knows (the others are libraries and stay out) */
+  matched: number;
+  changes: SbomChange[];
 }
 
 /** An application of a service (service page), with its rating and its integrations. */

@@ -91,3 +91,45 @@ test('a report schedule is created and generated now', async ({ page }) => {
   expect(res.headers()['content-type']).toContain('application/pdf');
   expect((await res.body()).subarray(0, 5).toString()).toBe('%PDF-');
 });
+
+test('roles and permissions of a credential, linked to an application', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const appName = uniq('E2E Orders app');
+  const app = (await (await api.post('/api/applications', { data: { name: appName, owners: [] } })).json()) as { id: string };
+  const name = uniq('E2E technical user');
+  try {
+    await page.goto('/credentials');
+    await page.getByRole('button', { name: 'New entry' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New entry' });
+    await dialog.getByRole('textbox', { name: 'Name' }).fill(name);
+    // used by: the application and an external page
+    await dialog.getByRole('button', { name: 'Link a process, monitor, platform, service or application' }).click();
+    await dialog.getByRole('textbox', { name: 'Kind of link' }).click();
+    await page.getByRole('option', { name: 'Application' }).click();
+    await dialog.getByRole('textbox', { name: 'Linked object' }).click();
+    await page.getByRole('option', { name: appName }).click();
+    await dialog.getByRole('button', { name: 'Add external link' }).click();
+    await dialog.getByTestId('credential-urls').getByRole('textbox', { name: 'Label' }).fill('Swagger');
+    await dialog.getByTestId('credential-urls').getByRole('textbox', { name: 'Address' }).fill('https://gateway.example.com/swagger');
+    // a role with its scope
+    await dialog.getByRole('button', { name: 'Add role' }).click();
+    const roles = dialog.getByTestId('credential-roles-editor');
+    await roles.getByRole('textbox', { name: 'Role or permission' }).fill('mdsp:core:TenantAdmin');
+    await roles.getByRole('textbox', { name: 'Scope' }).fill('tenant modev');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+
+    const drawer = page.getByRole('dialog', { name });
+    await expect(drawer.getByTestId('credential-roles')).toContainText('mdsp:core:TenantAdmin');
+    await expect(drawer.getByRole('link', { name: 'Swagger' })).toHaveAttribute('href', 'https://gateway.example.com/swagger');
+    await expect(drawer.getByText('Roles changed')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // the overview shows the role and filters by it
+    await expect(page.getByRole('row').filter({ hasText: name })).toContainText('mdsp:core:TenantAdmin');
+
+    // the application lists the credential
+    await page.goto(`/applications/${app.id}`);
+    await expect(page.getByTestId('application-credentials').getByRole('row', { name: new RegExp(name) })).toContainText('mdsp:core:TenantAdmin');
+  } finally {
+    await api.post(`/api/applications/${app.id}/archive`, { data: { archived: true } });
+  }
+});

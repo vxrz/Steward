@@ -51,6 +51,8 @@ import { withSpan } from '../telemetry.js';
 import { normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
+import { applicationInputValue } from '../catalogue/components.js';
+import { checkOutcome } from './check-alerts.js';
 
 // ---------------------------------------------------------------------------
 // Run context
@@ -317,6 +319,9 @@ function coerceInputs(defs: InputDef[], raw: Record<string, unknown>): Record<st
         break;
       case 'table':
         out[d.name] = Array.isArray(v) ? v : parseCsv(String(v));
+        break;
+      case 'application':
+        out[d.name] = applicationInputValue(v, d.label ?? d.name);
         break;
       case 'json':
         if (typeof v === 'string') {
@@ -1132,16 +1137,21 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
           runId: ctx.runId,
           summary: `Check "${step.name || step.id}" failed (${severity}): ${message.slice(0, 200)}`,
         });
-        emit('check.failed', {
-          runId: ctx.runId,
-          processId: store.runRow(ctx.runId).process_id,
-          processName: ctx.def.name,
-          check: step.name || step.id,
-          severity,
-          message,
-          dryRun: ctx.dryRun,
-        });
       }
+      // whether this result notifies: the schedule's setting and the check's state (#127)
+      const run = store.runRow(ctx.runId);
+      checkOutcome({
+        runId: ctx.runId,
+        processId: run.process_id,
+        processName: ctx.def.name,
+        scheduleId: run.schedule_id ?? null,
+        check: step.name || step.id,
+        passed,
+        severity,
+        message,
+        dryRun: ctx.dryRun,
+        notify: step.notify,
+      });
       if (!passed && step.failRun) throw new Error(message);
       return { status: passed ? 'succeeded' : 'failed', output: { passed, severity, message }, summary: `${passed ? '✔' : '✘'} ${message}` };
     }

@@ -17,6 +17,8 @@ import { ApplicationFormModal } from './Applications';
 import { RatingPanel } from '../components/catalogue/cia';
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { useRoleLabel } from '../components/catalogue/ServiceApplications';
+import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
+import { CredentialStatusBadge } from './Credentials';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -81,6 +83,7 @@ export function ApplicationDetailPage() {
               </Text>
             )}
             <RatingPanel app={a} onSaved={refresh} />
+            <ComponentsPanel app={a} onSaved={refresh} />
             <IntegrationsPanel app={a} onSaved={refresh} />
             <Stack gap="xs" data-testid="application-services">
               <Text fw={600}>{t('services.title')}</Text>
@@ -101,6 +104,7 @@ export function ApplicationDetailPage() {
                 </Stack>
               )}
             </Stack>
+            <ApplicationCredentials app={a} />
             <ApplicationDocuments documents={a.documents} />
             <DutiesPanel applicationId={a.id} />
             <LinksPanel
@@ -372,6 +376,60 @@ function ApplicationDocuments({ documents }: { documents: ApplicationDocument[] 
                     </Box>
                   </Table.Td>
                   <Table.Td className="nowrap">{fmtDay(d.nextReviewAt)}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </div>
+      )}
+    </Stack>
+  );
+}
+
+/** Credentials register entries that name the application under "used by" (#125), with what is due. */
+function ApplicationCredentials({ app }: { app: ApplicationDetail }) {
+  const { t } = useTranslation(['applications', 'credentials']);
+  return (
+    <Stack gap="xs" data-testid="application-credentials">
+      <Text fw={600} id="application-credentials-title">
+        {t('credentials.title')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('credentials.help')}
+      </Text>
+      {app.credentials.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          {t('credentials.empty')}
+        </Text>
+      ) : (
+        <div className="table-scroll">
+          <Table fz="sm" aria-labelledby="application-credentials-title">
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>{t('credentials:table.name')}</Table.Th>
+                <Table.Th>{t('credentials:table.status')}</Table.Th>
+                <Table.Th>{t('credentials:table.nextDue')}</Table.Th>
+                <Table.Th>{t('credentials:table.roles')}</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {app.credentials.map((c) => (
+                <Table.Tr key={c.id}>
+                  <Table.Td style={{ overflowWrap: 'anywhere' }}>
+                    <Anchor component={Link} to={`/credentials?open=${encodeURIComponent(c.id)}`} size="sm">
+                      {c.name}
+                    </Anchor>
+                    <Text size="xs" c="dimmed">
+                      {t(`credentials:types.${c.type}`, { defaultValue: c.type })}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td className="nowrap">
+                    <Box w="max-content">
+                      <CredentialStatusBadge status={c.status} />
+                    </Box>
+                  </Table.Td>
+                  <Table.Td className="nowrap">{c.nextDueAt ? fmtDay(c.nextDueAt) : '–'}</Table.Td>
+                  <Table.Td style={{ overflowWrap: 'anywhere' }}>{c.roles.join(', ') || '–'}</Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>

@@ -28,6 +28,10 @@
       "failed": {
         "label": "Check failed",
         "info": "A check failed in a run you started or a process you own"
+      },
+      "resolved": {
+        "label": "Check passes again",
+        "info": "A check of a scheduled run passes again after it failed (when the schedule asks for it)"
       }
     },
     "dataset": {

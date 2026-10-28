@@ -236,6 +236,8 @@ export interface CheckConfig {
   severity?: 'error' | 'warning' | 'info';
   message?: string;
   failRun?: boolean;
+  /** false: an informational check – shown in the run, never notified */
+  notify?: boolean;
 }
 export interface LogConfig {
   type: 'log';
@@ -434,6 +436,7 @@ const shapes = {
     severity: z.enum(['error', 'warning', 'info']).optional(),
     message: z.string().optional(),
     failRun: z.boolean().optional(),
+    notify: z.boolean().optional(),
   },
   log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },
   report: {
@@ -642,8 +645,12 @@ export function hasInput(type: NodeType): boolean {
   return type !== 'start' && type !== 'note';
 }
 
-/** `secret`: stored encrypted only, shown as *** everywhere (protocol, audit log, reports, API) and masked in step data and logs. */
-export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json', 'secret'] as const;
+/**
+ * `secret`: stored encrypted only, shown as *** everywhere (protocol, audit log, reports, API) and masked in step data and logs.
+ * `application`: an application of the service catalogue, given by id or name; the run reads its components and tech
+ * stack when it starts.
+ */
+export const INPUT_TYPES = ['string', 'number', 'boolean', 'select', 'list', 'table', 'json', 'secret', 'application'] as const;
 export type InputType = (typeof INPUT_TYPES)[number];
 
 export const inputDefSchema = z.object({

@@ -42,6 +42,72 @@ On the application page, _Integrations → Map platform_, choose the platform an
 - The platform page names its application next to the base URL.
 - When a platform is deleted, it leaves its application.
 
+## Components and tech stack
+
+An application lists what it consists of once – its **components** – and processes read them from there instead of repeating the same names as inputs everywhere.
+
+On the application page, _Components → Add component_: a **type** and a **name** are all it needs; a link and a note are optional. The types are a short fixed list, so processes can ask for "all Kafka topics of this application":
+
+| Type                 | Name, for example                                       |
+| -------------------- | ------------------------------------------------------- |
+| Repository           | `acme/orders` (link: the repository)                    |
+| Container image      | `ghcr.io/acme/orders` (without a tag)                   |
+| Kafka topic          | `orders.v1`                                             |
+| Snowflake database   | `ORDERS_PROD`                                           |
+| Cloud account        | `123456789012` or the subscription name                 |
+| Kubernetes namespace | `orders-prod`                                           |
+| Platform             | what the application runs on, e.g. `Insights Hub (eu1)` |
+| Other                | anything else, with a link                              |
+
+An application without components works as before. Within an application, a name is used once per type.
+
+### Tech stack
+
+Each component can have a **tech stack**: products from the [endoflife.date](https://endoflife.date) list with the version in use – operating systems, runtimes, databases, major frameworks (_Node.js 24_, _PostgreSQL 16_, _Alpine Linux 3.20_). The product field offers the list, the version field its release cycles; any version text is accepted. The application page shows the stack of all components together (_Tech stack_), with the components that use each product and version. End-of-life dates and warnings follow with [#104](https://github.com/vxrz/Steward/issues/104).
+
+The product list ships with Steward (`server/assets/endoflife/products.json`, MIT licensed by the endoflife.date contributors), so nothing is fetched at run time. `node scripts/endoflife-products.mjs` refreshes it.
+
+### Import from an SBOM
+
+_Import SBOM_ (the import icon of a component) reads a **CycloneDX** or **SPDX** document in JSON – for example from `syft <image> -o cyclonedx-json` or `trivy image --format cyclonedx` – from a file or from a URL:
+
+- Only products endoflife.date knows are kept. A component counts by its package URL (`pkg:generic/node`, `pkg:npm/react`, `pkg:docker/library/postgres` …), then its CPE, and an operating system also by its name. Libraries stay out – also one named like a product (the npm client `redis` is not the Redis database).
+- _Show changes_ lists what the import would do before anything is stored: add, change, remove (an entry of an earlier SBOM that the new one no longer has), and entries kept because they were **entered by hand – these always win**. Change an SBOM entry by hand and it counts as entered by hand from then on.
+- A URL must be http(s), is fetched without following redirects, at most 10 MB, and the [outbound policy](SECURITY-HARDENING.md#outbound-connections) applies – allow the host under _Settings → Outbound access_ if needed. An SBOM lists at most 50,000 components.
+- The component shows the last import (format, name, who, when).
+
+Libraries and their vulnerabilities belong in Dependency-Track (a later version), not here.
+
+### Processes: input type application
+
+A process input of type **Application** asks for an application when the run starts (schedules store it, a default can name it). The run gets the application with its components and stack, read when the run starts and kept in the run's protocol:
+
+```yaml
+inputs:
+  - name: app
+    type: application
+    default: Orders # a name works in every installation, e.g. through Git sync
+steps:
+  - id: topics
+    type: forEach
+    items: inputs.app.components[type="kafka-topic"].name
+```
+
+```json
+{
+  "id": "app_…",
+  "name": "Orders",
+  "criticality": "high",
+  "owners": ["user:olivia"],
+  "tags": [],
+  "url": "",
+  "components": [{ "id": "cmp_…", "type": "kafka-topic", "name": "orders.v1", "url": "", "note": "", "stack": [] }],
+  "stack": [{ "product": "nodejs", "label": "Node.js", "version": "24", "components": ["ghcr.io/acme/orders"] }]
+}
+```
+
+The value is an application id or name (case does not matter); an archived or unknown application stops the run before it starts. Ordinary inputs stay for one-off runs.
+
 ## Add applications to a service
 
 On the service page, _Applications → Add application_, choose the application and optionally its **role**:
@@ -120,6 +186,7 @@ The scope is not part of the document's content: changing it needs no new editio
 | Create applications                                                            | Designers and administrators                                                              |
 | Edit, archive, rate an application; change its links                           | Designers, administrators and the users and teams responsible for it                      |
 | Map platforms to an application, remove them                                   | Whoever may edit the application **and** has the manage right on the platform             |
+| Add, change and remove components; edit their tech stack; import SBOMs         | Whoever may edit the application (not while it is archived)                               |
 | Add applications to a service, change their role, override its protection need | Whoever may edit the service (designers, administrators, its responsible users and teams) |
 | Change the CIA scale                                                           | Administrators, with a fresh confirmation (step-up)                                       |
 | Change the applications a document applies to                                  | Whoever may edit the record                                                               |
@@ -128,9 +195,9 @@ Applications have no access lists, like services: the catalogue is readable for 
 
 ## Audit, API, evidence packs, migration
 
-- **Audit log:** `application.created`, `.updated`, `.archived`, `.restored`, `.rated`, `.platform_added`, `.platform_removed`, `.link_added` …; `service.application_added`, `.application_changed`, `.application_removed`, `service.protection_need_overridden`, `service.protection_need_changed` (the effective need of a service moved because of an application, a member or a scale change – one entry per service, on the service); `record.scope_changed`, `application.document_added`, `application.document_removed`; `catalogue.cia_scale_changed`.
-- **Public API** (read-only, [API.md](API.md)): `GET /api/v1/applications`, `GET /api/v1/applications/{applicationId}` (with integrations and links), `GET /api/v1/applications/{applicationId}/documents`, `GET /api/v1/cia-scale`. Services carry `applications` and `protectionNeed`; the documents of a service carry `applications` (their scope).
+- **Audit log:** `application.created`, `.updated`, `.archived`, `.restored`, `.rated`, `.platform_added`, `.platform_removed`, `.component_added`, `.component_changed`, `.component_removed`, `.sbom_imported` (with what changed), `.link_added` …; `service.application_added`, `.application_changed`, `.application_removed`, `service.protection_need_overridden`, `service.protection_need_changed` (the effective need of a service moved because of an application, a member or a scale change – one entry per service, on the service); `record.scope_changed`, `application.document_added`, `application.document_removed`; `catalogue.cia_scale_changed`.
+- **Public API** (read-only, [API.md](API.md)): `GET /api/v1/applications`, `GET /api/v1/applications/{applicationId}` (with integrations, links, components and the tech stack), `GET /api/v1/applications/{applicationId}/documents`, `GET /api/v1/cia-scale`. Services carry `applications` and `protectionNeed`; the documents of a service carry `applications` (their scope).
 - **Evidence packs** of a service hold its protection need (effective, derived, override with reason) and the CIA rating of each application in `index.json` (`catalogue`) and in the summary PDF; packs of a platform hold the rating of its application. See [COMPLIANCE.md](COMPLIANCE.md#protection-needs-cia).
-- **Migration packages** ([MIGRATION.md](MIGRATION.md)) carry applications, ratings, integrations, the applications of services, overrides, document scopes and the scale. The responsible users and teams follow the identity mapping; who rated something stays as it was.
+- **Migration packages** ([MIGRATION.md](MIGRATION.md)) carry applications, ratings, integrations, components with their tech stack, the applications of services, overrides, document scopes and the scale. The responsible users and teams follow the identity mapping; who rated something stays as it was.
 
-Internal API (web UI): `GET/POST /api/applications`, `GET/PUT /api/applications/:id`, `POST /api/applications/:id/archive`, `PUT /api/applications/:id/rating`, `POST /api/applications/:id/platforms`, `DELETE /api/applications/:id/platforms/:platformId`, `POST/PATCH/DELETE /api/applications/:id/links[/:linkId]`, `GET /api/platforms/:id/application`, `PUT/DELETE /api/services/:id/applications/:applicationId`, `PUT /api/services/:id/protection-need`, `GET/PUT /api/catalogue/cia-scale`, `PUT /api/records/:id/applications`.
+Internal API (web UI): `GET/POST /api/applications`, `GET/PUT /api/applications/:id`, `POST /api/applications/:id/archive`, `PUT /api/applications/:id/rating`, `POST /api/applications/:id/platforms`, `DELETE /api/applications/:id/platforms/:platformId`, `POST /api/applications/:id/components`, `PUT/DELETE /api/applications/:id/components/:componentId`, `POST /api/applications/:id/components/:componentId/sbom[/preview]` (`{ sbom }` – the JSON text or document – or `{ url }`), `GET /api/catalogue/stack-products`, `POST/PATCH/DELETE /api/applications/:id/links[/:linkId]`, `GET /api/platforms/:id/application`, `PUT/DELETE /api/services/:id/applications/:applicationId`, `PUT /api/services/:id/protection-need`, `GET/PUT /api/catalogue/cia-scale`, `PUT /api/records/:id/applications`.

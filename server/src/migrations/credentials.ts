@@ -61,4 +61,9 @@ export const CREDENTIAL_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #125: the roles and permissions a credential holds (JSON list of { role, scope, grantedAt, note })
+    name: 'credentials-002-roles',
+    sql: `ALTER TABLE credentials ADD COLUMN roles TEXT NOT NULL DEFAULT '[]';`,
+  },
 ];

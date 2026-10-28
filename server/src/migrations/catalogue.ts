@@ -93,4 +93,40 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #103: what an application consists of (repositories, images, topics, …) and the tech stack of each component.
+    // Mapping components to platforms per environment can follow as its own table.
+    name: 'catalogue-002-components',
+    sql: `
+      CREATE TABLE application_components (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL REFERENCES applications(id),
+        type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        url TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        sbom_format TEXT,
+        sbom_name TEXT,
+        sbom_imported_at TEXT,
+        sbom_imported_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+      CREATE INDEX application_components_app ON application_components(application_id);
+
+      -- one row per component and endoflife.date product
+      CREATE TABLE component_stack (
+        component_id TEXT NOT NULL REFERENCES application_components(id) ON DELETE CASCADE,
+        product TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        sbom_ref TEXT NOT NULL DEFAULT '',
+        set_at TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        PRIMARY KEY (component_id, product)
+      );
+    `,
+  },
 ];

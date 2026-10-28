@@ -20,8 +20,15 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await expect(dialog.getByRole('textbox', { name: 'Cron expression' })).toHaveValue('0 * * * *');
   await expect(dialog.getByRole('textbox', { name: 'Time zone' })).toHaveValue('Europe/Berlin');
   await expect(dialog.getByText(/^Next: /)).toBeVisible();
+  // failed checks notify on change by default, with a 4-hour reminder (#127)
+  const notify = dialog.getByTestId('schedule-notify');
+  await expect(notify.getByRole('textbox', { name: 'Failed checks notify' })).toHaveValue('On change (recommended)');
+  await notify.getByRole('textbox', { name: 'Reminder while still failing' }).fill('8');
+  await notify.getByText('Send a message when a check passes again').click();
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Schedule saved')).toBeVisible();
+  const saved = (await (await apiAs('olivia')).get('/api/schedules').then((r) => r.json())) as { name: string; notify: unknown }[];
+  expect(saved.find((x) => x.name === name)?.notify).toEqual({ mode: 'change', reminderHours: 8, resolved: true });
 
   const row = page.getByRole('row').filter({ hasText: name });
   await expect(row).toContainText('0 * * * *');

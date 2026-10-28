@@ -23,6 +23,7 @@ export const NOT_MOVED: Record<string, string> = {
   notifications: 'in-app notifications are not moved',
   notification_sends: 'send bookkeeping of the source',
   notification_stale: 'send bookkeeping of the source',
+  check_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   daily_summary_sends: 'send bookkeeping of the source',
   duty_notifications: 'send bookkeeping of the source (a reminder of the current period may be sent again on the target)',
   engine_probe: 'internal',
@@ -94,11 +95,15 @@ export const USER_REFS: UserRef[] = [
  */
 export const HISTORY_COLUMNS: string[] = [
   'access_checks.updated_by',
+  'application_components.created_by',
+  'application_components.updated_by',
+  'application_components.sbom_imported_by',
   'application_platforms.created_by',
   'application_ratings.rated_by',
   'applications.created_by',
   'applications.updated_by',
   'cia_scales.updated_by',
+  'component_stack.set_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',
