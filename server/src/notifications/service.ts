@@ -234,14 +234,22 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.title', { title: e.title }),
+      title: t(l, e.dryRun ? 'task.titleDryRun' : 'task.title', { title: e.title }),
       body: t(l, e.fourEyes ? 'task.bodyFourEyes' : 'task.body', { process: e.processName, actor: e.runActor }),
     }),
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, assignees: e.assignees, fourEyes: e.fourEyes },
+    data: {
+      taskId: e.taskId,
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      assignees: e.assignees,
+      fourEyes: e.fourEyes,
+      dryRun: e.dryRun,
+    },
   });
 }
 
@@ -250,14 +258,22 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.verifyTitle', { title: titleName(e.title) }),
+      title: t(l, e.dryRun ? 'task.verifyTitleDryRun' : 'task.verifyTitle', { title: titleName(e.title) }),
       body: t(l, 'task.verifyBody', { process: e.processName, user: e.completedBy }),
     }),
     link: `/runs/${e.runId}`,
     recipients: verifierRecipients(e.taskId),
     inAppKey: `task-verify:${e.taskId}:${round}`,
     externalKey: `task-verify:${e.taskId}:${round}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, completedBy: e.completedBy, verification: true },
+    data: {
+      taskId: e.taskId,
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      completedBy: e.completedBy,
+      verification: true,
+      dryRun: e.dryRun,
+    },
   });
 }
 
@@ -268,14 +284,14 @@ export function onTaskReturned(e: DomainEvents['task.returned']): void {
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.returnedTitle', { title: titleName(e.title) }),
+      title: t(l, e.dryRun ? 'task.returnedTitleDryRun' : 'task.returnedTitle', { title: titleName(e.title) }),
       body: t(l, 'task.returnedBody', { process: e.processName, user: e.rejectedBy, comment: e.comment.slice(0, 500) }),
     }),
     link: `/runs/${e.runId}`,
     recipients: completer ? [completer] : [],
     inAppKey: `task-returned:${e.taskId}:${round}`,
     externalKey: `task-returned:${e.taskId}:${round}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true },
+    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true, dryRun: e.dryRun },
   });
 }
 

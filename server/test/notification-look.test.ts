@@ -430,7 +430,7 @@ describe('dry runs', () => {
       email: { enabled: true, host: 'smtp.example.com', port: 587, secure: false, from: 'steward@example.com' },
       teams: { enabled: true, webhookUrl: `${url}/teams` },
       webhook: { enabled: true, url: `${url}/hook` },
-      routes: { ...notif.routes, 'run.failed': all, 'check.failed': all },
+      routes: { ...notif.routes, 'run.failed': all, 'check.failed': all, 'task.assigned': all },
       baseUrl: 'https://sm.example.com',
     });
     await s.api('PATCH', '/me', { email: 'admin@example.com', emailNotifications: true, locale: 'en' });
@@ -512,5 +512,81 @@ describe('dry runs', () => {
     expect(p.html).toContain('No action needed');
     expect((p.teams as Card).attachments[0]!.content.body[0].style).toBe('emphasis');
     expect(await status(s.api('POST', '/settings/notifications/look/preview', { sample: 'other' }))).toBe(400);
+  });
+});
+
+describe('dry runs: tasks', () => {
+  const approval = async (name: string) =>
+    (
+      await s.api('POST', '/processes', {
+        definition: {
+          name,
+          nodes: [
+            { id: 'start', type: 'start', x: 0, y: 0 },
+            { id: 'ok', type: 'userTask', mode: 'approve', title: `Approve ${name}`, assignees: ['role:admin'], x: 1, y: 0 },
+          ],
+          wires: [{ from: 'start', port: 'out', to: 'ok' }],
+        },
+      })
+    ).id as string;
+  const flush = async () => (await import('../src/notifications/service.js')).flushNotifications();
+  /** Starts a run that waits for its approval; returns the run once the task notification is stored in the app. */
+  async function waitingRun(processId: string, dryRun: boolean) {
+    const { id } = await s.api('POST', '/runs', { processId, dryRun });
+    expect((await s.waitRun(id, ['waiting'])).status).toBe('waiting');
+    let inApp: any[] = [];
+    for (let i = 0; i < 100 && !inApp.length; i++) {
+      inApp = (await s.api('GET', '/notifications?limit=100')).items.filter((x: any) => x.event === 'task.assigned' && x.link === `/runs/${id}`);
+      if (!inApp.length) await new Promise((r) => setTimeout(r, 100));
+    }
+    await flush();
+    return { id: id as string, inApp };
+  }
+  const cancel = (id: string) => s.api('POST', `/runs/${id}/cancel`, {});
+
+  it('marks the message about a task of a dry run; the task itself is a normal task', async () => {
+    mails.length = 0;
+    received.length = 0;
+    const { id, inApp } = await waitingRun(await approval('Dry cleanup'), true);
+    expect(inApp[0].title).toBe('Dry run – Decision needed: Approve Dry cleanup');
+    const mail = mails.find((m) => m.subject.includes('Approve Dry cleanup'))!;
+    expect(mail.subject).toBe('[Acme] Dry run – Decision needed: Approve Dry cleanup');
+    expect(mail.html).toContain('Dry run – a test, nothing was changed. No action needed.');
+    expect(mail.html).toContain(`background:${look.TONE_HEX.emphasis}`);
+    expect(mail.html).not.toContain(look.TONE_HEX.warning);
+    const teams = received.find((r) => r.path === '/teams')!;
+    expect(teams.body.attachments[0].content.body[0].style).toBe('emphasis');
+    expect(received.find((r) => r.path === '/hook')!.body.data).toMatchObject({ dryRun: true, runId: id });
+    // the task is unchanged: open, and it can be decided so the dry run goes on
+    const run = await s.api('GET', `/runs/${id}`);
+    expect(run.tasks[0]).toMatchObject({ status: 'open', title: 'Approve Dry cleanup' });
+    await cancel(id);
+  });
+
+  it('keeps task messages of dry runs in the app with "in the app only"', async () => {
+    await s.api('PUT', '/settings/notifications/look', { dryRunDelivery: 'inAppOnly' });
+    mails.length = 0;
+    received.length = 0;
+    const { id, inApp } = await waitingRun(await approval('Quiet cleanup'), true);
+    expect(inApp).toHaveLength(1);
+    expect(inApp[0].title).toMatch(/^Dry run – /);
+    expect(mails.filter((m) => m.subject.includes('Quiet cleanup'))).toHaveLength(0);
+    expect(received).toHaveLength(0);
+    await cancel(id);
+    await s.api('PUT', '/settings/notifications/look', { dryRunDelivery: 'marked' });
+  });
+
+  it('leaves task messages of real runs as they were', async () => {
+    mails.length = 0;
+    received.length = 0;
+    const { id, inApp } = await waitingRun(await approval('Real cleanup'), false);
+    expect(inApp[0].title).toBe('Decision needed: Approve Real cleanup');
+    const mail = mails.find((m) => m.subject.includes('Approve Real cleanup'))!;
+    expect(mail.subject).toBe('[Acme] Decision needed: Approve Real cleanup');
+    expect(mail.html).not.toContain('No action needed');
+    expect(mail.html).toContain(`background:${look.TONE_HEX.warning}`);
+    expect(received.find((r) => r.path === '/teams')!.body.attachments[0].content.body[0].style).toBe('warning');
+    expect(received.find((r) => r.path === '/hook')!.body.data.dryRun).toBe(false);
+    await cancel(id);
   });
 });

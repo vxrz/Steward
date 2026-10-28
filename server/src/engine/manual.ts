@@ -302,6 +302,7 @@ export function completeManual(t: TaskRecord, input: ManualCompletionInput, acto
       title: t.title,
       completedBy: actor,
       runActor: r.actor,
+      dryRun: !!r.dry_run,
     });
     return null;
   }
@@ -359,6 +360,7 @@ export function verifyManual(t: TaskRecord, input: z.infer<typeof verificationSc
     completedBy: sub.completedBy,
     rejectedBy: actor,
     comment: comment ?? '',
+    dryRun: !!r.dry_run,
   });
   return null;
 }

@@ -11,11 +11,14 @@
   },
   "task": {
     "title": "Entscheidung erforderlich: {{title}}",
+    "titleDryRun": "Probelauf – Entscheidung erforderlich: {{title}}",
     "body": "Die Ausführung von „{{process}}“ (gestartet von {{actor}}) wartet auf Ihre Entscheidung.",
     "bodyFourEyes": "Die Ausführung von „{{process}}“ (gestartet von {{actor}}) wartet auf Ihre Entscheidung. Vier-Augen-Prinzip: Wer die Ausführung gestartet hat, darf nicht entscheiden.",
     "verifyTitle": "Prüfung erforderlich: {{title}}",
+    "verifyTitleDryRun": "Probelauf – Prüfung erforderlich: {{title}}",
     "verifyBody": "{{user}} hat einen manuellen Schritt von „{{process}}“ erledigt. Eine zweite Person muss ihn prüfen und bestätigen, bevor die Ausführung weiterläuft.",
     "returnedTitle": "An Sie zurückgegeben: {{title}}",
+    "returnedTitleDryRun": "Probelauf – An Sie zurückgegeben: {{title}}",
     "returnedBody": "{{user}} hat Ihren Eintrag zu einem manuellen Schritt von „{{process}}“ zurückgegeben: {{comment}}"
   },
   "runFailed": {

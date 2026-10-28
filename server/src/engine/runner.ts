@@ -1567,6 +1567,7 @@ async function execUserTask(step: NodeOf<'userTask'>, ctx: RunContext, key: stri
       assignees: step.assignees ?? [],
       fourEyes: !!step.fourEyes,
       runActor: ctx.actor,
+      dryRun: ctx.dryRun,
     });
     audit({
       actor: ctx.actor,

@@ -33,10 +33,21 @@ export interface DomainEvents {
     assignees: string[];
     fourEyes: boolean;
     runActor: string;
+    /** The run is a dry run: the task is real (the run waits for it), the message says it is a test */
+    dryRun: boolean;
   };
   'task.completed': { taskId: string; runId: string };
   /** A manual step was completed and waits for a second person */
-  'task.verification_needed': { taskId: string; runId: string; processId: string; processName: string; title: string; completedBy: string; runActor: string };
+  'task.verification_needed': {
+    taskId: string;
+    runId: string;
+    processId: string;
+    processName: string;
+    title: string;
+    completedBy: string;
+    runActor: string;
+    dryRun: boolean;
+  };
   /** The verifier sent a manual step back to the person who completed it */
   'task.returned': {
     taskId: string;
@@ -47,6 +58,7 @@ export interface DomainEvents {
     completedBy: string;
     rejectedBy: string;
     comment: string;
+    dryRun: boolean;
   };
   'check.failed': { runId: string; processId: string; processName: string; check: string; severity: string; message: string; dryRun: boolean };
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };

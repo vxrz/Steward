@@ -21,7 +21,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Notifications about dry runs no longer look urgent** (#99): the subject and the in-app title start with _Dry run –_ (German _Probelauf –_) instead of ending in "(dry run)", e-mails get a grey banner _Dry run – a test, nothing was changed. No action needed._ and a grey strip instead of the red one, and Teams cards the same sentence in a grey card. Webhooks keep `data.dryRun: true`. The look preview can show a failed dry run.
+- **Notifications about dry runs no longer look urgent** (#99): the subject and the in-app title start with _Dry run –_ (German _Probelauf –_) instead of ending in "(dry run)", e-mails get a grey banner _Dry run – a test, nothing was changed. No action needed._ and a grey strip instead of the red one, and Teams cards the same sentence in a grey card. The same applies to task messages of dry runs (a decision, a step to verify, a step sent back); the tasks themselves stay normal tasks. Webhooks keep `data.dryRun: true` (task messages now carry it too). The look preview can show a failed dry run.
 
 ## [0.2.1] - 2026-10-27
 

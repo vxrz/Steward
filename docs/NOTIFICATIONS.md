@@ -72,6 +72,7 @@ A dry run is a test: read calls are real, writes are only recorded. When one fai
 - **E-mail:** the subject reads `[Name] Dry run – Run failed: …` (German: `Probelauf – …`), a grey banner on top says _Dry run – a test, nothing was changed. No action needed._, and the strip is grey instead of red. The text part starts with the same sentence.
 - **Teams:** the same sentence under the header, and a grey (`emphasis`) card style.
 - **In the app:** the title starts with _Dry run –_.
+- **Tasks of a dry run** (a decision, a manual step to verify, a step sent back) are marked the same way: _Dry run – Decision needed: …_. The task itself is a normal task – the dry run waits for it – only the message says it is a test.
 - **Webhooks:** unchanged; `data.dryRun` is `true`, as before.
 
 _Dry runs_ in the same card chooses where these go: **e-mail, Teams and webhook, marked as a test** (default), or **only in the app**. Real runs are not affected.
