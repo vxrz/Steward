@@ -10,7 +10,7 @@ import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
 import { emailContent, sendEmail, sendTeams, sendWebhook, teamsCard, type OutgoingMessage } from './channels.js';
-import { logoDataUrl, lookProblems, resolveLook } from './look.js';
+import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
 import { allowedDomainRules, domainAllowed } from './domains.js';
@@ -154,6 +154,8 @@ export function notify(n: Notice): void {
       }
     }
   }
+  // a dry run is a test: with "in the app only" it never reaches a mailbox, Teams or a webhook
+  if (isDryRun(n.data) && dryRunDelivery() === 'inAppOnly') return;
   const external = channels.filter((c) => c !== 'inApp' && settings[c].enabled);
   if (!external.length) return;
   if (!vault().unlocked) {
@@ -232,14 +234,22 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.title', { title: e.title }),
+      title: t(l, e.dryRun ? 'task.titleDryRun' : 'task.title', { title: e.title }),
       body: t(l, e.fourEyes ? 'task.bodyFourEyes' : 'task.body', { process: e.processName, actor: e.runActor }),
     }),
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, assignees: e.assignees, fourEyes: e.fourEyes },
+    data: {
+      taskId: e.taskId,
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      assignees: e.assignees,
+      fourEyes: e.fourEyes,
+      dryRun: e.dryRun,
+    },
   });
 }
 
@@ -248,14 +258,22 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.verifyTitle', { title: titleName(e.title) }),
+      title: t(l, e.dryRun ? 'task.verifyTitleDryRun' : 'task.verifyTitle', { title: titleName(e.title) }),
       body: t(l, 'task.verifyBody', { process: e.processName, user: e.completedBy }),
     }),
     link: `/runs/${e.runId}`,
     recipients: verifierRecipients(e.taskId),
     inAppKey: `task-verify:${e.taskId}:${round}`,
     externalKey: `task-verify:${e.taskId}:${round}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, completedBy: e.completedBy, verification: true },
+    data: {
+      taskId: e.taskId,
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      completedBy: e.completedBy,
+      verification: true,
+      dryRun: e.dryRun,
+    },
   });
 }
 
@@ -266,14 +284,14 @@ export function onTaskReturned(e: DomainEvents['task.returned']): void {
   notify({
     event: 'task.assigned',
     text: (l) => ({
-      title: t(l, 'task.returnedTitle', { title: titleName(e.title) }),
+      title: t(l, e.dryRun ? 'task.returnedTitleDryRun' : 'task.returnedTitle', { title: titleName(e.title) }),
       body: t(l, 'task.returnedBody', { process: e.processName, user: e.rejectedBy, comment: e.comment.slice(0, 500) }),
     }),
     link: `/runs/${e.runId}`,
     recipients: completer ? [completer] : [],
     inAppKey: `task-returned:${e.taskId}:${round}`,
     externalKey: `task-returned:${e.taskId}:${round}`,
-    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true },
+    data: { taskId: e.taskId, runId: e.runId, processId: e.processId, processName: e.processName, rejectedBy: e.rejectedBy, returned: true, dryRun: e.dryRun },
   });
 }
 
@@ -459,12 +477,27 @@ function testMessage(name: string): OutgoingMessage {
   };
 }
 
-/** The test message as an e-mail and a Teams card with unsaved look settings (nothing is sent or stored). */
-export function previewLook(draft: Partial<NotificationLookInput>): NotificationLookPreview {
+/** A failed dry run, as the preview of how dry runs look (never sent). */
+function dryRunSample(): OutgoingMessage {
+  const locale = defaultLocale();
+  const process = t(locale, 'dryRun.sampleProcess');
+  return {
+    event: 'run.failed',
+    title: t(locale, 'runFailed.titleDryRun', { process }),
+    body: t(locale, 'runFailed.body', { error: t(locale, 'dryRun.sampleError') }),
+    locale,
+    link: absoluteLink('/runs'),
+    ts: nowIso(),
+    data: { dryRun: true },
+  };
+}
+
+/** The test message (or a failed dry run) as an e-mail and a Teams card with unsaved look settings (nothing is sent or stored). */
+export function previewLook(draft: Partial<NotificationLookInput>, sample: 'test' | 'dryRun' = 'test'): NotificationLookPreview {
   const problems = lookProblems(draft);
   if (problems.length) throw new HttpError(400, problems.join('; '), 'NOTIFICATION_LOOK_INVALID');
   const look = resolveLook(draft);
-  const msg = testMessage(look.name);
+  const msg = sample === 'dryRun' ? dryRunSample() : testMessage(look.name);
   const mail = emailContent(msg, look, look.logo ? logoDataUrl(look.logo) : undefined);
   return { subject: mail.subject, html: mail.html, teams: teamsCard(msg, look) };
 }

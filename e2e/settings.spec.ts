@@ -66,28 +66,66 @@ test('readiness and metrics endpoints', async ({ request }) => {
   expect(await metrics.text()).toContain('# HELP');
 });
 
-test('settings: look of e-mails and Teams messages, with a preview', async ({ page }) => {
-  await page.goto('/settings');
-  const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
-  await expect(card).toBeVisible();
-  const name = card.getByRole('textbox', { name: 'Name' });
-  await name.fill('E2E Service desk');
-  await card.getByRole('textbox', { name: 'Footer text' }).fill('Internal – E2E');
-  // the preview (on demand) follows the unsaved draft: subject, the e-mail in a sandboxed frame and the Teams card
-  await card.getByRole('button', { name: 'Show preview' }).click();
-  await expect(card.getByText('Subject: [E2E Service desk] ')).toBeVisible();
-  const mail = card.frameLocator('iframe[title="E-mail"]');
-  await expect(mail.getByText('E2E Service desk', { exact: true })).toBeVisible();
-  await expect(mail.getByText('Internal – E2E')).toBeVisible();
-  await expect(card.getByText('Open in E2E Service desk')).toBeVisible();
-  await card.getByRole('button', { name: 'Save look' }).click();
-  await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
-  await page.reload();
-  await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('E2E Service desk');
-  // back to the Appearance settings
-  await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
-  await card.getByRole('button', { name: 'Save look' }).click();
-  await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
-  await page.reload();
-  await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('');
+// both change the same setting: one after the other
+test.describe('look of e-mails and Teams messages', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  test('settings: look of e-mails and Teams messages, with a preview', async ({ page }) => {
+    await page.goto('/settings');
+    const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
+    await expect(card).toBeVisible();
+    const name = card.getByRole('textbox', { name: 'Name' });
+    await name.fill('E2E Service desk');
+    await card.getByRole('textbox', { name: 'Footer text' }).fill('Internal – E2E');
+    // the preview (on demand) follows the unsaved draft: subject, the e-mail in a sandboxed frame and the Teams card
+    await card.getByRole('button', { name: 'Show preview' }).click();
+    await expect(card.getByText('Subject: [E2E Service desk] ')).toBeVisible();
+    const mail = card.frameLocator('iframe[title="E-mail"]');
+    await expect(mail.getByText('E2E Service desk', { exact: true })).toBeVisible();
+    await expect(mail.getByText('Internal – E2E')).toBeVisible();
+    await expect(card.getByText('Open in E2E Service desk')).toBeVisible();
+    await card.getByRole('button', { name: 'Save look' }).click();
+    await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
+    await page.reload();
+    await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('E2E Service desk');
+    // back to the Appearance settings
+    await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
+    await card.getByRole('button', { name: 'Save look' }).click();
+    await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
+    await page.reload();
+    await expect(card.getByRole('textbox', { name: 'Name' })).toHaveValue('');
+  });
+
+  test('settings: own notification logo, style and dry runs', async ({ page }) => {
+    await page.goto('/settings');
+    const card = page.locator('.mantine-Card-root').filter({ has: page.getByRole('heading', { name: 'Look of e-mails and Teams messages' }) });
+    await expect(card).toBeVisible();
+    // an own logo: choosing it shows the upload; a 1 × 1 PNG is enough
+    await card.getByText('Own logo', { exact: true }).click();
+    await expect(card.getByText('No own logo uploaded')).toBeVisible();
+    const onePixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+    await card.locator('input[type="file"]').setInputFiles({ name: 'mail-logo.png', mimeType: 'image/png', buffer: onePixel });
+    await expect(page.getByText('Notification logo uploaded')).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Replace logo' })).toBeVisible();
+    // style and dry runs
+    await card.getByText('White with a line', { exact: true }).click();
+    await card.getByRole('radio', { name: 'Only in the app' }).check();
+    // the preview can show a failed dry run, marked as a test
+    await card.getByRole('button', { name: 'Show preview' }).click();
+    await card.getByText('Failed dry run', { exact: true }).click();
+    await expect(card.getByText(/^Subject: \[.+\] Dry run – Run failed: /)).toBeVisible();
+    await expect(card.frameLocator('iframe[title="E-mail"]').getByText('Dry run – a test, nothing was changed. No action needed.')).toBeVisible();
+    await card.getByRole('button', { name: 'Save look' }).click();
+    await expect(page.getByText('Look of e-mails and Teams messages saved')).toBeVisible();
+    await page.reload();
+    await expect(card.getByRole('radio', { name: 'Only in the app' })).toBeChecked();
+    // clean up: remove the logo, back to the defaults
+    await card.getByRole('button', { name: 'Remove' }).click();
+    await expect(page.getByText('Notification logo removed')).toBeVisible();
+    await card.getByRole('button', { name: 'Back to the Appearance settings' }).click();
+    await card.getByRole('button', { name: 'Save look' }).click();
+    await expect(page.getByText('Look of e-mails and Teams messages saved').first()).toBeVisible();
+    await page.reload();
+    await expect(card.getByRole('radio', { name: 'E-mail, Teams and webhook, marked as a test' })).toBeChecked();
+  });
 });

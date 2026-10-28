@@ -1,4 +1,12 @@
-import { SYNC_UPDATE_STATUSES, type SyncKind, type SyncOrigin, type SyncUpdate, type SyncUpdateDetail, type SyncUpdateStatus } from '@sm/shared';
+import {
+  SYNC_UPDATE_STATUSES,
+  type MonitorPlatformReference,
+  type SyncKind,
+  type SyncOrigin,
+  type SyncUpdate,
+  type SyncUpdateDetail,
+  type SyncUpdateStatus,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
 import { currentActor, currentUser } from '../auth/context.js';
@@ -6,9 +14,10 @@ import { capabilities } from '../auth/permissions.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
 import * as processes from '../processes/service.js';
 import { monitorRow, permissionsOfRow } from '../monitors/model.js';
+import * as monitors from '../monitors/service.js';
 import { fileWebUrl } from './providers.js';
 import { requireSource, type SourceRow } from './service.js';
-import { applyItem, canDecide, canView, incomingText, localById, localText } from './items.js';
+import { applyItem, canDecide, canView, findLocal, incomingText, localById, localText } from './items.js';
 import { CONFLICT_TEXT, conflictOf, link } from './fetch.js';
 
 /**
@@ -115,21 +124,45 @@ function updateRow(id: string, checkVisible = true): UpdateRow {
 export function getUpdate(id: string): SyncUpdateDetail {
   requireReviewer();
   const r = updateRow(id);
-  const u = toUpdate(r);
+  // a "new" item that was created in Steward after the fetch (e.g. from the same template): accepting changes that
+  // item (see acceptUpdate), so it is shown as a change of it – a conflict, since it never came from Git
+  const found = r.status === 'pending' && r.action === 'create' && !r.entity_id && r.kind && r.identity ? findLocal(r.kind, r.identity) : null;
+  const appeared = found && r.kind && canView(r.kind, found.id) ? found : null;
+  const u: SyncUpdate = appeared
+    ? {
+        ...toUpdate(r),
+        action: 'update',
+        entityId: appeared.id,
+        entityName: appeared.name,
+        conflict: true,
+        conflictReason: 'notFromGit',
+        canDecide: canDecide(r.kind!, appeared.id),
+      }
+    : toUpdate(r);
   const content = r.content ? JSON.parse(r.content) : null;
-  const local = r.kind && r.entity_id ? localText(r.kind, r.entity_id) : null;
+  const local = r.kind && u.entityId ? localText(r.kind, u.entityId) : null;
   return {
     ...u,
     incomingText: r.kind && content !== null ? incomingText(r.kind, content) : '',
     currentText: local?.text ?? null,
     ...(r.kind === 'process' ? { incomingDefinition: content ?? undefined, currentDefinition: local?.definition } : {}),
+    ...(r.kind === 'monitor' && content ? { platforms: monitorReferences(content) } : {}),
   };
+}
+
+/** Platform references of a staged monitor file (names from Git), with the platforms the reviewer may choose. */
+function monitorReferences(content: unknown): MonitorPlatformReference[] {
+  const { kind: _k, key: _key, enabled: _e, ...definition } = content as Record<string, unknown>;
+  return monitors.platformReferences(definition);
 }
 
 const entityTypeOf = (k: SyncKind) => (k === 'recordType' ? 'record_type' : k);
 
 /** Accept: create or update the item through its normal service (a new process version), and remember its origin. */
-export async function acceptUpdate(id: string, opts: { comment?: string; force?: boolean; auto?: boolean } = {}): Promise<SyncUpdate> {
+export async function acceptUpdate(
+  id: string,
+  opts: { comment?: string; force?: boolean; auto?: boolean; platforms?: Record<string, string> } = {},
+): Promise<SyncUpdate> {
   requireReviewer();
   const r = updateRow(id);
   if (r.status !== 'pending' || !r.kind || r.content === null)
@@ -138,8 +171,9 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
   if (!canDecide(kind, r.entity_id))
     throw new HttpError(403, `You are not allowed to ${r.action === 'create' ? 'create' : 'change'} this ${kind}`, 'FORBIDDEN', { context: 'decideGitUpdate' });
   const src = requireSource(r.source_id);
-  // check again: the local item may have changed (or appeared) since the fetch
-  const target = r.entity_id ? localById(kind, r.entity_id) : null;
+  // check again: the local item may have changed since the fetch – or appeared, when it was created after the fetch
+  // (e.g. from the same template). Then the update changes that item instead of creating a copy with "-2" appended.
+  const target = r.entity_id ? localById(kind, r.entity_id) : r.identity ? findLocal(kind, r.identity) : null;
   if (r.entity_id && !target) throw new HttpError(409, 'The local item no longer exists – fetch again to stage it as a new item', 'SYNC_ITEM_GONE');
   const item = target
     ? db().get<Parameters<typeof conflictOf>[2] & object>(
@@ -153,6 +187,14 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
   if (conflict && !opts.force)
     throw new HttpError(409, `${CONFLICT_TEXT[conflict]}. Review the difference and accept anyway to overwrite it.`, 'SYNC_CONFLICT', { context: conflict });
   const content = JSON.parse(r.content) as unknown;
+  if (kind === 'monitor') {
+    // a platform name that does not resolve to one platform the reviewer may use needs a choice
+    const open = monitorReferences(content).filter((x) => !x.resolved && !opts.platforms?.[x.ref]);
+    if (open.length)
+      throw new HttpError(400, `Choose the platform for ${open.map((x) => `"${x.ref}"`).join(', ')}`, 'SYNC_PLATFORM_CHOICE_NEEDED', {
+        refs: open.map((x) => x.ref).join(', '),
+      });
+  }
   const sha = r.commit_sha.slice(0, 10);
   const note = `From Git: ${src.name} ${r.path} @ ${sha}${opts.comment?.trim() ? ` – ${opts.comment.trim()}` : ''}`.slice(0, 2000);
   const res = await applyItem(kind, content, target?.id ?? null, {
@@ -164,6 +206,7 @@ export async function acceptUpdate(id: string, opts: { comment?: string; force?:
         .replace(/\.(ya?ml|json)$/i, ''),
     comment: note,
     disabled: opts.auto,
+    platforms: opts.platforms,
   });
   db().tx(() => {
     link(src, { path: r.path, sha: r.blob_sha }, { sha: r.commit_sha }, { kind, hash: r.content_hash }, res.entityId, currentActor());

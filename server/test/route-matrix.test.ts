@@ -136,6 +136,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/settings/notifications/look': ADMIN,
   'PUT /api/settings/notifications/look': ADMIN,
   'POST /api/settings/notifications/look/preview': ADMIN,
+  'GET /api/settings/notifications/look/logo': ADMIN,
+  'POST /api/settings/notifications/look/logo': ADMIN,
+  'DELETE /api/settings/notifications/look/logo': ADMIN,
   'GET /api/settings/theme': ADMIN,
   'PUT /api/settings/theme': ADMIN,
   'POST /api/settings/theme/reset': ADMIN,
@@ -179,10 +182,12 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/platforms/:id/secrets': ADMIN,
   'POST /api/platforms/:id/test': USE,
   'POST /api/platforms/:id/request': USE,
+  'POST /api/platforms/:id/token/renew': ADMIN,
   'GET /api/platforms/:id/specs': USE,
   'POST /api/platforms/:id/specs': ADMIN,
   'DELETE /api/platforms/:id/specs/:specId': ADMIN,
   'PATCH /api/platforms/:id/specs/:specId': ADMIN,
+  'POST /api/platforms/:id/specs/:specId/copy': ADMIN,
   'GET /api/platforms/:id/operations': USE,
   'GET /api/platforms/:id/docs': USE,
   'POST /api/platforms/:id/docs': ADMIN,
@@ -274,6 +279,8 @@ const EXPECT: Record<string, Access> = {
   'GET /api/monitors/examples': ALL,
   'POST /api/monitors/examples/:file': DESIGN,
   'POST /api/monitors/import': DESIGN,
+  'POST /api/monitors/import/preview': DESIGN,
+  'POST /api/monitors/examples/:file/preview': DESIGN,
   'POST /api/monitors/validate': ALL,
   'GET /api/monitors/:id': ALL,
   'PUT /api/monitors/:id': DESIGN,
@@ -689,6 +696,7 @@ const NO_POSITIVE = new Set([
   'GET /api/auth/oidc/:id/start',
   'GET /api/audit/anchor.json', // no checkpoint file yet
   'GET /api/reports/branding/logo', // no logo uploaded
+  'GET /api/settings/notifications/look/logo',
   'GET /api/theme/logo',
   'GET /api/docs/*', // no such asset
   'GET /api/docs/static/*',
@@ -817,6 +825,8 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/platforms/:id/docs': { title: 'x', kind: 'note', content: 'x' },
   'POST /api/platforms/:id/specs': { content: '{"openapi":"3.0.0","info":{"title":"x","version":"1"},"paths":{}}' },
   'PATCH /api/platforms/:id/specs/:specId': { pathPrefix: '' },
+  // the source itself is skipped: nothing is copied
+  'POST /api/platforms/:id/specs/:specId/copy': { targets: [fx.platform] },
   'PUT /api/monitors/:id/access': { acl: [] },
   'POST /api/monitors/:id/enabled': { enabled: false },
   'POST /api/monitors/:id/maintenance': { endsAt: new Date(Date.now() + 3600000).toISOString(), reason: 'x' },

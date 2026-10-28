@@ -83,9 +83,21 @@ export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'te
 
 // ---------- Look of e-mails and Teams messages ----------
 
-/** Where the logo in e-mails and Teams cards comes from: the Appearance logo, the report logo, or none. */
-export const NOTIFICATION_LOGO_SOURCES = ['app', 'report', 'none'] as const;
+/** Where the logo in e-mails and Teams cards comes from: the Appearance logo, the report logo, an own upload, or none. */
+export const NOTIFICATION_LOGO_SOURCES = ['app', 'report', 'custom', 'none'] as const;
 export type NotificationLogoSource = (typeof NOTIFICATION_LOGO_SOURCES)[number];
+/** Height of the logo in the e-mail header: 20, 28 or 40 px. */
+export const NOTIFICATION_LOGO_SIZES = ['small', 'medium', 'large'] as const;
+export const NOTIFICATION_LOGO_ALIGNS = ['left', 'center'] as const;
+/** solid: header in the colour; line: white header with a line in the colour; minimal: white header, thin grey line. */
+export const NOTIFICATION_HEADER_STYLES = ['solid', 'line', 'minimal'] as const;
+export const NOTIFICATION_CORNERS = ['rounded', 'square'] as const;
+/** Fonts every mail client has: the system font, Arial/Helvetica, or a serif (Georgia). */
+export const NOTIFICATION_FONTS = ['system', 'arial', 'serif'] as const;
+/** Messages about dry runs: by e-mail, Teams and webhook as usual, marked as a test – or only in the app. */
+export const NOTIFICATION_DRY_RUN_DELIVERY = ['marked', 'inAppOnly'] as const;
+/** An own notification logo (PNG or JPEG): at most 512 KB, the limit for e-mail logos. */
+export const NOTIFICATION_LOGO_MAX_BYTES = 512 * 1024;
 
 export const NOTIFICATION_LOOK_NAME_MAX = 60;
 export const NOTIFICATION_LOOK_FOOTER_MAX = 300;
@@ -102,6 +114,15 @@ export interface NotificationLookInput {
   logoSource: NotificationLogoSource;
   /** Small print at the bottom of every e-mail, e.g. "Internal – IT operations"; '' = none */
   footer: string;
+  logoSize: (typeof NOTIFICATION_LOGO_SIZES)[number];
+  logoAlign: (typeof NOTIFICATION_LOGO_ALIGNS)[number];
+  headerStyle: (typeof NOTIFICATION_HEADER_STYLES)[number];
+  /** Hex colour of the "Open in …" button; '' = the header colour */
+  buttonColor: string;
+  corners: (typeof NOTIFICATION_CORNERS)[number];
+  font: (typeof NOTIFICATION_FONTS)[number];
+  /** Notifications about dry runs: marked as a test on every channel, or only in the app */
+  dryRunDelivery: (typeof NOTIFICATION_DRY_RUN_DELIVERY)[number];
 }
 
 export interface NotificationLook extends NotificationLookInput {
@@ -114,11 +135,25 @@ export interface NotificationLook extends NotificationLookInput {
     /** Why there is no logo although one was chosen: missing, a WebP image mail clients cannot show, or larger than 512 KB */
     logoProblem?: 'missing' | 'type' | 'size';
   };
+  /** An own notification logo is uploaded (logo source "custom") */
+  customLogo: { mime: 'image/png' | 'image/jpeg'; size: number; updatedAt: string | null } | null;
   updatedAt: string | null;
   updatedBy: string | null;
 }
 
-export const NOTIFICATION_LOOK_DEFAULTS: NotificationLookInput = { name: '', color: '', logoSource: 'app', footer: '' };
+export const NOTIFICATION_LOOK_DEFAULTS: NotificationLookInput = {
+  name: '',
+  color: '',
+  logoSource: 'app',
+  footer: '',
+  logoSize: 'medium',
+  logoAlign: 'left',
+  headerStyle: 'solid',
+  buttonColor: '',
+  corners: 'rounded',
+  font: 'system',
+  dryRunDelivery: 'marked',
+};
 
 /** POST /api/settings/notifications/look/preview: the sample message as it would be sent with the given draft. */
 export interface NotificationLookPreview {

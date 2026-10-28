@@ -39,14 +39,43 @@ _Settings → Look of e-mails and Teams messages_ (administrators) gives the mes
 | ----------- | --------------------------------------------------------------------------------------------- | --------------------------------------- |
 | Name        | The e-mail header, the subject prefix (`[Name] …`), the Teams card and the "Open in …" button | The Appearance app name, else "Steward" |
 | Colour      | The e-mail header and button                                                                  | The Appearance primary colour           |
-| Logo        | App logo (Appearance), report logo (Report branding) or none                                  | The app logo                            |
+| Logo        | App logo (Appearance), report logo (Report branding), an own logo for messages, or none       | The app logo                            |
 | Footer text | Small print at the bottom of every e-mail and Teams card                                      | No footer                               |
 
 - **E-mails** (every notification, the daily summary, test messages) use one layout: a header bar in the colour with logo and name, a thin strip that shows how the message reads (red: something failed, orange: something to do, green: a monitor is up again, blue: information), the text, a button and the footer. It is built from tables and inline styles, so Outlook and web mail show it, and the plain-text part is kept.
 - **The logo travels inside the e-mail** as an inline attachment (`cid:`). Mail clients block remote images, and Steward is usually not reachable from outside, so nothing is loaded from Steward. PNG and JPEG up to 512 KB; a WebP app logo is left out (many mail clients cannot show it) – upload a PNG or JPEG, or use the report logo.
 - **Teams cards** carry the name, the footer and a coloured strip with the same meaning. Adaptive Cards only know named colours (`good`, `warning`, `attention`, `accent`), not the hex colour. The logo is embedded only up to 12 KB, because Teams refuses cards over 28 KB.
 - **Generic webhooks** get the same JSON as before.
-- The card's **preview** shows the test message as an e-mail and a Teams card with the unsaved settings. _Send test_ under _Notifications_ sends it with the saved ones. Changes are audited as `notifications.look_updated`; the setting moves with a [migration package](MIGRATION.md).
+- The card's **preview** shows the test message, or a failed dry run, as an e-mail and a Teams card with the unsaved settings. _Send test_ under _Notifications_ sends it with the saved ones. Changes are audited as `notifications.look_updated`; the setting moves with a [migration package](MIGRATION.md).
+
+### Own logo
+
+_Logo → Own logo_ takes a logo just for messages: PNG or JPEG (checked by the file's content), at most 512 KB. The app and the reports keep their logos. It is stored as `branding/notification-logo.png` (or `.jpg`) in the data folder, moves with a migration package, and uploading or removing it is audited (`notifications.logo_uploaded`, `notifications.logo_removed`). API (administrators): `GET`/`POST`/`DELETE /api/settings/notifications/look/logo` (multipart, or JSON `{ "contentBase64": "…" }`).
+
+### Style
+
+| Setting       | Choices                                                                             | Default     |
+| ------------- | ----------------------------------------------------------------------------------- | ----------- |
+| Logo size     | Small (20 px), medium (28 px), large (40 px)                                        | Medium      |
+| Logo position | Left of the name, or centred above it                                               | Left        |
+| Header        | Coloured, white with a line in the colour, or minimal (white with a thin grey line) | Coloured    |
+| Button colour | Any hex colour; the text on it is white or dark, whichever reads better             | Header      |
+| Corners       | Rounded or square                                                                   | Rounded     |
+| Font          | System font, Arial/Helvetica, or a serif (Georgia) – fonts every mail client has    | System font |
+
+The defaults are the look of 0.2.1. E-mails follow every setting. **Teams cards** only take the logo's size (20, 24 or 32 px) and position: Adaptive Cards have no fonts, header styles or button colours, Teams draws them itself.
+
+### Dry runs
+
+A dry run is a test: read calls are real, writes are only recorded. When one fails (or a check in it fails), the notification must not read like an outage.
+
+- **E-mail:** the subject reads `[Name] Dry run – Run failed: …` (German: `Probelauf – …`), a grey banner on top says _Dry run – a test, nothing was changed. No action needed._, and the strip is grey instead of red. The text part starts with the same sentence.
+- **Teams:** the same sentence under the header, and a grey (`emphasis`) card style.
+- **In the app:** the title starts with _Dry run –_.
+- **Tasks of a dry run** (a decision, a manual step to verify, a step sent back) are marked the same way: _Dry run – Decision needed: …_. The task itself is a normal task – the dry run waits for it – only the message says it is a test.
+- **Webhooks:** unchanged; `data.dryRun` is `true`, as before.
+
+_Dry runs_ in the same card chooses where these go: **e-mail, Teams and webhook, marked as a test** (default), or **only in the app**. Real runs are not affected.
 
 ## Daily summary
 

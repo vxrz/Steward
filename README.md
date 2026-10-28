@@ -148,6 +148,8 @@ Many specifications put part of the path in their server URL. The Insights Hub I
 - The list of specs shows each prefix and where requests go (_Requests go to: base URL + prefix/…_). Click the pencil to change it. A prefix is empty or `/segment/segment` (letters, digits and `. _ ~ -`); it can never change the host or leave the base URL.
 - Specs imported before Steward had path prefixes get their prefix from the stored server URL when they are read. HTTP steps that were saved with the short path keep it: open the step and pick the operation again.
 
+**Copying to other platforms.** A spec can be copied to other platforms of the same kind (API specs → _Copy to other platforms_, or `POST /api/platforms/{id}/specs/{specId}/copy` with `targets`), e.g. from one Insights Hub tenant to the next. Each platform gets its own, independent copy, since platforms of one kind can run different API versions. The path prefix comes along, unless the target's base URL already ends with it. A target that already has a spec with the same title and version is skipped, or – with _Replace_ – gets the new content under the same spec id, so processes using it keep working. Needs `manage` on the source and every target; audited as `platform.spec_added` / `platform.spec_updated` with `copiedFrom`.
+
 ## Users, roles and access
 
 | Role     | Default rights                                                                                        |
@@ -207,6 +209,8 @@ One person (an admin) unlocks the vault after a restart, or you provide the pass
 ### Supported authentication
 
 `none`, `basic`, `bearer`, `apiKey` (header or query), `oauth2_client_credentials` (e.g. Insights Hub service credentials), and `token_request`. `token_request` is a configurable login call whose response contains a token, e.g. the IEM `/portal/api/v1/login/direct` or the Insights Hub Technical Token Manager. Per platform you can also set a proxy, a custom CA, _accept self-signed certificates_ (common for on-prem IEM), a timeout and default headers.
+
+Tokens from `oauth2_client_credentials` and `token_request` are kept in memory until shortly before they expire (`expires_in`). A new one is fetched when the platform's settings or credentials are saved, when Steward restarts, or once after a 401. Roles granted to the technical user in the meantime only appear in a new token, so the platform answers 403 until then: _Test connection_ shows how old the token is, and **Get a new token** (platform → … menu, `POST /api/platforms/{id}/token/renew`, needs `manage`, audited as `platform.token_renewed`) fetches a new one right away.
 
 ## Dashboards
 

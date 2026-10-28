@@ -73,16 +73,30 @@ export async function monitorRoutes(app: FastifyInstance): Promise<void> {
     gatewayPath: '/api/hooks/monitors',
   }));
   app.get('/monitors/examples', async () => svc.listExamples());
-  app.post('/monitors/examples/:file', async (req) => svc.importExample(params(req).file!));
+  // the platform chosen for each platform reference in the file (reference → platform id); without it names are resolved as before
+  const platformChoices = boundedRecord(z.string().min(1).max(64), 100).refine((m) => Object.keys(m).every((k) => k.length <= 200), 'Platform name too long');
+  app.post('/monitors/examples/:file', async (req) =>
+    svc.importExample(params(req).file!, z.object({ platforms: platformChoices.optional() }).parse(req.body ?? {})),
+  );
+  app.post('/monitors/examples/:file/preview', async (req) => {
+    svc.requireCreate();
+    return { platforms: svc.exampleReferences(params(req).file!) };
+  });
   const monitorImport = { config: { rateLimit: ROUTE_LIMITS.heavy, smBodyShape: IMPORT_BODY_SHAPE }, bodyLimit: LARGE_BODIES.monitorImport.bytes };
   app.post('/monitors/import', monitorImport, async (req) => {
     const b = z
       .object({
         yaml: z.string().min(1).max(MONITOR_IMPORT_LIMITS.yamlChars),
         key: z.string().max(64).optional(),
+        platforms: platformChoices.optional(),
       })
       .parse(req.body);
-    return svc.importMonitor(b.yaml, { key: b.key });
+    return svc.importMonitor(b.yaml, { key: b.key, platforms: b.platforms });
+  });
+  app.post('/monitors/import/preview', monitorImport, async (req) => {
+    svc.requireCreate();
+    const b = z.object({ yaml: z.string().min(1).max(MONITOR_IMPORT_LIMITS.yamlChars) }).parse(req.body);
+    return { platforms: svc.importReferences(b.yaml) };
   });
   app.post('/monitors/validate', async (req) => {
     const b = z.object({ definition: z.unknown(), isTemplate: z.boolean().default(false) }).parse(req.body);

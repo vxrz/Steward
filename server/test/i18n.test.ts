@@ -206,7 +206,7 @@ describe('server message catalog', () => {
     expect(t('de', 'common.minutes', { count: 90 })).toBe('90 Minuten');
     expect(t('en', 'common.minutes', { count: 1 })).toBe('1 minute');
     expect(t('de', 'runFailed.title', { process: 'Backup' })).toBe('Ausführung fehlgeschlagen: Backup');
-    expect(t('en', 'runFailed.titleDryRun', { process: 'Backup' })).toBe('Run failed: Backup (dry run)');
+    expect(t('en', 'runFailed.titleDryRun', { process: 'Backup' })).toBe('Dry run – Run failed: Backup');
     expect(resolveLocale('xx', null, 'de')).toBe('de');
     expect(resolveLocale(undefined)).toBe('en');
   });

@@ -6,6 +6,23 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Copy API specifications to other platforms of the same kind** – _Platforms → (platform) → API specs → Copy to other platforms_ (`POST /api/platforms/{id}/specs/{specId}/copy`). Each target gets an independent copy (platforms of one kind can run different API versions), with the path prefix unless the target's base URL already ends with it. A spec with the same title and version is skipped, or replaced under its id with _Replace_. Needs `manage` on the source and all targets; audited with `copiedFrom`.
+- **Choose the platform when importing a monitor** (#102): monitor files name their platform (`platform: Insights Hub`). When that name fits several of your platforms ("Insights Hub (modev)", "Insights Hub (prod)") or none, the import dialog – for examples, pasted YAML and templates – shows a platform picker per reference with the platforms of the right kind you may use, instead of failing with _Platform "Insights Hub" not found_. Git sync stages such monitors instead of marking them invalid, and the reviewer picks the platform when accepting. The API takes `platforms` (name → platform id) on the import and accept routes; `POST /api/monitors/import/preview` and `/api/monitors/examples/{file}/preview` list the references. A choice of another kind or a platform you may not use is refused.
+- **Get a new access token on demand** (#101): platforms with an OAuth2 or custom login cache their token until shortly before it expires, so roles granted to the technical user in the meantime only worked after up to 30 minutes (the platform answered 403). _Get a new token_ (platform → … menu, and next to the token age in the connection test) drops the cached token and logs in again right away; `POST /api/platforms/{id}/token/renew` does the same. Needs `manage` on the platform, audited as `platform.token_renewed`; the token itself is never shown or logged. _Test connection_ now shows when the cached token was issued and when it expires.
+
+### Fixed
+
+- **Git sync no longer copies an item created after the fetch** – a file staged as _new_ whose process, dashboard or monitor was created in Steward afterwards (e.g. from the same built-in template) became a second item (`…-2`) when accepted. Accepting now changes the existing item (shown as a conflict, since it never came from Git), and the next fetch drops the _new_ update when the item is identical.
+- **Monitor templates in the example list** showed their parameter placeholder as the name ("{{ params.title }} (template)"); they are listed by a readable name now.
+- **An own logo and more style for e-mails and Teams messages** (#99): _Logo → Own logo_ takes a PNG or JPEG up to 512 KB just for messages (`POST`/`DELETE /api/settings/notifications/look/logo`, audited as `notifications.logo_uploaded` / `notifications.logo_removed`, moves with migration packages). New style settings: logo size and position, header (coloured, white with a line, minimal), button colour, corners and font (system, Arial, serif). The defaults keep the look of 0.2.1; Teams cards take only the logo's size and position.
+- **Dry runs: where their notifications go** – _Dry runs_ in the same card: e-mail, Teams and webhook marked as a test (default), or only in the app.
+
+### Changed
+
+- **Notifications about dry runs no longer look urgent** (#99): the subject and the in-app title start with _Dry run –_ (German _Probelauf –_) instead of ending in "(dry run)", e-mails get a grey banner _Dry run – a test, nothing was changed. No action needed._ and a grey strip instead of the red one, and Teams cards the same sentence in a grey card. The same applies to task messages of dry runs (a decision, a step to verify, a step sent back); the tasks themselves stay normal tasks. Webhooks keep `data.dryRun: true` (task messages now carry it too). The look preview can show a failed dry run.
+
 ## [0.2.1] - 2026-10-27
 
 Fixes from running 0.2.0 in a real setup – API specs keep their server URL path, access lists accept picked users, teams and roles, the Insights Hub and Industrial Edge examples handle epoch and empty timestamps, the container health check works under a path prefix – plus Git sync that follows tags with Steward's own example library as a ready (disabled) source, and branded e-mails and Teams messages. Upgrading from 0.2.0 adds only columns and settings; no data is rewritten.

@@ -3,13 +3,20 @@ import { z } from 'zod';
 import {
   API_TOKEN_SCOPES,
   LOCALE_CODES,
+  NOTIFICATION_CORNERS,
+  NOTIFICATION_DRY_RUN_DELIVERY,
   NOTIFICATION_EVENTS,
+  NOTIFICATION_FONTS,
+  NOTIFICATION_HEADER_STYLES,
+  NOTIFICATION_LOGO_ALIGNS,
+  NOTIFICATION_LOGO_MAX_BYTES,
+  NOTIFICATION_LOGO_SIZES,
   NOTIFICATION_LOGO_SOURCES,
   NOTIFICATION_LOOK_FOOTER_MAX,
   NOTIFICATION_LOOK_NAME_MAX,
   type NotificationSettingsInput,
 } from '@sm/shared';
-import { HttpError } from '../util.js';
+import { HttpError, sha256 } from '../util.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { getUser, updateProfile } from '../auth/users.js';
@@ -18,7 +25,7 @@ import { changesNotificationDelivery } from '../auth/step-up-rules.js';
 import { listInApp, markAllRead, markRead } from '../notifications/store.js';
 import { getNotificationSettings, saveNotificationSettings } from '../notifications/settings.js';
 import { initNotifications, previewLook, sendTest } from '../notifications/service.js';
-import { getLook, updateLook } from '../notifications/look.js';
+import { customLogo, getLook, removeCustomLogo, setCustomLogo, updateLook } from '../notifications/look.js';
 import { audit } from '../audit.js';
 import { maintenanceStatus, runCleanup } from '../maintenance.js';
 import { publicApiStatus } from '../api/v1/config.js';
@@ -49,8 +56,16 @@ const lookBody = z
       .string()
       .max(NOTIFICATION_LOOK_FOOTER_MAX * 2)
       .optional(),
+    logoSize: z.enum(NOTIFICATION_LOGO_SIZES).optional(),
+    logoAlign: z.enum(NOTIFICATION_LOGO_ALIGNS).optional(),
+    headerStyle: z.enum(NOTIFICATION_HEADER_STYLES).optional(),
+    buttonColor: z.string().max(16).optional(),
+    corners: z.enum(NOTIFICATION_CORNERS).optional(),
+    font: z.enum(NOTIFICATION_FONTS).optional(),
+    dryRunDelivery: z.enum(NOTIFICATION_DRY_RUN_DELIVERY).optional(),
   })
   .strict();
+const previewBody = lookBody.extend({ sample: z.enum(['test', 'dryRun']).optional() }).strict();
 
 const channelList = z.array(z.enum(['inApp', 'email', 'teams', 'webhook'])).max(4);
 const notificationSettingsBody = z.object({
@@ -180,7 +195,55 @@ export async function opsRoutes(app: FastifyInstance): Promise<void> {
   });
   app.post('/settings/notifications/look/preview', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
     admin('view the look of notifications');
-    return previewLook(lookBody.parse(req.body ?? {}));
+    const { sample, ...draft } = previewBody.parse(req.body ?? {});
+    return previewLook(draft, sample);
+  });
+  // an own logo for e-mails and Teams messages (logo source "custom"): PNG or JPEG, at most 512 KB
+  app.get('/settings/notifications/look/logo', async (_req, reply) => {
+    admin('view the look of notifications');
+    const c = customLogo();
+    if (!c) throw new HttpError(404, 'No notification logo is uploaded');
+    reply.header('cache-control', 'no-store');
+    return reply.type(c.mime).send(c.data);
+  });
+  app.post('/settings/notifications/look/logo', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    admin('change the look of notifications');
+    const tooLarge = () =>
+      new HttpError(400, `The logo is too large (max. ${NOTIFICATION_LOGO_MAX_BYTES / 1024} KB)`, 'NOTIFICATION_LOGO_TOO_LARGE', {
+        maxKb: NOTIFICATION_LOGO_MAX_BYTES / 1024,
+      });
+    let data: Buffer;
+    if (req.isMultipart()) {
+      const file = await req.file({ limits: { fileSize: NOTIFICATION_LOGO_MAX_BYTES + 1, files: 1 } });
+      if (!file) throw new HttpError(400, 'No file', 'NO_FILE');
+      try {
+        data = await file.toBuffer();
+      } catch {
+        throw tooLarge();
+      }
+    } else {
+      const b = z
+        .object({ contentBase64: z.string().max(Math.ceil((NOTIFICATION_LOGO_MAX_BYTES * 4) / 3) + 16) })
+        .strict()
+        .safeParse(req.body ?? {});
+      if (!b.success) throw tooLarge();
+      data = Buffer.from(b.data.contentBase64, 'base64');
+    }
+    const saved = setCustomLogo(data);
+    audit({
+      action: 'notifications.logo_uploaded',
+      entityType: 'settings',
+      entityId: 'notifications.look',
+      summary: `Notification logo uploaded (${saved.mime}, ${saved.size} bytes)`,
+      details: { sha256: sha256(data), size: saved.size, mime: saved.mime },
+    });
+    return getLook();
+  });
+  app.delete('/settings/notifications/look/logo', async () => {
+    admin('change the look of notifications');
+    if (removeCustomLogo())
+      audit({ action: 'notifications.logo_removed', entityType: 'settings', entityId: 'notifications.look', summary: 'Notification logo removed' });
+    return getLook();
   });
 
   // ---------- maintenance ----------

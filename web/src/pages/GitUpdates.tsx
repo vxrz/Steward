@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { IconBrandGit, IconCheck, IconExternalLink, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { SYNC_RETENTION_DAYS, type ProcessDefinition, type SyncKind, type SyncUpdate, type SyncUpdateDetail, type SyncUpdateStatus } from '@sm/shared';
+import { PlatformChoices, chosenPlatforms, platformsComplete } from '../components/monitors/PlatformChoices';
 import { get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, PageHeader, QueryState, TONE } from '../components/common';
@@ -141,6 +142,8 @@ export function GitUpdateDetailPage() {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [context, setContext] = useState(true);
+  // monitors: the platform chosen for each platform name in the file
+  const [platformChoices, setPlatformChoices] = useState<Record<string, string>>({});
   const u = q.data;
   const summary = useMemo(
     () =>
@@ -155,7 +158,12 @@ export function GitUpdateDetailPage() {
   const decide = async (what: 'accept' | 'reject', force = false) => {
     setBusy(true);
     try {
-      const r = await post<SyncUpdate>(`/sync-updates/${u.id}/${what}`, { comment: comment.trim() || undefined, ...(force ? { force: true } : {}) });
+      const platforms = what === 'accept' && u.platforms?.length ? chosenPlatforms(u.platforms, platformChoices) : undefined;
+      const r = await post<SyncUpdate>(`/sync-updates/${u.id}/${what}`, {
+        comment: comment.trim() || undefined,
+        ...(force ? { force: true } : {}),
+        ...(platforms ? { platforms } : {}),
+      });
       notifyOk(what === 'accept' ? (r.resultVersion ? t('detail.acceptedVersion', { version: r.resultVersion }) : t('detail.accepted')) : t('detail.rejected'));
       void qc.invalidateQueries({ queryKey: ['sync-updates'] });
       void qc.invalidateQueries({ queryKey: ['sync-origins'] });
@@ -275,6 +283,9 @@ export function GitUpdateDetailPage() {
               </Text>
             ) : (
               <Stack gap="xs">
+                {u.status === 'pending' && u.platforms?.length ? (
+                  <PlatformChoices refs={u.platforms} choices={platformChoices} onChange={setPlatformChoices} />
+                ) : null}
                 <Textarea
                   label={t('detail.comment')}
                   value={comment}
@@ -289,6 +300,7 @@ export function GitUpdateDetailPage() {
                       leftSection={<IconCheck size={16} />}
                       color={u.conflict ? 'orange' : undefined}
                       loading={busy}
+                      disabled={!!u.platforms?.length && !platformsComplete(u.platforms, platformChoices)}
                       onClick={() => decide('accept', u.conflict)}
                     >
                       {u.conflict ? t('detail.acceptAnyway') : t('detail.accept')}

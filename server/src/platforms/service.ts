@@ -424,7 +424,12 @@ function checkedPrefix(prefix: string): string {
  * Import a specification. The path prefix defaults to the path of its server URL (see derivePathPrefix);
  * `basePath` is the platform's resolved base URL path (default: the base URL as written, when it has no template).
  */
-export function addSpec(platformId: string, name: string, content: string, opts: { pathPrefix?: string; basePath?: string } = {}): PlatformSpec {
+export function addSpec(
+  platformId: string,
+  name: string,
+  content: string,
+  opts: { pathPrefix?: string; basePath?: string; copiedFrom?: { platformId: string; platformName: string; specId: string } } = {},
+): PlatformSpec {
   const p = getPlatform(platformId);
   const parsed = parseSpec(content);
   const basePath = opts.basePath ?? literalPlatformBasePath(platformId);
@@ -453,8 +458,16 @@ export function addSpec(platformId: string, name: string, content: string, opts:
       action: 'platform.spec_added',
       entityType: 'platform',
       entityId: platformId,
-      summary: `API spec "${name || parsed.title}" added to "${p.name}" (${parsed.operations.length} operations)`,
-      details: { specId: id, sha256: sha256(content), format: parsed.format, version: parsed.version, serverUrl: parsed.serverUrl, pathPrefix },
+      summary: `API spec "${name || parsed.title}" added to "${p.name}" (${parsed.operations.length} operations)${opts.copiedFrom ? ` – copied from "${opts.copiedFrom.platformName}"` : ''}`,
+      details: {
+        specId: id,
+        sha256: sha256(content),
+        format: parsed.format,
+        version: parsed.version,
+        serverUrl: parsed.serverUrl,
+        pathPrefix,
+        ...(opts.copiedFrom ? { copiedFrom: { platformId: opts.copiedFrom.platformId, specId: opts.copiedFrom.specId } } : {}),
+      },
     });
   });
   return toSpec(db().get<SpecRow>('SELECT * FROM platform_specs WHERE id = ?', id)!, basePath);
@@ -477,6 +490,117 @@ export function setSpecPathPrefix(platformId: string, specId: string, pathPrefix
     });
   });
   return toSpec(getSpecRow(platformId, specId), basePath);
+}
+
+/** Most platforms a specification can be copied to in one request. */
+export const SPEC_COPY_MAX_TARGETS = 50;
+
+export interface SpecCopyResult {
+  copied: { platformId: string; specId: string; replaced: boolean }[];
+  skipped: { platformId: string; reason: 'exists' | 'source' }[];
+}
+
+/** A spec on the target counts as the same when title and version match (or, without a title, the name). */
+const sameSpec = (a: Pick<SpecRow, 'title' | 'version' | 'name'>, b: Pick<SpecRow, 'title' | 'version' | 'name'>) =>
+  (a.title ?? '') === (b.title ?? '') && (a.version ?? '') === (b.version ?? '') && (a.title ? true : a.name === b.name);
+
+/**
+ * Copies a specification to other platforms of the same kind as independent specs: platforms of one kind can
+ * run different API versions, so nothing stays linked. The caller checks `manage` on the source and every target.
+ * A target that already has the same spec (title and version) is skipped, unless `replace` – then that spec's
+ * content is replaced and its id kept, so operation references keep working.
+ */
+export function copySpec(platformId: string, specId: string, targetIds: string[], opts: { replace?: boolean } = {}): SpecCopyResult {
+  const source = getPlatform(platformId);
+  const r = getSpecRow(platformId, specId);
+  const content = getSpecContent(specId);
+  const sourcePrefix = r.path_prefix;
+  const targets = [...new Set(targetIds)];
+  if (!targets.length) throw new HttpError(400, 'Choose at least one platform to copy to', 'SPEC_COPY_NO_TARGET');
+  if (targets.length > SPEC_COPY_MAX_TARGETS)
+    throw new HttpError(400, `At most ${SPEC_COPY_MAX_TARGETS} platforms at a time`, 'SPEC_COPY_TOO_MANY', { max: SPEC_COPY_MAX_TARGETS });
+  const wrongKind = targets.map((t) => getPlatform(t)).find((t) => t.id !== platformId && t.kind !== source.kind);
+  if (wrongKind)
+    throw new HttpError(
+      400,
+      `"${wrongKind.name}" is not a ${source.kind} platform – specifications are copied to platforms of the same kind`,
+      'SPEC_COPY_KIND',
+      {
+        kind: source.kind,
+      },
+    );
+  const result: SpecCopyResult = { copied: [], skipped: [] };
+  const copiedFrom = { platformId, platformName: source.name, specId };
+  for (const t of targets) {
+    if (t === platformId) {
+      result.skipped.push({ platformId: t, reason: 'source' });
+      continue;
+    }
+    // a prefix the target's base URL already ends with would be added twice
+    const targetBase = literalPlatformBasePath(t);
+    const pathPrefix = sourcePrefix === null ? undefined : sourcePrefix && targetBase?.endsWith(sourcePrefix) ? '' : sourcePrefix;
+    const existing = db()
+      .all<SpecRow>('SELECT * FROM platform_specs WHERE platform_id = ? ORDER BY created_at', t)
+      .find((x) => sameSpec(x, r));
+    if (existing && !opts.replace) {
+      result.skipped.push({ platformId: t, reason: 'exists' });
+      continue;
+    }
+    if (existing) {
+      replaceSpecContent(t, existing, content, pathPrefix, copiedFrom);
+      result.copied.push({ platformId: t, specId: existing.id, replaced: true });
+    } else {
+      const spec = addSpec(t, r.name, content, { pathPrefix, copiedFrom });
+      result.copied.push({ platformId: t, specId: spec.id, replaced: false });
+    }
+  }
+  return result;
+}
+
+function replaceSpecContent(
+  platformId: string,
+  existing: SpecRow,
+  content: string,
+  pathPrefix: string | undefined,
+  copiedFrom: { platformId: string; platformName: string; specId: string },
+): void {
+  const parsed = parseSpec(content);
+  const prefix =
+    pathPrefix !== undefined
+      ? checkedPrefix(pathPrefix)
+      : derivePathPrefix(parsed.serverUrl, {
+          variables: parsed.serverVariables,
+          basePath: literalPlatformBasePath(platformId),
+          opPaths: parsed.operations.map((o) => o.path),
+        }).prefix;
+  db().tx(() => {
+    db().run(
+      'UPDATE platform_specs SET format = ?, title = ?, version = ?, server_url = ?, path_prefix = ?, content = ?, operations = ? WHERE id = ?',
+      parsed.format,
+      parsed.title ?? null,
+      parsed.version ?? null,
+      parsed.serverUrl ?? null,
+      prefix,
+      content,
+      JSON.stringify(parsed.operations),
+      existing.id,
+    );
+    audit({
+      action: 'platform.spec_updated',
+      entityType: 'platform',
+      entityId: platformId,
+      summary: `API spec "${existing.name}" replaced with the copy from "${copiedFrom.platformName}" (${parsed.operations.length} operations)`,
+      details: {
+        specId: existing.id,
+        sha256: sha256(content),
+        format: parsed.format,
+        version: parsed.version,
+        pathPrefix: prefix,
+        copiedFrom: { platformId: copiedFrom.platformId, specId: copiedFrom.specId },
+      },
+    });
+  });
+  legacyPrefixes.delete(existing.id);
 }
 
 export function listSpecs(platformId: string): PlatformSpec[] {

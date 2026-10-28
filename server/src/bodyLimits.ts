@@ -49,7 +49,7 @@ export const LARGE_BODIES = {
   /** A control catalogue (JSON, CSV or YAML): CATALOGUE_LIMITS.importBytes (1 MB) */
   catalogueImport: { routes: ['POST /api/compliance/catalogues/import'], bytes: jsonText(CATALOGUE_LIMITS.importBytes, 16 * KIB) },
   /** A monitor file (YAML): MONITOR_IMPORT_LIMITS.yamlChars (512 KB) – line breaks are escaped in JSON */
-  monitorImport: { routes: ['POST /api/monitors/import'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
+  monitorImport: { routes: ['POST /api/monitors/import', 'POST /api/monitors/import/preview'], bytes: jsonText(MONITOR_IMPORT_LIMITS.yamlChars) },
   /** Instances of a monitor template from a CSV file: MONITOR_IMPORT_LIMITS.csvChars (1 MB) */
   monitorInstances: { routes: ['POST /api/monitors/:id/instances'], bytes: jsonText(MONITOR_IMPORT_LIMITS.csvChars) },
   /**

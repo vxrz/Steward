@@ -163,18 +163,26 @@ async function doFetch(id: string, trigger: 'manual' | 'schedule' | 'webhook', a
         result.unchanged++;
         continue;
       }
-      const latest = db().get<UpdateRow & { blob_sha: string }>(
-        'SELECT id, status, content_hash, blob_sha, min_version FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
+      const latest = db().get<UpdateRow & { blob_sha: string; action: string; kind: SyncKind | null; identity: string | null }>(
+        'SELECT id, status, content_hash, blob_sha, min_version, action, kind, identity FROM sync_updates WHERE source_id = ? AND path = ? ORDER BY created_at DESC, id DESC LIMIT 1',
         id,
         f.path,
       );
-      // a file that waited for a newer Steward is looked at again once this installation is new enough
-      const waited = latest?.status === 'invalid' && !!latest.min_version && !newerThan(latest.min_version, config.version);
-      if (latest && latest.blob_sha === f.sha && ['pending', 'rejected', 'invalid'].includes(latest.status) && !waited) {
+      // An invalid file is looked at again: this installation may accept it now (a newer Steward, platforms chosen
+      // when accepting instead of failing on a name). Only a file still waiting for a newer Steward is skipped.
+      const stillWaiting = latest?.status === 'invalid' && !!latest.min_version && newerThan(latest.min_version, config.version);
+      // a "new" item that was created in Steward after the fetch (e.g. from the same template) is looked at again
+      const appeared =
+        latest?.status === 'pending' && latest.action === 'create' && !!latest.kind && !!latest.identity && !!findLocal(latest.kind, latest.identity);
+      if (latest && latest.blob_sha === f.sha && ((['pending', 'rejected'].includes(latest.status) && !appeared) || stillWaiting)) {
         result.unchanged++;
         continue;
       }
       if (f.size !== undefined && f.size > SYNC_LIMITS.maxFileBytes) {
+        if (latest?.status === 'invalid' && latest.blob_sha === f.sha) {
+          result.unchanged++;
+          continue;
+        }
         stageInvalid(r, f, head, null, null, [`The file is ${f.size} bytes – larger than the limit of ${SYNC_LIMITS.maxFileBytes}`], f.sha);
         result.invalid++;
         staged.push({ path: f.path, kind: null, action: 'invalid', status: 'invalid' });
@@ -427,7 +435,8 @@ function stage(
       return 'error';
     }
     if (sameAsLocal(it, local.id)) {
-      // identical content: just remember the origin
+      // identical content: just remember the origin (and drop a "new" update staged before the item existed)
+      supersede(r.id, f.path);
       link(r, f, head, it, local.id, 'git-sync');
       audit({
         actor: 'git-sync',

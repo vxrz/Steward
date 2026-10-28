@@ -56,7 +56,7 @@ fields:
   - { key: incident, label: Incident number, kind: text, required: true }
 ```
 
-Platforms are referenced **by name or id only** (monitor checks, process bindings stay in Steward). A file that refers to a platform Steward does not know is invalid. Bundles (`format: steward-bundle`) are not synced: keep one item per file.
+Platforms are referenced **by name or id only** (monitor checks, process bindings stay in Steward). A monitor file whose platform name does not point to exactly one of your platforms (several Insights Hub platforms, or none of that name) is staged anyway: when accepting it, the reviewer chooses the platform per reference (`platforms` on `POST /api/sync-updates/{id}/accept`). Auto-accept leaves such a monitor for review. Bundles (`format: steward-bundle`) are not synced: keep one item per file.
 
 Deleting a file in Git does not delete anything in Steward.
 
@@ -146,6 +146,34 @@ Every installation has the source **Steward example library** (badge _Steward ex
 ### Plain Git servers
 
 Git sync uses the Git hosts' HTTP APIs, not the Git protocol. This needs no `git` program (it works in the desktop executable), downloads only the files of the folder and keeps every request a simple HTTPS GET that the outbound policy can check. A plain Git server without one of these APIs is not supported – mirror the repository to Forgejo, GitHub or GitLab.
+
+## Best practice
+
+Use Git sync in two roles: Steward's example library as a source of **suggestions**, and your own repository as the **source of truth** for what you build.
+
+### Steward's example library
+
+- **Turn it on and fetch by hand after each upgrade.** It follows your version's tag, so nothing changes in between, and no schedule or webhook is needed.
+- **Accept updates of examples you use unchanged** (for example the timestamp fixes in 0.2.1). After accepting a process, start it once as a dry run.
+- **Examples you adapted:** an update is marked as a conflict. Read the diff, take over what helps into your process by hand and **reject** the update. _Accept anyway_ replaces your version (it stays in the version history).
+- **Reject offers you don't need.** A rejected file stays quiet until it changes again.
+- **To build on an example**, copy it into your own repository under a new file name. It is then yours, and updates of the example don't touch it.
+
+### Your own repository
+
+- **One repository** (GitLab, GitHub Enterprise or Forgejo) with one folder, e.g. `steward/`, holding your processes, dashboards, monitors and record types – one item per file.
+- **The file name is the id** (a leading number like `10-` is ignored). Keep ids stable; the display name (`name:`) can change any time.
+- **Review in Git, apply in Steward:** changes go through merge requests with a reviewer (the four-eyes step happens in Git). _Updates from Git_ is the second gate, on the instance.
+- **Environments:** the test instance follows `main` (webhook or every 15 minutes); production follows a tag or a release branch (e.g. tags `lib-1.4.0`). You promote a version by tagging it.
+- **Edit synced items in Git, not in Steward.** A local edit turns the next change into a conflict.
+- **Mark files that need a newer Steward** with `# steward-min-version: x.y.z`, so instances on an older version list them instead of importing them.
+- **Monitors:** use platform names that exist on every instance (e.g. `Insights Hub (production)` on all of them), or pick the platform when accepting.
+- **Security:** a read-only token, _Require signed commits_ with allowed signers, protected branches and tags. Auto-accept of new items only on a test instance, if at all.
+
+### What Git sync does not do (yet)
+
+- It never writes to Git, and a file deleted in Git does not remove the item in Steward. Both are planned (#20).
+- It does not merge your local changes with incoming ones: you choose one version, and the other stays in the history.
 
 ## Security
 

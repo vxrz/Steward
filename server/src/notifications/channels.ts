@@ -4,7 +4,22 @@ import type { Locale, NotificationSettings } from '@sm/shared';
 import type { ChannelSecrets } from './settings.js';
 import { BRAND } from '@sm/shared';
 import { t } from '../i18n/index.js';
-import { LOGO_CID, TEAMS_CARD_MAX_CHARS, TEAMS_LOGO_MAX_BYTES, bodyHtml, emailHtml, eventTone, logoDataUrl, resolveLook, type ResolvedLook } from './look.js';
+import {
+  LOGO_CID,
+  TEAMS_CARD_MAX_CHARS,
+  TEAMS_LOGO_MAX_BYTES,
+  bodyHtml,
+  dryRunBanner,
+  emailHtml,
+  eventTone,
+  isDryRun,
+  logoDataUrl,
+  resolveLook,
+  type ResolvedLook,
+} from './look.js';
+
+/** Logo height on a Teams card (Adaptive Cards take pixel heights). */
+const TEAMS_LOGO_HEIGHT: Record<ResolvedLook['logoSize'], string> = { small: '20px', medium: '24px', large: '32px' };
 
 /** What every external channel receives. `link` is absolute. */
 export interface OutgoingMessage {
@@ -48,6 +63,37 @@ export async function sendWebhook(url: string, m: OutgoingMessage): Promise<void
 
 /** Adaptive Card message – accepted by Teams Workflows ("post to a channel") and classic incoming webhooks. */
 export function teamsCard(m: OutgoingMessage, look: ResolvedLook = resolveLook()): unknown {
+  // Adaptive Cards have no fonts, header styles or button colours: only the logo's size and position follow the look
+  const image = (withLogo: boolean) =>
+    withLogo && look.logo
+      ? {
+          type: 'Image',
+          url: logoDataUrl(look.logo),
+          height: TEAMS_LOGO_HEIGHT[look.logoSize],
+          altText: look.name,
+          ...(look.logoAlign === 'center' ? { horizontalAlignment: 'Center' } : {}),
+        }
+      : null;
+  const head = (withLogo: boolean) => {
+    const img = image(withLogo);
+    if (look.logoAlign === 'center')
+      return [...(img ? [img] : []), { type: 'TextBlock', text: look.name, weight: 'Bolder', wrap: true, horizontalAlignment: 'Center', spacing: 'Small' }];
+    return [
+      {
+        type: 'ColumnSet',
+        columns: [
+          ...(img ? [{ type: 'Column', width: 'auto', verticalContentAlignment: 'Center', items: [img] }] : []),
+          {
+            type: 'Column',
+            width: 'stretch',
+            verticalContentAlignment: 'Center',
+            items: [{ type: 'TextBlock', text: look.name, weight: 'Bolder', wrap: true }],
+          },
+        ],
+      },
+    ];
+  };
+  const dry = isDryRun(m.data);
   const card = (withLogo: boolean) => ({
     type: 'message',
     attachments: [
@@ -60,34 +106,13 @@ export function teamsCard(m: OutgoingMessage, look: ResolvedLook = resolveLook()
           version: '1.4',
           body: [
             {
-              // Adaptive Cards take named colours only: the strip shows how the message reads (failed, to do, up again)
+              // Adaptive Cards take named colours only: the strip shows how the message reads (failed, to do, up again; grey for a dry run)
               type: 'Container',
               style: eventTone(m.event, m.data),
               bleed: true,
-              items: [
-                {
-                  type: 'ColumnSet',
-                  columns: [
-                    ...(withLogo && look.logo
-                      ? [
-                          {
-                            type: 'Column',
-                            width: 'auto',
-                            verticalContentAlignment: 'Center',
-                            items: [{ type: 'Image', url: logoDataUrl(look.logo), height: '24px', altText: look.name }],
-                          },
-                        ]
-                      : []),
-                    {
-                      type: 'Column',
-                      width: 'stretch',
-                      verticalContentAlignment: 'Center',
-                      items: [{ type: 'TextBlock', text: look.name, weight: 'Bolder', wrap: true }],
-                    },
-                  ],
-                },
-              ],
+              items: head(withLogo),
             },
+            ...(dry ? [{ type: 'TextBlock', text: dryRunBanner(m.locale), weight: 'Bolder', wrap: true, spacing: 'Medium' }] : []),
             { type: 'TextBlock', text: m.title, weight: 'Bolder', size: 'Medium', wrap: true, spacing: 'Medium' },
             ...(m.body ? [{ type: 'TextBlock', text: m.body, wrap: true }] : []),
             { type: 'TextBlock', text: `${look.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
@@ -112,8 +137,10 @@ export async function sendTeams(url: string, m: OutgoingMessage): Promise<void> 
 export function emailContent(m: OutgoingMessage, look: ResolvedLook = resolveLook(), logoSrc = `cid:${LOGO_CID}`) {
   const parts = m.emailParts;
   const open = { label: t(m.locale, 'common.openIn', { brand: look.name }), href: m.link };
-  const text = (parts?.text ?? `${m.title}\n\n${m.body}\n\n${m.link}\n`) + (look.footer ? `\n--\n${look.footer}\n` : '');
+  const banner = isDryRun(m.data) ? dryRunBanner(m.locale) : undefined;
+  const text = (banner ? `${banner}\n\n` : '') + (parts?.text ?? `${m.title}\n\n${m.body}\n\n${m.link}\n`) + (look.footer ? `\n--\n${look.footer}\n` : '');
   const html = emailHtml({
+    banner,
     look,
     locale: m.locale,
     title: m.title,

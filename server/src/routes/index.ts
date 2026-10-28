@@ -37,7 +37,7 @@ import { db } from '../db.js';
 import * as platforms from '../platforms/service.js';
 import * as connectors from '../platforms/connectors.js';
 import { PATH_PREFIX_MAX } from '../platforms/pathPrefix.js';
-import { platformRequest, secretValues } from '../platforms/http.js';
+import { platformRequest, renewToken, secretValues, tokenInfo, usesCachedToken } from '../platforms/http.js';
 import * as processes from '../processes/service.js';
 import * as store from '../engine/store.js';
 import { startRun, cancelRun, resumeRun, completeTask, completeManualTask, recoverRuns, verifyManualTask } from '../engine/runner.js';
@@ -913,11 +913,40 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         durationMs: res.durationMs,
         message: ok ? `Connection works – ${what}` : `${what} answered HTTP ${res.status}`,
         body: redact(res.body, secrets),
+        // when the cached access token was issued: roles granted later need a new one (POST …/token/renew)
+        token: tokenInfo(id),
       };
     } catch (e) {
       const message = redact((e as Error).message, secrets) as string;
       audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
       return { ok: false, status: 0, durationMs: 0, message };
+    }
+  });
+
+  // Roles or permissions granted to the platform's technical user only appear in a new token: drop the cached one and log in again.
+  app.post('/platforms/:id/token/renew', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const id = params(req).id!;
+    const p = requirePlatform(id, 'manage', 'get a new token for this platform');
+    if (!usesCachedToken(p)) throw new HttpError(400, 'This platform does not log in for a token', 'PLATFORM_NO_TOKEN');
+    const secrets = platforms.getSecrets(id);
+    try {
+      const token = await renewToken(p, secrets);
+      audit({
+        action: 'platform.token_renewed',
+        entityType: 'platform',
+        entityId: id,
+        summary: `New access token for "${p.name}" (expires ${token.expiresAt})`,
+      });
+      return { ok: true, token };
+    } catch (e) {
+      const message = redact((e as Error).message, secrets) as string;
+      audit({
+        action: 'platform.token_renewed',
+        entityType: 'platform',
+        entityId: id,
+        summary: `New access token for "${p.name}" failed: ${message.slice(0, 200)}`,
+      });
+      return { ok: false, message, token: null };
     }
   });
 
@@ -969,6 +998,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       .strict()
       .parse(req.body);
     return platforms.setSpecPathPrefix(params(req).id!, params(req).specId!, b.pathPrefix);
+  });
+  // Copies, not links: platforms of one kind can run different API versions, so each target gets its own spec.
+  app.post('/platforms/:id/specs/:specId/copy', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const id = params(req).id!;
+    requirePlatform(id, 'manage', 'copy API specifications');
+    const b = z
+      .object({ targets: z.array(z.string().min(1).max(100)).min(1).max(platforms.SPEC_COPY_MAX_TARGETS), replace: z.boolean().optional() })
+      .strict()
+      .parse(req.body);
+    for (const t of new Set(b.targets)) if (t !== id) requirePlatform(t, 'manage', 'add API specifications to this platform');
+    return platforms.copySpec(id, params(req).specId!, b.targets, { replace: b.replace });
   });
   app.delete('/platforms/:id/specs/:specId', async (req) => {
     requirePlatform(params(req).id!, 'manage', 'remove API specifications');

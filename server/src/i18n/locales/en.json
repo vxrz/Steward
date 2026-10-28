@@ -11,22 +11,25 @@
   },
   "task": {
     "title": "Decision needed: {{title}}",
+    "titleDryRun": "Dry run – Decision needed: {{title}}",
     "body": "The run of “{{process}}” (started by {{actor}}) waits for your decision.",
     "bodyFourEyes": "The run of “{{process}}” (started by {{actor}}) waits for your decision. Four-eyes principle: the person who started the run may not decide.",
     "verifyTitle": "Verification needed: {{title}}",
+    "verifyTitleDryRun": "Dry run – Verification needed: {{title}}",
     "verifyBody": "{{user}} completed a manual step of “{{process}}”. A second person must check and confirm it before the run continues.",
     "returnedTitle": "Sent back to you: {{title}}",
+    "returnedTitleDryRun": "Dry run – Sent back to you: {{title}}",
     "returnedBody": "{{user}} sent your entry for a manual step of “{{process}}” back: {{comment}}"
   },
   "runFailed": {
     "title": "Run failed: {{process}}",
-    "titleDryRun": "Run failed: {{process}} (dry run)",
+    "titleDryRun": "Dry run – Run failed: {{process}}",
     "body": "Error: {{error}}",
     "bodyNoError": "The run failed."
   },
   "checkFailed": {
     "title": "Check failed: {{check}} in {{process}}",
-    "titleDryRun": "Check failed: {{check}} in {{process}} (dry run)",
+    "titleDryRun": "Dry run – Check failed: {{check}} in {{process}}",
     "body": "{{severity}}: {{message}}"
   },
   "scheduleSkipped": {
@@ -274,5 +277,10 @@
       "d7": "7 days",
       "d30": "30 days"
     }
+  },
+  "dryRun": {
+    "banner": "Dry run – a test, nothing was changed. No action needed.",
+    "sampleProcess": "Inventory export",
+    "sampleError": "Platform answered HTTP 503"
   }
 }

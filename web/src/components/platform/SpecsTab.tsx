@@ -5,9 +5,11 @@ import {
   Anchor,
   Badge,
   Button,
+  Checkbox,
   FileButton,
   Group,
   Modal,
+  MultiSelect,
   Paper,
   Select,
   Stack,
@@ -18,7 +20,7 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
-import { IconExternalLink, IconPencil, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
+import { IconCopy, IconExternalLink, IconPencil, IconSearch, IconTrash, IconUpload } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { ApiOperation, Platform, PlatformSpec } from '@sm/shared';
 import { del, get, notifyError, notifyOk, patch, post, apiUrl } from '../../api';
@@ -116,6 +118,90 @@ function PrefixModal({ platform, spec, onClose }: { platform: Platform; spec: Pl
   );
 }
 
+interface SpecCopyResult {
+  copied: { platformId: string; specId: string; replaced: boolean }[];
+  skipped: { platformId: string; reason: 'exists' | 'source' }[];
+}
+
+/** Copies a spec to other platforms of the same kind – independent copies, since their API versions can differ. */
+function CopyModal({ platform, spec, onClose }: { platform: Platform; spec: PlatformSpec | null; onClose: () => void }) {
+  const { t } = useTranslation(['platforms', 'common']);
+  const qc = useQueryClient();
+  const all = useQuery({ queryKey: ['platforms'], queryFn: () => get<Platform[]>('/platforms'), enabled: !!spec });
+  const [targets, setTargets] = useState<string[]>([]);
+  const [replace, setReplace] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<SpecCopyResult | null>(null);
+  useEffect(() => {
+    setTargets([]);
+    setReplace(false);
+    setResult(null);
+  }, [spec?.id]);
+  const options = (all.data ?? [])
+    .filter((p) => p.kind === platform.kind && p.id !== platform.id && p.permissions.includes('manage'))
+    .map((p) => ({ value: p.id, label: p.name }));
+  const nameOf = (id: string) => (all.data ?? []).find((p) => p.id === id)?.name ?? id;
+  const copy = async () => {
+    if (!spec) return;
+    setBusy(true);
+    try {
+      const r = await post<SpecCopyResult>(`/platforms/${platform.id}/specs/${spec.id}/copy`, { targets, replace });
+      setResult(r);
+      for (const c of r.copied) await qc.invalidateQueries({ queryKey: ['platform', c.platformId] });
+      if (r.copied.length) notifyOk(t('specs.copied', { count: r.copied.length }));
+    } catch (e) {
+      notifyError(e, t('specs.notCopied'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened={!!spec} onClose={onClose} title={t('specs.copyTitle', { name: spec?.name ?? '' })}>
+      <Stack gap="sm">
+        <Text size="sm" c="dimmed">
+          {t('specs.copyHint', { kind: platform.kind })}
+        </Text>
+        {all.data && options.length === 0 ? (
+          <Text size="sm">{t('specs.copyNoTargets', { kind: platform.kind })}</Text>
+        ) : (
+          <MultiSelect
+            label={t('specs.copyTargets')}
+            data={options}
+            value={targets}
+            onChange={setTargets}
+            searchable
+            clearable
+            data-testid="spec-copy-targets"
+          />
+        )}
+        <Checkbox label={t('specs.copyReplace')} checked={replace} onChange={(e) => setReplace(e.currentTarget.checked)} />
+        {result && (
+          <Stack gap={2} data-testid="spec-copy-result">
+            {result.copied.map((c) => (
+              <Text size="sm" key={c.platformId}>
+                {t(c.replaced ? 'specs.copyReplaced' : 'specs.copyDone', { name: nameOf(c.platformId) })}
+              </Text>
+            ))}
+            {result.skipped.map((c) => (
+              <Text size="sm" c="dimmed" key={c.platformId}>
+                {t(c.reason === 'exists' ? 'specs.copySkippedExists' : 'specs.copySkippedSource', { name: nameOf(c.platformId) })}
+              </Text>
+            ))}
+          </Stack>
+        )}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {result ? t('common:close') : t('common:cancel')}
+          </Button>
+          <Button onClick={copy} loading={busy} disabled={!targets.length} leftSection={<IconCopy size={16} />}>
+            {t('specs.copy')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 export function SpecsTab({
   platform,
   onPickOperation,
@@ -137,6 +223,7 @@ export function SpecsTab({
   const [tag, setTag] = useState<string | null>(null);
   const [removing, setRemoving] = useState<PlatformSpec | null>(null);
   const [editing, setEditing] = useState<PlatformSpec | null>(null);
+  const [copying, setCopying] = useState<PlatformSpec | null>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['platform', platform.id] });
 
@@ -297,6 +384,13 @@ export function SpecsTab({
                             <IconExternalLink size={16} />
                           </ActionIcon>
                         </Tooltip>
+                        {!readOnly && (
+                          <Tooltip label={t('specs.copyAction')}>
+                            <ActionIcon variant="subtle" onClick={() => setCopying(s)} aria-label={t('specs.copyActionOf', { name: s.name })}>
+                              <IconCopy size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        )}
                         <Tooltip label={t('common:delete')}>
                           {!readOnly && (
                             <ActionIcon variant="subtle" color="red" onClick={() => setRemoving(s)} aria-label={t('common:delete')}>
@@ -374,6 +468,7 @@ export function SpecsTab({
       )}
 
       <PrefixModal platform={platform} spec={editing} onClose={() => setEditing(null)} />
+      <CopyModal platform={platform} spec={copying} onClose={() => setCopying(null)} />
       <Modal opened={!!removing} onClose={() => setRemoving(null)} title={t('specs.deleteTitle')}>
         <Text size="sm">
           <Trans
