@@ -36,6 +36,26 @@ export interface CredentialLink {
   label?: string | null;
 }
 
+/** An external page that uses or documents the credential (Swagger page, vault entry, wiki page): http(s) only. */
+export interface CredentialUrl {
+  label: string;
+  url: string;
+}
+
+/**
+ * A role or permission the credential holds (#125), e.g. "mdsp:core:TenantAdmin" in scope "tenant modev". Changing
+ * the list writes its own history event and audit entry – rights can change without the secret being rotated.
+ */
+export interface CredentialRole {
+  role: string;
+  scope: string;
+  /** When it was granted (YYYY-MM-DD or ISO), if known */
+  grantedAt: string | null;
+  note: string;
+}
+
+export const CREDENTIAL_LIMITS = { roles: 50, role: 200, scope: 200, roleNote: 500, urls: 20, urlLabel: 120 } as const;
+
 export interface CredentialOwner {
   email: string;
   /** e.g. "Business owner", "IT operations" */
@@ -91,7 +111,9 @@ export interface Credential {
   platformText: string;
   environment: string;
   description: string;
-  usedBy: { text: string; links: CredentialLink[] };
+  usedBy: { text: string; links: CredentialLink[]; urls: CredentialUrl[] };
+  /** Roles and permissions the credential holds (optional) */
+  roles: CredentialRole[];
   owners: CredentialOwner[];
   /** Steward users and teams that own the entry: user:<name>, team:<name> */
   ownerSubjects: string[];
@@ -124,7 +146,18 @@ export interface Credential {
   permissions: CredentialPermission[];
 }
 
-export const CREDENTIAL_EVENT_KINDS = ['created', 'updated', 'rotated', 'reviewed', 'certificate', 'expirySynced', 'archived', 'restored', 'reminded'] as const;
+export const CREDENTIAL_EVENT_KINDS = [
+  'created',
+  'updated',
+  'rolesChanged',
+  'rotated',
+  'reviewed',
+  'certificate',
+  'expirySynced',
+  'archived',
+  'restored',
+  'reminded',
+] as const;
 export type CredentialEventKind = (typeof CREDENTIAL_EVENT_KINDS)[number];
 
 export interface CredentialEvent {

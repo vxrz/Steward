@@ -297,5 +297,10 @@
       "manualKept": "SBOM nennt {{version}}"
     },
     "actions": "Aktionen"
+  },
+  "credentials": {
+    "title": "Zugangsdaten",
+    "help": "Einträge des Zugangsdaten-Registers, die diese Anwendung unter „Verwendet von“ nennen.",
+    "empty": "Keine Zugangsdaten nennen diese Anwendung."
   }
 }

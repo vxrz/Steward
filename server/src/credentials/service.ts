@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  CREDENTIAL_LIMITS,
   CREDENTIAL_TYPES,
   DEFAULT_CREDENTIAL_REMINDERS,
   type CertificateInfo,
@@ -11,7 +12,9 @@ import {
   type CredentialLink,
   type CredentialPermission,
   type CredentialReminderSettings,
+  type CredentialRole,
   type CredentialStatus,
+  type CredentialUrl,
   type MonitorPermission,
 } from '@sm/shared';
 import { db } from '../db.js';
@@ -55,6 +58,7 @@ export interface CredentialRow {
   environment: string;
   description: string;
   used_by: string;
+  roles?: string;
   owners: string;
   owner_subjects: string;
   location_text: string;
@@ -201,6 +205,12 @@ registerCredentialLinkKind('service', (id) => {
   return db().get<{ name: string }>('SELECT name FROM services WHERE id = ?', id)?.name ?? null;
 });
 
+// Catalogue applications: read like services (#125)
+registerCredentialLinkKind('application', (id) => {
+  if (!canReadRecords()) return null;
+  return db().get<{ name: string }>('SELECT name FROM applications WHERE id = ?', id)?.name ?? null;
+});
+
 const resolveLink = (l: CredentialLink): CredentialLink => {
   const fn = linkResolvers.get(l.kind);
   let label: string | null;
@@ -223,7 +233,7 @@ function platformName(id: string | null, u: AuthUser | null): string | null {
 
 export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(), now = Date.now(), settings = reminderSettings()): Credential {
   const dues = computeDues(r, now, settings.dueSoonDays);
-  const usedBy = parseJson<{ text?: string; links?: CredentialLink[] }>(r.used_by, {});
+  const usedBy = parseJson<{ text?: string; links?: CredentialLink[]; urls?: CredentialUrl[] }>(r.used_by, {});
   const next = dues.map((d) => d.dueAt).sort()[0] ?? null;
   return {
     id: r.id,
@@ -234,7 +244,8 @@ export function toCredential(r: CredentialRow, u: AuthUser | null = currentUser(
     platformText: r.platform_text,
     environment: r.environment,
     description: r.description,
-    usedBy: { text: usedBy.text ?? '', links: (usedBy.links ?? []).map(resolveLink) },
+    usedBy: { text: usedBy.text ?? '', links: (usedBy.links ?? []).map(resolveLink), urls: usedBy.urls ?? [] },
+    roles: parseJson<CredentialRole[]>(r.roles ?? '[]', []),
     owners: parseJson(r.owners, []),
     ownerSubjects: parseJson(r.owner_subjects, []),
     location: { text: r.location_text, url: r.location_url },
@@ -274,6 +285,27 @@ const dateish = z
   .transform((s) => new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00Z` : s).toISOString());
 
 const linkSchema = z.object({ kind: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/, 'lower-case kind, e.g. process'), id: z.string().trim().min(1).max(200) });
+/** Links people click: http(s) only (a vault entry with another scheme goes under "Location"). */
+const webUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((u) => {
+    if (!/^https?:\/\//i.test(u)) return false;
+    try {
+      new URL(u);
+      return true;
+    } catch {
+      return false;
+    }
+  }, 'enter an http(s) address');
+const urlSchema = z.object({ label: z.string().trim().max(CREDENTIAL_LIMITS.urlLabel).default(''), url: webUrl });
+const roleSchema = z.object({
+  role: z.string().trim().min(1).max(CREDENTIAL_LIMITS.role),
+  scope: z.string().trim().max(CREDENTIAL_LIMITS.scope).default(''),
+  grantedAt: dateish.nullable().default(null),
+  note: z.string().trim().max(CREDENTIAL_LIMITS.roleNote).default(''),
+});
 const ownerSchema = z.object({ email: z.string().trim().toLowerCase().email().max(254), role: z.string().trim().max(80).default('') });
 /** Plain e-mail addresses per entry (each one gets the reminders of the entry). */
 export const MAX_CREDENTIAL_OWNER_EMAILS = 10;
@@ -290,7 +322,17 @@ export const credentialInputSchema = z.object({
   platformText: z.string().trim().max(200).default(''),
   environment: z.string().trim().max(100).default(''),
   description: z.string().max(4000).default(''),
-  usedBy: z.object({ text: z.string().max(2000).default(''), links: z.array(linkSchema).max(50).default([]) }).prefault({}),
+  usedBy: z
+    .object({
+      text: z.string().max(2000).default(''),
+      links: z.array(linkSchema).max(50).default([]),
+      urls: z.array(urlSchema).max(CREDENTIAL_LIMITS.urls).default([]),
+    })
+    .prefault({}),
+  /** Roles and permissions (#125); missing: unchanged on update */
+  roles: z.array(roleSchema).max(CREDENTIAL_LIMITS.roles).optional(),
+  /** Why the roles changed (a reason or ticket reference), for their history event */
+  rolesComment: z.string().max(2000).default(''),
   owners: z.array(ownerSchema).max(MAX_CREDENTIAL_OWNER_EMAILS).default([]),
   ownerSubjects: z.array(subjectSchema).max(20).default([]),
   location: z.object({ text: z.string().max(1000).default(''), url: z.string().trim().max(2000).nullable().optional() }).prefault({}),
@@ -353,6 +395,9 @@ function secretCheck(b: CredentialInput): void {
       Environment: b.environment,
       Description: b.description,
       'Used by': b.usedBy.text,
+      'Used by links': b.usedBy.urls.flatMap((x) => [x.label, x.url]),
+      Roles: (b.roles ?? []).flatMap((x) => [x.role, x.scope, x.note]),
+      'Roles comment': b.rolesComment,
       'Owner role': b.owners.map((o) => o.role),
       Location: b.location.text,
       'Location link': b.location.url ?? '',
@@ -422,6 +467,8 @@ export interface CredentialFilter {
   status?: string[];
   owner?: string;
   tag?: string;
+  /** Entries holding this role (exact, case does not matter) */
+  role?: string;
   dueWithinDays?: number;
   archived?: 'exclude' | 'include' | 'only';
 }
@@ -441,15 +488,25 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
   const rows = db().all<CredentialRow>(`SELECT * FROM credentials ${where.length ? `WHERE ${where.join(' AND ')}` : ''} ORDER BY name, id`, ...params);
   const needle = f.q?.trim().toLowerCase();
   const owner = f.owner?.trim().toLowerCase();
+  const role = f.role?.trim().toLowerCase();
   return rows
     .filter((r) => credentialPermissions(u, r).includes('view'))
     .map((r) => toCredential(r, u, now, settings))
     .filter(
       (c) =>
         !needle ||
-        [c.name, c.description, c.platformText, c.platformName ?? '', c.environment, c.location.text, c.usedBy.text, ...c.tags].some((x) =>
-          x.toLowerCase().includes(needle),
-        ),
+        [
+          c.name,
+          c.description,
+          c.platformText,
+          c.platformName ?? '',
+          c.environment,
+          c.location.text,
+          c.usedBy.text,
+          ...c.tags,
+          ...c.roles.flatMap((r) => [r.role, r.scope]),
+          ...c.usedBy.urls.map((x) => x.label),
+        ].some((x) => x.toLowerCase().includes(needle)),
     )
     .filter(
       (c) =>
@@ -461,6 +518,7 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
     .filter((c) => !f.status?.length || f.status.includes(c.status))
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
     .filter((c) => !f.tag || c.tags.includes(f.tag))
+    .filter((c) => !role || c.roles.some((r) => r.role.toLowerCase() === role))
     .filter((c) => f.dueWithinDays === undefined || (!!c.nextDueAt && Date.parse(c.nextDueAt) <= now + f.dueWithinDays * DAY));
 }
 
@@ -525,7 +583,7 @@ const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   platform_text: (b) => b.platformText,
   environment: (b) => b.environment,
   description: (b) => b.description,
-  used_by: (b) => JSON.stringify({ text: b.usedBy.text, links: b.usedBy.links }),
+  used_by: (b) => JSON.stringify({ text: b.usedBy.text, links: b.usedBy.links, ...(b.usedBy.urls.length ? { urls: b.usedBy.urls } : {}) }),
   owners: (b) => JSON.stringify(b.owners),
   owner_subjects: (b) => JSON.stringify([...new Set(b.ownerSubjects)]),
   location_text: (b) => b.location.text,
@@ -544,6 +602,57 @@ const COLUMNS: Record<string, (b: CredentialInput) => unknown> = {
   tags: (b) => JSON.stringify([...new Set(b.tags)]),
 };
 
+/** The same role in the same scope once; the list as entered otherwise. */
+function normRoles(roles: NonNullable<CredentialInput['roles']>): CredentialRole[] {
+  const seen = new Set<string>();
+  const out: CredentialRole[] = [];
+  for (const r of roles) {
+    const k = roleKey(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ role: r.role, scope: r.scope, grantedAt: r.grantedAt ?? null, note: r.note });
+  }
+  return out;
+}
+
+const roleKey = (r: Pick<CredentialRole, 'role' | 'scope'>) => `${r.role.toLowerCase()}\u0000${r.scope.toLowerCase()}`;
+const roleLabel = (r: Pick<CredentialRole, 'role' | 'scope'>) => (r.scope ? `${r.role} (${r.scope})` : r.role);
+
+/** What changed between two role lists: added, removed, and entries whose date or note changed. */
+export function diffRoles(before: CredentialRole[], after: CredentialRole[]) {
+  const old = new Map(before.map((r) => [roleKey(r), r]));
+  const next = new Map(after.map((r) => [roleKey(r), r]));
+  return {
+    added: after.filter((r) => !old.has(roleKey(r))),
+    removed: before.filter((r) => !next.has(roleKey(r))),
+    changed: after
+      .filter((r) => old.has(roleKey(r)))
+      .filter((r) => {
+        const o = old.get(roleKey(r))!;
+        return (o.grantedAt ?? null) !== (r.grantedAt ?? null) || o.note !== r.note;
+      })
+      .map((r) => ({ from: old.get(roleKey(r))!, to: r })),
+  };
+}
+
+function rolesSummary(d: ReturnType<typeof diffRoles>): string {
+  return [...d.added.map((r) => `+${roleLabel(r)}`), ...d.removed.map((r) => `−${roleLabel(r)}`), ...d.changed.map((c) => `~${roleLabel(c.to)}`)].join(', ');
+}
+
+/** The history event and audit entry of a change of roles (inside the caller's transaction). */
+function recordRoles(id: string, name: string, actor: string, before: CredentialRole[], after: CredentialRole[], comment: string): void {
+  const d = diffRoles(before, after);
+  if (!d.added.length && !d.removed.length && !d.changed.length) return;
+  addEvent(id, 'rolesChanged', actor, comment, d);
+  audit({
+    action: 'credential.roles_changed',
+    entityType: 'credential',
+    entityId: id,
+    summary: `Credential register: roles of "${name}" changed: ${rolesSummary(d)}`.slice(0, 500),
+    details: { ...d, comment: comment || undefined },
+  });
+}
+
 const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.map((o) => o.email.trim().toLowerCase()))].sort();
 
 /** Validates an input (`before`: the stored entry on update) and maps it to columns. */
@@ -555,6 +664,8 @@ function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<s
   assertEmailsAllowed(emailsOf(b.owners).filter((e) => !stored.has(e)));
   checkGatus(b.gatus);
   const values = Object.fromEntries(Object.entries(COLUMNS).map(([col, fn]) => [col, fn(b)]));
+  // roles: missing in an update keeps them
+  values.roles = b.roles !== undefined ? JSON.stringify(normRoles(b.roles)) : (before?.roles ?? '[]');
   let certificate: CertificateInfo | null | undefined;
   if (b.certificate === null) certificate = null;
   else if (b.certificate) {
@@ -591,6 +702,7 @@ export function createCredential(b: CredentialInput): Credential {
       ...cols.map((c) => (row as Record<string, unknown>)[c]),
     );
     addEvent(id, 'created', u.username, '', { type: b.type, expiresAt: values.expires_at ?? null });
+    recordRoles(id, b.name, u.username, [], parseJson<CredentialRole[]>(String(values.roles), []), b.rolesComment);
     if (certificate)
       addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
     audit({
@@ -647,17 +759,29 @@ export function updateCredential(id: string, b: CredentialInput): Credential {
       before.version,
     );
     if (!r.changes) throw new HttpError(409, 'The entry was changed by someone else meanwhile – reload it and try again', 'VERSION_CONFLICT');
-    addEvent(id, 'updated', u.username, '', { fields: changed });
+    // roles have their own history event and audit entry
+    if (changed.includes('roles'))
+      recordRoles(
+        id,
+        b.name,
+        u.username,
+        parseJson<CredentialRole[]>(before.roles ?? '[]', []),
+        parseJson<CredentialRole[]>(String(values.roles), []),
+        b.rolesComment,
+      );
+    const fields = changed.filter((c) => c !== 'roles');
+    if (!fields.length) return;
+    addEvent(id, 'updated', u.username, '', { fields });
     if (certificate)
       addEvent(id, 'certificate', u.username, '', { fingerprint256: certificate.fingerprint256, notAfter: certificate.notAfter, subject: certificate.subject });
     audit({
       action: 'credential.updated',
       entityType: 'credential',
       entityId: id,
-      summary: `Credential register: "${b.name}" changed (${changed.join(', ')})`,
+      summary: `Credential register: "${b.name}" changed (${fields.join(', ')})`,
       details: {
         changes: Object.fromEntries(
-          changed.map((c) => [
+          fields.map((c) => [
             c,
             c === 'certificate'
               ? auditView({}, certificate).certificate

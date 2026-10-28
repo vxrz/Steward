@@ -38,6 +38,7 @@ import {
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopeOf } from './scope.js';
 import { componentCounts, componentsOf, stackRollup } from './components.js';
+import { credentialsLinkingTo, toCredential } from '../credentials/service.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -294,6 +295,10 @@ export function getApplication(id: string): ApplicationDetail {
     documents,
     components,
     stack: stackRollup(components),
+    credentials: credentialsLinkingTo('application', r.id)
+      .filter((c) => !c.archived)
+      .map((c) => toCredential(c, u))
+      .map((c) => ({ id: c.id, name: c.name, type: c.type, status: c.status, nextDueAt: c.nextDueAt, roles: c.roles.map((x) => x.role) })),
     canEdit: canEditApplication(u, r),
   };
 }

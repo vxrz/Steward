@@ -297,5 +297,10 @@
       "manualKept": "SBOM says {{version}}"
     },
     "actions": "Actions"
+  },
+  "credentials": {
+    "title": "Credentials",
+    "help": "Entries of the credentials register that name this application under \"Used by\".",
+    "empty": "No credential names this application."
   }
 }

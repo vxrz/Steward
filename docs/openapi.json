@@ -4042,7 +4042,7 @@
                   "properties": {
                     "kind": {
                       "type": "string",
-                      "description": "process, monitor, platform, service, …"
+                      "description": "process, monitor, platform, service, application, …"
                     },
                     "id": {
                       "type": "string"
@@ -4061,13 +4061,75 @@
                   ],
                   "additionalProperties": false
                 }
+              },
+              "urls": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "description": "http(s) address"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "url"
+                  ],
+                  "additionalProperties": false
+                },
+                "description": "External pages: Swagger page, vault entry, wiki page"
               }
             },
             "required": [
               "text",
-              "links"
+              "links",
+              "urls"
             ],
             "additionalProperties": false
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "description": "Role or permission, e.g. mdsp:core:TenantAdmin"
+                },
+                "scope": {
+                  "type": "string",
+                  "description": "Where it applies, e.g. tenant modev; empty when not set"
+                },
+                "grantedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "role",
+                "scope",
+                "grantedAt",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Roles and permissions the credential holds (their changes: history event rolesChanged)"
           },
           "owners": {
             "type": "array",
@@ -4417,6 +4479,7 @@
           "environment",
           "description",
           "usedBy",
+          "roles",
           "owners",
           "ownerSubjects",
           "location",
@@ -16964,6 +17027,16 @@
             "name": "q",
             "required": false,
             "description": "Case-insensitive search"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            },
+            "in": "query",
+            "name": "role",
+            "required": false,
+            "description": "Only entries holding this role or permission (exact, case-insensitive)"
           }
         ],
         "responses": {

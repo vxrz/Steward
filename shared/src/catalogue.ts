@@ -189,7 +189,18 @@ export interface ApplicationDetail extends ApplicationSummary {
   components: ApplicationComponent[];
   /** The tech stack of all components together: one entry per product and version */
   stack: ApplicationStackItem[];
+  /** Credentials register entries that name the application under "used by" and that the reader may see (#125) */
+  credentials: ApplicationCredential[];
   canEdit: boolean;
+}
+
+export interface ApplicationCredential {
+  id: string;
+  name: string;
+  type: string;
+  status: 'ok' | 'dueSoon' | 'overdue' | 'expired';
+  nextDueAt: string | null;
+  roles: string[];
 }
 
 // ---------- components and tech stack (#103) ----------

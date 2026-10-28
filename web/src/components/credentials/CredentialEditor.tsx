@@ -25,12 +25,15 @@ import { useQuery } from '@tanstack/react-query';
 import { IconPlus, IconShieldLock, IconTrash, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type {
+  ApplicationSummary,
   CertificateInfo,
   Credential,
   CredentialLink,
   CredentialOwner,
   CredentialReminderOverride,
+  CredentialRole,
   CredentialType,
+  CredentialUrl,
   GatusEndpointState,
   MonitorSummary,
   Platform,
@@ -45,7 +48,7 @@ import { useFieldErrors } from '../common';
 import { CREDENTIAL_TYPE_IDS } from '../../pages/Credentials';
 
 const CERT_MAX = 256 * 1024;
-const LINK_KINDS = ['process', 'monitor', 'platform', 'service'] as const;
+const LINK_KINDS = ['process', 'monitor', 'platform', 'service', 'application'] as const;
 
 interface Draft {
   name: string;
@@ -54,7 +57,9 @@ interface Draft {
   platformText: string;
   environment: string;
   description: string;
-  usedBy: { text: string; links: CredentialLink[] };
+  usedBy: { text: string; links: CredentialLink[]; urls: CredentialUrl[] };
+  roles: CredentialRole[];
+  rolesComment: string;
   owners: CredentialOwner[];
   ownerSubjects: string[];
   location: { text: string; url: string };
@@ -83,7 +88,9 @@ const fromEntry = (c: Credential | null): Draft =>
         platformText: c.platformText,
         environment: c.environment,
         description: c.description,
-        usedBy: { text: c.usedBy.text, links: c.usedBy.links.map(({ kind, id }) => ({ kind, id })) },
+        usedBy: { text: c.usedBy.text, links: c.usedBy.links.map(({ kind, id }) => ({ kind, id })), urls: c.usedBy.urls },
+        roles: c.roles,
+        rolesComment: '',
         owners: c.owners,
         ownerSubjects: c.ownerSubjects,
         location: { text: c.location.text, url: c.location.url ?? '' },
@@ -106,7 +113,9 @@ const fromEntry = (c: Credential | null): Draft =>
         platformText: '',
         environment: '',
         description: '',
-        usedBy: { text: '', links: [] },
+        usedBy: { text: '', links: [], urls: [] },
+        roles: [],
+        rolesComment: '',
         owners: [],
         ownerSubjects: [],
         location: { text: '', url: '' },
@@ -166,6 +175,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const monitors = useQuery({ queryKey: ['monitors'], queryFn: () => get<MonitorSummary[]>('/monitors') });
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
+  const applications = useQuery({ queryKey: ['applications'], queryFn: () => get<ApplicationSummary[]>('/applications') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
   const gatusEndpoints = useQuery({
     queryKey: ['gatus-endpoints', d.gatus?.platformId],
@@ -183,7 +193,9 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
         ? (monitors.data ?? []).map((m) => ({ value: m.id, label: m.name }))
         : kind === 'service'
           ? (services.data ?? []).map((x) => ({ value: x.id, label: x.name }))
-          : (platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }));
+          : kind === 'application'
+            ? (applications.data ?? []).map((x) => ({ value: x.id, label: x.name }))
+            : (platforms.data ?? []).map((p) => ({ value: p.id, label: p.name }));
 
   const upload = async (f: File | null) => {
     if (!f) return;
@@ -203,7 +215,10 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
     name: !d.name.trim() && t('common:validation.required'),
     ...Object.fromEntries(d.owners.map((o, i) => [`owner${i}`, !o.email.trim() && t('common:validation.required')])),
     ...Object.fromEntries(d.usedBy.links.map((l, i) => [`link${i}`, !l.id && t('common:validation.required')])),
+    ...Object.fromEntries(d.usedBy.urls.map((x, i) => [`url${i}`, !/^https?:\/\/\S+$/i.test(x.url.trim()) && t('editor.urlInvalid')])),
+    ...Object.fromEntries(d.roles.map((r, i) => [`role${i}`, !r.role.trim() && t('common:validation.required')])),
   });
+  const rolesChanged = JSON.stringify(d.roles) !== JSON.stringify(initial?.roles ?? []);
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);
@@ -213,6 +228,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
         ...d,
         location: { text: d.location.text, url: d.location.url.trim() || null },
         platformText: d.platformId ? '' : d.platformText,
+        usedBy: { ...d.usedBy, urls: d.usedBy.urls.map((x) => ({ label: x.label.trim(), url: x.url.trim() })) },
         ...(cert ? { certificate: { contentBase64: cert.contentBase64 } } : removeCert ? { certificate: null } : {}),
         // the certificate decides the expiry unless one is entered with it
         ...(certDecides ? { expiresAt: null } : {}),
@@ -393,6 +409,110 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
               {t('editor.addLink')}
             </Button>
           </Group>
+        </Stack>
+
+        <Stack gap="xs" data-testid="credential-urls">
+          {d.usedBy.urls.map((x, i) => (
+            <Group key={i} gap="xs" align="flex-start" wrap="nowrap">
+              <TextInput
+                style={{ flex: 1 }}
+                aria-label={t('editor.urlLabel')}
+                placeholder={t('editor.urlLabel')}
+                value={x.label}
+                onChange={(e) => set({ usedBy: { ...d.usedBy, urls: d.usedBy.urls.map((y, j) => (j === i ? { ...y, label: e.currentTarget.value } : y)) } })}
+              />
+              <TextInput
+                style={{ flex: 2 }}
+                aria-label={t('editor.url')}
+                placeholder="https://"
+                value={x.url}
+                error={v.error(`url${i}`)}
+                onChange={(e) => set({ usedBy: { ...d.usedBy, urls: d.usedBy.urls.map((y, j) => (j === i ? { ...y, url: e.currentTarget.value } : y)) } })}
+              />
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                mt={4}
+                onClick={() => set({ usedBy: { ...d.usedBy, urls: d.usedBy.urls.filter((_, j) => j !== i) } })}
+                aria-label={t('editor.removeUrl')}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+          ))}
+          <Group>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => set({ usedBy: { ...d.usedBy, urls: [...d.usedBy.urls, { label: '', url: '' }] } })}
+            >
+              {t('editor.addUrl')}
+            </Button>
+          </Group>
+        </Stack>
+
+        <Divider label={t('fields.roles')} labelPosition="left" />
+        <Text size="xs" c="dimmed">
+          {t('editor.rolesHint')}
+        </Text>
+        <Stack gap="xs" data-testid="credential-roles-editor">
+          {d.roles.map((r, i) => {
+            const patch = (p: Partial<CredentialRole>) => set({ roles: d.roles.map((x, j) => (j === i ? { ...x, ...p } : x)) });
+            return (
+              <Paper key={i} withBorder p="xs">
+                <Group gap="xs" align="flex-start" wrap="nowrap">
+                  <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs" style={{ flex: 1 }}>
+                    <TextInput
+                      size="xs"
+                      label={t('roles.role')}
+                      required
+                      classNames={{ input: 'mono' }}
+                      value={r.role}
+                      error={v.error(`role${i}`)}
+                      onChange={(e) => patch({ role: e.currentTarget.value })}
+                    />
+                    <TextInput size="xs" label={t('roles.scope')} value={r.scope} onChange={(e) => patch({ scope: e.currentTarget.value })} />
+                    <TextInput
+                      size="xs"
+                      type="date"
+                      label={t('roles.grantedAt')}
+                      value={r.grantedAt ? r.grantedAt.slice(0, 10) : ''}
+                      onChange={(e) => patch({ grantedAt: e.currentTarget.value || null })}
+                    />
+                    <TextInput size="xs" label={t('roles.note')} value={r.note} onChange={(e) => patch({ note: e.currentTarget.value })} />
+                  </SimpleGrid>
+                  <ActionIcon
+                    variant="subtle"
+                    color="red"
+                    mt={22}
+                    onClick={() => set({ roles: d.roles.filter((_, j) => j !== i) })}
+                    aria-label={t('editor.removeRole', { role: r.role || '' })}
+                  >
+                    <IconTrash size={16} />
+                  </ActionIcon>
+                </Group>
+              </Paper>
+            );
+          })}
+          <Group>
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPlus size={14} />}
+              onClick={() => set({ roles: [...d.roles, { role: '', scope: '', grantedAt: null, note: '' }] })}
+            >
+              {t('editor.addRole')}
+            </Button>
+          </Group>
+          {rolesChanged && initial && (
+            <TextInput
+              label={t('editor.rolesComment')}
+              description={t('editor.rolesCommentHint')}
+              value={d.rolesComment}
+              onChange={(e) => set({ rolesComment: e.currentTarget.value })}
+            />
+          )}
         </Stack>
 
         <Divider label={t('editor.datesSection')} labelPosition="left" />
