@@ -8,6 +8,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Monitor editor: Duplicate, Tidy up, Undo/Redo, Delete key and Check now before saving** (#141): _Check now_ on a card runs it as it is in the editor (`POST /api/monitors/check-preview`, nothing stored, with the owner's rights and the outbound policy, audited as `monitor.check_previewed`). A new check is placed below the selected card and depends on it; a hint explains linking until the first link exists.
 - **Runs list: only runs with failed checks** (#138): new filter _Checks → With failed checks_ (`checks=failed` on `GET /api/runs`), linked from the start page.
 - **Issue and idea forms** (#140): _About → Report an issue or idea_ links to [ISSUES.md](ISSUES.md), which says what helps and what never to include (credentials, personal data, internal details); GitHub issues use forms for bugs and ideas, blank issues are off and security reports go to the private advisory. Releases use a pull request template with the release checklist and an OWASP ASVS level 2 self-review.
 
@@ -21,6 +22,7 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - **Outbound allow list**: lines could not be added in _Settings → Outbound_ because the field dropped empty lines while typing. Each entry is now checked as you type (origin without a path, host or `*.host` with an optional port, IPv4 CIDR) and saving is refused with the reason; the server checks the same.
+- **Monitor editor: a second card with the same id disappeared** (#141): cards were keyed by their check id, so the new card vanished and edits landed on the other one. Cards now keep their own identity, and a duplicate id is shown on the field. The editor validates with the server's rules while you type, marks the required fields per check type and mode (e.g. the variables of an Insights Hub freshness check), shows problems on the fields and lists them on save with a link to each; the server names the card (`Check "Name" (id) – field`) instead of `checks.1` and returns the paths as `issues`.
 - **Tenant usage example** (#140): the example called a Usage Transparency path that does not exist (HTTP 500) and came with the limits of the demo tenant, so real tenants saw figures such as 308 %. It now counts users, assets, agents and **asset attributes per asset type** (new dataset `ih.usage-attributes`), compares them only with the limits you enter (default: count only), and can read one KPI with `aggregatedMonthlyConsumerUsage` of the Usage Transparency API 3.2.0. A figure that cannot be read is shown as _unknown_ and fails the new check _All figures were read_; the failed step keeps the platform's answer. Dashboard _Tenant usage_ and [docs/INSIGHTS-HUB-USAGE.md](docs/INSIGHTS-HUB-USAGE.md) updated.
 - **Collapsed sidebar**: the icons sat off-centre.
 - **Button colours**: two buttons used a fixed blue instead of the accent colour; a lint rule now allows only the semantic colours on buttons and switches.

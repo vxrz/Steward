@@ -335,11 +335,15 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
     if (c.type === 'freshness' && c.mode === 'cadence' && (c.degradedAfterMissed ?? 2) > (c.downAfterMissed ?? 4)) {
       issues.push({ path: `checks.${i}.downAfterMissed`, message: 'must be at least degradedAfterMissed', checkId: c.id });
     }
-    if (c.type === 'freshness' && c.source === 'insightsHub' && (!c.assetId || !c.aspect || !c.variables?.length)) {
-      issues.push({ path: `checks.${i}`, message: 'Insights Hub freshness needs the asset id, the aspect and at least one variable', checkId: c.id });
+    // one issue per missing field, so editors can show it on the field (#141)
+    if (c.type === 'freshness' && c.source === 'insightsHub') {
+      if (!c.assetId) issues.push({ path: `checks.${i}.assetId`, message: 'Insights Hub freshness needs the asset id', checkId: c.id });
+      if (!c.aspect) issues.push({ path: `checks.${i}.aspect`, message: 'Insights Hub freshness needs the aspect', checkId: c.id });
+      if (!c.variables?.length) issues.push({ path: `checks.${i}.variables`, message: 'Insights Hub freshness needs at least one variable', checkId: c.id });
     }
-    if (c.type === 'freshness' && c.source === 'platform' && (!c.path || !c.timestamp)) {
-      issues.push({ path: `checks.${i}`, message: 'platform freshness needs the path and the timestamp expression', checkId: c.id });
+    if (c.type === 'freshness' && c.source === 'platform') {
+      if (!c.path) issues.push({ path: `checks.${i}.path`, message: 'platform freshness needs the path', checkId: c.id });
+      if (!c.timestamp) issues.push({ path: `checks.${i}.timestamp`, message: 'platform freshness needs the timestamp expression', checkId: c.id });
     }
   });
   const seen = new Set<string>();
@@ -368,6 +372,36 @@ export function definitionIssues(def: MonitorDefinition, opts: { template?: bool
     issues.push({ path: 'aggregate.quorum', message: 'the quorum rule needs k (checks that must be up)' });
   if (!opts.template && def.parameters?.length) issues.push({ path: 'parameters', message: 'only templates have parameters' });
   return issues;
+}
+
+/**
+ * Names the card or output an issue path points at (#141): `checks.1.variables` becomes
+ * `Check "Power Meter – Insights Hub" (pm-ih) – variables`, so messages never show bare indexes.
+ */
+export function issueLabel(def: unknown, path: string): string {
+  const d = (def ?? {}) as { checks?: { id?: unknown; name?: unknown }[]; outputs?: { id?: unknown }[] };
+  const m = /^(checks|outputs|links)\.(\d+)(?:\.(.+))?$/.exec(path);
+  if (!m) return path;
+  const [, list, index, field] = m;
+  const suffix = field ? ` – ${field}` : '';
+  if (list === 'checks') {
+    const c = d.checks?.[Number(index)];
+    if (!c) return path;
+    const name = typeof c.name === 'string' && c.name.trim() ? c.name.trim() : '';
+    const id = typeof c.id === 'string' ? c.id : '';
+    return `Check ${name ? `"${name}"` : `#${Number(index) + 1}`}${id && id !== name ? ` (${id})` : ''}${suffix}`;
+  }
+  if (list === 'outputs') {
+    const o = d.outputs?.[Number(index)];
+    return o && typeof o.id === 'string' ? `Output "${o.id}"${suffix}` : path;
+  }
+  return `Link #${Number(index) + 1}${suffix}`;
+}
+
+/** An issue path that belongs to a check: its index and field (`checks.2.port` → { index: 2, field: 'port' }). */
+export function checkIssueTarget(path: string): { index: number; field: string | null } | null {
+  const m = /^checks\.(\d+)(?:\.([^.]+))?/.exec(path);
+  return m ? { index: Number(m[1]), field: m[2] ?? null } : null;
 }
 
 /** Returns one cycle (list of node ids) or null. */

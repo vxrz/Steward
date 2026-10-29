@@ -301,6 +301,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/monitors/:id/checks/:checkId/test-report': DESIGN,
   'POST /api/monitors/:id/run': RUN,
   'POST /api/monitors/:id/test-run': RUN,
+  'POST /api/monitors/check-preview': DESIGN,
   'POST /api/monitors/:id/resync': DESIGN,
   'GET /api/monitors/:id/maintenance': ALL,
   'POST /api/monitors/:id/maintenance': RUN,

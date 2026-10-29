@@ -366,7 +366,18 @@
     "isTemplate": "This is a template (parameters as {{example}}, edited as YAML)",
     "templateYaml": "Templates are edited as YAML: {{example}} placeholders may stand anywhere, also where numbers are expected. They are replaced when monitors are created from the template.",
     "yamlSource": "YAML source",
-    "apply": "Apply"
+    "apply": "Apply",
+    "problemBadge": "problem",
+    "copyName": "{{name}} (copy)",
+    "required": "Required",
+    "problemsTitle_one": "{{count}} problem to fix before saving",
+    "problemsTitle_other": "{{count}} problems to fix before saving",
+    "undo": "Undo",
+    "redo": "Redo",
+    "autoLayout": "Tidy up",
+    "duplicate": "Duplicate",
+    "linkHowTo": "Link cards by dragging from the lower edge of a card to the card that depends on it. A new check is placed below the selected card and depends on it – remove the link when it does not.",
+    "previewNote": "Tried as it is in the editor, not saved. Nothing is recorded."
   },
   "graph": {
     "nonCritical": "non-critical",

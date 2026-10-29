@@ -75,6 +75,16 @@ What happens when …
 
 In demo mode (`npm run demo` → _Load demo data_) all of this runs against simulated platforms: an **IoT gateway simulator** reports every 30 s through the real batch endpoint, and the PowerMeter of _Machine 18_ (created from the template) stopped reporting 25 minutes ago, so its monitor shows a realistic root cause.
 
+## The editor
+
+_Monitors → New monitor_ (or _Edit_) shows the checks as cards on a canvas.
+
+- **Adding checks.** A check type from the palette adds a card. With a card selected, the new one is placed below it and depends on it (a soft link) – remove the link when it does not. Otherwise drag from the lower edge of a card to the card that depends on it.
+- **Cards and ids.** Every card keeps its identity in the editor; the check id is just a field. A duplicate or invalid id is shown on the field, and both cards stay.
+- **Problems.** The editor checks the definition as you type, with the same rules as the server, and shows a problem on the field you changed. Saving lists all problems (e.g. _Check "Power Meter – Insights Hub" (pm-ih) – Variables: Required_); an entry selects the card and puts the cursor in the field. Required fields are marked for the check type and mode. Errors from the server name the card too, never `checks.1`.
+- **Duplicate, Tidy up, Undo/Redo, Delete.** _Duplicate_ copies the selected card (id with `-copy`, without its gateway key). _Tidy up_ arranges the cards by their dependencies. Undo and redo with the buttons or Ctrl/⌘+Z and Ctrl/⌘+Shift+Z; Delete removes the selected card or link (outside text fields).
+- **Check now before saving.** _Check now_ on a card runs that check as it is in the editor (`POST /api/monitors/check-preview`) and shows the result on the card's form. Nothing is stored. It runs with the rights of the monitor's owner (a new monitor: yours), the outbound policy applies, it is rate-limited and audited as `monitor.check_previewed`. Heartbeat and sub-monitor checks have no call to try.
+
 ## Check types
 
 Common fields: `id`, `name`, `description`, `intervalSeconds`, `timeoutSeconds`, `critical`, `enabled`, `failuresBeforeDown`, `successesBeforeUp`, `key` (heartbeat: the key for gateway reports; default `<monitor key>.<check id>`).
@@ -303,7 +313,7 @@ A process can create instances too: `POST /api/monitors/<template id>/instances`
 
 **Sub-monitors you may not view.** A monitor can include a sub-monitor that some of its viewers may not view. They see the sub-monitor node with its status, but not which monitor it is: root causes, _likely caused by_, the node's link, messages, history, the YAML export, the definition, the `monitor.<key>` dataset, the public API, the MCP tools and notifications show "a monitor you cannot view" instead of its id, key, name and check names. The sub-monitor check's own message never names the monitor ("The sub-monitor is down"). An editor who may not view the sub-monitor can still save the monitor; the reference stays as it is (`(hidden)` in the definition).
 
-Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended`, `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*` and `monitor.report_rejected`.
+Designers and administrators create monitors and gateways; the creator becomes the owner. An access list (users, teams, roles) narrows the rights like for processes. Checks and outputs that use a platform need the _use_ right of the editor when saving and of the **owner** when they run (checked again at least once a minute). The audit log records `monitor.created`, `monitor.updated` (with added, removed and changed checks), `monitor.deleted`, `monitor.access_changed`, `monitor.secret_rotated`, `monitor.maintenance_added`/`_ended`, `monitor.acknowledged`, `monitor.resynced`, `monitor.gateway_*`, `monitor.report_rejected`, `monitor.test_run` and `monitor.check_previewed`.
 
 ## Engine, storage and limits
 

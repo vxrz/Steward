@@ -366,7 +366,18 @@
     "isTemplate": "Dies ist eine Vorlage (Parameter als {{example}}, Bearbeitung als YAML)",
     "templateYaml": "Vorlagen werden als YAML bearbeitet: Platzhalter wie {{example}} dürfen überall stehen, auch wo Zahlen erwartet werden. Sie werden beim Anlegen von Monitoren aus der Vorlage ersetzt.",
     "yamlSource": "YAML-Quelltext",
-    "apply": "Übernehmen"
+    "apply": "Übernehmen",
+    "problemBadge": "Problem",
+    "copyName": "{{name}} (Kopie)",
+    "required": "Pflichtfeld",
+    "problemsTitle_one": "{{count}} Problem vor dem Speichern beheben",
+    "problemsTitle_other": "{{count}} Probleme vor dem Speichern beheben",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
+    "autoLayout": "Aufräumen",
+    "duplicate": "Duplizieren",
+    "linkHowTo": "Karten verbinden: vom unteren Rand einer Karte zur Karte ziehen, die von ihr abhängt. Eine neue Prüfung kommt unter die ausgewählte Karte und hängt von ihr ab – die Verbindung entfernen, wenn das nicht stimmt.",
+    "previewNote": "So ausprobiert, wie sie im Editor steht, nicht gespeichert. Nichts wird aufgezeichnet."
   },
   "graph": {
     "nonCritical": "nicht kritisch",

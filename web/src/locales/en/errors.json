@@ -622,7 +622,8 @@
     "RECORDING_LIMIT": "A platform keeps at most {{max}} recorded responses. Remove some first.",
     "RECORDING_MATCH_TOO_LARGE": "The body to match is too large.",
     "RECORDING_NOT_FOUND": "The recorded response does not exist (any more).",
-    "RECORDING_TOO_LARGE": "The recorded body is larger than {{maxMb}} MB."
+    "RECORDING_TOO_LARGE": "The recorded body is larger than {{maxMb}} MB.",
+    "CHECK_PREVIEW_UNSUPPORTED": "This check type is evaluated from reports (heartbeat) or another monitor, so there is no call to try. Save the monitor and watch its status."
   },
   "boundary": {
     "title": "Something went wrong on this page",
