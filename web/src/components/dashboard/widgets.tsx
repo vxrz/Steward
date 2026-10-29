@@ -31,7 +31,8 @@ import {
   IconSearch,
   IconX,
 } from '@tabler/icons-react';
-import type { DashboardWidget, DatasetMeta, DatasetRow, DatasetStatus, RunDetail, RunSummary, Schedule } from '@sm/shared';
+import type { DashboardWidget, DatasetMeta, DatasetRow, DatasetSource, DatasetStatus, RunDetail, RunSummary, Schedule } from '@sm/shared';
+import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { get } from '../../api';
 import { errorText } from '../../i18n/errors';
@@ -39,7 +40,7 @@ import { severityLabel } from '../common';
 import { fmtRelative } from '../../format';
 import { Markdown } from '../common';
 import { StatusBar, StatusTable, Sparkline, TrendChart, TrendTable } from './charts';
-import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, isNotFound } from './data';
+import { useDashboardCtx, useDataset, useDatasetMetas, useMetrics, isNotFound, useScope, scopeMeta, perSource } from './data';
 import { compact, dateTime, download, toCsv } from './format';
 import { SEVERITY_RANK, STATUS_META, StatusLabel, asStatus } from './status';
 
@@ -142,13 +143,18 @@ function NoData({ dataset, error }: { dataset?: string; error?: unknown }) {
 function Freshness({ meta }: { meta?: DatasetMeta }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   if (!meta) return null;
+  const stale = (meta.sources ?? []).filter((s) => s.stale);
   return (
     <Group gap={6} wrap="nowrap">
       <Text size="xs" c="var(--viz-text-secondary)" truncate>
         {t('list.updated', { when: fmtRelative(meta.updatedAt) })}
       </Text>
       {meta.stale && (
-        <Tooltip label={t('w.olderThan', { count: meta.staleAfterMinutes ?? 0 })}>
+        <Tooltip
+          label={stale.length ? stale.map((s) => sourceAge(t, s)).join('\n') : t('w.olderThan', { count: meta.staleAfterMinutes ?? 0 })}
+          multiline
+          style={{ whiteSpace: 'pre-line' }}
+        >
           <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>
             {t('datasets.stale')}
           </Badge>
@@ -163,6 +169,12 @@ function Freshness({ meta }: { meta?: DatasetMeta }) {
   );
 }
 
+/** "Tenant EU: expected every 10 min · last 25 min ago" (#142) */
+function sourceAge(t: TFunction<['dashboards', 'common', 'editor']>, s: DatasetSource): string {
+  const last = t('w.last', { when: fmtRelative(s.updatedAt) });
+  return `${s.name}: ${s.expectedMinutes ? `${t('w.expectedEvery', { count: s.expectedMinutes })} · ` : ''}${last}`;
+}
+
 // ---------------------------------------------------------------------------
 // KPI
 // ---------------------------------------------------------------------------
@@ -171,11 +183,17 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const metas = useDatasetMetas();
-  const meta = metas.data?.find((m) => m.key === w.dataset);
+  const scope = useScope(w);
+  const meta = scopeMeta(
+    metas.data?.find((m) => m.key === w.dataset),
+    scope,
+  );
   const isRows = !w.metric || w.metric === '_rows';
   const days = w.days ?? 30;
-  const series = useMetrics(isRows ? undefined : w.dataset, isRows ? [] : [w.metric!], days);
-  const points = isRows ? [] : (series.data?.find((s) => s.name === w.metric)?.points ?? []);
+  const series = useMetrics(isRows ? undefined : w.dataset, isRows ? [] : [w.metric!], days, scope);
+  // several sources: the value of each instead of one number (#142)
+  const several = !isRows && (meta?.sources?.length ?? 0) > 1;
+  const points = isRows || several ? [] : (series.data?.find((s) => s.name === w.metric)?.points ?? []);
   const value = isRows ? meta?.rowCount : (meta?.metrics[w.metric!] ?? points[points.length - 1]?.value);
   const first = points[0]?.value;
   const delta = value !== undefined && first !== undefined && points.length > 1 ? value - first : undefined;
@@ -195,7 +213,21 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
         <TrendTable series={series.data ?? []} names={[w.metric!]} />
       ) : (
         <Stack gap={4}>
-          <Group gap={10} align="baseline" wrap="nowrap">
+          {several && (
+            <Stack gap={2} data-testid="kpi-by-source">
+              {meta!.sources.map((src) => (
+                <Group key={src.id} gap={8} justify="space-between" wrap="nowrap">
+                  <Text size="sm" truncate>
+                    {src.name}
+                  </Text>
+                  <Text size="sm" fw={600} className="viz-num">
+                    {compact(src.metrics[w.metric!])}
+                  </Text>
+                </Group>
+              ))}
+            </Stack>
+          )}
+          <Group gap={10} align="baseline" wrap="nowrap" display={several ? 'none' : undefined}>
             <span className="viz-kpi-value">{compact(value)}</span>
             {delta !== undefined && (
               <Group gap={2} wrap="nowrap">
@@ -231,10 +263,18 @@ function TrendWidget({ w }: { w: DashboardWidget }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const metas = useDatasetMetas();
-  const meta = metas.data?.find((m) => m.key === w.dataset);
-  const names = (w.metrics?.length ? w.metrics : Object.keys(meta?.metrics ?? {}).slice(0, 3)).slice(0, 3);
+  const scope = useScope(w);
+  const meta = scopeMeta(
+    metas.data?.find((m) => m.key === w.dataset),
+    scope,
+  );
+  const metricNames = (w.metrics?.length ? w.metrics : Object.keys(meta?.metrics ?? {}).slice(0, 3)).slice(0, 3);
   const days = w.days ?? 30;
-  const series = useMetrics(w.dataset, names, days);
+  const raw = useMetrics(w.dataset, metricNames, days, scope);
+  // one line per metric and source when several sources are shown (#142)
+  const split = perSource(raw.data ?? [], metricNames);
+  const names = split.names;
+  const series = { ...raw, data: split.series };
   const title = w.title || t('w.lastDays', { name: meta?.title ?? w.dataset, count: days });
   if (!meta && !metas.isLoading) {
     return (
@@ -268,7 +308,10 @@ function StatusWidget({ w }: { w: DashboardWidget }) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
   const { statusFilter, setStatusFilter } = useDashboardCtx();
   const metas = useDatasetMetas();
-  const meta = metas.data?.find((m) => m.key === w.dataset);
+  const meta = scopeMeta(
+    metas.data?.find((m) => m.key === w.dataset),
+    useScope(w),
+  );
   const title = w.title || t('w.statusTitle', { name: meta?.title ?? w.dataset });
   if (!meta) {
     return (
@@ -309,7 +352,7 @@ function cellText(v: unknown): string {
 function TableWidget({ w }: { w: DashboardWidget }) {
   const { t } = useTranslation(['dashboards', 'common', 'editor']);
   const { statusFilter, setStatusFilter } = useDashboardCtx();
-  const ds = useDataset(w.dataset);
+  const ds = useDataset(w.dataset, useScope(w));
   const [q, setQ] = useState('');
   const [problems, setProblems] = useState(!!w.problemsOnly);
   const [sort, setSort] = useState<Sort>({ col: '_status', dir: 1 });
@@ -317,6 +360,8 @@ function TableWidget({ w }: { w: DashboardWidget }) {
   const d = ds.data;
   const cols = useMemo(() => (w.columns?.length ? w.columns.filter((c) => d?.columns.includes(c)) : (d?.columns ?? [])), [w.columns, d]);
   const hasStatus = !!d?.rows.some((r) => r._status);
+  // rows of several sources: a Source column (#142)
+  const multi = new Set((d?.rows ?? []).map((r) => r._source?.platformId ?? '')).size > 1;
   const filterStatus = statusFilter && d && statusFilter.dataset === d.key ? statusFilter.status : null;
 
   const rows = useMemo(() => {
@@ -325,11 +370,17 @@ function TableWidget({ w }: { w: DashboardWidget }) {
     let list = d.rows.filter((r) => {
       if (problems && asStatus(r._status) === 'good') return false;
       if (filterStatus && asStatus(r._status) !== filterStatus) return false;
-      if (needle && !cols.some((c) => cellText(r[c]).toLowerCase().includes(needle)) && !cellText(r._statusText).toLowerCase().includes(needle)) return false;
+      if (
+        needle &&
+        !cols.some((c) => cellText(r[c]).toLowerCase().includes(needle)) &&
+        !cellText(r._statusText).toLowerCase().includes(needle) &&
+        !cellText(r._source?.platform).toLowerCase().includes(needle)
+      )
+        return false;
       return true;
     });
     if (sort) {
-      const key = (r: DatasetRow) => (sort.col === '_status' ? SEVERITY_RANK[asStatus(r._status)] : r[sort.col]);
+      const key = (r: DatasetRow) => (sort.col === '_status' ? SEVERITY_RANK[asStatus(r._status)] : sort.col === '_source' ? r._source?.platform : r[sort.col]);
       list = [...list].sort((a, b) => {
         const x = key(a);
         const y = key(b);
@@ -384,8 +435,12 @@ function TableWidget({ w }: { w: DashboardWidget }) {
               download(
                 `${d.key}.csv`,
                 toCsv(
-                  [...(hasStatus ? ['status', 'reason'] : []), ...cols],
-                  rows.map((r) => [...(hasStatus ? [asStatus(r._status), cellText(r._statusText)] : []), ...cols.map((c) => r[c])]),
+                  [...(multi ? ['source'] : []), ...(hasStatus ? ['status', 'reason'] : []), ...cols],
+                  rows.map((r) => [
+                    ...(multi ? [cellText(r._source?.platform)] : []),
+                    ...(hasStatus ? [asStatus(r._status), cellText(r._statusText)] : []),
+                    ...cols.map((c) => r[c]),
+                  ]),
                 ),
               )
             }
@@ -424,16 +479,22 @@ function TableWidget({ w }: { w: DashboardWidget }) {
         </Text>
       </Group>
       <div className="table-scroll" tabIndex={0} role="region" aria-label={typeof title === 'string' ? title : t('w.table')}>
-        <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + cols.length * 140}>
+        <Table fz="sm" striped highlightOnHover verticalSpacing={4} miw={(hasStatus ? 130 : 0) + (multi ? 140 : 0) + cols.length * 140}>
           <Table.Thead>
             <Table.Tr>
+              {multi && header('_source', t('datasets.sourcePlatform'))}
               {hasStatus && header('_status', t('datasets.status'))}
               {cols.map((c) => header(c, c, numeric(c)))}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {rows.slice(0, limit).map((r, i) => (
-              <Table.Tr key={r._key ?? i}>
+              <Table.Tr key={`${r._source?.platformId ?? ''}:${r._key ?? i}`}>
+                {multi && (
+                  <Table.Td className="nowrap">
+                    <Text size="xs">{r._source?.platform}</Text>
+                  </Table.Td>
+                )}
                 {hasStatus && (
                   <Table.Td className="nowrap">
                     <StatusLabel status={asStatus(r._status)} text={r._statusText || undefined} size="xs" />
@@ -453,7 +514,7 @@ function TableWidget({ w }: { w: DashboardWidget }) {
             ))}
             {rows.length === 0 && (
               <Table.Tr>
-                <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0)}>
+                <Table.Td colSpan={cols.length + (hasStatus ? 1 : 0) + (multi ? 1 : 0)}>
                   <Text size="sm" c="dimmed">
                     {problems || filterStatus ? t('w.allGood') : t('w.noRows')}
                   </Text>
@@ -593,9 +654,23 @@ function FreshnessWidget({ w, datasets }: { w: DashboardWidget; datasets: string
                   <Table.Td className="nowrap">
                     {m ? (
                       <Stack gap={2}>
-                        <Tooltip label={dateTime(m.updatedAt)}>
-                          <Text size="sm">{fmtRelative(m.updatedAt)}</Text>
-                        </Tooltip>
+                        {(m.sources?.length ?? 0) > 1 ? (
+                          (m.sources ?? []).map((src) => (
+                            <Tooltip key={src.id} label={dateTime(src.updatedAt)}>
+                              <Text size="xs" c={src.stale ? 'yellow.8' : undefined} data-testid="source-freshness">
+                                {sourceAge(t, src)}
+                                {src.stale ? ` · ${t('datasets.stale')}` : ''}
+                              </Text>
+                            </Tooltip>
+                          ))
+                        ) : (
+                          <Tooltip label={dateTime(m.updatedAt)}>
+                            <Text size="sm">
+                              {fmtRelative(m.updatedAt)}
+                              {m.sources?.[0]?.expectedMinutes ? ` · ${t('w.expectedEvery', { count: m.sources[0].expectedMinutes })}` : ''}
+                            </Text>
+                          </Tooltip>
+                        )}
                         <Group gap={4}>
                           {m.stale && (
                             <Badge size="xs" color="yellow" variant="light" leftSection={<IconAlertTriangle size={10} />}>

@@ -20,6 +20,7 @@ import { absoluteLink, channelSecrets, getNotificationSettings } from './setting
 import { addInApp, claimSend } from './store.js';
 import { emailContent, partsText, sendEmail, sendTeams, sendWebhook, teamsCard, type MessageParts, type OutgoingMessage } from './channels.js';
 import { sourceOfRun, type RunSource } from '../engine/notify-source.js';
+import { allParts } from '../dashboards/datasets.js';
 import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
@@ -529,40 +530,50 @@ export function onScheduleSkipped(e: DomainEvents['schedule.skipped']): void {
   });
 }
 
-/** Reports each dataset once per stale period (a new publish starts a new period). Returns how many were reported. */
+/**
+ * Reports each stale partition of a dataset once per stale period (a new publish starts a new period, #142): when the
+ * publish step sets `staleAfterMinutes`, or a schedule feeds the partition (2.5 × its interval). Returns how many.
+ */
 export function checkStaleDatasets(now = Date.now()): number {
-  const rows = db().all<{ key: string; title: string; process_id: string; process_name: string; updated_at: string; stale_after_minutes: number }>(
-    'SELECT key, title, process_id, process_name, updated_at, stale_after_minutes FROM datasets WHERE stale_after_minutes > 0',
-  );
   let reported = 0;
-  for (const r of rows) {
-    if (now - Date.parse(r.updated_at) <= r.stale_after_minutes * 60000) continue;
-    const done = db().get<{ updated_at: string }>('SELECT updated_at FROM notification_stale WHERE dataset_key = ?', r.key);
-    if (done?.updated_at === r.updated_at) continue;
+  for (const p of allParts()) {
+    if (!p.notify || now - Date.parse(p.source.updatedAt) <= p.source.staleAfterMinutes * 60000) continue;
+    const key = p.source.id === 'instance' ? p.key : `${p.key}#${p.source.id}`;
+    const done = db().get<{ updated_at: string }>('SELECT updated_at FROM notification_stale WHERE dataset_key = ?', key);
+    if (done?.updated_at === p.source.updatedAt) continue;
     db().run(
       `INSERT INTO notification_stale (dataset_key, updated_at, notified_at) VALUES (?, ?, ?)
        ON CONFLICT(dataset_key) DO UPDATE SET updated_at = excluded.updated_at, notified_at = excluded.notified_at`,
-      r.key,
-      r.updated_at,
+      key,
+      p.source.updatedAt,
       nowIso(),
     );
     const all = activeUsers();
+    const title = p.source.id === 'instance' ? p.title : `${p.title} (${p.source.name})`;
     notify({
       event: 'dataset.stale',
       text: (l) => ({
-        title: t(l, 'datasetStale.title', { title: r.title }),
+        title: t(l, 'datasetStale.title', { title }),
         body: t(l, 'datasetStale.body', {
-          title: r.title,
-          updatedAt: formatDateTime(l, r.updated_at),
-          process: r.process_name,
-          limit: t(l, 'common.minutes', { count: r.stale_after_minutes }),
+          title,
+          updatedAt: formatDateTime(l, p.source.updatedAt),
+          process: p.processName,
+          limit: t(l, 'common.minutes', { count: p.source.staleAfterMinutes }),
         }),
       }),
       link: '/dashboards',
-      recipients: uniqueUsers([userNamed(processAccess(r.process_id).owner, all), ...admins(all)]),
-      inAppKey: `dataset:${r.key}:${r.updated_at}`,
-      externalKey: `dataset:${r.key}`,
-      data: { dataset: r.key, title: r.title, processId: r.process_id, updatedAt: r.updated_at, staleAfterMinutes: r.stale_after_minutes },
+      recipients: uniqueUsers([userNamed(processAccess(p.processId).owner, all), ...admins(all)]),
+      inAppKey: `dataset:${key}:${p.source.updatedAt}`,
+      externalKey: `dataset:${key}`,
+      data: {
+        dataset: p.key,
+        title: p.title,
+        processId: p.processId,
+        updatedAt: p.source.updatedAt,
+        staleAfterMinutes: p.source.staleAfterMinutes,
+        source: { id: p.source.id, name: p.source.name, platformIds: p.source.platformIds },
+      },
+      source: p.source.runId ? sourceOfRun(p.source.runId) : null,
     });
     reported++;
   }
@@ -596,6 +607,7 @@ export function initNotifications(): void {
   on('check.resolved', deferred('check.resolved', onCheckResolved));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));
   on('dataset.published', (e) => {
+    // a partition's new publish starts its own period (its updated_at changes); others keep theirs
     db().run('DELETE FROM notification_stale WHERE dataset_key = ?', e.key);
   });
 }

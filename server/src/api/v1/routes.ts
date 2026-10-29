@@ -293,6 +293,19 @@ const mapDataset = (d: ReturnType<typeof datasets.getDatasetMeta>) => ({
   metrics: d.metrics,
   staleAfterMinutes: d.staleAfterMinutes ?? null,
   stale: d.stale,
+  sources: d.sources.map((x) => ({
+    id: x.id,
+    name: x.name,
+    environment: x.environment,
+    runId: x.runId,
+    scheduleId: x.scheduleId,
+    updatedAt: x.updatedAt,
+    rowCount: x.rowCount,
+    metrics: x.metrics,
+    staleAfterMinutes: x.staleAfterMinutes,
+    expectedMinutes: x.expectedMinutes,
+    stale: x.stale,
+  })),
 });
 
 const mapDashboard = (d: ReturnType<typeof dashboards.getDashboard>) => ({
@@ -985,7 +998,7 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async (req, reply) => {
       const meta = visibleDataset(params(req).datasetKey!);
-      const q = query<{ status?: string[]; cursor?: string; limit: number }>(req);
+      const q = query<{ status?: string[]; source?: string[]; cursor?: string; limit: number }>(req);
       const filters = { ...q, key: meta.key };
       const after = decodeCursor(q.cursor, filters);
       if (after && after[1] !== meta.updatedAt) {
@@ -995,7 +1008,9 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
           detail: 'The dataset was re-published since the first page – start again without a cursor',
         });
       }
-      const rows: DatasetRow[] = datasets.getDataset(meta.key).rows.filter((r) => !q.status?.length || q.status.includes(r._status ?? 'unknown'));
+      const rows: DatasetRow[] = datasets
+        .getDataset(meta.key, q.source?.length ? { sources: q.source } : {})
+        .rows.filter((r) => !q.status?.length || q.status.includes(r._status ?? 'unknown'));
       const offset = after ? Number(after[0]) : 0;
       const items = rows.slice(offset, offset + q.limit);
       const next = offset + q.limit < rows.length ? encodeCursor([offset + q.limit, meta.updatedAt], filters) : null;
@@ -1020,8 +1035,12 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async (req) => {
       const meta = visibleDataset(params(req).datasetKey!);
-      const q = query<{ names?: string[]; days: number; points: number }>(req);
-      return { key: meta.key, days: q.days, series: datasets.metricSeries(meta.key, q.names?.length ? q.names : undefined, q.days, q.points) };
+      const q = query<{ names?: string[]; source?: string[]; days: number; points: number }>(req);
+      return {
+        key: meta.key,
+        days: q.days,
+        series: datasets.metricSeries(meta.key, q.names?.length ? q.names : undefined, q.days, q.points, q.source?.length ? { sources: q.source } : {}),
+      };
     },
   );
 

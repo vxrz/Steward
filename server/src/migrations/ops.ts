@@ -117,4 +117,32 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     );
     `,
   },
+  {
+    // #142: a dataset is split into one partition per source platform, so a process run against several tenants keeps
+    // every tenant's rows. datasets keeps the dataset (owner, title) and all rows together; dataset_parts holds each
+    // source's rows. Existing datasets become one partition of the platform of their last run when they are first
+    // read or published (dashboards/datasets.ts), and their metric history (source NULL) is assigned to it.
+    name: 'ops-007-dataset-sources',
+    sql: `
+    CREATE TABLE dataset_parts (
+      dataset_key TEXT NOT NULL,
+      source TEXT NOT NULL,
+      platform_ids TEXT NOT NULL,
+      run_id TEXT NOT NULL,
+      schedule_id TEXT,
+      dry_run INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL,
+      row_count INTEGER NOT NULL,
+      columns TEXT NOT NULL,
+      rows TEXT NOT NULL,
+      status_counts TEXT NOT NULL,
+      metrics TEXT NOT NULL,
+      stale_after_minutes INTEGER,
+      expected_minutes INTEGER,
+      PRIMARY KEY (dataset_key, source)
+    );
+    ALTER TABLE dataset_metrics ADD COLUMN source TEXT;
+    CREATE INDEX dataset_metrics_source ON dataset_metrics(dataset_key, source, name, ts);
+    `,
+  },
 ];

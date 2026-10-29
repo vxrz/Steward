@@ -419,14 +419,35 @@ export const Dataset = z.object({
   metrics: z.record(z.string(), z.number()).describe('Latest value per metric'),
   staleAfterMinutes: z.number().int().nullable(),
   stale: z.boolean(),
+  sources: z
+    .array(
+      z.object({
+        id: z.string().describe('Platform id, ids joined with "+", or "instance"'),
+        name: z.string(),
+        environment: z.string(),
+        runId: z.string(),
+        scheduleId: z.string().nullable(),
+        updatedAt: ts(),
+        rowCount: z.number().int(),
+        metrics: z.record(z.string(), z.number()),
+        staleAfterMinutes: z.number().int().describe('The step setting, else 2.5 × the schedule interval (at least 15), else 24 h'),
+        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it'),
+        stale: z.boolean(),
+      }),
+    )
+    .describe('One partition per source platform; only the ones you may see'),
 });
 
 export const DatasetRow = z
   .record(z.string(), z.unknown())
-  .describe('One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText.');
+  .describe(
+    'One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText, _source { platformId, platform, environment, run } – the platform the row was read from.',
+  );
 
 export const MetricSeries = z.object({
   name: z.string(),
+  source: z.string().describe('The partition (source id) of the series'),
+  sourceName: z.string(),
   points: z.array(z.object({ ts: ts(), value: z.number() })),
 });
 
@@ -647,12 +668,14 @@ export const DatasetRowsQuery = z.object({
   ...page,
   limit: z.number().int().min(1).max(1000).default(100).describe('Page size (1–1000, default 100)'),
   status: z.array(z.enum(DATASET_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Only rows with these statuses (repeat the parameter)'),
+  source: z.array(z.string().max(300)).max(QUERY_LIST_MAX).optional().describe('Only rows of these sources (platform ids; repeat the parameter)'),
 });
 
 export const MetricsQuery = z.object({
   names: z.array(z.string().max(200)).max(QUERY_LIST_MAX).optional().describe('Metric names (repeat the parameter); default all'),
   days: z.number().int().min(1).max(400).default(30).describe('History window in days (1–400, default 30)'),
   points: z.number().int().min(2).max(2000).default(200).describe('Maximum points per series (downsampled, default 200)'),
+  source: z.array(z.string().max(300)).max(QUERY_LIST_MAX).optional().describe('Only these sources (platform ids; repeat the parameter)'),
 });
 
 export const AuditListQuery = z.object({

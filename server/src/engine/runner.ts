@@ -1518,6 +1518,7 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     rows: ctx.redactor.apply(rows),
     metrics,
     staleAfterMinutes: step.staleAfterMinutes,
+    sourceSlot: step.source,
   });
   const counts = Object.entries(meta.statusCounts)
     .map(([k, n]) => `${n} ${k}`)

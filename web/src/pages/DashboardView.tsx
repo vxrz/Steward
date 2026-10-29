@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Anchor, Button, Group, Menu, Paper, Text } from '@mantine/core';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Anchor, Button, Group, Menu, MultiSelect, Paper, Text } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconDots, IconDownload, IconEdit, IconRefresh, IconTrash, IconDeviceFloppy, IconX } from '@tabler/icons-react';
@@ -10,6 +10,7 @@ import { del, get, notifyError, notifyOk, post, put, apiUrl } from '../api';
 import { DetailState, PageHeader } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
 import { fmtRelative } from '../format';
+import { useMe } from '../auth';
 import { DashboardContext, useDatasetMetas } from '../components/dashboard/data';
 import { WidgetGrid } from '../components/dashboard/widgets';
 import { DashboardEditor } from '../components/dashboard/DashboardEditor';
@@ -26,11 +27,44 @@ export function DashboardViewPage() {
   const [fastUntil, setFastUntil] = useState(0);
   const [statusFilter, setStatusFilter] = useState<{ dataset: string; status: DatasetStatus } | null>(null);
   const [busy, setBusy] = useState(false);
+  // the source filter (#142): part of the URL for sharing, remembered per user and dashboard
+  const { username } = useMe();
+  const [params, setParams] = useSearchParams();
+  const storeKey = `sm.dashboardSources.${username}.${id}`;
+  const [sources, setSourcesState] = useState<string[] | null>(() => {
+    const fromUrl = params.get('source');
+    if (fromUrl) return fromUrl.split(',').filter(Boolean);
+    try {
+      const saved = JSON.parse(localStorage.getItem(storeKey) ?? 'null');
+      return Array.isArray(saved) && saved.length ? saved.map(String) : null;
+    } catch {
+      return null;
+    }
+  });
+  const setSources = (v: string[] | null) => {
+    setSourcesState(v);
+    try {
+      if (v?.length) localStorage.setItem(storeKey, JSON.stringify(v));
+      else localStorage.removeItem(storeKey);
+    } catch {
+      /* storage blocked: for this page view */
+    }
+    if (v?.length) params.set('source', v.join(','));
+    else params.delete('source');
+    setParams(params, { replace: true });
+  };
+  useEffect(() => {
+    // a remembered filter goes into the URL, so it can be shared
+    if (sources?.length && !params.get('source')) {
+      params.set('source', sources.join(','));
+      setParams(params, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const d = dash.data;
   const def = draft ?? d?.definition;
   const refreshMs = Date.now() < fastUntil ? 3000 : (def?.refreshSeconds ?? 60) * 1000;
-  const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter }), [refreshMs, statusFilter]);
+  const ctx = useMemo(() => ({ refreshMs, statusFilter, setStatusFilter, sources }), [refreshMs, statusFilter, sources]);
 
   if (!d || !def) return <DetailState query={dash} back="dashboards" />;
 
@@ -144,6 +178,7 @@ export function DashboardViewPage() {
           )
         }
       />
+      <SourceFilter keys={def.widgets.map((w) => w.dataset).filter((x): x is string => !!x)} value={sources} onChange={setSources} />
       {draft && <DashboardEditor value={draft} onChange={setDraft} />}
       {def.widgets.length === 0 ? (
         <Paper withBorder p="lg">
@@ -174,4 +209,31 @@ function LastUpdate({ keys }: { keys: string[] }) {
     .sort()
     .pop();
   return <span>{latest ? t('view.dataFrom', { when: fmtRelative(latest) }) : t('view.noData')}</span>;
+}
+
+/** The dashboard's source filter (#142): shown when its datasets come from more than one source. */
+function SourceFilter({ keys, value, onChange }: { keys: string[]; value: string[] | null; onChange: (v: string[] | null) => void }) {
+  const { t } = useTranslation('dashboards');
+  const metas = useDatasetMetas();
+  const options = new Map<string, { label: string; env: string }>();
+  for (const m of metas.data ?? []) if (keys.includes(m.key)) for (const s of m.sources ?? []) options.set(s.id, { label: s.name, env: s.environment });
+  if (options.size < 2 && !value?.length) return null;
+  const data = [...options.entries()]
+    .sort((a, b) => a[1].label.localeCompare(b[1].label))
+    .map(([v, o]) => ({ value: v, label: o.env ? `${o.label} (${o.env})` : o.label }));
+  return (
+    <Group mb="sm" gap="xs" align="flex-end" data-testid="dashboard-sources">
+      <MultiSelect
+        size="xs"
+        label={t('view.sources')}
+        placeholder={value?.length ? undefined : t('view.allSources')}
+        data={data}
+        value={value ?? []}
+        onChange={(v) => onChange(v.length ? v : null)}
+        clearable
+        searchable
+        w={{ base: '100%', sm: 420 }}
+      />
+    </Group>
+  );
 }

@@ -249,10 +249,15 @@
           "help": "Appended to the history for trend charts"
         },
         "staleAfterMinutes": {
-          "label": "Stale after (minutes)"
+          "label": "Stale after (minutes)",
+          "help": "Default: 2.5 × the interval of the schedule that ran it (at least 15 minutes), else 24 hours"
         },
         "maxRows": {
           "label": "Max rows (safety limit, default 5000)"
+        },
+        "source": {
+          "label": "Source connection (optional)",
+          "help": "Its platform is where the rows come from: every source keeps its own rows. Default: the only connection, else all bound platforms"
         }
       }
     },

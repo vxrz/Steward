@@ -303,10 +303,12 @@ export interface PublishConfig {
   statusText?: string;
   /** Metric name → numeric expression; appended to the dataset's history */
   metrics?: Record<string, string>;
-  /** Data counts as stale when older than this (dashboards show it) */
+  /** Data counts as stale when older than this (dashboards show it); default: 2.5 × the schedule interval, else 24 h */
   staleAfterMinutes?: number;
   /** Safety limit (default 5000 rows) */
   maxRows?: number;
+  /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
+  source?: string;
 }
 /**
  * Document access changes this run made (compliance): one entry per subject. When the run ends,
@@ -487,6 +489,8 @@ const shapes = {
     metrics: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
+    /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
+    source: z.string().max(64).optional(),
   },
   accessChange: {
     type: z.literal('accessChange'),

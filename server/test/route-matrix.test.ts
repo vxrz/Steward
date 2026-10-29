@@ -276,6 +276,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/dashboard-templates': ALL,
   'GET /api/datasets': ALL,
   'GET /api/datasets/:key': ALL,
+  'GET /api/datasets/:key/sources': ALL,
   'DELETE /api/datasets/:key': ADMIN,
   'GET /api/datasets/:key/metrics': ALL,
   'GET /api/bundle/export': ALL,

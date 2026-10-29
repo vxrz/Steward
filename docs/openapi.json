@@ -2587,6 +2587,80 @@
           },
           "stale": {
             "type": "boolean"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Platform id, ids joined with \"+\", or \"instance\""
+                },
+                "name": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string"
+                },
+                "runId": {
+                  "type": "string"
+                },
+                "scheduleId": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "rowCount": {
+                  "type": "integer"
+                },
+                "metrics": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "number"
+                  }
+                },
+                "staleAfterMinutes": {
+                  "type": "integer",
+                  "description": "The step setting, else 2.5 × the schedule interval (at least 15), else 24 h"
+                },
+                "expectedMinutes": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Interval of the schedule that feeds it"
+                },
+                "stale": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "environment",
+                "runId",
+                "scheduleId",
+                "updatedAt",
+                "rowCount",
+                "metrics",
+                "staleAfterMinutes",
+                "expectedMinutes",
+                "stale"
+              ],
+              "additionalProperties": false
+            },
+            "description": "One partition per source platform; only the ones you may see"
           }
         },
         "required": [
@@ -2602,7 +2676,8 @@
           "statusCounts",
           "metrics",
           "staleAfterMinutes",
-          "stale"
+          "stale",
+          "sources"
         ],
         "additionalProperties": false
       },
@@ -2610,13 +2685,20 @@
         "title": "DatasetRow",
         "type": "object",
         "additionalProperties": {},
-        "description": "One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText."
+        "description": "One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText, _source { platformId, platform, environment, run } – the platform the row was read from."
       },
       "MetricSeries": {
         "title": "MetricSeries",
         "type": "object",
         "properties": {
           "name": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "description": "The partition (source id) of the series"
+          },
+          "sourceName": {
             "type": "string"
           },
           "points": {
@@ -2643,6 +2725,8 @@
         },
         "required": [
           "name",
+          "source",
+          "sourceName",
           "points"
         ],
         "additionalProperties": false
@@ -16320,6 +16404,20 @@
           },
           {
             "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only rows of these sources (platform ids; repeat the parameter)"
+          },
+          {
+            "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 200
@@ -16448,6 +16546,20 @@
             "name": "points",
             "required": false,
             "description": "Maximum points per series (downsampled, default 200)"
+          },
+          {
+            "schema": {
+              "maxItems": 50,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 300
+              }
+            },
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "description": "Only these sources (platform ids; repeat the parameter)"
           },
           {
             "schema": {

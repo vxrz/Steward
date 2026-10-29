@@ -249,10 +249,15 @@
           "help": "Werden für Trenddiagramme an den Verlauf angehängt"
         },
         "staleAfterMinutes": {
-          "label": "Veraltet nach (Minuten)"
+          "label": "Veraltet nach (Minuten)",
+          "help": "Standard: 2,5 × das Intervall des Zeitplans, der den Lauf gestartet hat (mindestens 15 Minuten), sonst 24 Stunden"
         },
         "maxRows": {
           "label": "Max. Zeilen (Sicherheitsgrenze, Standard 5000)"
+        },
+        "source": {
+          "label": "Quell-Verbindung (wahlweise)",
+          "help": "Ihre Plattform ist die Herkunft der Zeilen: jede Quelle behält ihre eigenen Zeilen. Standard: die einzige Verbindung, sonst alle gebundenen Plattformen"
         }
       }
     },

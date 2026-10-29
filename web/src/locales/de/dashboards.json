@@ -26,7 +26,8 @@
     "stale": "veraltet",
     "deleteHint": "Datenquelle und ihren Verlauf löschen",
     "delete": "Datenquelle löschen",
-    "deleteConfirm": "Datenquelle „{{key}}“ und ihren Kennzahlenverlauf löschen? Sie wird bei der nächsten Ausführung von {{process}} neu angelegt."
+    "deleteConfirm": "Datenquelle „{{key}}“ und ihren Kennzahlenverlauf löschen? Sie wird bei der nächsten Ausführung von {{process}} neu angelegt.",
+    "sourcePlatform": "Quelle"
   },
   "templates": {
     "title": "Dashboard-Vorlagen",
@@ -64,7 +65,9 @@
     "clickEdit": "Auf „Bearbeiten“ klicken und Widgets hinzufügen.",
     "widgetsHint": "Widgets zeigen Datenquellen, die Prozesse mit einem Knoten „{{node}}“ veröffentlichen – siehe <a>Datenquellen</a>.",
     "dataFrom": "Daten von {{when}}",
-    "noData": "noch keine Daten"
+    "noData": "noch keine Daten",
+    "sources": "Quellen",
+    "allSources": "Alle Quellen"
   },
   "widgets": {
     "kpi": {
@@ -142,7 +145,10 @@
     "rowsShown": "Angezeigte Zeilen",
     "process": "Prozess",
     "text": "Text (Markdown-Teilmenge)",
-    "apply": "Übernehmen"
+    "apply": "Übernehmen",
+    "sources": "Quellen dieses Widgets",
+    "sourcesHint": "Dieses Widget auf diese Quellen festlegen, unabhängig vom Filter des Dashboards",
+    "sourcesAll": "Wie der Filter des Dashboards"
   },
   "w": {
     "chart": "Diagramm",
@@ -183,7 +189,10 @@
     "run": "Ausführung",
     "notScheduled": "nicht geplant",
     "noDatasets": "Keine Datenquellen auf diesem Dashboard.",
-    "unknownType": "Unbekannter Widget-Typ"
+    "unknownType": "Unbekannter Widget-Typ",
+    "last": "zuletzt {{when}}",
+    "expectedEvery_one": "erwartet jede Minute",
+    "expectedEvery_other": "erwartet alle {{count}} Min."
   },
   "charts": {
     "trendLabel": "Trend von {{names}}. Werte mit den Pfeiltasten ablesen.",

@@ -26,7 +26,8 @@
     "stale": "stale",
     "deleteHint": "Delete dataset and its history",
     "delete": "Delete dataset",
-    "deleteConfirm": "Delete dataset \"{{key}}\" and its metric history? It is recreated by the next run of {{process}}."
+    "deleteConfirm": "Delete dataset \"{{key}}\" and its metric history? It is recreated by the next run of {{process}}.",
+    "sourcePlatform": "Source"
   },
   "templates": {
     "title": "Dashboard templates",
@@ -64,7 +65,9 @@
     "clickEdit": "Click Edit and add widgets.",
     "widgetsHint": "Widgets show datasets published by processes with a “{{node}}” node – see <a>datasets</a>.",
     "dataFrom": "data from {{when}}",
-    "noData": "no data yet"
+    "noData": "no data yet",
+    "sources": "Sources",
+    "allSources": "All sources"
   },
   "widgets": {
     "kpi": {
@@ -142,7 +145,10 @@
     "rowsShown": "Rows shown",
     "process": "Process",
     "text": "Text (markdown subset)",
-    "apply": "Apply"
+    "apply": "Apply",
+    "sources": "Sources of this widget",
+    "sourcesHint": "Pin this widget to these sources, whatever the dashboard filter says",
+    "sourcesAll": "As the dashboard filter"
   },
   "w": {
     "chart": "Chart",
@@ -183,7 +189,10 @@
     "run": "run",
     "notScheduled": "not scheduled",
     "noDatasets": "No datasets on this dashboard.",
-    "unknownType": "Unknown widget type"
+    "unknownType": "Unknown widget type",
+    "last": "last {{when}}",
+    "expectedEvery_one": "expected every minute",
+    "expectedEvery_other": "expected every {{count}} min"
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

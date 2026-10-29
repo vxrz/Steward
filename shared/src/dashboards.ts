@@ -18,11 +18,49 @@ export function normalizeStatus(v: unknown): DatasetStatus {
   return 'unknown';
 }
 
+/**
+ * Where a row comes from (#142): the platform it was read from. A dataset is split into one partition per source, so
+ * the same process run against several tenants keeps every tenant's rows. `platformId` is the source id: a platform
+ * id, several joined with "+", or "instance" for a process without connections.
+ */
+export interface DatasetRowSource {
+  platformId: string;
+  /** Current name of the platform(s) */
+  platform: string;
+  environment: string;
+  /** The run that wrote the partition */
+  run: string;
+}
+
 export interface DatasetRow {
   _key?: string;
   _status?: DatasetStatus;
   _statusText?: string;
+  _source?: DatasetRowSource;
   [column: string]: unknown;
+}
+
+/** One partition of a dataset: the rows of one source (#142). */
+export interface DatasetSource {
+  /** Platform id, ids joined with "+", or "instance" */
+  id: string;
+  platformIds: string[];
+  /** Current name(s) of the platform(s); "This instance" for "instance" */
+  name: string;
+  environment: string;
+  runId: string;
+  /** The schedule that fed it, when a schedule did */
+  scheduleId: string | null;
+  updatedAt: string;
+  rowCount: number;
+  dryRun: boolean;
+  statusCounts: Partial<Record<DatasetStatus, number>>;
+  metrics: Record<string, number>;
+  /** Stale after this many minutes: the publish step's setting, else 2.5 × the schedule interval (at least 15), else 24 h */
+  staleAfterMinutes: number;
+  /** The schedule's interval, when a schedule fed it */
+  expectedMinutes: number | null;
+  stale: boolean;
 }
 
 export interface DatasetMeta {
@@ -39,7 +77,10 @@ export interface DatasetMeta {
   /** Latest value per metric */
   metrics: Record<string, number>;
   staleAfterMinutes?: number;
+  /** Any visible partition is stale */
   stale: boolean;
+  /** The visible partitions (#142); rows, counts and metrics above cover these */
+  sources: DatasetSource[];
 }
 
 export interface Dataset extends DatasetMeta {
@@ -53,6 +94,9 @@ export interface MetricPoint {
 
 export interface MetricSeries {
   name: string;
+  /** The partition the series belongs to (#142) */
+  source?: string;
+  sourceName?: string;
   points: MetricPoint[];
 }
 
@@ -95,6 +139,8 @@ export const dashboardWidgetSchema = z.object({
   process: z.string().optional(),
   /** markdown */
   text: z.string().optional(),
+  /** Only these sources (platform ids), whatever the dashboard's source filter says (#142) */
+  source: z.array(z.string().max(300)).max(50).optional(),
 });
 export type DashboardWidget = z.infer<typeof dashboardWidgetSchema>;
 

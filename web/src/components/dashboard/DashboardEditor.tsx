@@ -264,6 +264,17 @@ function WidgetForm({ widget, onClose, onSave }: { widget: DashboardWidget; onCl
             placeholder={t('form.datasetPlaceholder')}
           />
         )}
+        {usesDataset && (meta?.sources?.length ?? 0) > 1 && (
+          <MultiSelect
+            label={t('form.sources')}
+            description={t('form.sourcesHint')}
+            placeholder={t('form.sourcesAll')}
+            data={(meta?.sources ?? []).map((x) => ({ value: x.id, label: x.environment ? `${x.name} (${x.environment})` : x.name }))}
+            value={w.source ?? []}
+            onChange={(v) => set({ source: v.length ? v : undefined })}
+            clearable
+          />
+        )}
         {w.type === 'kpi' && (
           <>
             <Select
