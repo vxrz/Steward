@@ -245,7 +245,10 @@ describe.each(versions)('upgrade from %s', (version) => {
   });
 
   it('keeps runs forever when the old version never limited them (default 400 days only for new installations, 0.2.4)', async () => {
-    expect((await admin('GET', '/settings')).retentionRunDays).toBe(0);
+    // installations from 0.2.4 on started with 400 days and keep them; older ones never limited runs
+    const [major, minor, patch] = version.slice(1).split('.').map(Number) as [number, number, number];
+    const since024 = major > 0 || minor > 2 || (minor === 2 && patch >= 4);
+    expect((await admin('GET', '/settings')).retentionRunDays).toBe(since024 ? 400 : 0);
   });
 
   it('keeps the request paths of API specs imported before path prefixes existed (0.2.1)', async () => {
