@@ -71,7 +71,9 @@
     "dryRun": "Dry run (simulate changes)",
     "rightsOf": "Runs execute with the rights of <b>{{owner}}</b>. The secret is shown once after saving; it is stored encrypted and can be rotated at any time.",
     "rightsOfYou": "Runs execute with your rights (you are the owner). The secret is shown once after saving; it is stored encrypted and can be rotated at any time.",
-    "create": "Create and show secret"
+    "create": "Create and show secret",
+    "messages": "Messages",
+    "messagesHint": "Every failed check of every run notifies. For a sender that calls often, \"On change\" keeps the noise down."
   },
   "secret": {
     "title": "Secret of \"{{name}}\"",

@@ -1,4 +1,5 @@
 import {
+  Divider,
   ActionIcon,
   Badge,
   Button,
@@ -16,7 +17,8 @@ import {
   TextInput,
 } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
-import { MONITOR_STATUSES, type CheckDef, type OutputDef, type OutputType, type Platform, type ProcessSummary } from '@sm/shared';
+import { DEFAULT_TRIGGER_NOTIFY, MONITOR_STATUSES, type CheckDef, type OutputDef, type OutputType, type Platform, type ProcessSummary } from '@sm/shared';
+import { NotifyPolicyFields } from '../notify/NotifyPolicy';
 import { useTranslation } from 'react-i18next';
 import { Hint, KeyValueEditor } from '../common';
 import i18n from '../../i18n';
@@ -279,6 +281,11 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
                   keyLabel={t('outputs.slot')}
                 />
                 <Switch label={t('outputs.dryRun')} disabled={disabled} checked={o.dryRun} onChange={(e) => update(i, { dryRun: e.currentTarget.checked })} />
+                {/* the messages of the runs it starts (#139); kept in the definition, the pause too */}
+                <Divider label={t('outputs.runMessages')} labelPosition="left" />
+                <fieldset disabled={disabled} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                  <NotifyPolicyFields value={o.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }} onChange={(notify) => update(i, { notify })} withPause />
+                </fieldset>
               </>
             )}
             <Group grow align="flex-start">

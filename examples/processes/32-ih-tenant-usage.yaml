@@ -252,6 +252,8 @@ steps:
     name: All figures were read
     severity: warning
     condition: "vars.unread = 0"
+    headline: "{{ vars.unread }} licence figure(s) could not be read"
+    items: 'vars.figures[read = false].(label & '' – step "'' & step & ''"'')'
     message: "{{ vars.unread = 0 ? 'All figures were read' : vars.unread & ' figure(s) could not be read: ' & $join(vars.figures[read = false].label, ', ') & ' – the failed steps of the run show the answer of the platform' }}"
   - id: criticalCheck
     type: check
@@ -259,9 +261,14 @@ steps:
     severity: error
     condition: "vars.critical = 0"
     message: "{{ vars.critical }} figure(s) at or above {{ inputs.criticalPercent }} %: {{ $join(vars.figures[level = 'critical'].(label & ' ' & percent & ' %'), ', ') }}"
+    headline: "{{ vars.critical }} licence figure(s) at {{ inputs.criticalPercent }} % or more"
+    value: "vars.maxPercent"
+    items: "vars.figures[level = 'critical'].(label & ': ' & used & ' of ' & limit & ' ' & unit & ' (' & percent & ' %)')"
   - id: warningCheck
     type: check
     name: No limit above the warning level
     severity: warning
     condition: "vars.warning = 0"
     message: "{{ vars.warning }} figure(s) at or above {{ inputs.warnPercent }} %: {{ $join(vars.figures[level = 'warning'].(label & ' ' & percent & ' %'), ', ') }}"
+    headline: "{{ vars.warning }} licence figure(s) above {{ inputs.warnPercent }} %"
+    items: "vars.figures[level = 'warning'].(label & ': ' & used & ' of ' & limit & ' ' & unit & ' (' & percent & ' %)')"

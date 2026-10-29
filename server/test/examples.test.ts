@@ -121,6 +121,8 @@ describe('example library', () => {
     const { id: runId } = await s.api('POST', '/runs', { processId: id, bindings, inputs: INPUTS[id] ?? {}, dryRun: hasWrites(proc.definition) });
     const r = await finish(runId);
     expect([r.status, r.error]).toEqual(['succeeded', null]);
+    // the headline, value and items of its checks (#144) evaluate
+    expect(JSON.stringify(r.logs ?? [])).not.toContain('could not be evaluated');
   });
 
   it('Gatus – uptime overview (from /metrics) publishes what the Gatus metrics say', async () => {

@@ -5,7 +5,15 @@
  */
 import YAML from 'yaml';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { entryEvidence, type DatasetRow, type ManualTaskState, type ProcessPermission, type TaskRecord } from '@sm/shared';
+import {
+  DEFAULT_SCHEDULE_NOTIFY,
+  DEFAULT_TRIGGER_NOTIFY,
+  entryEvidence,
+  type DatasetRow,
+  type ManualTaskState,
+  type ProcessPermission,
+  type TaskRecord,
+} from '@sm/shared';
 import { config } from '../../config.js';
 import { vault } from '../../vault.js';
 import { db } from '../../db.js';
@@ -18,6 +26,7 @@ import * as users from '../../auth/users.js';
 import * as processes from '../../processes/service.js';
 import * as store from '../../engine/store.js';
 import * as scheduler from '../../scheduler.js';
+import { fullPolicy } from '../../engine/notify-source.js';
 import * as platforms from '../../platforms/service.js';
 import * as triggers from '../../triggers/service.js';
 import { semanticModel, type OssieVersion } from '../../semantic/ossie.js';
@@ -219,6 +228,7 @@ const mapSchedule = (s: ReturnType<typeof scheduler.getSchedule>) => ({
   lastRunId: s.lastRunId ?? null,
   lastRunStatus: s.lastRunStatus ?? null,
   createdAt: s.createdAt,
+  notify: fullPolicy(s.notify, DEFAULT_SCHEDULE_NOTIFY),
 });
 
 /** Base URL without user info, query or fragment (they could carry credentials). */
@@ -253,6 +263,7 @@ const mapTrigger = (t: ReturnType<typeof triggers.getTrigger>) => ({
   lastRunStatus: t.lastRunStatus,
   fireCount: t.fireCount,
   rejectedCount: t.rejectedCount,
+  notify: fullPolicy(t.notify, DEFAULT_TRIGGER_NOTIFY),
 });
 
 const mapPlatform = (p: ReturnType<typeof platforms.getPlatform>) => ({

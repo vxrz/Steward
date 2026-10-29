@@ -4,6 +4,10 @@ import jsonata from 'jsonata';
 import { z } from 'zod';
 import {
   boundedRecord,
+  DEFAULT_TRIGGER_NOTIFY,
+  notifyPolicySchema,
+  type NotifyPause,
+  type ScheduleNotify,
   WEBHOOK_AUTH_MODES,
   WEBHOOK_FORBIDDEN_HEADERS,
   type WebhookFire,
@@ -13,6 +17,8 @@ import {
   type WebhookTriggerSettings,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { policyOfColumns } from '../engine/notify-source.js';
+import { resetAlerts } from '../engine/check-alerts.js';
 import { audit } from '../audit.js';
 import { vault } from '../vault.js';
 import { HttpError, newId, nowIso, parseJson, sha256 } from '../util.js';
@@ -63,6 +69,12 @@ export interface TriggerRow {
   last_rejected_reason: string | null;
   process_name?: string | null;
   last_run_status?: string | null;
+  notify_mode?: string;
+  notify_reminder_hours?: number;
+  notify_resolved?: number;
+  notify_change?: string;
+  notify_channels?: string | null;
+  notify_pause?: string | null;
 }
 
 export const SECRET_PREFIX = 'whs_';
@@ -95,6 +107,7 @@ function toTrigger(r: TriggerRow): WebhookTrigger {
     rateLimitPerMinute: r.rate_limit_per_min,
     dedupeSeconds: r.dedupe_seconds,
     skipIfRunning: !!r.skip_if_running,
+    notify: policyOfColumns(r, DEFAULT_TRIGGER_NOTIFY),
     path: hookPath(r.id),
     secretPrefix: r.secret_prefix,
     secretRotatedAt: r.secret_rotated_at,
@@ -197,6 +210,8 @@ export const settingsSchema = z.object({
   rateLimitPerMinute: z.number().int().min(1).max(600).default(30),
   dedupeSeconds: z.number().int().min(0).max(86400).default(60),
   skipIfRunning: z.boolean().default(true),
+  // a pause sent back with the rest is ignored: it has its own actions
+  notify: notifyPolicySchema.optional(),
 });
 
 function validate(input: WebhookTriggerSettings): WebhookTriggerSettings {
@@ -248,7 +263,26 @@ const auditable = (s: WebhookTriggerSettings) => ({
   rateLimitPerMinute: s.rateLimitPerMinute,
   dedupeSeconds: s.dedupeSeconds,
   skipIfRunning: s.skipIfRunning,
+  notify: s.notify ? { ...s.notify, pause: undefined } : null,
 });
+
+/** Stores the policy of a trigger (the pause is kept: it has its own actions). */
+function writeNotify(id: string, n: ScheduleNotify | undefined, before?: TriggerRow): void {
+  if (!n) return;
+  const kept = before ? policyOfColumns(before, DEFAULT_TRIGGER_NOTIFY) : DEFAULT_TRIGGER_NOTIFY;
+  const change = n.change ?? kept.change ?? 'result';
+  const channels = n.channels === undefined ? kept.channels : n.channels;
+  db().run(
+    'UPDATE webhook_triggers SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
+    n.mode,
+    n.reminderHours,
+    n.resolved ? 1 : 0,
+    change,
+    channels ? JSON.stringify(channels) : null,
+    id,
+  );
+  if (before && (kept.mode !== n.mode || kept.change !== change)) resetAlerts(`trigger:${id}`);
+}
 
 // ---------- CRUD ----------
 
@@ -287,6 +321,7 @@ export function createTrigger(raw: WebhookTriggerSettings): WebhookTriggerSecret
       ts,
       ts,
     );
+    writeNotify(id, s.notify);
     audit({
       action: 'trigger.created',
       entityType: 'trigger',
@@ -326,6 +361,7 @@ export function updateTrigger(id: string, raw: WebhookTriggerSettings): WebhookT
       nowIso(),
       id,
     );
+    writeNotify(id, s.notify, before);
     audit({
       action: 'trigger.updated',
       entityType: 'trigger',
@@ -367,9 +403,28 @@ export function deleteTrigger(id: string): void {
   db().tx(() => {
     db().run('DELETE FROM webhook_triggers WHERE id = ?', id);
     db().run('DELETE FROM webhook_trigger_fires WHERE trigger_id = ?', id);
+    resetAlerts(`trigger:${id}`);
     audit({ action: 'trigger.deleted', entityType: 'trigger', entityId: id, summary: `Webhook trigger "${r.name}" deleted` });
   });
   pendingRejections.delete(id);
+}
+
+/** Pauses the messages of a trigger's runs (#139), like setSchedulePause. Audited as trigger.paused / trigger.resumed. */
+export function setTriggerPause(id: string, pause: NotifyPause | null, reason?: string): WebhookTrigger {
+  const r = requireTriggerEdit(id);
+  db().tx(() => {
+    db().run('UPDATE webhook_triggers SET notify_pause = ? WHERE id = ?', pause ? JSON.stringify({ ...pause, at: nowIso() }) : null, id);
+    audit({
+      action: pause ? 'trigger.paused' : 'trigger.resumed',
+      entityType: 'trigger',
+      entityId: id,
+      summary: pause
+        ? `Messages of webhook trigger "${r.name}" paused ${pause.until ? `until ${pause.until}` : 'until resumed'}${pause.reason ? `: ${pause.reason}` : ''}`
+        : `Messages of webhook trigger "${r.name}" resumed${reason ? ` (${reason})` : ''}`,
+      details: pause ? { until: pause.until, reason: pause.reason, inApp: pause.inApp } : { reason: reason ?? null },
+    });
+  });
+  return getTrigger(id);
 }
 
 /** The decrypted secret – only for server-side test calls, never returned to clients. */

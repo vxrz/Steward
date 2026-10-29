@@ -315,7 +315,8 @@
     "all": "alle",
     "onlyChecks": "Nur diese Prüfungen",
     "add": "Ausgabe hinzufügen",
-    "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern."
+    "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
+    "runMessages": "Nachrichten der gestarteten Läufe"
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",

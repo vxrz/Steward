@@ -328,6 +328,24 @@ export const TaskDetail = z.object({
   manual: ManualStep.nullable().describe('Manual steps only (mode manual)'),
 });
 
+/** The notification policy of a schedule or webhook trigger (#139). */
+export const NotifyPolicy = z
+  .object({
+    mode: z.enum(['change', 'every', 'off']).describe('When failed checks notify'),
+    reminderHours: z.number().int().describe('On change: a reminder while still failing (0: none)'),
+    resolved: z.boolean().describe('A message when a check passes again'),
+    change: z.enum(['result', 'state']).describe('result: a different message or severity is a change; state: only the start and end of failing'),
+    channels: z
+      .array(z.enum(['inApp', 'email', 'teams', 'webhook']))
+      .nullable()
+      .describe('null: as configured (the routes); else only these'),
+    pause: z
+      .object({ until: z.string().nullable().describe('null: until resumed'), reason: z.string(), inApp: z.boolean(), at: z.string().optional() })
+      .nullable()
+      .describe('Messages are paused (runs and checks are not affected)'),
+  })
+  .describe('Who is interrupted by the runs, how and when; never what is recorded');
+
 export const Schedule = z.object({
   id: z.string(),
   name: z.string(),
@@ -346,6 +364,7 @@ export const Schedule = z.object({
   lastRunId: z.string().nullable(),
   lastRunStatus: z.enum(RUN_STATUSES).nullable(),
   createdAt: ts(),
+  notify: NotifyPolicy,
 });
 
 export const Trigger = z
@@ -367,6 +386,7 @@ export const Trigger = z
     lastRunStatus: z.string().nullable(),
     fireCount: z.number().int().describe('Accepted calls'),
     rejectedCount: z.number().int().describe('Rejected calls (wrong secret, address, rate limit …)'),
+    notify: NotifyPolicy,
   })
   .describe('Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API.');
 

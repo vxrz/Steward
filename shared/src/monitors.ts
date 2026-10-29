@@ -5,6 +5,7 @@
  * interval; links never stop a check from running (unless `mode: hard`), they
  * are used to infer root causes and to suppress follow-up alerts.
  */
+import { notifyPolicySchema } from './notifyPolicy.js';
 import { z } from 'zod';
 import type { AclEntry } from './api.js';
 import { boundedRecord } from './zodLimits.js';
@@ -274,6 +275,8 @@ export const outputSchema = z.discriminatedUnion('type', [
     /** Process input → JSONata over { monitor, check, event } */
     inputs: boundedRecord(z.string().max(2000), 200).default({}),
     dryRun: z.boolean().default(false),
+    /** Messages of the runs it starts (#139); missing: after every run, as before 0.2.4 */
+    notify: notifyPolicySchema.optional(),
   }),
 ]);
 export type OutputDef = z.output<typeof outputSchema>;

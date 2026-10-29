@@ -424,7 +424,7 @@ async function startProcesses(o: Extract<OutputDef, { type: 'process' }>, m: Loa
       if (!permissionsFor(o.processId).includes('run')) throw new Error(`${m.owner} may not run process ${o.processId}`);
       return startRun(
         { processId: o.processId, inputs, bindings: o.bindings, dryRun: o.dryRun },
-        { trigger: 'monitor', actor: m.owner, webhook: { triggerId: m.id, triggerName: m.name } },
+        { trigger: 'monitor', actor: m.owner, webhook: { triggerId: m.id, triggerName: m.name, output: o.id } },
       );
     });
     ids.push(runId);

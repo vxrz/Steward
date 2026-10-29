@@ -2119,6 +2119,101 @@
             "type": "string",
             "format": "date-time",
             "description": "ISO 8601 timestamp (UTC)"
+          },
+          "notify": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "change",
+                  "every",
+                  "off"
+                ],
+                "description": "When failed checks notify"
+              },
+              "reminderHours": {
+                "type": "integer",
+                "description": "On change: a reminder while still failing (0: none)"
+              },
+              "resolved": {
+                "type": "boolean",
+                "description": "A message when a check passes again"
+              },
+              "change": {
+                "type": "string",
+                "enum": [
+                  "result",
+                  "state"
+                ],
+                "description": "result: a different message or severity is a change; state: only the start and end of failing"
+              },
+              "channels": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "inApp",
+                        "email",
+                        "teams",
+                        "webhook"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null: as configured (the routes); else only these"
+              },
+              "pause": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "until": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "null: until resumed"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "inApp": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "until",
+                      "reason",
+                      "inApp"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Messages are paused (runs and checks are not affected)"
+              }
+            },
+            "required": [
+              "mode",
+              "reminderHours",
+              "resolved",
+              "change",
+              "channels",
+              "pause"
+            ],
+            "additionalProperties": false,
+            "description": "Who is interrupted by the runs, how and when; never what is recorded"
           }
         },
         "required": [
@@ -2138,7 +2233,8 @@
           "lastRunAt",
           "lastRunId",
           "lastRunStatus",
-          "createdAt"
+          "createdAt",
+          "notify"
         ],
         "additionalProperties": false
       },
@@ -2308,6 +2404,101 @@
           "rejectedCount": {
             "type": "integer",
             "description": "Rejected calls (wrong secret, address, rate limit …)"
+          },
+          "notify": {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "change",
+                  "every",
+                  "off"
+                ],
+                "description": "When failed checks notify"
+              },
+              "reminderHours": {
+                "type": "integer",
+                "description": "On change: a reminder while still failing (0: none)"
+              },
+              "resolved": {
+                "type": "boolean",
+                "description": "A message when a check passes again"
+              },
+              "change": {
+                "type": "string",
+                "enum": [
+                  "result",
+                  "state"
+                ],
+                "description": "result: a different message or severity is a change; state: only the start and end of failing"
+              },
+              "channels": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "inApp",
+                        "email",
+                        "teams",
+                        "webhook"
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null: as configured (the routes); else only these"
+              },
+              "pause": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "until": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "null: until resumed"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "inApp": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "until",
+                      "reason",
+                      "inApp"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Messages are paused (runs and checks are not affected)"
+              }
+            },
+            "required": [
+              "mode",
+              "reminderHours",
+              "resolved",
+              "change",
+              "channels",
+              "pause"
+            ],
+            "additionalProperties": false,
+            "description": "Who is interrupted by the runs, how and when; never what is recorded"
           }
         },
         "required": [
@@ -2327,7 +2518,8 @@
           "lastRunId",
           "lastRunStatus",
           "fireCount",
-          "rejectedCount"
+          "rejectedCount",
+          "notify"
         ],
         "additionalProperties": false,
         "description": "Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API."

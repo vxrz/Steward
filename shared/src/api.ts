@@ -1,4 +1,5 @@
 import type { ErrorParams } from './errors.js';
+import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type {
@@ -871,24 +872,9 @@ export interface Schedule {
   /** Scheduled runs execute with the permissions of this user. */
   owner?: string | null;
   canEdit?: boolean;
-  /** Messages about failed checks of its runs (#127); missing in input: unchanged (new schedules: on change) */
+  /** Notification policy of its runs (#127, #139); missing in input: unchanged (new schedules: on change). `pause` is set with the pause and resume actions. */
   notify?: ScheduleNotify;
 }
-
-/**
- * Failed checks of scheduled runs: on change (when a check starts failing or its result changes, plus a reminder while
- * it keeps failing), after every run (as before 0.2.3), or never. `resolved`: a message when the check passes again.
- */
-export const SCHEDULE_NOTIFY_MODES = ['change', 'every', 'off'] as const;
-export type ScheduleNotifyMode = (typeof SCHEDULE_NOTIFY_MODES)[number];
-export interface ScheduleNotify {
-  mode: ScheduleNotifyMode;
-  /** On change: remind after this many hours while the check keeps failing with the same result (0: no reminder) */
-  reminderHours: number;
-  resolved: boolean;
-}
-export const DEFAULT_SCHEDULE_NOTIFY: ScheduleNotify = { mode: 'change', reminderHours: 4, resolved: false };
-export const SCHEDULE_REMINDER_MAX_HOURS = 24 * 14;
 
 // ---------- Audit ----------
 

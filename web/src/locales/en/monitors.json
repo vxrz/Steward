@@ -315,7 +315,8 @@
     "all": "all",
     "onlyChecks": "Only these checks",
     "add": "Add output",
-    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs."
+    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs.",
+    "runMessages": "Messages of the runs it starts"
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",

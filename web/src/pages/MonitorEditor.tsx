@@ -109,7 +109,8 @@ export function MonitorEditorPage() {
   const [link, setLink] = useState<number | null>(null);
   const [yaml, setYaml] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
-  const [tab, setTab] = useState<string | null>('graph');
+  // ?tab=outputs: the link in messages of runs a monitor output started (#139)
+  const [tab, setTab] = useState<string | null>(new URLSearchParams(window.location.search).get('tab') ?? 'graph');
   const [saving, setSaving] = useState(false);
   const [secrets, setSecrets] = useState<MonitorSaveResult | null>(null);
   // problems are shown on a field once it was changed, and everywhere after the first save attempt

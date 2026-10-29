@@ -1,6 +1,8 @@
 import { Cron } from 'croner';
 import { openInputs, sealInputs } from './engine/secret-inputs.js';
-import { DEFAULT_SCHEDULE_NOTIFY, type RunStatus, type Schedule, type ScheduleNotify, type ScheduleNotifyMode } from '@sm/shared';
+import { DEFAULT_SCHEDULE_NOTIFY, type NotifyPause, type RunStatus, type Schedule, type ScheduleNotify, type ScheduleNotifyMode } from '@sm/shared';
+import { policyOfColumns } from './engine/notify-source.js';
+import { resetAlerts } from './engine/check-alerts.js';
 import { db } from './db.js';
 import { audit } from './audit.js';
 import { startRun } from './engine/runner.js';
@@ -35,13 +37,12 @@ interface ScheduleRow {
   notify_mode?: ScheduleNotifyMode;
   notify_reminder_hours?: number;
   notify_resolved?: number;
+  notify_change?: string;
+  notify_channels?: string | null;
+  notify_pause?: string | null;
 }
 
-const notifyOf = (r: ScheduleRow): ScheduleNotify => ({
-  mode: r.notify_mode ?? DEFAULT_SCHEDULE_NOTIFY.mode,
-  reminderHours: Number(r.notify_reminder_hours ?? DEFAULT_SCHEDULE_NOTIFY.reminderHours),
-  resolved: !!(r.notify_resolved ?? 0),
-});
+const notifyOf = (r: ScheduleRow): ScheduleNotify => policyOfColumns(r, DEFAULT_SCHEDULE_NOTIFY);
 
 const jobs = new Map<string, Cron>();
 
@@ -122,7 +123,17 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
   const { visible, sealed } = sealInputs(proc.definition.inputs, input.inputs ?? {}, previous);
   input = { ...input, inputs: visible };
   const before = id ? db().get<ScheduleRow>('SELECT * FROM schedules WHERE id = ?', id) : undefined;
-  const notify = input.notify ?? (before ? notifyOf(before) : DEFAULT_SCHEDULE_NOTIFY);
+  // the pause has its own actions: a save keeps it
+  const kept = before ? notifyOf(before) : DEFAULT_SCHEDULE_NOTIFY;
+  const notify: ScheduleNotify = input.notify
+    ? {
+        ...kept,
+        ...input.notify,
+        change: input.notify.change ?? kept.change,
+        channels: input.notify.channels === undefined ? kept.channels : input.notify.channels,
+        pause: kept.pause ?? null,
+      }
+    : kept;
   db().tx(() => {
     if (id) {
       const r = db().run(
@@ -141,7 +152,7 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       if (!r.changes) throw new HttpError(404, 'Schedule not found');
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, id);
       // a schedule that stops notifying, or notifies after every run, starts over with its failing checks
-      if (before && before.notify_mode !== notify.mode) db().run('DELETE FROM check_alerts WHERE schedule_id = ?', id);
+      if (before && (before.notify_mode !== notify.mode || (before.notify_change ?? 'result') !== notify.change)) resetAlerts(`schedule:${id}`);
     } else {
       db().run(
         `INSERT INTO schedules (id, name, process_id, cron, timezone, inputs, bindings, dry_run, enabled, allow_overlap, created_at, owner)
@@ -162,10 +173,12 @@ export function saveSchedule(input: ScheduleInput, id?: string): Schedule {
       db().run('UPDATE schedules SET sealed_inputs = ? WHERE id = ?', sealed, sid);
     }
     db().run(
-      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ? WHERE id = ?',
+      'UPDATE schedules SET notify_mode = ?, notify_reminder_hours = ?, notify_resolved = ?, notify_change = ?, notify_channels = ? WHERE id = ?',
       notify.mode,
       notify.reminderHours,
       notify.resolved ? 1 : 0,
+      notify.change ?? 'result',
+      notify.channels ? JSON.stringify(notify.channels) : null,
       sid,
     );
     audit({
@@ -185,8 +198,30 @@ export function deleteSchedule(id: string): void {
   disarm(id);
   db().tx(() => {
     db().run('DELETE FROM schedules WHERE id = ?', id);
+    resetAlerts(`schedule:${id}`);
     audit({ action: 'schedule.deleted', entityType: 'schedule', entityId: id, summary: `Schedule "${s.name}" deleted` });
   });
+}
+
+/**
+ * Pauses the messages of a schedule's runs (#139) until `until` (null: until resumed), optionally still in the app.
+ * Runs, checks and the start page are not affected. Audited as schedule.paused / schedule.resumed.
+ */
+export function setSchedulePause(id: string, pause: NotifyPause | null, reason?: string): Schedule {
+  const s = getSchedule(id);
+  db().tx(() => {
+    db().run('UPDATE schedules SET notify_pause = ? WHERE id = ?', pause ? JSON.stringify({ ...pause, at: nowIso() }) : null, id);
+    audit({
+      action: pause ? 'schedule.paused' : 'schedule.resumed',
+      entityType: 'schedule',
+      entityId: id,
+      summary: pause
+        ? `Messages of schedule "${s.name}" paused ${pause.until ? `until ${pause.until}` : 'until resumed'}${pause.reason ? `: ${pause.reason}` : ''}`
+        : `Messages of schedule "${s.name}" resumed${reason ? ` (${reason})` : ''}`,
+      details: pause ? { until: pause.until, reason: pause.reason, inApp: pause.inApp } : { reason: reason ?? null },
+    });
+  });
+  return getSchedule(id);
 }
 
 function disarm(id: string) {

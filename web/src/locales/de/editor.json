@@ -144,6 +144,25 @@
         "notify": {
           "label": "Melden, wenn die Prüfung fehlschlägt",
           "help": "Standard: ja. Nein: eine informative Prüfung – im Lauf sichtbar, nie gemeldet"
+        },
+        "headline": {
+          "label": "Überschrift der Nachricht (optional)",
+          "help": "Ein kurzer Satz zum Fehler, als Betreff verwendet, z. B. {{ $count(vars.down) }} von {{ vars.total }} Endpunkten ausgefallen"
+        },
+        "value": {
+          "label": "Wert (optional)",
+          "help": "Die Zahl, auf die es ankommt, z. B. die ausgefallenen Endpunkte; Nachrichten sagen, ob es besser wurde"
+        },
+        "betterWhen": {
+          "label": "Besser, wenn der Wert"
+        },
+        "items": {
+          "label": "Einträge (optional)",
+          "help": "Eine Liste, die in der Nachricht als Aufzählung erscheint, z. B. die Namen der ausgefallenen Endpunkte"
+        },
+        "runbook": {
+          "label": "Runbook (wahlweise)",
+          "help": "Die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL; Standard: das Runbook des Prozesses"
         }
       }
     },
@@ -592,6 +611,13 @@
       "auto": "PDF-Bericht automatisch erstellen, wenn eine Ausführung endet",
       "autoHint": "Praktisch für geplante Ausführungen: Der Bericht wird mit der Ausführung archiviert, sein SHA-256 steht im Audit-Log. Berichte lassen sich jederzeit auch von Hand auf der Seite der Ausführung erstellen.",
       "language": "Sprache des Berichts"
+    },
+    "messages": {
+      "title": "Nachrichten",
+      "runbook": "Runbook (wahlweise)",
+      "runbookHint": "Was zu tun ist, wenn eine Prüfung fehlschlägt: die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL. Nachrichten zu fehlgeschlagenen Prüfungen zeigen „Runbook öffnen“ nur, wenn eines gesetzt ist; ein Prüfschritt kann ein eigenes nennen.",
+      "runbookInvalid": "Die Id eines lebenden Dokuments (rec_…) oder eine http(s)-URL",
+      "runbookPlaceholder": "https://… oder rec_…"
     }
   },
   "general": {

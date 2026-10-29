@@ -398,8 +398,8 @@ export async function startRun(
   opts: {
     trigger?: 'manual' | 'schedule' | 'subprocess' | 'webhook' | 'monitor';
     scheduleId?: string;
-    /** Webhook trigger (trigger 'webhook') or monitor (trigger 'monitor') that started the run */
-    webhook?: { triggerId: string; triggerName: string; test?: boolean };
+    /** Webhook trigger (trigger 'webhook') or monitor (trigger 'monitor', with the output id) that started the run */
+    webhook?: { triggerId: string; triggerName: string; test?: boolean; output?: string };
     actor?: string;
     /** Sub-process: the run and step (activation key) that started this run */
     parent?: { runId: string; stepKey: string };
@@ -422,8 +422,8 @@ export async function startRun(
   );
   db().tx(() => {
     db().run(
-      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, sealed_inputs)
-       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, process_id, process_name, process_version, definition_hash, status, dry_run, recorded, trigger, schedule_id, actor, inputs, bindings, started_at, stats, parent_run_id, parent_step_key, trigger_id, trigger_name, trigger_output, sealed_inputs)
+       VALUES (?, ?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       runId,
       proc.id,
       proc.name,
@@ -442,6 +442,7 @@ export async function startRun(
       opts.parent?.stepKey ?? null,
       opts.webhook?.triggerId ?? null,
       opts.webhook?.triggerName ?? null,
+      opts.webhook?.output ?? null,
       sealed,
     );
     audit({
@@ -1148,6 +1149,8 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
       const passed = await ctx.bool(step.condition);
       const message = (await ctx.str(step.message)) || (passed ? 'Passed' : `Condition not met: ${step.condition}`);
       const severity = step.severity ?? 'error';
+      // what the messages say (#144): optional, and a problem here never fails the check
+      const content = await checkContent(ctx, step, passed, key);
       if (passed) ctx.stats.checksPassed++;
       else {
         ctx.stats.checksFailed++;
@@ -1173,12 +1176,16 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         message,
         dryRun: ctx.dryRun,
         notify: step.notify,
+        checkId: step.id,
+        ...content,
+        betterWhen: step.betterWhen ?? 'lower',
+        runbook: step.runbook ?? ctx.def.runbook ?? null,
       });
       if (!passed && step.failRun) throw new Error(message);
       return {
         status: passed ? 'succeeded' : 'failed',
         // notify: false (informational check) stays out of the start page's failed checks
-        output: { passed, severity, message, ...(step.notify === false ? { notify: false } : {}) },
+        output: { passed, severity, message, ...content, ...(step.notify === false ? { notify: false } : {}) },
         summary: `${passed ? '✔' : '✘'} ${message}`,
       };
     }
@@ -1896,4 +1903,47 @@ async function execBrowser(step: NodeOf<'browser'>, ctx: RunContext, key: string
     output: { ...extracted, url: page.url(), title: await page.title(), screenshots: shots },
     summary: `${step.actions.length} action(s)${shots.length ? `, ${shots.length} screenshot(s)` : ''}`,
   };
+}
+
+/** Most items a check keeps for its messages, and characters per item (#144). */
+const CHECK_ITEMS_MAX = 200;
+const CHECK_ITEM_CHARS = 300;
+
+/**
+ * The optional content of a check's messages (#144): the headline and the items of a failure and the value. They are
+ * evaluated like the message; an expression that fails only logs a warning, the check result stays as it is.
+ */
+async function checkContent(
+  ctx: RunContext,
+  step: NodeOf<'check'>,
+  passed: boolean,
+  key: string,
+): Promise<{ headline?: string; value?: number; items?: string[] }> {
+  const out: { headline?: string; value?: number; items?: string[] } = {};
+  const attempt = async (what: string, fn: () => Promise<void>) => {
+    try {
+      await fn();
+    } catch (e) {
+      ctx.log('warn', `Check "${step.name || step.id}": the ${what} could not be evaluated – ${(e as Error).message}`, key);
+    }
+  };
+  if (step.value?.trim())
+    await attempt('value', async () => {
+      const v = Number(await ctx.eval(step.value!));
+      if (Number.isFinite(v)) out.value = v;
+    });
+  if (!passed && step.headline?.trim())
+    await attempt('headline', async () => {
+      const h = (await ctx.str(step.headline!)).replace(/\s+/g, ' ').trim();
+      if (h) out.headline = h.slice(0, 200);
+    });
+  if (!passed && step.items?.trim())
+    await attempt('items', async () => {
+      const v = await ctx.eval(step.items!);
+      const list = (Array.isArray(v) ? v : v === undefined || v === null ? [] : [v])
+        .map((x) => (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, CHECK_ITEM_CHARS))
+        .filter(Boolean);
+      if (list.length) out.items = list.slice(0, CHECK_ITEMS_MAX);
+    });
+  return out;
 }

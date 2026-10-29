@@ -1,4 +1,11 @@
 import { z } from 'zod';
+
+/** A runbook (#144): a living document of Steward (its id, rec_…) or an http(s) URL. */
+export const runbookRef = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((v) => /^https?:\/\/\S+$/i.test(v) || /^rec_[A-Za-z0-9_-]{4,64}$/.test(v), 'a living document id (rec_…) or an http(s) URL');
 import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
@@ -238,6 +245,16 @@ export interface CheckConfig {
   failRun?: boolean;
   /** false: an informational check – shown in the run, never notified */
   notify?: boolean;
+  /** Messages (#144): a short sentence for the failure (template), e.g. "{{ $count(vars.down) }} of {{ vars.total }} endpoints down" */
+  headline?: string;
+  /** Messages: the number that matters (expression), e.g. the endpoints down; with it a message says "11 (was 12) · better" */
+  value?: string;
+  /** Messages: whether a lower (default) or a higher value is better */
+  betterWhen?: 'lower' | 'higher';
+  /** Messages: the list behind the failure (expression returning a list), shown as bullets */
+  items?: string;
+  /** Messages: what to do – a living document (rec_…) or an http(s) URL; default the process's runbook */
+  runbook?: string;
 }
 export interface LogConfig {
   type: 'log';
@@ -437,6 +454,11 @@ const shapes = {
     message: z.string().optional(),
     failRun: z.boolean().optional(),
     notify: z.boolean().optional(),
+    headline: z.string().max(500).optional(),
+    value: z.string().max(4000).optional(),
+    betterWhen: z.enum(['lower', 'higher']).optional(),
+    items: z.string().max(4000).optional(),
+    runbook: runbookRef.optional(),
   },
   log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },
   report: {
@@ -676,6 +698,8 @@ export type ConnectionSlot = z.infer<typeof connectionSlotSchema>;
 const definitionBase = {
   name: z.string().min(1),
   description: z.string().optional(),
+  /** What to do when a check fails (#144): a living document (rec_…) or an http(s) URL; check steps may name their own */
+  runbook: runbookRef.optional(),
   tags: z.array(z.string()).max(50).optional(),
   connections: z.array(connectionSlotSchema).max(100).default([]),
   inputs: z.array(inputDefSchema).max(200).default([]),

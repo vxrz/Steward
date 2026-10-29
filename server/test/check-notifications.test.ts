@@ -103,16 +103,20 @@ const titlesFor = async (runIds: string[]) =>
 describe('failed checks of scheduled runs', () => {
   it('new schedules notify on change: start, change, nothing while unchanged, a reminder after the interval', async () => {
     const sch = await schedule();
-    expect(sch.notify).toEqual({ mode: 'change', reminderHours: 4, resolved: false });
+    expect(sch.notify).toEqual({ mode: 'change', reminderHours: 4, resolved: false, change: 'result', channels: null, pause: null });
     received.length = 0;
     const r1 = await fire(sch, ['a']);
     const r2 = await fire(sch, ['a']);
     const r3 = await fire(sch, ['a', 'b']);
     const r4 = await fire(sch, ['a', 'b']);
+    // state first, then where (#144); the first line says what happened
     expect(await titlesFor([r1, r2, r3, r4])).toEqual([
-      'Check failed: All endpoints healthy in Endpoints overview',
-      'Check result changed: All endpoints healthy in Endpoints overview',
+      'Warning · All endpoints healthy – Endpoints overview',
+      'Warning · All endpoints healthy – Endpoints overview',
     ]);
+    const bodies = (await inbox()).filter((n) => [r1, r3].includes(n.link.slice(6))).map((n) => n.body.split('\n')[0]);
+    expect(bodies).toContain('Started failing');
+    expect(bodies.some((b: string) => /^Changed · failing since /.test(b))).toBe(true);
     // the webhook gets the same two, although they came within the hour (each is news)
     expect(hooks('check.failed').map((h) => [h.body.data.phase, h.body.data.message])).toEqual([
       ['new', 'Down: a'],
@@ -123,20 +127,20 @@ describe('failed checks of scheduled runs', () => {
 
     // still failing four hours later: a reminder with the time it started failing
     const { db } = await import('../src/db.js');
-    db().run("UPDATE check_alerts SET notified_at = '2000-01-01T00:00:00.000Z' WHERE schedule_id = ?", sch.id);
+    db().run("UPDATE notify_alerts SET notified_at = '2000-01-01T00:00:00.000Z' WHERE source = ?", `schedule:${sch.id}`);
     const r5 = await fire(sch, ['a', 'b']);
     const reminder = (await inbox()).find((n) => n.link === `/runs/${r5}`);
-    expect(reminder.title).toBe('Still failing: All endpoints healthy in Endpoints overview');
-    expect(reminder.body).toMatch(/Failing since /);
+    expect(reminder.title).toBe('Warning · All endpoints healthy – Endpoints overview');
+    expect(reminder.body).toMatch(/^Still failing \(reminder\) · since /);
     const r6 = await fire(sch, ['a', 'b']);
     expect(await titlesFor([r6])).toEqual([]);
 
     // passing again: no message unless asked for, and a new failure starts over
     const r7 = await fire(sch, []);
     expect(await titlesFor([r7])).toEqual([]);
-    expect(db().get('SELECT 1 FROM check_alerts WHERE schedule_id = ?', sch.id)).toBeUndefined();
+    expect(db().get('SELECT 1 FROM notify_alerts WHERE source = ?', `schedule:${sch.id}`)).toBeUndefined();
     const r8 = await fire(sch, ['c']);
-    expect(await titlesFor([r8])).toEqual(['Check failed: All endpoints healthy in Endpoints overview']);
+    expect(await titlesFor([r8])).toEqual(['Warning · All endpoints healthy – Endpoints overview']);
   });
 
   it('sends "passes again" when the schedule asks for it; no reminder with 0 hours', async () => {
@@ -144,16 +148,16 @@ describe('failed checks of scheduled runs', () => {
     received.length = 0;
     const r1 = await fire(sch, ['a']);
     const { db } = await import('../src/db.js');
-    db().run("UPDATE check_alerts SET notified_at = '2000-01-01T00:00:00.000Z' WHERE schedule_id = ?", sch.id);
+    db().run("UPDATE notify_alerts SET notified_at = '2000-01-01T00:00:00.000Z' WHERE source = ?", `schedule:${sch.id}`);
     const r2 = await fire(sch, ['a']);
     const r3 = await fire(sch, []);
     const r4 = await fire(sch, []);
     expect(await titlesFor([r1, r2, r3, r4])).toEqual([
-      'Check failed: All endpoints healthy in Endpoints overview',
-      'Check passes again: All endpoints healthy in Endpoints overview',
+      'Passes again · All endpoints healthy – Endpoints overview',
+      'Warning · All endpoints healthy – Endpoints overview',
     ]);
     const resolved = (await inbox()).find((n) => n.link === `/runs/${r3}`);
-    expect(resolved.body).toMatch(/It had been failing since /);
+    expect(resolved.body).toMatch(/^Passes again – it had been failing since /);
     expect(hooks('check.resolved')).toHaveLength(1);
   });
 
@@ -169,7 +173,7 @@ describe('failed checks of scheduled runs', () => {
   it('keeps the setting when a schedule is saved without it, and audits a change', async () => {
     const sch = await schedule({ mode: 'every', reminderHours: 2, resolved: true });
     await s.api('PUT', `/schedules/${sch.id}`, { name: sch.name, processId, cron: sch.cron, inputs: {}, bindings: {}, enabled: false });
-    expect((await s.api('GET', '/schedules')).find((x: any) => x.id === sch.id).notify).toEqual({ mode: 'every', reminderHours: 2, resolved: true });
+    expect((await s.api('GET', '/schedules')).find((x: any) => x.id === sch.id).notify).toMatchObject({ mode: 'every', reminderHours: 2, resolved: true });
     const changed = await s.api('PUT', `/schedules/${sch.id}`, {
       name: sch.name,
       processId,
@@ -181,7 +185,7 @@ describe('failed checks of scheduled runs', () => {
     });
     expect(changed.notify.mode).toBe('off');
     const audit = await s.api('GET', `/audit?entityType=schedule&entityId=${sch.id}&limit=5`);
-    expect(audit[0].details.notify).toEqual({ mode: 'off', reminderHours: 0, resolved: false });
+    expect(audit[0].details.notify).toMatchObject({ mode: 'off', reminderHours: 0, resolved: false });
     const bad = (notify: unknown) =>
       s.api('PUT', `/schedules/${sch.id}`, { name: sch.name, processId, cron: sch.cron, inputs: {}, bindings: {}, enabled: false, notify }).then(
         () => 200,
@@ -200,9 +204,6 @@ describe('failed checks of scheduled runs', () => {
       ids.push(id);
     }
     await settle();
-    expect(await titlesFor(ids)).toEqual([
-      'Check failed: All endpoints healthy in Endpoints overview',
-      'Check failed: All endpoints healthy in Endpoints overview',
-    ]);
+    expect(await titlesFor(ids)).toEqual(['Warning · All endpoints healthy – Endpoints overview', 'Warning · All endpoints healthy – Endpoints overview']);
   });
 });

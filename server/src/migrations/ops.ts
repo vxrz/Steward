@@ -82,4 +82,39 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     sql: `INSERT INTO settings (key, value) SELECT 'retentionRunDays', '0'
           WHERE EXISTS (SELECT 1 FROM users) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'retentionRunDays');`,
   },
+  {
+    // #139: one notification policy for every source that repeats runs. Schedules get "what counts as a change", the
+    // channels and a pause; runs started by a monitor output remember the output. The failing-check state moves from
+    // check_alerts (per schedule) to notify_alerts (per source: schedule:<id>, trigger:<id>, monitor:<id>:<output>),
+    // with the check's value (#144). No behaviour changes: the defaults are the settings of 0.2.3.
+    name: 'ops-006-notify-policy',
+    sql: `
+    ALTER TABLE schedules ADD COLUMN notify_change TEXT NOT NULL DEFAULT 'result';
+    ALTER TABLE schedules ADD COLUMN notify_channels TEXT;
+    ALTER TABLE schedules ADD COLUMN notify_pause TEXT;
+    ALTER TABLE runs ADD COLUMN trigger_output TEXT;
+    CREATE TABLE notify_alerts (
+      source TEXT NOT NULL,
+      check_name TEXT NOT NULL,
+      dry_run INTEGER NOT NULL,
+      failing_since TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      message TEXT NOT NULL,
+      value REAL,
+      notified_at TEXT NOT NULL,
+      last_run_id TEXT NOT NULL,
+      PRIMARY KEY (source, check_name, dry_run)
+    );
+    INSERT INTO notify_alerts (source, check_name, dry_run, failing_since, severity, message, notified_at, last_run_id)
+      SELECT 'schedule:' || schedule_id, check_name, dry_run, failing_since, severity, message, notified_at, last_run_id FROM check_alerts;
+    DROP TABLE check_alerts;
+    -- a pause that ended while checks still fail sends one "still failing" message (per source and pause end)
+    CREATE TABLE notify_pause_ends (
+      source TEXT NOT NULL,
+      until TEXT NOT NULL,
+      notified_at TEXT NOT NULL,
+      PRIMARY KEY (source, until)
+    );
+    `,
+  },
 ];

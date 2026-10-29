@@ -162,12 +162,19 @@ steps:
     severity: warning
     condition: "$count(vars.down) = 0"
     message: "{{ $count(vars.down) = 0 ? 'All ' & $count(vars.rows) & ' endpoint(s) healthy' : $count(vars.down) & ' of ' & $count(vars.rows) & ' endpoint(s) down: ' & $join(vars.down.(group ? group & '/' & endpoint : endpoint), ', ') }}"
+    headline: "{{ $count(vars.down) }} of {{ $count(vars.rows) }} endpoints down"
+    value: "$count(vars.down)"
+    items: "vars.down.(group ? group & '/' & endpoint : endpoint)"
   - id: certificates
     type: check
     name: No TLS certificate expires soon
     severity: warning
     condition: "$count(vars.expiring) = 0"
     message: "{{ $count(vars.expiring) = 0 ? 'No certificate expires within ' & inputs.certWarnDays & ' days' : $join(vars.expiring.(endpoint & ' in ' & certDays & ' day(s)'), ', ') }}"
+    headline: "{{ $count(vars.expiring) }} TLS certificate(s) expire within {{ inputs.certWarnDays }} days"
+    value: "$min(vars.expiring.certDays)"
+    betterWhen: higher
+    items: "vars.expiring.(endpoint & ' – ' & certDays & ' day(s) left')"
   - id: report
     type: report
     name: Uptime overview

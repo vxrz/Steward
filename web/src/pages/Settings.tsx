@@ -295,7 +295,12 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <ThemeSettingsCard />}
         {!readOnly && <VaultPassphraseCard />}
         {!readOnly && <ReportBrandingCard />}
-        {!readOnly && <NotificationSettingsCard />}
+        {/* #notifications: the link in messages (#144) */}
+        {!readOnly && (
+          <div id="notifications">
+            <NotificationSettingsCard />
+          </div>
+        )}
         {!readOnly && <NotificationLookCard />}
         {!readOnly && <DailySummaryAdminCard />}
         {!readOnly && <CredentialReminderSettingsCard />}

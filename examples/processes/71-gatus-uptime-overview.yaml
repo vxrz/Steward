@@ -106,6 +106,10 @@ steps:
     severity: warning
     condition: "$count(vars.down) = 0"
     message: "{{ $count(vars.down) = 0 ? 'All ' & $count(vars.rows) & ' endpoint(s) healthy' : $count(vars.down) & ' of ' & $count(vars.rows) & ' endpoint(s) down: ' & $join(vars.down.(group & '/' & endpoint & (error ? ' (' & error & ')' : '')), ', ') }}"
+    # what the messages say (#144): the headline is the subject, the value says whether it got better
+    headline: "{{ $count(vars.down) }} of {{ $count(vars.rows) }} endpoints down"
+    value: "$count(vars.down)"
+    items: "vars.down.(group & '/' & endpoint & (error ? ' – ' & error : ''))"
   - id: report
     type: report
     name: Uptime overview

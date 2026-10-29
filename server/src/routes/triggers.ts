@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { boundedRecord, WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
+import { boundedRecord, notifyPauseSchema, WEBHOOK_MAX_BODY_BYTES, type WebhookMappingPreview, type WebhookTestResult } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { db } from '../db.js';
 import { currentUser } from '../auth/context.js';
@@ -89,6 +89,9 @@ export async function triggerRoutes(app: FastifyInstance): Promise<void> {
     triggers.deleteTrigger(params(req).id!);
     return { ok: true };
   });
+  // pause and resume the messages of a trigger's runs (#139)
+  app.post('/triggers/:id/pause', async (req) => triggers.setTriggerPause(params(req).id!, notifyPauseSchema.omit({ at: true }).parse(req.body ?? {})));
+  app.post('/triggers/:id/resume', async (req) => triggers.setTriggerPause(params(req).id!, null));
   app.post('/triggers/:id/rotate', async (req) => {
     const r = triggers.requireTriggerEdit(params(req).id!);
     requireProcessRun(r.process_id);

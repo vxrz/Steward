@@ -334,6 +334,8 @@ export function emailHtml(o: {
   content: string;
   tone?: MessageTone;
   button?: { label: string; href: string };
+  /** More buttons before `button` (e.g. "Open runbook") */
+  buttons?: { label: string; href: string }[];
   /** Small print under the content (e.g. how to turn the daily summary off); HTML, escaped by the caller */
   note?: string;
   /** Image source of the logo: the cid for a sent e-mail, a data URL for the preview */
@@ -369,8 +371,13 @@ export function emailHtml(o: {
   const banner = o.banner
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px"><tr><td style="background:#f1f3f5;border-left:4px solid ${TONE_HEX.emphasis};border-radius:${buttonRadius}px;padding:10px 12px;font-family:${font};font-size:14px;line-height:1.4;color:#212529"><strong>${escHtml(o.banner)}</strong></td></tr></table>`
     : '';
-  const button = o.button
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 4px"><tr><td style="border-radius:${buttonRadius}px;background:${l.button}"><a href="${escHtml(o.button.href)}" style="display:inline-block;padding:10px 18px;font-family:${font};font-size:14px;font-weight:600;color:${l.onButton};text-decoration:none;border-radius:${buttonRadius}px">${escHtml(o.button.label)}</a></td></tr></table>`
+  const one = (b: { label: string; href: string }, primary: boolean) =>
+    primary
+      ? `<td style="border-radius:${buttonRadius}px;background:${l.button}"><a href="${escHtml(b.href)}" style="display:inline-block;padding:10px 18px;font-family:${font};font-size:14px;font-weight:600;color:${l.onButton};text-decoration:none;border-radius:${buttonRadius}px">${escHtml(b.label)}</a></td>`
+      : `<td style="border-radius:${buttonRadius}px;border:1px solid ${l.button}"><a href="${escHtml(b.href)}" style="display:inline-block;padding:9px 17px;font-family:${font};font-size:14px;font-weight:600;color:#212529;text-decoration:none;border-radius:${buttonRadius}px">${escHtml(b.label)}</a></td>`;
+  const all = [...(o.buttons ?? []).map((b) => one(b, false)), ...(o.button ? [one(o.button, true)] : [])];
+  const button = all.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:20px 0 4px"><tr>${all.join('<td style="width:8px">&nbsp;</td>')}</tr></table>`
     : '';
   const footer = [o.note ? `<p style="margin:0 0 6px">${o.note}</p>` : '', l.footer ? `<p style="margin:0">${escHtml(l.footer)}</p>` : ''].join('');
   return [

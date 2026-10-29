@@ -25,7 +25,7 @@ import {
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconCopy, IconEdit, IconHistory, IconKey, IconPlus, IconSend, IconTrash, IconWebhook } from '@tabler/icons-react';
 import type {
   ProcessDetail,
@@ -38,6 +38,7 @@ import type {
   WebhookTriggerSecret,
   WebhookTriggerSettings,
 } from '@sm/shared';
+import { DEFAULT_TRIGGER_NOTIFY } from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, Hint, PageHeader, QueryState, StatusBadge } from '../components/common';
@@ -46,6 +47,7 @@ import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
 import { RunModeField } from '../components/RunModeField';
+import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -64,6 +66,7 @@ const emptyDraft = (): Draft => ({
   rateLimitPerMinute: 30,
   dedupeSeconds: 300,
   skipIfRunning: true,
+  notify: { ...DEFAULT_TRIGGER_NOTIFY },
 });
 
 const toDraft = (tr: WebhookTrigger): Draft => ({
@@ -83,6 +86,7 @@ const toDraft = (tr: WebhookTrigger): Draft => ({
   rateLimitPerMinute: tr.rateLimitPerMinute,
   dedupeSeconds: tr.dedupeSeconds,
   skipIfRunning: tr.skipIfRunning,
+  notify: tr.notify ?? { ...DEFAULT_TRIGGER_NOTIFY },
 });
 
 /** The JSON body of the Gatus custom alert in docs/GATUS.md (placeholders already replaced). */
@@ -119,8 +123,22 @@ export function TriggersPage() {
   const [history, setHistory] = useState<WebhookTrigger | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ['triggers'] });
 
+  // ?edit=<id> (links in messages, #139) opens the trigger
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get('edit');
+    const found = id && triggers.data?.find((x) => x.id === id);
+    if (found && found.canEdit) {
+      setDraft(toDraft(found));
+      params.delete('edit');
+      setParams(params, { replace: true });
+    }
+  }, [params, triggers.data, setParams]);
+
   const save = async (d: Draft): Promise<boolean> => {
-    const { id, owner: _owner, ...body } = d;
+    const { id, owner: _owner, ...rest } = d;
+    // the pause has its own actions
+    const body = { ...rest, ...(rest.notify ? { notify: { ...rest.notify, pause: undefined } } : {}) };
     try {
       if (id) await put(`/triggers/${id}`, body);
       else setSecret(await post<WebhookTriggerSecret>('/triggers', body));
@@ -194,9 +212,12 @@ export function TriggersPage() {
                     />
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {tr.name}
-                    </Text>
+                    <Group gap={6}>
+                      <Text size="sm" fw={500}>
+                        {tr.name}
+                      </Text>
+                      <PauseBadge pause={tr.notify?.pause} />
+                    </Group>
                     <Text size="xs" c="dimmed">
                       <Link to={`/processes/${tr.processId}`}>{tr.processName ?? tr.processId}</Link>
                       {tr.processVersion ? ` v${tr.processVersion}` : ''} · {t('runsAs', { owner: tr.owner })}
@@ -271,6 +292,25 @@ export function TriggersPage() {
                               <IconKey size={16} />
                             </ActionIcon>
                           </Tooltip>
+                          <PauseControl
+                            pause={tr.notify?.pause}
+                            onPause={async (p) => {
+                              try {
+                                await post(`/triggers/${tr.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+                                await refresh();
+                              } catch (e) {
+                                notifyError(e);
+                              }
+                            }}
+                            onResume={async () => {
+                              try {
+                                await post(`/triggers/${tr.id}/resume`, {});
+                                await refresh();
+                              } catch (e) {
+                                notifyError(e);
+                              }
+                            }}
+                          />
                           <ActionIcon variant="subtle" onClick={() => setDraft(toDraft(tr))} aria-label={t('editFor', { name: tr.name })}>
                             <IconEdit size={16} />
                           </ActionIcon>
@@ -504,6 +544,9 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
         <Switch label={t('form.skipIfRunning')} checked={d.skipIfRunning} onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })} />
         <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
+        <Divider label={t('form.messages')} labelPosition="left" />
+        {d.notify?.mode === 'every' && <Hint>{t('form.messagesHint')}</Hint>}
+        <NotifyPolicyFields value={d.notify ?? { ...DEFAULT_TRIGGER_NOTIFY }} onChange={(notify) => setD({ ...d, notify })} />
         <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>

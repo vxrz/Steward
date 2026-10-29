@@ -87,7 +87,7 @@ import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND, MANUAL_LIMITS, SCHEDULE_NOTIFY_MODES, SCHEDULE_REMINDER_MAX_HOURS, allowListEntryProblem, boundedRecord } from '@sm/shared';
+import { BRAND, MANUAL_LIMITS, allowListEntryProblem, boundedRecord, notifyPauseSchema, notifyPolicySchema } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -1293,14 +1293,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),
-    notify: z
-      .object({
-        mode: z.enum(SCHEDULE_NOTIFY_MODES),
-        reminderHours: z.number().int().min(0).max(SCHEDULE_REMINDER_MAX_HOURS),
-        resolved: z.boolean(),
-      })
-      .strict()
-      .optional(),
+    // a pause sent back with the rest is ignored: it has its own actions (below)
+    notify: notifyPolicySchema.optional(),
   });
   app.get('/schedules', async () => scheduler.listSchedules());
   app.post('/schedules', async (req) => {
@@ -1315,6 +1309,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireProcess(b.processId, 'run', 'schedule this process');
     requireBindingsUsable(b.bindings);
     return scheduler.saveSchedule(b, params(req).id);
+  });
+  // pause and resume the messages of a schedule's runs (#139); runs and checks are not affected
+  app.post('/schedules/:id/pause', async (req) => {
+    scheduler.requireScheduleEdit(params(req).id!);
+    return scheduler.setSchedulePause(params(req).id!, notifyPauseSchema.omit({ at: true }).parse(req.body ?? {}));
+  });
+  app.post('/schedules/:id/resume', async (req) => {
+    scheduler.requireScheduleEdit(params(req).id!);
+    return scheduler.setSchedulePause(params(req).id!, null);
   });
   app.delete('/schedules/:id', async (req) => {
     scheduler.requireScheduleEdit(params(req).id!);

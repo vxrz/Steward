@@ -73,8 +73,8 @@ describe('monitor editor: problems and trying a card', () => {
     const r = await s.api('POST', '/monitors/check-preview', { check: { id: 'tcp', name: 'Closed port', type: 'tcp', host: '127.0.0.1', port: 9 } });
     expect(r.status).toBe('down');
     expect(r.message).toContain('127.0.0.1:9');
-    const audit = await s.api('GET', '/audit?limit=5');
-    expect(audit.find((a: any) => a.action === 'monitor.check_previewed').summary).toContain('"Closed port" (tcp) tried in the editor: down');
+    const audit = await s.api('GET', '/audit?action=monitor.check_previewed&limit=1');
+    expect(audit[0].summary).toContain('"Closed port" (tcp) tried in the editor: down');
     expect((await s.api('GET', '/monitors')).some((m: any) => m.name === 'Closed port')).toBe(false);
 
     // a check that makes no call, and an invalid card

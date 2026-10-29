@@ -2,7 +2,9 @@
   "common": {
     "openIn": "In {{brand}} öffnen",
     "minutes_one": "{{count}} Minute",
-    "minutes_other": "{{count}} Minuten"
+    "minutes_other": "{{count}} Minuten",
+    "moreItems_one": "{{count}} weiterer",
+    "moreItems_other": "{{count}} weitere"
   },
   "severity": {
     "error": "Fehler",
@@ -28,19 +30,23 @@
     "bodyNoError": "Die Ausführung ist fehlgeschlagen."
   },
   "checkFailed": {
-    "title": "Prüfung fehlgeschlagen: {{check}} in {{process}}",
-    "titleDryRun": "Probelauf – Prüfung fehlgeschlagen: {{check}} in {{process}}",
     "body": "{{severity}}: {{message}}",
-    "titleChanged": "Prüfergebnis geändert: {{check}} in {{process}}",
-    "titleChangedDryRun": "Probelauf – Prüfergebnis geändert: {{check}} in {{process}}",
-    "titleReminder": "Weiterhin fehlgeschlagen: {{check}} in {{process}}",
-    "titleReminderDryRun": "Probelauf – Weiterhin fehlgeschlagen: {{check}} in {{process}}",
-    "since": "Fehlgeschlagen seit {{since}}."
+    "subject": "{{severity}} · {{what}} – {{process}}",
+    "subjectDryRun": "Probelauf – {{severity}} · {{what}} – {{process}}",
+    "lead": {
+      "new": "Schlägt seit diesem Lauf fehl",
+      "every": "Im letzten Lauf fehlgeschlagen",
+      "better": "Besser geworden: {{from}} → {{to}} · schlägt fehl seit {{since}}",
+      "worse": "Schlechter geworden: {{from}} → {{to}} · schlägt fehl seit {{since}}",
+      "changed": "Geändert · schlägt fehl seit {{since}}",
+      "reminder": "Schlägt weiter fehl (Erinnerung) · seit {{since}}",
+      "pauseEnded": "Schlägt nach der Pause weiter fehl · seit {{since}}"
+    }
   },
   "checkResolved": {
-    "title": "Prüfung wieder erfolgreich: {{check}} in {{process}}",
-    "titleDryRun": "Probelauf – Prüfung wieder erfolgreich: {{check}} in {{process}}",
-    "body": "Sie war seit {{since}} fehlgeschlagen."
+    "subject": "Wieder bestanden · {{check}} – {{process}}",
+    "subjectDryRun": "Probelauf – Wieder bestanden · {{check}} – {{process}}",
+    "lead": "Wieder bestanden – sie war seit {{since}} fehlgeschlagen"
   },
   "scheduleSkipped": {
     "title": "Zeitplan übersprungen: {{name}}",
@@ -298,5 +304,37 @@
     "titleEol": "Supportende erreicht: {{product}} in {{application}}",
     "bodyEnding": "{{product}} erreicht am {{date}} sein Supportende (in {{days}} Tagen). Komponenten: {{components}}.",
     "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade."
+  },
+  "facts": {
+    "process": "Prozess",
+    "source": "Gestartet von",
+    "check": "Prüfung",
+    "severity": "Schweregrad",
+    "since": "Schlägt fehl seit",
+    "value": "Wert"
+  },
+  "source": {
+    "schedule": "Zeitplan „{{name}}“",
+    "trigger": "Webhook-Auslöser „{{name}}“",
+    "monitor": "Monitor „{{name}}“",
+    "manual": "{{actor}} (von Hand)"
+  },
+  "kind": {
+    "schedule": "Zeitplan",
+    "trigger": "Webhook-Auslöser",
+    "monitor": "Monitor"
+  },
+  "reason": {
+    "sourceOwner": "Sie erhalten dies als Besitzer des Elements „{{name}}“ ({{kind}}).",
+    "processOwner": "Sie erhalten dies als Besitzer des Prozesses „{{process}}“.",
+    "actor": "Sie erhalten dies, weil Sie den Lauf gestartet haben.",
+    "channel": "An diesen Kanal gesendet, wie unter Einstellungen → Benachrichtigungen festgelegt."
+  },
+  "messageSettings": {
+    "source": "Nachrichteneinstellungen ({{kind}})",
+    "routes": "Benachrichtigungseinstellungen"
+  },
+  "actions": {
+    "runbook": "Runbook öffnen"
   }
 }
