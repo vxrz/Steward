@@ -38,6 +38,7 @@ import {
 import { documentCounts, readableDocuments } from './documents.js';
 import { scopeOf } from './scope.js';
 import { componentCounts, componentsOf, stackRollup } from './components.js';
+import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsLinkingTo, toCredential } from '../credentials/service.js';
 
 /**
@@ -208,6 +209,7 @@ function toSummary(
     rating: ApplicationSummary['rating'];
     docs: { documents: number; overdue: number };
     components: number;
+    systems: number;
   },
 ): ApplicationSummary {
   return {
@@ -227,6 +229,7 @@ function toSummary(
     documentCount: x.docs.documents,
     overdueDocuments: x.docs.overdue,
     componentCount: x.components,
+    systemCount: x.systems,
     updatedAt: r.updated_at,
   };
 }
@@ -246,6 +249,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
   );
   const docs = documentCounts(db().all<{ item: string; record: string }>('SELECT application_id AS item, record_id AS record FROM record_applications'), u);
   const components = componentCounts();
+  const systems = systemCounts();
   return rows.map((r) => ({
     ...toSummary(r, {
       services: services.get(r.id) ?? [],
@@ -253,6 +257,7 @@ export function listApplicationEntries(o: { archived?: boolean } = {}): Applicat
       rating: ratings.get(r.id) ?? emptyRating(),
       docs: docs.get(r.id) ?? { documents: 0, overdue: 0 },
       components: components.get(r.id) ?? 0,
+      systems: systems.get(r.id) ?? 0,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -277,6 +282,7 @@ export function getApplication(id: string): ApplicationDetail {
   const integrations = integrationsOf([r.id], u).get(r.id) ?? [];
   const documents = readableDocuments(scopedRecordIds(r.id), u);
   const components = componentsOf(r.id);
+  const systems = systemLinksOf(r.id);
   return {
     ...toSummary(r, {
       services: servicesOf().get(r.id) ?? [],
@@ -284,6 +290,7 @@ export function getApplication(id: string): ApplicationDetail {
       rating: ratingsOf([r.id]).get(r.id) ?? emptyRating(),
       docs: { documents: documents.length, overdue: documents.filter((d) => d.reviewStatus === 'overdue').length },
       components: components.length,
+      systems: systems.length,
     }),
     description: r.description,
     createdAt: r.created_at,
@@ -294,7 +301,8 @@ export function getApplication(id: string): ApplicationDetail {
     backlinks: listBacklinks('application', r.id),
     documents,
     components,
-    stack: stackRollup(components),
+    stack: stackRollup(components, systems),
+    systems,
     credentials: credentialsLinkingTo('application', r.id)
       .filter((c) => !c.archived)
       .map((c) => toCredential(c, u))

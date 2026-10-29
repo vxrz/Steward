@@ -161,4 +161,57 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       );
     `,
   },
+  {
+    // #129: systems that applications run on (servers, VMs, clusters, cloud services – shared between applications),
+    // their tech stack, the "runs on" links with an environment, and the environment of a component.
+    name: 'catalogue-004-systems',
+    sql: `
+      CREATE TABLE systems (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        vendor TEXT NOT NULL DEFAULT '',
+        cmdb_url TEXT NOT NULL DEFAULT '',
+        owners TEXT NOT NULL DEFAULT '[]',
+        note TEXT NOT NULL DEFAULT '',
+        platform_id TEXT,
+        sbom_format TEXT,
+        sbom_name TEXT,
+        sbom_imported_at TEXT,
+        sbom_imported_by TEXT,
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        updated_by TEXT NOT NULL
+      );
+
+      -- one row per system and endoflife.date product (like component_stack)
+      CREATE TABLE system_stack (
+        system_id TEXT NOT NULL REFERENCES systems(id) ON DELETE CASCADE,
+        product TEXT NOT NULL,
+        version TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL,
+        sbom_ref TEXT NOT NULL DEFAULT '',
+        set_at TEXT NOT NULL,
+        set_by TEXT NOT NULL,
+        PRIMARY KEY (system_id, product)
+      );
+
+      -- an application runs on a system in an environment (one system can host several applications and environments)
+      CREATE TABLE application_systems (
+        id TEXT PRIMARY KEY,
+        application_id TEXT NOT NULL REFERENCES applications(id),
+        system_id TEXT NOT NULL REFERENCES systems(id),
+        environment TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        created_by TEXT NOT NULL,
+        UNIQUE (application_id, system_id, environment)
+      );
+      CREATE INDEX application_systems_system ON application_systems(system_id);
+
+      -- empty: all environments / not specific to one (every component from before)
+      ALTER TABLE application_components ADD COLUMN environment TEXT NOT NULL DEFAULT '';
+    `,
+  },
 ];

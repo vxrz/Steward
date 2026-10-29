@@ -27,6 +27,8 @@ import { httpUrl } from '../records/links.js';
 import { HttpError, newId, nowIso, parseJson } from '../util.js';
 import { assetPath } from '../reports/pdf/assets.js';
 import { lifecycleOf, lifecycleSettings, releasesOf } from './lifecycle.js';
+import { environmentList, environmentValue, isProduction, rankOf } from './environments.js';
+import { systemLinksOf } from './systems.js';
 
 /**
  * Components of an application (#103): what it consists of – repositories, container images, Kafka topics,
@@ -148,6 +150,8 @@ export const componentInput = z
     name: z.string().trim().min(1).max(COMPONENT_LIMITS.name),
     url: z.union([httpUrl, z.literal('')]).default(''),
     note: z.string().max(COMPONENT_LIMITS.note).default(''),
+    /** The environment (#129); empty: all environments / not specific to one */
+    environment: environmentValue.default(''),
     /** The whole stack of the component (missing: unchanged). Entries that keep product and version keep their source; others count as entered by hand. */
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
   })
@@ -174,6 +178,7 @@ interface ComponentRow {
   name: string;
   url: string;
   note: string;
+  environment: string;
   sbom_format: string | null;
   sbom_name: string | null;
   sbom_imported_at: string | null;
@@ -184,8 +189,9 @@ interface ComponentRow {
   updated_by: string;
 }
 
-interface StackRow {
-  component_id: string;
+export interface StackRow {
+  component_id?: string;
+  system_id?: string;
   product: string;
   version: string;
   source: string;
@@ -194,7 +200,12 @@ interface StackRow {
   set_by: string;
 }
 
-const toEntry = (r: StackRow, releases: ReturnType<typeof releasesOf>, warnDays: number): StackEntry => ({
+/** Whose stack: a component (component_stack) or a system (system_stack, #129). */
+export type StackHolder = { table: 'component_stack'; key: 'component_id'; id: string } | { table: 'system_stack'; key: 'system_id'; id: string };
+export const componentHolder = (id: string): StackHolder => ({ table: 'component_stack', key: 'component_id', id });
+export const systemHolder = (id: string): StackHolder => ({ table: 'system_stack', key: 'system_id', id });
+
+export const toEntry = (r: StackRow, releases: ReturnType<typeof releasesOf>, warnDays: number): StackEntry => ({
   product: r.product,
   label: labelOf(r.product),
   version: r.version,
@@ -214,7 +225,7 @@ function stackOf(appId: string): Map<string, StackEntry[]> {
   );
   const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
   const { warnDays } = lifecycleSettings();
-  for (const r of rows) out.set(r.component_id, [...(out.get(r.component_id) ?? []), toEntry(r, releases, warnDays)]);
+  for (const r of rows) out.set(r.component_id!, [...(out.get(r.component_id!) ?? []), toEntry(r, releases, warnDays)]);
   return out;
 }
 
@@ -227,6 +238,7 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
     name: r.name,
     url: r.url,
     note: r.note,
+    environment: r.environment ?? '',
     stack,
     sbom:
       r.sbom_format && r.sbom_imported_at
@@ -243,7 +255,7 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
 export function componentsOf(appId: string): ApplicationComponent[] {
   const rows = db()
     .all<ComponentRow>('SELECT * FROM application_components WHERE application_id = ?', appId)
-    .sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || a.name.localeCompare(b.name));
+    .sort((a, b) => typeOrder(a.type) - typeOrder(b.type) || a.name.localeCompare(b.name) || rankOf(a.environment) - rankOf(b.environment));
   const stacks = stackOf(appId);
   return rows.map((r) => toComponent(r, stacks.get(r.id) ?? []));
 }
@@ -257,16 +269,48 @@ export function componentCounts(): Map<string, number> {
   );
 }
 
-/** The stack of all components together: one entry per product and version, with the components using it. */
-export function stackRollup(components: ApplicationComponent[]): ApplicationStackItem[] {
+/**
+ * The stack of all components and systems of an application together: one entry per product and version, with the
+ * components and systems using it and their environments (production first).
+ */
+export function stackRollup(
+  components: ApplicationComponent[],
+  systems: { systemId: string; name: string; environment: string; stack: StackEntry[] }[] = [],
+): ApplicationStackItem[] {
+  const list = environmentList();
   const out = new Map<string, ApplicationStackItem>();
+  const itemOf = (s: StackEntry): ApplicationStackItem => {
+    const k = `${s.product}\u0000${s.version}`;
+    const item = out.get(k) ?? {
+      product: s.product,
+      label: s.label,
+      version: s.version,
+      lifecycle: s.lifecycle,
+      components: [],
+      systems: [],
+      environments: [],
+      production: false,
+    };
+    out.set(k, item);
+    return item;
+  };
+  const addEnv = (item: ApplicationStackItem, env: string) => {
+    if (!item.environments.includes(env)) item.environments.push(env);
+    if (isProduction(env, list)) item.production = true;
+  };
   for (const c of components)
     for (const s of c.stack) {
-      const k = `${s.product}\u0000${s.version}`;
-      const item = out.get(k) ?? { product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle, components: [] };
-      item.components.push({ id: c.id, name: c.name, type: c.type });
-      out.set(k, item);
+      const item = itemOf(s);
+      item.components.push({ id: c.id, name: c.name, type: c.type, environment: c.environment });
+      addEnv(item, c.environment);
     }
+  for (const x of systems)
+    for (const s of x.stack) {
+      const item = itemOf(s);
+      item.systems.push({ id: x.systemId, name: x.name, environment: x.environment });
+      addEnv(item, x.environment);
+    }
+  for (const item of out.values()) item.environments.sort((a, b) => rankOf(a, list) - rankOf(b, list) || a.localeCompare(b));
   return [...out.values()].sort((a, b) => a.label.localeCompare(b.label) || b.version.localeCompare(a.version, undefined, { numeric: true }));
 }
 
@@ -292,7 +336,7 @@ function componentRow(appId: string, componentId: string): ComponentRow {
   return r;
 }
 
-function requireKnownProducts(stack: { product: string }[]): void {
+export function requireKnownProducts(stack: { product: string }[]): void {
   const i = loadIndex();
   const seen = new Set<string>();
   for (const s of stack) {
@@ -303,24 +347,24 @@ function requireKnownProducts(stack: { product: string }[]): void {
   }
 }
 
-interface StackDiff {
+export interface StackDiff {
   added: { product: string; version: string }[];
   changed: { product: string; from: string; to: string }[];
   removed: { product: string; version: string }[];
 }
 
-const stackSummary = (d: StackDiff): string =>
+export const stackSummary = (d: StackDiff): string =>
   [
     ...d.added.map((x) => `+${labelOf(x.product)} ${x.version}`.trim()),
     ...d.changed.map((x) => `${labelOf(x.product)} ${x.from || '?'} → ${x.to || '?'}`),
     ...d.removed.map((x) => `−${labelOf(x.product)}`),
   ].join(', ');
 
-/** Replaces the stack of a component with these entries (inside a transaction). Unchanged entries keep their source. */
-function writeStack(componentId: string, wanted: { product: string; version: string }[], u: AuthUser): StackDiff {
+/** Replaces the stack of a component or system with these entries (inside a transaction). Unchanged entries keep their source. */
+export function writeStack(h: StackHolder, wanted: { product: string; version: string }[], u: AuthUser): StackDiff {
   const before = new Map(
     db()
-      .all<StackRow>('SELECT * FROM component_stack WHERE component_id = ?', componentId)
+      .all<StackRow>(`SELECT * FROM ${h.table} WHERE ${h.key} = ?`, h.id)
       .map((r) => [r.product, r]),
   );
   const diff: StackDiff = { added: [], changed: [], removed: [] };
@@ -330,18 +374,18 @@ function writeStack(componentId: string, wanted: { product: string; version: str
     if (old && old.version === s.version) continue;
     if (old) {
       db().run(
-        "UPDATE component_stack SET version = ?, source = 'manual', sbom_ref = '', set_at = ?, set_by = ? WHERE component_id = ? AND product = ?",
+        `UPDATE ${h.table} SET version = ?, source = 'manual', sbom_ref = '', set_at = ?, set_by = ? WHERE ${h.key} = ? AND product = ?`,
         s.version,
         now,
         u.username,
-        componentId,
+        h.id,
         s.product,
       );
       diff.changed.push({ product: s.product, from: old.version, to: s.version });
     } else {
       db().run(
-        "INSERT INTO component_stack (component_id, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, 'manual', '', ?, ?)",
-        componentId,
+        `INSERT INTO ${h.table} (${h.key}, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, 'manual', '', ?, ?)`,
+        h.id,
         s.product,
         s.version,
         now,
@@ -353,10 +397,18 @@ function writeStack(componentId: string, wanted: { product: string; version: str
   const keep = new Set(wanted.map((s) => s.product));
   for (const [product, old] of before)
     if (!keep.has(product)) {
-      db().run('DELETE FROM component_stack WHERE component_id = ? AND product = ?', componentId, product);
+      db().run(`DELETE FROM ${h.table} WHERE ${h.key} = ? AND product = ?`, h.id, product);
       diff.removed.push({ product, version: old.version });
     }
   return diff;
+}
+
+/** The stack of one component or system, with the end of life of each entry. */
+export function stackOfHolder(h: StackHolder): StackEntry[] {
+  const rows = db().all<StackRow>(`SELECT * FROM ${h.table} WHERE ${h.key} = ? ORDER BY product`, h.id);
+  const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
+  const { warnDays } = lifecycleSettings();
+  return rows.map((r) => toEntry(r, releases, warnDays));
 }
 
 const touchApplication = (id: string, u: AuthUser) => db().run('UPDATE applications SET updated_at = ?, updated_by = ? WHERE id = ?', nowIso(), u.username, id);
@@ -371,34 +423,43 @@ export function addComponent(appId: string, input: ComponentInput, canEdit: CanE
     throw new HttpError(409, `An application has at most ${COMPONENT_LIMITS.perApplication} components`, 'COMPONENT_LIMIT', {
       max: COMPONENT_LIMITS.perApplication,
     });
-  if (db().get('SELECT 1 FROM application_components WHERE application_id = ? AND type = ? AND lower(name) = lower(?)', appId, input.type, input.name))
+  if (
+    db().get(
+      'SELECT 1 FROM application_components WHERE application_id = ? AND type = ? AND lower(name) = lower(?) AND environment = ?',
+      appId,
+      input.type,
+      input.name,
+      input.environment,
+    )
+  )
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
   const id = newId('cmp_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO application_components (id, application_id, type, name, url, note, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO application_components (id, application_id, type, name, url, note, environment, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       appId,
       input.type,
       input.name,
       input.url,
       input.note,
+      input.environment,
       now,
       u.username,
       now,
       u.username,
     );
-    const diff = input.stack ? writeStack(id, input.stack, u) : { added: [], changed: [], removed: [] };
+    const diff = input.stack ? writeStack(componentHolder(id), input.stack, u) : { added: [], changed: [], removed: [] };
     touchApplication(appId, u);
     audit({
       action: 'application.component_added',
       entityType: 'application',
       entityId: appId,
       summary: `Component ${input.type} "${input.name}" added to application "${a.name}"${diff.added.length ? ` (stack: ${stackSummary(diff)})` : ''}`,
-      details: { componentId: id, type: input.type, name: input.name, url: input.url, stack: diff.added },
+      details: { componentId: id, type: input.type, name: input.name, url: input.url, environment: input.environment, stack: diff.added },
     });
   });
   return componentsOf(appId).find((c) => c.id === id)!;
@@ -410,26 +471,28 @@ export function updateComponent(appId: string, componentId: string, input: Compo
   const cur = componentRow(appId, componentId);
   if (
     db().get(
-      'SELECT 1 FROM application_components WHERE application_id = ? AND type = ? AND lower(name) = lower(?) AND id <> ?',
+      'SELECT 1 FROM application_components WHERE application_id = ? AND type = ? AND lower(name) = lower(?) AND environment = ? AND id <> ?',
       appId,
       input.type,
       input.name,
+      input.environment,
       componentId,
     )
   )
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
-  const fields = (['type', 'name', 'url', 'note'] as const).filter((k) => input[k] !== cur[k]);
+  const fields = (['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? ''));
   db().tx(() => {
-    const diff = input.stack ? writeStack(componentId, input.stack, u) : { added: [], changed: [], removed: [] };
+    const diff = input.stack ? writeStack(componentHolder(componentId), input.stack, u) : { added: [], changed: [], removed: [] };
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, environment = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       input.type,
       input.name,
       input.url,
       input.note,
+      input.environment,
       nowIso(),
       u.username,
       componentId,
@@ -445,6 +508,7 @@ export function updateComponent(appId: string, componentId: string, input: Compo
         changes: fields,
         ...(fields.includes('name') ? { name: { old: cur.name, new: input.name } } : {}),
         ...(fields.includes('type') ? { type: { old: cur.type, new: input.type } } : {}),
+        ...(fields.includes('environment') ? { environment: { old: cur.environment ?? '', new: input.environment } } : {}),
         ...(stackChanged ? { stack: diff } : {}),
       },
     });
@@ -599,10 +663,10 @@ export function matchSbom(items: SbomItem[]): Map<string, { version: string; ref
   return out;
 }
 
-function planSbom(componentId: string, found: Map<string, { version: string; ref: string }>): SbomChange[] {
+export function planSbom(h: StackHolder, found: Map<string, { version: string; ref: string }>): SbomChange[] {
   const before = new Map(
     db()
-      .all<StackRow>('SELECT * FROM component_stack WHERE component_id = ?', componentId)
+      .all<StackRow>(`SELECT * FROM ${h.table} WHERE ${h.key} = ?`, h.id)
       .map((r) => [r.product, r]),
   );
   const changes: SbomChange[] = [];
@@ -624,6 +688,33 @@ function planSbom(componentId: string, found: Map<string, { version: string; ref
       changes.push({ product, label: labelOf(product), action: 'remove', version: old.version, other: null, sbomRef: old.sbom_ref });
   const order = { add: 0, update: 1, remove: 2, manual: 3, keep: 4 } as const;
   return changes.sort((a, b) => order[a.action] - order[b.action] || a.label.localeCompare(b.label));
+}
+
+/** Writes the planned SBOM changes into a stack (inside a transaction). */
+export function applySbomChanges(h: StackHolder, changes: SbomChange[], u: AuthUser, now: string): void {
+  for (const c of changes) {
+    if (c.action === 'add')
+      db().run(
+        `INSERT INTO ${h.table} (${h.key}, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, 'sbom', ?, ?, ?)`,
+        h.id,
+        c.product,
+        c.version,
+        c.sbomRef,
+        now,
+        u.username,
+      );
+    else if (c.action === 'update')
+      db().run(
+        `UPDATE ${h.table} SET version = ?, sbom_ref = ?, set_at = ?, set_by = ? WHERE ${h.key} = ? AND product = ?`,
+        c.version,
+        c.sbomRef,
+        now,
+        u.username,
+        h.id,
+        c.product,
+      );
+    else if (c.action === 'remove') db().run(`DELETE FROM ${h.table} WHERE ${h.key} = ? AND product = ?`, h.id, c.product);
+  }
 }
 
 const sbomDispatcher = new EnvHttpProxyAgent({ connect: { lookup: guardedLookup }, requestTls: { lookup: guardedLookup } } as never);
@@ -676,7 +767,7 @@ async function fetchSbom(url: string): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function readSbom(input: SbomInput): Promise<ParsedSbom> {
+export async function readSbom(input: SbomInput): Promise<ParsedSbom> {
   return parseSbom(input.url ? await fetchSbom(input.url) : input.sbom);
 }
 
@@ -686,7 +777,7 @@ export async function previewSbom(appId: string, componentId: string, input: Sbo
   componentRow(appId, componentId);
   const sbom = await readSbom(input);
   const found = matchSbom(sbom.items);
-  return { format: sbom.format, name: sbom.name, total: sbom.items.length, matched: found.size, changes: planSbom(componentId, found) };
+  return { format: sbom.format, name: sbom.name, total: sbom.items.length, matched: found.size, changes: planSbom(componentHolder(componentId), found) };
 }
 
 /** Imports the SBOM into the component's stack: entries entered by hand stay, SBOM entries follow the SBOM. */
@@ -705,32 +796,10 @@ export async function importSbom(
   const a = editableApp(appId, canEdit, 'change the components of this application');
   const cur = componentRow(appId, componentId);
   const found = matchSbom(sbom.items);
-  const changes = planSbom(componentId, found);
+  const changes = planSbom(componentHolder(componentId), found);
   const now = nowIso();
   db().tx(() => {
-    for (const c of changes) {
-      if (c.action === 'add')
-        db().run(
-          "INSERT INTO component_stack (component_id, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, 'sbom', ?, ?, ?)",
-          componentId,
-          c.product,
-          c.version,
-          c.sbomRef,
-          now,
-          u.username,
-        );
-      else if (c.action === 'update')
-        db().run(
-          'UPDATE component_stack SET version = ?, sbom_ref = ?, set_at = ?, set_by = ? WHERE component_id = ? AND product = ?',
-          c.version,
-          c.sbomRef,
-          now,
-          u.username,
-          componentId,
-          c.product,
-        );
-      else if (c.action === 'remove') db().run('DELETE FROM component_stack WHERE component_id = ? AND product = ?', componentId, c.product);
-    }
+    applySbomChanges(componentHolder(componentId), changes, u, now);
     db().run(
       'UPDATE application_components SET sbom_format = ?, sbom_name = ?, sbom_imported_at = ?, sbom_imported_by = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       sbom.format,
@@ -783,9 +852,31 @@ export interface ApplicationInputValue {
     name: string;
     url: string;
     note: string;
+    /** '' when the component serves all environments */
+    environment: string;
     stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null }[];
   }[];
-  stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null; components: string[] }[];
+  /** The systems the application runs on (#129), one entry per system and environment */
+  systems: {
+    id: string;
+    name: string;
+    kind: string;
+    vendor: string;
+    environment: string;
+    production: boolean;
+    note: string;
+    stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null }[];
+  }[];
+  stack: {
+    product: string;
+    label: string;
+    version: string;
+    lifecycle: StackLifecycle | null;
+    components: string[];
+    systems: string[];
+    environments: string[];
+    production: boolean;
+  }[];
 }
 
 /** At most this many applications in one input of type applications */
@@ -838,6 +929,9 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
   if (a.archived)
     throw new HttpError(400, `Input "${label}": application "${a.name}" is archived`, 'INPUT_APPLICATION_ARCHIVED', { input: label, name: a.name });
   const components = componentsOf(a.id);
+  const systems = systemLinksOf(a.id);
+  const envs = environmentList();
+  const plain = (s: StackEntry) => ({ product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle });
   return {
     id: a.id,
     name: a.name,
@@ -851,14 +945,28 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
       name: c.name,
       url: c.url,
       note: c.note,
-      stack: c.stack.map((s) => ({ product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle })),
+      environment: c.environment,
+      stack: c.stack.map(plain),
     })),
-    stack: stackRollup(components).map((s) => ({
+    systems: systems.map((x) => ({
+      id: x.systemId,
+      name: x.name,
+      kind: x.kind,
+      vendor: x.vendor,
+      environment: x.environment,
+      production: isProduction(x.environment, envs),
+      note: x.note,
+      stack: x.stack.map(plain),
+    })),
+    stack: stackRollup(components, systems).map((s) => ({
       product: s.product,
       label: s.label,
       version: s.version,
       lifecycle: s.lifecycle,
       components: s.components.map((c) => c.name),
+      systems: [...new Set(s.systems.map((x) => x.name))],
+      environments: s.environments,
+      production: s.production,
     })),
   };
 }

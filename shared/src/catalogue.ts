@@ -160,6 +160,8 @@ export interface ApplicationSummary {
   overdueDocuments: number;
   /** Components (repositories, images, topics, …) of the application */
   componentCount: number;
+  /** "Runs on" links to systems (#129) */
+  systemCount: number;
   updatedAt: string;
 }
 
@@ -191,6 +193,8 @@ export interface ApplicationDetail extends ApplicationSummary {
   stack: ApplicationStackItem[];
   /** Credentials register entries that name the application under "used by" and that the reader may see (#125) */
   credentials: ApplicationCredential[];
+  /** The systems the application runs on, per environment (#129) */
+  systems: ApplicationSystemLink[];
   canEdit: boolean;
 }
 
@@ -312,6 +316,8 @@ export interface ApplicationComponent {
   name: string;
   url: string;
   note: string;
+  /** The environment (#129): empty when the component serves all environments (e.g. the repository) */
+  environment: string;
   stack: StackEntry[];
   /** The last SBOM import */
   sbom: { format: SbomFormat; name: string; importedAt: string; importedBy: string } | null;
@@ -321,13 +327,19 @@ export interface ApplicationComponent {
   updatedBy: string;
 }
 
-/** A product and version across the components of an application. */
+/** A product and version across the components and systems of an application. */
 export interface ApplicationStackItem {
   product: string;
   label: string;
   version: string;
   lifecycle: StackLifecycle | null;
-  components: { id: string; name: string; type: ComponentType }[];
+  components: { id: string; name: string; type: ComponentType; environment: string }[];
+  /** Systems the application runs on with this product (#129), one entry per link */
+  systems: { id: string; name: string; environment: string }[];
+  /** The environments it is used in, in the order of the environment list ('' – not specific to one – last) */
+  environments: string[];
+  /** Used in an environment flagged as production */
+  production: boolean;
 }
 
 /** A product of the endoflife.date list, offered when a stack is entered by hand. */
@@ -368,6 +380,109 @@ export interface SbomPreview {
   /** Of these, the ones endoflife.date knows (the others are libraries and stay out) */
   matched: number;
   changes: SbomChange[];
+}
+
+// ---------- environments (#129) ----------
+
+/**
+ * The environments of an organisation, in order: offered on platforms, on "runs on" links and on components. Free
+ * text stays possible; the list gives the order, a colour and which ones count as production (end of life is more
+ * urgent there).
+ */
+export interface CatalogueEnvironment {
+  name: string;
+  color: CiaColor | null;
+  production: boolean;
+}
+
+export const ENVIRONMENT_LIMITS = { max: 30, name: 60 } as const;
+
+export const DEFAULT_ENVIRONMENTS: readonly CatalogueEnvironment[] = [
+  { name: 'dev', color: 'blue', production: false },
+  { name: 'test', color: 'yellow', production: false },
+  { name: 'prod', color: 'red', production: true },
+];
+
+export interface EnvironmentSettings {
+  environments: CatalogueEnvironment[];
+  /** Values in use on platforms, links and components that are not on the list (to adopt them) */
+  unlisted: { name: string; count: number }[];
+  updatedAt: string | null;
+  updatedBy: string | null;
+  canEdit: boolean;
+}
+
+/** Position of an environment in the list for sorting: unlisted values after the list, '' (all environments) last. */
+export function environmentRank(list: readonly { name: string }[], name: string): number {
+  if (!name) return list.length + 2;
+  const i = list.findIndex((e) => e.name.toLowerCase() === name.toLowerCase());
+  return i < 0 ? list.length + 1 : i;
+}
+
+export const isProductionEnvironment = (list: readonly CatalogueEnvironment[], name: string): boolean =>
+  !!name && list.some((e) => e.production && e.name.toLowerCase() === name.toLowerCase());
+
+// ---------- systems (#129) ----------
+
+/** What a system is: a short fixed list, anything else is "other". */
+export const SYSTEM_KINDS = ['server', 'vm', 'cluster', 'appliance', 'cloud-service', 'other'] as const;
+export type SystemKind = (typeof SYSTEM_KINDS)[number];
+
+export const SYSTEM_LIMITS = { name: 160, vendor: 120, note: 2000, linkNote: 500, perApplication: 200 } as const;
+
+export interface SystemSummary {
+  id: string;
+  name: string;
+  kind: SystemKind;
+  /** Vendor or provider (AWS, Azure, on-premises, the hoster, …) */
+  vendor: string;
+  cmdbUrl: string;
+  owners: string[];
+  note: string;
+  /** The Steward platform this system is (null: none, or one the reader may not see – then platformHidden) */
+  platform: { id: string; name: string; environment: string } | null;
+  platformHidden: boolean;
+  /** Distinct applications that run on it */
+  applicationCount: number;
+  /** Its environments (from the links), in list order */
+  environments: string[];
+  /** Products of the stack past their end of life / ending */
+  eol: number;
+  ending: number;
+  updatedAt: string;
+}
+
+export interface SystemApplicationRef {
+  linkId: string;
+  applicationId: string;
+  applicationName: string;
+  archived: boolean;
+  environment: string;
+  note: string;
+}
+
+export interface SystemDetail extends SystemSummary {
+  stack: StackEntry[];
+  sbom: { format: SbomFormat; name: string; importedAt: string; importedBy: string } | null;
+  applications: SystemApplicationRef[];
+  createdAt: string;
+  createdBy: string;
+  updatedBy: string;
+  canEdit: boolean;
+}
+
+/** An application runs on a system in an environment. */
+export interface ApplicationSystemLink {
+  id: string;
+  systemId: string;
+  name: string;
+  kind: SystemKind;
+  vendor: string;
+  environment: string;
+  note: string;
+  stack: StackEntry[];
+  createdAt: string;
+  createdBy: string;
 }
 
 /** An application of a service (service page), with its rating and its integrations. */

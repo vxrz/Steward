@@ -623,7 +623,16 @@
     "RECORDING_MATCH_TOO_LARGE": "Der zu vergleichende Body ist zu groß.",
     "RECORDING_NOT_FOUND": "Die aufgezeichnete Antwort gibt es nicht (mehr).",
     "RECORDING_TOO_LARGE": "Der aufgezeichnete Body ist größer als {{maxMb}} MB.",
-    "CHECK_PREVIEW_UNSUPPORTED": "Diese Prüfart wird aus Meldungen (Heartbeat) oder einem anderen Monitor ausgewertet; es gibt keinen Aufruf zum Ausprobieren. Den Monitor speichern und seinen Status beobachten."
+    "CHECK_PREVIEW_UNSUPPORTED": "Diese Prüfart wird aus Meldungen (Heartbeat) oder einem anderen Monitor ausgewertet; es gibt keinen Aufruf zum Ausprobieren. Den Monitor speichern und seinen Status beobachten.",
+    "FORBIDDEN_changeSystem": "Sie dürfen dieses System nicht ändern.",
+    "FORBIDDEN_createSystem": "Sie dürfen keine Systeme anlegen.",
+    "SYSTEM_NOT_FOUND": "Dieses System gibt es nicht (mehr).",
+    "SYSTEM_EXISTS": "Ein System namens „{{name}}“ gibt es bereits.",
+    "SYSTEM_IN_USE": "Auf „{{name}}“ laufen noch Anwendungen ({{count}}). Entfernen Sie sie zuerst unter „Läuft auf“.",
+    "SYSTEM_LINK_NOT_FOUND": "Die Anwendung läuft nicht (mehr) auf diesem System.",
+    "SYSTEM_LINK_EXISTS": "Die Anwendung läuft in dieser Umgebung bereits auf „{{name}}“.",
+    "SYSTEM_LINK_LIMIT": "Eine Anwendung läuft auf höchstens {{max}} Systemen.",
+    "ENVIRONMENT_TWICE": "„{{name}}“ ist doppelt aufgeführt."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

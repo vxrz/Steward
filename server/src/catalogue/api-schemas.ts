@@ -10,6 +10,7 @@ import {
   SERVICE_CONTACT_ROLES,
   SERVICE_CRITICALITIES,
   STACK_SOURCES,
+  SYSTEM_KINDS,
 } from '@sm/shared';
 import { RecordLink } from '../records/api-schemas.js';
 
@@ -164,6 +165,7 @@ export const ApplicationEntry = z.object({
   documentCount: z.number().int().describe('Living documents that apply to the application and that the token owner may read'),
   overdueDocuments: z.number().int(),
   componentCount: z.number().int().describe('Components of the application (repositories, container images, Kafka topics, …)'),
+  systemCount: z.number().int().describe('"Runs on" links to systems (one per system and environment)'),
   createdAt: ts(),
   createdBy: z.string(),
   updatedAt: ts(),
@@ -197,6 +199,7 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
         name: z.string(),
         url: z.string().describe('http(s) link, or empty'),
         note: z.string(),
+        environment: z.string().describe('The environment of the component; empty: all environments / not specific to one'),
         stack: z.array(StackEntry),
         sbom: z
           .object({ format: z.enum(SBOM_FORMATS), name: z.string(), importedAt: ts(), importedBy: z.string() })
@@ -216,10 +219,72 @@ export const ApplicationEntryDetail = ApplicationEntry.extend({
         label: z.string(),
         version: z.string(),
         lifecycle: StackLifecycleEntry.nullable(),
-        components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES) })),
+        components: z.array(z.object({ id: z.string(), name: z.string(), type: z.enum(COMPONENT_TYPES), environment: z.string() })),
+        systems: z.array(z.object({ id: z.string(), name: z.string(), environment: z.string() })).describe('Systems the application runs on with this product'),
+        environments: z.array(z.string()).describe('Environments it is used in, in the order of the environment list (empty string: all environments)'),
+        production: z.boolean().describe('Used in an environment flagged as production'),
       }),
     )
-    .describe('The tech stack of all components together: one entry per product and version'),
+    .describe('The tech stack of all components and systems together: one entry per product and version'),
+  systems: z
+    .array(
+      z.object({
+        id: z.string().describe('Id of the "runs on" link'),
+        systemId: z.string(),
+        name: z.string(),
+        kind: z.enum(SYSTEM_KINDS),
+        vendor: z.string(),
+        environment: z.string().describe('Empty: all environments'),
+        note: z.string(),
+        stack: z.array(StackEntry),
+        createdAt: ts(),
+        createdBy: z.string(),
+      }),
+    )
+    .describe('The systems the application runs on, per environment (in the order of the environment list)'),
+});
+
+export const SystemEntry = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(SYSTEM_KINDS),
+  vendor: z.string().describe('Vendor or provider (AWS, Azure, on-premises, the hoster, …)'),
+  cmdbUrl: z.string().describe('http(s) link to the CMDB entry, or empty'),
+  owners: z.array(z.string()).describe('Steward users and teams responsible: user:<name>, team:<name>'),
+  note: z.string(),
+  platform: z
+    .object({ id: z.string(), name: z.string(), environment: z.string() })
+    .nullable()
+    .describe('The Steward platform this system is; null when none or one the token owner may not see (then platformHidden)'),
+  platformHidden: z.boolean(),
+  applicationCount: z.number().int().describe('Applications that run on the system'),
+  environments: z.array(z.string()).describe('Environments of its "runs on" links, in list order'),
+  eol: z.number().int().describe('Products of its stack past their end of life'),
+  ending: z.number().int().describe('Products of its stack within the warning period'),
+  stack: z.array(StackEntry),
+  sbom: z.object({ format: z.enum(SBOM_FORMATS), name: z.string(), importedAt: ts(), importedBy: z.string() }).nullable(),
+  applications: z
+    .array(
+      z.object({
+        linkId: z.string(),
+        applicationId: z.string(),
+        applicationName: z.string(),
+        archived: z.boolean(),
+        environment: z.string(),
+        note: z.string(),
+      }),
+    )
+    .describe('Applications that run on it, per environment'),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const EnvironmentEntry = z.object({
+  name: z.string(),
+  color: z.enum(CIA_COLORS).nullable(),
+  production: z.boolean().describe('Counts as production: end of life is more urgent there'),
 });
 
 export const ApplicationDocument = z.object({
@@ -265,7 +330,15 @@ export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {
   ApplicationEntryDetail,
   ApplicationDocument,
   CiaScaleEntry,
+  SystemEntry,
+  EnvironmentEntry,
 };
+
+export const SystemListQuery = z.object({
+  limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
+  cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
+  environment: z.string().max(60).optional().describe('Only systems with a "runs on" link in this environment'),
+});
 
 export const ApplicationListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),

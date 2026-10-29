@@ -476,6 +476,8 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
     await listAll('/applications/{applicationId}/documents', `/applications/${x.id}/documents`);
   }
   await get('/cia-scale', '/cia-scale');
+  for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
+  await get('/environments', '/environments');
   for (const x of (await listAll('/duties', '/duties?archived=include')).slice(0, 5)) {
     await get('/duties/{dutyId}', `/duties/${x.id}`);
     await listAll('/duties/{dutyId}/periods', `/duties/${x.id}/periods`);
@@ -553,6 +555,10 @@ describe('every endpoint', () => {
     await s.api('PUT', `/services/${apiService}/applications/${app.id}`, { role: 'primary' });
     await s.api('PUT', `/services/${apiService}/protection-need`, { availability: { level: 'very_high', reason: 'Cumulation' } });
     await s.api('PUT', `/records/${doc.id}/applications`, { applicationIds: [app.id] });
+    // a system it runs on (#129), with a component per environment
+    const sys = await s.api('POST', '/systems', { name: 'API system', kind: 'vm', stack: [{ product: 'ubuntu', version: '24.04' }] });
+    await s.api('POST', `/applications/${app.id}/systems`, { systemId: sys.id, environment: 'prod' });
+    await s.api('POST', `/applications/${app.id}/components`, { type: 'snowflake-database', name: 'API_PROD', environment: 'prod' });
     // a duty of the service (#85), with an exception waiting for a second person
     const duty = await s.api('POST', '/duties', {
       serviceId: apiService,

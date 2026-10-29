@@ -66,6 +66,8 @@ const LinkTypesPage = page(() => import('./pages/LinkTypes'), 'LinkTypesPage');
 const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 const ApplicationsPage = page(() => import('./pages/Applications'), 'ApplicationsPage');
+const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
+const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
 const DutyDetailPage = page(() => import('./pages/DutyDetail'), 'DutyDetailPage');
@@ -236,6 +238,8 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/applications" element={<ApplicationsPage />} />
                 <Route path="/applications/cia-scale" element={<CiaScalePage />} />
                 <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+                <Route path="/systems" element={<SystemsPage />} />
+                <Route path="/systems/:id" element={<SystemDetailPage />} />
                 <Route path="/duties" element={<DutiesPage />} />
                 <Route path="/duties/:id" element={<DutyDetailPage />} />
                 <Route path="/scorecard" element={<ScorecardPage />} />

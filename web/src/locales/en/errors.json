@@ -623,7 +623,16 @@
     "RECORDING_MATCH_TOO_LARGE": "The body to match is too large.",
     "RECORDING_NOT_FOUND": "The recorded response does not exist (any more).",
     "RECORDING_TOO_LARGE": "The recorded body is larger than {{maxMb}} MB.",
-    "CHECK_PREVIEW_UNSUPPORTED": "This check type is evaluated from reports (heartbeat) or another monitor, so there is no call to try. Save the monitor and watch its status."
+    "CHECK_PREVIEW_UNSUPPORTED": "This check type is evaluated from reports (heartbeat) or another monitor, so there is no call to try. Save the monitor and watch its status.",
+    "FORBIDDEN_changeSystem": "You are not allowed to change this system.",
+    "FORBIDDEN_createSystem": "You are not allowed to create systems.",
+    "SYSTEM_NOT_FOUND": "This system does not exist (any more).",
+    "SYSTEM_EXISTS": "A system named “{{name}}” exists already.",
+    "SYSTEM_IN_USE": "Applications still run on “{{name}}” ({{count}}). Remove them under “Runs on” first.",
+    "SYSTEM_LINK_NOT_FOUND": "The application does not run on this system (any more).",
+    "SYSTEM_LINK_EXISTS": "The application runs on “{{name}}” in this environment already.",
+    "SYSTEM_LINK_LIMIT": "An application runs on at most {{max}} systems.",
+    "ENVIRONMENT_TWICE": "“{{name}}” is listed twice."
   },
   "boundary": {
     "title": "Something went wrong on this page",

@@ -47,7 +47,7 @@ test('the tech stack shows the end of life of each version', async ({ page, apiA
     await expect(row.getByLabel('Python 3.15: supported')).toHaveAttribute('data-lifecycle', 'supported');
     await node.hover();
     await expect(page.getByRole('tooltip')).toContainText(/Release cycle 24 .*end of life since/);
-    await expect(page.getByTestId('application-stack').getByRole('listitem', { name: 'Node.js 24.11.0 · 1 component: end of life' })).toBeVisible();
+    await expect(page.getByTestId('application-stack').getByRole('listitem', { name: 'Node.js 24.11.0 · 1 component or system: end of life' })).toBeVisible();
     await expectAccessible(page, 'tech stack with end of life');
   } finally {
     await api.post(`/api/applications/${app.id}/archive`, { data: { archived: true } });

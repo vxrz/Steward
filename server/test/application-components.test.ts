@@ -109,7 +109,10 @@ describe('components', () => {
         label: 'Node.js',
         version: '22',
         lifecycle: null,
-        components: [{ id: image.id, name: 'ghcr.io/acme/orders', type: 'container-image' }],
+        components: [{ id: image.id, name: 'ghcr.io/acme/orders', type: 'container-image', environment: '' }],
+        systems: [],
+        environments: [''],
+        production: false,
       },
     ]);
     // readers see them, without the right to edit

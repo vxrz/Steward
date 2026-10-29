@@ -30,6 +30,7 @@ import {
   type ComponentType,
   type SbomChange,
   type SbomPreview,
+  type StackEntry,
   type StackProduct,
 } from '@sm/shared';
 import { del, get, notifyError, post, put } from '../../api';
@@ -37,10 +38,11 @@ import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtDate } from '../../format';
 import { LifecycleBadge } from './lifecycle';
+import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 
-const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
+export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
-function useStackProducts() {
+export function useStackProducts() {
   return useQuery({
     queryKey: ['stack-products'],
     queryFn: () => get<{ source: string; products: StackProduct[] }>('/catalogue/stack-products'),
@@ -53,7 +55,13 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
   const { t } = useTranslation(['applications', 'common']);
   const [editing, setEditing] = useState<ApplicationComponent | 'new' | null>(null);
   const [importing, setImporting] = useState<ApplicationComponent | null>(null);
+  const [env, setEnv] = useState<string | null>(null);
+  const envList = useEnvironmentList();
   const editable = app.canEdit && !app.archived;
+  const envs = sortByEnvironment(envList, [...new Set(app.components.map((c) => c.environment))], (x) => x);
+  const withEnv = envs.some((e) => e !== '');
+  // the components of all environments ('') show in every environment
+  const shown = env === null ? app.components : app.components.filter((c) => c.environment === env || c.environment === '');
   const remove = async (c: ApplicationComponent) => {
     if (!(await confirmDanger({ action: 'remove', message: t('components.removeConfirm', { name: c.name }) }))) return;
     try {
@@ -77,6 +85,17 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       <Text size="xs" c="dimmed">
         {t('components.help')}
       </Text>
+      {withEnv && (
+        <SegmentedControl
+          size="xs"
+          style={{ alignSelf: 'flex-start' }}
+          aria-label={t('environments.filter')}
+          data-testid="components-environment-filter"
+          value={env ?? '*'}
+          onChange={(v) => setEnv(v === '*' ? null : v)}
+          data={[{ value: '*', label: t('environments.any') }, ...envs.filter((e) => e).map((e) => ({ value: e, label: e }))]}
+        />
+      )}
       {app.components.length === 0 ? (
         <Text size="sm" c="dimmed">
           {t('components.empty')}
@@ -88,12 +107,13 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
               <Table.Tr>
                 <Table.Th>{t('components.type')}</Table.Th>
                 <Table.Th>{t('components.name')}</Table.Th>
+                {withEnv && <Table.Th>{t('environments.label')}</Table.Th>}
                 <Table.Th>{t('components.stack')}</Table.Th>
                 {editable && <Table.Th aria-label={t('components.actions')} />}
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {app.components.map((c) => (
+              {shown.map((c) => (
                 <Table.Tr key={c.id}>
                   <Table.Td className="nowrap">
                     <Badge size="sm" variant="default">
@@ -115,35 +135,15 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                         {c.note}
                       </Text>
                     )}
-                    {c.sbom && (
-                      <Text size="xs" c="dimmed">
-                        {t(c.sbom.name ? 'components.sbom.last' : 'components.sbom.lastNoName', {
-                          format: formatLabel(c.sbom.format),
-                          name: c.sbom.name,
-                          user: c.sbom.importedBy,
-                          date: fmtDate(c.sbom.importedAt),
-                        })}
-                      </Text>
-                    )}
+                    {c.sbom && <SbomLine sbom={c.sbom} />}
                   </Table.Td>
+                  {withEnv && (
+                    <Table.Td className="nowrap">
+                      <EnvironmentBadge value={c.environment} />
+                    </Table.Td>
+                  )}
                   <Table.Td>
-                    {c.stack.length === 0 ? (
-                      <Text span size="sm" c="dimmed">
-                        {t('components.noStack')}
-                      </Text>
-                    ) : (
-                      <Group gap={4}>
-                        {c.stack.map((s) => (
-                          <LifecycleBadge
-                            key={s.product}
-                            text={[s.label, s.version].filter(Boolean).join(' ')}
-                            lifecycle={s.lifecycle}
-                            variant={s.source === 'sbom' ? 'light' : 'outline'}
-                            extra={s.source === 'sbom' ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}` : t('components.stackEditor.manual')}
-                          />
-                        ))}
-                      </Group>
-                    )}
+                    <StackBadges stack={c.stack} />
                   </Table.Td>
                   {editable && (
                     <Table.Td className="nowrap">
@@ -168,14 +168,61 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
-      {importing && <SbomImportModal app={app} component={importing} onClose={() => setImporting(null)} onSaved={onSaved} />}
+      {importing && (
+        <SbomImportModal
+          title={t('components.sbom.title', { name: importing.name })}
+          base={`/applications/${app.id}/components/${importing.id}/sbom`}
+          onClose={() => setImporting(null)}
+          onApplied={(r: { preview: SbomPreview; application: ApplicationDetail }) => onSaved(r.application)}
+        />
+      )}
     </Stack>
   );
 }
 
-/** The tech stack of all components together. */
+/** "CycloneDX "orders" imported by … on …" */
+export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbom']> }) {
+  const { t } = useTranslation('applications');
+  return (
+    <Text size="xs" c="dimmed">
+      {t(sbom.name ? 'components.sbom.last' : 'components.sbom.lastNoName', {
+        format: formatLabel(sbom.format),
+        name: sbom.name,
+        user: sbom.importedBy,
+        date: fmtDate(sbom.importedAt),
+      })}
+    </Text>
+  );
+}
+
+/** The stack of a component or system as end-of-life badges. */
+export function StackBadges({ stack }: { stack: StackEntry[] }) {
+  const { t } = useTranslation('applications');
+  if (stack.length === 0)
+    return (
+      <Text span size="sm" c="dimmed">
+        {t('components.noStack')}
+      </Text>
+    );
+  return (
+    <Group gap={4}>
+      {stack.map((s) => (
+        <LifecycleBadge
+          key={s.product}
+          text={[s.label, s.version].filter(Boolean).join(' ')}
+          lifecycle={s.lifecycle}
+          variant={s.source === 'sbom' ? 'light' : 'outline'}
+          extra={s.source === 'sbom' ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}` : t('components.stackEditor.manual')}
+        />
+      ))}
+    </Group>
+  );
+}
+
+/** The tech stack of all components and systems together. */
 function StackRollup({ app }: { app: ApplicationDetail }) {
   const { t } = useTranslation('applications');
+  const named = (x: { name: string; environment: string }) => (x.environment ? `${x.name} (${x.environment})` : x.name);
   return (
     <Stack gap={4} mt="xs" data-testid="application-stack">
       <Text fw={600} size="sm" id="stack-title">
@@ -189,9 +236,9 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
           <LifecycleBadge
             key={`${s.product} ${s.version}`}
             role="listitem"
-            text={`${[s.label, s.version].filter(Boolean).join(' ')} · ${t('components.rollup.used', { count: s.components.length })}`}
+            text={`${[s.label, s.version].filter(Boolean).join(' ')} · ${t('components.rollup.used', { count: s.components.length + s.systems.length })}`}
             lifecycle={s.lifecycle}
-            extra={s.components.map((c) => c.name).join(', ')}
+            extra={[...s.components.map(named), ...s.systems.map(named)].join(', ')}
           />
         ))}
       </Group>
@@ -199,7 +246,78 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
   );
 }
 
-type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom'; was?: string };
+export type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom'; was?: string };
+
+export const stackRowsOf = (stack: StackEntry[]): StackRow[] =>
+  stack.map((s) => ({ product: s.product, version: s.version, source: s.source, was: s.version }));
+export const stackBody = (rows: StackRow[]) => rows.filter((r) => r.product).map((r) => ({ product: r.product!, version: r.version.trim() }));
+
+/** The stack editor: endoflife.date products with the version in use. */
+export function StackFields({ stack, onChange }: { stack: StackRow[]; onChange: (rows: StackRow[]) => void }) {
+  const { t } = useTranslation('applications');
+  const products = useStackProducts();
+  const byId = useMemo(() => new Map((products.data?.products ?? []).map((p) => [p.id, p])), [products.data]);
+  const productData = useMemo(() => (products.data?.products ?? []).map((p) => ({ value: p.id, label: p.label })), [products.data]);
+  const patchRow = (i: number, p: Partial<StackRow>) => onChange(stack.map((r, j) => (j === i ? { ...r, ...p } : r)));
+  const chosen = new Set(stack.map((r) => r.product));
+  return (
+    <Stack gap={6}>
+      <Text fw={500} size="sm">
+        {t('components.stack')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {t('components.stackEditor.help')}
+      </Text>
+      {stack.map((r, i) => {
+        const p = r.product ? byId.get(r.product) : undefined;
+        const fromSbom = r.source === 'sbom' && r.version === r.was;
+        return (
+          <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
+            <Select
+              style={{ flex: 2 }}
+              size="xs"
+              label={i === 0 ? t('components.stackEditor.product') : undefined}
+              aria-label={t('components.stackEditor.product')}
+              placeholder={t('components.stackEditor.productSearch')}
+              data={productData.filter((d) => d.value === r.product || !chosen.has(d.value))}
+              value={r.product}
+              onChange={(x) => patchRow(i, { product: x, source: undefined })}
+              searchable
+              limit={50}
+            />
+            <Autocomplete
+              style={{ flex: 1 }}
+              size="xs"
+              label={i === 0 ? t('components.stackEditor.version') : undefined}
+              aria-label={t('components.stackEditor.version')}
+              data={p?.cycles ?? []}
+              value={r.version}
+              onChange={(x) => patchRow(i, { version: x })}
+            />
+            <Box w={90}>
+              <Text size="xs" c="dimmed">
+                {fromSbom ? t('components.stackEditor.fromSbom') : ''}
+              </Text>
+            </Box>
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              aria-label={t('components.stackEditor.remove', { product: p?.label ?? r.product ?? '' })}
+              onClick={() => onChange(stack.filter((_, j) => j !== i))}
+            >
+              <IconTrash size={14} />
+            </ActionIcon>
+          </Group>
+        );
+      })}
+      <Group>
+        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => onChange([...stack, { product: null, version: '' }])}>
+          {t('components.stackEditor.add')}
+        </Button>
+      </Group>
+    </Stack>
+  );
+}
 
 function ComponentFormModal({
   app,
@@ -213,32 +331,21 @@ function ComponentFormModal({
   onSaved: (a: ApplicationDetail) => void;
 }) {
   const { t } = useTranslation(['applications', 'common']);
-  const products = useStackProducts();
   const [type, setType] = useState<ComponentType>(component?.type ?? 'repository');
   const [name, setName] = useState(component?.name ?? '');
   const [url, setUrl] = useState(component?.url ?? '');
   const [note, setNote] = useState(component?.note ?? '');
-  const [stack, setStack] = useState<StackRow[]>(
-    (component?.stack ?? []).map((s) => ({ product: s.product, version: s.version, source: s.source, was: s.version })),
-  );
+  const [environment, setEnvironment] = useState(component?.environment ?? '');
+  const [stack, setStack] = useState<StackRow[]>(stackRowsOf(component?.stack ?? []));
   const [busy, setBusy] = useState(false);
-  const byId = useMemo(() => new Map((products.data?.products ?? []).map((p) => [p.id, p])), [products.data]);
-  const productData = useMemo(() => (products.data?.products ?? []).map((p) => ({ value: p.id, label: p.label })), [products.data]);
   const v = useFieldErrors({
     name: !name.trim() && t('common:validation.required'),
     url: !!url.trim() && !/^https?:\/\/\S+$/i.test(url.trim()) && t('common:validation.invalid'),
   });
-  const patchRow = (i: number, p: Partial<StackRow>) => setStack(stack.map((r, j) => (j === i ? { ...r, ...p } : r)));
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);
-    const body = {
-      type,
-      name: name.trim(),
-      url: url.trim(),
-      note,
-      stack: stack.filter((r) => r.product).map((r) => ({ product: r.product!, version: r.version.trim() })),
-    };
+    const body = { type, name: name.trim(), url: url.trim(), note, environment: environment.trim(), stack: stackBody(stack) };
     try {
       onSaved(
         component
@@ -251,7 +358,6 @@ function ComponentFormModal({
       setBusy(false);
     }
   };
-  const chosen = new Set(stack.map((r) => r.product));
   return (
     <Modal
       opened
@@ -285,63 +391,10 @@ function ComponentFormModal({
               data-autofocus
             />
           </Group>
+          <EnvironmentInput value={environment} onChange={setEnvironment} allowAll description={t('environments.componentHint')} />
           <TextInput label={t('components.url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} error={v.error('url')} />
           <Textarea label={t('components.note')} autosize minRows={1} maxRows={4} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
-          <Stack gap={6}>
-            <Text fw={500} size="sm">
-              {t('components.stack')}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {t('components.stackEditor.help')}
-            </Text>
-            {stack.map((r, i) => {
-              const p = r.product ? byId.get(r.product) : undefined;
-              const fromSbom = r.source === 'sbom' && r.version === r.was;
-              return (
-                <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
-                  <Select
-                    style={{ flex: 2 }}
-                    size="xs"
-                    label={i === 0 ? t('components.stackEditor.product') : undefined}
-                    aria-label={t('components.stackEditor.product')}
-                    placeholder={t('components.stackEditor.productSearch')}
-                    data={productData.filter((d) => d.value === r.product || !chosen.has(d.value))}
-                    value={r.product}
-                    onChange={(x) => patchRow(i, { product: x, source: undefined })}
-                    searchable
-                    limit={50}
-                  />
-                  <Autocomplete
-                    style={{ flex: 1 }}
-                    size="xs"
-                    label={i === 0 ? t('components.stackEditor.version') : undefined}
-                    aria-label={t('components.stackEditor.version')}
-                    data={p?.cycles ?? []}
-                    value={r.version}
-                    onChange={(x) => patchRow(i, { version: x })}
-                  />
-                  <Box w={90}>
-                    <Text size="xs" c="dimmed">
-                      {fromSbom ? t('components.stackEditor.fromSbom') : ''}
-                    </Text>
-                  </Box>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    aria-label={t('components.stackEditor.remove', { product: p?.label ?? r.product ?? '' })}
-                    onClick={() => setStack(stack.filter((_, j) => j !== i))}
-                  >
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                </Group>
-              );
-            })}
-            <Group>
-              <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setStack([...stack, { product: null, version: '' }])}>
-                {t('components.stackEditor.add')}
-              </Button>
-            </Group>
-          </Stack>
+          <StackFields stack={stack} onChange={setStack} />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
@@ -358,17 +411,17 @@ function ComponentFormModal({
 
 const ACTION_COLORS: Record<SbomChange['action'], string> = { add: 'green', update: 'blue', remove: 'red', keep: 'gray', manual: 'yellow' };
 
-/** Upload or fetch an SBOM, show what it changes, then import it. */
-function SbomImportModal({
-  app,
-  component,
+/** Upload or fetch an SBOM, show what it changes, then import it (into a component or a system: `base`). */
+export function SbomImportModal<R extends { preview: SbomPreview }>({
+  title,
+  base,
   onClose,
-  onSaved,
+  onApplied,
 }: {
-  app: ApplicationDetail;
-  component: ApplicationComponent;
+  title: string;
+  base: string;
   onClose: () => void;
-  onSaved: (a: ApplicationDetail) => void;
+  onApplied: (r: R) => void;
 }) {
   const { t } = useTranslation(['applications', 'common']);
   const [mode, setMode] = useState<'file' | 'url'>('file');
@@ -377,7 +430,6 @@ function SbomImportModal({
   const [preview, setPreview] = useState<SbomPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const body = mode === 'file' ? (file ? { sbom: file.text } : null) : url.trim() ? { url: url.trim() } : null;
-  const base = `/applications/${app.id}/components/${component.id}/sbom`;
   const show = async () => {
     if (!body) return;
     setBusy(true);
@@ -393,10 +445,10 @@ function SbomImportModal({
     if (!body) return;
     setBusy(true);
     try {
-      const r = await post<{ preview: SbomPreview; application: ApplicationDetail }>(base, body);
+      const r = await post<R>(base, body);
       const n = (a: SbomChange['action']) => r.preview.changes.filter((c) => c.action === a).length;
       notifications.show({ color: 'green', message: t('components.sbom.done', { added: n('add'), updated: n('update'), removed: n('remove') }) });
-      onSaved(r.application);
+      onApplied(r);
       onClose();
     } catch (e) {
       notifyError(e);
@@ -406,7 +458,7 @@ function SbomImportModal({
   const reset = () => setPreview(null);
   const changing = preview?.changes.filter((c) => c.action !== 'keep') ?? [];
   return (
-    <Modal opened onClose={onClose} size="lg" title={t('components.sbom.title', { name: component.name })}>
+    <Modal opened onClose={onClose} size="lg" title={title}>
       <Stack gap="sm">
         <Text size="sm" c="dimmed">
           {t('components.sbom.help')}

@@ -43,6 +43,7 @@ import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
 import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
+import { EnvironmentsCard } from '../components/catalogue/environments';
 import { SignInPolicyCard } from '../components/security/SignInPolicyCard';
 
 export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }) {
@@ -305,6 +306,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <DailySummaryAdminCard />}
         {!readOnly && <CredentialReminderSettingsCard />}
         {!readOnly && <TicketSettingsCard />}
+        {!readOnly && <EnvironmentsCard />}
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
         {!readOnly && <GitSyncSettingsCard />}

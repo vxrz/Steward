@@ -67,7 +67,7 @@ test('a component gets a tech stack by hand and from an SBOM', async ({ page, ap
 
     // the stack of all components together
     const stack = page.getByTestId('application-stack');
-    await expect(stack.getByRole('listitem')).toHaveText(['Alpine Linux 3.20.3 · 1 component', 'Node.js 22 · 1 component']);
+    await expect(stack.getByRole('listitem')).toHaveText(['Alpine Linux 3.20.3 · 1 component or system', 'Node.js 22 · 1 component or system']);
   } finally {
     await api.post(`/api/applications/${app.id}/archive`, { data: { archived: true } });
   }

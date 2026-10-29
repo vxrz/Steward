@@ -31,6 +31,7 @@ import { EmptyState, Hint, KeyValueEditor, PageHeader, QueryState } from '../com
 import { authLabel, presetDescription, presetSecretHelp, presetSecretLabel } from '../components/platform/presetText';
 import i18n from '../i18n';
 import { BRAND } from '../../../shared/src/brand';
+import { EnvironmentInput } from '../components/catalogue/environments';
 import { confirmDanger } from '../components/confirm';
 
 export const KIND_COLORS: Record<string, string> = {
@@ -362,12 +363,7 @@ function AddPlatformModal({ opened, onClose, onCreated }: { opened: boolean; onC
       {preset && (
         <Stack>
           <TextInput label={t('form.name')} required value={name} onChange={(e) => setName(e.currentTarget.value)} placeholder={t('form.namePlaceholder')} />
-          <TextInput
-            label={t('form.environment')}
-            value={environment}
-            onChange={(e) => setEnvironment(e.currentTarget.value)}
-            placeholder={t('form.environmentPlaceholder')}
-          />
+          <EnvironmentInput label={t('form.environment')} value={environment} onChange={setEnvironment} />
           <TextInput
             label={t('form.baseUrl')}
             classNames={{ input: 'mono' }}

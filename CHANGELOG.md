@@ -6,6 +6,12 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Systems** (#129): servers, VMs, clusters, appliances and cloud services that applications run on, kept once under _Service management → Systems_ – with vendor or provider, CMDB link, owners, note, their own tech stack (by hand or from an SBOM) and optionally the Steward platform they are. Applications **run on** systems per environment; the application page groups them by environment, the system page lists its applications. The application's tech stack, the end-of-life messages (production first, `db01 (prod)`) and the scorecard part _Tech stack_ include systems. API v1: `/systems`, `/systems/{systemId}`, `/environments`.
+- **Environments** (#129): _Settings → Environments_ keeps an ordered list (name, colour, production), offered on platforms, "runs on" links and components; other values stay possible and values in use can be adopted. Components get an optional environment (empty: all environments) and the components table filters by it. The process input types _Application_ and _Applications_ return `systems` and `environment` on each component.
+- Migration `catalogue-004-systems` (additive: tables `systems`, `system_stack`, `application_systems`, column `application_components.environment`).
+
 ## [0.2.4] - 2026-10-29
 
 Automated runs get one notification policy – schedules, webhook triggers and monitor outputs decide when and where failed checks notify, what counts as a change, and can pause their messages – and the messages say what is wrong, which way it changed and what to do. A dataset keeps one partition per source platform, so the same process run against several tenants no longer overwrites the others, and dashboards filter by source. The monitor editor keeps cards apart and validates while you type, the run dialog offers one run mode, failed checks on the start page are grouped, and the tenant usage example reads the real Usage Transparency API. Four database migrations, all additive: `ops-005-run-retention-default`, `ops-006-notify-policy`, `triggers-002-notify-policy` and `ops-007-dataset-sources`.

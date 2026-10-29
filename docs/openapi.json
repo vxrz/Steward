@@ -8819,6 +8819,10 @@
             "type": "integer",
             "description": "Components of the application (repositories, container images, Kafka topics, …)"
           },
+          "systemCount": {
+            "type": "integer",
+            "description": "\"Runs on\" links to systems (one per system and environment)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -8855,6 +8859,7 @@
           "documentCount",
           "overdueDocuments",
           "componentCount",
+          "systemCount",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -9179,6 +9184,10 @@
             "type": "integer",
             "description": "Components of the application (repositories, container images, Kafka topics, …)"
           },
+          "systemCount": {
+            "type": "integer",
+            "description": "\"Runs on\" links to systems (one per system and environment)"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -9342,6 +9351,10 @@
                 },
                 "note": {
                   "type": "string"
+                },
+                "environment": {
+                  "type": "string",
+                  "description": "The environment of the component; empty: all environments / not specific to one"
                 },
                 "stack": {
                   "type": "array",
@@ -9529,6 +9542,7 @@
                 "name",
                 "url",
                 "note",
+                "environment",
                 "stack",
                 "sbom",
                 "createdAt",
@@ -9651,15 +9665,54 @@
                           "platform",
                           "other"
                         ]
+                      },
+                      "environment": {
+                        "type": "string"
                       }
                     },
                     "required": [
                       "id",
                       "name",
-                      "type"
+                      "type",
+                      "environment"
                     ],
                     "additionalProperties": false
                   }
+                },
+                "systems": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "environment": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "environment"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "Systems the application runs on with this product"
+                },
+                "environments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Environments it is used in, in the order of the environment list (empty string: all environments)"
+                },
+                "production": {
+                  "type": "boolean",
+                  "description": "Used in an environment flagged as production"
                 }
               },
               "required": [
@@ -9667,11 +9720,200 @@
                 "label",
                 "version",
                 "lifecycle",
-                "components"
+                "components",
+                "systems",
+                "environments",
+                "production"
               ],
               "additionalProperties": false
             },
-            "description": "The tech stack of all components together: one entry per product and version"
+            "description": "The tech stack of all components and systems together: one entry per product and version"
+          },
+          "systems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Id of the \"runs on\" link"
+                },
+                "systemId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "server",
+                    "vm",
+                    "cluster",
+                    "appliance",
+                    "cloud-service",
+                    "other"
+                  ]
+                },
+                "vendor": {
+                  "type": "string"
+                },
+                "environment": {
+                  "type": "string",
+                  "description": "Empty: all environments"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "stack": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "product": {
+                        "type": "string",
+                        "description": "endoflife.date product id, e.g. nodejs"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Product name, e.g. Node.js"
+                      },
+                      "version": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "manual",
+                          "sbom"
+                        ],
+                        "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
+                      },
+                      "sbomRef": {
+                        "type": "string",
+                        "description": "sbom: the SBOM component it was read from (package URL, CPE or name)"
+                      },
+                      "setAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      "setBy": {
+                        "type": "string"
+                      },
+                      "lifecycle": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "state": {
+                                "type": "string",
+                                "enum": [
+                                  "supported",
+                                  "ending",
+                                  "eol",
+                                  "unknown"
+                                ],
+                                "description": "supported; ending: within the warning period; eol: past its end of life; unknown: no matching release cycle"
+                              },
+                              "cycle": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "The release cycle of the version, e.g. 24 for 24.11.0"
+                              },
+                              "eolFrom": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "End of life, YYYY-MM-DD"
+                              },
+                              "eoasFrom": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "End of active support, YYYY-MM-DD"
+                              },
+                              "isLts": {
+                                "type": "boolean"
+                              },
+                              "latest": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Latest version of the cycle"
+                              },
+                              "daysLeft": {
+                                "anyOf": [
+                                  {
+                                    "type": "integer"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "description": "Days until the end of life (negative: past)"
+                              }
+                            },
+                            "required": [
+                              "state",
+                              "cycle",
+                              "eolFrom",
+                              "eoasFrom",
+                              "isLts",
+                              "latest",
+                              "daysLeft"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                      }
+                    },
+                    "required": [
+                      "product",
+                      "label",
+                      "version",
+                      "source",
+                      "sbomRef",
+                      "setAt",
+                      "setBy",
+                      "lifecycle"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "createdBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "systemId",
+                "name",
+                "kind",
+                "vendor",
+                "environment",
+                "note",
+                "stack",
+                "createdAt",
+                "createdBy"
+              ],
+              "additionalProperties": false
+            },
+            "description": "The systems the application runs on, per environment (in the order of the environment list)"
           }
         },
         "required": [
@@ -9693,6 +9935,7 @@
           "documentCount",
           "overdueDocuments",
           "componentCount",
+          "systemCount",
           "createdAt",
           "createdBy",
           "updatedAt",
@@ -9700,7 +9943,8 @@
           "integrations",
           "links",
           "components",
-          "stack"
+          "stack",
+          "systems"
         ],
         "additionalProperties": false
       },
@@ -9959,6 +10203,377 @@
           "updatedAt",
           "updatedBy",
           "storedInvalid"
+        ],
+        "additionalProperties": false
+      },
+      "SystemEntry": {
+        "title": "SystemEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server",
+              "vm",
+              "cluster",
+              "appliance",
+              "cloud-service",
+              "other"
+            ]
+          },
+          "vendor": {
+            "type": "string",
+            "description": "Vendor or provider (AWS, Azure, on-premises, the hoster, …)"
+          },
+          "cmdbUrl": {
+            "type": "string",
+            "description": "http(s) link to the CMDB entry, or empty"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Steward users and teams responsible: user:<name>, team:<name>"
+          },
+          "note": {
+            "type": "string"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "environment": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "environment"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Steward platform this system is; null when none or one the token owner may not see (then platformHidden)"
+          },
+          "platformHidden": {
+            "type": "boolean"
+          },
+          "applicationCount": {
+            "type": "integer",
+            "description": "Applications that run on the system"
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Environments of its \"runs on\" links, in list order"
+          },
+          "eol": {
+            "type": "integer",
+            "description": "Products of its stack past their end of life"
+          },
+          "ending": {
+            "type": "integer",
+            "description": "Products of its stack within the warning period"
+          },
+          "stack": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "product": {
+                  "type": "string",
+                  "description": "endoflife.date product id, e.g. nodejs"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Product name, e.g. Node.js"
+                },
+                "version": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "manual",
+                    "sbom"
+                  ],
+                  "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
+                },
+                "sbomRef": {
+                  "type": "string",
+                  "description": "sbom: the SBOM component it was read from (package URL, CPE or name)"
+                },
+                "setAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "setBy": {
+                  "type": "string"
+                },
+                "lifecycle": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "supported",
+                            "ending",
+                            "eol",
+                            "unknown"
+                          ],
+                          "description": "supported; ending: within the warning period; eol: past its end of life; unknown: no matching release cycle"
+                        },
+                        "cycle": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "The release cycle of the version, e.g. 24 for 24.11.0"
+                        },
+                        "eolFrom": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "End of life, YYYY-MM-DD"
+                        },
+                        "eoasFrom": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "End of active support, YYYY-MM-DD"
+                        },
+                        "isLts": {
+                          "type": "boolean"
+                        },
+                        "latest": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Latest version of the cycle"
+                        },
+                        "daysLeft": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Days until the end of life (negative: past)"
+                        }
+                      },
+                      "required": [
+                        "state",
+                        "cycle",
+                        "eolFrom",
+                        "eoasFrom",
+                        "isLts",
+                        "latest",
+                        "daysLeft"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "End of life of the release cycle in use (from endoflife.date); null: no data for the product"
+                }
+              },
+              "required": [
+                "product",
+                "label",
+                "version",
+                "source",
+                "sbomRef",
+                "setAt",
+                "setBy",
+                "lifecycle"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "sbom": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "cyclonedx",
+                      "spdx"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "importedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "importedBy": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "format",
+                  "name",
+                  "importedAt",
+                  "importedBy"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "linkId": {
+                  "type": "string"
+                },
+                "applicationId": {
+                  "type": "string"
+                },
+                "applicationName": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "environment": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "linkId",
+                "applicationId",
+                "applicationName",
+                "archived",
+                "environment",
+                "note"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Applications that run on it, per environment"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "vendor",
+          "cmdbUrl",
+          "owners",
+          "note",
+          "platform",
+          "platformHidden",
+          "applicationCount",
+          "environments",
+          "eol",
+          "ending",
+          "stack",
+          "sbom",
+          "applications",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "EnvironmentEntry": {
+        "title": "EnvironmentEntry",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "gray",
+                  "green",
+                  "teal",
+                  "cyan",
+                  "blue",
+                  "indigo",
+                  "violet",
+                  "grape",
+                  "pink",
+                  "yellow",
+                  "orange",
+                  "red"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "production": {
+            "type": "boolean",
+            "description": "Counts as production: end of life is more urgent there"
+          }
+        },
+        "required": [
+          "name",
+          "color",
+          "production"
         ],
         "additionalProperties": false
       },
@@ -11963,6 +12578,19 @@
                     "componentName": {
                       "type": "string"
                     },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
                     "product": {
                       "type": "string"
                     },
@@ -11997,6 +12625,9 @@
                     "applicationId",
                     "applicationName",
                     "componentName",
+                    "holder",
+                    "environment",
+                    "production",
                     "product",
                     "label",
                     "version",
@@ -12685,6 +13316,19 @@
                           "componentName": {
                             "type": "string"
                           },
+                          "holder": {
+                            "type": "string",
+                            "enum": [
+                              "component",
+                              "system"
+                            ]
+                          },
+                          "environment": {
+                            "type": "string"
+                          },
+                          "production": {
+                            "type": "boolean"
+                          },
                           "product": {
                             "type": "string"
                           },
@@ -12719,6 +13363,9 @@
                           "applicationId",
                           "applicationName",
                           "componentName",
+                          "holder",
+                          "environment",
+                          "production",
                           "product",
                           "label",
                           "version",
@@ -13924,6 +14571,19 @@
                     "componentName": {
                       "type": "string"
                     },
+                    "holder": {
+                      "type": "string",
+                      "enum": [
+                        "component",
+                        "system"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string"
+                    },
+                    "production": {
+                      "type": "boolean"
+                    },
                     "product": {
                       "type": "string"
                     },
@@ -13958,6 +14618,9 @@
                     "applicationId",
                     "applicationName",
                     "componentName",
+                    "holder",
+                    "environment",
+                    "production",
                     "product",
                     "label",
                     "version",
@@ -19243,6 +19906,229 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems": {
+      "get": {
+        "operationId": "listSystems",
+        "summary": "List systems",
+        "tags": [
+          "Services"
+        ],
+        "description": "The systems applications run on (servers, VMs, clusters, appliances, cloud services), ordered by name, with their tech stack, the Steward platform they are, and the applications that run on them per environment.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 60
+            },
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "description": "Only systems with a \"runs on\" link in this environment"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of systems",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of systems",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SystemEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/systems/{systemId}": {
+      "get": {
+        "operationId": "getSystem",
+        "summary": "Get a system with its tech stack and applications",
+        "tags": [
+          "Services"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "in": "path",
+            "name": "systemId",
+            "required": true,
+            "description": "System id (sys_…)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/environments": {
+      "get": {
+        "operationId": "listEnvironments",
+        "summary": "The environments of the catalogue",
+        "tags": [
+          "Services"
+        ],
+        "description": "The ordered list of environments (e.g. dev, test, prod) that platforms, \"runs on\" links and components use; values outside the list are possible (free text).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "OK",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EnvironmentEntry"
+                  }
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

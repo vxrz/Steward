@@ -278,7 +278,14 @@ export interface ScorecardProtection {
 export interface ScorecardLifecycleItem {
   applicationId: string;
   applicationName: string;
+  /** The component's or system's name */
   componentName: string;
+  /** A component of the application or a system it runs on (#129) */
+  holder: 'component' | 'system';
+  /** The environment of the component or "runs on" link ('' – all environments) */
+  environment: string;
+  /** The environment is flagged as production: listed first */
+  production: boolean;
   product: string;
   label: string;
   version: string;

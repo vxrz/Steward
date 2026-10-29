@@ -451,6 +451,18 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/applications/:id/components/:componentId': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom/preview': DESIGN,
   'POST /api/applications/:id/components/:componentId/sbom': DESIGN,
+  'GET /api/systems': ALL,
+  'POST /api/systems': DESIGN,
+  'GET /api/systems/:id': ALL,
+  'PUT /api/systems/:id': DESIGN,
+  'DELETE /api/systems/:id': DESIGN,
+  'POST /api/systems/:id/sbom/preview': DESIGN,
+  'POST /api/systems/:id/sbom': DESIGN,
+  'POST /api/applications/:id/systems': DESIGN,
+  'PUT /api/applications/:id/systems/:systemLinkId': DESIGN,
+  'DELETE /api/applications/:id/systems/:systemLinkId': DESIGN,
+  'GET /api/catalogue/environments': ALL,
+  'PUT /api/catalogue/environments': ADMIN,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -573,6 +585,9 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/services/:serviceId/documents': ALL,
   'GET /api/v1/applications': ALL,
   'GET /api/v1/applications/:applicationId': ALL,
+  'GET /api/v1/systems': ALL,
+  'GET /api/v1/systems/:systemId': ALL,
+  'GET /api/v1/environments': ALL,
   'GET /api/v1/applications/:applicationId/documents': ALL,
   'GET /api/v1/cia-scale': ALL,
   'GET /api/v1/duties': ALL,
@@ -765,6 +780,8 @@ function fill(url: string): string {
     .replace(/:serviceId/g, fx.service!)
     .replace(/:applicationId/g, fx.application!)
     .replace(/:componentId/g, fx.component!)
+    .replace(/:systemLinkId/g, fx.systemLink!)
+    .replace(/:systemId/g, fx.system!)
     .replace(/:dutyId/g, fx.duty!)
     .replace(/:skipId/g, fx.dutySkip!)
     .replace(/:objectiveId/g, fx.objective!)
@@ -803,6 +820,7 @@ function fill(url: string): string {
         'ticket-references': 'ticket',
         services: 'service',
         applications: 'application',
+        systems: 'system',
         duties: 'duty',
         objectives: 'objective',
         scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
@@ -885,6 +903,13 @@ const bodies = (): Record<string, unknown> => ({
   'PUT /api/applications/:id/components/:componentId': { type: 'other', name: 'matrix component' },
   'POST /api/applications/:id/components/:componentId/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
   'POST /api/applications/:id/components/:componentId/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/systems': { name: 'Matrix system x', kind: 'server' },
+  'PUT /api/systems/:id': { name: 'Matrix system', kind: 'server' },
+  'POST /api/systems/:id/sbom/preview': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/systems/:id/sbom': { sbom: { bomFormat: 'CycloneDX', components: [] } },
+  'POST /api/applications/:id/systems': { systemId: fx.system, environment: 'test' },
+  'PUT /api/applications/:id/systems/:systemLinkId': { environment: 'prod' },
+  'PUT /api/catalogue/environments': { environments: [{ name: 'prod', production: true }] },
   'PUT /api/services/:id/applications/:applicationId': { role: 'primary' },
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
@@ -1053,6 +1078,8 @@ beforeAll(async () => {
   const appLink = await a('POST', `/applications/${application.id}/links`, { url: 'https://cmdb.example.com/3', label: 'x' });
   const component = (await a('POST', `/applications/${application.id}/components`, { type: 'repository', name: 'matrix component' })).components[0];
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
+  const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
+  const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
@@ -1091,6 +1118,8 @@ beforeAll(async () => {
     application: application.id,
     applicationLink: appLink.id,
     component: component.id,
+    system: system.id,
+    systemLink: systemLink.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
     user: users.find((u: { username: string }) => u.username === 'vera').id,

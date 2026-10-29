@@ -27,6 +27,8 @@ import {
   type ServiceScorecard,
   type ServiceScorecardDetail,
   type ServiceScorecardHistoryPoint,
+  isProductionEnvironment,
+  type CatalogueEnvironment,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
@@ -49,7 +51,8 @@ import {
   type SampleFacts,
 } from './objectives.js';
 import { ruleRows, ruleValid } from './rules.js';
-import { lifecycleOf, lifecycleSettings, releasesOf } from '../catalogue/lifecycle.js';
+import { appStackRows, lifecycleOf, lifecycleSettings, releasesOf, type AppStackRow } from '../catalogue/lifecycle.js';
+import { environmentList } from '../catalogue/environments.js';
 import { productLabel } from '../catalogue/components.js';
 
 /**
@@ -415,28 +418,25 @@ function protectionPart(need: ReturnType<typeof protectionNeeds> extends Map<str
 interface LifecycleCtx {
   enabled: boolean;
   /** stack entries per application (not archived) */
-  entries: Map<string, { component: string; product: string; version: string }[]>;
+  entries: Map<string, AppStackRow[]>;
+  environments: CatalogueEnvironment[];
   releases: ReturnType<typeof releasesOf>;
   warnDays: number;
 }
 
 function lifecycleCtx(d: Data): LifecycleCtx {
   const s = lifecycleSettings();
-  const entries = new Map<string, { component: string; product: string; version: string }[]>();
-  if (!s.scorecard) return { enabled: false, entries, releases: new Map(), warnDays: s.warnDays };
+  const entries = new Map<string, AppStackRow[]>();
+  if (!s.scorecard) return { enabled: false, entries, releases: new Map(), warnDays: s.warnDays, environments: [] };
   const apps = new Set([...d.members.values()].flat());
-  for (const r of db().all<{ application_id: string; component: string; product: string; version: string }>(
-    `SELECT c.application_id, c.name AS component, cs.product, cs.version
-     FROM component_stack cs JOIN application_components c ON c.id = cs.component_id JOIN applications a ON a.id = c.application_id
-     WHERE a.archived = 0 ORDER BY c.name, cs.product`,
-  ))
-    if (apps.has(r.application_id)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
+  for (const r of appStackRows()) if (apps.has(r.application_id)) entries.set(r.application_id, [...(entries.get(r.application_id) ?? []), r]);
   const products = [...new Set([...entries.values()].flat().map((e) => e.product))];
   return {
     enabled: true,
     entries,
     releases: releasesOf(products),
     warnDays: s.warnDays,
+    environments: environmentList(),
   };
 }
 
@@ -453,7 +453,10 @@ function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: numbe
         items.push({
           applicationId: appId,
           applicationName: d.appNames.get(appId) ?? appId,
-          componentName: e.component,
+          componentName: e.holder,
+          holder: e.holder_kind,
+          environment: e.environment,
+          production: isProductionEnvironment(ctx.environments, e.environment),
           product: e.product,
           label: productLabel(e.product),
           version: e.version,
@@ -463,7 +466,18 @@ function lifecyclePart(d: Data, serviceId: string, ctx: LifecycleCtx, now: numbe
         });
     }
   }
-  items.sort((a, b) => (a.state === b.state ? (a.eolFrom ?? '').localeCompare(b.eolFrom ?? '') : a.state === 'eol' ? -1 : 1));
+  // past its end of life first, then production, then the earliest date
+  items.sort((a, b) =>
+    a.state !== b.state
+      ? a.state === 'eol'
+        ? -1
+        : 1
+      : a.production !== b.production
+        ? a.production
+          ? -1
+          : 1
+        : (a.eolFrom ?? '').localeCompare(b.eolFrom ?? ''),
+  );
   const eol = items.filter((i) => i.state === 'eol').length;
   const ending = items.length - eol;
   return { status: !entries ? 'none' : eol ? 'attention' : ending ? 'pending' : 'ok', enabled: true, entries, eol, ending, items };

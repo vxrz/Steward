@@ -90,7 +90,12 @@ export const LARGE_BODIES = {
   reportVerify: { routes: ['POST /api/reports/verify'], bytes: PREVIOUS_LIMIT },
   /** An SBOM (CycloneDX or SPDX JSON) as text or parsed: COMPONENT_LIMITS.sbomBytes (10 MB) */
   sbom: {
-    routes: ['POST /api/applications/:id/components/:componentId/sbom/preview', 'POST /api/applications/:id/components/:componentId/sbom'],
+    routes: [
+      'POST /api/applications/:id/components/:componentId/sbom/preview',
+      'POST /api/applications/:id/components/:componentId/sbom',
+      'POST /api/systems/:id/sbom/preview',
+      'POST /api/systems/:id/sbom',
+    ],
     bytes: jsonText(COMPONENT_LIMITS.sbomBytes, 16 * KIB),
   },
 } as const satisfies Record<string, LargeBody>;

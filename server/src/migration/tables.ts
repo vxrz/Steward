@@ -86,6 +86,7 @@ export const USER_REFS: UserRef[] = [
   { table: 'credentials', column: 'owner_subjects', kind: 'subjects' },
   { table: 'services', column: 'owners', kind: 'subjects' },
   { table: 'applications', column: 'owners', kind: 'subjects' },
+  { table: 'systems', column: 'owners', kind: 'subjects' },
   { table: 'service_duties', column: 'owners', kind: 'subjects' },
   { table: 'duty_skips', column: 'decider_subjects', kind: 'subjects' },
   // the owners a service had on the day of the snapshot: mapped, so the trend per owner names the target's users and teams
@@ -110,6 +111,11 @@ export const HISTORY_COLUMNS: string[] = [
   'applications.updated_by',
   'cia_scales.updated_by',
   'component_stack.set_by',
+  'systems.created_by',
+  'systems.updated_by',
+  'systems.sbom_imported_by',
+  'system_stack.set_by',
+  'application_systems.created_by',
   'access_findings.resolved_by',
   'access_findings.dismiss_requested_by',
   'access_snapshots.taken_by',
@@ -206,6 +212,7 @@ export const SETTINGS_MOVED = [
   'notifications.dailySummary',
   'notifications.look',
   'catalogue.lifecycle',
+  'catalogue.environments',
 ];
 
 /** Folders of the data directory with stored files (attachments, artifacts, reports, evidence packs, logos). */
