@@ -39,6 +39,7 @@ import { fmtDate, fmtRelative } from '../format';
 import i18n from '../i18n';
 import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
+import { RunModeField } from '../components/RunModeField';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -328,7 +329,7 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           {draft.owner ? <Trans t={t} i18nKey="form.rightsOwner" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsYou')}
         </Text>
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
-        <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
+        <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
         <Switch
           label={t('form.overlap')}
           description={t('form.overlapHint')}

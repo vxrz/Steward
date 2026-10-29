@@ -1,13 +1,14 @@
 import { Alert, Anchor, Button, Card, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { IconAlertTriangle, IconInbox, IconRocket } from '@tabler/icons-react';
+import { IconInbox, IconRocket } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { DashboardData } from '@sm/shared';
 import { get, notifyError, notifyOk, post } from '../api';
-import { PageHeader, SeverityBadge } from '../components/common';
+import { PageHeader } from '../components/common';
 import { RunTable } from '../components/RunTable';
 import { CredentialsDueCard } from '../components/credentials/CredentialsDueCard';
+import { FailedChecksCard } from '../components/dashboard/FailedChecksCard';
 import { AttentionTiles } from '../components/dashboard/AttentionTiles';
 import { GettingStarted } from '../components/dashboard/GettingStarted';
 import { fmtDate, fmtRelative } from '../format';
@@ -97,34 +98,7 @@ export function DashboardPage({ demo }: { demo: boolean }) {
             </Card>
           )}
 
-          {data.failedChecks.length > 0 && (
-            <Card withBorder>
-              <Group mb="xs" gap="xs" wrap="nowrap">
-                <IconAlertTriangle size={18} color="var(--mantine-color-orange-6)" />
-                <Title order={5}>{t('failedChecks')}</Title>
-              </Group>
-              <Stack gap={6}>
-                {data.failedChecks.map((c, i) => (
-                  <Group key={i} justify="space-between" gap={4} wrap="wrap" align="flex-start">
-                    <div style={{ minWidth: 0 }}>
-                      <Group gap={6}>
-                        <SeverityBadge severity={c.severity} />
-                        <Anchor component={Link} to={`/runs/${c.runId}`} size="sm">
-                          {c.name}
-                        </Anchor>
-                      </Group>
-                      <Text size="xs" c="dimmed">
-                        {c.message}
-                      </Text>
-                    </div>
-                    <Text size="xs" c="dimmed" className="nowrap">
-                      {c.processName} · {fmtRelative(c.ts)}
-                    </Text>
-                  </Group>
-                ))}
-              </Stack>
-            </Card>
-          )}
+          <FailedChecksCard checks={data.failedChecks} />
 
           <CredentialsDueCard />
 

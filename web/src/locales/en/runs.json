@@ -12,7 +12,10 @@
     "periods": {
       "24h": "Last 24 hours",
       "7d": "Last 7 days"
-    }
+    },
+    "checks": "Checks",
+    "anyChecks": "Any",
+    "failedChecks": "With failed checks"
   },
   "table": {
     "empty": "No runs yet.",
@@ -54,14 +57,10 @@
     "title": "Run: {{name}}",
     "titleFallback": "Run process",
     "inputs": "Inputs",
-    "dryRun": "Dry run – simulate all changes",
-    "dryRunHint": "Read calls are executed, write calls (POST/PUT/PATCH/DELETE) are only recorded. User tasks still ask you.",
     "writesTitle": "This run will change data",
     "writesText": "The process contains write operations that will be executed against the selected platform(s).",
     "startDryRun": "Start dry run",
     "startRun": "Start run",
-    "recorded": "Use recorded responses (test run)",
-    "recordedHint": "Platform calls are answered by the recorded responses of each platform, nothing is sent. A call without one fails the run and is named.",
     "startTestRun": "Start test run"
   },
   "inputs": {
@@ -174,5 +173,17 @@
     "text": "A run is one execution of a process, with its full protocol. Start one from a process – a dry run simulates every change first.",
     "action": "Open processes",
     "noMatch": "No runs match the filter."
+  },
+  "mode": {
+    "label": "Run mode",
+    "dry": "Dry run",
+    "test": "Test run",
+    "real": "Run",
+    "dryHint": "Read calls are executed, write calls (POST/PUT/PATCH/DELETE) are only recorded. User tasks still ask you.",
+    "testHint": "Platform calls are answered by the recorded responses of each platform, nothing is sent. A call without one fails the run and is named.",
+    "realHint": "All calls are executed, including writes.",
+    "recordings_one": "{{name}}: {{count}} recorded response",
+    "recordings_other": "{{name}}: {{count}} recorded responses",
+    "noRecordings": "{{name}} has no recorded responses yet – add them under <a>Platforms → Recorded responses</a>."
   }
 }

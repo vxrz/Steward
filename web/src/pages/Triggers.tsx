@@ -45,6 +45,7 @@ import { BindingsForm, loadBindings } from '../components/RunDialog';
 import { fmtDate, fmtNumber, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
 import { appUrl } from '../basePath';
+import { RunModeField } from '../components/RunModeField';
 
 type Draft = WebhookTriggerSettings & { id?: string; owner?: string };
 
@@ -501,7 +502,7 @@ function TriggerModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =>
           />
         </Group>
         <Switch label={t('form.skipIfRunning')} checked={d.skipIfRunning} onChange={(e) => setD({ ...d, skipIfRunning: e.currentTarget.checked })} />
-        <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
+        <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
         <Hint>{draft.owner ? <Trans t={t} i18nKey="form.rightsOf" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsOfYou')}</Hint>
         <Group justify="flex-end">

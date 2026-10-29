@@ -169,6 +169,8 @@ const runsQuery = z.object({
     .refine((x) => !Number.isNaN(Date.parse(x)), 'an ISO timestamp')
     .transform((x) => new Date(x).toISOString())
     .optional(),
+  /** `failed`: only runs with a failed check (the start page's "Failed checks" links) */
+  checks: z.enum(['failed']).optional(),
 });
 const auditQuery = z.object({
   runId: z.string().max(200).optional(),
@@ -1412,18 +1414,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dashboard', async (): Promise<DashboardData> => {
     const since = new Date(Date.now() - 86400000).toISOString();
     const visible = visibleProcessIds();
-    const failedChecks = db()
-      .all<{ run_id: string; process_id: string; process_name: string; name: string; output: string; finished_at: string }>(
-        `SELECT s.run_id, r.process_id, r.process_name, s.name, s.output, s.finished_at FROM run_steps s JOIN runs r ON r.id = s.run_id
-         WHERE s.type = 'check' AND s.status = 'failed' AND s.finished_at > ? ORDER BY s.finished_at DESC LIMIT 50`,
-        new Date(Date.now() - 7 * 86400000).toISOString(),
-      )
-      .filter((r) => visible.has(r.process_id))
-      .slice(0, 20)
-      .map((r) => {
-        const o = JSON.parse(r.output ?? '{}') as { message?: string; severity?: string };
-        return { runId: r.run_id, processName: r.process_name, name: r.name, message: o.message ?? '', severity: o.severity ?? 'error', ts: r.finished_at };
-      });
+    const failedChecks = store.failedCheckGroups((id) => visible.has(id));
     // 24 h counters from a range query (not capped by the recent-runs list)
     const last24 = db()
       .all<{ process_id: string; status: string }>('SELECT process_id, status FROM runs WHERE started_at > ?', since)

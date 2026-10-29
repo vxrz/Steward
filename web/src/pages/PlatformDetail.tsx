@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Alert, Anchor, Badge, Button, Collapse, Group, Menu, Modal, Stack, Tabs, Text, TextInput, Textarea } from '@mantine/core';
 import {
@@ -65,7 +65,9 @@ export function PlatformDetailPage() {
     queryFn: () => get<{ application: { id: string; name: string; archived: boolean } | null }>(`/platforms/${id}/application`),
     enabled: !!id,
   });
-  const [tab, setTab] = useState<string | null>('settings');
+  // ?tab=recordings etc. opens a tab directly (links from the run dialog)
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState<string | null>(params.get('tab') ?? 'settings');
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<TestResult | null>(null);
   const [showBody, setShowBody] = useState(false);

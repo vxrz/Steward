@@ -1175,7 +1175,12 @@ async function execLeaf(step: FlowNode, ctx: RunContext, key: string, attempt = 
         notify: step.notify,
       });
       if (!passed && step.failRun) throw new Error(message);
-      return { status: passed ? 'succeeded' : 'failed', output: { passed, severity, message }, summary: `${passed ? '✔' : '✘'} ${message}` };
+      return {
+        status: passed ? 'succeeded' : 'failed',
+        // notify: false (informational check) stays out of the start page's failed checks
+        output: { passed, severity, message, ...(step.notify === false ? { notify: false } : {}) },
+        summary: `${passed ? '✔' : '✘'} ${message}`,
+      };
     }
     case 'report': {
       const title = await ctx.str(step.title);

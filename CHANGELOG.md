@@ -8,10 +8,13 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Runs list: only runs with failed checks** (#138): new filter _Checks → With failed checks_ (`checks=failed` on `GET /api/runs`), linked from the start page.
 - **Issue and idea forms** (#140): _About → Report an issue or idea_ links to [ISSUES.md](ISSUES.md), which says what helps and what never to include (credentials, personal data, internal details); GitHub issues use forms for bugs and ideas, blank issues are off and security reports go to the private advisory. Releases use a pull request template with the release checklist and an OWASP ASVS level 2 self-review.
 
 ### Changed
 
+- **One choice of run mode** (#137): the run dialog offers _Dry run_ (default), _Test run_ and _Run_ instead of two nested switches, with the description of the chosen mode below it and the start button named after it. _Test run_ shows how many recorded responses each bound platform has, or links to where they are added. Schedules and webhook triggers choose between _Dry run_ and _Run_ the same way.
+- **Start page: failed checks grouped and collapsible** (#138): one entry per process and check instead of one per run, with the latest message, since when it has been failing and in how many runs, and links to the latest run and to the runs with failed checks. Most severe first; checks that pass again are hidden behind _Show … that pass again_; at most 10 before _Show all_; long messages are cut to two lines. The header folds the list and keeps the counts; the choice is remembered per user in the browser. `failedChecks` in `GET /api/dashboard` has the grouped entries. Informational checks (`notify: false`) are left out, as documented – before, they were listed.
 - **Runs are kept for 400 days on new installations** (#140): the default run retention was _forever_. Existing installations and imported migration packages without the setting keep _forever_ (migration `ops-005-run-retention-default` writes it), so nothing is deleted by an upgrade; _System status_ suggests a period once the database is larger than 1 GB.
 - **The footer is on the About page only** (#140), with the full details there; the sign-in page keeps a short one.
 

@@ -1,6 +1,6 @@
 import { test, expect, pageSessionHeaders } from './support/fixtures';
 import { PROCESS, appHref } from './support/env';
-import { json, startRunFromDialog, taskRegion, waitForRun } from './support/helpers';
+import { chooseRunMode, json, startRunFromDialog, taskRegion, waitForRun } from './support/helpers';
 
 const ACCESS_REVIEW_1 = 'Insights Hub – Access review 1: flag inactive users';
 
@@ -81,7 +81,7 @@ test.describe('human in the loop', () => {
     const dialog = olivia.getByRole('dialog', { name: /^Run: / });
     // an empty demo group, so other tests that use the default review group are not affected
     await dialog.getByLabel('Review group (display name)').fill('mdsp_usergroup:LegacyProjects');
-    await dialog.getByText('Dry run – simulate all changes').click();
+    await chooseRunMode(dialog, 'Run');
     await expect(dialog.getByText('This run will change data')).toBeVisible();
     const runId = await startRunFromDialog(olivia, { dryRun: false });
     await expect(olivia.getByRole('main').getByRole('heading', { level: 2 })).not.toContainText('dry run');

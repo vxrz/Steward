@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Divider, Group, Modal, Select, Stack, Switch, Text } from '@mantine/core';
+import { Alert, Button, Divider, Group, Modal, Select, Stack, Text } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,7 @@ import { IconPlayerPlay } from '@tabler/icons-react';
 import type { Platform, ProcessDetail } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { InputsForm, defaultInputs } from './InputsForm';
+import { RunModeField, runModeFlags, type RunMode } from './RunModeField';
 
 export function bindingsKey(processId: string) {
   return `sm.bindings.${processId}`;
@@ -78,16 +79,14 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
   });
   const [inputs, setInputs] = useState<Record<string, unknown>>({});
   const [bindings, setBindings] = useState<Record<string, string>>({});
-  const [dryRun, setDryRun] = useState(true);
-  const [recorded, setRecorded] = useState(false);
+  const [mode, setMode] = useState<RunMode>('dry');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (proc.data && opened) {
       setInputs(defaultInputs(proc.data.definition.inputs));
       setBindings(loadBindings(proc.data.id));
-      setDryRun(true);
-      setRecorded(false);
+      setMode('dry');
     }
   }, [proc.data, opened]);
 
@@ -98,7 +97,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
     setBusy(true);
     try {
       localStorage.setItem(bindingsKey(proc.data.id), JSON.stringify(bindings));
-      const r = await post<{ id: string }>('/runs', { processId: proc.data.id, inputs, bindings, dryRun: dryRun || recorded, recorded: dryRun && recorded });
+      const r = await post<{ id: string }>('/runs', { processId: proc.data.id, inputs, bindings, ...runModeFlags(mode) });
       onClose();
       navigate(`/runs/${r.id}`);
     } catch (e) {
@@ -121,17 +120,8 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
           {proc.data.definition.inputs.length > 0 && <Divider label={t('dialog.inputs')} labelPosition="left" />}
           <InputsForm defs={proc.data.definition.inputs} value={inputs} onChange={setInputs} />
           <Divider />
-          <Switch checked={dryRun} onChange={(e) => setDryRun(e.currentTarget.checked)} label={t('dialog.dryRun')} description={t('dialog.dryRunHint')} />
-          {dryRun && (
-            <Switch
-              ml="lg"
-              checked={recorded}
-              onChange={(e) => setRecorded(e.currentTarget.checked)}
-              label={t('dialog.recorded')}
-              description={t('dialog.recordedHint')}
-            />
-          )}
-          {!dryRun && hasWrites && (
+          <RunModeField value={mode} onChange={setMode} platformIds={Object.values(bindings)} />
+          {mode === 'real' && hasWrites && (
             <Alert color="orange" title={t('dialog.writesTitle')}>
               {t('dialog.writesText')}
             </Alert>
@@ -140,8 +130,8 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={dryRun ? undefined : 'orange'}>
-              {dryRun ? (recorded ? t('dialog.startTestRun') : t('dialog.startDryRun')) : t('dialog.startRun')}
+            <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={mode === 'real' ? 'orange' : undefined}>
+              {t(mode === 'test' ? 'dialog.startTestRun' : mode === 'dry' ? 'dialog.startDryRun' : 'dialog.startRun')}
             </Button>
           </Group>
         </Stack>

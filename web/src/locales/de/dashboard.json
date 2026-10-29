@@ -96,5 +96,28 @@
     "discoverWall": "Statuswand der Monitore",
     "discoverSearch": "alles durchsuchen mit",
     "shortcutCtrlK": "Strg K"
+  },
+  "checks": {
+    "count_one": "{{count}} Prüfung schlägt fehl",
+    "count_other": "{{count}} Prüfungen schlagen fehl",
+    "errors_one": "{{count}} Fehler",
+    "errors_other": "{{count}} Fehler",
+    "warnings_one": "{{count}} Warnung",
+    "warnings_other": "{{count}} Warnungen",
+    "resolvedCount_one": "{{count}} wieder bestanden",
+    "resolvedCount_other": "{{count}} wieder bestanden",
+    "showResolved_one": "Die wieder bestandene Prüfung zeigen",
+    "showResolved_other": "Die {{count}} wieder bestandenen Prüfungen zeigen",
+    "allResolved": "Alle Prüfungen sind wieder bestanden.",
+    "resolved": "wieder bestanden",
+    "showMore": "Mehr zeigen",
+    "showLess": "Weniger zeigen",
+    "failingSince_one": "schlägt fehl seit {{since}}, {{count}} Lauf",
+    "failingSince_other": "schlägt fehl seit {{since}}, {{count}} Läufe",
+    "failedTimes_one": "einmal fehlgeschlagen in 7 Tagen",
+    "failedTimes_other": "{{count}}-mal fehlgeschlagen in 7 Tagen",
+    "failedRuns": "Läufe mit fehlgeschlagenen Prüfungen",
+    "showAll": "Alle {{count}} zeigen",
+    "showFewer": "Weniger zeigen"
   }
 }

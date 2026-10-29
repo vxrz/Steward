@@ -96,5 +96,28 @@
     "discoverWall": "monitor status wall",
     "discoverSearch": "search everything with",
     "shortcutCtrlK": "Ctrl K"
+  },
+  "checks": {
+    "count_one": "{{count}} check failing",
+    "count_other": "{{count}} checks failing",
+    "errors_one": "{{count}} error",
+    "errors_other": "{{count}} errors",
+    "warnings_one": "{{count}} warning",
+    "warnings_other": "{{count}} warnings",
+    "resolvedCount_one": "{{count}} passing again",
+    "resolvedCount_other": "{{count}} passing again",
+    "showResolved_one": "Show the check that passes again",
+    "showResolved_other": "Show the {{count}} checks that pass again",
+    "allResolved": "All checks pass again.",
+    "resolved": "passes again",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "failingSince_one": "failing since {{since}}, {{count}} run",
+    "failingSince_other": "failing since {{since}}, {{count}} runs",
+    "failedTimes_one": "failed once in 7 days",
+    "failedTimes_other": "failed {{count}} times in 7 days",
+    "failedRuns": "runs with failed checks",
+    "showAll": "Show all {{count}}",
+    "showFewer": "Show fewer"
   }
 }

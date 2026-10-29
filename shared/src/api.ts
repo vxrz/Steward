@@ -1039,11 +1039,34 @@ export interface McpServerStatus {
   gatewayRateLimitPerMinute: number;
 }
 
+/** A check of a process that failed in the last 7 days: its latest failure and how long it has been failing (#138). */
+export interface FailedCheckGroup {
+  processId: string;
+  processName: string;
+  /** The check step's id in the process */
+  checkId: string;
+  name: string;
+  severity: string;
+  /** Message and run of the latest failure */
+  message: string;
+  runId: string;
+  ts: string;
+  /** Failures in the 7 days */
+  count: number;
+  /** First failure of the current streak (since the check last passed, within the 7 days) */
+  since: string;
+  /** Failures since then */
+  streak: number;
+  /** The check passed in a later run */
+  resolved: boolean;
+}
+
 export interface DashboardData {
   openTasks: TaskRecord[];
   activeRuns: RunSummary[];
   recentRuns: RunSummary[];
-  failedChecks: { runId: string; processName: string; name: string; message: string; severity: string; ts: string }[];
+  /** Failed checks of the last 7 days, one entry per process and check (#138) */
+  failedChecks: FailedCheckGroup[];
   upcoming: Schedule[];
   counts: { platforms: number; processes: number; schedules: number; runs24h: number; failed24h: number };
   /** The start page's tiles: what needs the viewer's attention */
