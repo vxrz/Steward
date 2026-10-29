@@ -13,11 +13,13 @@ const Dot = () => (
 );
 
 /**
- * Compact centred footer on every page: origin, author, copyright, licence, source link and version
- * (plus the About page for signed-in users). One line on wide screens where it fits, smaller and
- * wrapped on phones. Always the Steward product identity, also with a custom app name and logo.
+ * Centred footer with the Steward product identity (also with a custom app name and logo). Shown only where it is
+ * useful, so it does not repeat on every page:
+ * - `full` (About page): origin, region, author, copyright, licence, source link, version and the About link
+ * - `compact` (sign-in page): origin, licence, source link and version (plus About for signed-in users)
+ * One line on wide screens where it fits, smaller and wrapped on phones.
  */
-export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
+export function AppFooter({ signedIn = false, variant = 'compact' }: { signedIn?: boolean; variant?: 'full' | 'compact' }) {
   const { t } = useTranslation();
   return (
     <Text component="footer" c="dimmed" ta="center" px="xs" className="app-footer">
@@ -34,22 +36,26 @@ export function AppFooter({ signedIn = false }: { signedIn?: boolean }) {
             }}
           />
         </span>
-        <Dot />
-        <Group gap={5} wrap="nowrap" component="span">
-          Metropolregion Nürnberg <FrankenRechen height={12} />
-        </Group>
-        <Dot />
-        <span>
-          <Trans
-            i18nKey="footer.builtBy"
-            values={{ author: BRAND.author }}
-            components={{ author: <Anchor href={BRAND.authorUrl} target="_blank" rel="noopener" inherit c="dimmed" underline="always" /> }}
-          />
-        </span>
-        <Dot />
-        <span>
-          © {BRAND.copyrightYear} {BRAND.author}
-        </span>
+        {variant === 'full' && (
+          <>
+            <Dot />
+            <Group gap={5} wrap="nowrap" component="span">
+              Metropolregion Nürnberg <FrankenRechen height={12} />
+            </Group>
+            <Dot />
+            <span>
+              <Trans
+                i18nKey="footer.builtBy"
+                values={{ author: BRAND.author }}
+                components={{ author: <Anchor href={BRAND.authorUrl} target="_blank" rel="noopener" inherit c="dimmed" underline="always" /> }}
+              />
+            </span>
+            <Dot />
+            <span>
+              © {BRAND.copyrightYear} {BRAND.author}
+            </span>
+          </>
+        )}
         <Dot />
         <Anchor href={`${BRAND.repoUrl}/blob/HEAD/LICENSE`} target="_blank" rel="noopener" inherit c="dimmed">
           {t('footer.openSource', { license: BRAND.license })}

@@ -101,7 +101,8 @@
       "security": "Report a vulnerability (SECURITY.md)",
       "source": "Source code",
       "license": "License ({{license}})",
-      "apiDocs": "REST API documentation"
+      "apiDocs": "REST API documentation",
+      "issue": "Report an issue or idea"
     },
     "settingsTitle": "This browser",
     "language": "Language",
@@ -211,7 +212,8 @@
       "days_one": "{{count}} day",
       "days_other": "{{count}} days",
       "forever": "forever",
-      "removed": "{{runs}} runs, {{notifications}} notifications removed"
+      "removed": "{{runs}} runs, {{notifications}} notifications removed",
+      "foreverHint": "The database has {{size}} and keeps every run. Settings → Data retention can limit runs, e.g. to 400 days (the default of new installations); reports go with their run, the audit log is kept."
     },
     "scheduler": {
       "schedules": "Schedules",

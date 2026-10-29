@@ -75,4 +75,11 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     );
     `,
   },
+  {
+    // Runs are kept for 400 days by default from 0.2.4 on. An installation that existed before (it has users) and never
+    // changed the setting kept runs forever: that is stored explicitly, so an upgrade never deletes runs.
+    name: 'ops-005-run-retention-default',
+    sql: `INSERT INTO settings (key, value) SELECT 'retentionRunDays', '0'
+          WHERE EXISTS (SELECT 1 FROM users) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'retentionRunDays');`,
+  },
 ];

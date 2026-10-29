@@ -69,6 +69,38 @@ test.describe('navigation (admin)', () => {
     await expect(sidebar(page).getByRole('link', { name: 'Monitors', exact: true })).toContainText('Monitors');
   });
 
+  test('layout: the icons of the folded sidebar sit in the middle of the rail; the footer is on the About page only', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto('/runs');
+    await settle(page);
+    const nav = sidebar(page);
+    await nav.getByRole('button', { name: 'Collapse sidebar' }).click();
+    await expect(nav.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+    const rail = (await nav.boundingBox())!;
+    const middle = rail.x + rail.width / 2;
+    const links = nav.getByRole('link');
+    expect(await links.count()).toBeGreaterThan(5);
+    for (const link of await links.all()) {
+      const icon = (await link.locator('svg').first().boundingBox())!;
+      const name = await link.getAttribute('aria-label');
+      // the icon's middle is the rail's middle (within 2 px; the scrollbar gutter is not part of the links)
+      expect(Math.abs(icon.x + icon.width / 2 - middle), `icon of "${name}"`).toBeLessThanOrEqual(2);
+    }
+    const toggle = (await nav.getByRole('button', { name: 'Expand sidebar' }).boundingBox())!;
+    expect(Math.abs(toggle.x + toggle.width / 2 - middle)).toBeLessThanOrEqual(2);
+    await testInfo.attach('folded sidebar', {
+      body: await page.screenshot({ clip: { x: 0, y: 0, width: rail.x + rail.width + 40, height: 900 } }),
+      contentType: 'image/png',
+    });
+
+    // no footer inside the app; the About page has the full one
+    await expect(page.locator('footer')).toHaveCount(0);
+    await nav.getByRole('button', { name: 'Expand sidebar' }).click();
+    await page.goto('/about');
+    await expect(page.locator('footer')).toBeVisible();
+    await testInfo.attach('about footer', { body: await page.locator('footer').screenshot(), contentType: 'image/png' });
+  });
+
   test('detail pages lead back to their list', async ({ page, apiAs }) => {
     const api = await apiAs('admin');
     const runId = await startRunApi(api, PROCESS.healthCheck, { dryRun: true });

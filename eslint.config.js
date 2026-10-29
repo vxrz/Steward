@@ -7,6 +7,15 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+/** V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour (the experimental regexp
+ * engine flags set this way crashed Node 26 when a worker thread started). */
+const noV8Flags = [
+  "MemberExpression[property.name='setFlagsFromString']",
+  "MemberExpression[property.value='setFlagsFromString']",
+  "ImportSpecifier[imported.name='setFlagsFromString']",
+  "ObjectPattern > Property[key.name='setFlagsFromString']",
+].map((selector) => ({ selector, message: 'Do not change V8 flags at runtime (v8.setFlagsFromString): pass them on the command line, if at all.' }));
+
 export default defineConfig(
   globalIgnores([
     '**/node_modules/',
@@ -40,15 +49,7 @@ export default defineConfig(
       'preserve-caught-error': 'off',
       // V8 flags are fixed at start-up: Node documents changing them at runtime as undefined behaviour
       // (the experimental regexp engine flags set this way crashed Node 26 when a worker thread started)
-      'no-restricted-syntax': [
-        'error',
-        ...[
-          "MemberExpression[property.name='setFlagsFromString']",
-          "MemberExpression[property.value='setFlagsFromString']",
-          "ImportSpecifier[imported.name='setFlagsFromString']",
-          "ObjectPattern > Property[key.name='setFlagsFromString']",
-        ].map((selector) => ({ selector, message: 'Do not change V8 flags at runtime (v8.setFlagsFromString): pass them on the command line, if at all.' })),
-      ],
+      'no-restricted-syntax': ['error', ...noV8Flags],
     },
   },
 
@@ -79,6 +80,23 @@ export default defineConfig(
     files: ['web/src/**/*.{ts,tsx}'],
     extends: [reactHooks.configs.flat.recommended],
     rules: {
+      // Buttons follow the theme: the primary colour (no colour prop) for the main action, red for destructive actions,
+      // orange for real writes and warnings, gray for neutral ones. A fixed colour such as 'blue' ignores the theme.
+      'no-restricted-syntax': [
+        'error',
+        ...noV8Flags,
+        // the colour value itself: color="x", color={'x'}, color={cond ? 'x' : 'y'}, color={cond && 'x'}
+        ...[
+          "JSXOpeningElement[name.name=/^(Button|ActionIcon|SegmentedControl|Switch|Checkbox)$/] > JSXAttribute[name.name='color'] > Literal[value!=/^(red|orange|green|gray|dark|accent)$/]",
+          "JSXOpeningElement[name.name=/^(Button|ActionIcon|SegmentedControl|Switch|Checkbox)$/] > JSXAttribute[name.name='color'] > JSXExpressionContainer > Literal[value!=/^(red|orange|green|gray|dark|accent)$/]",
+          "JSXOpeningElement[name.name=/^(Button|ActionIcon|SegmentedControl|Switch|Checkbox)$/] > JSXAttribute[name.name='color'] ConditionalExpression > .consequent[type='Literal'][value!=/^(red|orange|green|gray|dark|accent)$/]",
+          "JSXOpeningElement[name.name=/^(Button|ActionIcon|SegmentedControl|Switch|Checkbox)$/] > JSXAttribute[name.name='color'] ConditionalExpression > .alternate[type='Literal'][value!=/^(red|orange|green|gray|dark|accent)$/]",
+          "JSXOpeningElement[name.name=/^(Button|ActionIcon|SegmentedControl|Switch|Checkbox)$/] > JSXAttribute[name.name='color'] LogicalExpression > .right[type='Literal'][value!=/^(red|orange|green|gray|dark|accent)$/]",
+        ].map((selector) => ({
+          selector,
+          message: "Buttons use the theme: leave out color for the primary colour; only 'red', 'orange', 'green', 'gray', 'dark' or 'accent' are allowed.",
+        })),
+      ],
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
       'react-hooks/refs': 'off',

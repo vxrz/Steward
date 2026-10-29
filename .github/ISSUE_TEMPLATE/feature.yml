@@ -1,0 +1,28 @@
+name: Feature or improvement
+description: An idea that would make Steward more useful
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to achieve?
+      description: The situation and the goal, before any solution – e.g. "we review firewall rules every quarter and need evidence of it".
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: How could Steward help?
+      description: Your idea of a solution, if you have one. Screens, fields, examples welcome.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you do it today?
+      description: Workarounds or other tools you use for it.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: This request contains no credentials, personal data or internal host/tenant names.
+          required: true

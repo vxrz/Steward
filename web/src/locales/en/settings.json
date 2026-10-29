@@ -52,7 +52,15 @@
     "listLabel": "Allow-list",
     "listPlaceholder": "https://api.example.com\n*.corp.example\n10.0.0.0/8",
     "listHint": "One entry per line: an origin (https://host[:port]), a host or host glob (*.example.com) or a CIDR. Cloud-metadata (169.254.169.254, …) and link-local addresses and the Steward server's own port are always blocked.",
-    "note": "Absolute URLs that are not covered here fail with a message telling the author to ask an administrator to allow the origin."
+    "note": "Absolute URLs that are not covered here fail with a message telling the author to ask an administrator to allow the origin.",
+    "invalidEntry": "“{{entry}}”: {{problem}}",
+    "problems": {
+      "path": "an origin has no path – use https://host[:port]",
+      "scheme": "only http:// and https:// origins",
+      "cidr": "use an IPv4 CIDR such as 10.10.13.0/24",
+      "port": "the port must be between 1 and 65535",
+      "host": "not a host name, IP address or origin – one entry per line"
+    }
   },
   "compliance": {
     "title": "Access reconciliation",
@@ -62,7 +70,7 @@
   "retention": {
     "title": "Data retention",
     "runs": "Keep runs (days)",
-    "runsHint": "Includes logs and evidence files. 0 = forever.",
+    "runsHint": "Includes logs and evidence files. 0 = forever. New installations start with 400 days.",
     "notifications": "Keep read notifications (days)",
     "notificationsHint": "Unread ones are always kept.",
     "hint": "Older runs, read notifications and monitor history are deleted automatically. The audit log is never pruned.",

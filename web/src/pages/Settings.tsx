@@ -20,7 +20,7 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconLanguage, IconTrashX } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import type { ApiToken, AuthStatus, MaintenanceStatus, Settings } from '@sm/shared';
+import { allowListEntryProblem, allowListLines, type ApiToken, type AuthStatus, type MaintenanceStatus, type Settings } from '@sm/shared';
 import { BRAND } from '../../../shared/src/brand';
 import { del, get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { PageHeader } from '../components/common';
@@ -55,9 +55,17 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
   const readOnly = !caps.manageSettings;
   const publicApi = usePublicApi();
   const [s, setS] = useState<Settings | null>(null);
+  // the allow-list is edited as text: parsed into entries for saving, but the text (with new, empty lines) stays as typed
+  const [allowText, setAllowText] = useState('');
   useEffect(() => {
-    if (settings.data) setS(settings.data);
+    if (settings.data) {
+      setS(settings.data);
+      setAllowText((settings.data.outboundAllowList ?? []).join('\n'));
+    }
   }, [settings.data]);
+  const allowProblems = allowListLines(allowText)
+    .map((line) => ({ line, problem: allowListEntryProblem(line) }))
+    .filter((x) => x.problem);
   if (readOnly) return <PageHeader title={t('title')} description={t('readOnly')} actions={caps.viewAudit ? <SystemStatusLink /> : undefined} />;
   if (!s) return null;
   return (
@@ -155,16 +163,18 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
               autosize
               minRows={2}
               maxRows={8}
-              value={(s.outboundAllowList ?? []).join('\n')}
-              onChange={(e) =>
-                setS({
-                  ...s,
-                  outboundAllowList: e.currentTarget.value
-                    .split('\n')
-                    .map((x) => x.trim())
-                    .filter(Boolean),
-                })
+              value={allowText}
+              onChange={(e) => {
+                const text = e.currentTarget.value;
+                setAllowText(text);
+                setS({ ...s, outboundAllowList: allowListLines(text) });
+              }}
+              error={
+                allowProblems.length
+                  ? allowProblems.map((x) => t('outbound.invalidEntry', { entry: x.line, problem: t(`outbound.problems.${x.problem!}`) })).join(' · ')
+                  : undefined
               }
+              classNames={{ input: 'mono' }}
             />
             <Text size="xs" c="dimmed">
               {t('outbound.listHint')}
@@ -264,6 +274,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && (
           <Group>
             <Button
+              disabled={allowProblems.length > 0}
               onClick={async () => {
                 const mode = s.passwordLogin;
                 const turningOff = mode !== 'all' && mode !== settings.data?.passwordLogin && !s.passwordLoginFromEnv;

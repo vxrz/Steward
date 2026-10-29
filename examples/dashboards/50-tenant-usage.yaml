@@ -1,5 +1,5 @@
 name: Tenant usage
-description: Insights Hub consumption against the licence – credits, storage, users, assets and agents, with warning (80 %) and critical (95 %) levels. Fed by "Insights Hub – Tenant usage and licence check" (daily).
+description: Insights Hub usage against the licence – users, assets, agents, asset attributes per asset type and a KPI of the Usage Transparency Service, with warning (80 %) and critical (95 %) levels. Fed by "Insights Hub – Tenant usage and licence check" (daily).
 refreshSeconds: 300
 widgets:
   - id: intro
@@ -7,31 +7,34 @@ widgets:
     width: 12
     text: |
       **Tenant usage** – read by the process *Insights Hub – Tenant usage and licence check*. Opening this page never calls the platform.
-      Rows turn **warning** from 80 % and **critical** from 95 % of a limit (inputs of the process). A breach fails a check of the run, which notifies the run's owner.
-  - { id: credits, type: kpi, title: Credits used (%), dataset: ih.usage, metric: creditsPercent, goodWhen: down, width: 3, days: 90 }
-  - { id: storage, type: kpi, title: Time series storage (%), dataset: ih.usage, metric: storagePercent, goodWhen: down, width: 3, days: 90 }
+      Limits come from the inputs of the process (your contract); without a limit a figure is only counted. Rows turn **warning** from 80 % and **critical** from 95 %, and **unknown** when a figure could not be read – the failed step of the run shows the platform's answer.
   - { id: users, type: kpi, title: Licensed users used (%), dataset: ih.usage, metric: usersPercent, goodWhen: down, width: 3, days: 90 }
+  - { id: assets, type: kpi, title: Licensed assets used (%), dataset: ih.usage, metric: assetsPercent, goodWhen: down, width: 3, days: 90 }
+  - { id: attributes, type: kpi, title: Asset attributes used (%), dataset: ih.usage, metric: attributesPercent, goodWhen: down, width: 3, days: 90 }
   - { id: breaches, type: kpi, title: Figures at critical level, dataset: ih.usage, metric: critical, goodWhen: down, width: 3, days: 90 }
   - {
       id: trendUse,
       type: trend,
-      title: Credits and storage over time (%),
+      title: Used of the licence over time (%),
       dataset: ih.usage,
-      metrics: [creditsPercent, storagePercent, maxPercent],
+      metrics: [attributesPercent, kpiPercent, maxPercent],
       days: 90,
       width: 8,
     }
   - { id: status, type: status, title: Figures by level, dataset: ih.usage, width: 4 }
   - {
-      id: trendObjects,
+      id: trendCounts,
       type: trend,
-      title: Users and assets over time (%),
+      title: Users,
+      assets and agents over time (%),
       dataset: ih.usage,
       metrics: [usersPercent, assetsPercent, agentsPercent],
       days: 90,
-      width: 12,
+      width: 6,
     }
-  - { id: problems, type: table, title: Figures above the warning level, dataset: ih.usage, problemsOnly: true, width: 12 }
+  - { id: trendAttributes, type: trend, title: Asset attributes and KPI over time, dataset: ih.usage, metrics: [attributes, kpi], days: 90, width: 6 }
+  - { id: problems, type: table, title: Figures above the warning level or not read, dataset: ih.usage, problemsOnly: true, width: 12 }
   - { id: all, type: table, title: All figures, dataset: ih.usage, width: 12 }
+  - { id: perType, type: table, title: Asset attributes per asset type, dataset: ih.usage-attributes, width: 12 }
   - { id: checks, type: checks, title: Latest licence check, process: ih-tenant-usage, width: 6 }
   - { id: fresh, type: freshness, title: Data freshness, width: 6 }

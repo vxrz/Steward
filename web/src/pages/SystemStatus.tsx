@@ -235,6 +235,11 @@ export function SystemStatusPage() {
               </Row>
               <Row label={t('status.retention.runs')}>
                 {s.retention.runDays ? t('status.retention.days', { count: s.retention.runDays }) : t('status.retention.forever')}
+                {!s.retention.runDays && (s.database.sizeBytes ?? 0) > 1024 ** 3 && (
+                  <Text size="xs" c="orange" mt={2}>
+                    {t('status.retention.foreverHint', { size: fmtBytes(s.database.sizeBytes) })}
+                  </Text>
+                )}
               </Row>
               <Row label={t('status.retention.notifications')}>{t('status.retention.days', { count: s.retention.notificationDays })}</Row>
               <Row label={t('status.retention.monitors')}>{t('status.retention.days', { count: s.retention.monitorDays })}</Row>

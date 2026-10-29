@@ -6,6 +6,22 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Issue and idea forms** (#140): _About → Report an issue or idea_ links to [ISSUES.md](ISSUES.md), which says what helps and what never to include (credentials, personal data, internal details); GitHub issues use forms for bugs and ideas, blank issues are off and security reports go to the private advisory. Releases use a pull request template with the release checklist and an OWASP ASVS level 2 self-review.
+
+### Changed
+
+- **Runs are kept for 400 days on new installations** (#140): the default run retention was _forever_. Existing installations and imported migration packages without the setting keep _forever_ (migration `ops-005-run-retention-default` writes it), so nothing is deleted by an upgrade; _System status_ suggests a period once the database is larger than 1 GB.
+- **The footer is on the About page only** (#140), with the full details there; the sign-in page keeps a short one.
+
+### Fixed
+
+- **Outbound allow list**: lines could not be added in _Settings → Outbound_ because the field dropped empty lines while typing. Each entry is now checked as you type (origin without a path, host or `*.host` with an optional port, IPv4 CIDR) and saving is refused with the reason; the server checks the same.
+- **Tenant usage example** (#140): the example called a Usage Transparency path that does not exist (HTTP 500) and came with the limits of the demo tenant, so real tenants saw figures such as 308 %. It now counts users, assets, agents and **asset attributes per asset type** (new dataset `ih.usage-attributes`), compares them only with the limits you enter (default: count only), and can read one KPI with `aggregatedMonthlyConsumerUsage` of the Usage Transparency API 3.2.0. A figure that cannot be read is shown as _unknown_ and fails the new check _All figures were read_; the failed step keeps the platform's answer. Dashboard _Tenant usage_ and [docs/INSIGHTS-HUB-USAGE.md](docs/INSIGHTS-HUB-USAGE.md) updated.
+- **Collapsed sidebar**: the icons sat off-centre.
+- **Button colours**: two buttons used a fixed blue instead of the accent colour; a lint rule now allows only the semantic colours on buttons and switches.
+
 ## [0.2.3] - 2026-10-28
 
 Applications list their components with a tech stack – entered by hand or imported from an SBOM – and Steward reads the end of life of every version from endoflife.date: coloured badges, messages to the owners and an optional scorecard part. Platforms keep recorded responses, so processes and monitors can be tried in test runs without calling the platform. Failed checks of scheduled runs notify on change instead of after every run, credentials document the applications that use them and the roles they hold, and two new integrations show how to build Streamlit apps and Grafana dashboards on Steward data. Seven database migrations, all additive: `catalogue-002-components`, `catalogue-003-lifecycle`, `ops-004-check-notifications`, `credentials-002-roles`, `scorecard-003-lifecycle`, `platforms-002-recordings` and `engine-003-test-runs`.

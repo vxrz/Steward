@@ -55,6 +55,39 @@ test('a heartbeat report turns the check up', async ({ page, apiAs }) => {
   await api.delete(`/api/monitors/${created.monitor.id}`);
 });
 
+test('pausing a monitor asks first, shows it in the header and resumes it', async ({ page, apiAs }) => {
+  const api = await apiAs('dana');
+  const name = uniq('E2E pause');
+  const created = await json(
+    await api.post('/api/monitors', {
+      data: { definition: { name, checks: [{ id: 'hb', name: 'Gateway report', type: 'heartbeat', mode: 'maxAge', maxAgeSeconds: 600 }] } },
+    }),
+  );
+  await page.goto(`/monitors/${created.monitor.id}`);
+  await expect(page.getByTestId('monitor-paused')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: `Pause "${name}"?` });
+  await expect(dialog).toContainText('maintenance window');
+  // cancelling keeps it running
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId('monitor-paused')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.getByTestId('confirm-dialog-confirm').click();
+  await expect(page.getByTestId('monitor-paused')).toHaveText('Paused');
+  await expect(page.getByText('This monitor is paused')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Check now' })).toBeDisabled();
+  expect((await json(await api.get(`/api/monitors/${created.monitor.id}`))).enabled).toBe(false);
+  // the maintenance tab explains the difference
+  await page.getByRole('tab', { name: 'Maintenance' }).click();
+  await expect(page.getByText('To stop the checks altogether, pause the monitor')).toBeVisible();
+  // resuming needs no confirmation
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect(page.getByTestId('monitor-paused')).toHaveCount(0);
+  expect((await json(await api.get(`/api/monitors/${created.monitor.id}`))).enabled).toBe(true);
+  await api.delete(`/api/monitors/${created.monitor.id}`);
+});
+
 test('the root cause is shown when a parent and its child fail', async ({ page, apiAs }) => {
   const api = await apiAs('dana');
   const created = await json(

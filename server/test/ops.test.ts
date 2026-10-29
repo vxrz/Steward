@@ -330,6 +330,8 @@ describe('maintenance', () => {
     const readBefore = d.get<{ n: number }>('SELECT COUNT(*) AS n FROM notifications WHERE read = 1 AND ts = ?', old)!.n;
     expect(readBefore).toBeGreaterThan(0);
 
+    // a new installation keeps runs for 400 days unless an administrator changes it (0.2.4)
+    expect((await s.api('GET', '/settings')).retentionRunDays).toBe(400);
     await s.api('PUT', '/settings', { retentionRunDays: 30, retentionNotificationDays: 7 });
     expect(await status(s.api('PUT', '/settings', { retentionRunDays: -1 }))).toBe(400);
     const m = await s.api('POST', '/maintenance/cleanup', {});

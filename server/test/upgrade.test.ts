@@ -244,6 +244,10 @@ describe.each(versions)('upgrade from %s', (version) => {
     if (pending.length) expect(entries[0].details.migrations).toEqual(pending);
   });
 
+  it('keeps runs forever when the old version never limited them (default 400 days only for new installations, 0.2.4)', async () => {
+    expect((await admin('GET', '/settings')).retentionRunDays).toBe(0);
+  });
+
   it('keeps the request paths of API specs imported before path prefixes existed (0.2.1)', async () => {
     expect(oldOperations.length).toBeGreaterThan(0);
     for (const { platformId, ops } of oldOperations) {

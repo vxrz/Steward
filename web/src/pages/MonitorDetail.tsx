@@ -1,24 +1,5 @@
 import { useState } from 'react';
-import {
-  Alert,
-  Anchor,
-  Badge,
-  Button,
-  Drawer,
-  Grid,
-  Group,
-  Menu,
-  Paper,
-  ScrollArea,
-  Stack,
-  Switch,
-  Table,
-  Tabs,
-  Text,
-  Timeline,
-  Title,
-  Tooltip,
-} from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Drawer, Grid, Group, Menu, Paper, ScrollArea, Stack, Table, Tabs, Text, Timeline, Title, Tooltip } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -30,6 +11,7 @@ import {
   IconDownload,
   IconEdit,
   IconKey,
+  IconPlayerPause,
   IconPlayerPlay,
   IconRefresh,
   IconSend,
@@ -54,7 +36,7 @@ import { MonitorGraph } from '../components/monitors/MonitorGraph';
 import { TestRunButton } from '../components/monitors/TestRunButton';
 import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptime, monitorStatusLabel, uptimeText } from '../components/monitors/status';
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
-import { confirmDanger } from '../components/confirm';
+import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
 
 export function MonitorDetailPage() {
@@ -92,6 +74,28 @@ export function MonitorDetailPage() {
     }
   };
 
+  /** Pausing stops the checks and the messages, so it asks first; resuming does not. */
+  const setActive = async (enabled: boolean) => {
+    if (
+      !enabled &&
+      !(await confirmDialog({
+        action: 'confirm',
+        danger: false,
+        title: t('detail.pauseTitle', { name: m.name }),
+        message: t('detail.pauseConfirm'),
+        confirmLabel: t('detail.pause'),
+      }))
+    )
+      return;
+    try {
+      await post(`/monitors/${m.id}/enabled`, { enabled });
+      notifyOk(enabled ? t('detail.resumed') : t('detail.pausedOk'));
+    } catch (e) {
+      notifyError(e);
+    }
+    refresh();
+  };
+
   return (
     <>
       <PageHeader
@@ -100,6 +104,11 @@ export function MonitorDetailPage() {
           <Group gap="sm" wrap="wrap">
             <span>{m.name}</span>
             {m.isTemplate ? <Badge variant="outline">{t('detail.template')}</Badge> : <MonitorStatusBadge status={m.status} size="lg" />}
+            {!m.isTemplate && !m.enabled && (
+              <Badge size="lg" variant="outline" color="gray" leftSection={<IconPlayerPause size={14} aria-hidden />} data-testid="monitor-paused">
+                {t('detail.paused')}
+              </Badge>
+            )}
             <GitOriginBadge kind="monitor" id={m.id} />
           </Group>
         }
@@ -111,6 +120,16 @@ export function MonitorDetailPage() {
         }
         actions={
           <>
+            {!m.isTemplate && can('edit') && (
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={m.enabled ? <IconPlayerPause size={14} /> : <IconPlayerPlay size={14} />}
+                onClick={() => void setActive(!m.enabled)}
+              >
+                {m.enabled ? t('detail.pause') : t('detail.resume')}
+              </Button>
+            )}
             {!m.isTemplate && can('acknowledge') && (
               <Button size="xs" variant="default" leftSection={<IconPlayerPlay size={14} />} loading={busy} onClick={runNow} disabled={!m.enabled}>
                 {t('detail.checkNow')}
@@ -258,7 +277,11 @@ export function MonitorDetailPage() {
             </Group>
           </Alert>
         )}
-        {!m.enabled && !m.isTemplate && <Alert color="gray">{t('detail.disabled')}</Alert>}
+        {!m.enabled && !m.isTemplate && (
+          <Alert color="gray" icon={<IconPlayerPause size={18} />}>
+            {t('detail.disabled')}
+          </Alert>
+        )}
       </Stack>
 
       <Tabs defaultValue="graph" keepMounted={false}>
@@ -347,17 +370,6 @@ export function MonitorDetailPage() {
           />
         </Tabs.Panel>
       </Tabs>
-      {can('edit') && !m.isTemplate && (
-        <Switch
-          mt="md"
-          label={t('form.enabled')}
-          checked={m.enabled}
-          onChange={async (e) => {
-            await post(`/monitors/${m.id}/enabled`, { enabled: e.currentTarget.checked }).catch(notifyError);
-            refresh();
-          }}
-        />
-      )}
       {maint && <MaintenanceModal monitor={m} onClose={() => setMaint(false)} onSaved={refresh} />}
       {ack && <AcknowledgeModal monitor={m} onClose={() => setAck(false)} onSaved={refresh} />}
       {instances && (
@@ -706,6 +718,9 @@ function MaintenanceList({ monitor, onPlan }: { monitor: MonitorDetail; onPlan: 
   });
   return (
     <Stack>
+      <Text size="sm" c="dimmed">
+        {t('maintenance.intro')} {t('maintenance.vsPause')}
+      </Text>
       {monitor.permissions.includes('acknowledge') && (
         <Button size="xs" w="fit-content" leftSection={<IconTool size={14} />} onClick={onPlan}>
           {t('maintenance.plan')}

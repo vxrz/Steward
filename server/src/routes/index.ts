@@ -87,7 +87,7 @@ import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND, MANUAL_LIMITS, SCHEDULE_NOTIFY_MODES, SCHEDULE_REMINDER_MAX_HOURS, boundedRecord } from '@sm/shared';
+import { BRAND, MANUAL_LIMITS, SCHEDULE_NOTIFY_MODES, SCHEDULE_REMINDER_MAX_HOURS, allowListEntryProblem, boundedRecord } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -780,7 +780,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         retentionMonitorDays: z.number().int().min(1).max(3650).optional(),
         apiDocs: z.enum(API_DOCS_MODES).optional(),
         outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
-        outboundAllowList: z.array(z.string().trim().min(1).max(255)).max(200).optional(),
+        outboundAllowList: z
+          .array(
+            z
+              .string()
+              .trim()
+              .min(1)
+              .max(255)
+              .refine((e) => !allowListEntryProblem(e), { message: 'Use an origin (https://host[:port]), a host or *.host (optional :port), or an IPv4 CIDR' }),
+          )
+          .max(200)
+          .optional(),
         findingDismissFourEyes: z.boolean().optional(),
       })
       .parse(req.body);

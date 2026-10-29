@@ -140,7 +140,7 @@ export function RunDialog({ processId, opened, onClose }: { processId: string | 
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}
             </Button>
-            <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={dryRun ? 'blue' : 'orange'}>
+            <Button leftSection={<IconPlayerPlay size={16} />} onClick={start} loading={busy} color={dryRun ? undefined : 'orange'}>
               {dryRun ? (recorded ? t('dialog.startTestRun') : t('dialog.startDryRun')) : t('dialog.startRun')}
             </Button>
           </Group>

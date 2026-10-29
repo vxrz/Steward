@@ -121,7 +121,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_MCP_RATE_LIMIT`, `SM_MCP_GATEWAY_RATE_LIMIT` | `120`, `30`                      | MCP requests per minute and token; platform gateway calls per minute, user and platform                                                                                                                                                                                                                                         |
 | `SM_MCP_ALLOWED_ORIGINS`                         | –                                | Origins of browser-based MCP clients allowed to call `/api/mcp` (comma-separated)                                                                                                                                                                                                                                               |
 
-Retention of runs and notifications, and the notification channels, are set under **Settings**.
+Retention of runs and notifications, and the notification channels, are set under **Settings**. New installations keep runs for 400 days; installations that existed before 0.2.4 keep them until an administrator sets a period (_Settings → System status_ points this out once the database grows past 1 GB).
 
 ## Concepts
 
