@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, Paper, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { SubjectsInput } from '../components/SubjectsInput';
 import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
@@ -341,7 +342,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
           >
             {t('addContact')}
           </Button>
-          <TagsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} maxTags={20} />
+          <SubjectsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} max={20} />
           <Text fw={600} size="sm">
             {t('cmdb')}
           </Text>

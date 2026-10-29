@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Alert, Badge, Button, Group, Modal, NumberInput, Select, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, NumberInput, Select, Stack, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { SubjectsInput } from '../SubjectsInput';
 import {
   DUTY_INTERVALS,
   DUTY_LEVELS,
@@ -266,7 +267,7 @@ export function DutyFormModal({
               clearable
             />
           )}
-          <TagsInput label={t('owners')} description={t('ownersHint')} value={owners} onChange={setOwners} maxTags={DUTY_LIMITS.owners} />
+          <SubjectsInput label={t('owners')} description={t('ownersHint')} value={owners} onChange={setOwners} max={DUTY_LIMITS.owners} />
           <Textarea
             label={t('descriptionLabel')}
             value={description}

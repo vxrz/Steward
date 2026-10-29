@@ -111,6 +111,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/teams': ADMIN,
   'PUT /api/teams/:id': ADMIN,
   'DELETE /api/teams/:id': ADMIN,
+  'GET /api/users/:id/references': ADMIN,
+  'GET /api/teams/:id/references': ADMIN,
   'GET /api/subjects': ACTIVE,
   'PATCH /api/me': ALL,
   'GET /api/me/tokens': ALL,

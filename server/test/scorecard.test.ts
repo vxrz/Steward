@@ -108,6 +108,8 @@ beforeAll(async () => {
   jobs = await import('../src/scorecard/jobs.js');
   sc = await import('../src/scorecard/scorecard.js');
   gatusId = (await s.api('GET', '/platforms')).find((p: any) => p.name === 'Gatus (demo)').id;
+  // owners must exist (#143)
+  for (const name of ['operations', 'night-shift']) await s.api('POST', '/teams', { name, members: [] });
   // a Gatus platform only the administrator may see
   secretGatus = (await s.api('POST', '/platforms', { name: 'Secret Gatus', kind: 'gatus', baseUrl: 'https://gatus.internal.example' })).id;
   (await import('../src/platforms/service.js')).setPlatformAccess(secretGatus, [{ subject: 'user:admin', permissions: ['manage'] }]);

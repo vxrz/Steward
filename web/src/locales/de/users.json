@@ -312,5 +312,33 @@
   "profileValues": {
     "title": "Vom Anmeldeanbieter",
     "hint": "Nur lesbar: wird vom Single-Sign-on-Anbieter aktualisiert."
+  },
+  "references": {
+    "teamDelete": "Team „{{name}}“ löschen? Es wird aus diesen Einträgen entfernt – sie behalten ihre anderen Verantwortlichen und Zugriffseinträge:",
+    "deactivateTitle": "{{name}} deaktivieren?",
+    "deactivate": "{{name}} ist hier noch eingetragen. Die Einträge behalten den Namen, bis Sie sie ändern – übergeben Sie sie am besten vorher:",
+    "tables": {
+      "services": "Services",
+      "applications": "Anwendungen",
+      "systems": "Systeme",
+      "credentials": "Zugangsdaten",
+      "service_duties": "Pflichten",
+      "processes": "Prozesse",
+      "platforms": "Plattformen",
+      "monitors": "Monitore",
+      "schedules": "Zeitpläne",
+      "dashboards": "Dashboards",
+      "records": "Datensätze",
+      "record_documents": "Dokument-Reviews",
+      "ticket_refs": "Ticket-Referenzen",
+      "report_schedules": "Berichtszeitpläne",
+      "run_tasks": "Manuelle Schritte",
+      "webhook_triggers": "Webhook-Trigger",
+      "access_checks": "Zugriffsprüfungen",
+      "monitor_gateways": "Heartbeat-Gateways",
+      "gatus_sources": "Gatus-Quellen",
+      "duty_skips": "Ausnahmen von Pflichten",
+      "scorecard_snapshots": "Scorecard-Verlauf"
+    }
   }
 }

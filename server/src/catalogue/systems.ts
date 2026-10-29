@@ -37,6 +37,7 @@ import {
 import { lifecycleSettings, releasesOf } from './lifecycle.js';
 import { byEnvironment, environmentValue } from './environments.js';
 import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -327,6 +328,7 @@ export function createSystem(input: SystemInput): SystemDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create systems', 'createSystem');
   if (nameTaken(input.name)) throw new HttpError(409, `A system "${input.name}" exists already`, 'SYSTEM_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners);
   const platformId = input.platformId ?? null;
   checkPlatform(platformId, u);
   if (input.stack) requireKnownProducts(input.stack);
@@ -366,6 +368,7 @@ export function updateSystem(id: string, input: SystemInput): SystemDetail {
   const u = me();
   const cur = requireEditable(id, 'change this system');
   if (nameTaken(input.name, id)) throw new HttpError(409, `A system "${input.name}" exists already`, 'SYSTEM_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners, ownersOf(cur));
   // keeping a platform the user cannot see is fine (missing: unchanged); choosing one needs to see it
   const platformId = input.platformId === undefined ? cur.platform_id : input.platformId;
   if (platformId !== cur.platform_id) checkPlatform(platformId, u);

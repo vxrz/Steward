@@ -634,7 +634,9 @@
     "SYSTEM_LINK_LIMIT": "Eine Anwendung läuft auf höchstens {{max}} Systemen.",
     "ENVIRONMENT_TWICE": "„{{name}}“ ist doppelt aufgeführt.",
     "SYSTEM_HAS_CREDENTIALS": "Zu „{{name}}“ gehören Einträge im Zugangsdaten-Register ({{count}}). Verschieben oder archivieren Sie sie zuerst.",
-    "CREDENTIAL_BELONGS_NOT_FOUND": "Die Anwendung, die Komponente oder das System gibt es nicht (mehr)."
+    "CREDENTIAL_BELONGS_NOT_FOUND": "Die Anwendung, die Komponente oder das System gibt es nicht (mehr).",
+    "USER_UNKNOWN": "Es gibt keinen Benutzer „{{name}}“. Wählen Sie einen aus der Liste – eine Administratorin oder ein Administrator kann eine Person, die sich noch nicht angemeldet hat, unter Benutzer anlegen.",
+    "TEAM_UNKNOWN": "Es gibt kein Team „{{name}}“. Wählen Sie eines aus der Liste."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

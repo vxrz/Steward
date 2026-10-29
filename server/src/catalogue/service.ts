@@ -19,6 +19,7 @@ import { documentCounts, readableDocuments } from './documents.js';
 import { scopesOf } from './scope.js';
 import { protectionNeedOf, protectionNeeds } from './cia.js';
 import { serviceApplications } from './applications.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * A deliberately small service catalogue ("lightweight CMDB"): name,
@@ -258,6 +259,7 @@ const dedupe = <T>(xs: T[], key: (x: T) => string) => [...new Map(xs.map((x) => 
 export function createService(input: ServiceInput): ServiceDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create services', 'createServices');
+  assertKnownSubjects(input.owners);
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0', input.name))
     throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
   const id = newId('svc_');
@@ -296,6 +298,7 @@ export function updateService(id: string, input: ServiceInput): ServiceDetail {
   const u = me();
   const cur = row(id);
   if (!canEditService(u, parseJson(cur.owners, []))) forbid('change this service', 'changeService');
+  assertKnownSubjects(input.owners, parseJson<string[]>(cur.owners, []));
   if (db().get('SELECT 1 FROM services WHERE lower(name) = lower(?) AND archived = 0 AND id <> ?', input.name, id))
     throw new HttpError(409, `A service named "${input.name}" exists already`, 'SERVICE_EXISTS', { name: input.name });
   const next = {

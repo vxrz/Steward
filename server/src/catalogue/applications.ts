@@ -41,6 +41,7 @@ import { scopeOf } from './scope.js';
 import { componentCounts, componentsOf, stackRollup } from './components.js';
 import { systemCounts, systemLinksOf } from './systems.js';
 import { credentialsBelongingTo, credentialsLinkingTo, toCredential, type CredentialRow } from '../credentials/service.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Applications of the service catalogue (#84): name, description, vendor, version, URL, owners, criticality, tags,
@@ -379,6 +380,7 @@ export function createApplication(input: ApplicationInput): ApplicationDetail {
   const u = me();
   if (!canCreateServices(u)) forbid('create applications', 'createApplications');
   if (nameTaken(input.name)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners);
   const id = newId('app_');
   const now = nowIso();
   const c = columns(input);
@@ -418,6 +420,7 @@ export function updateApplication(id: string, input: ApplicationInput): Applicat
   const u = me();
   const cur = requireEditableApplication(id, 'change this application');
   if (nameTaken(input.name, id)) throw new HttpError(409, `An application named "${input.name}" exists already`, 'APPLICATION_EXISTS', { name: input.name });
+  assertKnownSubjects(input.owners, ownersOf(cur));
   const next = columns(input);
   const changes = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next[k] ?? null) !== (cur[k] ?? null));
   if (!changes.length) return getApplication(id);

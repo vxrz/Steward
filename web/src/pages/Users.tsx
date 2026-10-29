@@ -8,6 +8,7 @@ import {
   Code,
   CopyButton,
   Group,
+  List,
   Modal,
   MultiSelect,
   PasswordInput,
@@ -33,7 +34,7 @@ import { useMe } from '../auth';
 import { SsoSection, useSsoProviders } from '../components/sso/SsoSection';
 import i18n from '../i18n';
 import { ProfileValues } from '../components/users/ProfileValues';
-import { confirmDanger } from '../components/confirm';
+import { confirmDanger, confirmDialog } from '../components/confirm';
 
 const ROLE_COLORS: Record<Role, string> = {
   admin: 'red',
@@ -116,6 +117,19 @@ export function UsersPage() {
 
   const setActive = async (u: UserInfo, active: boolean) => {
     try {
+      // before an account is deactivated: where it is still owner, responsible or in an access list (#143)
+      if (!active) {
+        const refs = await get<SubjectReference[]>(`/users/${u.id}/references`);
+        if (
+          refs.length &&
+          !(await confirmDialog({
+            action: 'confirm',
+            title: t('references.deactivateTitle', { name: u.username }),
+            message: <ReferenceList text={t('references.deactivate', { name: u.username })} refs={refs} />,
+          }))
+        )
+          return;
+      }
       await put(`/users/${u.id}`, { active });
       refresh();
     } catch (e) {
@@ -251,7 +265,13 @@ export function UsersPage() {
                     color="red"
                     aria-label={t('teams.delete', { name: team.name })}
                     onClick={async () => {
-                      if (!(await confirmDanger({ action: 'delete', message: t('teams.deleteConfirm', { name: team.name }) }))) return;
+                      const refs = await get<SubjectReference[]>(`/teams/${team.id}/references`).catch(() => []);
+                      const message = refs.length ? (
+                        <ReferenceList text={t('references.teamDelete', { name: team.name })} refs={refs} />
+                      ) : (
+                        t('teams.deleteConfirm', { name: team.name })
+                      );
+                      if (!(await confirmDanger({ action: 'delete', message }))) return;
                       await del(`/teams/${team.id}`).catch(notifyError);
                       refresh();
                     }}
@@ -513,5 +533,30 @@ function TeamModal({ team, users, onClose, onSaved }: { team: Team | null; users
         </Group>
       </Stack>
     </Modal>
+  );
+}
+
+interface SubjectReference {
+  table: string;
+  column: string;
+  count: number;
+  examples: string[];
+}
+
+/** Where a user or team is still named: per kind of entry, with some names (#143). */
+function ReferenceList({ text, refs }: { text: string; refs: SubjectReference[] }) {
+  const { t } = useTranslation('users');
+  return (
+    <Stack gap="xs" data-testid="subject-references">
+      <Text size="sm">{text}</Text>
+      <List size="sm" spacing={2}>
+        {refs.map((r) => (
+          <List.Item key={`${r.table}.${r.column}`}>
+            {t(`references.tables.${r.table}` as 'references.tables.services', { defaultValue: r.table })} ({r.count})
+            {r.examples.length > 0 && `: ${r.examples.join(', ')}${r.count > r.examples.length ? ', …' : ''}`}
+          </List.Item>
+        ))}
+      </List>
+    </Stack>
   );
 }

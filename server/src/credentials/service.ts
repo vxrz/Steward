@@ -35,6 +35,7 @@ import { parseCertificate, certificateBytes } from './certificates.js';
 import * as platforms from '../platforms/service.js';
 import { belongsTarget, belongsToSchema, checkBelongsTo, toBelongsTo } from './belongs.js';
 import * as processes from '../processes/service.js';
+import { assertKnownSubjects } from '../auth/subjects.js';
 
 /**
  * Credentials register: documents credentials (what, where kept, who owns them,
@@ -680,6 +681,7 @@ const emailsOf = (owners: { email: string }[]): string[] => [...new Set(owners.m
 function prepare(b: CredentialInput, before?: CredentialRow): { values: Record<string, unknown>; certificate: CertificateInfo | null | undefined } {
   secretCheck(b);
   checkPlatform(b.platformId, before?.platform_id ?? null);
+  assertKnownSubjects(b.ownerSubjects, before ? parseJson<string[]>(before.owner_subjects, []) : []);
   checkBelongsTo(b.belongsTo, { kind: before?.belongs_kind ?? null, id: before?.belongs_id ?? null });
   // new owner addresses must have an allowed domain (stored ones stay; notify() checks them again on every send)
   const stored = new Set(before ? emailsOf(parseJson(before.owners, [])) : []);

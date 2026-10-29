@@ -634,7 +634,9 @@
     "SYSTEM_LINK_LIMIT": "An application runs on at most {{max}} systems.",
     "ENVIRONMENT_TWICE": "“{{name}}” is listed twice.",
     "SYSTEM_HAS_CREDENTIALS": "Credentials register entries belong to “{{name}}” ({{count}}). Move or archive them first.",
-    "CREDENTIAL_BELONGS_NOT_FOUND": "The application, component or system does not exist (any more)."
+    "CREDENTIAL_BELONGS_NOT_FOUND": "The application, component or system does not exist (any more).",
+    "USER_UNKNOWN": "There is no user “{{name}}”. Choose one from the list – an administrator can add a person who has not signed in yet under Users.",
+    "TEAM_UNKNOWN": "There is no team “{{name}}”. Choose one from the list."
   },
   "boundary": {
     "title": "Something went wrong on this page",

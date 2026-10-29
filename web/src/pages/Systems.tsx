@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Select, Stack, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Modal, Select, Stack, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconPlus, IconSearch, IconServer2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { SubjectsInput } from '../components/SubjectsInput';
 import { SYSTEM_KINDS, SYSTEM_LIMITS, type Platform, type SystemDetail, type SystemKind, type SystemSummary } from '@sm/shared';
 import { get, notifyError, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
@@ -253,7 +254,7 @@ export function SystemFormModal({ system, onClose, onSaved }: { system?: SystemD
               error={v.error('cmdbUrl')}
             />
           </Group>
-          <TagsInput label={t('owners')} description={t('systems.ownersHelp')} value={owners} onChange={setOwners} maxTags={20} />
+          <SubjectsInput label={t('owners')} description={t('systems.ownersHelp')} value={owners} onChange={setOwners} max={20} />
           <Select
             label={t('systems.platform')}
             description={system?.platformHidden ? t('systems.platformHiddenHint') : t('systems.platformHint')}

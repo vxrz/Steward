@@ -312,5 +312,33 @@
   "profileValues": {
     "title": "From the sign-in provider",
     "hint": "Read-only: updated by the single sign-on provider."
+  },
+  "references": {
+    "teamDelete": "Delete team “{{name}}”? It is removed from these entries – they keep their other owners and access entries:",
+    "deactivateTitle": "Deactivate {{name}}?",
+    "deactivate": "{{name}} is still named here. The entries keep the name until you change them – consider handing them over first:",
+    "tables": {
+      "services": "Services",
+      "applications": "Applications",
+      "systems": "Systems",
+      "credentials": "Credentials",
+      "service_duties": "Duties",
+      "processes": "Processes",
+      "platforms": "Platforms",
+      "monitors": "Monitors",
+      "schedules": "Schedules",
+      "dashboards": "Dashboards",
+      "records": "Records",
+      "record_documents": "Document reviews",
+      "ticket_refs": "Ticket references",
+      "report_schedules": "Report schedules",
+      "run_tasks": "Manual steps",
+      "webhook_triggers": "Webhook triggers",
+      "access_checks": "Access checks",
+      "monitor_gateways": "Heartbeat gateways",
+      "gatus_sources": "Gatus sources",
+      "duty_skips": "Duty exceptions",
+      "scorecard_snapshots": "Scorecard history"
+    }
   }
 }

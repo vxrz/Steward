@@ -53,7 +53,16 @@
   },
   "subjects": {
     "team": "Team {{name}}",
-    "role": "Rolle: {{role}}"
+    "role": "Rolle: {{role}}",
+    "groups": {
+      "user": "Benutzer",
+      "team": "Teams",
+      "role": "Rollen",
+      "unknown": "Nicht gefunden"
+    },
+    "unknown": "{{name}} (nicht gefunden)",
+    "nothingFound": "Kein Benutzer und kein Team gefunden",
+    "placeholder": "Benutzer und Teams suchen"
   },
   "cancel": "Abbrechen",
   "save": "Speichern",

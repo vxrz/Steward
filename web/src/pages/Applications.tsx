@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconApps, IconPlus, IconScale, IconSearch } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { SubjectsInput } from '../components/SubjectsInput';
 import { CIA_DIMENSIONS, SERVICE_CRITICALITIES, tagLabel, tagsMatch, type ApplicationDetail, type ApplicationSummary, type ServiceSummary } from '@sm/shared';
 import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
@@ -314,7 +315,7 @@ export function ApplicationFormModal({ app, onClose, onSaved }: { app?: Applicat
             onChange={setCriticality}
             clearable
           />
-          <TagsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} maxTags={20} />
+          <SubjectsInput label={t('owners')} description={t('ownersHelp')} value={owners} onChange={setOwners} max={20} />
           <Text fw={600} size="sm">
             {t('cmdb')}
           </Text>
