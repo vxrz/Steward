@@ -87,7 +87,7 @@ import { changesAccess, changesSignInOrOutbound, changesTeamMembers, grantsRoles
 import { currentInstanceId } from '../instance.js';
 import { capabilities, decisionCheck, isAdmin, processPermissions, require, requireCapability } from '../auth/permissions.js';
 import { LINK_KEY_STORAGE, readCookie, sessionCookie, sendSessionKeys, SESSION_COOKIE, SESSION_KEY_STORAGE } from '../auth/cookies.js';
-import { BRAND, MANUAL_LIMITS, SCHEDULE_NOTIFY_MODES, SCHEDULE_REMINDER_MAX_HOURS, boundedRecord } from '@sm/shared';
+import { BRAND, MANUAL_LIMITS, allowListEntryProblem, boundedRecord, notifyPauseSchema, notifyPolicySchema } from '@sm/shared';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { IMPORT_BODY_SHAPE } from '../bodyShape.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
@@ -169,6 +169,8 @@ const runsQuery = z.object({
     .refine((x) => !Number.isNaN(Date.parse(x)), 'an ISO timestamp')
     .transform((x) => new Date(x).toISOString())
     .optional(),
+  /** `failed`: only runs with a failed check (the start page's "Failed checks" links) */
+  checks: z.enum(['failed']).optional(),
 });
 const auditQuery = z.object({
   runId: z.string().max(200).optional(),
@@ -780,7 +782,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         retentionMonitorDays: z.number().int().min(1).max(3650).optional(),
         apiDocs: z.enum(API_DOCS_MODES).optional(),
         outboundPolicy: z.enum(OUTBOUND_POLICIES).optional(),
-        outboundAllowList: z.array(z.string().trim().min(1).max(255)).max(200).optional(),
+        outboundAllowList: z
+          .array(
+            z
+              .string()
+              .trim()
+              .min(1)
+              .max(255)
+              .refine((e) => !allowListEntryProblem(e), { message: 'Use an origin (https://host[:port]), a host or *.host (optional :port), or an IPv4 CIDR' }),
+          )
+          .max(200)
+          .optional(),
         findingDismissFourEyes: z.boolean().optional(),
       })
       .parse(req.body);
@@ -1281,14 +1293,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     dryRun: z.boolean().default(false),
     enabled: z.boolean().default(true),
     allowOverlap: z.boolean().default(false),
-    notify: z
-      .object({
-        mode: z.enum(SCHEDULE_NOTIFY_MODES),
-        reminderHours: z.number().int().min(0).max(SCHEDULE_REMINDER_MAX_HOURS),
-        resolved: z.boolean(),
-      })
-      .strict()
-      .optional(),
+    // a pause sent back with the rest is ignored: it has its own actions (below)
+    notify: notifyPolicySchema.optional(),
   });
   app.get('/schedules', async () => scheduler.listSchedules());
   app.post('/schedules', async (req) => {
@@ -1303,6 +1309,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     requireProcess(b.processId, 'run', 'schedule this process');
     requireBindingsUsable(b.bindings);
     return scheduler.saveSchedule(b, params(req).id);
+  });
+  // pause and resume the messages of a schedule's runs (#139); runs and checks are not affected
+  app.post('/schedules/:id/pause', async (req) => {
+    scheduler.requireScheduleEdit(params(req).id!);
+    return scheduler.setSchedulePause(params(req).id!, notifyPauseSchema.omit({ at: true }).parse(req.body ?? {}));
+  });
+  app.post('/schedules/:id/resume', async (req) => {
+    scheduler.requireScheduleEdit(params(req).id!);
+    return scheduler.setSchedulePause(params(req).id!, null);
   });
   app.delete('/schedules/:id', async (req) => {
     scheduler.requireScheduleEdit(params(req).id!);
@@ -1402,18 +1417,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/dashboard', async (): Promise<DashboardData> => {
     const since = new Date(Date.now() - 86400000).toISOString();
     const visible = visibleProcessIds();
-    const failedChecks = db()
-      .all<{ run_id: string; process_id: string; process_name: string; name: string; output: string; finished_at: string }>(
-        `SELECT s.run_id, r.process_id, r.process_name, s.name, s.output, s.finished_at FROM run_steps s JOIN runs r ON r.id = s.run_id
-         WHERE s.type = 'check' AND s.status = 'failed' AND s.finished_at > ? ORDER BY s.finished_at DESC LIMIT 50`,
-        new Date(Date.now() - 7 * 86400000).toISOString(),
-      )
-      .filter((r) => visible.has(r.process_id))
-      .slice(0, 20)
-      .map((r) => {
-        const o = JSON.parse(r.output ?? '{}') as { message?: string; severity?: string };
-        return { runId: r.run_id, processName: r.process_name, name: r.name, message: o.message ?? '', severity: o.severity ?? 'error', ts: r.finished_at };
-      });
+    const failedChecks = store.failedCheckGroups((id) => visible.has(id));
     // 24 h counters from a range query (not capped by the recent-runs list)
     const last24 = db()
       .all<{ process_id: string; status: string }>('SELECT process_id, status FROM runs WHERE started_at > ?', since)

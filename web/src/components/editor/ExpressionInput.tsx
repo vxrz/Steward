@@ -51,6 +51,10 @@ export interface ExpressionInputProps {
   preview?: boolean;
   'aria-label'?: string;
   style?: React.CSSProperties;
+  /** Marks the field as required (asterisk) */
+  required?: boolean;
+  /** Names the field for "go to the problem" links (#141) */
+  'data-field'?: string;
 }
 
 /** Textarea with autocomplete for expressions/templates and a live preview evaluated against the latest run. */
@@ -172,6 +176,8 @@ export function ExpressionInput({
             description={description}
             placeholder={placeholder}
             error={error}
+            required={rest.required}
+            data-field={rest['data-field']}
             size={size}
             autosize
             minRows={minRows}

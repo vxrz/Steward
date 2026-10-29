@@ -138,7 +138,7 @@ A breaking change gets a `!` after the type/scope (`feat(api)!: …`) and a `BRE
 ## Releasing (maintainers)
 
 1. Move the **Unreleased** entries in `CHANGELOG.md` to a new version section and update `version` in the root `package.json` and `server/src/config.ts` ([Semantic Versioning](https://semver.org/)), and the image tag (`ghcr.io/vxrz/steward:<version>`) in `docker-compose.yml` and `docker-compose.postgres.yml` (a test checks that they match).
-2. Commit: `chore(release): v0.2.0`.
+2. Commit: `chore(release): v0.2.0` and open the release PR with the release template (`?template=release.md`): it carries the checklist and a short OWASP ASVS level 2 security self-review of what changed in the release.
 3. Tag and push: `git tag -a v0.2.0 -m v0.2.0 && git push --tags`.
    - The **Release** workflow builds the desktop executables for Windows, macOS and Linux, smoke-tests them, adds SBOMs and checksums, and publishes a GitHub release.
    - A tag with a suffix (`v0.2.0-beta.1`) becomes a pre-release.

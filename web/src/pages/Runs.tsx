@@ -24,6 +24,8 @@ export function RunsPage() {
   const [params] = useSearchParams();
   const [status, setStatus] = useState<string | null>(params.get('status'));
   const [processId, setProcessId] = useState<string | null>(params.get('processId'));
+  // ?checks=failed: only runs with a failed check (the start page's "Failed checks")
+  const [checks, setChecks] = useState<string | null>(params.get('checks') === 'failed' ? 'failed' : null);
   // ?within=24h (the start page's "Failed runs (24 h)" tile): runs started since then, fixed when chosen
   const [period, setPeriod] = useState<Period | null>(PERIODS.find((p) => p === params.get('within')) ?? null);
   const since = useMemo(() => (period ? new Date(Date.now() - PERIOD_MS[period]).toISOString() : null), [period]);
@@ -32,7 +34,7 @@ export function RunsPage() {
   const [summaryOpen, setSummaryOpen] = useState(false);
   const processes = useQuery({ queryKey: ['processes'], queryFn: () => get<ProcessSummary[]>('/processes') });
   const runs = useInfiniteQuery({
-    queryKey: ['runs', status, processId, since, pageSize],
+    queryKey: ['runs', status, processId, since, checks, pageSize],
     initialPageParam: '',
     queryFn: ({ pageParam }) => {
       const qs = new URLSearchParams({
@@ -40,6 +42,7 @@ export function RunsPage() {
         ...(status ? { status } : {}),
         ...(processId ? { processId } : {}),
         ...(since ? { since } : {}),
+        ...(checks ? { checks } : {}),
         ...(pageParam ? { before: pageParam } : {}),
       });
       return get<RunSummary[]>(`/runs?${qs}`);
@@ -59,7 +62,7 @@ export function RunsPage() {
           </Button>
         }
       />
-      <FilterPanel active={[status, processId, period].filter(Boolean).length}>
+      <FilterPanel active={[status, processId, period, checks].filter(Boolean).length}>
         <Group gap="xs" mb="md" align="flex-end" wrap="wrap">
           <Select
             size="xs"
@@ -92,12 +95,22 @@ export function RunsPage() {
             onChange={(v) => setPeriod(v as Period | null)}
             w={{ base: '100%', xs: 180 }}
           />
+          <Select
+            size="xs"
+            label={t('list.checks')}
+            placeholder={t('list.anyChecks')}
+            clearable
+            data={[{ value: 'failed', label: t('list.failedChecks') }]}
+            value={checks}
+            onChange={setChecks}
+            w={{ base: '100%', xs: 200 }}
+          />
         </Group>
       </FilterPanel>
       <QueryState query={runs} />
       {runs.isSuccess &&
         list.length === 0 &&
-        (status || processId || period ? (
+        (status || processId || period || checks ? (
           <Text c="dimmed" size="sm">
             {t('emptyState.noMatch')}
           </Text>

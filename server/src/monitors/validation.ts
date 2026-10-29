@@ -3,6 +3,7 @@ import type { ZodError } from 'zod';
 import {
   CHECK_TYPES,
   definitionIssues,
+  issueLabel,
   monitorDefinitionSchema,
   monitorFileSchema,
   templateParamSchema,
@@ -14,13 +15,19 @@ import { renderTemplate, sampleParams } from './templates.js';
 
 /** Validation of monitor definitions, templates and monitor files (no database access; used by the CLI too). */
 
-export function zodMessage(e: ZodError): string {
-  return e.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+/** The schema's messages; with the definition, issue paths name the card (`Check "Name" (id) – field`). */
+export function zodMessage(e: ZodError, def?: unknown): string {
+  return e.issues.map((i) => `${def === undefined ? i.path.join('.') : issueLabel(def, i.path.join('.'))}: ${i.message}`).join('; ');
 }
 
 export function parseDefinitionInput(raw: unknown): MonitorDefinition {
   const r = monitorDefinitionSchema.safeParse(raw);
-  if (!r.success) throw new HttpError(400, `Invalid monitor definition – ${zodMessage(r.error)}`, 'MONITOR_INVALID', { details: zodMessage(r.error) });
+  if (!r.success) {
+    const details = zodMessage(r.error, raw);
+    throw Object.assign(new HttpError(400, `Invalid monitor definition – ${details}`, 'MONITOR_INVALID', { details }), {
+      issues: r.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
+    });
+  }
   return r.data;
 }
 

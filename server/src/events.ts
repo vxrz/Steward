@@ -69,16 +69,29 @@ export interface DomainEvents {
     message: string;
     dryRun: boolean;
     /**
-     * Scheduled runs (#127): new – started failing; changed – another result; reminder – still failing; every – the
-     * schedule notifies after every run. Missing: a run without a schedule (as before).
+     * Runs of a source with a policy (#127, #139): new – started failing; changed – another result; reminder – still
+     * failing; every – the source notifies after every run; pauseEnded – a pause ended while the check still fails.
+     * Missing: a run started by hand (as before).
      */
-    phase?: 'new' | 'changed' | 'reminder' | 'every';
+    phase?: 'new' | 'changed' | 'reminder' | 'every' | 'pauseEnded';
+    /** The schedule of the source (kept for webhook receivers) */
     scheduleId?: string;
-    /** When the check started failing (scheduled runs) */
+    /** Key of the source: schedule:<id>, trigger:<id>, monitor:<id>:<output> */
+    source?: string;
+    /** When the check started failing (runs of a source) */
     since?: string;
-  };
-  /** A check of a scheduled run passes again (the schedule asked for this message) */
-  'check.resolved': { runId: string; processId: string; processName: string; check: string; dryRun: boolean; scheduleId: string; since: string };
+  } & CheckContent;
+  /** A check of a source's run passes again (the source asked for this message) */
+  'check.resolved': {
+    runId: string;
+    processId: string;
+    processName: string;
+    check: string;
+    dryRun: boolean;
+    scheduleId?: string;
+    source?: string;
+    since: string;
+  } & CheckContent;
   'http.request': { host: string; method: string; status: number; durationMs: number; error?: boolean };
   'dataset.published': { key: string; title: string; processId: string; staleAfterMinutes?: number };
   /** A record moved to another status (records workflow) or went back to draft (action "revise") */
@@ -98,6 +111,19 @@ export interface DomainEvents {
   'mcp.tool': { tool: string; outcome: string };
   /** MCP platform gateway call (outcome ok, http_error, failed or a refusal reason) */
   'mcp.gateway': { platformId: string; outcome: string };
+}
+
+/** What the process author added for the messages of a check (#144), all optional. */
+export interface CheckContent {
+  checkId?: string;
+  headline?: string;
+  value?: number;
+  previousValue?: number;
+  /** better / worse / same: from the value (betterWhen), else from the severity */
+  direction?: 'better' | 'worse' | 'same';
+  items?: string[];
+  /** A living document (rec_…) or an http(s) URL */
+  runbook?: string | null;
 }
 
 type Name = keyof DomainEvents;

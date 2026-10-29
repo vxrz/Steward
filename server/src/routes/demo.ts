@@ -8,6 +8,7 @@ import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
+import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
 import { PRESET_SPECS } from '../platforms/presets.js';
 import { audit } from '../audit.js';
@@ -35,7 +36,7 @@ const DEMO_USERS: { username: string; displayName: string; roles: Role[] }[] = [
  * Read-only "feeder" processes that publish dashboard datasets: scheduled in
  * demo mode and run once right away so the example dashboards show data.
  */
-const FEEDERS: { process: string; cron: string }[] = [
+const FEEDERS: { process: string; cron: string; inputs?: Record<string, unknown> }[] = [
   { process: 'ih-inventory-snapshot', cron: '5 * * * *' },
   { process: 'ih-data-freshness-monitor', cron: '20 * * * *' },
   { process: 'iem-inventory-snapshot', cron: '35 * * * *' },
@@ -43,7 +44,21 @@ const FEEDERS: { process: string; cron: string }[] = [
   { process: 'ih-asset-attribute-optimization', cron: '10 6 * * *' },
   { process: 'iem-firmware-compliance', cron: '15 6 * * *' },
   { process: 'iem-app-version-compliance', cron: '20 6 * * *' },
-  { process: 'ih-tenant-usage', cron: '25 6 * * *' },
+  {
+    process: 'ih-tenant-usage',
+    cron: '25 6 * * *',
+    // the licence of the simulated tenant and a KPI of the simulated usage service
+    inputs: {
+      userLimit: 25,
+      assetLimit: 15,
+      agentLimit: 10,
+      attributeLimit: 500,
+      utsProvider: MOCK_UTS_PROVIDER,
+      utsApplication: 'steward-demo',
+      utsKpi: 'monthly-credits',
+      utsKpiLimit: 10000,
+    },
+  },
   { process: 'ih-group-hygiene', cron: '30 6 * * 1' },
   { process: 'weekly-service-report', cron: '45 6 * * 1' },
   { process: 'gatus-uptime-overview', cron: '*/10 * * * *' },
@@ -242,12 +257,12 @@ export async function setupDemo(): Promise<{
     if (Object.keys(bindings).length !== def.connections.length) continue;
     const name = `Demo: ${def.name}`;
     if (!scheduleNames.has(name)) {
-      saveSchedule({ name, processId: f.process, cron: f.cron, inputs: {}, bindings, dryRun: false, enabled: true, allowOverlap: false });
+      saveSchedule({ name, processId: f.process, cron: f.cron, inputs: f.inputs ?? {}, bindings, dryRun: false, enabled: true, allowOverlap: false });
       schedules++;
     }
     const ran = db().get('SELECT 1 FROM runs WHERE process_id = ? LIMIT 1', f.process);
     if (!ran) {
-      await startRun({ processId: f.process, bindings, inputs: {}, dryRun: false });
+      await startRun({ processId: f.process, bindings, inputs: f.inputs ?? {}, dryRun: false });
       runs++;
     }
   }

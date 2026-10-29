@@ -1,7 +1,7 @@
 import { test, expect } from './support/fixtures';
 import { authFile } from './support/env';
 import { expectAccessible } from './support/axe';
-import { json, platformId, uniq, waitForRun } from './support/helpers';
+import { chooseRunMode, json, platformId, uniq, waitForRun } from './support/helpers';
 
 test.use({ storageState: authFile('admin') });
 
@@ -60,8 +60,9 @@ test('a response recorded in the explorer answers a test run', async ({ page, ap
       await slot.click();
       await page.getByRole('option', { name: /Insights Hub \(demo\)/ }).click();
     }
-    await expect(run.getByRole('switch', { name: /Dry run/ })).toBeChecked();
-    await run.getByText('Use recorded responses (test run)').click();
+    await expect(run.getByTestId('run-mode').getByRole('radio', { name: 'Dry run' })).toBeChecked();
+    await chooseRunMode(run, 'Test run');
+    await expect(run.getByTestId('run-mode-recordings')).toContainText(/Insights Hub \(demo\): \d+ recorded response/);
     await run.getByRole('button', { name: 'Start test run' }).click();
     await expect(page).toHaveURL(/\/runs\/[^/]+$/);
     const runId = page.url().split('/').pop()!;

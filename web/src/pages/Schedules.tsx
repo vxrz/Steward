@@ -1,36 +1,11 @@
 import { useEffect, useState } from 'react';
-import {
-  ActionIcon,
-  Anchor,
-  Badge,
-  Button,
-  Chip,
-  Divider,
-  Group,
-  Modal,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Table,
-  Text,
-  TextInput,
-  Tooltip,
-} from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Button, Chip, Divider, Group, Modal, Select, Stack, Switch, Table, Text, TextInput, Tooltip } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCalendarTime, IconEdit, IconPlayerPlay, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Trans, useTranslation } from 'react-i18next';
-import {
-  DEFAULT_SCHEDULE_NOTIFY,
-  SCHEDULE_NOTIFY_MODES,
-  SCHEDULE_REMINDER_MAX_HOURS,
-  type ProcessDetail,
-  type ProcessSummary,
-  type Schedule,
-  type ScheduleNotifyMode,
-} from '@sm/shared';
+import { DEFAULT_SCHEDULE_NOTIFY, type ProcessDetail, type ProcessSummary, type Schedule } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, StatusBadge, useCreateParam, useFieldErrors } from '../components/common';
 import { InputsForm, defaultInputs } from '../components/InputsForm';
@@ -39,6 +14,8 @@ import { fmtDate, fmtRelative } from '../format';
 import i18n from '../i18n';
 import { errorText } from '../i18n/errors';
 import { confirmDanger } from '../components/confirm';
+import { RunModeField } from '../components/RunModeField';
+import { NotifyPolicyFields, PauseBadge, PauseControl } from '../components/notify/NotifyPolicy';
 
 const PRESETS = [
   { key: 'every15', cron: '*/15 * * * *' },
@@ -73,8 +50,22 @@ export function SchedulesPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   useCreateParam(true, () => setDraft(emptyDraft()));
 
+  // ?edit=<id> (links in messages, #139) opens the schedule
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = params.get('edit');
+    const found = id && schedules.data?.find((x) => x.id === id);
+    if (found && found.canEdit) {
+      setDraft({ ...found });
+      params.delete('edit');
+      setParams(params, { replace: true });
+    }
+  }, [params, schedules.data, setParams]);
+
   const save = async (s: Draft) => {
-    const { id, ...body } = s;
+    // the pause has its own actions
+    const { id, ...rest } = s;
+    const body = { ...rest, ...(rest.notify ? { notify: { ...rest.notify, pause: undefined } } : {}) };
     try {
       if (id) await put(`/schedules/${id}`, body);
       else await post('/schedules', body);
@@ -137,9 +128,12 @@ export function SchedulesPage() {
                     />
                   </Table.Td>
                   <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {s.name}
-                    </Text>
+                    <Group gap={6}>
+                      <Text size="sm" fw={500}>
+                        {s.name}
+                      </Text>
+                      <PauseBadge pause={s.notify?.pause} />
+                    </Group>
                     <Text size="xs" c="dimmed">
                       <Link to={`/processes/${s.processId}`}>{s.processName}</Link>
                       {s.owner && ` · ${t('table.runsAs', { owner: s.owner })}`}
@@ -187,6 +181,27 @@ export function SchedulesPage() {
                           <IconPlayerPlay size={16} />
                         </ActionIcon>
                       </Tooltip>
+                      {s.canEdit && (
+                        <PauseControl
+                          pause={s.notify?.pause}
+                          onPause={async (p) => {
+                            try {
+                              await post(`/schedules/${s.id}/pause`, { until: p.until, reason: p.reason, inApp: p.inApp });
+                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                            } catch (e) {
+                              notifyError(e);
+                            }
+                          }}
+                          onResume={async () => {
+                            try {
+                              await post(`/schedules/${s.id}/resume`, {});
+                              await qc.invalidateQueries({ queryKey: ['schedules'] });
+                            } catch (e) {
+                              notifyError(e);
+                            }
+                          }}
+                        />
+                      )}
                       {s.canEdit && (
                         <ActionIcon variant="subtle" onClick={() => setDraft({ ...s })} aria-label={t('common:edit')}>
                           <IconEdit size={16} />
@@ -328,14 +343,14 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
           {draft.owner ? <Trans t={t} i18nKey="form.rightsOwner" values={{ owner: draft.owner }} components={{ b: <b /> }} /> : t('form.rightsYou')}
         </Text>
         <Switch label={t('enabled')} checked={d.enabled} onChange={(e) => setD({ ...d, enabled: e.currentTarget.checked })} />
-        <Switch label={t('form.dryRun')} checked={d.dryRun} onChange={(e) => setD({ ...d, dryRun: e.currentTarget.checked })} />
+        <RunModeField modes={['dry', 'real']} value={d.dryRun ? 'dry' : 'real'} onChange={(m) => setD({ ...d, dryRun: m === 'dry' })} />
         <Switch
           label={t('form.overlap')}
           description={t('form.overlapHint')}
           checked={d.allowOverlap}
           onChange={(e) => setD({ ...d, allowOverlap: e.currentTarget.checked })}
         />
-        <NotifyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
+        <NotifyPolicyFields value={d.notify ?? DEFAULT_SCHEDULE_NOTIFY} onChange={(notify) => setD({ ...d, notify })} />
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             {t('common:cancel')}
@@ -344,37 +359,5 @@ function ScheduleModal({ draft, onClose, onSave }: { draft: Draft; onClose: () =
         </Group>
       </Stack>
     </Modal>
-  );
-}
-
-/** Messages about failed checks of the schedule's runs (#127). */
-function NotifyFields({ value, onChange }: { value: NonNullable<Schedule['notify']>; onChange: (v: NonNullable<Schedule['notify']>) => void }) {
-  const { t } = useTranslation('schedules');
-  return (
-    <Stack gap="xs" data-testid="schedule-notify">
-      <Select
-        label={t('form.notify.label')}
-        description={t(`form.notify.hint.${value.mode}`)}
-        data={SCHEDULE_NOTIFY_MODES.map((m) => ({ value: m, label: t(`form.notify.mode.${m}`) }))}
-        value={value.mode}
-        allowDeselect={false}
-        onChange={(m) => m && onChange({ ...value, mode: m as ScheduleNotifyMode })}
-      />
-      {value.mode === 'change' && (
-        <NumberInput
-          label={t('form.notify.reminder')}
-          description={t('form.notify.reminderHint')}
-          min={0}
-          max={SCHEDULE_REMINDER_MAX_HOURS}
-          allowDecimal={false}
-          suffix=" h"
-          value={value.reminderHours}
-          onChange={(h) => onChange({ ...value, reminderHours: typeof h === 'number' ? h : 0 })}
-        />
-      )}
-      {value.mode !== 'off' && (
-        <Switch label={t('form.notify.resolved')} checked={value.resolved} onChange={(e) => onChange({ ...value, resolved: e.currentTarget.checked })} />
-      )}
-    </Stack>
   );
 }

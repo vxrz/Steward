@@ -53,12 +53,51 @@
       },
       "reminder": "Erinnerung, solange sie fehlschlägt",
       "reminderHint": "Stunden; 0 = keine Erinnerung",
-      "resolved": "Melden, wenn eine Prüfung wieder erfolgreich ist"
+      "resolved": "Melden, wenn eine Prüfung wieder erfolgreich ist",
+      "change": "Was als Änderung zählt",
+      "changeHint": {
+        "result": "Eine andere Meldung oder ein anderer Schweregrad benachrichtigt erneut.",
+        "state": "Nur Beginn und Ende des Fehlschlagens: eine Nachricht, wenn eine Prüfung fehlschlägt, Erinnerungen und – falls gewünscht – eine, wenn sie wieder besteht."
+      },
+      "changeKind": {
+        "result": "Eine andere Meldung oder ein anderer Schweregrad",
+        "state": "Nur Beginn und Ende des Fehlschlagens"
+      },
+      "where": "Wohin die Nachrichten gehen",
+      "whereHint": "Ein unter Einstellungen → Benachrichtigungen ausgeschalteter Kanal bleibt aus.",
+      "whereRoutes": "Wie eingestellt (die Benachrichtigungswege)",
+      "whereChosen": "Nur diese Kanäle:",
+      "channels": "Kanäle",
+      "noChannel": "Mindestens einen Kanal wählen",
+      "channel": {
+        "inApp": "In der App",
+        "email": "E-Mail",
+        "teams": "Teams",
+        "webhook": "Webhook"
+      }
     }
   },
   "emptyState": {
     "title": "Noch keine Zeitpläne",
     "text": "Lassen Sie einen Prozess automatisch ausführen, z. B. einen wöchentlichen Health Check oder eine vierteljährliche Zugriffsprüfung. Geplante Ausführungen laufen mit den Rechten des Zeitplan-Eigentümers.",
     "action": "Ersten Zeitplan anlegen"
+  },
+  "pause": {
+    "button": "Nachrichten pausieren",
+    "resume": "Nachrichten fortsetzen",
+    "title": "Nachrichten pausieren",
+    "toggle": "Nachrichten pausieren",
+    "how": "Dauer der Pause",
+    "until": "Bis zu einem Zeitpunkt",
+    "untilResumed": "Bis zum Fortsetzen",
+    "end": "Endet am",
+    "reason": "Grund (am Hinweis und im Audit-Log sichtbar)",
+    "inApp": "In der App trotzdem anzeigen",
+    "inAppHint": "E-Mail, Teams und Webhooks bleiben in jedem Fall still.",
+    "note": "Läufe, Prüfungen, die Startseite und Zusammenfassungen sind nicht betroffen. Endet die Pause, während eine Prüfung noch fehlschlägt, sagt das eine Nachricht.",
+    "confirm": "Pausieren",
+    "badgeUntil": "Nachrichten pausiert bis {{until}}",
+    "badgeOpen": "Nachrichten pausiert",
+    "noReason": "Kein Grund angegeben"
   }
 }

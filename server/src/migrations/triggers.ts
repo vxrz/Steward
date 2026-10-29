@@ -57,4 +57,16 @@ export const TRIGGER_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE runs ADD COLUMN trigger_name TEXT;
     `,
   },
+  {
+    // #139: webhook triggers get the notification policy of schedules. They start with "after every run", as before.
+    name: 'triggers-002-notify-policy',
+    sql: `
+      ALTER TABLE webhook_triggers ADD COLUMN notify_mode TEXT NOT NULL DEFAULT 'every';
+      ALTER TABLE webhook_triggers ADD COLUMN notify_reminder_hours INTEGER NOT NULL DEFAULT 4;
+      ALTER TABLE webhook_triggers ADD COLUMN notify_resolved INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE webhook_triggers ADD COLUMN notify_change TEXT NOT NULL DEFAULT 'result';
+      ALTER TABLE webhook_triggers ADD COLUMN notify_channels TEXT;
+      ALTER TABLE webhook_triggers ADD COLUMN notify_pause TEXT;
+    `,
+  },
 ];

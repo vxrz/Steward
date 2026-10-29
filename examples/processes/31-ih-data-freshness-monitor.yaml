@@ -126,3 +126,6 @@ steps:
     severity: warning
     condition: "vars.stale + vars.noData = 0"
     message: "{{ vars.fresh }} fresh, {{ vars.stale }} stale, {{ vars.noData }} without data"
+    headline: "{{ vars.stale + vars.noData }} aspect(s) without fresh data"
+    value: "vars.stale + vars.noData"
+    items: "vars.findings[$exists(error) or $not($exists(lastTime)) or ageHours >= $inputs.warnHours].(asset & ' / ' & aspect & ' – ' & ($exists(lastTime) ? ageHours & ' h old' : 'no data'))"

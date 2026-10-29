@@ -121,7 +121,7 @@ All data lives in `./data`: the SQLite database, encrypted credentials, screensh
 | `SM_MCP_RATE_LIMIT`, `SM_MCP_GATEWAY_RATE_LIMIT` | `120`, `30`                      | MCP requests per minute and token; platform gateway calls per minute, user and platform                                                                                                                                                                                                                                         |
 | `SM_MCP_ALLOWED_ORIGINS`                         | –                                | Origins of browser-based MCP clients allowed to call `/api/mcp` (comma-separated)                                                                                                                                                                                                                                               |
 
-Retention of runs and notifications, and the notification channels, are set under **Settings**.
+Retention of runs and notifications, and the notification channels, are set under **Settings**. New installations keep runs for 400 days; installations that existed before 0.2.4 keep them until an administrator sets a period (_Settings → System status_ points this out once the database grows past 1 GB).
 
 ## Concepts
 
@@ -226,8 +226,8 @@ Tokens from `oauth2_client_credentials` and `token_request` are kept in memory u
 ## Dashboards
 
 1. **Publish data from a flow.** Add a **Publish to dashboard** node. Give it a dataset key such as `iem.devices`, the rows (an expression), optionally compact `columns`, a `status` expression per row (good / warning / serious / critical / unknown), a reason text, and `metrics` (numbers kept as history).
-2. **What a run stores.** Every run replaces the dataset snapshot and appends the metrics.
-3. **Keep it fresh.** Schedule the publishing flow, e.g. hourly inventories or a health check every 15 minutes. `staleAfterMinutes` marks old data on the dashboards.
+2. **What a run stores.** A dataset has one **partition per source** – the platform the rows were read from: the process's only connection, the publish step's `source` connection, or all bound platforms together (a process without connections: the instance). A run replaces only its own partition and appends its metrics, so the same inventory scheduled against three tenants keeps all three. Rows carry `_source` (`platformId`, `platform`, `environment`, `run`), metrics are kept per source, and existing datasets became one partition of their last run's platform.
+3. **Keep it fresh.** Schedule the publishing flow, e.g. hourly inventories or a health check every 15 minutes. A partition is stale after the step's `staleAfterMinutes`, else after 2.5 × the interval of the schedule that fed it (at least 15 minutes), else after 24 hours; widgets say "expected every 10 min · last 25 min ago". Stale messages go out when the step sets the limit or a schedule feeds the partition.
 4. **Build the dashboard.** _Dashboards → New / From template / Import YAML_. Widget types:
    - `kpi`: value, change and sparkline;
    - `trend`: up to three metrics;
@@ -236,9 +236,10 @@ Tokens from `oauth2_client_credentials` and `token_request` are kept in memory u
    - `checks`: the latest checks of a process;
    - `freshness`;
    - `markdown`.
-5. **Refresh.** _Refresh data_ re-runs the feeding processes with the inputs of their last run, provided you have run rights.
+5. **Sources.** When a dashboard's data comes from several sources, a _Sources_ filter appears (part of the URL, remembered per person); every widget follows it, or pins its own sources in the editor. Tables get a _Source_ column, trends one line per source, KPIs a value per source. `GET /api/v1/datasets/{key}/rows` and `…/metrics` take `source` (repeat it) and return `_source` and `source` per series.
+6. **Refresh.** _Refresh data_ re-runs the feeding processes with the inputs of their last run, provided you have run rights.
 
-Who can see what: a dataset is visible to everyone who may view the process that publishes it.
+Who can see what: a dataset is visible to everyone who may view the process that publishes it. A partition is left out – from rows, counts, metrics, the API and MCP, without a hint – when one of its platforms has an access list that does not include the reader; administrators and auditors see all. Platforms without an access list keep their data visible to everyone who sees the dataset. (A separate "view data" right on platforms is planned with team permissions in 0.3.0.)
 
 ## Bundled templates
 

@@ -27,6 +27,7 @@ import {
   IconLicense,
   IconRefresh,
   IconSearch,
+  IconMessageReport,
   IconShieldLock,
   IconApi,
   IconList,
@@ -44,6 +45,7 @@ import { currentLanguage } from '../i18n';
 import { LANGUAGES } from '../i18n/languages';
 import { useAppTheme } from '../theme';
 import { withBase } from '../basePath';
+import { AppFooter } from '../components/brand/AppFooter';
 
 interface ThirdPartyPackage {
   name: string;
@@ -200,6 +202,9 @@ export function AboutPage() {
             <LinkItem href={repo('CHANGELOG.md')} icon={<IconList size={16} aria-hidden />}>
               {t('about.links.changelog')}
             </LinkItem>
+            <LinkItem href={repo('ISSUES.md')} icon={<IconMessageReport size={16} aria-hidden />}>
+              {t('about.links.issue')}
+            </LinkItem>
             <LinkItem href={repo('SECURITY.md')} icon={<IconShieldLock size={16} aria-hidden />}>
               {t('about.links.security')}
             </LinkItem>
@@ -252,6 +257,8 @@ export function AboutPage() {
 
         <ThirdPartyCard />
       </Stack>
+      {/* the full footer lives here only (#140): on every page it was more noise than help */}
+      <AppFooter signedIn variant="full" />
     </>
   );
 }

@@ -443,9 +443,10 @@ describe('dry runs', () => {
     await run(await failing('Nightly export'), true);
     await settle(() => mails.length >= 2 && received.length >= 4);
     const runMail = mails.find((m) => m.subject.includes('Run failed'))!;
-    const checkMail = mails.find((m) => m.subject.includes('Check failed'))!;
+    const checkMail = mails.find((m) => m.subject.includes('Users exist'))!;
     expect(runMail.subject).toBe('[Acme] Dry run – Run failed: Nightly export');
-    expect(checkMail.subject).toBe('[Acme] Dry run – Check failed: Users exist in Nightly export');
+    // state first, then where (#144)
+    expect(checkMail.subject).toBe('[Acme] Dry run – Error · Users exist – Nightly export');
     for (const m of [runMail, checkMail]) {
       expect(m.html).toContain('Dry run – a test, nothing was changed. No action needed.');
       expect(m.html).toContain(`background:${look.TONE_HEX.emphasis}`);
@@ -476,7 +477,7 @@ describe('dry runs', () => {
     await run(await failing('Inventar'), true);
     await settle(() => mails.length >= 2);
     const subjects = mails.map((m) => m.subject).sort();
-    expect(subjects).toEqual(['[Acme] Probelauf – Ausführung fehlgeschlagen: Inventar', '[Acme] Probelauf – Prüfung fehlgeschlagen: Users exist in Inventar']);
+    expect(subjects).toEqual(['[Acme] Probelauf – Ausführung fehlgeschlagen: Inventar', '[Acme] Probelauf – Fehler · Users exist – Inventar']);
     expect(mails[0]!.html).toContain('Probelauf – ein Test, es wurde nichts geändert. Kein Handlungsbedarf.');
     await s.api('PATCH', '/me', { locale: 'en' });
   });

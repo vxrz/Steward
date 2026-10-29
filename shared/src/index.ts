@@ -28,3 +28,5 @@ export * from './sso.js';
 export * from './catalogue.js';
 export * from './duties.js';
 export * from './scorecard.js';
+export * from './outbound.js';
+export * from './notifyPolicy.js';

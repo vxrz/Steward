@@ -2,7 +2,9 @@
   "common": {
     "openIn": "Open in {{brand}}",
     "minutes_one": "{{count}} minute",
-    "minutes_other": "{{count}} minutes"
+    "minutes_other": "{{count}} minutes",
+    "moreItems_one": "{{count}} more",
+    "moreItems_other": "{{count}} more"
   },
   "severity": {
     "error": "Error",
@@ -28,19 +30,23 @@
     "bodyNoError": "The run failed."
   },
   "checkFailed": {
-    "title": "Check failed: {{check}} in {{process}}",
-    "titleDryRun": "Dry run – Check failed: {{check}} in {{process}}",
     "body": "{{severity}}: {{message}}",
-    "titleChanged": "Check result changed: {{check}} in {{process}}",
-    "titleChangedDryRun": "Dry run – Check result changed: {{check}} in {{process}}",
-    "titleReminder": "Still failing: {{check}} in {{process}}",
-    "titleReminderDryRun": "Dry run – Still failing: {{check}} in {{process}}",
-    "since": "Failing since {{since}}."
+    "subject": "{{severity}} · {{what}} – {{process}}",
+    "subjectDryRun": "Dry run – {{severity}} · {{what}} – {{process}}",
+    "lead": {
+      "new": "Started failing",
+      "every": "Failed in the latest run",
+      "better": "Got better: {{from}} → {{to}} · failing since {{since}}",
+      "worse": "Got worse: {{from}} → {{to}} · failing since {{since}}",
+      "changed": "Changed · failing since {{since}}",
+      "reminder": "Still failing (reminder) · since {{since}}",
+      "pauseEnded": "Still failing after the pause · since {{since}}"
+    }
   },
   "checkResolved": {
-    "title": "Check passes again: {{check}} in {{process}}",
-    "titleDryRun": "Dry run – Check passes again: {{check}} in {{process}}",
-    "body": "It had been failing since {{since}}."
+    "subject": "Passes again · {{check}} – {{process}}",
+    "subjectDryRun": "Dry run – Passes again · {{check}} – {{process}}",
+    "lead": "Passes again – it had been failing since {{since}}"
   },
   "scheduleSkipped": {
     "title": "Schedule skipped: {{name}}",
@@ -298,5 +304,37 @@
     "titleEol": "End of life reached: {{product}} in {{application}}",
     "bodyEnding": "{{product}} reaches its end of life on {{date}} (in {{days}} days). Components: {{components}}.",
     "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade."
+  },
+  "facts": {
+    "process": "Process",
+    "source": "Started by",
+    "check": "Check",
+    "severity": "Severity",
+    "since": "Failing since",
+    "value": "Value"
+  },
+  "source": {
+    "schedule": "Schedule “{{name}}”",
+    "trigger": "Webhook trigger “{{name}}”",
+    "monitor": "Monitor “{{name}}”",
+    "manual": "{{actor}} (by hand)"
+  },
+  "kind": {
+    "schedule": "schedule",
+    "trigger": "webhook trigger",
+    "monitor": "monitor"
+  },
+  "reason": {
+    "sourceOwner": "You get this because you own the {{kind}} “{{name}}”.",
+    "processOwner": "You get this because you own the process “{{process}}”.",
+    "actor": "You get this because you started the run.",
+    "channel": "Sent to this channel as set under Settings → Notifications."
+  },
+  "messageSettings": {
+    "source": "Message settings of the {{kind}}",
+    "routes": "Notification settings"
+  },
+  "actions": {
+    "runbook": "Open runbook"
   }
 }

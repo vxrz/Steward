@@ -29,22 +29,57 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md))                |
 | Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                             |
 
-## Failed checks of scheduled runs
+## Notification policy of automated runs
 
-A scheduled process that runs every 10 minutes and finds the same failing endpoint would otherwise notify after every run. Each schedule decides (_Schedules → Edit → Failed checks notify_):
+A process that runs every few minutes and is expected to find failures (the Gatus uptime overview, where some endpoints are always down) should not fill mailboxes. Every **source that repeats runs** has one notification policy: a **schedule**, a **webhook trigger** and a **monitor output** that starts a process. Runs started by hand are not affected; a **sub-process** follows the source of its parent.
 
-| Setting                 | What notifies                                                                                                                                                                                                                                                                                      |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **On change** (default) | A check that starts failing; the same check with another result (its message or severity changed, e.g. other endpoints down); and – while it keeps failing with the same result – a reminder after _Reminder while still failing_ hours (default 4, `0` = none), with the time it started failing. |
-| **After every run**     | Every run in which a check fails, as before 0.2.3 (in the app every time; e-mail, Teams and webhook at most once an hour per process and check).                                                                                                                                                   |
-| **Never**               | Nothing for failed checks; they are shown in the runs. Failed runs still notify.                                                                                                                                                                                                                   |
+**Principles.** Runs are evidence: a policy never changes what is recorded – the run history, its checks, the start page, the daily summary, the scorecard and reports always show every result. It only decides who is interrupted, how and when. The process definition keeps only meaning: the severity of a check, `notify: false` for informational checks, and what its messages say (below). The policy belongs to the source, because the same process may run every 10 minutes in production and by hand while debugging.
 
-_Send a message when a check passes again_ adds **Check passes again** (with the time it had been failing since) for the first passing run. In the app, by e-mail, Teams and webhook alike; the webhook body carries `phase` (`new`, `changed`, `reminder`, `every`) and `since`. Existing schedules get _on change_ with a 4-hour reminder.
+**Layers** – each narrows what the one above allows:
 
-- The state is kept per schedule and check (dry runs separately). Changing the setting starts over: a check that still fails notifies again at the next run.
-- A check compares its **message**, so keep values that change in every run (uptime percentages, timestamps) out of it, or put them in the run report instead.
-- Runs without a schedule – started by hand, by a webhook trigger, a monitor or a parent process – notify on every failed check, as before.
-- A check step with `notify: false` (_Notify when the check fails: No_ in the editor) never notifies: an informational check, shown in the run. The examples use it for _Gatus publishes endpoint metrics_, _The usage service answered_ and _No single-member groups_.
+1. the instance: channels on or off, and the routes per event (_Settings → Notifications_)
+2. teams (from 0.3.0)
+3. the source's policy (this section)
+4. personal: _E-mail notifications_ in the profile
+
+### When
+
+| Setting                                                                                 | What notifies                                                                                                                                                                                                    |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **On change** (default for schedules)                                                   | A check that starts failing; the same check with another result; and – while it keeps failing – a reminder after _Reminder while still failing_ hours (default 4, `0` = none), with the time it started failing. |
+| **After every run** (default for webhook triggers and monitor outputs, as before 0.2.4) | Every run in which a check fails (in the app every time; e-mail, Teams and webhook at most once an hour per process and check).                                                                                  |
+| **Never**                                                                               | Nothing for failed checks; they are shown in the runs. Failed runs still notify.                                                                                                                                 |
+
+_What counts as a change_ (on change): **a different message or severity** (default), or **only the start and end of failing** – one message when a check starts failing, the reminders, and the end. _Send a message when a check passes again_ adds **Passes again** for the first passing run.
+
+- The state is kept per source and check (dry runs separately). Changing _when_ or _what counts as a change_ starts over: a check that still fails notifies again at the next run.
+- With _a different message or severity_, keep values that change in every run (uptime percentages, timestamps) out of the message, or use `value` (below) – it says whether things got better or worse.
+- A check step with `notify: false` (_Notify when the check fails: No_ in the editor) never notifies: an informational check, shown in the run.
+
+### Where
+
+**As configured** (default) uses the routes per event. **Only these channels** picks in the app, e-mail, Teams and webhook for this source; a channel the instance has turned off stays off. It applies to every message the source's runs cause: failed and resolved checks, failed runs and tasks waiting for a decision.
+
+### Pause
+
+_Schedules_ and _Webhook triggers_ → _Pause messages_: until a time or until resumed, with a reason, optionally still in the app. A badge on the source shows the end and the reason; runs and checks go on as usual. A pause ends on its own; when it ends while a check still fails, one **Still failing after the pause** message per check says so, so nothing is lost silently. Monitor outputs keep their pause in the monitor's definition. Audited as `schedule.paused` / `schedule.resumed` and `trigger.paused` / `trigger.resumed` (with the reason; an ended pause by `system`). API: `POST /api/schedules/{id}/pause` with `{ until, reason, inApp }`, `POST /api/schedules/{id}/resume`, the same for `/api/triggers/{id}`; `notify` is part of schedules and triggers in the API (`/api/v1` too) and of monitor process outputs.
+
+**Example – the Gatus overview every 10 minutes:** _On change_, _Only the start and end of failing_, reminder every 24 hours, _Passes again_ on, channels as configured. The team gets one message when endpoints start failing, one reminder a day and one when all are healthy again; for a planned maintenance of the Gatus host, pause the messages until the end of the window.
+
+## What the messages say
+
+Every message about a failed check has the same structure in the app, by e-mail, in Teams and as webhook data: the **state first, then where** (_Warning · 11 of 58 endpoints down – Status (IntRAnet) /metrics_), one line on **what happened** (_Started failing_, _Got better: 12 → 11 · failing since …_, _Still failing (reminder)_, _Passes again_), a small table (process, who started it, severity, value, failing since), the **items** behind the failure, _Open runbook_ (only when one is set), _Open in Steward_, and a footer saying **why the reader got it** (_you own the schedule "Gatus overview"_) with a link to the source's message settings.
+
+What a process adds is optional – a check without it still gets a clear message from what Steward knows. On a check step:
+
+| Field      | Example                                                      | In the message                                                                           |
+| ---------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `headline` | `{{ $count(vars.down) }} of {{ vars.total }} endpoints down` | The subject and title instead of the check name (the name stays in the table)            |
+| `value`    | `$count(vars.down)`                                          | "11 (was 12) · better"; `betterWhen: higher` for values where more is better (days left) |
+| `items`    | `vars.down.(group & '/' & endpoint)`                         | Bullets, the first 10, then "+ N more"                                                   |
+| `runbook`  | `rec_…` or `https://…`                                       | _Open runbook_; the process can set a `runbook` for all its checks                       |
+
+Without a value, better or worse follows the severity. An expression that fails only logs a warning in the run. The webhook body keeps its fields and adds `headline`, `value`, `previousValue`, `direction` (`better`, `worse`, `same`), `items`, `runbook` (null when none), `since` and `source` (`kind`, `id`, `name`). The Gatus overviews, the Insights Hub health check, the data freshness monitor and the tenant usage check use them.
 
 ### A monitor or a process check?
 

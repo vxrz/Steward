@@ -1,4 +1,4 @@
-import { Paper, SegmentedControl, Stack, Switch, Text, Title } from '@mantine/core';
+import { Paper, SegmentedControl, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { REPORT_LANGS, type ProcessDefinition, type ReportLang } from '@sm/shared';
 import { reportLangName } from '../reports/RunReports';
@@ -40,6 +40,9 @@ export function SettingsTab({ def, onChange }: { def: Def; onChange: (d: Def) =>
       <Section title={t('settings.report.title')}>
         <ReportPanel def={def} onChange={onChange} />
       </Section>
+      <Section title={t('settings.messages.title')}>
+        <RunbookPanel def={def} onChange={onChange} />
+      </Section>
     </Stack>
   );
 }
@@ -78,5 +81,27 @@ function ReportPanel({ def, onChange }: { def: Def; onChange: (d: Def) => void }
         />
       </Stack>
     </Stack>
+  );
+}
+
+/** process.runbook (#144): what to do when a check fails – shown as "Open runbook" in its messages, only when set. */
+function RunbookPanel({ def, onChange }: { def: Def; onChange: (d: Def) => void }) {
+  const { t } = useTranslation('editor');
+  const v = def.runbook ?? '';
+  const valid = !v || /^https?:\/\/\S+$/i.test(v) || /^rec_[A-Za-z0-9_-]{4,64}$/.test(v);
+  return (
+    <TextInput
+      label={t('settings.messages.runbook')}
+      description={t('settings.messages.runbookHint')}
+      placeholder={t('settings.messages.runbookPlaceholder')}
+      value={v}
+      error={valid ? undefined : t('settings.messages.runbookInvalid')}
+      onChange={(e) => {
+        const next = e.currentTarget.value.trim();
+        const { runbook: _r, ...rest } = def;
+        onChange(next ? { ...rest, runbook: next } : (rest as Def));
+      }}
+      classNames={{ input: 'mono' }}
+    />
   );
 }

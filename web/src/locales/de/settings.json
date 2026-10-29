@@ -52,7 +52,15 @@
     "listLabel": "Positivliste",
     "listPlaceholder": "https://api.example.com\n*.corp.example\n10.0.0.0/8",
     "listHint": "Ein Eintrag pro Zeile: ein Ursprung (https://host[:port]), ein Host oder Host-Muster (*.example.com) oder ein CIDR. Cloud-Metadaten (169.254.169.254, …) und Link-local-Adressen sowie der eigene Port des Steward-Servers sind immer gesperrt.",
-    "note": "Absolute URLs, die hier nicht abgedeckt sind, schlagen mit einer Meldung fehl, die den Autor bittet, eine Administratorin um Freigabe des Ursprungs zu bitten."
+    "note": "Absolute URLs, die hier nicht abgedeckt sind, schlagen mit einer Meldung fehl, die den Autor bittet, eine Administratorin um Freigabe des Ursprungs zu bitten.",
+    "invalidEntry": "„{{entry}}“: {{problem}}",
+    "problems": {
+      "path": "ein Origin hat keinen Pfad – https://host[:port] verwenden",
+      "scheme": "nur http://- und https://-Origins",
+      "cidr": "einen IPv4-CIDR wie 10.10.13.0/24 verwenden",
+      "port": "der Port muss zwischen 1 und 65535 liegen",
+      "host": "kein Hostname, keine IP-Adresse und kein Origin – ein Eintrag pro Zeile"
+    }
   },
   "compliance": {
     "title": "Zugriffsabgleich",
@@ -62,7 +70,7 @@
   "retention": {
     "title": "Aufbewahrung",
     "runs": "Ausführungen aufbewahren (Tage)",
-    "runsHint": "Einschließlich Logs und Nachweisdateien. 0 = unbegrenzt.",
+    "runsHint": "Einschließlich Logs und Nachweisdateien. 0 = unbegrenzt. Neue Installationen beginnen mit 400 Tagen.",
     "notifications": "Gelesene Benachrichtigungen aufbewahren (Tage)",
     "notificationsHint": "Ungelesene bleiben immer erhalten.",
     "hint": "Ältere Ausführungen, gelesene Benachrichtigungen und der Monitor-Verlauf werden automatisch gelöscht. Das Audit-Log wird nie gekürzt.",

@@ -11,6 +11,7 @@ import {
   bodyHtml,
   dryRunBanner,
   emailHtml,
+  escHtml,
   eventTone,
   isDryRun,
   logoDataUrl,
@@ -39,6 +40,37 @@ export interface OutgoingMessage {
    * standard layout (already escaped), `note` small print above the footer, `button` replaces "Open in …".
    */
   emailParts?: { text: string; html: string; note?: string; button?: { label: string; href: string } };
+  /** Structured content (#144), the same in e-mail and Teams: in that order below the body */
+  parts?: MessageParts;
+}
+
+/** What a message says beyond title and body (#144). All optional; texts are in the message's language. */
+export interface MessageParts {
+  /** One line on what happened ("Got better: 12 → 11 · failing since …"), shown above the body */
+  lead?: string;
+  /** A small table: process, source, severity, since … */
+  facts?: { label: string; value: string }[];
+  /** The list behind the failure (the first ones; `more` = how many are left out) */
+  items?: { list: string[]; more: number };
+  /** Buttons before "Open in …", e.g. "Open runbook" (absolute links) */
+  actions?: { label: string; href: string }[];
+  /** Small print: why the reader got it */
+  reason?: string;
+  /** Small print link: where the messages of this source are set */
+  settings?: { label: string; href: string };
+}
+
+/** The structured parts as plain text (e-mail text part, in-app body). */
+export function partsText(p: MessageParts | undefined, opts: { facts?: boolean } = {}): { before: string; after: string } {
+  if (!p) return { before: '', after: '' };
+  const after = [
+    opts.facts === false || !p.facts?.length ? '' : p.facts.map((f) => `${f.label}: ${f.value}`).join('\n'),
+    p.items?.list.length ? p.items.list.map((i) => `• ${i}`).join('\n') + (p.items.more ? `\n+ ${p.items.more}` : '') : '',
+    p.actions?.length ? p.actions.map((a) => `${a.label}: ${a.href}`).join('\n') : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  return { before: p.lead ?? '', after };
 }
 
 const TIMEOUT_MS = 10000;
@@ -94,6 +126,12 @@ export function teamsCard(m: OutgoingMessage, look: ResolvedLook = resolveLook()
     ];
   };
   const dry = isDryRun(m.data);
+  const p = m.parts;
+  const actions = [
+    ...(p?.actions ?? []).map((a) => ({ type: 'Action.OpenUrl', title: a.label, url: a.href })),
+    { type: 'Action.OpenUrl', title: t(m.locale, 'common.openIn', { brand: look.name }), url: m.link },
+    ...(p?.settings ? [{ type: 'Action.OpenUrl', title: p.settings.label, url: p.settings.href }] : []),
+  ];
   const card = (withLogo: boolean) => ({
     type: 'message',
     attachments: [
@@ -114,11 +152,25 @@ export function teamsCard(m: OutgoingMessage, look: ResolvedLook = resolveLook()
             },
             ...(dry ? [{ type: 'TextBlock', text: dryRunBanner(m.locale), weight: 'Bolder', wrap: true, spacing: 'Medium' }] : []),
             { type: 'TextBlock', text: m.title, weight: 'Bolder', size: 'Medium', wrap: true, spacing: 'Medium' },
+            ...(p?.lead ? [{ type: 'TextBlock', text: p.lead, wrap: true, weight: 'Bolder', spacing: 'Small' }] : []),
             ...(m.body ? [{ type: 'TextBlock', text: m.body, wrap: true }] : []),
+            ...(p?.facts?.length ? [{ type: 'FactSet', facts: p.facts.map((f) => ({ title: f.label, value: f.value })), spacing: 'Medium' }] : []),
+            ...(p?.items?.list.length
+              ? [
+                  {
+                    type: 'TextBlock',
+                    text:
+                      p.items.list.map((i) => `- ${i}`).join('\n') + (p.items.more ? `\n\n+ ${t(m.locale, 'common.moreItems', { count: p.items.more })}` : ''),
+                    wrap: true,
+                    spacing: 'Medium',
+                  },
+                ]
+              : []),
+            ...(p?.reason ? [{ type: 'TextBlock', text: p.reason, isSubtle: true, size: 'Small', wrap: true, spacing: 'Medium' }] : []),
             { type: 'TextBlock', text: `${look.name} · ${m.event}`, isSubtle: true, size: 'Small', wrap: true },
             ...(look.footer ? [{ type: 'TextBlock', text: look.footer, isSubtle: true, size: 'Small', wrap: true, spacing: 'None' }] : []),
           ],
-          actions: [{ type: 'Action.OpenUrl', title: t(m.locale, 'common.openIn', { brand: look.name }), url: m.link }],
+          actions,
         },
       },
     ],
@@ -136,21 +188,56 @@ export async function sendTeams(url: string, m: OutgoingMessage): Promise<void> 
 /** Subject, text and HTML part of an e-mail in the configured look. `logoSrc` defaults to the attached logo (cid). */
 export function emailContent(m: OutgoingMessage, look: ResolvedLook = resolveLook(), logoSrc = `cid:${LOGO_CID}`) {
   const parts = m.emailParts;
+  const p = m.parts;
   const open = { label: t(m.locale, 'common.openIn', { brand: look.name }), href: m.link };
   const banner = isDryRun(m.data) ? dryRunBanner(m.locale) : undefined;
-  const text = (banner ? `${banner}\n\n` : '') + (parts?.text ?? `${m.title}\n\n${m.body}\n\n${m.link}\n`) + (look.footer ? `\n--\n${look.footer}\n` : '');
+  const pt = partsText(p);
+  const plain = [pt.before, m.body, pt.after].filter(Boolean).join('\n\n');
+  const small = [p?.reason, p?.settings ? `${p.settings.label}: ${p.settings.href}` : ''].filter(Boolean).join('\n');
+  const text =
+    (banner ? `${banner}\n\n` : '') +
+    (parts?.text ?? `${m.title}\n\n${plain}\n\n${m.link}\n${small ? `\n${small}\n` : ''}`) +
+    (look.footer ? `\n--\n${look.footer}\n` : '');
   const html = emailHtml({
     banner,
     look,
     locale: m.locale,
     title: m.title,
-    content: parts ? parts.html : bodyHtml(m.body),
+    content: parts ? parts.html : partsHtml(m, p),
     tone: parts ? undefined : eventTone(m.event, m.data),
     button: parts?.button ?? open,
-    note: parts?.note,
+    buttons: parts ? undefined : p?.actions,
+    note: parts?.note ?? noteHtml(p),
     logoSrc,
   });
   return { subject: `[${look.name}] ${m.title}`, text, html };
+}
+
+/** The body with the structured parts (#144) as e-mail HTML: lead, body, facts table, items (escaped). */
+function partsHtml(m: OutgoingMessage, p: MessageParts | undefined): string {
+  if (!p) return bodyHtml(m.body);
+  const facts = p.facts?.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0;border-collapse:collapse">${p.facts
+        .map(
+          (f) =>
+            `<tr><td style="padding:3px 16px 3px 0;color:#5c636a;vertical-align:top;white-space:nowrap">${escHtml(f.label)}</td><td style="padding:3px 0;vertical-align:top">${escHtml(f.value)}</td></tr>`,
+        )
+        .join('')}</table>`
+    : '';
+  const items = p.items?.list.length
+    ? `<ul style="margin:8px 0 10px;padding-left:20px">${p.items.list.map((i) => `<li style="margin:0 0 2px">${escHtml(i)}</li>`).join('')}</ul>${
+        p.items.more ? `<p style="margin:0 0 10px;color:#5c636a">+ ${escHtml(t(m.locale, 'common.moreItems', { count: p.items.more }))}</p>` : ''
+      }`
+    : '';
+  return [p.lead ? `<p style="margin:0 0 10px;font-weight:600">${escHtml(p.lead)}</p>` : '', bodyHtml(m.body), facts, items].join('');
+}
+
+/** Small print of the structured parts: why the reader got it and where it is set (escaped HTML). */
+function noteHtml(p: MessageParts | undefined): string | undefined {
+  if (!p?.reason && !p?.settings) return undefined;
+  return [p.reason ? escHtml(p.reason) : '', p.settings ? `<a href="${escHtml(p.settings.href)}" style="color:#5c636a">${escHtml(p.settings.label)}</a>` : '']
+    .filter(Boolean)
+    .join(' ');
 }
 
 export async function sendEmail(cfg: NotificationSettings['email'], secrets: ChannelSecrets, to: string, m: OutgoingMessage): Promise<void> {

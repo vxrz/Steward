@@ -31,11 +31,13 @@ type CheckNodeData = {
   state?: CheckState;
   root: boolean;
   editable: boolean;
+  /** The editor found a problem on this card */
+  problem?: boolean;
 };
 type CheckRfNode = Node<CheckNodeData, 'check'>;
 
 const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfNode>) {
-  const { check, state, root } = data;
+  const { check, state, root, problem } = data;
   const { t } = useTranslation('monitors');
   const status: MonitorStatus | undefined = state?.status;
   const color = status ? MONITOR_COLORS[status] : 'gray';
@@ -45,6 +47,7 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
     <Box
       data-testid={`monitor-node-${check.id}`}
       data-status={status ?? 'none'}
+      data-problem={problem ? 'true' : undefined}
       style={{
         width: NODE_W,
         minHeight: NODE_H,
@@ -53,7 +56,7 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
         background: 'var(--mantine-color-body)',
         border: `${root ? 3 : 1}px ${caused ? 'dashed' : 'solid'} var(--mantine-color-${color}-${root ? 7 : 5})`,
         borderLeft: `6px solid var(--mantine-color-${color}-6)`,
-        boxShadow: selected ? '0 0 0 3px var(--mantine-color-blue-4)' : '0 1px 3px rgba(0,0,0,.15)',
+        boxShadow: selected ? '0 0 0 3px var(--mantine-color-accent-4)' : problem ? '0 0 0 2px var(--mantine-color-red-6)' : '0 1px 3px rgba(0,0,0,.15)',
         opacity: check.enabled === false ? 0.55 : 1,
       }}
     >
@@ -68,6 +71,11 @@ const CheckNode = memo(function CheckNode({ data, selected }: NodeProps<CheckRfN
         {status && (
           <Badge size="xs" color={color} variant="filled" style={{ flexShrink: 0 }}>
             {monitorStatusLabel(status)}
+          </Badge>
+        )}
+        {problem && (
+          <Badge size="xs" color="red" variant="light" style={{ flexShrink: 0 }}>
+            {t('editor.problemBadge')}
           </Badge>
         )}
       </Group>
@@ -133,6 +141,13 @@ export interface MonitorGraphProps {
   onChange?: (def: MonitorDefinition) => void;
   onLinkClick?: (index: number) => void;
   height?: number | string;
+  /**
+   * Editing: a stable key per check (same order as `def.checks`), so two cards with the same id stay two cards
+   * (#141). `selected` and `onSelect` use these keys then; without them the check ids are the keys.
+   */
+  nodeKeys?: string[];
+  /** Editing: keys of the cards with a problem */
+  problems?: Set<string>;
 }
 
 export function MonitorGraph(props: MonitorGraphProps) {
@@ -145,29 +160,41 @@ export function MonitorGraph(props: MonitorGraphProps) {
 
 const NO_ROOTS: string[] = [];
 
-function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, onChange, onLinkClick, height = 460 }: MonitorGraphProps) {
+function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, onChange, onLinkClick, height = 460, nodeKeys, problems }: MonitorGraphProps) {
   const scheme = useComputedColorScheme('light');
   const { t } = useTranslation('monitors');
   const editable = !!onChange;
   const layout = useMemo(() => autoLayout(def), [def]);
   const stateOf = useMemo(() => new Map((states ?? []).map((s) => [s.checkId, s])), [states]);
   const rootKey = rootCauseIds.join('|');
+  // node key per check: the editor's stable keys, otherwise the check ids
+  const keys = useMemo(() => def.checks.map((c, i) => nodeKeys?.[i] ?? c.id), [def.checks, nodeKeys]);
+  const indexOfKey = useMemo(() => new Map(keys.map((k, i) => [k, i])), [keys]);
+  // links name check ids: the first card with that id
+  const keyOfId = useMemo(() => {
+    const m = new Map<string, string>();
+    def.checks.forEach((c, i) => !m.has(c.id) && m.set(c.id, keys[i]!));
+    return m;
+  }, [def.checks, keys]);
   const build = useCallback(
     (prev: CheckRfNode[] = []): CheckRfNode[] => {
       const before = new Map(prev.map((n) => [n.id, n]));
-      return def.checks.map((c) => ({
-        id: c.id,
-        type: 'check',
-        position: c.x !== undefined && c.y !== undefined ? { x: c.x, y: c.y } : layout.get(c.id)!,
-        data: { check: c, state: stateOf.get(c.id), root: rootKey.split('|').includes(c.id), editable },
-        selected: c.id === selected,
-        draggable: editable,
-        deletable: false,
-        // keep the measured size, otherwise the node is hidden until it is measured again
-        measured: before.get(c.id)?.measured,
-      }));
+      return def.checks.map((c, i) => {
+        const id = keys[i]!;
+        return {
+          id,
+          type: 'check',
+          position: c.x !== undefined && c.y !== undefined ? { x: c.x, y: c.y } : (layout.get(c.id) ?? { x: 0, y: i * (NODE_H + 70) }),
+          data: { check: c, state: stateOf.get(c.id), root: rootKey.split('|').includes(c.id), editable, problem: problems?.has(id) },
+          selected: id === selected,
+          draggable: editable,
+          deletable: false,
+          // keep the measured size, otherwise the node is hidden until it is measured again
+          measured: before.get(id)?.measured,
+        };
+      });
     },
-    [def, layout, stateOf, rootKey, selected, editable],
+    [def, keys, layout, stateOf, rootKey, selected, editable, problems],
   );
   const [nodes, setNodes] = useState<CheckRfNode[]>(() => build());
   useEffect(() => setNodes((prev) => build(prev)), [build]);
@@ -178,8 +205,8 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
     const stroke = hot ? 'var(--mantine-color-red-6)' : scheme === 'dark' ? 'var(--mantine-color-gray-5)' : 'var(--mantine-color-gray-6)';
     return {
       id: `l${i}`,
-      source: l.from,
-      target: l.to,
+      source: keyOfId.get(l.from) ?? l.from,
+      target: keyOfId.get(l.to) ?? l.to,
       label: l.mode === 'hard' ? t('graph.hard') : undefined,
       style: { stroke, strokeWidth: hot ? 2.5 : 1.6, strokeDasharray: l.mode === 'hard' ? undefined : '6 4' },
       markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
@@ -193,13 +220,15 @@ function GraphInner({ def, states, rootCauseIds = NO_ROOTS, selected, onSelect, 
     if (!onChange) return;
     const moved = changes.filter((c) => c.type === 'position' && c.dragging === false && c.position);
     if (!moved.length) return;
-    const pos = new Map(moved.map((c) => [(c as { id: string }).id, (c as { position: { x: number; y: number } }).position]));
-    onChange({ ...def, checks: def.checks.map((c) => (pos.has(c.id) ? { ...c, x: Math.round(pos.get(c.id)!.x), y: Math.round(pos.get(c.id)!.y) } : c)) });
+    const pos = new Map(moved.map((c) => [indexOfKey.get((c as { id: string }).id), (c as { position: { x: number; y: number } }).position]));
+    onChange({ ...def, checks: def.checks.map((c, i) => (pos.has(i) ? { ...c, x: Math.round(pos.get(i)!.x), y: Math.round(pos.get(i)!.y) } : c)) });
   };
   const onConnect = (c: Connection) => {
     if (!onChange || !c.source || !c.target || c.source === c.target) return;
-    if (def.links.some((l) => l.from === c.source && l.to === c.target)) return;
-    onChange({ ...def, links: [...def.links, { from: c.source, to: c.target, mode: 'soft' }] });
+    const from = def.checks[indexOfKey.get(c.source) ?? -1]?.id;
+    const to = def.checks[indexOfKey.get(c.target) ?? -1]?.id;
+    if (!from || !to || from === to || def.links.some((l) => l.from === from && l.to === to)) return;
+    onChange({ ...def, links: [...def.links, { from, to, mode: 'soft' }] });
   };
   const onEdgeClick: EdgeMouseHandler = (_e, edge) => onLinkClick?.((edge.data as { index: number }).index);
 

@@ -53,12 +53,51 @@
       },
       "reminder": "Reminder while still failing",
       "reminderHint": "Hours; 0 = no reminder",
-      "resolved": "Send a message when a check passes again"
+      "resolved": "Send a message when a check passes again",
+      "change": "What counts as a change",
+      "changeHint": {
+        "result": "A different message or severity notifies again.",
+        "state": "Only the start and the end of failing: one message when a check starts failing, reminders, and – if wanted – one when it passes again."
+      },
+      "changeKind": {
+        "result": "A different message or severity",
+        "state": "Only the start and end of failing"
+      },
+      "where": "Where the messages go",
+      "whereHint": "A channel turned off under Settings → Notifications stays off.",
+      "whereRoutes": "As configured (the notification routes)",
+      "whereChosen": "Only these channels:",
+      "channels": "Channels",
+      "noChannel": "Choose at least one channel",
+      "channel": {
+        "inApp": "In the app",
+        "email": "E-mail",
+        "teams": "Teams",
+        "webhook": "Webhook"
+      }
     }
   },
   "emptyState": {
     "title": "No schedules yet",
     "text": "Run a process automatically, e.g. a weekly health check or a quarterly access review. Scheduled runs use the rights of the schedule's owner.",
     "action": "Create your first schedule"
+  },
+  "pause": {
+    "button": "Pause messages",
+    "resume": "Resume messages",
+    "title": "Pause messages",
+    "toggle": "Pause messages",
+    "how": "Pause",
+    "until": "Until a time",
+    "untilResumed": "Until resumed",
+    "end": "Ends at",
+    "reason": "Reason (shown on the badge and in the audit log)",
+    "inApp": "Still show them in the app",
+    "inAppHint": "E-mail, Teams and webhooks stay quiet either way.",
+    "note": "Runs, checks, the start page and summaries are not affected. When the pause ends while a check still fails, one message says so.",
+    "confirm": "Pause",
+    "badgeUntil": "Messages paused until {{until}}",
+    "badgeOpen": "Messages paused",
+    "noReason": "No reason given"
   }
 }

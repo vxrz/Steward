@@ -12,7 +12,10 @@
     "periods": {
       "24h": "Letzte 24 Stunden",
       "7d": "Letzte 7 Tage"
-    }
+    },
+    "checks": "Prüfungen",
+    "anyChecks": "Alle",
+    "failedChecks": "Mit fehlgeschlagenen Prüfungen"
   },
   "table": {
     "empty": "Noch keine Ausführungen.",
@@ -54,14 +57,10 @@
     "title": "Ausführen: {{name}}",
     "titleFallback": "Prozess ausführen",
     "inputs": "Eingaben",
-    "dryRun": "Probelauf – alle Änderungen simulieren",
-    "dryRunHint": "Lesende Aufrufe werden ausgeführt, schreibende (POST/PUT/PATCH/DELETE) nur protokolliert. Benutzeraufgaben werden trotzdem gestellt.",
     "writesTitle": "Diese Ausführung ändert Daten",
     "writesText": "Der Prozess enthält Schreibvorgänge, die auf den ausgewählten Plattformen ausgeführt werden.",
     "startDryRun": "Probelauf starten",
     "startRun": "Ausführung starten",
-    "recorded": "Aufgezeichnete Antworten verwenden (Testlauf)",
-    "recordedHint": "Plattformaufrufe werden mit den aufgezeichneten Antworten der Plattform beantwortet, nichts wird gesendet. Ein Aufruf ohne Aufzeichnung lässt den Lauf fehlschlagen und wird genannt.",
     "startTestRun": "Testlauf starten"
   },
   "inputs": {
@@ -174,5 +173,17 @@
     "text": "Eine Ausführung ist ein Durchlauf eines Prozesses mit vollständigem Protokoll. Starten Sie sie bei einem Prozess – ein Probelauf simuliert vorher jede Änderung.",
     "action": "Zu den Prozessen",
     "noMatch": "Keine Ausführungen passen zum Filter."
+  },
+  "mode": {
+    "label": "Ausführungsart",
+    "dry": "Probelauf",
+    "test": "Testlauf",
+    "real": "Lauf",
+    "dryHint": "Lesende Aufrufe werden ausgeführt, schreibende (POST/PUT/PATCH/DELETE) nur aufgezeichnet. Benutzeraufgaben fragen trotzdem nach.",
+    "testHint": "Plattformaufrufe werden aus den aufgezeichneten Antworten der Plattformen beantwortet, nichts wird gesendet. Ein Aufruf ohne Aufzeichnung lässt den Lauf fehlschlagen und wird genannt.",
+    "realHint": "Alle Aufrufe werden ausgeführt, auch schreibende.",
+    "recordings_one": "{{name}}: {{count}} aufgezeichnete Antwort",
+    "recordings_other": "{{name}}: {{count}} aufgezeichnete Antworten",
+    "noRecordings": "{{name}} hat noch keine aufgezeichneten Antworten – unter <a>Plattformen → Aufgezeichnete Antworten</a> anlegen."
   }
 }

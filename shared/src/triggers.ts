@@ -3,6 +3,8 @@
  * with the process inputs mapped from the request (e.g. a Gatus alert).
  */
 
+import type { ScheduleNotify } from './notifyPolicy.js';
+
 /**
  * How a caller proves it knows the secret:
  * - `token`: static header `Authorization: Bearer <secret>` or `X-Steward-Token: <secret>`
@@ -48,6 +50,8 @@ export interface WebhookTriggerSettings {
   dedupeSeconds: number;
   /** Skip while the previous run of this trigger is still running or waiting. */
   skipIfRunning: boolean;
+  /** Messages of its runs (#139); missing in input: unchanged (new triggers: after every run). `pause` has its own actions. */
+  notify?: ScheduleNotify;
 }
 
 export interface WebhookTrigger extends WebhookTriggerSettings {

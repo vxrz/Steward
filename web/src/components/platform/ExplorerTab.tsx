@@ -159,7 +159,7 @@ export function ExplorerTab({ platform, preset, canWrite = true }: { platform: P
               onClick={send}
               loading={busy}
               disabled={!path.trim() || (writes && !confirmed)}
-              color={writes ? 'orange' : 'blue'}
+              color={writes ? 'orange' : undefined}
             >
               {t('explorer.send')}
             </Button>

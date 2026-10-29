@@ -328,6 +328,24 @@ export const TaskDetail = z.object({
   manual: ManualStep.nullable().describe('Manual steps only (mode manual)'),
 });
 
+/** The notification policy of a schedule or webhook trigger (#139). */
+export const NotifyPolicy = z
+  .object({
+    mode: z.enum(['change', 'every', 'off']).describe('When failed checks notify'),
+    reminderHours: z.number().int().describe('On change: a reminder while still failing (0: none)'),
+    resolved: z.boolean().describe('A message when a check passes again'),
+    change: z.enum(['result', 'state']).describe('result: a different message or severity is a change; state: only the start and end of failing'),
+    channels: z
+      .array(z.enum(['inApp', 'email', 'teams', 'webhook']))
+      .nullable()
+      .describe('null: as configured (the routes); else only these'),
+    pause: z
+      .object({ until: z.string().nullable().describe('null: until resumed'), reason: z.string(), inApp: z.boolean(), at: z.string().optional() })
+      .nullable()
+      .describe('Messages are paused (runs and checks are not affected)'),
+  })
+  .describe('Who is interrupted by the runs, how and when; never what is recorded');
+
 export const Schedule = z.object({
   id: z.string(),
   name: z.string(),
@@ -346,6 +364,7 @@ export const Schedule = z.object({
   lastRunId: z.string().nullable(),
   lastRunStatus: z.enum(RUN_STATUSES).nullable(),
   createdAt: ts(),
+  notify: NotifyPolicy,
 });
 
 export const Trigger = z
@@ -367,6 +386,7 @@ export const Trigger = z
     lastRunStatus: z.string().nullable(),
     fireCount: z.number().int().describe('Accepted calls'),
     rejectedCount: z.number().int().describe('Rejected calls (wrong secret, address, rate limit …)'),
+    notify: NotifyPolicy,
   })
   .describe('Webhook trigger metadata. The secret, its prefix, the input mapping and the allowed addresses are not part of the API.');
 
@@ -399,14 +419,35 @@ export const Dataset = z.object({
   metrics: z.record(z.string(), z.number()).describe('Latest value per metric'),
   staleAfterMinutes: z.number().int().nullable(),
   stale: z.boolean(),
+  sources: z
+    .array(
+      z.object({
+        id: z.string().describe('Platform id, ids joined with "+", or "instance"'),
+        name: z.string(),
+        environment: z.string(),
+        runId: z.string(),
+        scheduleId: z.string().nullable(),
+        updatedAt: ts(),
+        rowCount: z.number().int(),
+        metrics: z.record(z.string(), z.number()),
+        staleAfterMinutes: z.number().int().describe('The step setting, else 2.5 × the schedule interval (at least 15), else 24 h'),
+        expectedMinutes: z.number().int().nullable().describe('Interval of the schedule that feeds it'),
+        stale: z.boolean(),
+      }),
+    )
+    .describe('One partition per source platform; only the ones you may see'),
 });
 
 export const DatasetRow = z
   .record(z.string(), z.unknown())
-  .describe('One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText.');
+  .describe(
+    'One row of the snapshot. Reserved fields: _key, _status (good | warning | serious | critical | unknown), _statusText, _source { platformId, platform, environment, run } – the platform the row was read from.',
+  );
 
 export const MetricSeries = z.object({
   name: z.string(),
+  source: z.string().describe('The partition (source id) of the series'),
+  sourceName: z.string(),
   points: z.array(z.object({ ts: ts(), value: z.number() })),
 });
 
@@ -627,12 +668,14 @@ export const DatasetRowsQuery = z.object({
   ...page,
   limit: z.number().int().min(1).max(1000).default(100).describe('Page size (1–1000, default 100)'),
   status: z.array(z.enum(DATASET_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Only rows with these statuses (repeat the parameter)'),
+  source: z.array(z.string().max(300)).max(QUERY_LIST_MAX).optional().describe('Only rows of these sources (platform ids; repeat the parameter)'),
 });
 
 export const MetricsQuery = z.object({
   names: z.array(z.string().max(200)).max(QUERY_LIST_MAX).optional().describe('Metric names (repeat the parameter); default all'),
   days: z.number().int().min(1).max(400).default(30).describe('History window in days (1–400, default 30)'),
   points: z.number().int().min(2).max(2000).default(200).describe('Maximum points per series (downsampled, default 200)'),
+  source: z.array(z.string().max(300)).max(QUERY_LIST_MAX).optional().describe('Only these sources (platform ids; repeat the parameter)'),
 });
 
 export const AuditListQuery = z.object({

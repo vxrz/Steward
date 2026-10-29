@@ -1,19 +1,20 @@
 name: "Insights Hub – Tenant usage and licence check"
 description: |
-  Collects the consumption figures of the tenant – users, assets, agents, credits,
-  time series and file storage, API calls – compares them with the licensed limits
-  and publishes them for the "Tenant usage" dashboard. A limit is either an input
-  (your contract) or, when the input is 0, the limit the usage service reports.
+  Counts what the tenant uses – users, assets, agents and asset attributes (per
+  asset type) – and, optionally, one KPI of the Usage Transparency Service. Each
+  figure is compared with the limit from your contract (an input; 0 = only count)
+  and published for the "Tenant usage" dashboard.
 
   Status per figure: warning from `warnPercent` (default 80 %), critical from
-  `criticalPercent` (default 95 %). A breach fails a check, which notifies the
-  person who started the run, the schedule owner and the process owner.
+  `criticalPercent` (default 95 %); no limit set: counted only. A figure that
+  could not be read is shown as unknown – the failed call and the platform's
+  answer are in the run. A breach or a figure that could not be read fails a check,
+  which notifies the person who started the run, the schedule owner and the
+  process owner.
 
-  Recommended schedule: daily. Publishes `ih.usage`. Read-only.
-  Required rights: read users, assets and agents, and the Usage Transparency API.
-  VERIFY ON YOUR TENANT: the aggregated usage path and response of the Usage
-  Transparency Service (input `utsPath`) and the agent paging fields are assumptions
-  – see docs/INSIGHTS-HUB-USAGE.md.
+  Recommended schedule: daily. Publishes `ih.usage` and `ih.usage-attributes`.
+  Read-only. Required rights: read users, assets, asset types and agents; for the
+  KPI the Usage Transparency scope `uts.r`. See docs/INSIGHTS-HUB-USAGE.md.
 tags: [usage, licence, quota, monitoring, dashboard, insights-hub]
 connections:
   - slot: hub
@@ -28,29 +29,37 @@ inputs:
     type: number
     default: 95
   - name: userLimit
-    label: Licensed users (0 = not checked)
+    label: Licensed users (0 = count only)
     type: number
-    default: 25
+    default: 0
   - name: assetLimit
-    label: Licensed assets (0 = not checked)
+    label: Licensed assets (0 = count only)
     type: number
-    default: 15
+    default: 0
   - name: agentLimit
-    label: Licensed agents (0 = not checked)
-    type: number
-    default: 10
-  - name: creditLimit
-    label: Credits per month (0 = limit reported by the usage service)
+    label: Licensed agents (0 = count only)
     type: number
     default: 0
-  - name: storageLimitGb
-    label: Time series storage in GB (0 = limit reported by the usage service)
+  - name: attributeLimit
+    label: Licensed asset attributes (0 = count only)
     type: number
     default: 0
-  - name: utsPath
-    label: Usage Transparency path (aggregated usage – verify on your tenant)
+  - name: utsProvider
+    label: Usage Transparency – provider tenant (empty = no KPI)
     type: string
-    default: /api/usagetransparency/v3/usages/aggregated
+    default: ""
+  - name: utsApplication
+    label: Usage Transparency – application name
+    type: string
+    default: ""
+  - name: utsKpi
+    label: Usage Transparency – KPI name (empty = no KPI)
+    type: string
+    default: ""
+  - name: utsKpiLimit
+    label: Limit of the KPI this month (0 = count only)
+    type: number
+    default: 0
 steps:
   - id: setup
     type: set
@@ -59,7 +68,10 @@ steps:
       idm: "{{ $pvar('hub', 'idmPath', '/api/identitymanagement/v3') }}"
       am: "{{ $pvar('hub', 'assetPath', '/api/assetmanagement/v3') }}"
       agents: "{{ $pvar('hub', 'agentPath', '/api/agentmanagement/v3') }}"
-      month: "{{ $substring($now(), 0, 7) }}"
+      uts: "{{ $pvar('hub', 'utsPath', '/api/usagetransparency/v3') }}"
+      month: "{{ $fromMillis($millis(), '[MNn]') }}"
+      year: "{{ $fromMillis($millis(), '[Y0001]') }}"
+      withKpi: "{{ $boolean($inputs.utsKpi) and $boolean($inputs.utsProvider) and $boolean($inputs.utsApplication) }}"
   - id: users
     type: http
     name: Count users
@@ -67,14 +79,26 @@ steps:
     method: GET
     path: "{{ vars.idm }}/Users"
     query: { count: "1" }
+    onError: continue
     saveAs: users
+  - id: types
+    type: http
+    name: List asset types
+    connection: hub
+    method: GET
+    path: "{{ vars.am }}/assettypes"
+    query: { exploded: "true" }
+    paginate: { mode: page, pageSize: 200, itemsPath: "_embedded.assetTypes" }
+    onError: continue
+    saveAs: types
   - id: assets
     type: http
-    name: Count assets
+    name: List assets
     connection: hub
     method: GET
     path: "{{ vars.am }}/assets"
-    query: { size: "1" }
+    paginate: { mode: page, pageSize: 500, itemsPath: "_embedded.assets" }
+    onError: continue
     saveAs: assets
   - id: agentCount
     type: http
@@ -85,24 +109,45 @@ steps:
     query: { size: "1" }
     onError: continue
     saveAs: agentList
-  - id: usage
+  - id: kpi
     type: http
-    name: Aggregated usage of the month
+    name: Usage Transparency KPI of the month
+    when: vars.withKpi
     connection: hub
     method: GET
-    path: "{{ inputs.utsPath }}"
-    query: { from: "{{ vars.month }}", to: "{{ vars.month }}" }
+    path: "{{ vars.uts }}/aggregatedMonthlyConsumerUsage"
+    query:
+      month: "{{ vars.month }}"
+      year: "{{ vars.year }}"
+      provider: "{{ inputs.utsProvider }}"
+      application: "{{ inputs.utsApplication }}"
+      KPIName: "{{ inputs.utsKpi }}"
     onError: continue
-    saveAs: usage
+    saveAs: kpi
+  - id: attributes
+    type: set
+    name: Attributes per asset type
+    values:
+      typeStats: >-
+        {{ $exists(vars.types.body) and $exists(vars.assets.body) ? [vars.types.body.(
+          $t := $;
+          $inst := $count($vars.assets.body[typeId = $t.id]);
+          $attrs := $count($t.variables) + $sum([$t.aspects.$count(aspectType.variables), 0]);
+          {
+            "id": $t.id,
+            "type": $t.name,
+            "assets": $inst,
+            "attributesPerAsset": $attrs,
+            "totalAttributes": $inst * $attrs
+          }
+        )[assets > 0]] : [] }}
   - id: compute
     type: set
     name: Compare with the limits
     values:
       figures: >-
         {{ (
-          $u := vars.usage.body.usages;
-          $uts := function($r) { $u[resource = $r][0] };
-          $row := function($key, $label, $used, $limit, $unit, $source) {
+          $row := function($key, $label, $used, $limit, $unit, $source, $step) {
             $exists($used) ? (
               $pct := $limit > 0 ? $round($used / $limit * 100, 1);
               {
@@ -113,22 +158,33 @@ steps:
                 "unit": $unit,
                 "percent": $pct,
                 "source": $source,
-                "level": $not($exists($pct)) ? 'unknown'
+                "read": true,
+                "level": $not($exists($pct)) ? 'good'
                   : ($pct >= $inputs.criticalPercent ? 'critical'
                   : ($pct >= $inputs.warnPercent ? 'warning' : 'good'))
               }
-            )
+            ) : {
+              "key": $key,
+              "label": $label,
+              "limit": $limit > 0 ? $limit,
+              "unit": $unit,
+              "source": $source,
+              "read": false,
+              "step": $step,
+              "level": 'unknown'
+            }
           };
+          $kpiValue := $exists(vars.kpi.body.value) ? $sum(vars.kpi.body.value);
+          $kpiName := vars.kpi.body.KPIDisplayName ? vars.kpi.body.KPIDisplayName : $inputs.utsKpi;
           [
-            $row('users', 'Users', vars.users.body.totalResults, $inputs.userLimit, 'users', 'Identity Management'),
-            $row('assets', 'Assets', vars.assets.body.page.totalElements, $inputs.assetLimit, 'assets', 'Asset Management'),
-            $row('agents', 'Agents', vars.agentList.body.totalElements, $inputs.agentLimit, 'agents', 'Agent Management'),
-            $row('credits', 'Credits this month', $uts('credits').amount,
-              $inputs.creditLimit > 0 ? $inputs.creditLimit : $uts('credits').limit, 'credits', 'Usage Transparency'),
-            $row('timeseries', 'IoT time series storage', $uts('iot-timeseries-storage').amount,
-              $inputs.storageLimitGb > 0 ? $inputs.storageLimitGb : $uts('iot-timeseries-storage').limit, 'GB', 'Usage Transparency'),
-            $row('files', 'File storage', $uts('file-storage').amount, $uts('file-storage').limit, 'GB', 'Usage Transparency'),
-            $row('apiCalls', 'API calls this month', $uts('api-calls').amount, $uts('api-calls').limit, 'calls', 'Usage Transparency')
+            $row('users', 'Users', vars.users.body.totalResults, $inputs.userLimit, 'users', 'Identity Management', 'Count users'),
+            $row('assets', 'Assets', $exists(vars.assets.body) ? $count(vars.assets.body), $inputs.assetLimit, 'assets', 'Asset Management', 'List assets'),
+            $row('agents', 'Agents', vars.agentList.body.totalElements, $inputs.agentLimit, 'agents', 'Agent Management', 'Count agents'),
+            $row('attributes', 'Asset attributes',
+              $exists(vars.types.body) and $exists(vars.assets.body) ? $sum([vars.typeStats.totalAttributes, 0]),
+              $inputs.attributeLimit, 'attributes', 'Asset Management', 'List asset types / List assets'),
+            vars.withKpi ? $row('kpi', $kpiName & ' (' & vars.month & ')', $kpiValue, $inputs.utsKpiLimit, 'units',
+              'Usage Transparency', 'Usage Transparency KPI of the month')
           ]
         ) }}
   - id: counts
@@ -137,54 +193,82 @@ steps:
     values:
       critical: "{{ $count(vars.figures[level = 'critical']) }}"
       warning: "{{ $count(vars.figures[level = 'warning']) }}"
-      maxPercent: "{{ $max(vars.figures.percent) }}"
-      usageAvailable: "{{ $exists(vars.usage.body.usages) }}"
+      unread: "{{ $count(vars.figures[read = false]) }}"
+      maxPercent: "{{ $max([vars.figures.percent, 0]) }}"
   - id: publish
     type: publish
     name: Publish usage
     dataset: ih.usage
     title: Tenant usage against the licence
-    rows: "vars.figures^(>percent)"
+    rows: vars.figures
     key: key
     columns:
       - { label: Figure, value: label }
-      - { label: Used, value: used }
+      - { label: Used, value: "$exists(used) ? used : '–'" }
       - { label: Limit, value: "$exists(limit) ? limit : '–'" }
       - { label: Unit, value: unit }
       - { label: Used (%), value: "$exists(percent) ? percent : '–'" }
       - { label: Source, value: source }
     status: level
-    statusText: "$exists(percent) ? percent & ' % of ' & limit & ' ' & unit : 'no limit configured'"
+    statusText: >-
+      read = false ? 'could not be read – see the step "' & step & '" in the run'
+        : ($exists(percent) ? percent & ' % of ' & limit & ' ' & unit : 'counted, no limit set')
     metrics:
       usersPercent: "vars.figures[key = 'users'].percent"
       assetsPercent: "vars.figures[key = 'assets'].percent"
       agentsPercent: "vars.figures[key = 'agents'].percent"
-      creditsPercent: "vars.figures[key = 'credits'].percent"
-      storagePercent: "vars.figures[key = 'timeseries'].percent"
+      attributesPercent: "vars.figures[key = 'attributes'].percent"
+      kpiPercent: "vars.figures[key = 'kpi'].percent"
       maxPercent: vars.maxPercent
       users: "vars.figures[key = 'users'].used"
       assets: "vars.figures[key = 'assets'].used"
-      credits: "vars.figures[key = 'credits'].used"
-      storageGb: "vars.figures[key = 'timeseries'].used"
+      agents: "vars.figures[key = 'agents'].used"
+      attributes: "vars.figures[key = 'attributes'].used"
+      kpi: "vars.figures[key = 'kpi'].used"
       warning: vars.warning
       critical: vars.critical
+      unread: vars.unread
     staleAfterMinutes: 2880
-  - id: usageService
+  - id: publishAttributes
+    type: publish
+    name: Publish attributes per asset type
+    dataset: ih.usage-attributes
+    title: Asset attributes per asset type
+    rows: vars.typeStats^(>totalAttributes)
+    key: id
+    columns:
+      - { label: Asset type, value: type }
+      - { label: Assets, value: assets }
+      - { label: Attributes per asset, value: attributesPerAsset }
+      - { label: Attributes, value: totalAttributes }
+    status: "'good'"
+    statusText: "assets & ' asset(s) × ' & attributesPerAsset & ' attribute(s)'"
+    metrics:
+      types: "$count(vars.typeStats)"
+      attributes: "$sum([vars.typeStats.totalAttributes, 0])"
+    staleAfterMinutes: 2880
+  - id: readCheck
     type: check
-    name: The usage service answered
-    notify: false # informational: shown in the run, never notified
-    severity: info
-    condition: vars.usageAvailable
-    message: "{{ vars.usageAvailable ? 'Usage Transparency figures read' : 'No aggregated usage – check the input utsPath and the rights of the technical user' }}"
+    name: All figures were read
+    severity: warning
+    condition: "vars.unread = 0"
+    headline: "{{ vars.unread }} licence figure(s) could not be read"
+    items: 'vars.figures[read = false].(label & '' – step "'' & step & ''"'')'
+    message: "{{ vars.unread = 0 ? 'All figures were read' : vars.unread & ' figure(s) could not be read: ' & $join(vars.figures[read = false].label, ', ') & ' – the failed steps of the run show the answer of the platform' }}"
   - id: criticalCheck
     type: check
     name: No limit reached critical level
     severity: error
     condition: "vars.critical = 0"
     message: "{{ vars.critical }} figure(s) at or above {{ inputs.criticalPercent }} %: {{ $join(vars.figures[level = 'critical'].(label & ' ' & percent & ' %'), ', ') }}"
+    headline: "{{ vars.critical }} licence figure(s) at {{ inputs.criticalPercent }} % or more"
+    value: "vars.maxPercent"
+    items: "vars.figures[level = 'critical'].(label & ': ' & used & ' of ' & limit & ' ' & unit & ' (' & percent & ' %)')"
   - id: warningCheck
     type: check
     name: No limit above the warning level
     severity: warning
     condition: "vars.warning = 0"
     message: "{{ vars.warning }} figure(s) at or above {{ inputs.warnPercent }} %: {{ $join(vars.figures[level = 'warning'].(label & ' ' & percent & ' %'), ', ') }}"
+    headline: "{{ vars.warning }} licence figure(s) above {{ inputs.warnPercent }} %"
+    items: "vars.figures[level = 'warning'].(label & ': ' & used & ' of ' & limit & ' ' & unit & ' (' & percent & ' %)')"

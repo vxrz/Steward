@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/vxrz/Steward/security/advisories/new
+    about: Never in a public issue – reported privately, only the maintainers can see it.
+  - name: How to report well
+    url: https://github.com/vxrz/Steward/blob/main/ISSUES.md
+    about: What helps, and what never belongs in an issue.

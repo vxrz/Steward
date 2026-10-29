@@ -21,20 +21,42 @@ test('operator creates a schedule, runs it now and deletes it', async ({ page, a
   await expect(dialog.getByRole('textbox', { name: 'Time zone' })).toHaveValue('Europe/Berlin');
   await expect(dialog.getByText(/^Next: /)).toBeVisible();
   // failed checks notify on change by default, with a 4-hour reminder (#127)
-  const notify = dialog.getByTestId('schedule-notify');
+  const notify = dialog.getByTestId('notify-policy');
   await expect(notify.getByRole('textbox', { name: 'Failed checks notify' })).toHaveValue('On change (recommended)');
   await notify.getByRole('textbox', { name: 'Reminder while still failing' }).fill('8');
   await notify.getByText('Send a message when a check passes again').click();
+  // what counts as a change and where the messages go (#139)
+  await notify.getByRole('textbox', { name: 'What counts as a change' }).click();
+  await page.getByRole('option', { name: 'Only the start and end of failing' }).click();
+  await notify.getByText('Only these channels:').click();
+  await notify.getByText('E-mail', { exact: true }).click();
   await dialog.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Schedule saved')).toBeVisible();
   const saved = (await (await apiAs('olivia')).get('/api/schedules').then((r) => r.json())) as { name: string; notify: unknown }[];
-  expect(saved.find((x) => x.name === name)?.notify).toEqual({ mode: 'change', reminderHours: 8, resolved: true });
+  expect(saved.find((x) => x.name === name)?.notify).toEqual({
+    mode: 'change',
+    reminderHours: 8,
+    resolved: true,
+    change: 'state',
+    channels: ['inApp', 'email'],
+    pause: null,
+  });
 
   const row = page.getByRole('row').filter({ hasText: name });
   await expect(row).toContainText('0 * * * *');
   await expect(row).toContainText('Hourly Europe/Berlin');
   await expect(row).toContainText('runs as olivia');
   await expect(row.getByRole('switch', { name: 'Enabled' })).toBeChecked();
+
+  // pause the messages with a reason; the row shows it until resumed
+  await row.getByRole('button', { name: 'Pause messages' }).click();
+  const pause = page.getByRole('dialog', { name: 'Pause messages' });
+  await pause.getByText('Until resumed').click();
+  await pause.getByLabel('Reason (shown on the badge and in the audit log)').fill('Gatus maintenance');
+  await pause.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(row.getByTestId('pause-badge')).toHaveText('Messages paused');
+  await row.getByRole('button', { name: 'Resume messages' }).click();
+  await expect(row.getByTestId('pause-badge')).toHaveCount(0);
 
   // run now → run page → succeeds
   await row.getByRole('button', { name: 'Run now' }).click();

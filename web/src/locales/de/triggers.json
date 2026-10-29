@@ -71,7 +71,9 @@
     "dryRun": "Probelauf (Änderungen simulieren)",
     "rightsOf": "Ausführungen laufen mit den Rechten von <b>{{owner}}</b>. Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
     "rightsOfYou": "Ausführungen laufen mit Ihren Rechten (Sie sind der Eigentümer). Das Secret wird nach dem Speichern einmal angezeigt; es wird verschlüsselt gespeichert und lässt sich jederzeit erneuern.",
-    "create": "Anlegen und Secret anzeigen"
+    "create": "Anlegen und Secret anzeigen",
+    "messages": "Nachrichten",
+    "messagesHint": "Jede fehlgeschlagene Prüfung jedes Laufs benachrichtigt. Für einen Absender, der oft aufruft, hält „Bei Änderung“ den Lärm gering."
   },
   "secret": {
     "title": "Secret von „{{name}}“",

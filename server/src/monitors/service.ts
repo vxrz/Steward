@@ -9,6 +9,7 @@ import {
   MONITOR_PERMISSIONS,
   RESERVED_MONITOR_KEYS,
   definitionIssues,
+  issueLabel,
   findCycle,
   type AclEntry,
   type CheckDef,
@@ -88,9 +89,10 @@ export function requireCreate(): void {
 }
 
 /** 400 for a monitor definition with problems (the problems themselves stay English, like schema messages). */
-function invalidMonitor(issues: { path: string; message: string }[]): HttpError {
-  const details = issues.map((i) => `${i.path}: ${i.message}`).join('; ');
-  return new HttpError(400, details, 'MONITOR_INVALID', { details });
+/** Issues name the card (`Check "Name" (id) – field: …`); `issues` keeps the paths for editors (#141). */
+function invalidMonitor(issues: { path: string; message: string }[], def?: unknown): HttpError {
+  const details = issues.map((i) => `${def === undefined ? i.path : issueLabel(def, i.path)}: ${i.message}`).join('; ');
+  return Object.assign(new HttpError(400, details, 'MONITOR_INVALID', { details }), { issues: issues.map((i) => ({ path: i.path, message: i.message })) });
 }
 
 // ---------- read ----------
@@ -635,7 +637,7 @@ export async function createMonitor(
   } else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
-    if (issues.length) throw invalidMonitor(issues);
+    if (issues.length) throw invalidMonitor(issues, def);
     checkExpressions(def);
     name = def.name;
   }
@@ -707,7 +709,7 @@ export async function updateMonitor(idOrKey: string, input: MonitorInput & { ver
   else {
     def = parseDefinitionInput(input.definition);
     const issues = definitionIssues(def);
-    if (issues.length) throw invalidMonitor(issues);
+    if (issues.length) throw invalidMonitor(issues, def);
     checkExpressions(def);
     def = resolveReferences(def, r.id, key, before);
     // Outputs act on behalf of the owner (runbooks start as the owner, notifications/webhooks/Zabbix send in
@@ -1002,7 +1004,7 @@ export async function instantiateTemplate(
       if (row.name?.trim()) rendered.name = row.name.trim();
       const d = parseDefinitionInput(rendered);
       const issues = definitionIssues(d);
-      if (issues.length) throw invalidMonitor(issues);
+      if (issues.length) throw invalidMonitor(issues, d);
       prepared.push({ def: d as unknown as Record<string, unknown>, params: p, key: row.key || undefined, enabled: row.enabled });
     } catch (e) {
       throw new HttpError((e as HttpError).statusCode ?? 400, `Row ${i + 1}: ${(e as Error).message}`, 'TEMPLATE_ROW', { row: i + 1, error: errorParam(e) });

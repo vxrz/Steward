@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProcessDefinition } from '@sm/shared';
 
-type Def = ProcessDefinition;
-
 const LIMIT = 100;
 const COALESCE_MS = 500;
 
 /**
  * Undo/redo history of definition snapshots. Changes with the same
- * `coalesceKey` within 500 ms (e.g. typing in a field) form one entry.
+ * `coalesceKey` within 500 ms (e.g. typing in a field) form one entry. Used by the process and the monitor editor.
  */
-export function useDefHistory(def: Def | null, setDef: (d: Def) => void) {
+export function useDefHistory<Def = ProcessDefinition>(def: Def | null, setDef: (d: Def) => void) {
   const past = useRef<Def[]>([]);
   const future = useRef<Def[]>([]);
   const last = useRef<{ key?: string; t: number }>({ t: 0 });

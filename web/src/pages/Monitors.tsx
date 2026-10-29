@@ -194,7 +194,7 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
           </Anchor>
           <Text size="xs" c="dimmed" className="mono">
             {m.key}
-            {!m.enabled && ` · ${t('list.disabled')}`}
+            {!m.enabled && ` · ${t('list.paused')}`}
             {m.templateId && ` · ${t('list.fromTemplate')}`}
           </Text>
           {m.tags.length > 0 && (

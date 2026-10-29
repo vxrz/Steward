@@ -221,7 +221,8 @@ export function AppNav({
                 <n.icon size={20} stroke={1.6} />
               </Indicator>
             }
-            styles={{ section: { marginInlineEnd: 0 }, root: { justifyContent: 'center' } }}
+            // only the icon: no label area beside it, so the icon sits in the middle of the rail
+            styles={{ section: { marginInlineEnd: 0 }, body: { display: 'none' }, root: { justifyContent: 'center', paddingInline: 0 } }}
             style={{ borderRadius: 'var(--mantine-radius-default)' }}
           />
         </Tooltip>
@@ -298,7 +299,11 @@ export function AppNav({
         })}
       </ScrollArea>
       {onToggleRail && (
-        <Box visibleFrom="sm" pt={4} style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+        <Box
+          visibleFrom="sm"
+          pt={4}
+          style={{ borderTop: '1px solid var(--mantine-color-default-border)', display: 'flex', justifyContent: rail ? 'center' : 'flex-start' }}
+        >
           <Tooltip label={rail ? t('expandSidebar') : t('collapseSidebar')} position="right" withArrow>
             <ActionIcon variant="subtle" color="gray" onClick={onToggleRail} aria-label={rail ? t('expandSidebar') : t('collapseSidebar')} size="md">
               {rail ? <IconLayoutSidebarLeftExpand size={18} /> : <IconLayoutSidebarLeftCollapse size={18} />}

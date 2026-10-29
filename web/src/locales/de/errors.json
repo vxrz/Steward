@@ -622,7 +622,8 @@
     "RECORDING_LIMIT": "Eine Plattform speichert höchstens {{max}} aufgezeichnete Antworten. Entfernen Sie zuerst welche.",
     "RECORDING_MATCH_TOO_LARGE": "Der zu vergleichende Body ist zu groß.",
     "RECORDING_NOT_FOUND": "Die aufgezeichnete Antwort gibt es nicht (mehr).",
-    "RECORDING_TOO_LARGE": "Der aufgezeichnete Body ist größer als {{maxMb}} MB."
+    "RECORDING_TOO_LARGE": "Der aufgezeichnete Body ist größer als {{maxMb}} MB.",
+    "CHECK_PREVIEW_UNSUPPORTED": "Diese Prüfart wird aus Meldungen (Heartbeat) oder einem anderen Monitor ausgewertet; es gibt keinen Aufruf zum Ausprobieren. Den Monitor speichern und seinen Status beobachten."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -53,6 +53,13 @@ export async function chooseOption(page: Page, label: string | RegExp, option: s
 }
 
 /** Run dialog: bind the "hub" slot to the demo Insights Hub, choose dry/real run and start. Returns the run id. */
+/** Picks a run mode (#137) in a run dialog or a schedule or trigger form. */
+export async function chooseRunMode(scope: Locator, mode: 'Dry run' | 'Test run' | 'Run'): Promise<void> {
+  const control = scope.getByTestId('run-mode');
+  await control.getByText(mode, { exact: true }).click();
+  await expect(control.getByRole('radio', { name: mode, exact: true })).toBeChecked();
+}
+
 export async function startRunFromDialog(page: Page, opts: { dryRun: boolean; platform?: RegExp } = { dryRun: true }): Promise<string> {
   const dialog = page.getByRole('dialog', { name: /^Run: / });
   await expect(dialog).toBeVisible();
@@ -61,9 +68,7 @@ export async function startRunFromDialog(page: Page, opts: { dryRun: boolean; pl
     await slot.click();
     await page.getByRole('option', { name: opts.platform ?? /Insights Hub \(demo\)/ }).click();
   }
-  const dry = dialog.getByRole('switch', { name: /Dry run/ });
-  if ((await dry.isChecked()) !== opts.dryRun) await dialog.getByText('Dry run – simulate all changes').click();
-  await expect(dry).toBeChecked({ checked: opts.dryRun });
+  await chooseRunMode(dialog, opts.dryRun ? 'Dry run' : 'Run');
   await dialog.getByRole('button', { name: opts.dryRun ? 'Start dry run' : 'Start run' }).click();
   await expect(page).toHaveURL(/\/runs\/[^/]+$/);
   return page.url().split('/').pop()!;

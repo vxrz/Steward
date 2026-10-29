@@ -38,7 +38,8 @@
     "fromTemplate": "from template",
     "maintenanceLine": "Maintenance: {{reason}}",
     "filterByStatus": "Filter by status",
-    "noMatch": "No monitors have this status."
+    "noMatch": "No monitors have this status.",
+    "paused": "paused"
   },
   "templates": {
     "intro": "A template is a monitor with parameters (IP address, asset id, cadence …). Create many monitors from it with a form or a CSV file; when the template changes, instances show \"template updated\" and can be re-synced.",
@@ -199,7 +200,7 @@
     "templateUpdatedText": "This monitor was created from an older version of its template. Re-sync replaces the definition with the current template version (parameters stay).",
     "resynced": "Re-synced with the template",
     "resync": "Re-sync",
-    "disabled": "This monitor is disabled – its checks do not run.",
+    "disabled": "This monitor is paused – its checks do not run and it sends no messages. Resume it at the top of the page.",
     "tabs": {
       "overview": "Overview",
       "history": "History",
@@ -224,7 +225,14 @@
     "latestResults": "Latest results",
     "configuration": "Configuration",
     "hiddenMonitor": "a monitor you cannot view",
-    "openHiddenMonitor": "Includes a monitor you cannot view."
+    "openHiddenMonitor": "Includes a monitor you cannot view.",
+    "paused": "Paused",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pauseTitle": "Pause \"{{name}}\"?",
+    "pauseConfirm": "A paused monitor runs no checks and sends no messages until it is resumed; its status shows as unknown, also to monitors that depend on it. For planned work use a maintenance window instead: the checks keep running and only the messages pause.",
+    "pausedOk": "Monitor paused",
+    "resumed": "Monitor resumed"
   },
   "maintenance": {
     "plan": "Plan maintenance",
@@ -239,7 +247,8 @@
     "intro": "Checks keep running and their results are recorded, but the monitor shows \"maintenance\", notifications and runbooks are silenced, and the time does not count against uptime.",
     "start": "Start",
     "duration": "Duration (hours)",
-    "reason": "Reason"
+    "reason": "Reason",
+    "vsPause": "To stop the checks altogether, pause the monitor at the top of the page."
   },
   "outputs": {
     "title": "Outputs",
@@ -306,7 +315,8 @@
     "all": "all",
     "onlyChecks": "Only these checks",
     "add": "Add output",
-    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs."
+    "manageOnly": "Only the owner, administrators or users with the manage right can change outputs.",
+    "runMessages": "Messages of the runs it starts"
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",
@@ -357,7 +367,18 @@
     "isTemplate": "This is a template (parameters as {{example}}, edited as YAML)",
     "templateYaml": "Templates are edited as YAML: {{example}} placeholders may stand anywhere, also where numbers are expected. They are replaced when monitors are created from the template.",
     "yamlSource": "YAML source",
-    "apply": "Apply"
+    "apply": "Apply",
+    "problemBadge": "problem",
+    "copyName": "{{name}} (copy)",
+    "required": "Required",
+    "problemsTitle_one": "{{count}} problem to fix before saving",
+    "problemsTitle_other": "{{count}} problems to fix before saving",
+    "undo": "Undo",
+    "redo": "Redo",
+    "autoLayout": "Tidy up",
+    "duplicate": "Duplicate",
+    "linkHowTo": "Link cards by dragging from the lower edge of a card to the card that depends on it. A new check is placed below the selected card and depends on it – remove the link when it does not.",
+    "previewNote": "Tried as it is in the editor, not saved. Nothing is recorded."
   },
   "graph": {
     "nonCritical": "non-critical",

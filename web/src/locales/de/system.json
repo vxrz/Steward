@@ -101,7 +101,8 @@
       "security": "Sicherheitslücke melden (SECURITY.md)",
       "source": "Quellcode",
       "license": "Lizenz ({{license}})",
-      "apiDocs": "REST-API-Dokumentation"
+      "apiDocs": "REST-API-Dokumentation",
+      "issue": "Fehler oder Idee melden"
     },
     "settingsTitle": "Dieser Browser",
     "language": "Sprache",
@@ -211,7 +212,8 @@
       "days_one": "{{count}} Tag",
       "days_other": "{{count}} Tage",
       "forever": "unbegrenzt",
-      "removed": "{{runs}} Ausführungen, {{notifications}} Benachrichtigungen entfernt"
+      "removed": "{{runs}} Ausführungen, {{notifications}} Benachrichtigungen entfernt",
+      "foreverHint": "Die Datenbank hat {{size}} und behält jeden Lauf. Unter Einstellungen → Datenaufbewahrung lassen sich Läufe begrenzen, z. B. auf 400 Tage (Standard neuer Installationen); Berichte werden mit ihrem Lauf gelöscht, das Audit-Log bleibt."
     },
     "scheduler": {
       "schedules": "Zeitpläne",

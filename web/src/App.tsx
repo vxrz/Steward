@@ -11,7 +11,6 @@ import type { AuthStatus, TaskRecord } from '@sm/shared';
 // Direct import: the @sm/shared barrel would pull zod and dagre into the first download.
 import { BRAND } from '../../shared/src/brand';
 import { AppLogo } from './components/brand/AppLogo';
-import { AppFooter } from './components/brand/AppFooter';
 import { get, setAuthChangeHandler } from './api';
 import { MeContext } from './auth';
 import { EmergencyAccessPage, ForcedPasswordChangePage, LoginPage, SetupPage, VaultLockedPage } from './pages/Auth';
@@ -274,7 +273,6 @@ function Shell({ status }: { status: AuthStatus }) {
             </Suspense>
           </ErrorBoundary>
         </div>
-        <AppFooter signedIn />
       </AppShell.Main>
     </AppShell>
   );

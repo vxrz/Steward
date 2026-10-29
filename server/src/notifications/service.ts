@@ -1,4 +1,13 @@
-import type { AclEntry, Locale, NotificationEvent, NotificationLookInput, NotificationLookPreview, ProcessPermission, UserInfo } from '@sm/shared';
+import {
+  pauseActive,
+  type AclEntry,
+  type Locale,
+  type NotificationEvent,
+  type NotificationLookInput,
+  type NotificationLookPreview,
+  type ProcessPermission,
+  type UserInfo,
+} from '@sm/shared';
 import { db } from '../db.js';
 import { on, type DomainEvents } from '../events.js';
 import { logger } from '../log.js';
@@ -9,7 +18,9 @@ import { matches, processPermissions, verificationCheck } from '../auth/permissi
 import { getTask } from '../engine/store.js';
 import { absoluteLink, channelSecrets, getNotificationSettings } from './settings.js';
 import { addInApp, claimSend } from './store.js';
-import { emailContent, sendEmail, sendTeams, sendWebhook, teamsCard, type OutgoingMessage } from './channels.js';
+import { emailContent, partsText, sendEmail, sendTeams, sendWebhook, teamsCard, type MessageParts, type OutgoingMessage } from './channels.js';
+import { sourceOfRun, type RunSource } from '../engine/notify-source.js';
+import { allParts } from '../dashboards/datasets.js';
 import { dryRunDelivery, isDryRun, logoDataUrl, lookProblems, resolveLook } from './look.js';
 import { getSettings } from '../settings.js';
 import { formatDateTime, resolveLocale, t } from '../i18n/index.js';
@@ -22,6 +33,8 @@ const STALE_CHECK_MS = 5 * 60000;
 export interface NoticeText {
   title: string;
   body: string;
+  /** Structured content (#144): e-mail and Teams render it, the in-app body gets it as text */
+  parts?: MessageParts;
 }
 
 export interface Notice {
@@ -48,6 +61,11 @@ export interface Notice {
   emails?: string[];
   /** E-mail attachments */
   attachments?: OutgoingMessage['attachments'];
+  /**
+   * The source of the run the message is about (#139): its policy picks the channels (null: the routes) and can pause
+   * the messages. Missing: the routes, as before.
+   */
+  source?: RunSource | null;
 }
 
 /**
@@ -114,11 +132,12 @@ export function verifierRecipients(taskId: string): UserInfo[] {
   );
 }
 
-function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; scheduleOwner?: UserInfo } {
-  const r = db().get<{ actor: string; schedule_id: string | null }>('SELECT actor, schedule_id FROM runs WHERE id = ?', runId);
-  if (!r) return {};
-  const owner = r.schedule_id ? db().get<{ owner: string | null }>('SELECT owner FROM schedules WHERE id = ?', r.schedule_id)?.owner : null;
-  return { actor: userNamed(r.actor, all), scheduleOwner: userNamed(owner, all) };
+/** The person who started a run and the owner of its source (schedule, webhook trigger, monitor – #139). */
+function runPeople(runId: string, all: UserInfo[]): { actor?: UserInfo; scheduleOwner?: UserInfo; source: RunSource | null } {
+  const r = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', runId);
+  const source = sourceOfRun(runId);
+  if (!r) return { source };
+  return { actor: userNamed(r.actor, all), scheduleOwner: userNamed(source?.owner, all), source };
 }
 
 // ---------- language ----------
@@ -136,7 +155,12 @@ const pending = new Set<Promise<void>>();
 export function notify(n: Notice): void {
   if (!n.recipients.length && !n.emails?.length) return;
   const settings = getNotificationSettings();
-  const channels = settings.routes[n.event] ?? [];
+  const policy = n.source?.policy;
+  // the source's choice replaces the routes; a channel the instance turned off stays off (below)
+  let channels = policy?.channels ? [...policy.channels] : (settings.routes[n.event] ?? []);
+  // paused: nothing goes out, the app keeps the messages when the pause says so
+  if (pauseActive(policy?.pause)) channels = policy!.pause!.inApp ? ['inApp'] : [];
+  if (!channels.length) return;
   const fallback = defaultLocale();
   const texts = new Map<Locale, NoticeText>();
   const textIn = (locale: Locale, u?: UserInfo): NoticeText => {
@@ -148,7 +172,10 @@ export function notify(n: Notice): void {
     for (const u of n.recipients) {
       try {
         const m = textIn(userLocale(u, fallback), u);
-        addInApp(u.id, { event: n.event, title: m.title, body: m.body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
+        // the app shows text only: the lead and the items go into the body
+        const pt = partsText(m.parts, { facts: false });
+        const body = [pt.before, m.body, pt.after].filter(Boolean).join('\n\n').slice(0, 4000);
+        addInApp(u.id, { event: n.event, title: m.title, body, link: n.link, dedupeKey: `${n.event}:${n.inAppKey}` }, DEDUPE_WINDOW_MS);
       } catch (err) {
         logger.warn({ err, event: n.event }, 'could not store notification');
       }
@@ -239,6 +266,7 @@ export function onTaskCreated(e: DomainEvents['task.created']): void {
     }),
     link: `/runs/${e.runId}`,
     recipients: taskRecipients(e),
+    source: sourceOfRun(e.runId),
     inAppKey: `task:${e.taskId}`,
     externalKey: `task:${e.taskId}`,
     data: {
@@ -263,6 +291,7 @@ export function onVerificationNeeded(e: DomainEvents['task.verification_needed']
     }),
     link: `/runs/${e.runId}`,
     recipients: verifierRecipients(e.taskId),
+    source: sourceOfRun(e.runId),
     inAppKey: `task-verify:${e.taskId}:${round}`,
     externalKey: `task-verify:${e.taskId}:${round}`,
     data: {
@@ -298,9 +327,10 @@ export function onTaskReturned(e: DomainEvents['task.returned']): void {
 export function onRunFinished(e: DomainEvents['run.finished']): void {
   if (e.status !== 'failed') return;
   const all = activeUsers();
-  const { actor, scheduleOwner } = runPeople(e.runId, all);
+  const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   notify({
     event: 'run.failed',
+    source,
     text: (l) => ({
       title: t(l, e.dryRun ? 'runFailed.titleDryRun' : 'runFailed.title', { process: e.processName }),
       // The error itself comes from the platform or the engine and stays as it is.
@@ -323,25 +353,99 @@ export function onRunFinished(e: DomainEvents['run.finished']): void {
   });
 }
 
+/** What a check is about in a subject: the author's headline, else the check name (#144). */
+const checkWhat = (e: { check: string; headline?: string }) => titleName(e.headline || e.check, 120);
+
+/** A runbook as an absolute link: a living document of Steward or an http(s) URL. */
+function runbookLink(ref: string | null | undefined): string | null {
+  if (!ref) return null;
+  if (/^rec_[A-Za-z0-9_-]+$/.test(ref)) return absoluteLink(`/records/${ref}`);
+  return /^https?:\/\//i.test(ref) ? ref : null;
+}
+
+const fmtValue = (l: Locale, v: number): string => new Intl.NumberFormat(l, { maximumFractionDigits: 2 }).format(v);
+
+/** "Schedule “Gatus overview”" – who started the run. */
+function sourceLabel(l: Locale, src: RunSource | null, actor?: string): string {
+  if (!src) return t(l, 'source.manual', { actor: actor ?? '–' });
+  return t(l, `source.${src.kind}`, { name: titleName(src.name) });
+}
+
+/** Why this reader gets the message, and where the source's messages are set (#144). */
+function reasonParts(
+  l: Locale,
+  u: UserInfo | undefined,
+  o: { source: RunSource | null; processOwner?: UserInfo; actor?: UserInfo; processName: string },
+): Pick<MessageParts, 'reason' | 'settings'> {
+  const src = o.source;
+  const settings = src
+    ? { label: t(l, 'messageSettings.source', { kind: t(l, `kind.${src.kind}`) }), href: absoluteLink(src.settingsLink) }
+    : { label: t(l, 'messageSettings.routes'), href: absoluteLink('/settings#notifications') };
+  let reason: string;
+  if (!u) reason = t(l, 'reason.channel');
+  else if (src && sameName(u.username, src.owner)) reason = t(l, 'reason.sourceOwner', { kind: t(l, `kind.${src.kind}`), name: titleName(src.name) });
+  else if (o.processOwner && u.id === o.processOwner.id) reason = t(l, 'reason.processOwner', { process: titleName(o.processName) });
+  else reason = t(l, 'reason.actor');
+  return { reason, settings };
+}
+
+const ITEMS_SHOWN = 10;
+
 export function onCheckFailed(e: DomainEvents['check.failed']): void {
   const all = activeUsers();
-  const { actor, scheduleOwner } = runPeople(e.runId, all);
+  const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   const owner = userNamed(processAccess(e.processId).owner, all);
-  // scheduled runs decided themselves whether this result is news (#127): each message goes out; others keep the hourly limit
-  const decided = e.phase === 'new' || e.phase === 'changed' || e.phase === 'reminder';
-  const title = e.phase === 'changed' ? 'checkFailed.titleChanged' : e.phase === 'reminder' ? 'checkFailed.titleReminder' : 'checkFailed.title';
+  const runActor = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', e.runId)?.actor;
+  // runs of a source decided themselves whether this result is news (#127): each message goes out; others keep the hourly limit
+  const decided = e.phase === 'new' || e.phase === 'changed' || e.phase === 'reminder' || e.phase === 'pauseEnded';
+  const runbook = runbookLink(e.runbook);
+  const lead = (l: Locale): string | undefined => {
+    const since = e.since ? formatDateTime(l, e.since) : '';
+    if (e.phase === 'new') return t(l, 'checkFailed.lead.new') + (e.value !== undefined ? ` · ${fmtValue(l, e.value)}` : '');
+    if (e.phase === 'reminder') return t(l, 'checkFailed.lead.reminder', { since });
+    if (e.phase === 'pauseEnded') return t(l, 'checkFailed.lead.pauseEnded', { since });
+    if (e.phase === 'every') return t(l, 'checkFailed.lead.every') + (e.value !== undefined ? ` · ${fmtValue(l, e.value)}` : '');
+    if (e.phase === 'changed') {
+      if (e.direction === 'better' || e.direction === 'worse') {
+        const from = e.previousValue !== undefined ? fmtValue(l, e.previousValue) : '';
+        const to = e.value !== undefined ? fmtValue(l, e.value) : severityLabel(l, e.severity);
+        return t(l, `checkFailed.lead.${e.direction}`, { from: from || '–', to, since });
+      }
+      return t(l, 'checkFailed.lead.changed', { since });
+    }
+    return undefined;
+  };
   notify({
     event: 'check.failed',
-    text: (l) => ({
-      title: t(l, e.dryRun ? `${title}DryRun` : title, { check: e.check, process: e.processName }),
-      body:
-        t(l, 'checkFailed.body', { severity: severityLabel(l, e.severity), message: e.message.slice(0, 500) }) +
-        (e.phase === 'reminder' && e.since ? `\n${t(l, 'checkFailed.since', { since: formatDateTime(l, e.since) })}` : ''),
+    personal: true,
+    source,
+    text: (l, u) => ({
+      // state first, then where (#144)
+      title: t(l, e.dryRun ? 'checkFailed.subjectDryRun' : 'checkFailed.subject', {
+        severity: severityLabel(l, e.severity),
+        what: checkWhat(e),
+        process: titleName(e.processName),
+      }),
+      body: t(l, 'checkFailed.body', { severity: severityLabel(l, e.severity), message: e.message.slice(0, 500) }),
+      parts: {
+        lead: lead(l),
+        facts: [
+          { label: t(l, 'facts.process'), value: e.processName },
+          { label: t(l, 'facts.source'), value: sourceLabel(l, source, runActor) },
+          ...(e.headline ? [{ label: t(l, 'facts.check'), value: e.check }] : []),
+          { label: t(l, 'facts.severity'), value: severityLabel(l, e.severity) },
+          ...(e.value !== undefined ? [{ label: t(l, 'facts.value'), value: fmtValue(l, e.value) }] : []),
+          ...(e.since ? [{ label: t(l, 'facts.since'), value: formatDateTime(l, e.since) }] : []),
+        ],
+        ...(e.items?.length ? { items: { list: e.items.slice(0, ITEMS_SHOWN), more: Math.max(0, e.items.length - ITEMS_SHOWN) } } : {}),
+        ...(runbook ? { actions: [{ label: t(l, 'actions.runbook'), href: runbook }] } : {}),
+        ...reasonParts(l, u, { source, processOwner: owner, actor, processName: e.processName }),
+      },
     }),
     link: `/runs/${e.runId}`,
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check:${e.runId}:${e.check}`,
-    externalKey: decided ? `check:${e.scheduleId}:${e.check}:${e.runId}` : `check:${e.processId}:${e.check}`,
+    externalKey: decided ? `check:${e.source ?? e.scheduleId}:${e.check}:${e.runId}` : `check:${e.processId}:${e.check}`,
     data: {
       runId: e.runId,
       processId: e.processId,
@@ -350,26 +454,56 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
       severity: e.severity,
       message: e.message,
       dryRun: e.dryRun,
-      ...(e.phase ? { phase: e.phase, scheduleId: e.scheduleId, since: e.since } : {}),
+      ...(e.phase ? { phase: e.phase, scheduleId: e.scheduleId ?? null, since: e.since } : {}),
+      // the content of #144 as data; null when the process does not say
+      headline: e.headline ?? null,
+      value: e.value ?? null,
+      previousValue: e.previousValue ?? null,
+      direction: e.direction ?? null,
+      items: e.items ?? [],
+      runbook,
+      source: source ? { kind: source.kind, id: source.id, name: source.name, ...(source.output ? { output: source.output } : {}) } : null,
     },
   });
 }
 
 export function onCheckResolved(e: DomainEvents['check.resolved']): void {
   const all = activeUsers();
-  const { actor, scheduleOwner } = runPeople(e.runId, all);
+  const { actor, scheduleOwner, source } = runPeople(e.runId, all);
   const owner = userNamed(processAccess(e.processId).owner, all);
+  const runActor = db().get<{ actor: string }>('SELECT actor FROM runs WHERE id = ?', e.runId)?.actor;
   notify({
     event: 'check.resolved',
-    text: (l) => ({
-      title: t(l, e.dryRun ? 'checkResolved.titleDryRun' : 'checkResolved.title', { check: e.check, process: e.processName }),
-      body: t(l, 'checkResolved.body', { since: formatDateTime(l, e.since) }),
+    personal: true,
+    source,
+    text: (l, u) => ({
+      title: t(l, e.dryRun ? 'checkResolved.subjectDryRun' : 'checkResolved.subject', { check: titleName(e.check), process: titleName(e.processName) }),
+      body: '',
+      parts: {
+        lead: t(l, 'checkResolved.lead', { since: formatDateTime(l, e.since) }),
+        facts: [
+          { label: t(l, 'facts.process'), value: e.processName },
+          { label: t(l, 'facts.source'), value: sourceLabel(l, source, runActor) },
+          ...(e.value !== undefined ? [{ label: t(l, 'facts.value'), value: fmtValue(l, e.value) }] : []),
+        ],
+        ...reasonParts(l, u, { source, processOwner: owner, actor, processName: e.processName }),
+      },
     }),
     link: `/runs/${e.runId}`,
     recipients: uniqueUsers([actor, scheduleOwner, owner]),
     inAppKey: `check-resolved:${e.runId}:${e.check}`,
-    externalKey: `check-resolved:${e.scheduleId}:${e.check}:${e.runId}`,
-    data: { runId: e.runId, processId: e.processId, processName: e.processName, check: e.check, dryRun: e.dryRun, scheduleId: e.scheduleId, since: e.since },
+    externalKey: `check-resolved:${e.source ?? e.scheduleId}:${e.check}:${e.runId}`,
+    data: {
+      runId: e.runId,
+      processId: e.processId,
+      processName: e.processName,
+      check: e.check,
+      dryRun: e.dryRun,
+      scheduleId: e.scheduleId ?? null,
+      since: e.since,
+      value: e.value ?? null,
+      source: source ? { kind: source.kind, id: source.id, name: source.name, ...(source.output ? { output: source.output } : {}) } : null,
+    },
   });
 }
 
@@ -396,40 +530,50 @@ export function onScheduleSkipped(e: DomainEvents['schedule.skipped']): void {
   });
 }
 
-/** Reports each dataset once per stale period (a new publish starts a new period). Returns how many were reported. */
+/**
+ * Reports each stale partition of a dataset once per stale period (a new publish starts a new period, #142): when the
+ * publish step sets `staleAfterMinutes`, or a schedule feeds the partition (2.5 × its interval). Returns how many.
+ */
 export function checkStaleDatasets(now = Date.now()): number {
-  const rows = db().all<{ key: string; title: string; process_id: string; process_name: string; updated_at: string; stale_after_minutes: number }>(
-    'SELECT key, title, process_id, process_name, updated_at, stale_after_minutes FROM datasets WHERE stale_after_minutes > 0',
-  );
   let reported = 0;
-  for (const r of rows) {
-    if (now - Date.parse(r.updated_at) <= r.stale_after_minutes * 60000) continue;
-    const done = db().get<{ updated_at: string }>('SELECT updated_at FROM notification_stale WHERE dataset_key = ?', r.key);
-    if (done?.updated_at === r.updated_at) continue;
+  for (const p of allParts()) {
+    if (!p.notify || now - Date.parse(p.source.updatedAt) <= p.source.staleAfterMinutes * 60000) continue;
+    const key = p.source.id === 'instance' ? p.key : `${p.key}#${p.source.id}`;
+    const done = db().get<{ updated_at: string }>('SELECT updated_at FROM notification_stale WHERE dataset_key = ?', key);
+    if (done?.updated_at === p.source.updatedAt) continue;
     db().run(
       `INSERT INTO notification_stale (dataset_key, updated_at, notified_at) VALUES (?, ?, ?)
        ON CONFLICT(dataset_key) DO UPDATE SET updated_at = excluded.updated_at, notified_at = excluded.notified_at`,
-      r.key,
-      r.updated_at,
+      key,
+      p.source.updatedAt,
       nowIso(),
     );
     const all = activeUsers();
+    const title = p.source.id === 'instance' ? p.title : `${p.title} (${p.source.name})`;
     notify({
       event: 'dataset.stale',
       text: (l) => ({
-        title: t(l, 'datasetStale.title', { title: r.title }),
+        title: t(l, 'datasetStale.title', { title }),
         body: t(l, 'datasetStale.body', {
-          title: r.title,
-          updatedAt: formatDateTime(l, r.updated_at),
-          process: r.process_name,
-          limit: t(l, 'common.minutes', { count: r.stale_after_minutes }),
+          title,
+          updatedAt: formatDateTime(l, p.source.updatedAt),
+          process: p.processName,
+          limit: t(l, 'common.minutes', { count: p.source.staleAfterMinutes }),
         }),
       }),
       link: '/dashboards',
-      recipients: uniqueUsers([userNamed(processAccess(r.process_id).owner, all), ...admins(all)]),
-      inAppKey: `dataset:${r.key}:${r.updated_at}`,
-      externalKey: `dataset:${r.key}`,
-      data: { dataset: r.key, title: r.title, processId: r.process_id, updatedAt: r.updated_at, staleAfterMinutes: r.stale_after_minutes },
+      recipients: uniqueUsers([userNamed(processAccess(p.processId).owner, all), ...admins(all)]),
+      inAppKey: `dataset:${key}:${p.source.updatedAt}`,
+      externalKey: `dataset:${key}`,
+      data: {
+        dataset: p.key,
+        title: p.title,
+        processId: p.processId,
+        updatedAt: p.source.updatedAt,
+        staleAfterMinutes: p.source.staleAfterMinutes,
+        source: { id: p.source.id, name: p.source.name, platformIds: p.source.platformIds },
+      },
+      source: p.source.runId ? sourceOfRun(p.source.runId) : null,
     });
     reported++;
   }
@@ -463,6 +607,7 @@ export function initNotifications(): void {
   on('check.resolved', deferred('check.resolved', onCheckResolved));
   on('schedule.skipped', deferred('schedule.skipped', onScheduleSkipped));
   on('dataset.published', (e) => {
+    // a partition's new publish starts its own period (its updated_at changes); others keep theirs
     db().run('DELETE FROM notification_stale WHERE dataset_key = ?', e.key);
   });
 }
@@ -489,6 +634,8 @@ export function startNotificationJobs(): void {
     // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners (catalogue/lifecycle.ts, idempotent)
     import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()).catch((err) => logger.warn({ err }, 'end-of-life job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
+    // paused messages of schedules, triggers and monitor outputs: one "still failing" message when a pause ends (#139)
+    import('./pause.js').then((m) => m.checkPauseEnds()).catch((err) => logger.warn({ err }, 'pause end check failed'));
   }, STALE_CHECK_MS);
   staleTimer.unref();
 }

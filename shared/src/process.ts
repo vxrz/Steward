@@ -1,4 +1,11 @@
 import { z } from 'zod';
+
+/** A runbook (#144): a living document of Steward (its id, rec_…) or an http(s) URL. */
+export const runbookRef = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((v) => /^https?:\/\/\S+$/i.test(v) || /^rec_[A-Za-z0-9_-]{4,64}$/.test(v), 'a living document id (rec_…) or an http(s) URL');
 import { stepsToGraph } from './graph.js';
 import { REPORT_LANGS } from './reports.js';
 import { boundedRecord } from './zodLimits.js';
@@ -238,6 +245,16 @@ export interface CheckConfig {
   failRun?: boolean;
   /** false: an informational check – shown in the run, never notified */
   notify?: boolean;
+  /** Messages (#144): a short sentence for the failure (template), e.g. "{{ $count(vars.down) }} of {{ vars.total }} endpoints down" */
+  headline?: string;
+  /** Messages: the number that matters (expression), e.g. the endpoints down; with it a message says "11 (was 12) · better" */
+  value?: string;
+  /** Messages: whether a lower (default) or a higher value is better */
+  betterWhen?: 'lower' | 'higher';
+  /** Messages: the list behind the failure (expression returning a list), shown as bullets */
+  items?: string;
+  /** Messages: what to do – a living document (rec_…) or an http(s) URL; default the process's runbook */
+  runbook?: string;
 }
 export interface LogConfig {
   type: 'log';
@@ -286,10 +303,12 @@ export interface PublishConfig {
   statusText?: string;
   /** Metric name → numeric expression; appended to the dataset's history */
   metrics?: Record<string, string>;
-  /** Data counts as stale when older than this (dashboards show it) */
+  /** Data counts as stale when older than this (dashboards show it); default: 2.5 × the schedule interval, else 24 h */
   staleAfterMinutes?: number;
   /** Safety limit (default 5000 rows) */
   maxRows?: number;
+  /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
+  source?: string;
 }
 /**
  * Document access changes this run made (compliance): one entry per subject. When the run ends,
@@ -437,6 +456,11 @@ const shapes = {
     message: z.string().optional(),
     failRun: z.boolean().optional(),
     notify: z.boolean().optional(),
+    headline: z.string().max(500).optional(),
+    value: z.string().max(4000).optional(),
+    betterWhen: z.enum(['lower', 'higher']).optional(),
+    items: z.string().max(4000).optional(),
+    runbook: runbookRef.optional(),
   },
   log: { type: z.literal('log'), level: z.enum(['info', 'warn', 'error']).optional(), message: z.string(), data: z.string().optional() },
   report: {
@@ -465,6 +489,8 @@ const shapes = {
     metrics: boundedRecord(z.string(), 100).optional(),
     staleAfterMinutes: z.number().int().min(1).optional(),
     maxRows: z.number().int().min(1).max(50000).optional(),
+    /** The connection whose platform is the source of the rows (#142); default: the only one, else all bound platforms */
+    source: z.string().max(64).optional(),
   },
   accessChange: {
     type: z.literal('accessChange'),
@@ -676,6 +702,8 @@ export type ConnectionSlot = z.infer<typeof connectionSlotSchema>;
 const definitionBase = {
   name: z.string().min(1),
   description: z.string().optional(),
+  /** What to do when a check fails (#144): a living document (rec_…) or an http(s) URL; check steps may name their own */
+  runbook: runbookRef.optional(),
   tags: z.array(z.string()).max(50).optional(),
   connections: z.array(connectionSlotSchema).max(100).default([]),
   inputs: z.array(inputDefSchema).max(200).default([]),

@@ -7,7 +7,14 @@ import { axisLabel, compact, dateTime, niceTicks, percent } from './format';
 import { STATUS_META, STATUS_ORDER, StatusLabel } from './status';
 
 /** Categorical slots 1–3 (fixed order: the color follows the metric's position in the widget, never its rank). */
-export const SERIES_COLORS = ['var(--viz-series-1)', 'var(--viz-series-2)', 'var(--viz-series-3)'];
+export const SERIES_COLORS = [
+  'var(--viz-series-1)',
+  'var(--viz-series-2)',
+  'var(--viz-series-3)',
+  'var(--viz-series-4)',
+  'var(--viz-series-5)',
+  'var(--viz-series-6)',
+];
 
 interface Pt {
   t: number;

@@ -38,7 +38,8 @@
     "fromTemplate": "aus Vorlage",
     "maintenanceLine": "Wartung: {{reason}}",
     "filterByStatus": "Nach Status filtern",
-    "noMatch": "Kein Monitor hat diesen Status."
+    "noMatch": "Kein Monitor hat diesen Status.",
+    "paused": "pausiert"
   },
   "templates": {
     "intro": "Eine Vorlage ist ein Monitor mit Parametern (IP-Adresse, Asset-ID, Takt …). Daraus lassen sich viele Monitore per Formular oder CSV-Datei anlegen; ändert sich die Vorlage, zeigen die Instanzen „Vorlage aktualisiert“ und lassen sich neu abgleichen.",
@@ -199,7 +200,7 @@
     "templateUpdatedText": "Dieser Monitor wurde aus einer älteren Version seiner Vorlage angelegt. Neu abgleichen ersetzt die Definition durch die aktuelle Version der Vorlage (die Parameter bleiben).",
     "resynced": "Mit der Vorlage abgeglichen",
     "resync": "Neu abgleichen",
-    "disabled": "Dieser Monitor ist deaktiviert – seine Prüfungen laufen nicht.",
+    "disabled": "Dieser Monitor ist pausiert – seine Prüfungen laufen nicht und er sendet keine Nachrichten. Oben auf der Seite lässt er sich fortsetzen.",
     "tabs": {
       "overview": "Übersicht",
       "history": "Verlauf",
@@ -224,7 +225,14 @@
     "latestResults": "Letzte Ergebnisse",
     "configuration": "Konfiguration",
     "hiddenMonitor": "ein Monitor, den Sie nicht sehen können",
-    "openHiddenMonitor": "Enthält einen Monitor, den Sie nicht sehen können."
+    "openHiddenMonitor": "Enthält einen Monitor, den Sie nicht sehen können.",
+    "paused": "Pausiert",
+    "pause": "Pausieren",
+    "resume": "Fortsetzen",
+    "pauseTitle": "„{{name}}“ pausieren?",
+    "pauseConfirm": "Ein pausierter Monitor führt keine Prüfungen aus und sendet keine Nachrichten, bis er fortgesetzt wird; sein Status ist unbekannt, auch für Monitore, die von ihm abhängen. Für geplante Arbeiten besser ein Wartungsfenster verwenden: Die Prüfungen laufen weiter, nur die Nachrichten ruhen.",
+    "pausedOk": "Monitor pausiert",
+    "resumed": "Monitor fortgesetzt"
   },
   "maintenance": {
     "plan": "Wartung planen",
@@ -239,7 +247,8 @@
     "intro": "Die Prüfungen laufen weiter und ihre Ergebnisse werden aufgezeichnet, aber der Monitor zeigt „Wartung“, Benachrichtigungen und Runbooks ruhen, und die Zeit zählt nicht gegen die Verfügbarkeit.",
     "start": "Beginn",
     "duration": "Dauer (Stunden)",
-    "reason": "Grund"
+    "reason": "Grund",
+    "vsPause": "Um die Prüfungen ganz anzuhalten, den Monitor oben auf der Seite pausieren."
   },
   "outputs": {
     "title": "Ausgaben",
@@ -306,7 +315,8 @@
     "all": "alle",
     "onlyChecks": "Nur diese Prüfungen",
     "add": "Ausgabe hinzufügen",
-    "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern."
+    "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
+    "runMessages": "Nachrichten der gestarteten Läufe"
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",
@@ -357,7 +367,18 @@
     "isTemplate": "Dies ist eine Vorlage (Parameter als {{example}}, Bearbeitung als YAML)",
     "templateYaml": "Vorlagen werden als YAML bearbeitet: Platzhalter wie {{example}} dürfen überall stehen, auch wo Zahlen erwartet werden. Sie werden beim Anlegen von Monitoren aus der Vorlage ersetzt.",
     "yamlSource": "YAML-Quelltext",
-    "apply": "Übernehmen"
+    "apply": "Übernehmen",
+    "problemBadge": "Problem",
+    "copyName": "{{name}} (Kopie)",
+    "required": "Pflichtfeld",
+    "problemsTitle_one": "{{count}} Problem vor dem Speichern beheben",
+    "problemsTitle_other": "{{count}} Probleme vor dem Speichern beheben",
+    "undo": "Rückgängig",
+    "redo": "Wiederholen",
+    "autoLayout": "Aufräumen",
+    "duplicate": "Duplizieren",
+    "linkHowTo": "Karten verbinden: vom unteren Rand einer Karte zur Karte ziehen, die von ihr abhängt. Eine neue Prüfung kommt unter die ausgewählte Karte und hängt von ihr ab – die Verbindung entfernen, wenn das nicht stimmt.",
+    "previewNote": "So ausprobiert, wie sie im Editor steht, nicht gespeichert. Nichts wird aufgezeichnet."
   },
   "graph": {
     "nonCritical": "nicht kritisch",

@@ -11,6 +11,10 @@
   --viz-series-1: #2a78d6;
   --viz-series-2: #eb6834;
   --viz-series-3: #1baf7a;
+  /* more lines when a trend shows several sources (#142) */
+  --viz-series-4: #8257d6;
+  --viz-series-5: #b8860b;
+  --viz-series-6: #c23f8e;
   --viz-good: #0ca30c;
   --viz-warning: #fab219;
   --viz-serious: #ec835a;
@@ -30,6 +34,9 @@
   --viz-series-1: #3987e5;
   --viz-series-2: #d95926;
   --viz-series-3: #199e70;
+  --viz-series-4: #9a78e8;
+  --viz-series-5: #d1a029;
+  --viz-series-6: #db5ba8;
   --viz-delta-good: #0ca30c;
   --viz-delta-bad: #e66767;
 }

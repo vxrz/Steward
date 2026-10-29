@@ -4,10 +4,10 @@ import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
  * Simulated Insights Hub consumption figures for the "Tenant usage and licence check" example
  * (examples/processes/32-ih-tenant-usage.yaml).
  *
- * The response shapes follow the public Insights Hub documentation where it describes them
- * (Agent Management paging) and are ASSUMED for the aggregated usage of the Usage Transparency
- * Service, whose exact v3 response could not be confirmed – see docs/INSIGHTS-HUB-USAGE.md.
- * The figures grow a little over the month, so the trend charts of the demo are not flat.
+ * The Usage Transparency route follows the v3.2.0 specification: `GET /aggregatedMonthlyConsumerUsage` needs month
+ * (English month name), year, provider, application and KPIName and answers with the aggregated value of that KPI;
+ * a missing parameter is a 400 in the error format of the specification. Agent Management uses Spring paging.
+ * The KPI value grows a little over the month, so the trend charts of the demo are not flat.
  */
 
 const AGENTS = [
@@ -22,6 +22,15 @@ const AGENTS = [
   'Test bench Nano',
 ];
 
+/** The KPIs the demo provider reports, by application. */
+const KPIS: Record<string, Record<string, { display: string; base: number; growth: number }>> = {
+  'steward-demo': {
+    'monthly-credits': { display: 'Monthly credits', base: 9450, growth: 200 },
+    'active-users': { display: 'Active users', base: 12, growth: 2 },
+  },
+};
+export const MOCK_UTS_PROVIDER = 'demoprovider';
+
 /** 0..1: how far the current month has progressed. */
 function monthProgress(now = new Date()): number {
   const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
@@ -29,24 +38,32 @@ function monthProgress(now = new Date()): number {
   return (now.getTime() - start) / (end - start);
 }
 
-export function mockUsageFigures(now = new Date()) {
-  const p = monthProgress(now);
-  const r1 = (x: number) => Math.round(x * 10) / 10;
-  return [
-    // monthly credits of the capability package: close to the limit in the demo (critical)
-    { resource: 'credits', name: 'Credits (capability package)', unit: 'credits', amount: Math.round(9450 + 200 * p), limit: 10000 },
-    // IoT time series storage: warning
-    { resource: 'iot-timeseries-storage', name: 'IoT time series storage', unit: 'GB', amount: r1(168 + 8 * p), limit: 200 },
-    { resource: 'file-storage', name: 'File storage', unit: 'GB', amount: r1(11.5 + 1.2 * p), limit: 50 },
-    { resource: 'api-calls', name: 'API calls', unit: 'calls', amount: Math.round(1_500_000 + 600_000 * p), limit: 5_000_000 },
-  ];
-}
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const utsError = (code: string, message: string) => ({ errors: [{ code: `mdsp.core.generic.${code}`, message, logref: 'demo-logref' }] });
 
 export async function mockUsageRoutes(app: FastifyInstance, auth: preHandlerAsyncHookHandler): Promise<void> {
-  // Usage Transparency Service – aggregated usage of the tenant (ASSUMED path and shape)
-  app.get('/ih/api/usagetransparency/v3/usages/aggregated', { preHandler: auth }, async (req) => {
-    const q = req.query as { from?: string; to?: string };
-    return { tenant: 'demotenant', from: q.from ?? null, to: q.to ?? null, usages: mockUsageFigures() };
+  // Usage Transparency Service v3.2.0 – aggregated monthly usage of one KPI of the consumer tenant
+  app.get('/ih/api/usagetransparency/v3/aggregatedMonthlyConsumerUsage', { preHandler: auth }, async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    for (const name of ['month', 'year', 'provider', 'application', 'KPIName'])
+      if (!q[name]) return reply.code(400).send(utsError('missingParameter', `Required parameter '${name}' is missing`));
+    if (!MONTHS.includes(q.month!)) return reply.code(400).send(utsError('invalidParameter', `Invalid value '${q.month}' for parameter 'month'`));
+    const kpi = q.provider === MOCK_UTS_PROVIDER ? KPIS[q.application!]?.[q.KPIName!] : undefined;
+    if (!kpi) return reply.code(404).send(utsError('noMatch', `No KPI '${q.KPIName}' for application '${q.application}' of provider '${q.provider}'`));
+    const now = new Date();
+    return {
+      provider: q.provider,
+      application: q.application,
+      applicationDisplayName: 'Steward demo',
+      KPIName: q.KPIName,
+      KPIDisplayName: kpi.display,
+      aggregationUntilDate: now.toISOString().slice(0, 10),
+      year: q.year,
+      month: q.month!.toLowerCase(),
+      aggragationFunction: { aggregationFunctionDaily: 'SUM', aggregationFunctionMonthly: 'SUM', preFill: 'ZERO' },
+      consumer: 'demotenant',
+      value: Math.round(kpi.base + kpi.growth * monthProgress(now)),
+    };
   });
   // Agent Management – agents of the tenant (Spring-style page)
   app.get('/ih/api/agentmanagement/v3/agents', { preHandler: auth }, async (req) => {

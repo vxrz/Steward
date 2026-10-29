@@ -121,6 +121,8 @@ describe('example library', () => {
     const { id: runId } = await s.api('POST', '/runs', { processId: id, bindings, inputs: INPUTS[id] ?? {}, dryRun: hasWrites(proc.definition) });
     const r = await finish(runId);
     expect([r.status, r.error]).toEqual(['succeeded', null]);
+    // the headline, value and items of its checks (#144) evaluate
+    expect(JSON.stringify(r.logs ?? [])).not.toContain('could not be evaluated');
   });
 
   it('Gatus – uptime overview (from /metrics) publishes what the Gatus metrics say', async () => {
@@ -187,40 +189,82 @@ describe('example library', () => {
     expect(byEndpoint['Steward API']).toMatchObject({ _status: 'good', 'Uptime (%)': 100 });
   });
 
-  it('tenant usage: figures against the limits, warning and critical levels, checks that notify', async () => {
+  it('tenant usage: figures against the limits, attributes per asset type, a KPI of the usage service, checks that notify', async () => {
+    const hub = { hub: platformByKind['insights-hub'] };
+    const checks = (r: any) => Object.fromEntries(r.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
+
+    // without inputs (the run of all examples above): everything is counted, nothing is compared, no KPI is read
+    const counted = await s.api('GET', '/datasets/ih.usage');
+    expect(counted.rows.map((r: any) => r._key).sort()).toEqual(['agents', 'assets', 'attributes', 'users']);
+    expect(counted.rows.every((r: any) => r._status === 'good' && r.Limit === '–')).toBe(true);
+    expect(counted.metrics).toMatchObject({ critical: 0, warning: 0, unread: 0, maxPercent: 0 });
+
+    // the licence of the simulated tenant (as in the demo schedule) and a KPI of the simulated usage service:
+    // breaches fail the checks (check.failed notifications), the run itself succeeds
+    const inputs = {
+      userLimit: 25,
+      assetLimit: 15,
+      agentLimit: 10,
+      attributeLimit: 500,
+      utsProvider: 'demoprovider',
+      utsApplication: 'steward-demo',
+      utsKpi: 'monthly-credits',
+      utsKpiLimit: 10000,
+    };
+    const run = await finish((await s.api('POST', '/runs', { processId: 'ih-tenant-usage', bindings: hub, inputs })).id);
+    expect(run.status).toBe('succeeded');
+    expect(checks(run)).toMatchObject({ readCheck: 'succeeded', criticalCheck: 'failed', warningCheck: 'failed' });
     const usage = await s.api('GET', '/datasets/ih.usage');
     const byKey = Object.fromEntries(usage.rows.map((r: any) => [r._key, r]));
-    expect(Object.keys(byKey).sort()).toEqual(['agents', 'apiCalls', 'assets', 'credits', 'files', 'timeseries', 'users']);
+    expect(Object.keys(byKey).sort()).toEqual(['agents', 'assets', 'attributes', 'kpi', 'users']);
     expect(byKey.users).toMatchObject({ _status: 'good', Used: 15, Limit: 25, 'Used (%)': 60 }); // 15 of 25 licensed users
     expect(byKey.assets).toMatchObject({ _status: 'warning', Used: 12, 'Used (%)': 80 }); // 80 % = warning level
     expect(byKey.agents._status).toBe('warning'); // 9 of 10
-    expect(byKey.credits._status).toBe('critical'); // ≥ 95 % of the reported limit
-    expect(byKey.timeseries._status).toBe('warning');
-    expect(byKey.apiCalls._status).toBe('good');
-    expect(usage.metrics).toMatchObject({ usersPercent: 60, assetsPercent: 80, critical: 1, warning: 3 });
+    expect(byKey.attributes).toMatchObject({ _status: 'good', Limit: 500, Source: 'Asset Management' });
+    expect(byKey.kpi).toMatchObject({ _status: 'critical', Limit: 10000, Source: 'Usage Transparency' }); // ≥ 95 % of the credits
+    expect(byKey.kpi.Figure).toMatch(/^Monthly credits \(\w+\)$/);
+    expect(usage.metrics).toMatchObject({ usersPercent: 60, assetsPercent: 80, critical: 1, warning: 2, unread: 0 });
     expect(usage.metrics.maxPercent).toBeGreaterThanOrEqual(95);
-    // the dashboard reads only this dataset's metrics
+    // attributes per asset type add up to the figure
+    const attrs = await s.api('GET', '/datasets/ih.usage-attributes');
+    expect(attrs.rows.length).toBeGreaterThan(0);
+    expect(attrs.metrics.attributes).toBe(byKey.attributes.Used);
+    expect(attrs.rows.reduce((n: number, r: any) => n + r.Attributes, 0)).toBe(byKey.attributes.Used);
+    // the dashboard reads only metrics the datasets have
     const dash = await s.api('GET', '/dashboards/tenant-usage');
+    const metricsOf: Record<string, string[]> = { 'ih.usage': Object.keys(usage.metrics), 'ih.usage-attributes': Object.keys(attrs.metrics) };
     for (const w of dash.definition.widgets.filter((x: any) => x.dataset)) {
-      for (const m of [w.metric, ...(w.metrics ?? [])].filter(Boolean)) expect(Object.keys(usage.metrics), `${w.id}: ${m}`).toContain(m);
+      expect(Object.keys(metricsOf), w.id).toContain(w.dataset);
+      for (const m of [w.metric, ...(w.metrics ?? [])].filter(Boolean)) expect(metricsOf[w.dataset], `${w.id}: ${m}`).toContain(m);
     }
-    // the breach fails the checks of the run (check.failed notifications), the run itself succeeds
-    const { id: runId } = await s.api('POST', '/runs', { processId: 'ih-tenant-usage', bindings: { hub: platformByKind['insights-hub'] } });
-    const run = await finish(runId);
-    expect(run.status).toBe('succeeded');
-    const checks = Object.fromEntries(run.steps.filter((x: any) => x.type === 'check').map((x: any) => [x.stepId, x.status]));
-    expect(checks).toMatchObject({ usageService: 'succeeded', criticalCheck: 'failed', warningCheck: 'failed' });
+    // a KPI the usage service does not know: the figure is unknown, the platform's answer stays in the run
+    const wrong = await finish(
+      (await s.api('POST', '/runs', { processId: 'ih-tenant-usage', bindings: hub, inputs: { ...inputs, utsKpi: 'no-such-kpi' } })).id,
+    );
+    expect(wrong.status).toBe('succeeded');
+    expect(checks(wrong)).toMatchObject({ readCheck: 'failed' });
+    const step = wrong.steps.find((x: any) => x.stepId === 'kpi');
+    expect(step.status).toBe('failed');
+    expect(step.error).toContain('HTTP 404');
+    expect(step.error).toContain("No KPI 'no-such-kpi'");
+    const unknown = (await s.api('GET', '/datasets/ih.usage')).rows.find((r: any) => r._key === 'kpi');
+    expect(unknown).toMatchObject({ _status: 'unknown', Used: '–' });
+    expect(unknown._statusText).toContain('Usage Transparency KPI of the month');
 
     // configurable thresholds: with 99 % / 100 % nothing is critical any more
-    const { id: relaxed } = await s.api('POST', '/runs', {
-      processId: 'ih-tenant-usage',
-      bindings: { hub: platformByKind['insights-hub'] },
-      inputs: { warnPercent: 99, criticalPercent: 100, creditLimit: 20000 },
-    });
-    expect((await finish(relaxed)).status).toBe('succeeded');
+    const relaxed = await finish(
+      (
+        await s.api('POST', '/runs', {
+          processId: 'ih-tenant-usage',
+          bindings: hub,
+          inputs: { ...inputs, warnPercent: 99, criticalPercent: 100, utsKpiLimit: 20000 },
+        })
+      ).id,
+    );
+    expect(relaxed.status).toBe('succeeded');
     const after = await s.api('GET', '/datasets/ih.usage');
     expect(after.metrics.critical).toBe(0);
-    expect(after.rows.find((r: any) => r._key === 'credits').Limit).toBe(20000);
+    expect(after.rows.find((r: any) => r._key === 'kpi').Limit).toBe(20000);
   });
 
   it('privileged access review removes stale admins after a second person confirms', async () => {

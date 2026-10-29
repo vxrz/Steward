@@ -1,4 +1,5 @@
 import type { ErrorParams } from './errors.js';
+import type { ScheduleNotify } from './notifyPolicy.js';
 import type { Column, ManualFieldType, ManualUse, ProcessDefinition } from './process.js';
 import type { Locale } from './locales.js';
 import type {
@@ -871,24 +872,9 @@ export interface Schedule {
   /** Scheduled runs execute with the permissions of this user. */
   owner?: string | null;
   canEdit?: boolean;
-  /** Messages about failed checks of its runs (#127); missing in input: unchanged (new schedules: on change) */
+  /** Notification policy of its runs (#127, #139); missing in input: unchanged (new schedules: on change). `pause` is set with the pause and resume actions. */
   notify?: ScheduleNotify;
 }
-
-/**
- * Failed checks of scheduled runs: on change (when a check starts failing or its result changes, plus a reminder while
- * it keeps failing), after every run (as before 0.2.3), or never. `resolved`: a message when the check passes again.
- */
-export const SCHEDULE_NOTIFY_MODES = ['change', 'every', 'off'] as const;
-export type ScheduleNotifyMode = (typeof SCHEDULE_NOTIFY_MODES)[number];
-export interface ScheduleNotify {
-  mode: ScheduleNotifyMode;
-  /** On change: remind after this many hours while the check keeps failing with the same result (0: no reminder) */
-  reminderHours: number;
-  resolved: boolean;
-}
-export const DEFAULT_SCHEDULE_NOTIFY: ScheduleNotify = { mode: 'change', reminderHours: 4, resolved: false };
-export const SCHEDULE_REMINDER_MAX_HOURS = 24 * 14;
 
 // ---------- Audit ----------
 
@@ -1039,11 +1025,34 @@ export interface McpServerStatus {
   gatewayRateLimitPerMinute: number;
 }
 
+/** A check of a process that failed in the last 7 days: its latest failure and how long it has been failing (#138). */
+export interface FailedCheckGroup {
+  processId: string;
+  processName: string;
+  /** The check step's id in the process */
+  checkId: string;
+  name: string;
+  severity: string;
+  /** Message and run of the latest failure */
+  message: string;
+  runId: string;
+  ts: string;
+  /** Failures in the 7 days */
+  count: number;
+  /** First failure of the current streak (since the check last passed, within the 7 days) */
+  since: string;
+  /** Failures since then */
+  streak: number;
+  /** The check passed in a later run */
+  resolved: boolean;
+}
+
 export interface DashboardData {
   openTasks: TaskRecord[];
   activeRuns: RunSummary[];
   recentRuns: RunSummary[];
-  failedChecks: { runId: string; processName: string; name: string; message: string; severity: string; ts: string }[];
+  /** Failed checks of the last 7 days, one entry per process and check (#138) */
+  failedChecks: FailedCheckGroup[];
   upcoming: Schedule[];
   counts: { platforms: number; processes: number; schedules: number; runs24h: number; failed24h: number };
   /** The start page's tiles: what needs the viewer's attention */

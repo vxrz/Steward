@@ -278,8 +278,11 @@ test.describe('phone @mobile', () => {
     await settle(page);
     await expect(page.getByRole('main').locator('table')).toHaveCount(0);
     await expectNoHorizontalScroll(page);
-    // the footer stays, smaller, with all its parts
+    // the footer is on the About page only (#140), with all its parts on phones too
+    await expect(page.locator('footer')).toHaveCount(0);
+    await page.goto('/about');
     await expect(page.locator('footer')).toContainText('Metropolregion Nürnberg');
     await expect(page.locator('footer')).toContainText(`${BRAND.name} 0.`);
+    await expectNoHorizontalScroll(page);
   });
 });

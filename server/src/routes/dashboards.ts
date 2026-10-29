@@ -22,6 +22,19 @@ const params = (req: FastifyRequest) => req.params as Record<string, string>;
 /** A dataset is visible to whoever may view the process (or monitor) that publishes it. */
 const canSee = (d: Pick<DatasetMeta, 'processId'>) => monitorDatasetVisible(d.processId) ?? processes.permissionsFor(d.processId).includes('view');
 
+/** ?source=a,b – only these sources (the dashboard's or a widget's source filter, #142) */
+const viewOf = (req: FastifyRequest): datasets.View => {
+  const raw = (req.query as { source?: string } | undefined)?.source;
+  const sources = raw
+    ? raw
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 50)
+    : [];
+  return sources.length ? { sources } : {};
+};
+
 function visibleDataset(key: string): DatasetMeta {
   const meta = datasets.getDatasetMeta(key);
   if (!canSee(meta)) throw new HttpError(404, `Dataset "${key}" not found`);
@@ -31,13 +44,17 @@ function visibleDataset(key: string): DatasetMeta {
 export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   // ---------- datasets ----------
   app.get('/datasets', async () => datasets.listDatasets().filter(canSee));
+  app.get('/datasets/:key/sources', async (req) => visibleDataset(params(req).key!).sources);
 
   app.get('/datasets/:key', async (req, reply) => {
     const meta = visibleDataset(params(req).key!);
-    const etag = `"${sha256(`${meta.key}|${meta.updatedAt}|${meta.stale}`).slice(0, 16)}"`;
+    const view = viewOf(req);
+    // the visible partitions and the filter are part of the version: another reader or filter gets other rows
+    const parts = meta.sources.map((x) => `${x.id}@${x.updatedAt}:${x.stale}`).join(',');
+    const etag = `"${sha256(`${meta.key}|${parts}|${(view.sources ?? []).join(',')}`).slice(0, 16)}"`;
     reply.header('etag', etag).header('cache-control', 'private, no-cache');
     if (req.headers['if-none-match'] === etag) return reply.code(304).send();
-    return datasets.getDataset(meta.key);
+    return datasets.getDataset(meta.key, view);
   });
 
   app.get('/datasets/:key/metrics', async (req) => {
@@ -47,9 +64,10 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
         names: z.string().max(2000).optional(),
         days: z.coerce.number().int().min(1).max(400).default(30),
         points: z.coerce.number().int().min(1).max(2000).default(200),
+        source: z.string().max(4000).optional(),
       })
       .parse(req.query ?? {});
-    return datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, q.days, q.points);
+    return datasets.metricSeries(meta.key, q.names ? q.names.split(',') : undefined, q.days, q.points, viewOf(req));
   });
 
   app.delete('/datasets/:key', async (req) => {

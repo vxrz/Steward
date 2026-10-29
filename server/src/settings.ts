@@ -6,7 +6,8 @@ const DEFAULTS = (): Settings => ({
   passwordLogin: 'all',
   browserHeadless: true,
   browserTimeoutMs: 30000,
-  retentionRunDays: 0,
+  // 400 days for new installations (0.2.4); installations from before keep "forever" (migration ops-005)
+  retentionRunDays: 400,
   retentionNotificationDays: 30,
   defaultLocale: DEFAULT_LOCALE,
   retentionMonitorDays: 30,

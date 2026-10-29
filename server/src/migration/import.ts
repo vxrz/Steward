@@ -1120,6 +1120,8 @@ export function checkedSettings(settings: Record<string, unknown>, dataDir: stri
     } else ok = object(v) ? v : undefined;
     if (ok !== undefined) out[k] = ok;
   }
+  // a package from an installation that never set it kept runs forever (the default before 0.2.4): keep that
+  if (!('retentionRunDays' in out)) out.retentionRunDays = 0;
   return out;
 }
 
