@@ -15119,7 +15119,7 @@
             "in": "query",
             "name": "tag",
             "required": false,
-            "description": "Only processes with this tag"
+            "description": "Only processes with this tag: key (any value) or key=value"
           },
           {
             "schema": {
@@ -18067,7 +18067,7 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 60
+              "maxLength": 161
             },
             "in": "query",
             "name": "tag",
@@ -18177,7 +18177,7 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 60
+              "maxLength": 161
             },
             "in": "query",
             "name": "tag",
@@ -18607,6 +18607,16 @@
           {
             "schema": {
               "type": "string",
+              "maxLength": 161
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "description": "Only entries with this tag: key (any value) or key=value"
+          },
+          {
+            "schema": {
+              "type": "string",
               "maxLength": 120,
               "pattern": "^(application|component|system):\\S+$"
             },
@@ -18803,7 +18813,7 @@
           {
             "schema": {
               "type": "string",
-              "maxLength": 60
+              "maxLength": 161
             },
             "in": "query",
             "name": "tag",
@@ -19559,6 +19569,16 @@
             "name": "archived",
             "required": false,
             "description": "Archived services: left out (default), included, or only these"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 161
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "description": "Only entries with this tag: key (any value) or key=value"
           }
         ],
         "responses": {
@@ -19736,6 +19756,16 @@
             "name": "archived",
             "required": false,
             "description": "Archived applications: left out (default), included, or only these"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 161
+            },
+            "in": "query",
+            "name": "tag",
+            "required": false,
+            "description": "Only entries with this tag: key (any value) or key=value"
           }
         ],
         "responses": {

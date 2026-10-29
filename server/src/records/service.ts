@@ -5,11 +5,14 @@ import {
   DEFAULT_RECORD_TYPES,
   DOCUMENT_RECORD_TYPE,
   EDITION_KINDS,
-  RECORD_WORKFLOWS,
   isEditableStatus,
+  normalizeTag,
+  RECORD_WORKFLOWS,
+  splitTag,
+  tagInput,
+  tagsMatch,
   type DocumentInfo,
   type EditionKind,
-  type ReviewStatus,
   type RecordActionInfo,
   type RecordDetail,
   type RecordEvent,
@@ -18,6 +21,7 @@ import {
   type RecordSummary,
   type RecordVersion,
   type RecordWorkflow,
+  type ReviewStatus,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows, importedHistoryFor } from '../audit.js';
@@ -80,13 +84,13 @@ export const LIMITS = {
   body: 256 * 1024,
   field: 20000,
   tags: 30,
-  tag: 60,
+  tag: 161,
   comment: 4000,
 };
 
 export const workflowOf = (t: Pick<TypeRow, 'workflow'>): RecordWorkflow => RECORD_WORKFLOWS[t.workflow] ?? RECORD_WORKFLOWS.change;
 
-const tagList = z.array(z.string().trim().min(1).max(LIMITS.tag)).max(LIMITS.tags);
+const tagList = z.array(tagInput({ lower: true })).max(LIMITS.tags);
 export const cleanTags = (tags: string[]): string[] => [...new Set(tagList.parse(tags).map((t) => t.toLowerCase()))].sort();
 
 /** Fields as stored: only keys the type defines, values checked by kind, empty values dropped. */
@@ -198,9 +202,9 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
   }
   const tag = f.tag?.trim().toLowerCase();
   if (tag) {
-    // tags are stored as a sorted JSON array of lower-case strings
+    // tags are stored as a sorted JSON array of lower-case strings: a quick pre-filter by the key, the exact match below
     where.push("lower(r.tags) LIKE ? ESCAPE '\\'");
-    params.push(`%${likeEscape(JSON.stringify(tag))}%`);
+    params.push(`%"${likeEscape(splitTag(normalizeTag(tag)).key)}%`);
   }
   const limit = Math.min(Math.max(f.limit ?? 500, 1), 10000);
   // records the user may not read are left out before the limit applies (pages of rows until the limit is reached)
@@ -217,7 +221,7 @@ export function listRecords(f: ListFilter = {}): RecordSummary[] {
       if (!canReadRecordRow(u, r)) continue;
       const d = docs.get(r.id);
       const sum = toSummary(r, d && { edition: d.edition, reviewStatus: d.review.status, nextReviewAt: d.review.nextReviewAt });
-      if (tag && !sum.tags.includes(tag)) continue;
+      if (tag && !tagsMatch(sum.tags, tag)) continue;
       if (f.review?.length && !f.review.includes(sum.reviewStatus ?? 'none')) continue;
       out.push(sum);
       if (out.length >= limit) break;

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { TagBadges } from '../components/tags';
 import type { ApplicationDetail, ApplicationDocument, Platform } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
 import { DetailState, PageHeader, subjectLabel, useFieldErrors } from '../components/common';
@@ -166,13 +167,7 @@ export function ApplicationDetailPage() {
               </Field>
               {a.tags.length > 0 && (
                 <Field label={t('tags')}>
-                  <Group gap={4}>
-                    {a.tags.map((tag) => (
-                      <Badge key={tag} size="sm" variant="default">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <TagBadges size="sm" tags={a.tags} linkTo={(tag) => `/applications?tag=${encodeURIComponent(tag)}`} />
                 </Field>
               )}
               <Text size="xs" c="dimmed">

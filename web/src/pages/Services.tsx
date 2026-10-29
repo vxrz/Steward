@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ActionIcon, Anchor, Badge, Button, Group, Modal, Paper, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import { ActionIcon, Anchor, Badge, Box, Button, Group, Modal, Paper, Select, Stack, Switch, Table, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { IconExternalLink, IconFileAlert, IconPlus, IconStack2, IconTicket, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
+import { SERVICE_CONTACT_ROLES, SERVICE_CRITICALITIES, tagsMatch, type ServiceContact, type ServiceDetail, type ServiceSummary } from '@sm/shared';
+import { TagBadges, TagFilterChip, TagInput, useTagFilter } from '../components/tags';
 import { get, notifyError, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { useMe } from '../auth';
@@ -71,7 +72,9 @@ export function ServicesPage() {
   const canCreate = hasRole('admin') || hasRole('designer');
   useCreateParam(canCreate, () => setCreating(true));
   const narrow = useMediaQuery('(max-width: 48em)') ?? false;
-  const list = services.data ?? [];
+  const [tag, setTag] = useTagFilter();
+  const all = services.data ?? [];
+  const list = all.filter((s) => tagsMatch(s.tags, tag));
   return (
     <>
       <PageHeader
@@ -85,9 +88,17 @@ export function ServicesPage() {
           )
         }
       />
-      <Switch size="sm" mb="md" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+      <Group gap="md" mb="md">
+        <Switch size="sm" label={t('showArchived')} checked={archived} onChange={(e) => setArchived(e.currentTarget.checked)} />
+        <TagFilterChip tag={tag} onChange={setTag} />
+      </Group>
       <QueryState query={services} />
-      {services.isSuccess && list.length === 0 && (
+      {services.isSuccess && all.length > 0 && list.length === 0 && (
+        <Text size="sm" c="dimmed">
+          {t('common:tags.noMatch')}
+        </Text>
+      )}
+      {services.isSuccess && all.length === 0 && (
         <EmptyState
           icon={IconStack2}
           title={archived ? t('emptyState.titleArchived') : t('emptyState.title')}
@@ -154,13 +165,9 @@ export function ServicesPage() {
                       <VendorTicketsBadge count={vendorTickets.data?.[s.id]} serviceId={s.id} ml={6} />
                       <OverdueReviewsBadge count={s.overdueDocuments} ml={6} />
                       {s.tags.length > 0 && (
-                        <Group gap={4} mt={2}>
-                          {s.tags.map((tag) => (
-                            <Badge key={tag} size="xs" variant="default">
-                              {tag}
-                            </Badge>
-                          ))}
-                        </Group>
+                        <Box mt={2}>
+                          <TagBadges tags={s.tags} onTag={setTag} />
+                        </Box>
                       )}
                     </Table.Td>
                     <Table.Td>{s.criticality ? <CriticalityBadge value={s.criticality} /> : '–'}</Table.Td>
@@ -220,6 +227,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
   const [cmdbId, setCmdbId] = useState(service?.cmdb?.id ?? '');
   const [cmdbUrl, setCmdbUrl] = useState(service?.cmdb?.url ?? '');
   const [tags, setTags] = useState<string[]>(service?.tags ?? []);
+  const known = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const [busy, setBusy] = useState(false);
   const setContact = (i: number, patch: Partial<ServiceContact>) => setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, ...patch } : c)));
   const v = useFieldErrors({ name: !name.trim() && t('common:validation.required') });
@@ -357,7 +365,7 @@ export function ServiceFormModal({ service, onClose, onSaved }: { service?: Serv
             onChange={(e) => setCmdbUrl(e.currentTarget.value)}
             maxLength={2000}
           />
-          <TagsInput label={t('tags')} value={tags} onChange={setTags} maxTags={30} />
+          <TagInput label={t('tags')} value={tags} onChange={setTags} max={30} lower suggestions={(known.data ?? []).flatMap((s) => s.tags)} />
           <Group justify="flex-end">
             <Button variant="default" onClick={onClose}>
               {t('common:cancel')}

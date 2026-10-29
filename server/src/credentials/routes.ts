@@ -46,7 +46,7 @@ export const listQuery = z.object({
   platform: z.string().max(200).optional(),
   status: z.preprocess(list, z.array(z.enum(CREDENTIAL_STATUSES)).max(4).optional()),
   owner: z.string().max(254).optional(),
-  tag: z.string().max(40).optional(),
+  tag: z.string().max(161).optional(),
   role: z.string().max(200).optional(),
   belongs: z
     .string()

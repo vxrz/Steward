@@ -44,6 +44,7 @@ import {
   IconUpload,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { TagBadges } from '../components/tags';
 import {
   REPORT_LANGS,
   type ApplicationSummary,
@@ -350,20 +351,7 @@ function ContentTab({ rec }: { rec: RecordDetail }) {
               ))}
               {rec.tags.length > 0 && (
                 <Field label={t('editor.tags')}>
-                  <Group gap={4}>
-                    {rec.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        size="sm"
-                        variant="default"
-                        component={Link}
-                        to={`/records?tag=${encodeURIComponent(tag)}`}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <TagBadges size="sm" tags={rec.tags} linkTo={(tag) => `/records?tag=${encodeURIComponent(tag)}`} />
                 </Field>
               )}
             </Stack>

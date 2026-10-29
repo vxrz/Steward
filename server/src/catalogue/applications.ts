@@ -3,6 +3,7 @@ import {
   APPLICATION_ROLES,
   CIA_DIMENSIONS,
   SERVICE_CRITICALITIES,
+  tagInput,
   type AclEntry,
   type ApplicationDetail,
   type ApplicationIntegration,
@@ -91,7 +92,10 @@ export const applicationInput = z
       .strict()
       .nullable()
       .default(null),
-    tags: z.array(z.string().trim().toLowerCase().min(1).max(60)).max(30).default([]),
+    tags: z
+      .array(tagInput({ lower: true }))
+      .max(30)
+      .default([]),
   })
   .strict();
 export type ApplicationInput = z.infer<typeof applicationInput>;

@@ -3,6 +3,8 @@ import {
   CREDENTIAL_LIMITS,
   CREDENTIAL_TYPES,
   DEFAULT_CREDENTIAL_REMINDERS,
+  tagInput,
+  tagsMatch,
   type CertificateInfo,
   type Credential,
   type CredentialDue,
@@ -361,7 +363,7 @@ export const credentialInputSchema = z.object({
     .nullable()
     .optional(),
   notes: z.string().max(10000).default(''),
-  tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
+  tags: z.array(tagInput()).max(20).default([]),
   /** Upload: a public certificate (base64 of PEM/CRT/DER, or PEM text); null removes the stored metadata */
   certificate: z
     .object({ contentBase64: z.string().max(400_000).optional(), pem: z.string().max(300_000).optional() })
@@ -526,7 +528,7 @@ export function listCredentials(f: CredentialFilter = {}, now = Date.now()): Cre
     )
     .filter((c) => !f.status?.length || f.status.includes(c.status))
     .filter((c) => !owner || c.owners.some((o) => o.email.includes(owner)) || c.ownerSubjects.some((s) => s.includes(owner)))
-    .filter((c) => !f.tag || c.tags.includes(f.tag))
+    .filter((c) => tagsMatch(c.tags, f.tag))
     .filter((c) => !role || c.roles.some((r) => r.role.toLowerCase() === role))
     .filter((c) => !f.belongs || (!!c.belongsTo && `${c.belongsTo.kind}:${c.belongsTo.id}` === f.belongs))
     .filter((c) => f.dueWithinDays === undefined || (!!c.nextDueAt && Date.parse(c.nextDueAt) <= now + f.dueWithinDays * DAY));

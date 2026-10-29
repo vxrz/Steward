@@ -48,7 +48,7 @@ const csv = (v: unknown): string[] | undefined =>
 const listQuery = z.object({
   type: z.string().max(64).optional(),
   status: z.string().max(400).optional(),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
   q: z.string().max(200).optional(),
   owner: z.string().max(128).optional(),
   workflow: z.enum(RECORD_WORKFLOW_KEYS).optional(),

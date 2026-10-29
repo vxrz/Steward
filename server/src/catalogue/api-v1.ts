@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { z } from 'zod';
-import { CIA_DIMENSIONS, type ApplicationRating, type ItemLink, type ServiceProtectionNeed } from '@sm/shared';
+import { CIA_DIMENSIONS, tagsMatch, type ApplicationRating, type ItemLink, type ServiceProtectionNeed } from '@sm/shared';
 import { HttpError } from '../util.js';
 import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
@@ -167,6 +167,7 @@ export function serviceApiRoutes(get: Get): void {
       const list = svc
         .listServiceEntries({ archived: q.archived !== 'exclude' })
         .filter((s) => q.archived !== 'only' || s.archived)
+        .filter((s) => tagsMatch(s.tags, q.tag))
         .map((s) => map(s, scale, byService));
       const page = pageArray(list, (s) => [s.name.toLowerCase(), s.id], q, q);
       linkNext(req, reply, page.nextCursor);
@@ -216,6 +217,7 @@ export function serviceApiRoutes(get: Get): void {
       const list = apps
         .listApplicationEntries({ archived: q.archived !== 'exclude' })
         .filter((a) => q.archived !== 'only' || a.archived)
+        .filter((a) => tagsMatch(a.tags, q.tag))
         .map((a) => mapApplication(a, scale));
       const page = pageArray(list, (a) => [a.name.toLowerCase(), a.id], q, q);
       linkNext(req, reply, page.nextCursor);

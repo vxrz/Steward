@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   SERVICE_CONTACT_ROLES,
   SERVICE_CRITICALITIES,
+  tagInput,
   type ServiceContact,
   type ServiceDetail,
   type ServiceDocument,
@@ -81,7 +82,10 @@ export const serviceInput = z
       .strict()
       .nullable()
       .default(null),
-    tags: z.array(z.string().trim().toLowerCase().min(1).max(60)).max(30).default([]),
+    tags: z
+      .array(tagInput({ lower: true }))
+      .max(30)
+      .default([]),
   })
   .strict();
 export type ServiceInput = z.infer<typeof serviceInput>;

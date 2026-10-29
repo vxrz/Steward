@@ -4,6 +4,7 @@ import {
   Alert,
   Anchor,
   Badge,
+  Box,
   Button,
   Group,
   Modal,
@@ -15,14 +16,23 @@ import {
   Table,
   TagsInput,
   Text,
-  TextInput,
   Textarea,
+  TextInput,
   Tooltip,
 } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconEdit, IconFileImport, IconHeartRateMonitor, IconKey, IconLayoutGrid, IconPlus, IconTrash } from '@tabler/icons-react';
-import { MONITOR_STATUSES, type MonitorDetail, type MonitorGateway, type MonitorSaveResult, type MonitorStatus, type MonitorSummary } from '@sm/shared';
+import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
+import {
+  MONITOR_STATUSES,
+  tagsMatch,
+  type MonitorDetail,
+  type MonitorGateway,
+  type MonitorSaveResult,
+  type MonitorStatus,
+  type MonitorSummary,
+} from '@sm/shared';
 import { Trans, useTranslation } from 'react-i18next';
 import { del, get, notifyError, post, put } from '../api';
 import { EmptyState, Hint, PageHeader, QueryState, useFieldErrors } from '../components/common';
@@ -53,7 +63,8 @@ export function MonitorsPage() {
     const next = statusFilter.includes(s) ? statusFilter.filter((x) => x !== s) : [...statusFilter, s];
     setParams(next.length ? { status: next.join(',') } : {}, { replace: true });
   };
-  const shown = statusFilter.length ? list.filter((m) => statusFilter.includes(m.status)) : list;
+  const [tag, setTag] = useTagFilter();
+  const shown = (statusFilter.length ? list.filter((m) => statusFilter.includes(m.status)) : list).filter((m) => tagsMatch(m.tags, tag));
 
   return (
     <>
@@ -107,6 +118,7 @@ export function MonitorsPage() {
                 {t('list.count', { count: counts[s], status: monitorStatusLabel(s) })}
               </Badge>
             ))}
+            <TagFilterChip tag={tag} onChange={setTag} />
           </Group>
           <QueryState query={monitors} />
           {monitors.isSuccess && list.length === 0 && (
@@ -134,7 +146,7 @@ export function MonitorsPage() {
               {t('list.noMatch')}
             </Text>
           )}
-          {shown.length > 0 && <MonitorTable monitors={shown} />}
+          {shown.length > 0 && <MonitorTable monitors={shown} onTag={setTag} />}
         </>
       )}
       {tab === 'templates' && (
@@ -162,7 +174,7 @@ export function MonitorsPage() {
 /** Sort order of the status column: the worst state first. */
 const STATUS_ORDER = ['down', 'degraded', 'blocked', 'unknown', 'maintenance', 'up'];
 
-function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
+function MonitorTable({ monitors, onTag }: { monitors: MonitorSummary[]; onTag: (tag: string) => void }) {
   const { t } = useTranslation('monitors');
   const causes = (m: MonitorSummary) =>
     m.maintenance ? t('list.maintenanceLine', { reason: m.maintenance.reason }) : m.rootCauses.map((c) => causeText(c, m.id)).join(', ');
@@ -198,13 +210,9 @@ function MonitorTable({ monitors }: { monitors: MonitorSummary[] }) {
             {m.templateId && ` · ${t('list.fromTemplate')}`}
           </Text>
           {m.tags.length > 0 && (
-            <Group gap={4} mt={2}>
-              {m.tags.map((tag) => (
-                <Badge key={tag} size="xs" variant="default">
-                  {tag}
-                </Badge>
-              ))}
-            </Group>
+            <Box mt={2}>
+              <TagBadges tags={m.tags} onTag={onTag} />
+            </Box>
           )}
         </>
       ),

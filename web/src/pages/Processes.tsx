@@ -1,22 +1,23 @@
 import { useState } from 'react';
 import {
+  ActionIcon,
   Alert,
   Anchor,
   Badge,
+  Box,
   Button,
   Card,
   Group,
   List,
+  Menu,
   Modal,
   SegmentedControl,
   SimpleGrid,
   Stack,
   Text,
-  TextInput,
   Textarea,
-  ActionIcon,
+  TextInput,
   Tooltip,
-  Menu,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,7 +38,8 @@ import {
   IconSitemap,
   IconChecklist,
 } from '@tabler/icons-react';
-import { BUNDLE_FORMATS, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
+import { BUNDLE_FORMATS, tagLabel, tagsMatch, type ExportBundle, type ProcessDetail, type ProcessSummary, type ProcessTemplate } from '@sm/shared';
+import { TagBadges, TagFilterChip, useTagFilter } from '../components/tags';
 import { del, get, notifyError, notifyOk, post, apiUrl } from '../api';
 import { EmptyState, PageHeader, QueryState, StatusBadge } from '../components/common';
 import { GitOriginBadge } from '../components/gitsync/GitOriginBadge';
@@ -122,8 +124,11 @@ export function ProcessesPage() {
     }
   };
 
+  const [tag, setTag] = useTagFilter();
   const f = filter.toLowerCase();
-  const list = (processes.data ?? []).filter((p) => !f || p.name.toLowerCase().includes(f) || p.tags.some((tag) => tag.includes(f)));
+  const list = (processes.data ?? []).filter(
+    (p) => (!f || p.name.toLowerCase().includes(f) || p.tags.some((x) => tagLabel(x).toLowerCase().includes(f))) && tagsMatch(p.tags, tag),
+  );
 
   return (
     <>
@@ -176,6 +181,9 @@ export function ProcessesPage() {
         onChange={(e) => setFilter(e.currentTarget.value)}
         maw={360}
       />
+      <Box mb="md">
+        <TagFilterChip tag={tag} onChange={setTag} />
+      </Box>
       <QueryState query={processes} />
       {processes.data?.length === 0 && (
         <EmptyState
@@ -261,11 +269,7 @@ export function ProcessesPage() {
                   {t('card.readOnly')}
                 </Badge>
               )}
-              {p.tags.map((tag) => (
-                <Badge key={tag} size="xs" variant="light" color="gray">
-                  {tag}
-                </Badge>
-              ))}
+              <TagBadges tags={p.tags} onTag={setTag} />
               {p.lastRun && (
                 <>
                   <Text size="xs" c="dimmed" ml="auto">

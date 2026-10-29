@@ -222,7 +222,7 @@ export const RecordListQuery = z.object({
   cursor,
   type: z.string().max(64).optional().describe('Record type key, e.g. CR or ADR'),
   status: z.array(z.string().max(40)).max(QUERY_LIST_MAX).optional().describe('Only records with these statuses (repeat the parameter)'),
-  tag: z.string().max(60).optional(),
+  tag: z.string().max(161).optional(),
   q: z.string().max(200).optional().describe('Case-insensitive search in number, title and text'),
   workflow: z.enum(RECORD_WORKFLOW_KEYS).optional().describe('Only records of types with this workflow, e.g. document'),
   reviewStatus: z.array(z.enum(REVIEW_STATUSES)).max(QUERY_LIST_MAX).optional().describe('Living documents: only these review statuses (repeat the parameter)'),

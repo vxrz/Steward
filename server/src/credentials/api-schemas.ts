@@ -97,6 +97,7 @@ export const CredentialListQuery = z.object({
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),
   q: z.string().max(200).optional().describe('Case-insensitive search'),
   role: z.string().max(200).optional().describe('Only entries holding this role or permission (exact, case-insensitive)'),
+  tag: z.string().max(161).optional().describe('Only entries with this tag: key (any value) or key=value'),
   belongs: z
     .string()
     .max(120)

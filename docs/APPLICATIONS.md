@@ -27,7 +27,7 @@ One application can have several platforms, for example _Insights Hub_ ← _IH t
 ## Create an application
 
 1. _Service management → Applications → New application_ (designers and administrators).
-2. Enter the name and, if you like, vendor, version, URL, description, criticality, the responsible users and teams, the CMDB entry and tags.
+2. Enter the name and, if you like, vendor, version, URL, description, criticality, the responsible users and teams, the CMDB entry and tags. A tag is a key with an optional value: type the key, **Tab** to the value, **Enter** to add it – `env: prod`, or just `pci`. A key with a value uses letters, digits, `.` `_` `-` `/`; tags from before stay as they are. Clicking a tag in a list or on a page filters the list by it (`?tag=env=prod`), and _any env_ widens the filter to every value of the key. The same tags work on services, processes, monitors, records and credentials.
 3. _Save_. The application page opens.
 
 Applications are archived, not deleted (_Archive_ on the application page). An archived application no longer counts for the protection need of its services and disappears from the list and the pickers. Its rating, links and history stay. _Show archived applications_ lists them; _Restore_ brings one back.

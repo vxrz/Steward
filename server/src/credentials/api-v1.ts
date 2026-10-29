@@ -49,6 +49,7 @@ export function credentialApiRoutes(get: Get): void {
           q: q.q,
           role: q.role,
           belongs: q.belongs,
+          tag: q.tag,
         })
         .map(map);
       const page = pageArray(list, (c) => [c.name.toLowerCase(), c.id], q, q);

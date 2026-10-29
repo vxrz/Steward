@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
 import { IconArchive, IconArchiveOff, IconEdit, IconExternalLink } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import { TagBadges } from '../components/tags';
 import type { ServiceDetail } from '@sm/shared';
 import { del, get, notifyError, patch, post } from '../api';
 import { DetailState, PageHeader, subjectLabel } from '../components/common';
@@ -151,13 +152,7 @@ export function ServiceDetailPage() {
               </Field>
               {s.tags.length > 0 && (
                 <Field label={t('tags')}>
-                  <Group gap={4}>
-                    {s.tags.map((tag) => (
-                      <Badge key={tag} size="sm" variant="default">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                  <TagBadges size="sm" tags={s.tags} linkTo={(tag) => `/services?tag=${encodeURIComponent(tag)}`} />
                 </Field>
               )}
               <Text size="xs" c="dimmed">

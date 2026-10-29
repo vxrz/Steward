@@ -16,7 +16,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  TagsInput,
   Text,
   TextInput,
   Textarea,
@@ -44,6 +43,7 @@ import type {
   CredentialBelongsTarget,
 } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
+import { TagInput } from '../tags';
 import { useMe } from '../../auth';
 import { fmtDay } from '../../format';
 import { useFieldErrors } from '../common';
@@ -319,7 +319,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
             value={d.environment}
             onChange={(e) => set({ environment: e.currentTarget.value })}
           />
-          <TagsInput label={t('fields.tags')} value={d.tags} onChange={(v) => set({ tags: v })} />
+          <TagInput label={t('fields.tags')} value={d.tags} onChange={(v) => set({ tags: v })} max={20} />
         </SimpleGrid>
         <Textarea label={t('fields.description')} autosize minRows={2} value={d.description} onChange={(e) => set({ description: e.currentTarget.value })} />
 

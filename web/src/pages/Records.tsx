@@ -5,7 +5,7 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { IconCheck, IconFileCertificate, IconFileImport, IconPlus, IconSearch, IconSettings, IconUpload, IconX } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { RECORD_STATUSES, RECORD_WORKFLOW_KEYS, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
+import { RECORD_STATUSES, RECORD_WORKFLOW_KEYS, tagLabel, type RecordDetail, type RecordImportItem, type RecordSummary, type RecordsMeta } from '@sm/shared';
 import { get, notifyError, post } from '../api';
 import { EmptyState, FilterPanel, PageHeader, QueryState, useCreateParam, useFieldErrors } from '../components/common';
 import { DataTable, ListFooter, type DataColumn } from '../components/DataTable';
@@ -146,7 +146,7 @@ export function RecordsPage() {
               component="button"
               aria-label={t('list.clearTag', { tag })}
             >
-              {tag}
+              {tagLabel(tag)}
             </Badge>
           )}
         </Group>
@@ -215,7 +215,7 @@ function RecordTable({ records, onTag, footer }: { records: RecordSummary[]; onT
               onTag(tag);
             }}
           >
-            {tag}
+            {tagLabel(tag)}
           </Badge>
         ))}
       </Group>

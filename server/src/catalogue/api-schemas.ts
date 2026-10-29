@@ -344,6 +344,7 @@ export const ApplicationListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude').describe('Archived applications: left out (default), included, or only these'),
+  tag: z.string().max(161).optional().describe('Only entries with this tag: key (any value) or key=value'),
 });
 
 export const ApplicationDocumentsQuery = z.object({
@@ -355,4 +356,5 @@ export const ServiceListQuery = z.object({
   limit: z.number().int().min(1).max(200).default(50).describe('Page size (1–200, default 50)'),
   cursor: z.string().max(2000).optional().describe('Cursor from the previous page (`nextCursor`)'),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude').describe('Archived services: left out (default), included, or only these'),
+  tag: z.string().max(161).optional().describe('Only entries with this tag: key (any value) or key=value'),
 });
