@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-29
+
+Automated runs get one notification policy – schedules, webhook triggers and monitor outputs decide when and where failed checks notify, what counts as a change, and can pause their messages – and the messages say what is wrong, which way it changed and what to do. A dataset keeps one partition per source platform, so the same process run against several tenants no longer overwrites the others, and dashboards filter by source. The monitor editor keeps cards apart and validates while you type, the run dialog offers one run mode, failed checks on the start page are grouped, and the tenant usage example reads the real Usage Transparency API. Four database migrations, all additive: `ops-005-run-retention-default`, `ops-006-notify-policy`, `triggers-002-notify-policy` and `ops-007-dataset-sources`.
+
 ### Added
 
 - **Datasets per source platform** (#142): a dataset keeps one partition per source – the platform its rows were read from (the only connection, the publish step's new `source` connection, or all bound platforms; the instance without connections). A run replaces only its own partition, so the same process scheduled against several tenants no longer overwrites the others; rows carry `_source`, metrics are kept per source. Dashboards get a _Sources_ filter (in the URL, remembered per person) that every widget follows or pins, a _Source_ column in tables, one line per source in trends, a value per source in KPIs and freshness per source. A partition whose platform has an access list without the reader is hidden (administrators and auditors see all). Staleness follows the schedule: 2.5 × its interval (at least 15 minutes) unless the step sets `staleAfterMinutes`, else 24 hours. `GET /api/v1/datasets/{key}/rows|metrics` take `source`; `sources` in dataset metadata. Migration `ops-007-dataset-sources`; existing datasets become one partition of their last run's platform, with their metric history.
@@ -431,7 +435,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/vxrz/steward/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/vxrz/steward/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/vxrz/steward/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/vxrz/steward/compare/v0.2.0...v0.2.1
