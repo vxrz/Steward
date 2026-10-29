@@ -42,7 +42,7 @@ import {
   IconTrash,
 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { Backlink, Credential, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
+import type { Backlink, Credential, CredentialBelongsTo, CredentialEvent, CredentialList, CredentialStatus, CredentialType } from '@sm/shared';
 import { api, apiUrl, confirmedDownload, del, get, notifyError, notifyOk, post } from '../api';
 import { useMe } from '../auth';
 import { EmptyState, FilterPanel, PageHeader, QueryState, TONE, useCreateParam } from '../components/common';
@@ -597,6 +597,11 @@ function CredentialDrawer({
           </Paper>
 
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+            {c.belongsTo && (
+              <Field label={t('fields.belongsTo')}>
+                <BelongsToLink b={c.belongsTo} />
+              </Field>
+            )}
             <Field label={t('fields.platform')}>{c.platformName ?? (c.platformText || '–')}</Field>
             <Field label={t('fields.environment')}>{c.environment || '–'}</Field>
           </SimpleGrid>
@@ -885,5 +890,20 @@ function RolesChange({ details }: { details: Record<string, unknown> }) {
         </Text>
       ))}
     </Stack>
+  );
+}
+
+/** What an entry belongs to (#143), linked: the application (also for a component) or the system. */
+function BelongsToLink({ b }: { b: CredentialBelongsTo }) {
+  const { t } = useTranslation('credentials');
+  if (!b.name) return <Text size="sm">{t('belongsGone')}</Text>;
+  const to = b.kind === 'system' ? `/systems/${b.id}` : `/applications/${b.kind === 'component' ? b.applicationId : b.id}`;
+  return (
+    <Text size="sm">
+      {t(`belongsKinds.${b.kind}`)}:{' '}
+      <Anchor component={Link} to={to} size="sm">
+        {b.kind === 'component' ? `${b.applicationName} / ${b.name}` : b.name}
+      </Anchor>
+    </Text>
   );
 }

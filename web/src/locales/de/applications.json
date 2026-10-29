@@ -300,8 +300,10 @@
   },
   "credentials": {
     "title": "Zugangsdaten",
-    "help": "Einträge des Zugangsdaten-Registers, die diese Anwendung unter „Verwendet von“ nennen.",
-    "empty": "Keine Zugangsdaten nennen diese Anwendung."
+    "help": "Einträge im Zugangsdaten-Register, die zu dieser Anwendung oder einer ihrer Komponenten gehören, und Einträge, die sie unter „Verwendet von“ nennen.",
+    "empty": "Keine Zugangsdaten gehören zu dieser Anwendung oder nennen sie.",
+    "ofComponent": "von {{name}}",
+    "usedBy": "nennt sie unter „Verwendet von“"
   },
   "lifecycle": {
     "button": "Supportende",
@@ -422,6 +424,8 @@
     "importSbom": "SBOM importieren",
     "sbomTitle": "SBOM in {{name}} importieren",
     "deleteConfirm": "Das System „{{name}}“ löschen?",
-    "created": "Angelegt von {{user}} am {{date}}"
+    "created": "Angelegt von {{user}} am {{date}}",
+    "credentialsHelp": "Einträge im Zugangsdaten-Register, die zu diesem System gehören: technische Benutzer, Schlüssel, Zertifikate.",
+    "noCredentials": "Keine Zugangsdaten gehören zu diesem System."
   }
 }

@@ -101,10 +101,36 @@ export interface CredentialReminderOverride {
 
 export type CredentialPermission = 'view' | 'edit' | 'archive' | 'delete';
 
+/** What a credential belongs to in the catalogue (#143). */
+export const CREDENTIAL_BELONGS_KINDS = ['application', 'component', 'system'] as const;
+export type CredentialBelongsKind = (typeof CREDENTIAL_BELONGS_KINDS)[number];
+
+export interface CredentialBelongsTo {
+  kind: CredentialBelongsKind;
+  id: string;
+  /** Its name; null when it no longer exists */
+  name: string | null;
+  /** A component: the application it is part of */
+  applicationId: string | null;
+  applicationName: string | null;
+}
+
+/** Something a credential can belong to, offered in the editor. */
+export interface CredentialBelongsTarget {
+  kind: CredentialBelongsKind;
+  id: string;
+  name: string;
+  /** A component: its application; a system: its vendor */
+  context: string;
+  owners: string[];
+}
+
 export interface Credential {
   id: string;
   name: string;
   type: CredentialType;
+  /** The application, component or system it belongs to (#143) */
+  belongsTo: CredentialBelongsTo | null;
   /** A Steward platform, or null with a free-text platform */
   platformId: string | null;
   platformName: string | null;

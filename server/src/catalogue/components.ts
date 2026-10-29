@@ -521,16 +521,28 @@ export function removeComponent(appId: string, componentId: string, canEdit: Can
   const a = editableApp(appId, canEdit, 'change the components of this application');
   const cur = componentRow(appId, componentId);
   const stack = db().all<StackRow>('SELECT * FROM component_stack WHERE component_id = ?', componentId);
+  const credentials = db()
+    .all<{ id: string }>("SELECT id FROM credentials WHERE belongs_kind = 'component' AND belongs_id = ?", componentId)
+    .map((c) => c.id);
   db().tx(() => {
     db().run('DELETE FROM component_stack WHERE component_id = ?', componentId);
     db().run('DELETE FROM application_components WHERE id = ?', componentId);
+    // credentials of the component now belong to its application (#143)
+    if (credentials.length)
+      db().run("UPDATE credentials SET belongs_kind = 'application', belongs_id = ? WHERE belongs_kind = 'component' AND belongs_id = ?", appId, componentId);
     touchApplication(appId, u);
     audit({
       action: 'application.component_removed',
       entityType: 'application',
       entityId: appId,
       summary: `Component ${cur.type} "${cur.name}" removed from application "${a.name}"`,
-      details: { componentId, type: cur.type, name: cur.name, stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })) },
+      details: {
+        componentId,
+        type: cur.type,
+        name: cur.name,
+        stack: stack.map((s) => ({ product: s.product, version: s.version, source: s.source })),
+        ...(credentials.length ? { credentialsMovedToApplication: credentials } : {}),
+      },
     });
   });
 }

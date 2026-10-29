@@ -40,7 +40,16 @@ export function credentialApiRoutes(get: Get): void {
     async (req, reply) => {
       const q = req.query as z.infer<typeof CredentialListQuery>;
       const list = svc
-        .listCredentials({ status: q.status, type: q.type, platform: q.platform, dueWithinDays: q.dueWithinDays, archived: q.archived, q: q.q, role: q.role })
+        .listCredentials({
+          status: q.status,
+          type: q.type,
+          platform: q.platform,
+          dueWithinDays: q.dueWithinDays,
+          archived: q.archived,
+          q: q.q,
+          role: q.role,
+          belongs: q.belongs,
+        })
         .map(map);
       const page = pageArray(list, (c) => [c.name.toLowerCase(), c.id], q, q);
       linkNext(req, reply, page.nextCursor);

@@ -36,6 +36,7 @@ import {
 } from './components.js';
 import { lifecycleSettings, releasesOf } from './lifecycle.js';
 import { byEnvironment, environmentValue } from './environments.js';
+import { credentialsBelongingTo, toCredential } from '../credentials/service.js';
 
 /**
  * Systems (#129): servers, VMs, clusters, appliances and cloud services that applications run on – often several
@@ -181,7 +182,7 @@ const sbomOf = (r: SystemRow): SystemDetail['sbom'] =>
     : null;
 
 /** A system with its stack, SBOM, creation and applications (the public API's list and the detail page). */
-export type SystemEntry = Omit<SystemDetail, 'canEdit'>;
+export type SystemEntry = Omit<SystemDetail, 'canEdit' | 'credentials'>;
 
 type AppRef = { id: string; name: string; archived: number };
 const appsById = () =>
@@ -241,11 +242,32 @@ export function listSystems(): SystemSummary[] {
     .map((r) => toSummary(r, { stack: stacks.get(r.id) ?? [], links: links.get(r.id) ?? [], platforms, u }));
 }
 
+/** The credentials register entries that belong to a system (#143), archived ones left out. */
+function systemCredentials(id: string, u: AuthUser): SystemDetail['credentials'] {
+  return credentialsBelongingTo('system', [id])
+    .filter((r) => !r.archived)
+    .map((r) => toCredential(r, u))
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      type: c.type,
+      status: c.status,
+      nextDueAt: c.nextDueAt,
+      roles: c.roles.map((x) => x.role),
+      relation: 'belongsTo' as const,
+      componentName: null,
+    }));
+}
+
 export function getSystem(id: string): SystemDetail {
   const u = me();
   const r = row(id);
   const links = db().all<LinkRow>('SELECT * FROM application_systems WHERE system_id = ?', id);
-  return { ...toEntryOf(r, stacksOf([id]).get(id) ?? [], links, { platforms: platformsById(), apps: appsById(), u }), canEdit: canEditSystem(u, r) };
+  return {
+    ...toEntryOf(r, stacksOf([id]).get(id) ?? [], links, { platforms: platformsById(), apps: appsById(), u }),
+    credentials: systemCredentials(id, u),
+    canEdit: canEditSystem(u, r),
+  };
 }
 
 /** The systems an application runs on, with their stacks, in environment order. */
@@ -399,6 +421,10 @@ export function deleteSystem(id: string): void {
   const cur = requireEditable(id, 'delete this system');
   const n = Number(db().get<{ n: number }>('SELECT COUNT(*) AS n FROM application_systems WHERE system_id = ?', id)?.n ?? 0);
   if (n) throw new HttpError(409, `Applications still run on "${cur.name}" (${n})`, 'SYSTEM_IN_USE', { name: cur.name, count: n });
+  // credentials keep what they belong to: move or archive them first (#143)
+  const creds = Number(db().get<{ n: number }>("SELECT COUNT(*) AS n FROM credentials WHERE belongs_kind = 'system' AND belongs_id = ?", id)?.n ?? 0);
+  if (creds)
+    throw new HttpError(409, `Credentials register entries belong to "${cur.name}" (${creds})`, 'SYSTEM_HAS_CREDENTIALS', { name: cur.name, count: creds });
   const stack = db().all<StackRow>('SELECT * FROM system_stack WHERE system_id = ?', id);
   db().tx(() => {
     db().run('DELETE FROM system_stack WHERE system_id = ?', id);

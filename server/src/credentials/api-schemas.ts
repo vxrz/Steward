@@ -1,5 +1,5 @@
 import { z, type ZodTypeAny } from 'zod';
-import { CREDENTIAL_DUE_KINDS, CREDENTIAL_STATUSES, CREDENTIAL_TYPES, QUERY_LIST_MAX } from '@sm/shared';
+import { CREDENTIAL_BELONGS_KINDS, CREDENTIAL_DUE_KINDS, CREDENTIAL_STATUSES, CREDENTIAL_TYPES, QUERY_LIST_MAX } from '@sm/shared';
 
 /** Response and query schemas of the credentials endpoints of the public API (/api/v1/credentials…). */
 
@@ -18,6 +18,16 @@ export const CredentialEntry = z.object({
   id: z.string(),
   name: z.string(),
   type: z.enum(CREDENTIAL_TYPES),
+  belongsTo: z
+    .object({
+      kind: z.enum(CREDENTIAL_BELONGS_KINDS),
+      id: z.string(),
+      name: z.string().nullable().describe('null: it no longer exists'),
+      applicationId: z.string().nullable().describe('A component: its application'),
+      applicationName: z.string().nullable(),
+    })
+    .nullable()
+    .describe('The application, component or system of the catalogue the entry belongs to'),
   platformId: z.string().nullable().describe('A Steward platform (null: see platformText)'),
   platformName: z.string().nullable(),
   platformText: z.string(),
@@ -87,4 +97,10 @@ export const CredentialListQuery = z.object({
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),
   q: z.string().max(200).optional().describe('Case-insensitive search'),
   role: z.string().max(200).optional().describe('Only entries holding this role or permission (exact, case-insensitive)'),
+  belongs: z
+    .string()
+    .max(120)
+    .regex(/^(application|component|system):\S+$/)
+    .optional()
+    .describe('Only entries that belong to this item: application:<id>, component:<id> or system:<id>'),
 });

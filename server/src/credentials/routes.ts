@@ -6,6 +6,7 @@ import { currentUser } from '../auth/context.js';
 import { requireCapability } from '../auth/permissions.js';
 import { HttpError } from '../util.js';
 import * as svc from './service.js';
+import { belongsTargets } from './belongs.js';
 import { parseCertificate, certificateBytes } from './certificates.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 
@@ -47,6 +48,11 @@ export const listQuery = z.object({
   owner: z.string().max(254).optional(),
   tag: z.string().max(40).optional(),
   role: z.string().max(200).optional(),
+  belongs: z
+    .string()
+    .max(120)
+    .regex(/^(application|component|system):\S+$/)
+    .optional(),
   dueWithinDays: z.coerce.number().int().min(0).max(3650).optional(),
   archived: z.enum(['exclude', 'include', 'only']).optional(),
 });
@@ -80,6 +86,12 @@ export async function credentialRoutes(app: FastifyInstance): Promise<void> {
     reply.header('content-disposition', `attachment; filename="credentials-${new Date().toISOString().slice(0, 10)}.csv"`);
     reply.header('cache-control', 'no-store');
     return reply.type('text/csv; charset=utf-8').send(svc.credentialsCsv(items));
+  });
+
+  // what an entry can belong to (#143): applications, their components, systems
+  app.get('/credentials/belongs-targets', async () => {
+    me();
+    return belongsTargets();
   });
 
   app.get('/credentials/summary', async () => {

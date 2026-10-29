@@ -13,6 +13,7 @@ import { fmtDate } from '../format';
 import { EnvironmentBadge } from '../components/catalogue/environments';
 import { SbomImportModal, SbomLine, StackBadges } from '../components/catalogue/ComponentsPanel';
 import { SystemFormModal } from './Systems';
+import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -76,6 +77,12 @@ export function SystemDetailPage() {
               <StackBadges stack={s.stack} />
               {s.sbom && <SbomLine sbom={s.sbom} />}
             </Stack>
+            <CatalogueCredentials
+              credentials={s.credentials}
+              help={t('systems.credentialsHelp')}
+              empty={t('systems.noCredentials')}
+              testId="system-credentials"
+            />
             <Stack gap="xs" data-testid="system-applications">
               <Text fw={600} id="system-apps-title">
                 {t('systems.applications')}

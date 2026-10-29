@@ -205,6 +205,10 @@ export interface ApplicationCredential {
   status: 'ok' | 'dueSoon' | 'overdue' | 'expired';
   nextDueAt: string | null;
   roles: string[];
+  /** belongsTo: the entry belongs to the application, one of its components or the system (#143); usedBy: it names it under "used by" */
+  relation: 'belongsTo' | 'usedBy';
+  /** Belongs to a component of the application: its name */
+  componentName: string | null;
 }
 
 // ---------- components and tech stack (#103) ----------
@@ -465,6 +469,8 @@ export interface SystemDetail extends SystemSummary {
   stack: StackEntry[];
   sbom: { format: SbomFormat; name: string; importedAt: string; importedBy: string } | null;
   applications: SystemApplicationRef[];
+  /** Credentials register entries that belong to the system and that the reader may see (#143) */
+  credentials: ApplicationCredential[];
   createdAt: string;
   createdBy: string;
   updatedBy: string;

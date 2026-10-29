@@ -632,7 +632,9 @@
     "SYSTEM_LINK_NOT_FOUND": "Die Anwendung läuft nicht (mehr) auf diesem System.",
     "SYSTEM_LINK_EXISTS": "Die Anwendung läuft in dieser Umgebung bereits auf „{{name}}“.",
     "SYSTEM_LINK_LIMIT": "Eine Anwendung läuft auf höchstens {{max}} Systemen.",
-    "ENVIRONMENT_TWICE": "„{{name}}“ ist doppelt aufgeführt."
+    "ENVIRONMENT_TWICE": "„{{name}}“ ist doppelt aufgeführt.",
+    "SYSTEM_HAS_CREDENTIALS": "Zu „{{name}}“ gehören Einträge im Zugangsdaten-Register ({{count}}). Verschieben oder archivieren Sie sie zuerst.",
+    "CREDENTIAL_BELONGS_NOT_FOUND": "Die Anwendung, die Komponente oder das System gibt es nicht (mehr)."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

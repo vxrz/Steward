@@ -323,7 +323,7 @@ export function serviceApiRoutes(get: Get): void {
       response: { $ref: 'SystemEntry#' },
     },
     async (req) => {
-      const { canEdit: _c, ...x } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
+      const { canEdit: _c, credentials: _cr, ...x } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
       return x;
     },
   );

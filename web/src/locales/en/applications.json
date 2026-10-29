@@ -300,8 +300,10 @@
   },
   "credentials": {
     "title": "Credentials",
-    "help": "Entries of the credentials register that name this application under \"Used by\".",
-    "empty": "No credential names this application."
+    "help": "Entries of the credentials register that belong to this application or one of its components, and entries that name it under \"Used by\".",
+    "empty": "No credential belongs to this application or names it.",
+    "ofComponent": "of {{name}}",
+    "usedBy": "names it under “Used by”"
   },
   "lifecycle": {
     "button": "End of life",
@@ -422,6 +424,8 @@
     "importSbom": "Import SBOM",
     "sbomTitle": "Import an SBOM into {{name}}",
     "deleteConfirm": "Delete the system “{{name}}”?",
-    "created": "Created by {{user}} on {{date}}"
+    "created": "Created by {{user}} on {{date}}",
+    "credentialsHelp": "Entries of the credentials register that belong to this system: technical users, keys, certificates.",
+    "noCredentials": "No credential belongs to this system."
   }
 }

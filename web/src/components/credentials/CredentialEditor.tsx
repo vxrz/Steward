@@ -40,6 +40,8 @@ import type {
   ProcessSummary,
   ServiceSummary,
   Subject,
+  CredentialBelongsKind,
+  CredentialBelongsTarget,
 } from '@sm/shared';
 import { api, get, getOptional, notifyError, post } from '../../api';
 import { useMe } from '../../auth';
@@ -53,6 +55,7 @@ const LINK_KINDS = ['process', 'monitor', 'platform', 'service', 'application'] 
 interface Draft {
   name: string;
   type: CredentialType;
+  belongsTo: { kind: CredentialBelongsKind; id: string } | null;
   platformId: string | null;
   platformText: string;
   environment: string;
@@ -84,6 +87,7 @@ const fromEntry = (c: Credential | null): Draft =>
     ? {
         name: c.name,
         type: c.type,
+        belongsTo: c.belongsTo ? { kind: c.belongsTo.kind, id: c.belongsTo.id } : null,
         platformId: c.platformId,
         platformText: c.platformText,
         environment: c.environment,
@@ -109,6 +113,7 @@ const fromEntry = (c: Credential | null): Draft =>
     : {
         name: '',
         type: 'apiClient',
+        belongsTo: null,
         platformId: null,
         platformText: '',
         environment: '',
@@ -177,6 +182,7 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
   const services = useQuery({ queryKey: ['services', false], queryFn: () => get<ServiceSummary[]>('/services') });
   const applications = useQuery({ queryKey: ['applications'], queryFn: () => get<ApplicationSummary[]>('/applications') });
   const subjects = useQuery({ queryKey: ['subjects'], queryFn: () => getOptional<Subject[]>('/subjects', []), retry: false });
+  const targets = useQuery({ queryKey: ['credential-belongs-targets'], queryFn: () => get<CredentialBelongsTarget[]>('/credentials/belongs-targets') });
   const gatusEndpoints = useQuery({
     queryKey: ['gatus-endpoints', d.gatus?.platformId],
     queryFn: () => getOptional<GatusEndpointState[]>(`/gatus/sources/${d.gatus!.platformId}/endpoints`, []),
@@ -243,6 +249,14 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
   };
 
   const gatusPlatforms = (platforms.data ?? []).filter((p) => p.kind === 'gatus');
+  const belongsData = (['application', 'component', 'system'] as const)
+    .map((kind) => ({
+      group: t(`belongsKinds.${kind}`),
+      items: (targets.data ?? [])
+        .filter((x) => x.kind === kind)
+        .map((x) => ({ value: `${x.kind}:${x.id}`, label: x.context ? `${x.name} – ${x.context}` : x.name })),
+    }))
+    .filter((g) => g.items.length);
   const reminderDays = d.reminders?.daysBefore?.join(', ') ?? '';
 
   return (
@@ -261,6 +275,25 @@ export function CredentialEditor({ initial, onClose, onSaved }: { initial: Crede
             value={d.type}
             onChange={(v) => set({ type: (v as CredentialType) ?? 'other' })}
           />
+          <Select
+            label={t('fields.belongsTo')}
+            description={t('editor.belongsToHint')}
+            placeholder={t('editor.belongsToNone')}
+            searchable
+            clearable
+            data={belongsData}
+            value={d.belongsTo ? `${d.belongsTo.kind}:${d.belongsTo.id}` : null}
+            onChange={(v) => {
+              const target = (targets.data ?? []).find((x) => `${x.kind}:${x.id}` === v);
+              set({
+                belongsTo: target ? { kind: target.kind, id: target.id } : null,
+                // a new entry without owners takes the owners of what it belongs to
+                ...(target && !d.ownerSubjects.length ? { ownerSubjects: target.owners } : {}),
+              });
+            }}
+            data-testid="credential-belongs-to"
+          />
+          <div />
           <Select
             label={t('fields.platform')}
             description={t('editor.platformHint')}

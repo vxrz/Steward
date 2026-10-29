@@ -632,7 +632,9 @@
     "SYSTEM_LINK_NOT_FOUND": "The application does not run on this system (any more).",
     "SYSTEM_LINK_EXISTS": "The application runs on “{{name}}” in this environment already.",
     "SYSTEM_LINK_LIMIT": "An application runs on at most {{max}} systems.",
-    "ENVIRONMENT_TWICE": "“{{name}}” is listed twice."
+    "ENVIRONMENT_TWICE": "“{{name}}” is listed twice.",
+    "SYSTEM_HAS_CREDENTIALS": "Credentials register entries belong to “{{name}}” ({{count}}). Move or archive them first.",
+    "CREDENTIAL_BELONGS_NOT_FOUND": "The application, component or system does not exist (any more)."
   },
   "boundary": {
     "title": "Something went wrong on this page",

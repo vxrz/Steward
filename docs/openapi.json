@@ -4293,6 +4293,58 @@
               "other"
             ]
           },
+          "belongsTo": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "application",
+                      "component",
+                      "system"
+                    ]
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "null: it no longer exists"
+                  },
+                  "applicationId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "A component: its application"
+                  },
+                  "applicationName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id",
+                  "name",
+                  "applicationId",
+                  "applicationName"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The application, component or system of the catalogue the entry belongs to"
+          },
           "platformId": {
             "type": [
               "null",
@@ -4759,6 +4811,7 @@
           "id",
           "name",
           "type",
+          "belongsTo",
           "platformId",
           "platformName",
           "platformText",
@@ -18550,6 +18603,17 @@
             "name": "role",
             "required": false,
             "description": "Only entries holding this role or permission (exact, case-insensitive)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 120,
+              "pattern": "^(application|component|system):\\S+$"
+            },
+            "in": "query",
+            "name": "belongs",
+            "required": false,
+            "description": "Only entries that belong to this item: application:<id>, component:<id> or system:<id>"
           }
         ],
         "responses": {

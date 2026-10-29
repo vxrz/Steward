@@ -502,6 +502,7 @@ const EXPECT: Record<string, Access> = {
   'POST /api/credentials': RUN,
   'GET /api/credentials/export.csv': ALL,
   'GET /api/credentials/summary': ALL,
+  'GET /api/credentials/belongs-targets': ALL,
   'GET /api/credentials/settings': ALL,
   'PUT /api/credentials/settings': ADMIN,
   'POST /api/credentials/certificate/parse': ALL,
