@@ -12,6 +12,7 @@ Each folder holds a Steward data folder written by a released version, used by
 | `v0.2.2/` | v0.2.2 (`a251063`) | 2026-10-28, demo data plus the content below |
 | `v0.2.3/` | v0.2.3 (`626abd0`) | 2026-10-28, demo data plus the content below |
 | `v0.2.4/` | v0.2.4 (`f5e3f20`) | 2026-10-29, demo data plus the content below |
+| `v0.2.5/` | v0.2.5 (`e29426c`) | 2026-10-30, demo data plus the content below |
 
 **Nothing here is secret.** The vault (`datadir/vault.json`), the installation's Ed25519 signing
 key and HMAC audit key wrapped in it, and the encrypted platform credentials in the database are
