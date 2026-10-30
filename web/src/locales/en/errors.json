@@ -676,7 +676,7 @@
     "KAFKA_READ": "Kafka could not be read: {{detail}}",
     "KAFKA_TOPIC_NAME": "A Kafka topic name has letters, digits, \".\", \"_\" and \"-\" (at most 249).",
     "MQTT_PLATFORM": "That is not an MQTT platform.",
-    "MQTT_URL": "The MQTT platform needs the variable url (mqtt://, mqtts://, ws:// or wss://host:port)."
+    "MQTT_URL": "The MQTT platform needs the variable url (scheme mqtts, wss, mqtt or ws, with host and port)."
   },
   "boundary": {
     "title": "Something went wrong on this page",

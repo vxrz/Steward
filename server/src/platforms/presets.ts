@@ -279,7 +279,7 @@ export const PRESETS: PlatformPreset[] = [
     kind: 'mqtt',
     label: 'MQTT broker (monitor checks)',
     description:
-      'An MQTT broker (Mosquitto, EMQX, HiveMQ, AWS IoT, Azure Event Grid …) for monitor checks of type "MQTT topics": messages on a topic within N minutes, devices that went silent, connected clients. Steward keeps one listening connection per broker a check uses and stores only when each topic last had a message and how many – never the content. Variable url: mqtt://, mqtts://, ws:// or wss://host:port. Credentials username/password, or certificate/privateKey (PEM) for a client certificate; a private CA under the HTTP settings. See docs/MQTT.md.',
+      'An MQTT broker (Mosquitto, EMQX, HiveMQ, AWS IoT, Azure Event Grid …) for monitor checks of type "MQTT topics": messages on a topic within N minutes, devices that went silent, connected clients. Steward keeps one listening connection per broker a check uses and stores only when each topic last had a message and how many – never the content. Variable url: the broker with the scheme mqtts or wss (TLS; mqtt and ws without), host and port. Credentials username/password, or certificate/privateKey (PEM) for a client certificate; a private CA under the HTTP settings. See docs/MQTT.md.',
     baseUrl: '',
     config: { auth: { type: 'none' }, variables: { url: 'mqtts://broker.example.com:8883' }, http: {} },
     secretFields: [

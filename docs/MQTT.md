@@ -2,7 +2,7 @@
 
 Steward watches MQTT brokers for monitor checks: do messages still arrive on a topic, which devices went silent, how many clients are connected. It never reads or stores message content.
 
-Works with Mosquitto, EMQX, HiveMQ, VerneMQ, AWS IoT Core, Azure Event Grid and other MQTT 3.1.1 brokers, over TCP (`mqtt://`), TLS (`mqtts://`) or WebSocket (`ws://`, `wss://`).
+Works with Mosquitto, EMQX, HiveMQ, VerneMQ, AWS IoT Core, Azure Event Grid and other MQTT 3.1.1 brokers, over TCP (scheme `mqtt`), TLS (`mqtts`) or WebSocket (`wss` with TLS, `ws` without). Use the TLS forms wherever the broker offers them.
 
 ## Connect a broker
 
@@ -10,7 +10,7 @@ _Platforms → New → MQTT broker (monitor checks)_:
 
 | Setting                                      | Value                                                               |
 | -------------------------------------------- | ------------------------------------------------------------------- |
-| Variable **url**                             | `mqtts://broker.example.com:8883` (or `mqtt://`, `ws://`, `wss://`) |
+| Variable **url**                             | `mqtts://broker.example.com:8883` (schemes `mqtts`, `wss`, or without TLS `mqtt`, `ws`) |
 | Credentials **username** / **password**      | a broker user that may subscribe to the topics (read-only ACL)      |
 | Credentials **certificate** / **privateKey** | a client certificate (PEM), instead of or with a password           |
 | HTTP settings                                | a private CA (`caPem`)                                              |

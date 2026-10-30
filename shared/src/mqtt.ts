@@ -1,6 +1,6 @@
 /**
  * MQTT (#113): monitor checks on brokers (Mosquitto, EMQX, HiveMQ, …). A platform of kind mqtt names the broker in the
- * variable `url` (mqtt://, mqtts://, ws:// or wss://); credentials username/password or a client certificate.
+ * variable `url` (scheme mqtts or wss; mqtt or ws without TLS); credentials username/password or a client certificate.
  */
 
 export const MQTT_KIND = 'mqtt';
@@ -16,7 +16,7 @@ export const MQTT_LIMITS = {
   reconnectMs: 10_000,
 } as const;
 
-/** The broker URL of a platform; null when it is not mqtt://, mqtts://, ws:// or wss:// with a host. */
+/** The broker URL of a platform; null when its scheme is not mqtt, mqtts, ws or wss, or it has no host. */
 export function mqttUrl(v: unknown): URL | null {
   try {
     const u = new URL(String(v ?? '').trim());

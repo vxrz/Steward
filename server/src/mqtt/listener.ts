@@ -43,7 +43,7 @@ let flushTimer: NodeJS.Timeout | null = null;
 /** The broker named by the platform (variable url) may be reached on exactly its port; anything else needs the allow-list. */
 async function assertBrokerAllowed(platform: Platform): Promise<URL> {
   const u = mqttUrl(platform.config.variables?.url);
-  if (!u) throw new HttpError(400, 'The MQTT platform needs the variable url (mqtt://, mqtts://, ws:// or wss://host:port)', 'MQTT_URL');
+  if (!u) throw new HttpError(400, 'The MQTT platform needs the variable url (scheme mqtts, wss, mqtt or ws, with host and port)', 'MQTT_URL');
   const host = u.hostname.replace(/^\[|\]$/g, '');
   const port = Number(u.port || (u.protocol === 'mqtts:' ? 8883 : u.protocol === 'wss:' ? 443 : u.protocol === 'ws:' ? 80 : 1883));
   if ((getSettings().outboundPolicy ?? 'platforms') === 'platforms') await assertAddressSafe(`http://${net.isIP(host) === 6 ? `[${host}]` : host}:${port}`);
