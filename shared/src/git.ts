@@ -94,8 +94,21 @@ export type StackHint =
 
 /** The first version in a range or tag: "^18.2.0" → "18.2.0", ">=20" → "20", "22.x" → "22", "v1.23" → "1.23"; '' for "*", "latest", "lts/*". */
 export function rangeVersion(s: string): string {
-  const m = /(\d+(?:\.\d+){0,2})/.exec(String(s ?? ''));
-  return m ? m[1]! : '';
+  // a scan, not a regular expression: linear on any input (CodeQL)
+  const t = String(s ?? '').slice(0, 200);
+  const isDigit = (c: string | undefined) => c !== undefined && c >= '0' && c <= '9';
+  let i = 0;
+  while (i < t.length && !isDigit(t[i])) i++;
+  if (i >= t.length) return '';
+  let out = '';
+  for (let part = 0; part < 3; part++) {
+    let j = i;
+    while (isDigit(t[j])) j++;
+    out += (part ? '.' : '') + t.slice(i, j);
+    if (t[j] !== '.' || !isDigit(t[j + 1])) break;
+    i = j + 1;
+  }
+  return out;
 }
 
 /** Runtime names of .tool-versions (asdf, mise) and their products. */

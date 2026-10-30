@@ -37,6 +37,9 @@ describe('tech stack from repository files', () => {
     expect(rangeVersion('>=20')).toBe('20');
     expect(rangeVersion('22.x')).toBe('22');
     expect(rangeVersion('lts/*')).toBe('');
+    // a scan in linear time, also on long runs of digits (CodeQL: no polynomial regular expression)
+    expect(rangeVersion(`v${'0'.repeat(100_000)}.1`)).toBe('0'.repeat(200 - 1));
+    expect(rangeVersion('1.2.3.4-beta')).toBe('1.2.3');
     expect(
       dockerfileImages(
         'ARG NODE=22\nARG BASE\nFROM --platform=$BUILDPLATFORM node:${NODE}-alpine AS build\nFROM build AS test\nFROM ${BASE:-debian:12-slim}\nFROM scratch\nFROM \\\n  nginx:1.27\n# FROM python:2\n',
