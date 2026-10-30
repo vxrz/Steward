@@ -690,6 +690,21 @@ async function checkGit(c: CheckOf<'git'>, ctx: ExecContext): Promise<RawResult>
   };
 }
 
+// ---------- Snowflake ----------
+
+/** A Snowflake table's freshness, failing tasks or a warehouse's credits (#115). */
+async function checkSnowflake(c: CheckOf<'snowflake'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (platform.kind !== 'snowflake') return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a Snowflake platform` };
+  const { snowflakeCheck } = await import('../snowflake/service.js');
+  try {
+    return { ...(await snowflakeCheck(platform, secrets, c)), durationMs: Date.now() - t0 };
+  } catch (e) {
+    return { status: 'unknown', message: `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+}
+
 // ---------- Kafka ----------
 
 /** Offsets seen per topic or group (for brokers without the newest-message time, and for stuck groups): value and since when. */
@@ -838,7 +853,8 @@ type Active =
   | CheckOf<'kubernetes'>
   | CheckOf<'git'>
   | CheckOf<'kafka'>
-  | CheckOf<'mqtt'>;
+  | CheckOf<'mqtt'>
+  | CheckOf<'snowflake'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -864,6 +880,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkKubernetes(c, ctx);
       case 'git':
         return await checkGit(c, ctx);
+      case 'snowflake':
+        return await checkSnowflake(c, ctx);
       case 'kafka':
         return await checkKafka(c, ctx);
       case 'mqtt':

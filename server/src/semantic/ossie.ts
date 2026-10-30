@@ -280,7 +280,7 @@ const DATASETS: DatasetDef[] = [
       f('environment', 'String', 'Environment label, e.g. prod, test'),
       f('description', 'String', 'Description'),
       f('baseUrl', 'String', 'Base URL without user info, query or fragment'),
-      f('authType', 'String', 'Kind of authentication (none, basic, bearer, apiKey, oauth2_client_credentials, token_request)'),
+      f('authType', 'String', 'Kind of authentication (none, basic, bearer, apiKey, oauth2_client_credentials, token_request, jwt, aws_sigv4)'),
       ts('createdAt', 'Creation time', true),
       ts('updatedAt', 'Last change'),
     ],

@@ -23,6 +23,7 @@ export const NOTIFICATION_EVENTS = [
   'maintenance.announced',
   'measure.due',
   'security.emergency',
+  'backup.failed',
 ] as const;
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[number];
 
@@ -49,6 +50,7 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, string> = {
   'maintenance.announced': 'Maintenance of something you are responsible for or own was planned, starts soon, started or ended',
   'measure.due': 'A measure from an incident review that you own is due soon or overdue',
   'security.emergency': 'Someone signed in with emergency access from the server command line (administrators)',
+  'backup.failed': 'A backup or the weekly restore test of the backups failed (administrators)',
 };
 
 export interface AppNotification {

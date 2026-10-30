@@ -13,6 +13,7 @@ import {
   IconNetwork,
   IconPlugConnected,
   IconWorldWww,
+  IconSnowflake,
 } from '@tabler/icons-react';
 import type { CheckDef, CheckType } from '@sm/shared';
 import i18n from '../../i18n';
@@ -31,6 +32,7 @@ export const CHECK_ICONS: Record<CheckType, typeof IconApi> = {
   git: IconGitBranch,
   kafka: IconTopologyStar3,
   mqtt: IconAntenna,
+  snowflake: IconSnowflake,
   monitor: IconHierarchy2,
 };
 
@@ -49,6 +51,7 @@ const DEFAULT_NAMES: Record<CheckType, string> = {
   git: 'Repository pipeline',
   kafka: 'Kafka topic',
   mqtt: 'MQTT topics',
+  snowflake: 'Snowflake table fresh',
   monitor: 'Sub-monitor',
 };
 
@@ -94,6 +97,8 @@ export function newCheck(type: CheckType, id: string): CheckDef {
       return { ...base, name, type, platform: '', topic: '', messagesWithinMinutes: 15, quietAs: 'down', stuckMinutes: 15 } as CheckDef;
     case 'mqtt':
       return { ...base, name, type, platform: '', topic: '', mode: 'any', withinMinutes: 15, quietAs: 'down' } as CheckDef;
+    case 'snowflake':
+      return { ...base, name, type, platform: '', mode: 'freshness', object: '', maxAgeMinutes: 1440, failAs: 'down' } as CheckDef;
     case 'monitor':
       return { ...base, name, type, monitor: '' } as CheckDef;
   }

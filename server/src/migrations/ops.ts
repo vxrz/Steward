@@ -173,4 +173,24 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
       PRIMARY KEY (platform_id, topic)
     );`,
   },
+  {
+    // backups to S3 (#117): every backup and restore test, with its steps
+    name: 'ops-011-backup-runs',
+    sql: `CREATE TABLE backup_runs (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      trigger_kind TEXT NOT NULL,
+      triggered_by TEXT,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      object_key TEXT,
+      bytes INTEGER,
+      sha256 TEXT,
+      message TEXT,
+      steps TEXT NOT NULL DEFAULT '[]',
+      deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX backup_runs_started ON backup_runs(kind, started_at);`,
+  },
 ];

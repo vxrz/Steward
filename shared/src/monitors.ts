@@ -52,6 +52,7 @@ export const CHECK_TYPES = [
   'git',
   'kafka',
   'mqtt',
+  'snowflake',
   'monitor',
 ] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -71,6 +72,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
   kafka: { label: 'Kafka topic', help: 'New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version' },
   mqtt: { label: 'MQTT topics', help: 'Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients' },
+  snowflake: {
+    label: 'Snowflake',
+    help: 'A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits',
+  },
   git: {
     label: 'Repository pipeline',
     help: 'The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts',
@@ -272,6 +277,23 @@ export const checkSchema = z.discriminatedUnion('type', [
     /** degraded when more open security alerts of this severity or higher (GitHub Dependabot); unset: alerts are not checked */
     maxCritical: z.number().int().min(0).max(100000).optional(),
     maxHigh: z.number().int().min(0).max(100000).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('snowflake'),
+    platform: platformRef,
+    /**
+     * freshness: the table DATABASE.SCHEMA.TABLE changed within maxAgeMinutes (INFORMATION_SCHEMA, current);
+     * tasks: no task of DATABASE (or DATABASE.SCHEMA) failed within withinHours (ACCOUNT_USAGE, up to 45 minutes behind);
+     * credits: the warehouse used at most maxCredits within withinHours (ACCOUNT_USAGE, up to 3 hours behind) (#115)
+     */
+    mode: z.enum(['freshness', 'tasks', 'credits']),
+    object: z.string().trim().min(1).max(800),
+    maxAgeMinutes: z.number().int().min(1).max(525600).optional(),
+    withinHours: z.number().int().min(1).max(720).optional(),
+    maxCredits: z.number().min(0).max(10_000_000).optional(),
+    /** Status when the limit is not met (default down) */
+    failAs: z.enum(['down', 'degraded']).default('down'),
   }),
   z.object({
     ...checkBase,

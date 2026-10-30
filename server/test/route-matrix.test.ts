@@ -163,6 +163,12 @@ const EXPECT: Record<string, Access> = {
   'PUT /api/audit/anchoring': ADMIN,
   'GET /api/audit/anchor.json': ADMIN_AUDITOR,
   'POST /api/audit/checkpoint': ADMIN_AUDITOR,
+  'GET /api/backups': ADMIN,
+  'GET /api/backups/stored': ADMIN,
+  'PUT /api/backups/settings': ADMIN,
+  'PUT /api/backups/passphrase': ADMIN,
+  'POST /api/backups/run': ADMIN,
+  'POST /api/backups/restore-test': ADMIN,
   'GET /api/audit/public-key.pem': ADMIN_AUDITOR,
   'GET /api/audit/export': ADMIN_AUDITOR,
 
@@ -467,6 +473,8 @@ const EXPECT: Record<string, Access> = {
   'POST /api/applications/:id/components/:componentId/cluster': DESIGN,
   'POST /api/applications/:id/components/:componentId/repository': DESIGN,
   'POST /api/applications/:id/components/:componentId/topic': DESIGN,
+  'POST /api/applications/:id/components/:componentId/aws': DESIGN,
+  'POST /api/applications/:id/components/:componentId/snowflake': DESIGN,
   'GET /api/systems': ALL,
   'POST /api/systems': DESIGN,
   'GET /api/systems/:id': ALL,
@@ -744,10 +752,14 @@ const STEP_UP: Record<string, 'always' | { sensitive: unknown; harmless: unknown
   'POST /api/migration/export': 'always',
   'POST /api/migration/imports/staged/:id/apply': 'always',
   'PUT /api/catalogue/cia-scale': 'always',
+  'PUT /api/backups/settings': 'always',
+  'PUT /api/backups/passphrase': 'always',
 };
 
 /** GET routes whose fixtures cannot give a 2xx (nothing to find); refusals are still checked. */
 const NO_POSITIVE = new Set([
+  // no S3 storage set up in the fixtures
+  'GET /api/backups/stored',
   'GET /api/artifacts/:id', // the demo runs write no artifacts
   'GET /api/tasks/:id', // no open approval
   'GET /api/tasks/:id/evidence/:evidenceId/download', // no manual step

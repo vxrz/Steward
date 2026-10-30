@@ -366,6 +366,39 @@
       "peekEmpty": "The topic has no messages",
       "peekLine": "Partition {{partition}}, offset {{offset}}, {{date}}, key {{key}}",
       "truncated": "cut off"
+    },
+    "aws": {
+      "platform": "AWS account",
+      "platformHint": "The name of the component is the value of the application tag (e.g. shop for application=shop): Steward lists the resources with it, their costs and the IAM users that carry it.",
+      "noPlatforms": "No AWS platform yet – create one under Platforms.",
+      "notRead": "Not read yet.",
+      "readNow": "Read the AWS account of {{name}} now",
+      "done": "AWS account read for {{name}}.",
+      "account": "account {{account}}, tag {{tag}}",
+      "resources_one": "{{count}} resource ({{services}})",
+      "resources_other": "{{count}} resources ({{services}})",
+      "noResources": "no resources with the tag",
+      "costs": "costs this month so far {{current}} · last month {{last}}",
+      "costsError": "Costs: {{error}}",
+      "key": "IAM {{user}}: key {{id}}, {{status}}, {{age}} days old, {{used}}",
+      "active": "active",
+      "inactive": "inactive",
+      "used": "last used {{date}} ({{service}})",
+      "neverUsed": "never used",
+      "registerKey": "Add the access key {{id}} to the credentials register",
+      "keyDescription": "Access key of the IAM user {{user}} in the AWS account {{account}}"
+    },
+    "snowflake": {
+      "platform": "Snowflake account",
+      "platformHint": "The name of the component is the database (e.g. SHOP): Steward reads its tables, failing tasks and the credits of the warehouses used.",
+      "noPlatforms": "No Snowflake platform yet – create one under Platforms.",
+      "notRead": "Not read yet.",
+      "readNow": "Read the Snowflake database {{name}} now",
+      "done": "Snowflake database {{name}} read.",
+      "summary": "account {{account}}, {{count}} tables and views, {{size}}",
+      "failedTasks": "Failed tasks (last 24 h): {{tasks}} – {{error}}",
+      "stale": "Unchanged for more than a day: {{tables}}",
+      "credits": "Credits of the warehouses used, 30 days (7 days): {{warehouses}}"
     }
   },
   "credentials": {

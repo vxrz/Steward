@@ -2,6 +2,8 @@ import { Cron } from 'croner';
 import { z } from 'zod';
 import {
   ACCESS_CHECK_SOURCES,
+  SNOWFLAKE_KIND,
+  SNOWFLAKE_SCOPE_RE,
   isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
@@ -167,7 +169,7 @@ function toCheck(r: CheckRow, u: AuthUser | null): AccessCheck {
     platformKind: p.exists ? p.kind : null,
     source: r.source,
     datasetKey: r.source === 'dataset' ? r.dataset_key : null,
-    scope: r.source === 'git' ? r.dataset_key : null,
+    scope: r.source === 'git' || r.source === 'snowflake' ? r.dataset_key : null,
     cron: r.cron,
     timezone: r.timezone,
     enabled: !!r.enabled,
@@ -205,11 +207,14 @@ export const checkInput = z
       .string()
       .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.access-snapshot)')
       .nullish(),
-    /** Source "git": organisation / group, or owner/repo (kept where the dataset key is kept) */
+    /** Source "git": organisation / group, or owner/repo; "snowflake": empty or DATABASE[.SCHEMA[.TABLE]] (kept where the dataset key is kept) */
     scope: z
       .string()
       .trim()
-      .regex(/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){0,10}$/, 'Scope: an organisation or group (acme) or a repository (acme/shop-web)')
+      .regex(
+        /^([A-Za-z0-9_.$-]+(\/[A-Za-z0-9_.-]+){0,10})?$/,
+        'Scope: an organisation or group (acme) or a repository (acme/shop-web); Snowflake: DATABASE, DATABASE.SCHEMA or DATABASE.SCHEMA.TABLE',
+      )
       .nullish(),
     cron: z.string().trim().min(1).max(100).default('0 6 * * *'),
     timezone: z.string().trim().min(1).max(64).default('UTC'),
@@ -221,12 +226,18 @@ export const checkInput = z
   .superRefine((c, ctx) => {
     if (c.source === 'dataset' && !c.datasetKey) ctx.addIssue({ code: 'custom', path: ['datasetKey'], message: 'A dataset check needs the dataset key' });
     if (c.source === 'git' && !c.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'A Git check needs the organisation, group or repository' });
+    if (c.source === 'snowflake' && c.scope && !SNOWFLAKE_SCOPE_RE.test(c.scope))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['scope'],
+        message: 'A Snowflake scope is empty (roles of users), DATABASE, DATABASE.SCHEMA or DATABASE.SCHEMA.TABLE',
+      });
   });
 export type CheckInput = z.infer<typeof checkInput>;
 
-/** What the dataset_key column keeps: the dataset key, or the scope of a Git check. */
+/** What the dataset_key column keeps: the dataset key, or the scope of a Git or Snowflake check. */
 const keyOf = (input: CheckInput): string | null =>
-  input.source === 'dataset' ? (input.datasetKey ?? null) : input.source === 'git' ? (input.scope ?? null) : null;
+  input.source === 'dataset' ? (input.datasetKey ?? null) : input.source === 'git' || input.source === 'snowflake' ? input.scope || null : null;
 
 /** A check may run at most every 15 minutes (five cron fields, time zone known). */
 function checkCron(cron: string, tz: string): void {
@@ -284,6 +295,8 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
     throw new HttpError(400, 'The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE');
   if (input.source === 'git' && !isGitPlatformKind(p.kind))
     throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
+  if (input.source === 'snowflake' && p.kind !== SNOWFLAKE_KIND)
+    throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -337,7 +350,7 @@ export function createCheck(input: CheckInput): AccessCheck {
         platformId: input.platformId,
         source: input.source,
         datasetKey: input.datasetKey ?? null,
-        ...(input.source === 'git' ? { scope: input.scope ?? null } : {}),
+        ...(input.source === 'git' || input.source === 'snowflake' ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         notify: input.notify,
@@ -392,7 +405,7 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
       details: {
         source: input.source,
         datasetKey: input.datasetKey ?? null,
-        ...(input.source === 'git' ? { scope: input.scope ?? null } : {}),
+        ...(input.source === 'git' || input.source === 'snowflake' ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         enabled: input.enabled,
@@ -556,6 +569,36 @@ async function collectGit(c: CheckRow): Promise<{ subjects: AccessSubject[]; sou
   };
 }
 
+/** Snowflake (#115): roles of users, or who reaches a database, schema or table – read as the check's owner. */
+async function collectSnowflake(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (platform.kind !== SNOWFLAKE_KIND) throw new HttpError(400, 'The Snowflake source needs a Snowflake platform', 'ACCESS_CHECK_SNOWFLAKE_SOURCE');
+  await assertOutboundAllowed(await buildUrl(platform, getSecrets(c.platform_id), '/', {}), outboundContext());
+  const { snowflakeAccess } = await import('../snowflake/service.js');
+  let subjects: AccessSubject[];
+  try {
+    subjects = await snowflakeAccess(platform, getSecrets(c.platform_id), String(c.dataset_key ?? ''));
+  } catch (e) {
+    if (e instanceof HttpError && e.statusCode < 500) throw e;
+    throw new HttpError(502, `Snowflake could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_SNOWFLAKE_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip) }))),
+    sourceRunId: null,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
@@ -663,7 +706,14 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
   try {
     let collected: { subjects: AccessSubject[]; sourceRunId: string | null };
     try {
-      collected = c.source === 'insights-hub' ? await collectInsightsHub(c) : c.source === 'git' ? await collectGit(c) : collectDataset(c);
+      collected =
+        c.source === 'insights-hub'
+          ? await collectInsightsHub(c)
+          : c.source === 'git'
+            ? await collectGit(c)
+            : c.source === 'snowflake'
+              ? await collectSnowflake(c)
+              : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {

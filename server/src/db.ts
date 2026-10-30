@@ -613,6 +613,15 @@ export class Db {
     return this.driver.run(sql, params);
   }
   /** Statements without parameters (DDL, several statements separated by `;`). */
+  /**
+   * SQLite: a consistent copy of the whole database into `file` (VACUUM INTO, online). The file must be missing or
+   * empty – create it first with the permissions it should have (backups, #117).
+   */
+  snapshotTo(file: string): void {
+    if (this.dialect !== 'sqlite') throw new Error('snapshotTo is for SQLite (PostgreSQL: pg_dump)');
+    this.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+  }
+
   exec(sql: string): void {
     this.driver.exec(sql);
   }

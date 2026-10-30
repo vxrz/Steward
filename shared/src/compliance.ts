@@ -108,7 +108,7 @@ export interface AccessChange {
 export const ACCESS_SNAPSHOT_COLUMNS = { subjectId: 'subjectId', subjectName: 'subjectName', subjectType: 'subjectType', right: 'right', rights: 'rights' };
 
 /** insights-hub: its identity management; dataset: a snapshot a process publishes; git: members of an organisation, group or repository on a Git platform (#107) */
-export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git'] as const;
+export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git', 'snowflake'] as const;
 export type AccessCheckSource = (typeof ACCESS_CHECK_SOURCES)[number];
 
 export interface AccessSubject {

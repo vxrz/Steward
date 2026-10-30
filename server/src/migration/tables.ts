@@ -26,6 +26,8 @@ export const NOT_MOVED: Record<string, string> = {
   eol_releases: 'a cache of endoflife.date (filled again on the target)',
   eol_products: 'a cache of endoflife.date (filled again on the target)',
   prom_objective_readings: 'a cache of Prometheus figures for objectives (read again on the target)',
+  backup_runs: 'instance-specific (the backups of the source; set up backups on the target)',
+  aws_account_cache: 'a cache of what Steward read from AWS accounts (read again on the target)',
   mqtt_topics: 'when an MQTT topic last had a message and how many (read again from the broker)',
   eol_notices: 'send bookkeeping of the source (a component past its end of life is reported again on the target)',
   notify_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',

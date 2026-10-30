@@ -64,7 +64,11 @@ COPY --from=app /app /app
 # The app does not need npm, npx, yarn or corepack at runtime: removing them shrinks the attack surface
 # (and the vulnerability reports – their bundled dependencies are not Steward's).
 # (the CLI of the installed playwright package, so the browser matches its version)
-RUN if [ "$WITH_BROWSER" = "1" ]; then node node_modules/playwright/cli.js install --with-deps chromium && rm -rf /var/lib/apt/lists/*; fi \
+# postgresql-client: pg_dump and pg_restore for backups of a PostgreSQL database (docs/BACKUPS.md) – the version
+# of the pinned base image's Debian release (17 on trixie), kept current with the base image instead of a pin here
+# hadolint ignore=DL3008
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/* \
+ && if [ "$WITH_BROWSER" = "1" ]; then node node_modules/playwright/cli.js install --with-deps chromium && rm -rf /var/lib/apt/lists/*; fi \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
  && mkdir -p /data && chown 1000:1000 /data

@@ -76,6 +76,7 @@ const ScorecardPage = page(() => import('./pages/Scorecard'), 'ScorecardPage');
 const CiaScalePage = page(() => import('./pages/CiaScale'), 'CiaScalePage');
 const GitSyncPage = page(() => import('./pages/GitSync'), 'GitSyncPage');
 const MigrationPage = page(() => import('./pages/Migration'), 'MigrationPage');
+const BackupsPage = page(() => import('./pages/Backups'), 'BackupsPage');
 const GitUpdatesPage = page(() => import('./pages/GitUpdates'), 'GitUpdatesPage');
 const GitUpdateDetailPage = page(() => import('./pages/GitUpdates'), 'GitUpdateDetailPage');
 const TicketsPage = page(() => import('./pages/Tickets'), 'TicketsPage');
@@ -258,6 +259,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/settings" element={<SettingsPage browserAvailable={status.browserAvailable} />} />
                 <Route path="/settings/git-sync" element={<GitSyncPage />} />
                 <Route path="/settings/migration" element={<MigrationPage />} />
+                <Route path="/settings/backups" element={<BackupsPage />} />
                 <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/about" element={<AboutPage />} />
                 {caps.viewAudit && <Route path="/settings/status" element={<SystemStatusPage />} />}

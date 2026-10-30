@@ -230,7 +230,27 @@
     "mqttModeEach": "A message on every topic seen (silent devices)",
     "mqttWithin": "Within (minutes)",
     "mqttMinClients": "At least connected clients",
-    "mqttMinClientsHint": "Brokers that publish $SYS/broker/clients/connected"
+    "mqttMinClientsHint": "Brokers that publish $SYS/broker/clients/connected",
+    "snowflakeMode": "What to check",
+    "snowflakeModes": {
+      "freshness": "A table changed recently",
+      "tasks": "No task failed",
+      "credits": "Warehouse credits"
+    },
+    "snowflakeObject": {
+      "freshness": "Table",
+      "tasks": "Database or schema",
+      "credits": "Warehouse"
+    },
+    "snowflakeObjectHint": {
+      "freshness": "DATABASE.SCHEMA.TABLE – read from INFORMATION_SCHEMA (current)",
+      "tasks": "DATABASE or DATABASE.SCHEMA – from ACCOUNT_USAGE, up to 45 minutes behind",
+      "credits": "The warehouse name – from ACCOUNT_USAGE, up to 3 hours behind"
+    },
+    "snowflakeMaxAge": "Changed within (minutes)",
+    "snowflakeWithinHours": "Within the last (hours)",
+    "snowflakeMaxCredits": "At most (credits)",
+    "snowflakeFailAs": "When the limit is not met"
   },
   "detail": {
     "template": "template",
@@ -551,6 +571,10 @@
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
+    },
+    "snowflake": {
+      "label": "Snowflake",
+      "help": "A Snowflake table changed recently enough, no task of a database failed, or a warehouse stayed within its credits"
     }
   },
   "newCheck": {
@@ -567,7 +591,8 @@
     "git": "Repository pipeline",
     "kafka": "Kafka topic",
     "mqtt": "MQTT topics",
-    "monitor": "Sub-monitor"
+    "monitor": "Sub-monitor",
+    "snowflake": "Snowflake table fresh"
   },
   "uptime": {
     "all": "24 h {{h24}} · 7 d {{d7}} · 30 d {{d30}}"

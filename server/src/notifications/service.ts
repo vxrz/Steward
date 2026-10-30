@@ -659,6 +659,8 @@ export function startNotificationJobs(): void {
     import('../catalogue/repositories.js').then((m) => m.runRepositoryJob()).catch((err) => logger.warn({ err }, 'repository job failed'));
     // Kafka topics of applications: settings, offsets, consumer lag, schema version (#112, every 6 hours)
     import('../kafka/service.js').then((m) => m.runKafkaJob()).catch((err) => logger.warn({ err }, 'Kafka job failed'));
+    import('../aws/service.js').then((m) => m.runAwsJob()).catch((err) => logger.warn({ err }, 'AWS job failed'));
+    import('../snowflake/service.js').then((m) => m.runSnowflakeJob()).catch((err) => logger.warn({ err }, 'Snowflake job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));

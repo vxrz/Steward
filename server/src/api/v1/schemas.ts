@@ -398,7 +398,7 @@ export const Platform = z
     description: z.string(),
     environment: z.string(),
     baseUrl: z.string().describe('Base URL without user info and query string'),
-    authType: z.string().describe('Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request)'),
+    authType: z.string().describe('Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request, jwt, aws_sigv4)'),
     permissions: z.array(z.enum(PLATFORM_PERMISSIONS)).describe('What the token owner may do with this platform'),
     createdAt: ts(),
     updatedAt: ts(),

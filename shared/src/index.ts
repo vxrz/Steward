@@ -1,3 +1,6 @@
+export * from './snowflake.js';
+export * from './aws.js';
+export * from './backup.js';
 export * from './maintenance.js';
 export * from './reviews.js';
 export * from './trends.js';

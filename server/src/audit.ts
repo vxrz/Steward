@@ -395,6 +395,8 @@ export interface VerifyOptions {
   anchors?: Anchor[];
   /** Incremental check: start after this already verified entry (e.g. the last checkpoint). */
   from?: { seq: number; hash: string; digest: string };
+  /** Another copy of the database to check (a backup's snapshot, #117) instead of the live one. */
+  source?: { get<T>(sql: string, ...params: unknown[]): T | undefined; all<T>(sql: string, ...params: unknown[]): T[] };
 }
 
 export type VerifyOutcome = AuditVerifyResult & { head?: { seq: number; hash: string; digest: string } };
@@ -409,17 +411,18 @@ function fail(checked: number, firstBadSeq: number | undefined, message: string)
  */
 function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
   const key = vault().auditKey();
-  const stats = db().get<{ n: number; bad: number | null }>('SELECT COUNT(*) AS n, SUM(CASE WHEN seq < 1 THEN 1 ELSE 0 END) AS bad FROM audit_log')!;
+  const d = o.source ?? db();
+  const stats = d.get<{ n: number; bad: number | null }>('SELECT COUNT(*) AS n, SUM(CASE WHEN seq < 1 THEN 1 ELSE 0 END) AS bad FROM audit_log')!;
   const total = Number(stats.n);
   if (Number(stats.bad ?? 0) > 0) {
-    const r = db().get<{ seq: number }>('SELECT seq FROM audit_log WHERE seq < 1 ORDER BY seq LIMIT 1')!;
+    const r = d.get<{ seq: number }>('SELECT seq FROM audit_log WHERE seq < 1 ORDER BY seq LIMIT 1')!;
     return fail(0, Number(r.seq), `Unexpected entry #${r.seq}: sequence numbers start at 1 – ${stats.bad} row(s) were inserted outside the application`);
   }
   let prev = GENESIS;
   let digest = DIGEST_SEED;
   let expectedSeq = 1;
   if (o.from) {
-    const r = db().get<AuditRow>('SELECT * FROM audit_log WHERE seq = ?', o.from.seq);
+    const r = d.get<AuditRow>('SELECT * FROM audit_log WHERE seq = ?', o.from.seq);
     if (!r || r.hash !== o.from.hash) return fail(o.from.seq - 1, o.from.seq, `Entry #${o.from.seq} (last signed checkpoint) was removed or modified`);
     prev = o.from.hash;
     digest = o.from.digest;
@@ -430,7 +433,7 @@ function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
   let ai = 0;
   while (ai < anchors.length && anchors[ai]!.seq < expectedSeq) ai++; // covered by the incremental start
   for (;;) {
-    const rows = db().all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT 5000', expectedSeq);
+    const rows = d.all<AuditRow>('SELECT * FROM audit_log WHERE seq >= ? ORDER BY seq LIMIT 5000', expectedSeq);
     if (!rows.length) break;
     for (const r of rows) {
       if (Number(r.seq) !== expectedSeq) return fail(expectedSeq - 1, expectedSeq, `Entry #${expectedSeq} is missing`);
@@ -462,7 +465,7 @@ function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyOutcome> {
   }
   // (entries written during the walk are part of it, so only "fewer in the chain than in the table" is a finding)
   if (!o.from && last < total) return fail(last, last + 1, `The log holds ${total} rows but only ${last} form the chain – unexpected rows were inserted`);
-  if (lastWritten && last < lastWritten.seq) {
+  if (!o.source && lastWritten && last < lastWritten.seq) {
     return fail(last, last + 1, `Entries after #${last} were removed while the server was running (it wrote entry #${lastWritten.seq})`);
   }
   return {

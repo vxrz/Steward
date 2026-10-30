@@ -2263,7 +2263,7 @@
           },
           "authType": {
             "type": "string",
-            "description": "Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request)"
+            "description": "Authentication method (none, basic, bearer, apiKey, oauth2_client_credentials, token_request, jwt, aws_sigv4)"
           },
           "permissions": {
             "type": "array",
@@ -3706,6 +3706,7 @@
               "git",
               "kafka",
               "mqtt",
+              "snowflake",
               "monitor"
             ]
           },
@@ -4124,6 +4125,7 @@
                     "git",
                     "kafka",
                     "mqtt",
+                    "snowflake",
                     "monitor"
                   ]
                 },

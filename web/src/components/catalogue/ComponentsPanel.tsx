@@ -24,8 +24,13 @@ import { useQuery } from '@tanstack/react-query';
 import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
+  AWS_KIND,
+  AWS_LIMITS,
+  SNOWFLAKE_KIND,
   COMPONENT_TYPES,
   GIT_PLATFORM_KINDS,
+  type AwsAccessKey,
+  type AwsIamUser,
   type ApplicationComponent,
   type RepositoryKey,
   type PeekedMessage,
@@ -39,7 +44,7 @@ import {
 import { del, get, notifyError, post, put } from '../../api';
 import { useFieldErrors } from '../common';
 import { confirmDanger } from '../confirm';
-import { fmtDate } from '../../format';
+import { fmtBytes, fmtDate, fmtNumber } from '../../format';
 import { LifecycleBadge } from './lifecycle';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
 import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
@@ -78,6 +83,22 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
     try {
       onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/repository`, {}));
       notifications.show({ color: 'green', message: t('components.repository.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const readAws = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/aws`, {}));
+      notifications.show({ color: 'green', message: t('components.aws.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const readSnowflake = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/snowflake`, {}));
+      notifications.show({ color: 'green', message: t('components.snowflake.done', { name: c.name }) });
     } catch (e) {
       notifyError(e);
     }
@@ -169,6 +190,8 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
                     {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
                     {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
+                    {c.type === 'snowflake-database' && c.platformId && <SnowflakeLine component={c} />}
+                    {c.type === 'cloud-account' && c.platformId && <AwsLine component={c} onRegister={editable ? setDrafting : undefined} />}
                   </Table.Td>
                   {withEnv && (
                     <Table.Td className="nowrap">
@@ -197,6 +220,14 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                               <IconEye size={16} />
                             </ActionIcon>
                           </>
+                        ) : c.type === 'snowflake-database' && c.platformId ? (
+                          <ActionIcon variant="subtle" aria-label={t('components.snowflake.readNow', { name: c.name })} onClick={() => void readSnowflake(c)}>
+                            <IconRefresh size={16} />
+                          </ActionIcon>
+                        ) : c.type === 'cloud-account' && c.platformId ? (
+                          <ActionIcon variant="subtle" aria-label={t('components.aws.readNow', { name: c.name })} onClick={() => void readAws(c)}>
+                            <IconRefresh size={16} />
+                          </ActionIcon>
                         ) : c.type === 'repository' && c.platformId ? (
                           <ActionIcon variant="subtle" aria-label={t('components.repository.readNow', { name: c.name })} onClick={() => void readRepository(c)}>
                             <IconRefresh size={16} />
@@ -375,6 +406,150 @@ function RepositoryLine({ component: c, onRegister }: { component: ApplicationCo
           {t('components.cluster.unmapped', { images: r.unmapped.join(', ') })}
         </Text>
       )}
+    </Stack>
+  );
+}
+
+const DAY = 86_400_000;
+
+/** What Steward last read for a Snowflake database (#115): tables and their last change, failing tasks, warehouse credits. */
+function SnowflakeLine({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  const r = c.snowflake;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.snowflake.notRead')}
+      </Text>
+    );
+  const stale = r.tables.filter((x) => x.type !== 'VIEW' && x.lastAltered && Date.now() - Date.parse(x.lastAltered) > DAY).slice(0, 5);
+  return (
+    <Stack gap={0} data-testid="snowflake-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} ·{' '}
+        {t('components.snowflake.summary', { account: r.account ?? '–', count: r.tableCount, size: fmtBytes(r.bytes) })}
+      </Text>
+      {r.failedTasks.length > 0 && (
+        <Text size="xs" c="red.8">
+          {t('components.snowflake.failedTasks', {
+            tasks: [...new Set(r.failedTasks.map((x) => `${x.schema}.${x.name}`))].join(', '),
+            error: r.failedTasks[0]!.error,
+          })}
+        </Text>
+      )}
+      {stale.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.snowflake.stale', { tables: stale.map((x) => `${x.schema}.${x.name} ${fmtDate(x.lastAltered)}`).join(', ') })}
+        </Text>
+      )}
+      {r.warehouses.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.snowflake.credits', {
+            warehouses: r.warehouses.map((w) => `${w.warehouse} ${fmtNumber(w.credits)} (${fmtNumber(w.credits7d)})`).join(', '),
+          })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+/** What Steward last read from an AWS account for the application tag (#116): resources, costs, IAM users and their keys. */
+function AwsLine({ component: c, onRegister }: { component: ApplicationComponent; onRegister?: (d: CredentialDraft) => void }) {
+  const { t } = useTranslation('applications');
+  const r = c.aws;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.aws.notRead')}
+      </Text>
+    );
+  const months = r.costs.months;
+  const last = months.length > 1 ? months[months.length - 2] : null;
+  const current = months.length ? months[months.length - 1] : null;
+  const money = (n: number, cur: string) => fmtNumber(n, { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 });
+  const draftOf = (u: AwsIamUser, k: AwsAccessKey): CredentialDraft => ({
+    name: `${c.name}: ${u.userName} (${k.accessKeyId})`,
+    type: 'apiClient',
+    belongsTo: { kind: 'component', id: c.id },
+    platformId: c.platformId ?? null,
+    description: t('components.aws.keyDescription', { user: u.userName, account: r.account ?? '' }),
+    roles: [{ role: 'iam-user', scope: u.arn, grantedAt: k.createdAt, note: k.status }],
+    issuedAt: k.createdAt,
+    expiresAt: null,
+  });
+  return (
+    <Stack gap={0} data-testid="aws-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} ·{' '}
+        {t('components.aws.account', { account: r.account ?? '–', tag: `${r.tagKey}=${r.tagValue}` })} ·{' '}
+        {r.resources.length
+          ? t('components.aws.resources', {
+              count: r.resources.length,
+              services: Object.entries(r.services)
+                .map(([k, v]) => `${k} ${v}`)
+                .join(', '),
+            })
+          : t('components.aws.noResources')}
+      </Text>
+      {current && (
+        <Text size="xs" c="dimmed">
+          {t('components.aws.costs', {
+            current: money(current.amount, current.currency),
+            last: last ? money(last.amount, last.currency) : '–',
+          })}
+        </Text>
+      )}
+      {r.costs.error && (
+        <Text size="xs" c="orange.8">
+          {t('components.aws.costsError', { error: r.costs.error })}
+        </Text>
+      )}
+      {r.users.flatMap((u) =>
+        u.keys.map((k) => {
+          const age = Math.floor((Date.now() - Date.parse(k.createdAt)) / DAY);
+          const old = k.status === 'Active' && age > AWS_LIMITS.keyAgeDays;
+          return (
+            <Group key={k.accessKeyId} gap={4} wrap="nowrap">
+              <Text size="xs" c={old ? 'orange.8' : 'dimmed'}>
+                {t('components.aws.key', {
+                  user: u.userName,
+                  id: k.accessKeyId,
+                  status: k.status === 'Active' ? t('components.aws.active') : t('components.aws.inactive'),
+                  age,
+                  used: k.lastUsedAt ? t('components.aws.used', { date: fmtDate(k.lastUsedAt), service: k.lastService ?? '–' }) : t('components.aws.neverUsed'),
+                })}
+              </Text>
+              {onRegister && (
+                <Tooltip label={t('components.repository.register')}>
+                  <ActionIcon
+                    size="xs"
+                    variant="subtle"
+                    aria-label={t('components.aws.registerKey', { id: k.accessKeyId })}
+                    onClick={() => onRegister(draftOf(u, k))}
+                  >
+                    <IconKey size={12} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
+          );
+        }),
+      )}
+      {r.warnings.map((w) => (
+        <Text key={w} size="xs" c="orange.8">
+          {w}
+        </Text>
+      ))}
     </Stack>
   );
 }
@@ -644,6 +819,16 @@ function ComponentFormModal({
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kafka'),
     enabled: type === 'kafka-topic',
   });
+  const snowflakePlatforms = useQuery({
+    queryKey: ['platforms', 'snowflake'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === SNOWFLAKE_KIND),
+    enabled: type === 'snowflake-database',
+  });
+  const awsPlatforms = useQuery({
+    queryKey: ['platforms', 'aws'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === AWS_KIND),
+    enabled: type === 'cloud-account',
+  });
   const gitPlatforms = useQuery({
     queryKey: ['platforms', 'git'],
     queryFn: async () =>
@@ -665,7 +850,9 @@ function ComponentFormModal({
       url: url.trim(),
       note,
       environment: environment.trim(),
-      ...(type === 'kubernetes-namespace' || type === 'repository' || type === 'kafka-topic' ? { platformId } : {}),
+      ...(type === 'kubernetes-namespace' || type === 'repository' || type === 'kafka-topic' || type === 'cloud-account' || type === 'snowflake-database'
+        ? { platformId }
+        : {}),
       stack: stackBody(stack),
     };
     try {
@@ -734,6 +921,28 @@ function ComponentFormModal({
               onChange={setPlatformId}
               clearable
               nothingFoundMessage={t('components.topic.noPlatforms')}
+            />
+          )}
+          {type === 'snowflake-database' && (
+            <Select
+              label={t('components.snowflake.platform')}
+              description={t('components.snowflake.platformHint')}
+              data={(snowflakePlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.snowflake.noPlatforms')}
+            />
+          )}
+          {type === 'cloud-account' && (
+            <Select
+              label={t('components.aws.platform')}
+              description={t('components.aws.platformHint')}
+              data={(awsPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.aws.noPlatforms')}
             />
           )}
           {type === 'repository' && (

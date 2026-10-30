@@ -83,7 +83,11 @@ export function PlatformDetailPage() {
   const p = platform.data;
   const canManage = p.permissions.includes('manage');
   const canUse = p.permissions.includes('use');
-  const tokenLogin = p.config.auth?.type === 'oauth2_client_credentials' || p.config.auth?.type === 'token_request';
+  const tokenLogin =
+    p.config.auth?.type === 'oauth2_client_credentials' ||
+    p.config.auth?.type === 'token_request' ||
+    p.config.auth?.type === 'jwt' ||
+    (p.config.auth?.type === 'aws_sigv4' && !!p.config.auth.aws?.roleArn);
 
   const saveAccess = async (acl: AclEntry[]) => {
     try {

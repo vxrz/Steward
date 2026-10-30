@@ -37,7 +37,8 @@
   "sources": {
     "insights-hub": "Insights-Hub-Identity-Management",
     "dataset": "Datenquelle (Zugriffs-Snapshot)",
-    "git": "Mitglieder auf der Git-Plattform (GitHub, GitLab, Forgejo)"
+    "git": "Mitglieder auf der Git-Plattform (GitHub, GitLab, Forgejo)",
+    "snowflake": "Snowflake-Rollen und -Berechtigungen"
   },
   "rights": {
     "granted": "Erteilt",
@@ -242,7 +243,9 @@
     "ignoreRightsHelp": "Werden in den Snapshots weggelassen, z. B. eine Markierungsgruppe der Zugriffsprüfungen, die keinen Zugriff gewährt",
     "onlyOpen": "Nur Abgleiche mit offenen Befunden",
     "showAllChecks": "Alle Abgleiche zeigen",
-    "noOpenAnywhere": "Keiner Ihrer Abgleiche hat offene Befunde – jede gefundene Zugriffsänderung ist dokumentiert oder verworfen."
+    "noOpenAnywhere": "Keiner Ihrer Abgleiche hat offene Befunde – jede gefundene Zugriffsänderung ist dokumentiert oder verworfen.",
+    "snowflakeScope": "Datenbank, Schema oder Tabelle (optional)",
+    "snowflakeScopeHelp": "Leer: jeder Benutzer mit den ihm erteilten Rollen. SHOP, SHOP.SALES oder SHOP.SALES.ORDERS: jeder Benutzer, der über seine Rollen (und die diesen erteilten Rollen) Objekte dort erreicht, mit der Berechtigung. Technische Benutzer (Typ SERVICE) sind markiert."
   },
   "packs": {
     "title": "Nachweispakete",

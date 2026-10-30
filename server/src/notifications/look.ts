@@ -278,7 +278,7 @@ export const TONE_HEX: Record<MessageTone, string> = { good: '#2b8a3e', warning:
 /** A message about a dry run: a test that changed nothing, so it must not read as urgent. */
 export const isDryRun = (data?: Record<string, unknown>): boolean => data?.dryRun === true;
 
-const BAD_EVENTS = new Set(['run.failed', 'check.failed', 'duty.missed', 'objective.breached', 'security.emergency', 'access.undocumented']);
+const BAD_EVENTS = new Set(['run.failed', 'check.failed', 'duty.missed', 'objective.breached', 'security.emergency', 'access.undocumented', 'backup.failed']);
 const WARN_EVENTS = new Set([
   'task.assigned',
   'dataset.stale',

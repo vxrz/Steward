@@ -246,6 +246,63 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'aws',
+    label: 'Amazon Web Services (AWS account, read-only)',
+    description:
+      'One AWS account: application components of type "Cloud account" name it, with the value of the application tag as their name (variable tagKey, default application: application=shop). Steward reads the resources with that tag in the regions of the variable regions (Resource Groups Tagging API), the costs per month (Cost Explorer, once a day) and the IAM users with the tag and the age and last use of their access keys (for the credentials register). Sign-in: AWS request signing with an access key or – recommended – a role to assume (role ARN, external ID); the base URL stays the STS endpoint of the region. The read-only policy is in docs/AWS.md.',
+    baseUrl: 'https://sts.eu-central-1.amazonaws.com',
+    config: {
+      auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 'sts' } },
+      variables: { regions: 'eu-central-1', tagKey: 'application' },
+      http: {},
+    },
+    secretFields: [
+      { key: 'accessKeyId', label: 'Access key ID', help: 'Of an IAM user (or the user that assumes the role) with the read-only policy of docs/AWS.md' },
+      { key: 'secretAccessKey', label: 'Secret access key' },
+      { key: 'sessionToken', label: 'Session token (temporary keys only, optional)' },
+    ],
+    docs: [
+      { title: 'Resource Groups Tagging API', url: 'https://docs.aws.amazon.com/resourcegroupstagging/latest/APIReference/API_GetResources.html' },
+      { title: 'Cost Explorer GetCostAndUsage', url: 'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_GetCostAndUsage.html' },
+      { title: 'IAM ListAccessKeys', url: 'https://docs.aws.amazon.com/IAM/latest/APIReference/API_ListAccessKeys.html' },
+    ],
+  },
+  {
+    kind: 'snowflake',
+    label: 'Snowflake (SQL API, read-only)',
+    description:
+      'A Snowflake account through the SQL API with key-pair authentication: application components of type "Snowflake database" name it and the database, and Steward reads its tables (size, last change), failing tasks and the credits of the warehouses used, from SNOWFLAKE.ACCOUNT_USAGE (up to two hours behind). Access reviews read the roles of users or who reaches a database, schema or table; monitors check the freshness of a table, failing tasks and warehouse credits. Variables: account – the account identifier as in the JWT (ORGNAME-ACCOUNTNAME or the account locator), user, role (with IMPORTED PRIVILEGES on the SNOWFLAKE database) and warehouse. Base URL https://<account identifier>.snowflakecomputing.com. See docs/SNOWFLAKE.md.',
+    baseUrl: 'https://myorg-myaccount.snowflakecomputing.com',
+    config: {
+      auth: {
+        type: 'jwt',
+        jwt: {
+          alg: 'RS256',
+          lifetimeSeconds: 3600,
+          claims: {
+            iss: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) & '.' & publicKeyFingerprint }}",
+            sub: "{{ $uppercase(vars.account) & '.' & $uppercase(vars.user) }}",
+          },
+        },
+      },
+      variables: { account: 'MYORG-MYACCOUNT', user: 'STEWARD_READER', role: 'STEWARD_READ', warehouse: 'STEWARD_WH' },
+      http: { defaultHeaders: { 'X-Snowflake-Authorization-Token-Type': 'KEYPAIR_JWT' } },
+    },
+    secretFields: [
+      {
+        key: 'privateKey',
+        label: 'Private key (PEM, PKCS#8)',
+        help: 'openssl genrsa 2048 | openssl pkcs8 -topk8 -nocrypt; give the user the public key with ALTER USER … SET RSA_PUBLIC_KEY',
+      },
+      { key: 'privateKeyPassphrase', label: 'Passphrase of the private key (optional)' },
+    ],
+    docs: [
+      { title: 'Snowflake SQL API', url: 'https://docs.snowflake.com/en/developer-guide/sql-api/index' },
+      { title: 'Key-pair authentication', url: 'https://docs.snowflake.com/en/user-guide/key-pair-auth' },
+      { title: 'ACCOUNT_USAGE views', url: 'https://docs.snowflake.com/en/sql-reference/account-usage' },
+    ],
+  },
+  {
     kind: 'kafka',
     label: 'Kafka cluster (Confluent, read-only)',
     description:
@@ -357,6 +414,10 @@ export const PRESETS: PlatformPreset[] = [
       { key: 'password', label: 'Password' },
       { key: 'clientId', label: 'OAuth client id' },
       { key: 'clientSecret', label: 'OAuth client secret' },
+      { key: 'privateKey', label: 'Private key (PEM, key-pair JWT)' },
+      { key: 'privateKeyPassphrase', label: 'Private key passphrase (optional)' },
+      { key: 'accessKeyId', label: 'AWS access key id' },
+      { key: 'secretAccessKey', label: 'AWS secret access key' },
     ],
     docs: [],
   },
