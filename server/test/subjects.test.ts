@@ -3,7 +3,7 @@ import { setup, startTestServer, type TestServer } from './helpers.js';
 
 /**
  * Owners and other subjects (#143): unknown users and teams are refused (values stored before stay), a renamed team
- * stays the owner everywhere, a deleted team leaves every entry, and administrators see where a user or team is still
+ * stays the owner everywhere, a deleted team leaves owner lists (access lists keep it, so access never widens), and administrators see where a user or team is still
  * named.
  */
 
@@ -42,7 +42,7 @@ describe('subjects', () => {
     expect(saved.owners).toContain('user:left-long-ago');
   });
 
-  it('a renamed team stays the owner everywhere; a deleted team leaves every entry', async () => {
+  it('a renamed team stays the owner everywhere; a deleted team leaves owner lists, but stays in access lists', async () => {
     const team = await s.api('POST', '/teams', { name: 'Data Platform', members: ['dana'] });
     const app = await s.api('POST', '/applications', { name: 'Team owned', owners: ['team:data platform'] });
     const svc = await s.api('POST', '/services', { name: 'Team service', owners: ['team:data platform', 'user:olivia'] });
@@ -71,7 +71,8 @@ describe('subjects', () => {
     await s.api('DELETE', `/teams/${team.id}`);
     expect((await s.api('GET', `/applications/${app.id}`)).owners).toEqual([]);
     expect((await s.api('GET', `/services/${svc.id}`)).owners).toEqual(['user:olivia']);
-    expect(aclOf()).not.toContain('team:');
+    // removing it from the access list would widen the access to everyone; the entry now matches nobody
+    expect(aclOf()).toContain(key);
   });
 
   it('shows where a user is still named', async () => {

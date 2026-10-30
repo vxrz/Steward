@@ -67,6 +67,9 @@ describe('credential roles and links', () => {
         status: 'dueSoon',
         nextDueAt: expect.any(String),
         roles: ['mdsp:core:TenantAdmin'],
+        // linked as "used by" (#125), not belonging to the application or one of its components (#143)
+        relation: 'usedBy',
+        componentName: null,
       },
     ]);
     // the creation's roles are in the history as well

@@ -90,6 +90,9 @@ export function rewriteTeamReferences(from: string, to: string | null): number {
   let changed = 0;
   for (const ref of USER_REFS) {
     if (ref.kind === 'username') continue;
+    // a deleted team stays in access lists: an entry that matches nobody keeps the list restricted, while removing
+    // the last entry would leave the default access (everyone with the role's rights)
+    if (to === null && ref.kind === 'acl') continue;
     let cols: string[];
     try {
       cols = columns(db(), ref.table);
