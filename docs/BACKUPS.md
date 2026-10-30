@@ -117,4 +117,5 @@ Start Steward and unlock the vault with the **master passphrase**. Verify the au
 - The container image has `pg_dump`/`pg_restore` of PostgreSQL 17 (Debian trixie); they back up servers up to version 17. For a newer server, point `SM_PG_DUMP` and `SM_PG_RESTORE` at matching programs. The password of `SM_DATABASE_URL` goes to `pg_dump` in `PGPASSWORD`, never on its command line.
 - During a backup the work folder `<data folder>/.backup-work` (0700) briefly holds the snapshot and the encrypted file; it is emptied after every run and at start.
 - One backup or restore test runs at a time. A backup in progress when Steward stops is marked _Interrupted_ at the next start.
+- Whoever may change the storage platform (its managers) can point backups at another bucket. The copies stay encrypted, but give that platform only administrators as managers.
 - Backups are per installation: a migration package (_Settings → Migration_) does not carry backup settings, the passphrase or the history.
