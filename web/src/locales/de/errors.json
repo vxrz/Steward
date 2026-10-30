@@ -657,7 +657,13 @@
     "TREND_WINDOW": "Verwenden Sie einen Trendzeitraum wie 24h, 7d oder 30d.",
     "OBJECTIVE_PROMQL_WINDOW": "Die PromQL-Abfrage braucht $window für den Zeitraum, z. B. avg_over_time(up{job=\"shop\"}[$window]).",
     "COMPONENT_CLUSTER": "Wählen Sie als Cluster eine Kubernetes-Plattform, die Sie nutzen dürfen.",
-    "COMPONENT_CLUSTER_REQUIRED": "Wählen Sie zuerst den Cluster des Namespace."
+    "COMPONENT_CLUSTER_REQUIRED": "Wählen Sie zuerst den Cluster des Namespace.",
+    "COMPONENT_REPOSITORY_PATH": "Der Pfad des Repositorys ist owner/repository (bei GitLab Gruppe/Projekt).",
+    "COMPONENT_REPOSITORY_PLATFORM": "Wählen Sie eine GitHub-, GitLab- oder Forgejo/Gitea-Plattform, die Sie nutzen dürfen.",
+    "COMPONENT_REPOSITORY_REQUIRED": "Wählen Sie zuerst die Git-Plattform des Repositorys.",
+    "CHECK_GIT_PLATFORM": "Prüfung „{{check}}“: „{{name}}“ ist keine GitHub-, GitLab- oder Forgejo/Gitea-Plattform.",
+    "ACCESS_CHECK_GIT_SOURCE": "Die Quelle Git braucht eine GitHub-, GitLab- oder Forgejo/Gitea-Plattform.",
+    "ACCESS_CHECK_GIT_READ": "Die Git-Plattform konnte nicht gelesen werden: {{detail}}"
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

@@ -6,6 +6,14 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Git platforms** (#107): platform types _GitHub_ (also Enterprise Server), _GitLab_ and _Forgejo / Gitea_ with a read-only token, a connection test and a small API description each. Application components of type _Repository_ name their Git platform and repository path; Steward reads the default branch and its pipeline (workflow runs, GitLab pipelines, commit status), the latest release, open Dependabot alerts, packages and container images, deploy keys and GitLab deploy and access tokens – each can be added to the credentials register after review – and the tech stack from Dockerfile, package.json, go.mod, .nvmrc, .tool-versions, global.json, composer.json and pom.xml (source _read from the repository files_), every 6 hours or on _Read now_. Monitor check type `git` (pipeline of a branch, optional alert limits), access reviews with the source _Git_ (organisation, group or repository members with their role, outside collaborators marked), the example _GitHub – repository health_ with the dashboard _Repositories_, and demo hosts ([docs/GIT-PLATFORMS.md](docs/GIT-PLATFORMS.md)). Migration `catalogue-007-repository-readout` (additive).
+
+### Fixed
+
+- The CheckMk trend example's test depended on the time of day: the demo `/var` series now grows 0.8 % a day, far enough from the 14-day warning.
+
 ## [0.2.6] - 2026-10-30
 
 Steward follows slow signals and reads more of the monitoring around it. Every dataset metric gets a robust **trend line**: KPIs show the change of the trend and when a limit is reached at this rate, checks use `$trend` and `$daysUntil`, and the daily summary lists limits reached soon. **CheckMk** and **Prometheus** become monitor check types – the current state of a host or service, a PromQL query against WARN and CRIT levels with the worst series named – and availability objectives can take their figures from PromQL. **Kubernetes** namespaces of applications are read with a read-only service account: deployments, the images as tech stack entries for the end-of-life checks, pods that are not well and cert-manager certificates, plus a monitor check. Monitors post **Teams cards** to their own channels, and systems get their own end-of-life messages. Three database migrations, all additive: `ops-008-metric-limits`, `ops-009-prom-objective-readings` and `catalogue-006-namespace-cluster`.

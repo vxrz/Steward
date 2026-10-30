@@ -3703,6 +3703,7 @@
               "checkmk",
               "prometheus",
               "kubernetes",
+              "git",
               "monitor"
             ]
           },
@@ -4118,6 +4119,7 @@
                     "checkmk",
                     "prometheus",
                     "kubernetes",
+                    "git",
                     "monitor"
                   ]
                 },
@@ -9691,7 +9693,8 @@
                         "enum": [
                           "manual",
                           "sbom",
-                          "cluster"
+                          "cluster",
+                          "repository"
                         ],
                         "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                       },
@@ -10101,7 +10104,8 @@
                         "enum": [
                           "manual",
                           "sbom",
-                          "cluster"
+                          "cluster",
+                          "repository"
                         ],
                         "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                       },
@@ -10632,7 +10636,8 @@
                   "enum": [
                     "manual",
                     "sbom",
-                    "cluster"
+                    "cluster",
+                    "repository"
                   ],
                   "description": "manual: entered by hand (wins over an SBOM); sbom: read from an SBOM"
                 },

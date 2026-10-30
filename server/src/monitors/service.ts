@@ -24,6 +24,7 @@ import {
   type MonitorStatus,
   type MonitorSummary,
   type TemplateParam,
+  isGitPlatformKind,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -436,6 +437,11 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
     if ('platform' in c && c.platform) {
       const p = resolvePlatformRef(c.platform, c.type === 'freshness' && c.source === 'insightsHub' ? 'insights-hub' : PLATFORM_KIND[c.type]);
+      if (c.type === 'git' && !isGitPlatformKind(p.kind))
+        throw new HttpError(400, `Check "${c.id}": "${p.name}" is not a GitHub, GitLab or Forgejo/Gitea platform`, 'CHECK_GIT_PLATFORM', {
+          check: c.id,
+          name: p.name,
+        });
       c.platform = p.id;
       requirePlatformUse(p.id);
     }

@@ -1,0 +1,142 @@
+name: "GitHub – repository health"
+description: |
+  Reads the repositories you list from GitHub or GitHub Enterprise (read-only
+  token, see docs/GIT-PLATFORMS.md): the default branch, the newest run of each
+  workflow on it, the latest release and the open Dependabot alerts by
+  severity. Checks warn while a pipeline of a default branch fails or a
+  repository has critical or high alerts. Read-only.
+
+  Recommended schedule: every hour (`0 * * * *`), with "message on change" in
+  the schedule's notification policy. Publishes `git.repositories` (one row per
+  repository; metrics repositories, failing, critical, high) for the
+  "Repositories" dashboard. The tech stack of repositories (Dockerfile,
+  package.json …, end of life), their deploy keys and tokens are read by
+  Steward itself for application components of type "Repository"; monitors use
+  the check type "Repository pipeline"; access reviews use the source "Git".
+tags: [git, github, security]
+connections:
+  - slot: github
+    kind: github
+    description: GitHub (API https://api.github.com or https://HOST/api/v3, read-only token)
+inputs:
+  - name: repositories
+    label: Repositories (owner/repo)
+    type: list
+    default: [acme/shop-web, acme/shop-api]
+steps:
+  - id: read
+    type: forEach
+    name: Read each repository (3 in parallel)
+    items: "inputs.repositories"
+    as: repo
+    concurrency: 3
+    maxItems: 100
+    saveAs: read
+    steps:
+      - id: info
+        type: http
+        name: Repository
+        connection: github
+        method: GET
+        path: "/repos/{{ $join([$split(vars.repo, '/').$encodeUrlComponent($)], '/') }}"
+        saveAs: info
+      - id: runs
+        type: http
+        name: Workflow runs of the default branch
+        connection: github
+        method: GET
+        path: "/repos/{{ $join([$split(vars.repo, '/').$encodeUrlComponent($)], '/') }}/actions/runs"
+        query:
+          branch: "{{ vars.info.body.default_branch }}"
+          per_page: "50"
+          exclude_pull_requests: "true"
+        onError: continue
+        saveAs: runs
+      - id: release
+        type: http
+        name: Latest release
+        connection: github
+        method: GET
+        path: "/repos/{{ $join([$split(vars.repo, '/').$encodeUrlComponent($)], '/') }}/releases/latest"
+        onError: continue
+        saveAs: release
+      - id: alerts
+        type: http
+        name: Open Dependabot alerts
+        connection: github
+        method: GET
+        path: "/repos/{{ $join([$split(vars.repo, '/').$encodeUrlComponent($)], '/') }}/dependabot/alerts"
+        query: { state: open, per_page: "100" }
+        onError: continue
+        saveAs: alerts
+      - id: summarize
+        type: set
+        name: Row of the repository
+        values:
+          row: >-
+            {{ (
+              $runs := $exists(vars.runs.error) ? [] : [vars.runs.body.workflow_runs[event != 'pull_request' and conclusion != 'cancelled' and conclusion != 'skipped']];
+              $ids := $distinct($runs.workflow_id);
+              $latest := [$ids.($id := $; $runs[workflow_id = $id][0])];
+              $failed := [$latest[status = 'completed' and conclusion != 'success' and conclusion != 'neutral'].name];
+              $sev := $exists(vars.alerts.error) ? [] : [vars.alerts.body.security_advisory.severity];
+              $critical := $count($sev[$ = 'critical']);
+              $high := $count($sev[$ = 'high']);
+              {
+                "key": vars.repo,
+                "repository": vars.repo,
+                "branch": vars.info.body.default_branch,
+                "pipeline": $count($latest) = 0 ? 'no runs' : ($count($failed) > 0 ? 'failed: ' & $join($failed, ', ') : 'passed'),
+                "release": $exists(vars.release.error) ? '–' : vars.release.body.tag_name,
+                "alerts": $exists(vars.alerts.error) ? 'not readable' : $critical & ' critical, ' & $high & ' high, ' & ($count($sev) - $critical - $high) & ' other',
+                "failed": $count($failed),
+                "critical": $critical,
+                "high": $high,
+                "status": $count($failed) > 0 or $critical > 0 ? 'critical' : ($high > 0 ? 'warning' : 'good')
+              }
+            ) }}
+  - id: evaluate
+    type: set
+    name: Problems
+    values:
+      rows: "{{ [vars.read.results.row] }}"
+      failing: "{{ [vars.rows[failed > 0]] }}"
+      exposed: "{{ [vars.rows[critical + high > 0]] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: git.repositories
+    title: Repositories
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Repository, value: repository }
+      - { label: Branch, value: branch }
+      - { label: Pipeline, value: pipeline }
+      - { label: Latest release, value: release }
+      - { label: Open alerts, value: alerts }
+    status: status
+    statusText: "failed > 0 ? pipeline : (critical + high > 0 ? alerts : '')"
+    metrics:
+      repositories: "$count(vars.rows)"
+      failing: "$count(vars.failing)"
+      critical: "$sum(vars.rows.critical)"
+      high: "$sum(vars.rows.high)"
+  - id: pipelinesPass
+    type: check
+    name: Default branches build
+    severity: warning
+    condition: "$count(vars.failing) = 0"
+    message: "{{ $count(vars.failing) = 0 ? 'The pipelines of all ' & $count(vars.rows) & ' default branches passed' : $join(vars.failing.(repository & ' – ' & pipeline), '; ') }}"
+    headline: "{{ $count(vars.failing) }} default branches fail"
+    value: "$count(vars.failing)"
+    items: "vars.failing.(repository & ': ' & pipeline)"
+  - id: noSevereAlerts
+    type: check
+    name: No critical or high security alerts
+    severity: warning
+    condition: "$count(vars.exposed) = 0"
+    message: "{{ $count(vars.exposed) = 0 ? 'No critical or high Dependabot alerts' : $join(vars.exposed.(repository & ' – ' & alerts), '; ') }}"
+    headline: "{{ $count(vars.exposed) }} repositories with critical or high alerts"
+    value: "$count(vars.exposed)"
+    items: "vars.exposed.(repository & ': ' & alerts)"

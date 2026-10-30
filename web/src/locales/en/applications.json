@@ -313,6 +313,37 @@
       "platform": "Cluster",
       "platformHint": "A platform of kind Kubernetes; Steward reads the namespace every 6 hours",
       "noPlatforms": "No Kubernetes platform you may use"
+    },
+    "repository": {
+      "fromFiles": "Read from the repository files",
+      "readNow": "Read the repository {{name}} now",
+      "done": "Repository {{name}} read",
+      "notRead": "Not read from the Git platform yet",
+      "platform": "Git platform",
+      "platformHint": "GitHub, GitLab or Forgejo/Gitea; the name is then the repository path (owner/repo, GitLab group/project). Steward reads it every 6 hours",
+      "noPlatforms": "No GitHub, GitLab or Forgejo platform you may use",
+      "pipeline": {
+        "success": "pipeline passed",
+        "failed": "pipeline failed",
+        "running": "pipeline running",
+        "none": "no pipeline"
+      },
+      "release": "latest release {{tag}} ({{date}})",
+      "noRelease": "no release",
+      "packages": "packages: {{names}}",
+      "files": "stack from {{files}}",
+      "alerts": "Open security alerts: {{critical}} critical, {{high}} high, {{medium}} medium, {{low}} low",
+      "key": "{{kind}} “{{title}}” ({{access}})",
+      "keyKinds": {
+        "deploy-key": "Deploy key",
+        "deploy-token": "Deploy token",
+        "access-token": "Access token"
+      },
+      "write": "can write",
+      "readOnly": "read-only",
+      "expires": "expires {{date}}",
+      "register": "Add to the credentials register (you review it first)",
+      "registerKey": "Add {{title}} to the credentials register"
     }
   },
   "credentials": {

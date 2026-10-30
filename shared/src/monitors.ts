@@ -38,7 +38,20 @@ export const isProblem = (s: MonitorStatus | undefined): boolean => s === 'down'
 
 // ---------- definitions ----------
 
-export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'prometheus', 'kubernetes', 'monitor'] as const;
+export const CHECK_TYPES = [
+  'ping',
+  'tcp',
+  'http',
+  'platform',
+  'freshness',
+  'heartbeat',
+  'gatus',
+  'checkmk',
+  'prometheus',
+  'kubernetes',
+  'git',
+  'monitor',
+] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
 export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }> = {
@@ -54,6 +67,10 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
   kubernetes: { label: 'Kubernetes deployments', help: 'Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping' },
+  git: {
+    label: 'Repository pipeline',
+    help: 'The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts',
+  },
   prometheus: { label: 'Prometheus query', help: 'A PromQL query compared with WARN and CRIT levels; with several series the worst one counts' },
   monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
 };
@@ -237,6 +254,20 @@ export const checkSchema = z.discriminatedUnion('type', [
     namespace: z.string().trim().min(1).max(253),
     /** One deployment; empty: every deployment of the namespace (#111) */
     deployment: z.string().trim().max(253).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('git'),
+    platform: platformRef,
+    /** owner/repo (GitLab: group/project) on a GitHub, GitLab or Forgejo/Gitea platform (#107) */
+    repository: z.string().trim().min(3).max(300),
+    /** Branch; empty: the repository's default branch */
+    branch: z.string().trim().max(250).optional(),
+    /** Status when the pipeline failed (default down) */
+    failedAs: z.enum(['down', 'degraded']).default('down'),
+    /** degraded when more open security alerts of this severity or higher (GitHub Dependabot); unset: alerts are not checked */
+    maxCritical: z.number().int().min(0).max(100000).optional(),
+    maxHigh: z.number().int().min(0).max(100000).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

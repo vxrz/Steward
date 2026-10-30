@@ -263,4 +263,9 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE application_components ADD COLUMN cluster_state TEXT;
     `,
   },
+  {
+    // #107: a repository component names its Git platform (platform_id) and keeps what Steward last read from it
+    name: 'catalogue-007-repository-readout',
+    sql: `ALTER TABLE application_components ADD COLUMN repo_state TEXT;`,
+  },
 ];

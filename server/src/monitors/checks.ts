@@ -8,10 +8,11 @@ import { platformRequest, type HttpResult } from '../platforms/http.js';
 import { findRecording, missingRecording } from '../platforms/recordings.js';
 import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLookup } from '../platforms/outbound.js';
 import { outboundContext } from '../platforms/policyContext.js';
-import { BRAND } from '@sm/shared';
+import { BRAND, isGitPlatformKind } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
 import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { readNamespace } from '../catalogue/kubernetes.js';
+import { assertRepositoryPath, gitHost } from '../catalogue/repositories.js';
 import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
@@ -642,6 +643,53 @@ async function checkKubernetes(c: CheckOf<'kubernetes'>, ctx: ExecContext): Prom
   };
 }
 
+// ---------- Git platforms ----------
+
+/** The pipeline of a branch (#107): failed → down (or degraded), running → up while the last finished run passed, none → unknown; too many open alerts → degraded. */
+async function checkGit(c: CheckOf<'git'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  if (!isGitPlatformKind(platform.kind))
+    return { status: 'unknown', message: `Check could not run: "${platform.name}" is not a GitHub, GitLab or Forgejo/Gitea platform` };
+  let pipeline;
+  let alerts = null;
+  let branch = c.branch ?? '';
+  try {
+    assertRepositoryPath(c.repository);
+    const host = gitHost(platform, secrets);
+    if (!branch) branch = (await host.repo(c.repository)).defaultBranch ?? 'main';
+    const head = await host.head(c.repository, branch);
+    if (!head) return { status: 'unknown', message: `Git: no branch "${branch}" in ${c.repository}`, durationMs: Date.now() - t0 };
+    pipeline = await host.pipeline(c.repository, branch, head.sha);
+    if (c.maxCritical !== undefined || c.maxHigh !== undefined) alerts = await host.alerts(c.repository, null);
+  } catch (e) {
+    return { status: 'unknown', message: `Git could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const where = `${c.repository}@${branch}`;
+  const failed = pipeline.runs.filter((r) => r.state === 'failed').map((r) => r.name);
+  const tooMany: string[] = [];
+  if (alerts && c.maxCritical !== undefined && alerts.critical > c.maxCritical) tooMany.push(`${alerts.critical} critical alerts (at most ${c.maxCritical})`);
+  if (alerts && c.maxHigh !== undefined && alerts.critical + alerts.high > c.maxHigh)
+    tooMany.push(`${alerts.critical + alerts.high} critical or high alerts (at most ${c.maxHigh})`);
+  const value = { pipeline: pipeline.state, runs: pipeline.runs.length, ...(alerts ? { alerts: { critical: alerts.critical, high: alerts.high } } : {}) };
+  if (pipeline.state === 'none') return { status: 'unknown', message: `Git: ${where} – no pipeline run`, durationMs: ms, value };
+  if (pipeline.state === 'failed')
+    return {
+      status: c.failedAs,
+      message: `Git: ${where} – pipeline failed (${failed.slice(0, 3).join(', ')})${tooMany.length ? `, ${tooMany.join(', ')}` : ''}`.slice(0, 500),
+      durationMs: ms,
+      value,
+    };
+  if (tooMany.length) return { status: 'degraded', message: `Git: ${where} – ${tooMany.join(', ')}`.slice(0, 500), durationMs: ms, value };
+  return {
+    status: 'up',
+    message: `Git: ${where} – ${pipeline.state === 'running' ? 'pipeline running' : 'pipeline passed'}${alerts ? `, ${alerts.critical} critical / ${alerts.high} high alerts` : ''}`,
+    durationMs: ms,
+    value,
+  };
+}
+
 // ---------- dispatch ----------
 
 type Active =
@@ -653,7 +701,8 @@ type Active =
   | CheckOf<'gatus'>
   | CheckOf<'checkmk'>
   | CheckOf<'prometheus'>
-  | CheckOf<'kubernetes'>;
+  | CheckOf<'kubernetes'>
+  | CheckOf<'git'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -677,6 +726,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkPrometheus(c, ctx);
       case 'kubernetes':
         return await checkKubernetes(c, ctx);
+      case 'git':
+        return await checkGit(c, ctx);
     }
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };

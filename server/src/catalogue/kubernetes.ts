@@ -80,7 +80,7 @@ export async function readNamespace(
 }
 
 /** Numeric comparison of versions: the oldest one wins when several images run the same product. */
-const older = (a: string, b: string) => {
+export const older = (a: string, b: string): boolean => {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0);
@@ -112,8 +112,14 @@ interface Row {
   updated_by: string;
 }
 
-/** The cluster entries of a component's stack follow the images; entries entered by hand or from an SBOM stay. */
-function syncStack(componentId: string, found: Map<string, { version: string; ref: string }>, actor: string, now: string): StackDiff {
+/** The entries of one source (cluster: the images; repository: its files) follow what was read; entries entered by hand or from an SBOM stay. */
+export function syncStack(
+  componentId: string,
+  found: Map<string, { version: string; ref: string }>,
+  actor: string,
+  now: string,
+  source: 'cluster' | 'repository' = 'cluster',
+): StackDiff {
   const diff: StackDiff = { added: [], changed: [], removed: [] };
   const before = new Map(
     db()
@@ -124,16 +130,17 @@ function syncStack(componentId: string, found: Map<string, { version: string; re
     const old = before.get(product);
     if (!old) {
       db().run(
-        "INSERT INTO component_stack (component_id, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, 'cluster', ?, ?, ?)",
+        'INSERT INTO component_stack (component_id, product, version, source, sbom_ref, set_at, set_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
         componentId,
         product,
         f.version,
+        source,
         f.ref,
         now,
         actor,
       );
       diff.added.push({ product, version: f.version });
-    } else if (old.source === 'cluster' && old.version !== f.version) {
+    } else if (old.source === source && old.version !== f.version) {
       db().run(
         'UPDATE component_stack SET version = ?, sbom_ref = ?, set_at = ?, set_by = ? WHERE component_id = ? AND product = ?',
         f.version,
@@ -147,7 +154,7 @@ function syncStack(componentId: string, found: Map<string, { version: string; re
     }
   }
   for (const [product, old] of before)
-    if (old.source === 'cluster' && !found.has(product)) {
+    if (old.source === source && !found.has(product)) {
       db().run('DELETE FROM component_stack WHERE component_id = ? AND product = ?', componentId, product);
       diff.removed.push({ product, version: old.version });
     }

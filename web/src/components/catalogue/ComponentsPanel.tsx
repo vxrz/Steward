@@ -21,11 +21,13 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
-import { IconEdit, IconExternalLink, IconFileImport, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   COMPONENT_TYPES,
+  GIT_PLATFORM_KINDS,
   type ApplicationComponent,
+  type RepositoryKey,
   type ApplicationDetail,
   type ComponentType,
   type SbomChange,
@@ -39,6 +41,7 @@ import { confirmDanger } from '../confirm';
 import { fmtDate } from '../../format';
 import { LifecycleBadge } from './lifecycle';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
+import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -70,6 +73,15 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       notifyError(e);
     }
   };
+  const readRepository = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/repository`, {}));
+      notifications.show({ color: 'green', message: t('components.repository.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const [drafting, setDrafting] = useState<CredentialDraft | null>(null);
   const remove = async (c: ApplicationComponent) => {
     if (!(await confirmDanger({ action: 'remove', message: t('components.removeConfirm', { name: c.name }) }))) return;
     try {
@@ -145,6 +157,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     )}
                     {c.sbom && <SbomLine sbom={c.sbom} />}
                     {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
+                    {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
                   </Table.Td>
                   {withEnv && (
                     <Table.Td className="nowrap">
@@ -162,6 +175,10 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                         </ActionIcon>
                         {c.type === 'kubernetes-namespace' && c.platformId ? (
                           <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
+                            <IconRefresh size={16} />
+                          </ActionIcon>
+                        ) : c.type === 'repository' && c.platformId ? (
+                          <ActionIcon variant="subtle" aria-label={t('components.repository.readNow', { name: c.name })} onClick={() => void readRepository(c)}>
                             <IconRefresh size={16} />
                           </ActionIcon>
                         ) : (
@@ -183,6 +200,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+      {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
       {importing && (
         <SbomImportModal
           title={t('components.sbom.title', { name: importing.name })}
@@ -248,6 +266,98 @@ function ClusterLine({ component: c }: { component: ApplicationComponent }) {
   );
 }
 
+/** What Steward last read from a repository (#107): pipeline, release, alerts, packages, keys, files the stack came from. */
+function RepositoryLine({ component: c, onRegister }: { component: ApplicationComponent; onRegister?: (d: CredentialDraft) => void }) {
+  const { t } = useTranslation('applications');
+  const r = c.repository;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.repository.notRead')}
+      </Text>
+    );
+  const color = r.pipeline.state === 'failed' ? 'red.8' : r.pipeline.state === 'success' ? 'green.8' : 'dimmed';
+  const alerts = r.alerts ? r.alerts.critical + r.alerts.high + r.alerts.medium + r.alerts.low : 0;
+  const draftOf = (k: RepositoryKey): CredentialDraft => ({
+    name: `${c.name}: ${k.title}`,
+    type: k.kind === 'deploy-key' ? 'sshKey' : 'token',
+    belongsTo: { kind: 'component', id: c.id },
+    platformId: c.platformId ?? null,
+    description: t(`components.repository.keyKinds.${k.kind}`),
+    roles: [{ role: k.write ? 'write' : 'read', scope: c.name, grantedAt: k.createdAt, note: k.scopes.join(', ') }],
+    issuedAt: k.createdAt,
+    expiresAt: k.expiresAt,
+  });
+  return (
+    <Stack gap={0} data-testid="repository-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c={color}>
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} · {r.defaultBranch ?? '–'}: {t(`components.repository.pipeline.${r.pipeline.state}`)}
+        {r.pipeline.runs
+          .filter((x) => x.state === 'failed')
+          .slice(0, 3)
+          .map((x) => ` · ${x.name}`)
+          .join('')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {[
+          r.release
+            ? t('components.repository.release', { tag: r.release.tag, date: r.release.at ? fmtDate(r.release.at) : '–' })
+            : t('components.repository.noRelease'),
+          r.packages?.length ? t('components.repository.packages', { names: r.packages.map((x) => x.name).join(', ') }) : null,
+          r.stackFiles.length ? t('components.repository.files', { files: r.stackFiles.join(', ') }) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {r.alerts && alerts > 0 && (
+        <Text size="xs" c={r.alerts.critical + r.alerts.high > 0 ? 'orange.8' : 'dimmed'}>
+          {r.alerts.url ? (
+            <Anchor size="xs" href={r.alerts.url} target="_blank" rel="noreferrer">
+              {t('components.repository.alerts', r.alerts)}
+            </Anchor>
+          ) : (
+            t('components.repository.alerts', r.alerts)
+          )}
+        </Text>
+      )}
+      {(r.keys ?? []).map((k) => (
+        <Group key={`${k.kind}-${k.id}`} gap={4} wrap="nowrap">
+          <Text size="xs" c={k.write ? 'orange.8' : 'dimmed'}>
+            {t('components.repository.key', {
+              kind: t(`components.repository.keyKinds.${k.kind}`),
+              title: k.title,
+              access: k.write ? t('components.repository.write') : t('components.repository.readOnly'),
+            })}
+            {k.expiresAt ? ` · ${t('components.repository.expires', { date: fmtDate(k.expiresAt) })}` : ''}
+          </Text>
+          {onRegister && (
+            <Tooltip label={t('components.repository.register')}>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label={t('components.repository.registerKey', { title: k.title })}
+                onClick={() => onRegister(draftOf(k))}
+              >
+                <IconKey size={12} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      ))}
+      {r.unmapped.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.cluster.unmapped', { images: r.unmapped.join(', ') })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
 export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbom']> }) {
   const { t } = useTranslation('applications');
   return (
@@ -284,7 +394,9 @@ export function StackBadges({ stack }: { stack: StackEntry[] }) {
               ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
               : s.source === 'cluster'
                 ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
-                : t('components.stackEditor.manual')
+                : s.source === 'repository'
+                  ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
+                  : t('components.stackEditor.manual')
           }
         />
       ))}
@@ -319,7 +431,7 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
   );
 }
 
-export type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom' | 'cluster'; was?: string };
+export type StackRow = { product: string | null; version: string; source?: StackEntry['source']; was?: string };
 
 export const stackRowsOf = (stack: StackEntry[]): StackRow[] =>
   stack.map((s) => ({ product: s.product, version: s.version, source: s.source, was: s.version }));
@@ -343,7 +455,7 @@ export function StackFields({ stack, onChange }: { stack: StackRow[]; onChange: 
       </Text>
       {stack.map((r, i) => {
         const p = r.product ? byId.get(r.product) : undefined;
-        const fromSbom = (r.source === 'sbom' || r.source === 'cluster') && r.version === r.was;
+        const fromSbom = (r.source === 'sbom' || r.source === 'cluster' || r.source === 'repository') && r.version === r.was;
         return (
           <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
             <Select
@@ -415,6 +527,12 @@ function ComponentFormModal({
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kubernetes'),
     enabled: type === 'kubernetes-namespace',
   });
+  const gitPlatforms = useQuery({
+    queryKey: ['platforms', 'git'],
+    queryFn: async () =>
+      (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind)),
+    enabled: type === 'repository',
+  });
   const [stack, setStack] = useState<StackRow[]>(stackRowsOf(component?.stack ?? []));
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
@@ -430,7 +548,7 @@ function ComponentFormModal({
       url: url.trim(),
       note,
       environment: environment.trim(),
-      ...(type === 'kubernetes-namespace' ? { platformId } : {}),
+      ...(type === 'kubernetes-namespace' || type === 'repository' ? { platformId } : {}),
       stack: stackBody(stack),
     };
     try {
@@ -488,6 +606,17 @@ function ComponentFormModal({
               onChange={setPlatformId}
               clearable
               nothingFoundMessage={t('components.cluster.noPlatforms')}
+            />
+          )}
+          {type === 'repository' && (
+            <Select
+              label={t('components.repository.platform')}
+              description={t('components.repository.platformHint')}
+              data={(gitPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.repository.noPlatforms')}
             />
           )}
           <TextInput label={t('components.url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} error={v.error('url')} />

@@ -9,6 +9,7 @@ import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
 import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
+import { DEMO_GIT_PLATFORMS } from '../mock/mockGitPlatforms.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
@@ -186,6 +187,25 @@ export async function setupDemo(): Promise<{
       config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' }, testPath: '/version' },
       secrets: { token: DEMO_KUBERNETES.token },
     });
+    platforms++;
+  }
+  // Git platforms (#107): the organisation acme with shop-web and shop-api on each host
+  for (const g of [
+    { name: 'GitHub (demo)', kind: 'github', path: '/gitplat/github', test: '/rate_limit' },
+    { name: 'GitLab (demo)', kind: 'gitlab', path: '/gitplat/gitlab/api/v4', test: '/version' },
+    { name: 'Forgejo (demo)', kind: 'forgejo', path: '/gitplat/forgejo/api/v1', test: '/version' },
+  ]) {
+    if (existing.has(g.name)) continue;
+    const p = createPlatform({
+      name: g.name,
+      kind: g.kind,
+      environment: 'demo',
+      description: 'Simulated Git host API (read-only token) served by the built-in mock. See docs/GIT-PLATFORMS.md.',
+      baseUrl: `${base}${g.path}`,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' }, testPath: g.test },
+      secrets: { token: DEMO_GIT_PLATFORMS.token },
+    });
+    for (const s of PRESET_SPECS[g.kind]?.() ?? []) addSpec(p.id, s.name, s.content);
     platforms++;
   }
   if (!existing.has('endoflife.date (demo)')) {

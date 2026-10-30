@@ -204,7 +204,15 @@
     "promUnit": "Unit (shown)",
     "k8sNamespace": "Namespace",
     "k8sDeployment": "Deployment",
-    "k8sDeploymentHint": "Empty: every deployment of the namespace"
+    "k8sDeploymentHint": "Empty: every deployment of the namespace",
+    "gitRepository": "Repository",
+    "gitRepositoryHint": "owner/repo (GitLab: group/project)",
+    "gitBranch": "Branch",
+    "gitBranchHint": "Empty: the default branch",
+    "gitFailedAs": "When the pipeline failed",
+    "gitMaxCritical": "Most critical alerts",
+    "gitMaxHigh": "Most critical and high alerts",
+    "gitAlertsHint": "GitHub Dependabot; empty: alerts are not checked"
   },
   "detail": {
     "template": "template",
@@ -510,6 +518,10 @@
       "label": "Kubernetes deployments",
       "help": "Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping"
     },
+    "git": {
+      "label": "Repository pipeline",
+      "help": "The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -526,6 +538,7 @@
     "checkmk": "CheckMk service",
     "prometheus": "Prometheus query",
     "kubernetes": "Kubernetes deployments",
+    "git": "Repository pipeline",
     "monitor": "Sub-monitor"
   },
   "uptime": {

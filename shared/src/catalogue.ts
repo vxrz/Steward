@@ -1,4 +1,5 @@
 import type { ImageProductRule, NamespaceReadout } from './kubernetes.js';
+import type { RepositoryReadout } from './git.js';
 import type { Backlink, ItemLink, ReviewStatus, ServiceCriticality } from './records.js';
 
 /**
@@ -230,8 +231,8 @@ export const COMPONENT_TYPES = [
 ] as const;
 export type ComponentType = (typeof COMPONENT_TYPES)[number];
 
-/** Where a tech stack entry comes from: entered by hand (wins over the others), read from an SBOM, or from the images running in a Kubernetes namespace (#111). */
-export const STACK_SOURCES = ['manual', 'sbom', 'cluster'] as const;
+/** Where a tech stack entry comes from: entered by hand (wins over the others), read from an SBOM, from the images running in a Kubernetes namespace (#111), or from a repository's files (#107). */
+export const STACK_SOURCES = ['manual', 'sbom', 'cluster', 'repository'] as const;
 export type StackSource = (typeof STACK_SOURCES)[number];
 
 export const COMPONENT_LIMITS = {
@@ -331,6 +332,8 @@ export interface ApplicationComponent {
   /** Kubernetes namespace (#111): the cluster (a platform of kind kubernetes) and what Steward last read from it */
   platformId?: string | null;
   cluster?: NamespaceReadout | null;
+  /** Repository (#107): what Steward last read from its Git platform (platformId: a platform of kind github, gitlab or forgejo) */
+  repository?: RepositoryReadout | null;
   createdAt: string;
   createdBy: string;
   updatedAt: string;

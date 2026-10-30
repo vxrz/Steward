@@ -204,7 +204,15 @@
     "promUnit": "Einheit (Anzeige)",
     "k8sNamespace": "Namespace",
     "k8sDeployment": "Deployment",
-    "k8sDeploymentHint": "Leer: alle Deployments des Namespace"
+    "k8sDeploymentHint": "Leer: alle Deployments des Namespace",
+    "gitRepository": "Repository",
+    "gitRepositoryHint": "owner/repo (GitLab: Gruppe/Projekt)",
+    "gitBranch": "Branch",
+    "gitBranchHint": "Leer: der Standard-Branch",
+    "gitFailedAs": "Wenn die Pipeline fehlschlägt",
+    "gitMaxCritical": "Höchstens kritische Warnungen",
+    "gitMaxHigh": "Höchstens kritische und hohe Warnungen",
+    "gitAlertsHint": "GitHub Dependabot; leer: Warnungen werden nicht geprüft"
   },
   "detail": {
     "template": "Vorlage",
@@ -510,6 +518,10 @@
       "label": "Kubernetes-Deployments",
       "help": "Die Deployments eines Namespace sind bereit (z. B. 3/3) und kein Pod startet ständig neu"
     },
+    "git": {
+      "label": "Repository-Pipeline",
+      "help": "Die Pipeline des Standard-Branchs auf GitHub, GitLab oder Forgejo läuft durch; wahlweise auch wenige genug offene Sicherheitswarnungen"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -526,6 +538,7 @@
     "checkmk": "CheckMk-Service",
     "prometheus": "Prometheus-Abfrage",
     "kubernetes": "Kubernetes-Deployments",
+    "git": "Repository-Pipeline",
     "monitor": "Untermonitor"
   },
   "uptime": {

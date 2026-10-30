@@ -313,6 +313,37 @@
       "platform": "Cluster",
       "platformHint": "Eine Plattform der Art Kubernetes; Steward liest den Namespace alle 6 Stunden",
       "noPlatforms": "Keine Kubernetes-Plattform, die Sie nutzen dürfen"
+    },
+    "repository": {
+      "fromFiles": "Aus den Dateien des Repositorys gelesen",
+      "readNow": "Repository {{name}} jetzt lesen",
+      "done": "Repository {{name}} gelesen",
+      "notRead": "Noch nicht von der Git-Plattform gelesen",
+      "platform": "Git-Plattform",
+      "platformHint": "GitHub, GitLab oder Forgejo/Gitea; der Name ist dann der Pfad des Repositorys (owner/repo, bei GitLab Gruppe/Projekt). Steward liest es alle 6 Stunden",
+      "noPlatforms": "Keine GitHub-, GitLab- oder Forgejo-Plattform, die Sie nutzen dürfen",
+      "pipeline": {
+        "success": "Pipeline erfolgreich",
+        "failed": "Pipeline fehlgeschlagen",
+        "running": "Pipeline läuft",
+        "none": "keine Pipeline"
+      },
+      "release": "neuestes Release {{tag}} ({{date}})",
+      "noRelease": "kein Release",
+      "packages": "Pakete: {{names}}",
+      "files": "Stack aus {{files}}",
+      "alerts": "Offene Sicherheitswarnungen: {{critical}} kritisch, {{high}} hoch, {{medium}} mittel, {{low}} niedrig",
+      "key": "{{kind}} „{{title}}“ ({{access}})",
+      "keyKinds": {
+        "deploy-key": "Deploy-Schlüssel",
+        "deploy-token": "Deploy-Token",
+        "access-token": "Zugriffstoken"
+      },
+      "write": "darf schreiben",
+      "readOnly": "nur lesen",
+      "expires": "läuft ab am {{date}}",
+      "register": "In die Zugangsdaten aufnehmen (Sie prüfen den Eintrag vorher)",
+      "registerKey": "{{title}} in die Zugangsdaten aufnehmen"
     }
   },
   "credentials": {

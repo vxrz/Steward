@@ -162,6 +162,20 @@ describe('example library', () => {
     expect(d.metrics).toMatchObject({ deployments: 5, notReady: 1, unhealthyPods: 1, certsEnding: 1 });
   });
 
+  it('GitHub – repository health finds the failing default branch and the high alert', async () => {
+    // runs after "runs 82-…" above, against the mock GitHub (server/src/mock/mockGitPlatforms.ts)
+    const d = await s.api('GET', '/datasets/git.repositories');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r._key, r]));
+    expect(by['acme/shop-web']).toMatchObject({
+      Pipeline: 'passed',
+      'Latest release': 'v2.4.1',
+      'Open alerts': '0 critical, 1 high, 2 other',
+      _status: 'warning',
+    });
+    expect(by['acme/shop-api']).toMatchObject({ Pipeline: 'failed: CI', 'Latest release': '–', _status: 'critical' });
+    expect(d.metrics).toMatchObject({ repositories: 2, failing: 1, critical: 0, high: 1 });
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);

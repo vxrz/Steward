@@ -1,5 +1,6 @@
 import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
+import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -189,6 +190,62 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'github',
+    label: 'GitHub (repositories, read-only)',
+    description:
+      'GitHub or GitHub Enterprise Server (base URL https://HOST/api/v3): application components of type "Repository" name it and the repository (owner/repo), and Steward reads the default branch and its workflow runs, the latest release, open Dependabot alerts, container packages, deploy keys and the tech stack from the repository files; monitors check the pipeline; access reviews read organisation members and repository collaborators. Use a fine-grained token with read-only rights (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://api.github.com',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/rate_limit' },
+    secretFields: [
+      {
+        key: 'token',
+        label: 'Access token (read-only)',
+        help: 'Fine-grained personal access token or GitHub App installation token; see docs/GIT-PLATFORMS.md for the rights',
+      },
+    ],
+    docs: [
+      { title: 'GitHub REST API', url: 'https://docs.github.com/en/rest' },
+      {
+        title: 'Fine-grained personal access tokens',
+        url: 'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
+      },
+    ],
+  },
+  {
+    kind: 'gitlab',
+    label: 'GitLab (projects, read-only)',
+    description:
+      'GitLab.com or a self-managed GitLab (base URL https://HOST/api/v4): application components of type "Repository" name it and the project path (group/project), and Steward reads the default branch and its pipeline, the latest release, container repositories and packages, deploy keys, deploy and access tokens and the tech stack from the repository files; monitors check the pipeline; access reviews read project or group members. Use a token with read_api (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://gitlab.com/api/v4',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    secretFields: [
+      { key: 'token', label: 'Access token (read_api)', help: 'Group, project or personal access token with the scope read_api and the role Reporter or more' },
+    ],
+    docs: [
+      { title: 'GitLab REST API', url: 'https://docs.gitlab.com/api/rest/' },
+      { title: 'GitLab access tokens', url: 'https://docs.gitlab.com/security/tokens/' },
+    ],
+  },
+  {
+    kind: 'forgejo',
+    label: 'Forgejo / Gitea (repositories, read-only)',
+    description:
+      'Forgejo, Codeberg or Gitea (base URL https://HOST/api/v1): application components of type "Repository" name it and the repository (owner/repo), and Steward reads the default branch and its commit status (Forgejo/Gitea Actions, Woodpecker), the latest release, packages, deploy keys and the tech stack from the repository files; monitors check the pipeline; access reviews read collaborators or organisation teams. Use a token with read rights (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://forgejo.example.com/api/v1',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    secretFields: [
+      {
+        key: 'token',
+        label: 'Access token (read)',
+        help: 'Settings → Applications → Generate token, with read access to repository, organization, package and user',
+      },
+    ],
+    docs: [
+      { title: 'Forgejo API', url: 'https://forgejo.org/docs/latest/user/api-usage/' },
+      { title: 'Gitea API', url: 'https://docs.gitea.com/development/api-usage' },
+    ],
+  },
+  {
     kind: 'teams',
     label: 'Microsoft Teams channel (Workflows)',
     description:
@@ -262,4 +319,8 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   gatus: () => [{ name: 'Gatus API', content: JSON.stringify(gatusOpenApiSpec(), null, 2) }],
   // the official description from github.com/endoflife-date/endoflife.date (MIT), bundled in server/assets
   'endoflife-date': () => [{ name: 'endoflife.date API', content: readAsset('endoflife/openapi.yml').toString('utf8') }],
+  // the read-only endpoints Steward uses (#107); the hosts' full specifications can be added to the platform
+  github: () => [{ name: 'GitHub REST API (subset)', content: JSON.stringify(githubSpec(), null, 2) }],
+  gitlab: () => [{ name: 'GitLab REST API (subset)', content: JSON.stringify(gitlabSpec(), null, 2) }],
+  forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
 };

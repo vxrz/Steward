@@ -26,7 +26,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { IconArrowsDiff, IconEdit, IconFlask, IconPlayerPlay, IconPlus, IconShieldCheck } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import type { AccessCheck, AccessFinding, AccessReconciliationMeta, AccessSnapshotSummary, ImportedHistoryRef, Platform, Subject } from '@sm/shared';
+import {
+  GIT_PLATFORM_KINDS,
+  type AccessCheck,
+  type AccessFinding,
+  type AccessReconciliationMeta,
+  type AccessSnapshotSummary,
+  type ImportedHistoryRef,
+  type Platform,
+  type Subject,
+} from '@sm/shared';
 import { get, getOptional, notifyError, notifyOk, post, put } from '../api';
 import { EmptyState, PageHeader, QueryState, TONE, subjectLabel, useCreateParam } from '../components/common';
 import { FindingStatusBadge, KindBadge, RightsDiff } from '../components/compliance/common';
@@ -135,7 +144,7 @@ export function AccessReconciliationPage() {
               </Group>
               <Text size="xs" c="dimmed">
                 {c.platformName ?? c.platformId} · {t(`sources.${c.source}`)}
-                {c.datasetKey ? ` (${c.datasetKey})` : ''}
+                {c.datasetKey || c.scope ? ` (${c.datasetKey ?? c.scope})` : ''}
               </Text>
               <Text size="xs" c="dimmed">
                 {c.lastRunAt ? t('reconciliation.lastRun', { when: fmtRelative(c.lastRunAt) }) : t('reconciliation.neverRun')}
@@ -597,6 +606,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
     platformId: check?.platformId ?? '',
     source: check?.source ?? 'insights-hub',
     datasetKey: check?.datasetKey ?? 'ih.access-snapshot',
+    scope: check?.scope ?? '',
     cron: check?.cron ?? '30 6 * * *',
     timezone: check?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC',
     enabled: check?.enabled ?? true,
@@ -609,7 +619,7 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
   const submit = async () => {
     setBusy(true);
     try {
-      const body = { ...f, datasetKey: f.source === 'dataset' ? f.datasetKey : null };
+      const body = { ...f, datasetKey: f.source === 'dataset' ? f.datasetKey : null, scope: f.source === 'git' ? f.scope.trim() : null };
       const saved = check ? await put<AccessCheck>(`/compliance/access-checks/${check.id}`, body) : await post<AccessCheck>('/compliance/access-checks', body);
       await qc.invalidateQueries({ queryKey: ['access-checks'] });
       onSaved(saved);
@@ -640,7 +650,8 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           value={f.platformId || null}
           onChange={(v) => {
             const p = usable.find((x) => x.id === v);
-            setF((x) => ({ ...x, platformId: v ?? '', source: p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
+            const git = !!p && (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind);
+            setF((x) => ({ ...x, platformId: v ?? '', source: git ? 'git' : p && p.kind !== 'insights-hub' ? 'dataset' : x.source }));
           }}
         />
         <Select
@@ -651,10 +662,22 @@ function CheckModal({ check, onClose, onSaved }: { check: AccessCheck | null; on
           data={[
             { value: 'insights-hub', label: t('sources.insights-hub') },
             { value: 'dataset', label: t('sources.dataset') },
+            { value: 'git', label: t('sources.git') },
           ]}
           value={f.source}
-          onChange={(v) => up('source', (v as 'dataset') ?? 'insights-hub')}
+          onChange={(v) => up('source', (v as AccessCheck['source']) ?? 'insights-hub')}
         />
+        {f.source === 'git' && (
+          <TextInput
+            label={t('reconciliation.scope')}
+            description={t('reconciliation.scopeHelp')}
+            required
+            value={f.scope}
+            onChange={(e) => up('scope', e.currentTarget.value)}
+            maxLength={300}
+            classNames={{ input: 'mono' }}
+          />
+        )}
         {f.source === 'dataset' && (
           <TextInput
             label={t('reconciliation.datasetKey')}
