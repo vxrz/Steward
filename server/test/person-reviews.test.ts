@@ -163,4 +163,22 @@ describe('person access reviews', () => {
       status: 'open',
     });
   });
+
+  it('counts as evidence of the access check on controls, and only for those who may read it', async () => {
+    const control = (await s.api('GET', '/compliance/controls?catalogue=ISO27001')).find((c: any) => c.ref === '5.18');
+    await s.api('POST', `/compliance/controls/${control.id}/tags`, { kind: 'accessCheck', targetId: awsCheck });
+    const q = `?from=2026-01-01T00:00:00Z&to=${encodeURIComponent(new Date(Date.now() + 60_000).toISOString())}&catalogue=ISO27001`;
+    const cov = (await s.api('GET', `/compliance/coverage${q}`)).find((c: any) => c.control.id === control.id);
+    const mine = cov.evidence.filter((e: any) => e.kind === 'personReview');
+    expect(mine.map((e: any) => e.id)).toContain(id);
+    expect(mine.find((e: any) => e.id === id)).toMatchObject({
+      status: 'closed',
+      path: `/compliance/person-reviews/${id}`,
+      detail: '3 right(s), 2 to remove, 2 removed',
+    });
+    // the Snowflake-only part is no evidence of the AWS check; an operator sees no reviews
+    expect(cov.counts.personReview).toBeGreaterThanOrEqual(1);
+    const theirs = (await oscar('GET', `/compliance/coverage${q}`)).find((c: any) => c.control.id === control.id);
+    expect((theirs?.evidence ?? []).filter((e: any) => e.kind === 'personReview')).toEqual([]);
+  });
 });

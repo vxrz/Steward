@@ -39,6 +39,7 @@ import { likeEscape } from '../database/sql.js';
 import { canExportEvidence, canReadCheck, forbid, me, readsEverything, same, visiblePlatformName } from './access.js';
 import { toAccessChange } from './access-changes.js';
 import { evidenceForControls, evidenceOf, getControl, type PackCoverageStatus } from './controls.js';
+import { getReview, verifySeal } from './person-reviews.js';
 import { getCheck, getSnapshot, listFindings, listSnapshots, verifyChain } from './reconciliation.js';
 import { renderPackPdf } from './pack-pdf.js';
 import { AUDIT_EXCERPT_FILE, MANIFEST_SIGNATURE_DOMAIN, type AuditExcerpt, type PackManifest } from './evidence-verify.js';
@@ -541,6 +542,11 @@ async function buildPack(id: string, lang: ReportLang): Promise<void> {
           const seq = Number(db().get<{ seq: number }>('SELECT seq FROM access_snapshots WHERE id = ?', it.id)!.seq);
           it.files.push(await b.json(`reconciliation/${safe(cid)}/snapshot-${String(seq).padStart(5, '0')}.json`, s));
         }
+      } else if (it.kind === 'personReview') {
+        // the frozen rights, the decisions, who approved, and whether the seal still matches
+        it.files.push(
+          await b.json(`person-reviews/${safe(it.id)}.json`, { ...getReview(it.id), sealVerification: { verifiedAt: nowIso(), ...verifySeal(it.id) } }),
+        );
       } else if (it.kind === 'report') {
         const r = getReport(it.id);
         if (!canViewScheduledReport(r, u)) continue;

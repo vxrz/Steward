@@ -3,6 +3,7 @@ import {
   PERSON_REVIEW_DECISIONS,
   PERSON_REVIEW_LIMITS,
   type AccessCheckSource,
+  type EvidenceItem,
   type PersonReview,
   type PersonReviewItem,
   type PersonReviewSource,
@@ -10,6 +11,7 @@ import {
   type PersonReviewSummary,
 } from '@sm/shared';
 import { db } from '../db.js';
+import { likeEscape } from '../database/sql.js';
 import { audit } from '../audit.js';
 import { currentUser, type AuthUser } from '../auth/context.js';
 import { isAdmin } from '../auth/permissions.js';
@@ -118,6 +120,9 @@ const mayDecide = (u: AuthUser, r: ReviewRow) => r.status === 'open' && (same(r.
 const mayApprove = (u: AuthUser, r: ReviewRow) =>
   r.status === 'submitted' && (has(u, ['approver']) || isAdmin(u)) && !same(r.submitted_by, u.username) && !isThePerson(u, r);
 
+const mayRecheck = (u: AuthUser, r: ReviewRow) =>
+  (r.status === 'approved' || r.status === 'closed') && (same(r.created_by, u.username) || isAdmin(u) || has(u, ['approver']));
+
 function rowOf(id: string): ReviewRow {
   const r = db().get<ReviewRow>('SELECT * FROM person_reviews WHERE id = ?', id);
   if (!r) throw new HttpError(404, `Person review ${id} not found`, 'PERSON_REVIEW_NOT_FOUND', { id });
@@ -184,6 +189,7 @@ function toReview(u: AuthUser, r: ReviewRow): PersonReview {
     counts: countsOf(items),
     canDecide: mayDecide(u, r),
     canApprove: mayApprove(u, r),
+    canRecheck: mayRecheck(u, r),
   };
 }
 
@@ -437,8 +443,7 @@ export function approve(id: string, input: { approve: boolean; comment: string }
 export async function recheck(id: string): Promise<PersonReview> {
   const { u, r } = readable(id);
   if (r.status !== 'approved' && r.status !== 'closed') throw new HttpError(409, 'Removals are checked after approval', 'PERSON_REVIEW_NOT_APPROVED');
-  if (!(same(r.created_by, u.username) || isAdmin(u) || has(u, ['approver'])))
-    throw new HttpError(403, 'Only the reviewer, an approver or an administrator checks removals', 'FORBIDDEN');
+  if (!mayRecheck(u, r)) throw new HttpError(403, 'Only the reviewer, an approver or an administrator checks removals', 'FORBIDDEN');
   const items = itemsOf(id).filter((i) => i.decision === 'remove');
   const now = nowIso();
   const results = new Map<string, 'gone' | 'present'>();
@@ -484,4 +489,33 @@ export function verifySeal(id: string): { ok: boolean; hash: string | null; comp
   if (!r.seal_hash) return { ok: false, hash: null, computed: null };
   const computed = sealOf(r, itemsOf(id));
   return { ok: computed === r.seal_hash, hash: r.seal_hash, computed };
+}
+
+/**
+ * Evidence of an access check (controls, evidence packs): the approved or closed person reviews that read it, approved
+ * in the period, that the reader may see.
+ */
+export function personReviewEvidence(checkId: string, p: { from: string; to: string }, u: AuthUser | null, via: EvidenceItem['via']): EvidenceItem[] {
+  if (!u) return [];
+  return db()
+    .all<ReviewRow>(
+      `SELECT * FROM person_reviews WHERE status IN ('approved', 'closed') AND approved_at >= ? AND approved_at <= ? AND lower(sources) LIKE lower(?) ESCAPE '\\' ORDER BY approved_at DESC LIMIT 500`,
+      p.from,
+      p.to,
+      `%${likeEscape(JSON.stringify(checkId))}%`,
+    )
+    .filter((r) => mayRead(u, r) && parseJson<PersonReviewSource[]>(r.sources, []).some((s) => s.checkId === checkId))
+    .map((r) => {
+      const c = countsOf(itemsOf(r.id));
+      return {
+        kind: 'personReview' as const,
+        id: r.id,
+        label: `${r.title} (${r.person_name})`,
+        at: r.approved_at!,
+        path: `/compliance/person-reviews/${r.id}`,
+        status: r.status,
+        detail: `${c.rights} right(s), ${c.remove} to remove, ${c.gone} removed`,
+        via,
+      };
+    });
 }

@@ -116,6 +116,7 @@ test('the compliance pages work at phone width @mobile', async ({ page }) => {
     ['/compliance/controls', 'Controls'],
     ['/compliance/access-changes', 'Access changes'],
     ['/compliance/reconciliation', 'Access reconciliation'],
+    ['/compliance/person-reviews', 'Person reviews'],
     ['/compliance/evidence-packs', 'Evidence packs'],
   ] as const) {
     await page.goto(path);

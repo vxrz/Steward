@@ -7591,7 +7591,7 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, report, monitor)"
+            "description": "Evidence items per kind (run, record, accessChange, snapshot, finding, personReview, report, monitor)"
           }
         },
         "required": [

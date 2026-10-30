@@ -20,6 +20,7 @@ import { HttpError, newId, nowIso } from '../util.js';
 import { canManageCatalogues, canReadCheck, canTagControls, forbid, me, readsEverything, same, SYSTEM_USER } from './access.js';
 import { BUILTIN_CATALOGUES, DEFAULT_ACCESS_CONTROLS } from './catalogues.js';
 import { toAccessChange } from './access-changes.js';
+import { personReviewEvidence } from './person-reviews.js';
 import type { RecordRow } from '../records/model.js';
 import { canReadRecordRow } from '../records/access.js';
 import { documentEvidence } from '../records/document-model.js';
@@ -796,6 +797,7 @@ export function evidenceOf(tag: Pick<TagRow, 'kind' | 'target_id'>, p: Period, u
           detail: f.record_id ?? '',
           via,
         });
+      items.push(...personReviewEvidence(tag.target_id, p, u, via));
       break;
     }
   }

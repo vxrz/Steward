@@ -255,7 +255,7 @@ export interface Control {
   tags: ControlTag[];
 }
 
-export const EVIDENCE_KINDS = ['run', 'record', 'accessChange', 'snapshot', 'finding', 'report', 'monitor'] as const;
+export const EVIDENCE_KINDS = ['run', 'record', 'accessChange', 'snapshot', 'finding', 'personReview', 'report', 'monitor'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 export interface EvidenceItem {
@@ -416,6 +416,8 @@ export interface PersonReview {
   /** For the reader */
   canDecide: boolean;
   canApprove: boolean;
+  /** Re-read the platforms to confirm the removals (approved or closed reviews) */
+  canRecheck: boolean;
 }
 
 export interface PersonReviewSummary {

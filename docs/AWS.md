@@ -36,7 +36,7 @@ A policy for the role, read-only:
 }
 ```
 
-Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
+Leave out `ce:GetCostAndUsage` to read no costs (the readout says why there are none), or the `iam:` actions to read no users. For access reviews of the account (access check source _AWS IAM_, [COMPLIANCE.md](COMPLIANCE.md#access-reconciliation)) add `iam:ListGroupsForUser`, `iam:ListAttachedUserPolicies` and `iam:ListUserPolicies`. Cost Explorer must be enabled in the account (the management account of an organisation sees the costs of all member accounts – then use the tag to tell them apart, or one platform per member account with its own role).
 
 ## Components of an application
 
