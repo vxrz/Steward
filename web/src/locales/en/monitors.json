@@ -323,11 +323,13 @@
     "manageOnly": "Only the owner, administrators or users with the manage right can change outputs.",
     "runMessages": "Messages of the runs it starts",
     "format": "Format",
-    "formatHint": "Teams card: an Adaptive Card per status change for a Teams channel. Pick a \"Microsoft Teams channel\" platform – it keeps the Workflows URL encrypted",
+    "formatHint": "Teams card: an Adaptive Card per status change, posted to a Teams channel",
     "formats": {
       "json": "JSON event (Steward payload)",
       "teams": "Teams card (Adaptive Card)"
-    }
+    },
+    "teamsChannel": "Teams channel",
+    "teamsChannelHint": "A platform of kind \"Microsoft Teams channel (Workflows)\": it keeps the Workflows URL encrypted, and its access list decides who may post there"
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",

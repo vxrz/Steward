@@ -323,11 +323,13 @@
     "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
     "runMessages": "Nachrichten der gestarteten Läufe",
     "format": "Format",
-    "formatHint": "Teams-Karte: eine Adaptive Card je Statuswechsel für einen Teams-Kanal. Wählen Sie eine Plattform „Microsoft-Teams-Kanal“ – sie speichert die Workflows-URL verschlüsselt",
+    "formatHint": "Teams-Karte: eine Adaptive Card je Statuswechsel, gepostet in einen Teams-Kanal",
     "formats": {
       "json": "JSON-Ereignis (Steward-Format)",
       "teams": "Teams-Karte (Adaptive Card)"
-    }
+    },
+    "teamsChannel": "Teams-Kanal",
+    "teamsChannelHint": "Eine Plattform der Art „Microsoft-Teams-Kanal (Workflows)“: Sie speichert die Workflows-URL verschlüsselt, ihre Zugriffsliste bestimmt, wer dorthin posten darf"
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",

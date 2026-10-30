@@ -350,30 +350,14 @@ async function sendWebhook(o: Extract<OutputDef, { type: 'webhook' }>, m: Loaded
 }
 
 /**
- * Adaptive Cards to a Teams channel (#130): a "Microsoft Teams channel" platform (the Workflows URL is its credential
- * `webhookUrl`, encrypted like every credential), another platform plus a path, or a plain URL.
+ * Adaptive Cards to a Teams channel (#130): the output names a "Microsoft Teams channel" platform, whose credential
+ * `webhookUrl` (encrypted like every credential) is the Workflows URL. Saving refuses anything else.
  */
 async function sendTeamsCards(o: Extract<OutputDef, { type: 'webhook' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {
-  const cards = events.slice(0, TEAMS_MAX_CARDS).map((e) => teamsCard(teamsMessage(m, e)));
-  if (o.platform) {
-    const { platform, secrets } = platformFor(m.owner, o.platform);
-    if (platform.kind === 'teams') {
-      if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
-      for (const c of cards) await postTo(secrets.webhookUrl, c);
-      return;
-    }
-    for (const c of cards) {
-      const r = await platformRequest(
-        platform,
-        secrets,
-        { method: 'POST', url: fillPlaceholders(o.path || '/', placeholders(m, events[0]!)), body: c, bodyType: 'json' },
-        AbortSignal.timeout(15000),
-      );
-      if (!r.ok) throw new Error(`HTTP ${r.status} from "${platform.name}"`);
-    }
-    return;
-  }
-  for (const c of cards) await postTo(o.url!, c);
+  const { platform, secrets } = platformFor(m.owner, o.platform ?? '');
+  if (platform.kind !== 'teams') throw new Error(`Platform "${platform.name}" is not a Microsoft Teams channel`);
+  if (!secrets.webhookUrl) throw new Error(`Platform "${platform.name}" has no credential "webhookUrl" (the Teams Workflows URL)`);
+  for (const e of events.slice(0, TEAMS_MAX_CARDS)) await postTo(secrets.webhookUrl, teamsCard(teamsMessage(m, e)));
 }
 
 async function sendGatus(o: Extract<OutputDef, { type: 'gatus' }>, m: LoadedMonitor, events: OutEvent[]): Promise<void> {

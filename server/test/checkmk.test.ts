@@ -148,6 +148,15 @@ describe('CheckMk check', () => {
         },
       });
       expect(JSON.stringify(monitor)).not.toContain('secret-sig');
+      // a Teams card only goes to a Teams channel platform: never to a URL in the definition, nor to another platform
+      for (const bad of [
+        { id: 'teams', type: 'webhook', format: 'teams', url: url },
+        { id: 'teams', type: 'webhook', format: 'teams', platform: 'CheckMk (demo)', path: '/x' },
+        { id: 'teams', type: 'webhook', format: 'teams', platform: 'Gatus (demo)' },
+      ])
+        await expect(
+          s.api('PUT', `/monitors/${monitor.id}`, { definition: { name: 'Shop in CheckMk', checks: [check('shop', 'web01', 'HTTPS shop')], outputs: [bad] } }),
+        ).rejects.toThrow(/Microsoft Teams channel/);
       await eng.evaluateMonitorNow(monitor.id);
       await eng.settle();
       // a card per status change of the monitor (a new monitor first becomes unknown, then down)
@@ -191,4 +200,3 @@ describe('CheckMk check', () => {
     }
   });
 });
-
