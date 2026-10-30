@@ -248,6 +248,14 @@
           "label": "Metrics (name → number expression)",
           "help": "Appended to the history for trend charts"
         },
+        "limits": {
+          "label": "Upper limits (metric → number expression)",
+          "help": "A quota or contract limit per metric: dashboards and checks forecast when the trend reaches it"
+        },
+        "floors": {
+          "label": "Lower limits (metric → number expression)",
+          "help": "A floor per metric, e.g. free storage: forecast when the trend falls to it"
+        },
         "staleAfterMinutes": {
           "label": "Stale after (minutes)",
           "help": "Default: 2.5 × the interval of the schedule that ran it (at least 15 minutes), else 24 hours"
@@ -870,7 +878,10 @@
     "type": "Type name of a value.",
     "base64encode": "Base64 encode.",
     "base64decode": "Base64 decode.",
-    "encodeUrlComponent": "URL-encode a value."
+    "encodeUrlComponent": "URL-encode a value.",
+    "systems": "Every system with its tech stack and end of life.",
+    "trend": "Trend of a dataset metric: change, changePct, perDay, confidence.",
+    "daysUntil": "Days until the trend reaches the limit; null when not approaching."
   },
   "suggest": {
     "loopItem": "current loop item",

@@ -31,7 +31,19 @@ import {
   IconSearch,
   IconX,
 } from '@tabler/icons-react';
-import type { DashboardWidget, DatasetMeta, DatasetRow, DatasetSource, DatasetStatus, RunDetail, RunSummary, Schedule } from '@sm/shared';
+import {
+  forecastTo,
+  type DashboardWidget,
+  type DatasetMeta,
+  type DatasetRow,
+  type DatasetSource,
+  type DatasetStatus,
+  type MetricSeries,
+  type RunDetail,
+  type RunSummary,
+  type Schedule,
+  type Trend,
+} from '@sm/shared';
 import type { TFunction } from 'i18next';
 import { Trans, useTranslation } from 'react-i18next';
 import { get } from '../../api';
@@ -193,10 +205,13 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
   const series = useMetrics(isRows ? undefined : w.dataset, isRows ? [] : [w.metric!], days, scope);
   // several sources: the value of each instead of one number (#142)
   const several = !isRows && (meta?.sources?.length ?? 0) > 1;
-  const points = isRows || several ? [] : (series.data?.find((s) => s.name === w.metric)?.points ?? []);
+  const one = isRows || several ? undefined : series.data?.find((s) => s.name === w.metric);
+  const points = one?.points ?? [];
   const value = isRows ? meta?.rowCount : (meta?.metrics[w.metric!] ?? points[points.length - 1]?.value);
   const first = points[0]?.value;
-  const delta = value !== undefined && first !== undefined && points.length > 1 ? value - first : undefined;
+  // the change of the trend line (#145, robust against outliers), else first point → latest value
+  const trend = one?.trend ?? null;
+  const delta = trend ? trend.change : value !== undefined && first !== undefined && points.length > 1 ? value - first : undefined;
   const good = delta === undefined || delta === 0 || !w.goodWhen ? null : delta > 0 === (w.goodWhen === 'up');
   const DeltaIcon = !delta ? IconArrowRight : delta > 0 ? IconArrowUpRight : IconArrowDownRight;
   const label = w.title || `${meta?.title ?? w.dataset} · ${isRows ? t('w.rows') : w.metric}`;
@@ -220,9 +235,19 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
                   <Text size="sm" truncate>
                     {src.name}
                   </Text>
-                  <Text size="sm" fw={600} className="viz-num">
-                    {compact(src.metrics[w.metric!])}
-                  </Text>
+                  <Group gap={6} wrap="nowrap">
+                    <Text size="sm" fw={600} className="viz-num">
+                      {compact(src.metrics[w.metric!])}
+                    </Text>
+                    {(() => {
+                      const tr = series.data?.find((s) => s.name === w.metric && s.source === src.id)?.trend;
+                      return tr?.changePct !== null && tr?.changePct !== undefined ? (
+                        <Text size="xs" c="var(--viz-text-secondary)" className="viz-num" data-testid="kpi-source-trend">
+                          {fmtPct(tr.changePct)}
+                        </Text>
+                      ) : null;
+                    })()}
+                  </Group>
                 </Group>
               ))}
             </Stack>
@@ -241,17 +266,62 @@ function KpiWidget({ w }: { w: DashboardWidget }) {
                   {delta > 0 ? '+' : ''}
                   {compact(delta)}
                 </Text>
+                {trend?.changePct !== null && trend?.changePct !== undefined && (
+                  <Text size="xs" fw={600} c="var(--viz-text-secondary)" className="viz-num">
+                    ({fmtPct(trend.changePct)})
+                  </Text>
+                )}
                 <Text size="xs" c="var(--viz-text-secondary)">
-                  {t('w.vsDaysAgo', { count: days })}
+                  {trend ? t('w.trendInDays', { count: days }) : t('w.vsDaysAgo', { count: days })}
                 </Text>
               </Group>
             )}
           </Group>
+          {trend && <TrendBasis trend={trend} days={days} />}
+          {one && <ForecastNote w={w} series={one} days={days} />}
           {points.length > 1 && <Sparkline points={points} />}
           <Freshness meta={meta} />
         </Stack>
       )}
     </WidgetCard>
+  );
+}
+
+const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${new Intl.NumberFormat(undefined, { maximumFractionDigits: Math.abs(n) < 10 ? 1 : 0 }).format(n)} %`;
+
+/** What the trend is based on, in plain words (#145). */
+function TrendBasis({ trend, days }: { trend: Trend; days: number }) {
+  const { t } = useTranslation('dashboards');
+  return (
+    <Text size="xs" c="var(--viz-text-secondary)" data-testid="kpi-trend-basis">
+      {t('w.trendBasis', { count: trend.points, days })} · {t(`w.confidence.${trend.confidence}`)}
+      {trend.reset ? ` · ${t('w.trendReset')}` : ''}
+    </Text>
+  );
+}
+
+/** "At this rate the limit is reached in about 23 days (Nov 24)" – against the widget's threshold or the metric's limit. */
+function ForecastNote({ w, series, days }: { w: DashboardWidget; series: MetricSeries; days: number }) {
+  const { t } = useTranslation('dashboards');
+  const limit = w.threshold ?? series.limit?.value;
+  if (limit === undefined || limit === null) return null;
+  const lower = w.threshold !== undefined ? !!w.thresholdLower : !!series.limit?.lower;
+  const f = forecastTo(series.points, limit, { window: `${days}d`, lower });
+  const text = !f
+    ? t('w.forecast.tooFew', { limit: compact(limit) })
+    : f.state === 'reached'
+      ? t('w.forecast.reached', { limit: compact(limit) })
+      : f.state === 'approaching'
+        ? t('w.forecast.in', { limit: compact(limit), count: Math.max(1, Math.round(f.days ?? 0)), date: dateTime(f.at!).split(',')[0] })
+        : f.state === 'beyond'
+          ? t('w.forecast.beyond', { limit: compact(limit) })
+          : t('w.forecast.notApproaching', { limit: compact(limit) });
+  const tone = f?.state === 'reached' ? 'var(--viz-delta-bad)' : 'var(--viz-text-secondary)';
+  return (
+    <Text size="xs" c={tone} fw={f?.state === 'reached' || (f?.state === 'approaching' && (f.days ?? 999) <= 30) ? 600 : undefined} data-testid="kpi-forecast">
+      {text}
+      {f?.state === 'approaching' && f.trend.confidence === 'rough' ? ` · ${t('w.confidence.rough')}` : ''}
+    </Text>
   );
 }
 
@@ -293,7 +363,7 @@ function TrendWidget({ w }: { w: DashboardWidget }) {
       ) : view === 'table' ? (
         <TrendTable series={series.data ?? []} names={names} />
       ) : (
-        <TrendChart series={series.data ?? []} names={names} />
+        <TrendChart series={series.data ?? []} names={names} trendLines={!!w.trendLine} />
       )}
     </WidgetCard>
   );

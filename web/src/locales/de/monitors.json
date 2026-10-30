@@ -179,7 +179,32 @@
       "auto": "Automatisch (Metriken, wenn für die Plattform aktiviert)",
       "api": "Status-API von Gatus",
       "metrics": "Abgerufene Metriken"
-    }
+    },
+    "cmkHost": "Hostname in CheckMk",
+    "cmkService": "Service",
+    "cmkServiceHint": "Die Service-Bezeichnung genau wie in CheckMk, z. B. „Filesystem /var“. Leer: der Zustand des Hosts",
+    "cmkMaxAge": "Unbekannt, wenn nicht geprüft seit (s)",
+    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn CheckMk ihn so lange nicht geprüft hat",
+    "promQuery": "PromQL-Abfrage",
+    "promQueryHint": "Eine Instant-Abfrage, z. B. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). Bei mehreren Serien zählt die schlechteste",
+    "promDirection": "Schlecht, wenn der Wert",
+    "promDirections": {
+      "above": "die Schwelle erreicht oder überschreitet",
+      "below": "die Schwelle erreicht oder unterschreitet"
+    },
+    "promWarn": "WARN-Schwelle (beeinträchtigt)",
+    "promCrit": "CRIT-Schwelle (ausgefallen)",
+    "promNoData": "Wenn die Abfrage nichts liefert",
+    "promNoDataHint": "Meist unbekannt: Das Ziel ist vielleicht verschwunden",
+    "promNoDataStates": {
+      "unknown": "unbekannt",
+      "up": "verfügbar",
+      "down": "ausgefallen"
+    },
+    "promUnit": "Einheit (Anzeige)",
+    "k8sNamespace": "Namespace",
+    "k8sDeployment": "Deployment",
+    "k8sDeploymentHint": "Leer: alle Deployments des Namespace"
   },
   "detail": {
     "template": "Vorlage",
@@ -316,7 +341,15 @@
     "onlyChecks": "Nur diese Prüfungen",
     "add": "Ausgabe hinzufügen",
     "manageOnly": "Nur der Eigentümer, Administratoren oder Benutzer mit dem Recht „Verwalten“ können Ausgaben ändern.",
-    "runMessages": "Nachrichten der gestarteten Läufe"
+    "runMessages": "Nachrichten der gestarteten Läufe",
+    "format": "Format",
+    "formatHint": "Teams-Karte: eine Adaptive Card je Statuswechsel, gepostet in einen Teams-Kanal",
+    "formats": {
+      "json": "JSON-Ereignis (Steward-Format)",
+      "teams": "Teams-Karte (Adaptive Card)"
+    },
+    "teamsChannel": "Teams-Kanal",
+    "teamsChannelHint": "Eine Plattform der Art „Microsoft-Teams-Kanal (Workflows)“: Sie speichert die Workflows-URL verschlüsselt, ihre Zugriffsliste bestimmt, wer dorthin posten darf"
   },
   "heartbeat": {
     "endpoint": "Heartbeat-Endpunkt",
@@ -465,6 +498,18 @@
       "label": "Gatus-Endpunkt",
       "help": "Status eines von Gatus überwachten Endpunkts"
     },
+    "checkmk": {
+      "label": "CheckMk-Host oder -Service",
+      "help": "Aktueller Zustand eines Hosts oder Services in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+    },
+    "prometheus": {
+      "label": "Prometheus-Abfrage",
+      "help": "Eine PromQL-Abfrage, verglichen mit WARN- und CRIT-Schwelle; bei mehreren Serien zählt die schlechteste"
+    },
+    "kubernetes": {
+      "label": "Kubernetes-Deployments",
+      "help": "Die Deployments eines Namespace sind bereit (z. B. 3/3) und kein Pod startet ständig neu"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -478,6 +523,9 @@
     "freshness": "Daten im Insights Hub",
     "heartbeat": "Vom Gateway gemeldete Daten",
     "gatus": "Gatus-Endpunkt",
+    "checkmk": "CheckMk-Service",
+    "prometheus": "Prometheus-Abfrage",
+    "kubernetes": "Kubernetes-Deployments",
     "monitor": "Untermonitor"
   },
   "uptime": {

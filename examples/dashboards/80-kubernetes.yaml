@@ -1,0 +1,20 @@
+name: Kubernetes
+description: Deployments, pods and cert-manager certificates of the namespaces you follow – fed by "Kubernetes – namespace health" (every 15 minutes, read-only service account).
+refreshSeconds: 60
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Kubernetes** – read by the process *Kubernetes – namespace health*. Opening this page never calls the cluster.
+      The tech stack and end of life of the namespaces are on the applications (components of type "Kubernetes namespace"); monitors check deployments with the check type "Kubernetes deployments".
+  - { id: deployments, type: kpi, title: Deployments, dataset: k8s.health, metric: deployments, width: 3 }
+  - { id: notReady, type: kpi, title: Not fully ready, dataset: k8s.health, metric: notReady, goodWhen: down, width: 3 }
+  - { id: pods, type: kpi, title: Pods crash-looping, dataset: k8s.health, metric: unhealthyPods, goodWhen: down, width: 3 }
+  - { id: certs, type: kpi, title: Certificates ending soon, dataset: k8s.health, metric: certsEnding, goodWhen: down, width: 3 }
+  - { id: status, type: status, title: By state, dataset: k8s.health, width: 4 }
+  - { id: trend, type: trend, title: Not ready and crash-looping, dataset: k8s.health, metrics: [notReady, unhealthyPods], days: 7, width: 8 }
+  - { id: problems, type: table, title: Needing attention, dataset: k8s.health, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: Deployments and certificates, dataset: k8s.health, width: 12 }
+  - { id: checks, type: checks, title: Latest read-out, process: kubernetes-namespace-health, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

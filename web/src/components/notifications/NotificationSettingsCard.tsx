@@ -10,6 +10,7 @@ import {
   NumberInput,
   PasswordInput,
   SimpleGrid,
+  SegmentedControl,
   Stack,
   Switch,
   Table,
@@ -49,6 +50,7 @@ interface Draft {
   email: Omit<NotificationSettings['email'], 'hasPassword'>;
   teamsEnabled: boolean;
   webhookEnabled: boolean;
+  webhookFormat: 'json' | 'teams';
   routes: Record<NotificationEvent, NotificationChannel[]>;
   baseUrl: string;
   allowedEmailDomains: string[];
@@ -65,6 +67,7 @@ const toDraft = (s: NotificationSettings): Draft => ({
   },
   teamsEnabled: s.teams.enabled,
   webhookEnabled: s.webhook.enabled,
+  webhookFormat: s.webhook.format ?? 'json',
   routes: Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e, s.routes?.[e] ?? ['inApp']])) as Draft['routes'],
   baseUrl: s.baseUrl ?? '',
   allowedEmailDomains: s.allowedEmailDomains ?? [],
@@ -186,7 +189,7 @@ export function NotificationSettingsCard() {
     const body: NotificationSettingsInput = {
       email: { ...d.email, user: d.email.user || undefined, ...(smtpPassword !== undefined ? { password: smtpPassword } : {}) },
       teams: { enabled: d.teamsEnabled, ...(teamsUrl !== undefined ? { webhookUrl: teamsUrl } : {}) },
-      webhook: { enabled: d.webhookEnabled, ...(webhookUrl !== undefined ? { url: webhookUrl } : {}) },
+      webhook: { enabled: d.webhookEnabled, format: d.webhookFormat, ...(webhookUrl !== undefined ? { url: webhookUrl } : {}) },
       routes: d.routes,
       baseUrl: d.baseUrl.trim() || undefined,
       allowedEmailDomains: d.allowedEmailDomains,
@@ -307,6 +310,15 @@ export function NotificationSettingsCard() {
           stored={stored.webhook.hasUrl}
           value={webhookUrl}
           onChange={setWebhookUrl}
+        />
+        <SegmentedControl
+          aria-label={t('notify.webhookFormat')}
+          value={d.webhookFormat}
+          onChange={(v) => setD({ ...d, webhookFormat: v as 'json' | 'teams' })}
+          data={[
+            { value: 'json', label: t('notify.webhookFormats.json') },
+            { value: 'teams', label: t('notify.webhookFormats.teams') },
+          ]}
         />
         <TestButton channel="webhook" disabled={!!dirty || !stored.webhook.enabled || !stored.webhook.hasUrl} />
 

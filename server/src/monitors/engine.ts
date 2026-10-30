@@ -20,7 +20,7 @@ import {
   type StateRow,
 } from './model.js';
 import { analyze, applyResult, freshnessStatus, freshnessWindowSeconds, fmtAge, nextDue, phaseOffset } from './logic.js';
-import { isActive, planFreshness, planGatus, runActiveCheck, toMillis, type RawResult } from './checks.js';
+import { isActive, planFreshness, planCheckmk, planGatus, runActiveCheck, toMillis, type RawResult } from './checks.js';
 import { ihKey } from './batch.js';
 import { dispatchOutputs, heldMonitors, type Subject } from './outputs.js';
 import { markDatasetsDirty, publishDirtyDatasets } from './datasets.js';
@@ -172,6 +172,7 @@ export async function settle(): Promise<void> {
 function phaseKey(m: LoadedMonitor, c: CheckDef): string {
   if (c.type === 'freshness' && c.source === 'insightsHub' && c.assetId && c.aspect) return ihKey(c.platform, c.assetId, c.aspect);
   if (c.type === 'gatus') return `gatus|${c.platform}`;
+  if (c.type === 'checkmk') return `checkmk|${c.platform}`;
   return `${m.id}/${c.id}`;
 }
 
@@ -227,6 +228,7 @@ export function tick(now = clock()): number {
   for (const [m, c] of start) {
     if (c.type === 'freshness') planFreshness(c, m.owner);
     else if (c.type === 'gatus') planGatus(c, m.owner);
+    else if (c.type === 'checkmk') planCheckmk(c, m.owner);
   }
   for (const [m, c] of start) void evaluateCheck(m.id, c.id, now);
   for (const mid of heldMonitors()) scheduleRecompute(mid);
@@ -248,6 +250,7 @@ export async function evaluateMonitorNow(mid: string): Promise<void> {
   const now = clock();
   for (const c of m.def.checks) if (c.type === 'freshness') planFreshness(c, m.owner);
   for (const c of m.def.checks) if (c.type === 'gatus') planGatus(c, m.owner);
+  for (const c of m.def.checks) if (c.type === 'checkmk') planCheckmk(c, m.owner);
   await Promise.all(m.def.checks.filter(checkEnabled).map((c) => evaluateCheck(m.id, c.id, now)));
   await settle();
 }

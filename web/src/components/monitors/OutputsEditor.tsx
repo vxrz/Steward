@@ -141,29 +141,60 @@ export function OutputsEditor({ outputs, onChange, checks, platforms, processes,
             )}
             {o.type === 'webhook' && (
               <>
-                <TextInput
-                  label={t('secrets.url')}
-                  description={t('outputs.urlHint')}
+                <Select
+                  label={t('outputs.format')}
+                  description={t('outputs.formatHint')}
+                  allowDeselect={false}
                   disabled={disabled}
-                  value={o.url ?? ''}
-                  onChange={(e) => update(i, { url: e.currentTarget.value || undefined })}
+                  data={[
+                    { value: 'json', label: t('outputs.formats.json') },
+                    { value: 'teams', label: t('outputs.formats.teams') },
+                  ]}
+                  value={o.format ?? 'json'}
+                  onChange={(v) =>
+                    update(
+                      i,
+                      v === 'teams' ? { format: 'teams', url: undefined, path: undefined, platform: undefined } : { format: undefined, platform: undefined },
+                    )
+                  }
                 />
-                <Group grow>
+                {o.format === 'teams' ? (
                   <Select
-                    label={t('outputs.orPlatform')}
-                    clearable
+                    label={t('outputs.teamsChannel')}
+                    description={t('outputs.teamsChannelHint')}
+                    required
                     disabled={disabled}
-                    data={platformData()}
+                    data={platformData('teams')}
                     value={o.platform ?? null}
                     onChange={(v) => update(i, { platform: v ?? undefined })}
                   />
-                  <TextInput
-                    label={t('form.path')}
-                    disabled={disabled}
-                    value={o.path ?? ''}
-                    onChange={(e) => update(i, { path: e.currentTarget.value || undefined })}
-                  />
-                </Group>
+                ) : (
+                  <>
+                    <TextInput
+                      label={t('secrets.url')}
+                      description={t('outputs.urlHint')}
+                      disabled={disabled}
+                      value={o.url ?? ''}
+                      onChange={(e) => update(i, { url: e.currentTarget.value || undefined })}
+                    />
+                    <Group grow>
+                      <Select
+                        label={t('outputs.orPlatform')}
+                        clearable
+                        disabled={disabled}
+                        data={platformData()}
+                        value={o.platform ?? null}
+                        onChange={(v) => update(i, { platform: v ?? undefined })}
+                      />
+                      <TextInput
+                        label={t('form.path')}
+                        disabled={disabled}
+                        value={o.path ?? ''}
+                        onChange={(e) => update(i, { path: e.currentTarget.value || undefined })}
+                      />
+                    </Group>
+                  </>
+                )}
               </>
             )}
             {o.type === 'gatus' && (

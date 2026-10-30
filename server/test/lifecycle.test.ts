@@ -174,27 +174,57 @@ describe('end of life', () => {
     expect(r.inputs.apps.length).toBe((await s.api('GET', '/applications')).length);
   });
 
-  it('the example "End of life – tech stack overview" publishes one row per application, component and product', async () => {
+  it('messages the people responsible for a system – also one no application runs on yet (#129)', async () => {
+    const { checkLifecycleNotices } = await import('../src/catalogue/lifecycle.js');
+    const { flushNotifications } = await import('../src/notifications/service.js');
+    const db = await dana('POST', '/systems', { name: 'db-eol', kind: 'vm', owners: ['user:olivia'], stack: [{ product: 'nodejs', version: '24.11.0' }] });
+    await dana('POST', `/applications/${app.id}/systems`, { systemId: db.id, environment: 'prod' });
+    await dana('POST', '/systems', { name: 'lonely01', kind: 'server', owners: ['user:olivia'], stack: [{ product: 'nodejs', version: '24.11.0' }] });
+    // a system without responsible people that an application runs on: the application's message covers it
+    const quiet = await dana('POST', '/systems', { name: 'quiet01', kind: 'server', stack: [{ product: 'nodejs', version: '24.11.0' }] });
+    await dana('POST', `/applications/${app.id}/systems`, { systemId: quiet.id, environment: 'test' });
+    expect(await checkLifecycleNotices()).toBe(2);
+    expect(await checkLifecycleNotices()).toBe(0);
+    await new Promise((r) => setImmediate(r));
+    await flushNotifications();
+    const titles = (await olivia('GET', '/notifications?limit=100')).items.filter((n: any) => n.event === 'stack.eol').map((n: any) => n.title);
+    expect(titles).toEqual(expect.arrayContaining(['End of life reached: Node.js 24 on db-eol', 'End of life reached: Node.js 24 on lonely01']));
+    expect(titles.filter((x: string) => x.includes('quiet01'))).toEqual([]);
+    const audit = await s.api('GET', `/audit?entityType=system&entityId=${db.id}&limit=20`);
+    expect(audit.filter((e: any) => e.action === 'system.eol_notice_sent')).toHaveLength(1);
+  });
+
+  it('the example "End of life – tech stack overview" publishes one row per application, component or system and product', async () => {
     const definition = YAML.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'examples', 'processes', '77-end-of-life-overview.yaml'), 'utf8'));
     const p = await s.api('POST', '/processes', { definition });
     const { id } = await s.api('POST', '/runs', { processId: p.id, bindings: {}, inputs: { apps: ['Orders (eol)'] } });
     const r = await s.waitRun(id, ['succeeded', 'failed']);
     expect(r.status).toBe('succeeded');
     const check = r.steps.find((x: any) => x.key === 'noEol');
-    expect(check.summary).toBe('✘ Orders (eol): Node.js 24 (ghcr.io/acme/orders)');
+    expect(check.summary).toBe(
+      '✘ Orders (eol): Node.js 24 (ghcr.io/acme/orders), Orders (eol): Node.js 24 (quiet01 (test)), Orders (eol): Node.js 24 (db-eol (prod)), –: Node.js 24 (lonely01)',
+    );
     const ds = await s.api('GET', '/datasets/eol-overview');
-    expect(ds.metrics).toMatchObject({ entries: 4, eol: 1, ending: 1, noData: 1 });
-    // one row per application, component and product, by its key; the columns as published
+    expect(ds.metrics).toMatchObject({ entries: 7, eol: 4, ending: 1, noData: 1 });
+    // one row per application, component or system and product, by its key; the columns as published
     expect(ds.rows.map((x: any) => x._key).sort()).toEqual([
+      'Orders (eol) / db-eol (prod) / nodejs',
       'Orders (eol) / ghcr.io/acme/orders / nodejs',
       'Orders (eol) / ghcr.io/acme/orders / postgresql',
       'Orders (eol) / ghcr.io/acme/orders / python',
       'Orders (eol) / ghcr.io/acme/worker / nodejs',
+      'Orders (eol) / quiet01 (test) / nodejs',
+      '– / lonely01 / nodejs',
     ]);
+    expect(ds.rows.find((x: any) => x._key === '– / lonely01 / nodejs')).toMatchObject({
+      Kind: 'system',
+      'Component or system': 'lonely01',
+      _status: 'critical',
+    });
     const nodeRow = ds.rows.find((x: any) => x._key === 'Orders (eol) / ghcr.io/acme/orders / nodejs');
     expect(nodeRow).toMatchObject({ _status: 'critical', Product: 'Node.js', Version: '24.11.0', Cycle: '24' });
     expect(nodeRow._statusText).toMatch(/^end of life since \d{4}-\d{2}-\d{2}$/);
-    expect(ds.rows.map((x: any) => x._status).sort()).toEqual(['critical', 'good', 'unknown', 'warning']);
+    expect(ds.rows.map((x: any) => x._status).sort()).toEqual(['critical', 'critical', 'critical', 'critical', 'good', 'unknown', 'warning']);
   });
 
   it('refuses a refresh without an endoflife.date platform', async () => {

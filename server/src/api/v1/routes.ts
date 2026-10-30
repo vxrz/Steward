@@ -1036,12 +1036,10 @@ export async function v1Routes(app: FastifyInstance, opts: { spec: () => Record<
     },
     async (req) => {
       const meta = visibleDataset(params(req).datasetKey!);
-      const q = query<{ names?: string[]; source?: string[]; days: number; points: number }>(req);
-      return {
-        key: meta.key,
-        days: q.days,
-        series: datasets.metricSeries(meta.key, q.names?.length ? q.names : undefined, q.days, q.points, q.source?.length ? { sources: q.source } : {}),
-      };
+      const q = query<{ names?: string[]; source?: string[]; days: number; points: number; trend?: string }>(req);
+      const view = q.source?.length ? { sources: q.source } : {};
+      const series = datasets.metricSeries(meta.key, q.names?.length ? q.names : undefined, q.days, q.points, view);
+      return { key: meta.key, days: q.days, series: datasets.withTrends(series, meta.key, q.trend, view) };
     },
   );
 

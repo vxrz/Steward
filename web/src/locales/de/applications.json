@@ -296,7 +296,24 @@
       "versionChange": "{{from}} → {{to}}",
       "manualKept": "SBOM nennt {{version}}"
     },
-    "actions": "Aktionen"
+    "actions": "Aktionen",
+    "cluster": {
+      "fromCluster": "Aus dem Cluster gelesen",
+      "readNow": "Namespace {{name}} jetzt aus dem Cluster lesen",
+      "done": "Namespace {{name}} gelesen",
+      "noCluster": "Kein Cluster gewählt: Bearbeiten Sie die Komponente, um ihre Deployments zu lesen.",
+      "notRead": "Noch nicht aus dem Cluster gelesen",
+      "error": "Letztes Lesen fehlgeschlagen: {{error}}",
+      "read": "Gelesen {{date}}",
+      "noDeployments": "keine Deployments",
+      "unhealthy": "Pods mit Problemen: {{pods}}",
+      "certs": "Zertifikate, die in 30 Tagen enden: {{certs}}",
+      "noCertManager": "Kein cert-manager im Cluster: Zertifikate werden nicht gelesen",
+      "unmapped": "Images ohne Produkt (unter Supportende → Einstellungen ergänzen): {{images}}",
+      "platform": "Cluster",
+      "platformHint": "Eine Plattform der Art Kubernetes; Steward liest den Namespace alle 6 Stunden",
+      "noPlatforms": "Keine Kubernetes-Plattform, die Sie nutzen dürfen"
+    }
   },
   "credentials": {
     "title": "Zugangsdaten",
@@ -340,7 +357,9 @@
     "eolIn_other": "Supportende am {{date}}, in {{count}} Tagen",
     "eolOn": "Supportende am {{date}}",
     "noEolDate": "kein Supportende angekündigt",
-    "latest": "neueste {{version}}"
+    "latest": "neueste {{version}}",
+    "imageMap": "Eigene Container-Images",
+    "imageMapHint": "Für Kubernetes-Namespaces: eine Zeile je Image und sein endoflife.date-Produkt, z. B. „ghcr.io/acme/base-node = nodejs“. Die Version kommt aus dem Image-Tag. Sie gehen der eingebauten Liste (postgres, node, nginx, redis …) vor."
   },
   "environments": {
     "title": "Umgebungen",

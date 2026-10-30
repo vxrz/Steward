@@ -148,7 +148,16 @@
     "apply": "Apply",
     "sources": "Sources of this widget",
     "sourcesHint": "Pin this widget to these sources, whatever the dashboard filter says",
-    "sourcesAll": "As the dashboard filter"
+    "sourcesAll": "As the dashboard filter",
+    "trendDays": "Trend over (days)",
+    "trendDaysHint": "The change shown is the trend line over this window (robust against outliers)",
+    "threshold": "Limit",
+    "thresholdHint": "Forecast when the trend reaches it; empty: the metric’s limit from the process",
+    "thresholdKind": "The limit is",
+    "thresholdUpper": "an upper limit (quota, contract)",
+    "thresholdLower": "a lower limit (e.g. free space)",
+    "trendLine": "Show trend lines",
+    "trendLineHint": "A dashed line per metric: the trend over the chosen days"
   },
   "w": {
     "chart": "Chart",
@@ -192,7 +201,24 @@
     "unknownType": "Unknown widget type",
     "last": "last {{when}}",
     "expectedEvery_one": "expected every minute",
-    "expectedEvery_other": "expected every {{count}} min"
+    "expectedEvery_other": "expected every {{count}} min",
+    "trendInDays_one": "trend over {{count}} day",
+    "trendInDays_other": "trend over {{count}} days",
+    "trendBasis_one": "Based on {{count}} point over {{days}} days",
+    "trendBasis_other": "Based on {{count}} points over {{days}} days",
+    "trendReset": "counter reset, followed from then",
+    "confidence": {
+      "stable": "stable",
+      "rough": "rough"
+    },
+    "forecast": {
+      "in_one": "Limit {{limit}} reached in about {{count}} day ({{date}}) at this rate",
+      "in_other": "Limit {{limit}} reached in about {{count}} days ({{date}}) at this rate",
+      "reached": "Limit {{limit}} reached",
+      "notApproaching": "Not heading for the limit {{limit}}",
+      "beyond": "Limit {{limit}} not within two years at this rate",
+      "tooFew": "Too few points for a forecast to {{limit}}"
+    }
   },
   "charts": {
     "trendLabel": "Trend of {{names}}. Use the arrow keys to read values.",

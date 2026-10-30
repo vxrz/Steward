@@ -247,7 +247,8 @@ export function notify(n: Notice): void {
   }
   if (external.includes('webhook') && secrets.webhookUrl && claimSend(`webhook:${key}`, DEDUPE_WINDOW_MS)) {
     const msg = message(fallback);
-    jobs.push({ channel: 'webhook', send: () => sendWebhook(secrets.webhookUrl!, msg) });
+    const asCard = getNotificationSettings().webhook.format === 'teams';
+    jobs.push({ channel: 'webhook', send: () => (asCard ? sendTeams(secrets.webhookUrl!, msg) : sendWebhook(secrets.webhookUrl!, msg)) });
   }
   for (const j of jobs) {
     const p = j
@@ -643,9 +644,17 @@ export function startNotificationJobs(): void {
     // service duties: store and close periods, reminders and "missed" messages (duties/jobs.ts, idempotent)
     import('../duties/jobs.js').then((m) => m.runDutyJob()).catch((err) => logger.warn({ err }, 'duty job failed'));
     // availability objectives and the service scorecard: hourly samples, breaches, daily snapshots (scorecard/jobs.ts, idempotent)
-    import('../scorecard/jobs.js').then((m) => m.runScorecardJob()).catch((err) => logger.warn({ err }, 'scorecard job failed'));
+    // (objectives on Prometheus: their figures are read first, #110)
+    import('../scorecard/objectives.js')
+      .then((o) => o.readPromObjectives())
+      .catch((err) => logger.warn({ err }, 'reading Prometheus figures for objectives failed'))
+      .then(() => import('../scorecard/jobs.js'))
+      .then((m) => m.runScorecardJob())
+      .catch((err) => logger.warn({ err }, 'scorecard job failed'));
     // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners (catalogue/lifecycle.ts, idempotent)
     import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()).catch((err) => logger.warn({ err }, 'end-of-life job failed'));
+    // Kubernetes namespaces of applications: deployments, images (tech stack), pods, certificates (#111, every 6 hours)
+    import('../catalogue/kubernetes.js').then((m) => m.runKubernetesJob()).catch((err) => logger.warn({ err }, 'Kubernetes job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));
@@ -715,7 +724,8 @@ export async function sendTest(channel: 'email' | 'teams' | 'webhook', to: strin
       await sendTeams(secrets.teamsWebhookUrl, msg);
     } else {
       if (!secrets.webhookUrl) return { ok: false, error: 'No webhook URL is stored' };
-      await sendWebhook(secrets.webhookUrl, msg);
+      if (getNotificationSettings().webhook.format === 'teams') await sendTeams(secrets.webhookUrl, msg);
+      else await sendWebhook(secrets.webhookUrl, msg);
     }
     return { ok: true };
   } catch (err) {

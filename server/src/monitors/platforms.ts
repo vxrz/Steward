@@ -16,7 +16,7 @@ const TTL_MS = 60000;
 
 export class CheckSetupError extends Error {}
 
-function ownerProblem(owner: string, platformId: string): string | null {
+export function ownerProblem(owner: string, platformId: string): string | null {
   const key = `${owner.toLowerCase()}|${platformId}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.ok;

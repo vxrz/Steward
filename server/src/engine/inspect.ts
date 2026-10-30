@@ -1,7 +1,10 @@
-import type { FlowNode, NodeInspection, ProcessDefinition } from '@sm/shared';
+import { systemsForProcess } from '../catalogue/systems.js';
+import { forecastTo, type FlowNode, type NodeInspection, type ProcessDefinition } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson, preview } from '../util.js';
-import { getProcess } from '../processes/service.js';
+import { getProcess, permissionsFor } from '../processes/service.js';
+import { metricForRun } from '../dashboards/datasets.js';
+import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { getPlatform, getSecrets } from '../platforms/service.js';
 import { secretValues } from '../platforms/http.js';
 import { CUSTOM_FUNCTIONS, stringify, type Bindings } from './expr.js';
@@ -184,7 +187,29 @@ export function expressionContext(processId: string, opts: { runId?: string; nod
       const v = platformVars[slot]?.[name];
       return v === undefined || v === '' ? fallback : v;
     },
+    systems: () => systemsForProcess(),
+    // as in a run (#145), with the rights of the person asking (datasets of processes they may view)
+    trend: (ref: string, window: string = '7d') => {
+      const t = metricOf(ref, window)?.trend;
+      return t
+        ? { change: t.change, changePct: t.changePct, perDay: t.perDay, end: t.end, points: t.points, confidence: t.confidence, window: t.window }
+        : null;
+    },
+    daysUntil: (ref: string, limit?: number, window: string = '30d') => {
+      const m = metricOf(ref, window);
+      const l = typeof limit === 'number' ? { value: limit, lower: false } : m?.limit;
+      if (!m || !l) return null;
+      const f = forecastTo(m.points, l.value, { window, lower: l.lower });
+      return f && (f.state === 'approaching' || f.state === 'reached') ? f.days : null;
+    },
   };
+  function metricOf(ref: string, window: string) {
+    return metricForRun(String(ref), String(window), {
+      runId: run?.id ?? '',
+      processId,
+      mayRead: (pid) => (pid.startsWith('monitor:') ? monitorDatasetVisible(pid) === true : permissionsFor(pid).includes('view')),
+    });
+  }
   return { runId: run?.id ?? null, definition, scope, bindings, redactor, vars, connections };
 }
 

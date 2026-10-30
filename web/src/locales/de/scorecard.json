@@ -47,9 +47,9 @@
     "add": "Ziel hinzufügen",
     "editOf": "Ziel „{{name}}“ bearbeiten",
     "saved": "Ziel gespeichert",
-    "platform": "Gatus-Plattform",
-    "platformHint": "Gatus-Plattformen mit Metrik-Modus, die Sie sehen dürfen.",
-    "noSources": "Keine Gatus-Plattform mit Metrik-Modus",
+    "platform": "Gatus- oder Prometheus-Plattform",
+    "platformHint": "Gatus-Plattformen mit Metrikmodus und Prometheus-Plattformen, die Sie sehen dürfen.",
+    "noSources": "Keine Gatus-Plattform mit Metrikmodus und keine Prometheus-Plattform",
     "uptimesOff": "Steward liest die Verfügbarkeitswerte von Gatus für diese Plattform noch nicht: Das Ziel zeigt „keine Daten“, bis in ihrem Metrik-Modus „Auch die Verfügbarkeitswerte von Gatus lesen“ eingeschaltet ist.",
     "endpoint": "Endpunkt",
     "name": "Name",
@@ -62,7 +62,10 @@
     "description": "Beschreibung",
     "notify": "Nachricht senden, wenn das Ziel unterschritten wird",
     "notifyHint": "An die Verantwortlichen des Service (Administratoren, wenn er keine hat), einmal je Unterschreitung.",
-    "platformHidden": "Sie dürfen die Gatus-Plattform dieses Ziels nicht sehen. Sie können Name und Zielwerte ändern; der Endpunkt bleibt."
+    "platformHidden": "Sie dürfen die Gatus-Plattform dieses Ziels nicht sehen. Sie können Name und Zielwerte ändern; der Endpunkt bleibt.",
+    "promQuery": "PromQL-Abfrage",
+    "promQueryHint": "Liefert die Verfügbarkeit als Anteil (0–1); $window wird zu 1h, 24h, 7d und 30d, z. B. avg_over_time(up{job=\"shop\"}[$window]). Bei mehreren Serien zählt die niedrigste. Stündlich gelesen.",
+    "promWindowMissing": "Verwenden Sie $window für den Zeitraum, z. B. [$window]."
   },
   "objectives": {
     "title": "Verfügbarkeitsziele",

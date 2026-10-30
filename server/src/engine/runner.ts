@@ -45,14 +45,16 @@ import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import { openBrowser, type BrowserSession } from './browser.js';
 import * as store from './store.js';
 import { completeManual, manualSpec, verifyManual, type ManualCompletionInput, type Settled } from './manual.js';
-import { publishDataset, datasetOwner } from '../dashboards/datasets.js';
+import { publishDataset, datasetOwner, metricForRun } from '../dashboards/datasets.js';
+import { monitorDatasetVisible } from '../monitors/datasets.js';
 import { recordStepAccessChanges, type AccessChangeInput } from '../compliance/run-entries.js';
 import { logger } from '../log.js';
 import { withSpan } from '../telemetry.js';
-import { normalizeStatus, type DatasetRow } from '@sm/shared';
+import { forecastTo, normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
 import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
+import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
 
 // ---------------------------------------------------------------------------
@@ -216,8 +218,40 @@ class RunContext {
         const v = this.bindings[slot]?.platform.config.variables?.[name];
         return v === undefined || v === '' ? fallback : v;
       },
+      // every system with its tech stack and end of life (#129), also systems no application runs on
+      systems: () => systemsForProcess(),
+      // trends of dataset metrics (#145): $trend('ih.assets/attributes', '7d'), $daysUntil('ih.assets/attributes', 1000)
+      trend: (ref: string, window: string = '7d') => {
+        const t = this.metric(ref, window)?.trend;
+        return t
+          ? { change: t.change, changePct: t.changePct, perDay: t.perDay, end: t.end, points: t.points, confidence: t.confidence, window: t.window }
+          : null;
+      },
+      daysUntil: (ref: string, limit?: number, window: string = '30d') => {
+        const s = this.metric(ref, window);
+        if (!s) return null;
+        const l = typeof limit === 'number' ? { value: limit, lower: false } : s.limit;
+        if (!l) return null;
+        const f = forecastTo(s.points, l.value, { window, lower: l.lower });
+        return f && (f.state === 'approaching' || f.state === 'reached') ? f.days : null;
+      },
       ...extra,
     };
+  }
+
+  /** A dataset metric with its trend, for $trend/$daysUntil: datasets of this process, or of processes the actor may view. */
+  metric(ref: string, window: string) {
+    return metricForRun(String(ref), String(window), {
+      runId: this.runId,
+      processId: this.processId,
+      mayRead: (pid) => {
+        if (pid.startsWith('monitor:')) {
+          const u = findUserByName(this.actor);
+          return !!u && u.active && runAs(toAuthUser(u), () => monitorDatasetVisible(pid) === true);
+        }
+        return actorPermissions(this.actor, pid).includes('view');
+      },
+    });
   }
 
   /** Guard rails of every expression of this run (default limits, cancelled with the run). */
@@ -1488,6 +1522,17 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     if (Number.isFinite(v)) metrics[name] = v;
     else ctx.log('warn', `Metric "${name}" is not a number – skipped`, key);
   }
+  // limits of metrics (#145): upper limits, and floors (lower limits) – a limit that is not a number is left out
+  const limits: Record<string, { value: number; lower: boolean }> = {};
+  for (const [kind, map] of [
+    ['limit', step.limits],
+    ['floor', step.floors],
+  ] as const)
+    for (const [name, expr] of Object.entries(map ?? {})) {
+      const v = Number(await ctx.eval(expr));
+      if (Number.isFinite(v)) limits[name] = { value: v, lower: kind === 'floor' };
+      else ctx.log('warn', `The ${kind} of metric "${name}" is not a number – skipped`, key);
+    }
   const run = store.runRow(ctx.runId);
   // A dataset key is owned by the first process to publish it. A real run by another
   // process is rejected inside publishDataset (dashboard poisoning). A *dry run* by
@@ -1517,6 +1562,7 @@ async function execPublish(step: NodeOf<'publish'>, ctx: RunContext, key: string
     columns,
     rows: ctx.redactor.apply(rows),
     metrics,
+    limits,
     staleAfterMinutes: step.staleAfterMinutes,
     sourceSlot: step.source,
   });

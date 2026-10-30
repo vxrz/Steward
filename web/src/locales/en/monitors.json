@@ -179,7 +179,32 @@
       "auto": "Automatic (metrics when enabled for the platform)",
       "api": "Gatus status API",
       "metrics": "Scraped metrics"
-    }
+    },
+    "cmkHost": "Host name in CheckMk",
+    "cmkService": "Service",
+    "cmkServiceHint": "The service description exactly as in CheckMk, e.g. \"Filesystem /var\". Empty: the state of the host",
+    "cmkMaxAge": "Unknown when not checked for (s)",
+    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long",
+    "promQuery": "PromQL query",
+    "promQueryHint": "An instant query, e.g. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). With several series the worst one counts",
+    "promDirection": "Bad when the value is",
+    "promDirections": {
+      "above": "at or above the level",
+      "below": "at or below the level"
+    },
+    "promWarn": "WARN level (degraded)",
+    "promCrit": "CRIT level (down)",
+    "promNoData": "When the query returns nothing",
+    "promNoDataHint": "Usually unknown: the target may have disappeared",
+    "promNoDataStates": {
+      "unknown": "unknown",
+      "up": "up",
+      "down": "down"
+    },
+    "promUnit": "Unit (shown)",
+    "k8sNamespace": "Namespace",
+    "k8sDeployment": "Deployment",
+    "k8sDeploymentHint": "Empty: every deployment of the namespace"
   },
   "detail": {
     "template": "template",
@@ -316,7 +341,15 @@
     "onlyChecks": "Only these checks",
     "add": "Add output",
     "manageOnly": "Only the owner, administrators or users with the manage right can change outputs.",
-    "runMessages": "Messages of the runs it starts"
+    "runMessages": "Messages of the runs it starts",
+    "format": "Format",
+    "formatHint": "Teams card: an Adaptive Card per status change, posted to a Teams channel",
+    "formats": {
+      "json": "JSON event (Steward payload)",
+      "teams": "Teams card (Adaptive Card)"
+    },
+    "teamsChannel": "Teams channel",
+    "teamsChannelHint": "A platform of kind \"Microsoft Teams channel (Workflows)\": it keeps the Workflows URL encrypted, and its access list decides who may post there"
   },
   "heartbeat": {
     "endpoint": "Heartbeat endpoint",
@@ -465,6 +498,18 @@
       "label": "Gatus endpoint",
       "help": "Status of an endpoint monitored by Gatus"
     },
+    "checkmk": {
+      "label": "CheckMk host or service",
+      "help": "Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)"
+    },
+    "prometheus": {
+      "label": "Prometheus query",
+      "help": "A PromQL query compared with WARN and CRIT levels; with several series the worst one counts"
+    },
+    "kubernetes": {
+      "label": "Kubernetes deployments",
+      "help": "Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -478,6 +523,9 @@
     "freshness": "Data in Insights Hub",
     "heartbeat": "Data reported by the gateway",
     "gatus": "Gatus endpoint",
+    "checkmk": "CheckMk service",
+    "prometheus": "Prometheus query",
+    "kubernetes": "Kubernetes deployments",
     "monitor": "Sub-monitor"
   },
   "uptime": {

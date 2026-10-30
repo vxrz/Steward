@@ -261,6 +261,18 @@ export const STEP_META: Record<NodeType, StepMeta> = {
       { key: 'statusText', label: 'Status reason (expression per item)', kind: 'expr' },
       { key: 'metrics', label: 'Metrics (name → number expression)', kind: 'keyValue', help: 'Appended to the history for trend charts' },
       {
+        key: 'limits',
+        label: 'Upper limits (metric → number expression)',
+        kind: 'keyValue',
+        help: 'A quota or contract limit per metric: dashboards and checks forecast when the trend reaches it',
+      },
+      {
+        key: 'floors',
+        label: 'Lower limits (metric → number expression)',
+        kind: 'keyValue',
+        help: 'A floor per metric, e.g. free storage: forecast when the trend falls to it',
+      },
+      {
         key: 'staleAfterMinutes',
         label: 'Stale after (minutes)',
         kind: 'number',

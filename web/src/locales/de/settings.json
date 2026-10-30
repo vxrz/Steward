@@ -156,7 +156,12 @@
     "allowedDomains": "Erlaubte E-Mail-Domains für Adressen außerhalb von Steward",
     "allowedDomainsHint": "Eigentümer von Zugangsdaten und Berichtsempfänger, die keine Steward-Benutzer sind, erhalten E-Mails nur an diese Domains, z. B. corp.example oder *.corp.example (alle Subdomains). Leer: die Domains der eigenen Adressen der Steward-Benutzer (von einem Administrator, einem Single-Sign-on-Konto oder mindestens zwei Benutzern verwendet).",
     "allowedDomainsPlaceholder": "corp.example, *.corp.example",
-    "passwordAgain": "Server, Port, Benutzer oder TLS haben sich geändert: Geben Sie das Passwort erneut ein (das gespeicherte wird nie an einen anderen Server oder ohne TLS gesendet)."
+    "passwordAgain": "Server, Port, Benutzer oder TLS haben sich geändert: Geben Sie das Passwort erneut ein (das gespeicherte wird nie an einen anderen Server oder ohne TLS gesendet).",
+    "webhookFormat": "Format",
+    "webhookFormats": {
+      "json": "JSON-Ereignis",
+      "teams": "Teams-Karte (Adaptive Card)"
+    }
   },
   "publicApi": {
     "title": "REST-API",

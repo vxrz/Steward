@@ -296,7 +296,24 @@
       "versionChange": "{{from}} → {{to}}",
       "manualKept": "SBOM says {{version}}"
     },
-    "actions": "Actions"
+    "actions": "Actions",
+    "cluster": {
+      "fromCluster": "Read from the cluster",
+      "readNow": "Read the namespace {{name}} from the cluster now",
+      "done": "Namespace {{name}} read",
+      "noCluster": "No cluster chosen: edit the component to read its deployments.",
+      "notRead": "Not read from the cluster yet",
+      "error": "Last read failed: {{error}}",
+      "read": "Read {{date}}",
+      "noDeployments": "no deployments",
+      "unhealthy": "Pods not well: {{pods}}",
+      "certs": "Certificates ending within 30 days: {{certs}}",
+      "noCertManager": "No cert-manager in the cluster: certificates are not read",
+      "unmapped": "Images without a product (add them under End of life → settings): {{images}}",
+      "platform": "Cluster",
+      "platformHint": "A platform of kind Kubernetes; Steward reads the namespace every 6 hours",
+      "noPlatforms": "No Kubernetes platform you may use"
+    }
   },
   "credentials": {
     "title": "Credentials",
@@ -340,7 +357,9 @@
     "eolIn_other": "end of life on {{date}}, in {{count}} days",
     "eolOn": "end of life on {{date}}",
     "noEolDate": "no end-of-life date announced",
-    "latest": "latest {{version}}"
+    "latest": "latest {{version}}",
+    "imageMap": "Own container images",
+    "imageMapHint": "For Kubernetes namespaces: one line per image and its endoflife.date product, e.g. \"ghcr.io/acme/base-node = nodejs\". The version comes from the image tag. They come before the built-in list (postgres, node, nginx, redis …)."
   },
   "environments": {
     "title": "Environments",

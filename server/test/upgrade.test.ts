@@ -119,6 +119,9 @@ describe.each(versions)('upgrade from %s', (version) => {
         platformId: r.platform_id,
         ops: (JSON.parse(r.operations) as { method: string; path: string }[]).map((o) => ({ method: o.method, path: (r.path_prefix ?? '') + o.path })),
       }));
+      // evidence packs expire a week after they were made (SM_EVIDENCE_RETENTION_DAYS): the fixture's pack would turn
+      // "expired" as the fixture ages. This test checks that it still verifies after the upgrade, not the expiry.
+      old.run("UPDATE evidence_packs SET expires_at = '2999-01-01T00:00:00.000Z' WHERE status = 'ready'");
     } finally {
       old.close();
     }

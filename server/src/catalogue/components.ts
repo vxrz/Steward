@@ -16,6 +16,7 @@ import {
   type StackLifecycle,
   type StackProduct,
   type StackSource,
+  type NamespaceReadout,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -29,6 +30,7 @@ import { assetPath } from '../reports/pdf/assets.js';
 import { lifecycleOf, lifecycleSettings, releasesOf } from './lifecycle.js';
 import { environmentList, environmentValue, isProduction, rankOf } from './environments.js';
 import { systemLinksOf } from './systems.js';
+import { ownerProblem } from '../monitors/platforms.js';
 
 /**
  * Components of an application (#103): what it consists of – repositories, container images, Kafka topics,
@@ -131,6 +133,8 @@ export function stackProducts(): { source: string; products: StackProduct[] } {
 }
 
 const labelOf = (product: string) => loadIndex().byId.get(product)?.label ?? product;
+/** Is this an endoflife.date product Steward knows? */
+export const isKnownProduct = (product: string): boolean => loadIndex().byId.has(product);
 
 /** The name of a product of the list (its id when it is no longer on it); for jobs without a signed-in user. */
 export const productLabel = labelOf;
@@ -152,6 +156,8 @@ export const componentInput = z
     note: z.string().max(COMPONENT_LIMITS.note).default(''),
     /** The environment (#129); empty: all environments / not specific to one */
     environment: environmentValue.default(''),
+    /** Kubernetes namespace (#111): the cluster, a platform of kind kubernetes (missing: unchanged) */
+    platformId: z.string().trim().min(1).max(100).nullable().optional(),
     /** The whole stack of the component (missing: unchanged). Entries that keep product and version keep their source; others count as entered by hand. */
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
   })
@@ -183,6 +189,8 @@ interface ComponentRow {
   sbom_name: string | null;
   sbom_imported_at: string | null;
   sbom_imported_by: string | null;
+  platform_id?: string | null;
+  cluster_state?: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -244,6 +252,9 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
       r.sbom_format && r.sbom_imported_at
         ? { format: r.sbom_format as SbomFormat, name: r.sbom_name ?? '', importedAt: r.sbom_imported_at, importedBy: r.sbom_imported_by ?? '' }
         : null,
+    ...(r.type === 'kubernetes-namespace'
+      ? { platformId: r.platform_id ?? null, cluster: parseJson<NamespaceReadout | null>(r.cluster_state ?? null, null) }
+      : {}),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedAt: r.updated_at,
@@ -328,6 +339,17 @@ function editableApp(appId: string, canEdit: (u: AuthUser | null, r: Pick<AppRow
   if (!canEdit(currentUser(), a)) forbid(what, 'changeApplication');
   if (a.archived) throw new HttpError(409, `Application "${a.name}" is archived`, 'APPLICATION_ARCHIVED', { name: a.name });
   return a;
+}
+
+/** The cluster of a namespace component: a platform of kind kubernetes the user may use (#111). */
+function clusterOf(input: ComponentInput, u: AuthUser, current: string | null): string | null {
+  if (input.type !== 'kubernetes-namespace') return null;
+  const id = input.platformId === undefined ? current : input.platformId;
+  if (!id || id === current) return id ?? null;
+  const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', id);
+  if (p?.kind !== 'kubernetes' || ownerProblem(u.username, id))
+    throw new HttpError(400, 'Choose a Kubernetes platform you may use', 'COMPONENT_CLUSTER', { id });
+  return id;
 }
 
 function componentRow(appId: string, componentId: string): ComponentRow {
@@ -434,12 +456,13 @@ export function addComponent(appId: string, input: ComponentInput, canEdit: CanE
   )
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
+  const cluster = clusterOf(input, u, null);
   const id = newId('cmp_');
   const now = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO application_components (id, application_id, type, name, url, note, environment, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO application_components (id, application_id, type, name, url, note, environment, platform_id, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       appId,
       input.type,
@@ -447,6 +470,7 @@ export function addComponent(appId: string, input: ComponentInput, canEdit: CanE
       input.url,
       input.note,
       input.environment,
+      cluster,
       now,
       u.username,
       now,
@@ -481,18 +505,23 @@ export function updateComponent(appId: string, componentId: string, input: Compo
   )
     throw new HttpError(409, `The application has a ${input.type} "${input.name}" already`, 'COMPONENT_EXISTS', { name: input.name });
   if (input.stack) requireKnownProducts(input.stack);
-  const fields = (['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? ''));
+  const cluster = clusterOf(input, u, cur.platform_id ?? null);
+  const fields = [
+    ...(['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? '')),
+    ...(cluster !== (cur.platform_id ?? null) ? (['cluster'] as const) : []),
+  ];
   db().tx(() => {
     const diff = input.stack ? writeStack(componentHolder(componentId), input.stack, u) : { added: [], changed: [], removed: [] };
     const stackChanged = diff.added.length + diff.changed.length + diff.removed.length > 0;
     if (!fields.length && !stackChanged) return;
     db().run(
-      'UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, environment = ?, updated_at = ?, updated_by = ? WHERE id = ?',
+      'UPDATE application_components SET type = ?, name = ?, url = ?, note = ?, environment = ?, platform_id = ?, updated_at = ?, updated_by = ? WHERE id = ?',
       input.type,
       input.name,
       input.url,
       input.note,
       input.environment,
+      cluster,
       nowIso(),
       u.username,
       componentId,

@@ -7,6 +7,8 @@ import { DEMO_OIDC } from '../mock/mockOidc.js';
 import { listProviders, saveProvider } from '../auth/sso.js';
 import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
+import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
+import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
@@ -146,6 +148,44 @@ export async function setupDemo(): Promise<{
       secrets: { username: DEMO_GATUS.username, password: DEMO_GATUS.password, externalToken: DEMO_GATUS.externalToken },
     });
     addSpec(g.id, 'Gatus API', JSON.stringify(gatusOpenApiSpec(), null, 2));
+    platforms++;
+  }
+  if (!existing.has('CheckMk (demo)')) {
+    // CheckMk (#130): host and service states for monitors, metric history for the trend summary example
+    createPlatform({
+      name: 'CheckMk (demo)',
+      kind: 'checkmk',
+      environment: 'demo',
+      description: 'Simulated CheckMk site (REST API 1.0) served by the built-in mock: four hosts and services, metric history. See docs/CHECKMK.md.',
+      baseUrl: `${base}/checkmk/demo/check_mk/api/1.0`,
+      config: { auth: { type: 'bearer' }, variables: { site: 'demo' }, http: { proxy: 'none' }, testPath: '/version' },
+      secrets: { token: `${DEMO_CHECKMK.user} ${DEMO_CHECKMK.secret}` },
+    });
+    platforms++;
+  }
+  if (!existing.has('Prometheus (demo)')) {
+    // Prometheus (#110): PromQL checks and an availability objective from a query
+    createPlatform({
+      name: 'Prometheus (demo)',
+      kind: 'prometheus',
+      environment: 'demo',
+      description: 'Simulated Prometheus HTTP API served by the built-in mock (a few fixed queries). See docs/MONITORS.md.',
+      baseUrl: `${base}/prometheus`,
+      config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/status/buildinfo' },
+    });
+    platforms++;
+  }
+  if (!existing.has('Kubernetes (demo)')) {
+    // Kubernetes (#111): namespaces shop-prod and shop-test with deployments, pods and cert-manager certificates
+    createPlatform({
+      name: 'Kubernetes (demo)',
+      kind: 'kubernetes',
+      environment: 'demo',
+      description: 'Simulated Kubernetes API server (read-only service account) served by the built-in mock. See docs/KUBERNETES.md.',
+      baseUrl: `${base}/kubernetes`,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' }, testPath: '/version' },
+      secrets: { token: DEMO_KUBERNETES.token },
+    });
     platforms++;
   }
   if (!existing.has('endoflife.date (demo)')) {

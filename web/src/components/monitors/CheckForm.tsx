@@ -582,6 +582,157 @@ export function CheckForm({ check: c, onChange, platforms, monitors, monitorKey,
           />
         </>
       )}
+      {c.type === 'checkmk' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="checkmk"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Group grow align="flex-start">
+            <TextInput
+              error={err('host')}
+              data-field="host"
+              label={t('form.cmkHost')}
+              required
+              disabled={disabled}
+              value={c.host}
+              onChange={(e) => set({ host: e.currentTarget.value })}
+              classNames={{ input: 'mono' }}
+            />
+            <TextInput
+              error={err('service')}
+              data-field="service"
+              label={t('form.cmkService')}
+              description={t('form.cmkServiceHint')}
+              disabled={disabled}
+              value={c.service ?? ''}
+              onChange={(e) => set({ service: e.currentTarget.value || undefined })}
+            />
+          </Group>
+          <NumberInput
+            error={err('maxAgeSeconds')}
+            data-field="maxAgeSeconds"
+            label={t('form.cmkMaxAge')}
+            description={t('form.cmkMaxAgeHint')}
+            min={1}
+            disabled={disabled}
+            value={c.maxAgeSeconds ?? ''}
+            onChange={(v) => set({ maxAgeSeconds: num(v) })}
+          />
+        </>
+      )}
+      {c.type === 'kubernetes' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="kubernetes"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Group grow align="flex-start">
+            <TextInput
+              error={err('namespace')}
+              data-field="namespace"
+              label={t('form.k8sNamespace')}
+              required
+              disabled={disabled}
+              value={c.namespace}
+              onChange={(e) => set({ namespace: e.currentTarget.value })}
+              classNames={{ input: 'mono' }}
+            />
+            <TextInput
+              error={err('deployment')}
+              data-field="deployment"
+              label={t('form.k8sDeployment')}
+              description={t('form.k8sDeploymentHint')}
+              disabled={disabled}
+              value={c.deployment ?? ''}
+              onChange={(e) => set({ deployment: e.currentTarget.value || undefined })}
+              classNames={{ input: 'mono' }}
+            />
+          </Group>
+        </>
+      )}
+      {c.type === 'prometheus' && (
+        <>
+          <PlatformSelect
+            value={c.platform}
+            onChange={(v) => set({ platform: v })}
+            platforms={platforms}
+            kind="prometheus"
+            disabled={disabled}
+            error={err('platform')}
+          />
+          <Textarea
+            error={err('query')}
+            data-field="query"
+            label={t('form.promQuery')}
+            description={t('form.promQueryHint')}
+            required
+            autosize
+            minRows={2}
+            disabled={disabled}
+            value={c.query}
+            onChange={(e) => set({ query: e.currentTarget.value })}
+            classNames={{ input: 'mono' }}
+          />
+          <Group grow align="flex-start">
+            <Select
+              data-field="direction"
+              label={t('form.promDirection')}
+              allowDeselect={false}
+              disabled={disabled}
+              data={(['above', 'below'] as const).map((v) => ({ value: v, label: t(`form.promDirections.${v}`) }))}
+              value={c.direction ?? 'above'}
+              onChange={(v) => set({ direction: v === 'below' ? 'below' : 'above' })}
+            />
+            <NumberInput
+              error={err('warn')}
+              data-field="warn"
+              label={t('form.promWarn')}
+              disabled={disabled}
+              value={c.warn ?? ''}
+              onChange={(v) => set({ warn: typeof v === 'number' ? v : undefined })}
+              allowDecimal
+            />
+            <NumberInput
+              error={err('crit')}
+              data-field="crit"
+              label={t('form.promCrit')}
+              required
+              disabled={disabled}
+              value={c.crit}
+              onChange={(v) => set({ crit: typeof v === 'number' ? v : 0 })}
+              allowDecimal
+            />
+          </Group>
+          <Group grow align="flex-start">
+            <Select
+              data-field="noData"
+              label={t('form.promNoData')}
+              description={t('form.promNoDataHint')}
+              allowDeselect={false}
+              disabled={disabled}
+              data={(['unknown', 'up', 'down'] as const).map((v) => ({ value: v, label: t(`form.promNoDataStates.${v}`) }))}
+              value={c.noData ?? 'unknown'}
+              onChange={(v) => set({ noData: (v as 'unknown' | 'up' | 'down') ?? 'unknown' })}
+            />
+            <TextInput
+              data-field="unit"
+              label={t('form.promUnit')}
+              disabled={disabled}
+              value={c.unit ?? ''}
+              onChange={(e) => set({ unit: e.currentTarget.value || undefined })}
+            />
+          </Group>
+        </>
+      )}
       {c.type === 'gatus' && (
         <>
           <PlatformSelect

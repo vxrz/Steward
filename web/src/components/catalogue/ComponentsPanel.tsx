@@ -21,7 +21,7 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
-import { IconEdit, IconExternalLink, IconFileImport, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconExternalLink, IconFileImport, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   COMPONENT_TYPES,
@@ -62,6 +62,14 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
   const withEnv = envs.some((e) => e !== '');
   // the components of all environments ('') show in every environment
   const shown = env === null ? app.components : app.components.filter((c) => c.environment === env || c.environment === '');
+  const readCluster = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/cluster`, {}));
+      notifications.show({ color: 'green', message: t('components.cluster.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
   const remove = async (c: ApplicationComponent) => {
     if (!(await confirmDanger({ action: 'remove', message: t('components.removeConfirm', { name: c.name }) }))) return;
     try {
@@ -136,6 +144,7 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                       </Text>
                     )}
                     {c.sbom && <SbomLine sbom={c.sbom} />}
+                    {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
                   </Table.Td>
                   {withEnv && (
                     <Table.Td className="nowrap">
@@ -151,9 +160,15 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                         <ActionIcon variant="subtle" aria-label={t('components.edit', { name: c.name })} onClick={() => setEditing(c)}>
                           <IconEdit size={16} />
                         </ActionIcon>
-                        <ActionIcon variant="subtle" aria-label={t('components.sbom.import', { name: c.name })} onClick={() => setImporting(c)}>
-                          <IconFileImport size={16} />
-                        </ActionIcon>
+                        {c.type === 'kubernetes-namespace' && c.platformId ? (
+                          <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
+                            <IconRefresh size={16} />
+                          </ActionIcon>
+                        ) : (
+                          <ActionIcon variant="subtle" aria-label={t('components.sbom.import', { name: c.name })} onClick={() => setImporting(c)}>
+                            <IconFileImport size={16} />
+                          </ActionIcon>
+                        )}
                         <ActionIcon variant="subtle" color="red" aria-label={t('components.remove', { name: c.name })} onClick={() => void remove(c)}>
                           <IconTrash size={16} />
                         </ActionIcon>
@@ -181,6 +196,58 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
 }
 
 /** "CycloneDX "orders" imported by … on …" */
+/** What Steward last read from a namespace (#111): deployments, unwell pods, certificates, images it could not map. */
+function ClusterLine({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  const r = c.cluster;
+  if (!c.platformId)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.noCluster')}
+      </Text>
+    );
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.notRead')}
+      </Text>
+    );
+  const soon = (r.certificates ?? []).filter((x) => x.notAfter && Date.parse(x.notAfter) - Date.now() < 30 * 86_400_000);
+  return (
+    <Stack gap={0} data-testid="cluster-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} ·{' '}
+        {r.deployments.map((d) => `${d.name} ${d.ready}/${d.desired}`).join(', ') || t('components.cluster.noDeployments')}
+      </Text>
+      {r.unhealthyPods.length > 0 && (
+        <Text size="xs" c="orange.8">
+          {t('components.cluster.unhealthy', { pods: r.unhealthyPods.map((p) => `${p.name} (${p.reason})`).join(', ') })}
+        </Text>
+      )}
+      {soon.length > 0 && (
+        <Text size="xs" c="orange.8">
+          {t('components.cluster.certs', { certs: soon.map((x) => `${x.name} ${fmtDate(x.notAfter!)}`).join(', ') })}
+        </Text>
+      )}
+      {r.certificates === null && (
+        <Text size="xs" c="dimmed">
+          {t('components.cluster.noCertManager')}
+        </Text>
+      )}
+      {r.unmapped.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.cluster.unmapped', { images: r.unmapped.join(', ') })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
 export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbom']> }) {
   const { t } = useTranslation('applications');
   return (
@@ -211,8 +278,14 @@ export function StackBadges({ stack }: { stack: StackEntry[] }) {
           key={s.product}
           text={[s.label, s.version].filter(Boolean).join(' ')}
           lifecycle={s.lifecycle}
-          variant={s.source === 'sbom' ? 'light' : 'outline'}
-          extra={s.source === 'sbom' ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}` : t('components.stackEditor.manual')}
+          variant={s.source === 'manual' ? 'outline' : 'light'}
+          extra={
+            s.source === 'sbom'
+              ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
+              : s.source === 'cluster'
+                ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
+                : t('components.stackEditor.manual')
+          }
         />
       ))}
     </Group>
@@ -246,7 +319,7 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
   );
 }
 
-export type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom'; was?: string };
+export type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom' | 'cluster'; was?: string };
 
 export const stackRowsOf = (stack: StackEntry[]): StackRow[] =>
   stack.map((s) => ({ product: s.product, version: s.version, source: s.source, was: s.version }));
@@ -270,7 +343,7 @@ export function StackFields({ stack, onChange }: { stack: StackRow[]; onChange: 
       </Text>
       {stack.map((r, i) => {
         const p = r.product ? byId.get(r.product) : undefined;
-        const fromSbom = r.source === 'sbom' && r.version === r.was;
+        const fromSbom = (r.source === 'sbom' || r.source === 'cluster') && r.version === r.was;
         return (
           <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
             <Select
@@ -336,6 +409,12 @@ function ComponentFormModal({
   const [url, setUrl] = useState(component?.url ?? '');
   const [note, setNote] = useState(component?.note ?? '');
   const [environment, setEnvironment] = useState(component?.environment ?? '');
+  const [platformId, setPlatformId] = useState<string | null>(component?.platformId ?? null);
+  const clusters = useQuery({
+    queryKey: ['platforms', 'kubernetes'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kubernetes'),
+    enabled: type === 'kubernetes-namespace',
+  });
   const [stack, setStack] = useState<StackRow[]>(stackRowsOf(component?.stack ?? []));
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
@@ -345,7 +424,15 @@ function ComponentFormModal({
   const save = async () => {
     if (!v.validate()) return;
     setBusy(true);
-    const body = { type, name: name.trim(), url: url.trim(), note, environment: environment.trim(), stack: stackBody(stack) };
+    const body = {
+      type,
+      name: name.trim(),
+      url: url.trim(),
+      note,
+      environment: environment.trim(),
+      ...(type === 'kubernetes-namespace' ? { platformId } : {}),
+      stack: stackBody(stack),
+    };
     try {
       onSaved(
         component
@@ -392,6 +479,17 @@ function ComponentFormModal({
             />
           </Group>
           <EnvironmentInput value={environment} onChange={setEnvironment} allowAll description={t('environments.componentHint')} />
+          {type === 'kubernetes-namespace' && (
+            <Select
+              label={t('components.cluster.platform')}
+              description={t('components.cluster.platformHint')}
+              data={(clusters.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.cluster.noPlatforms')}
+            />
+          )}
           <TextInput label={t('components.url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} error={v.error('url')} />
           <Textarea label={t('components.note')} autosize minRows={1} maxRows={4} value={note} onChange={(e) => setNote(e.currentTarget.value)} />
           <StackFields stack={stack} onChange={setStack} />

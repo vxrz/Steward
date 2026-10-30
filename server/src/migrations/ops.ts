@@ -145,4 +145,21 @@ export const OPS_MIGRATIONS: NamedMigration[] = [
     CREATE INDEX dataset_metrics_source ON dataset_metrics(dataset_key, source, name, ts);
     `,
   },
+  {
+    // limits of metrics per source (#145): { metric: { value, lower } } from the publish step's limits and floors
+    name: 'ops-008-metric-limits',
+    sql: `ALTER TABLE dataset_parts ADD COLUMN limits TEXT;`,
+  },
+  {
+    // availability objectives from a PromQL query (#110): the figures per window, read in the background
+    name: 'ops-009-prom-objective-readings',
+    sql: `CREATE TABLE prom_objective_readings (
+      platform_id TEXT NOT NULL,
+      query TEXT NOT NULL,
+      figures TEXT,
+      error TEXT,
+      read_at TEXT NOT NULL,
+      PRIMARY KEY (platform_id, query)
+    );`,
+  },
 ];

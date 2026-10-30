@@ -122,7 +122,8 @@
       "records": "Records waiting for me or that changed",
       "reports": "Reports for me",
       "reviews": "Document reviews due for me",
-      "duties": "Service duties due or missed that I am responsible for"
+      "duties": "Service duties due or missed that I am responsible for",
+      "trends": "Trends of dashboard metrics: limits reached soon and strong changes"
     },
     "skipEmpty": "Send nothing on days without anything to report",
     "save": "Save",

@@ -321,7 +321,14 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 // ---------- validation ----------
 
-const PLATFORM_KIND: Partial<Record<string, string>> = { freshness: 'insights-hub', gatus: 'gatus', zabbix: 'zabbix' };
+const PLATFORM_KIND: Partial<Record<string, string>> = {
+  freshness: 'insights-hub',
+  gatus: 'gatus',
+  checkmk: 'checkmk',
+  prometheus: 'prometheus',
+  kubernetes: 'kubernetes',
+  zabbix: 'zabbix',
+};
 
 /** The platform kind a check or output needs (undefined: any platform). */
 function expectedKind(item: Record<string, unknown>, isOutput: boolean): string | undefined {
@@ -443,8 +450,19 @@ function resolveReferences(def: MonitorDefinition, selfId: string | null, selfKe
     }
   }
   for (const o of out.outputs) {
+    // a Teams Workflows URL carries its own signature: it lives encrypted in a "Microsoft Teams channel" platform,
+    // never in the definition (exports, Git sync, audit diffs) – #130
+    const teams = o.type === 'webhook' && o.format === 'teams';
+    if (teams && (!o.platform || o.url || o.path))
+      throw new HttpError(400, `Output "${o.id}": a Teams card goes to a "Microsoft Teams channel" platform, not to a URL`, 'OUTPUT_TEAMS_PLATFORM', {
+        output: o.id,
+      });
     if ('platform' in o && o.platform) {
-      const p = resolvePlatformRef(o.platform, PLATFORM_KIND[o.type]);
+      const p = resolvePlatformRef(o.platform, teams ? 'teams' : PLATFORM_KIND[o.type]);
+      if (teams && p.kind !== 'teams')
+        throw new HttpError(400, `Output "${o.id}": a Teams card goes to a "Microsoft Teams channel" platform, not to a URL`, 'OUTPUT_TEAMS_PLATFORM', {
+          output: o.id,
+        });
       o.platform = p.id;
       requirePlatformUse(p.id);
     }

@@ -28,11 +28,13 @@ Each window is optional, for example "24 h ≥ 99 %, 30 days ≥ 99.5 %". Target
 
 The values are **Gatus' own uptime figures**. Steward does not calculate service hours or production schedules and makes no extra call to Gatus: the metrics mode of a Gatus platform reads the figures once an hour when _Also read Gatus' uptime figures_ is on ([GATUS.md](GATUS.md)). Turn it on for every Gatus platform you use for objectives.
 
+**From Prometheus** (#110). An objective can take its figures from a **PromQL query** on a Prometheus platform (Prometheus, Thanos, Mimir, VictoriaMetrics) instead of a Gatus endpoint. The query returns the availability as a fraction from 0 to 1 and contains `$window`, which Steward sets to `1h`, `24h`, `7d` and `30d` – e.g. `avg_over_time(up{job="shop"}[$window])`, or `avg_over_time(probe_success{instance="https://shop.example.com"}[$window])` for a blackbox probe. With several series the lowest one counts. Steward runs the queries once an hour (one per window) with the rights of whoever last changed the objective, keeps the figures, and judges them like Gatus' figures: older than three hours means _stale_, never read means _no source_. A query without `$window` is refused (`OBJECTIVE_PROMQL_WINDOW`).
+
 ## Define an objective
 
 1. Open the service: _Service management → Services → (service)_.
 2. In _Availability objectives_, choose _Add objective_.
-3. Choose the Gatus platform and the endpoint. The list shows the platforms with metrics mode that you may see, and the endpoints Gatus reported to them.
+3. Choose the Gatus platform and the endpoint – or a Prometheus platform and the PromQL query with `$window`. The list shows the Gatus platforms with metrics mode and the Prometheus platforms that you may see, and the endpoints Gatus reported to them.
 4. Check the name (it starts as the endpoint's name), set the targets, and choose the application if the objective is about one.
 5. Tick _Send a message when it falls below target_ if the owners should hear about it.
 6. _Save_.

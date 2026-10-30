@@ -174,9 +174,30 @@ export function readingCache(now = Date.now()) {
       );
     return endpoints.get(k)!;
   };
+  const kinds = new Map<string, string | null>();
+  const kindOf = (platformId: string) => {
+    if (!kinds.has(platformId)) kinds.set(platformId, db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', platformId)?.kind ?? null);
+    return kinds.get(platformId);
+  };
   return {
     endpoint,
     read(platformId: string, key: string): ObjectiveReading {
+      // a PromQL query (#110): the figures the background job read (readPromObjectives)
+      if (kindOf(platformId) === 'prometheus') {
+        const p = db().get<{ figures: string | null; error: string | null; read_at: string }>(
+          'SELECT figures, error, read_at FROM prom_objective_readings WHERE platform_id = ? AND query = ?',
+          platformId,
+          key,
+        );
+        if (!p) return { values: none, reason: 'noSource', at: null };
+        if (now - Date.parse(p.read_at) > OBJECTIVE_LIMITS.staleHours * HOUR) return { values: none, reason: 'stale', at: p.read_at };
+        const f = parseJson<Partial<Record<ObjectiveWindow, unknown>> | null>(p.figures, null);
+        const values = Object.fromEntries(OBJECTIVE_WINDOWS.map((w) => [w, typeof f?.[w] === 'number' ? (f[w] as number) : null])) as Record<
+          ObjectiveWindow,
+          number | null
+        >;
+        return { values, reason: OBJECTIVE_WINDOWS.some((w) => values[w] !== null) ? null : 'noValue', at: p.read_at };
+      }
       if (!sources.has(platformId))
         sources.set(
           platformId,
@@ -498,7 +519,13 @@ function checkReferences(u: AuthUser, s: ServiceRef, input: Resolved, cur?: Obje
   // a platform the user may not see is "unknown" to them (no probing)
   if (!pf || !p.visible(u, input.platformId))
     throw new HttpError(400, `Platform ${input.platformId} not found`, 'OBJECTIVE_PLATFORM_UNKNOWN', { id: input.platformId });
-  if (pf.kind !== 'gatus') throw new HttpError(400, 'Objectives need a Gatus platform', 'OBJECTIVE_PLATFORM_NOT_GATUS', { id: input.platformId });
+  if (pf.kind === 'prometheus') {
+    // a PromQL query with $window, which Steward sets to 1h, 24h, 7d and 30d (#110)
+    if (!input.endpointKey.includes('$window'))
+      throw new HttpError(400, 'The PromQL query needs $window for the time window, e.g. avg_over_time(up{job="shop"}[$window])', 'OBJECTIVE_PROMQL_WINDOW');
+    return;
+  }
+  if (pf.kind !== 'gatus') throw new HttpError(400, 'Objectives need a Gatus or Prometheus platform', 'OBJECTIVE_PLATFORM_NOT_GATUS', { id: input.platformId });
   if (!db().get('SELECT 1 FROM gatus_endpoints WHERE platform_id = ? AND key = ?', input.platformId, input.endpointKey))
     throw new HttpError(400, `Gatus does not report the endpoint "${input.endpointKey}"`, 'OBJECTIVE_ENDPOINT_UNKNOWN', {
       key: input.endpointKey.slice(0, 200),
@@ -610,4 +637,61 @@ export function updateObjective(objectiveId: string, change: ObjectiveUpdate): O
     });
   });
   return getObjective(objectiveId);
+}
+
+// ---------- Prometheus figures (#110) ----------
+
+/** Read again when older than this (the objectives are sampled hourly). */
+const PROM_REFRESH_MS = 50 * 60_000;
+
+/**
+ * Reads the figures of objectives on Prometheus platforms: per platform and query, the query once per window with
+ * $window set to 1h, 24h, 7d and 30d. The result is a fraction (avg_over_time(up[…]) gives 0–1); with several series
+ * the lowest counts. Read with the rights of whoever last changed the objective. Returns the number of queries read.
+ */
+export async function readPromObjectives(now = Date.now(), force = false): Promise<number> {
+  const { vault } = await import('../vault.js');
+  if (!vault().unlocked) return 0;
+  const { promInstant } = await import('../platforms/prometheus.js');
+  const { platformFor } = await import('../monitors/platforms.js');
+  const rows = db().all<{ platform_id: string; endpoint_key: string; updated_by: string | null; created_by: string }>(
+    `SELECT o.platform_id, o.endpoint_key, o.updated_by, o.created_by FROM availability_objectives o JOIN platforms p ON p.id = o.platform_id
+     WHERE o.archived_at IS NULL AND p.kind = 'prometheus' ORDER BY o.updated_at DESC`,
+  );
+  const seen = new Set<string>();
+  let read = 0;
+  for (const r of rows) {
+    const k = `${r.platform_id}\n${r.endpoint_key}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const last = db().get<{ read_at: string }>(
+      'SELECT read_at FROM prom_objective_readings WHERE platform_id = ? AND query = ?',
+      r.platform_id,
+      r.endpoint_key,
+    );
+    if (!force && last && now - Date.parse(last.read_at) < PROM_REFRESH_MS) continue;
+    const figures: Partial<Record<ObjectiveWindow, number | null>> = {};
+    let error: string | null = null;
+    try {
+      const { platform, secrets } = platformFor(r.updated_by ?? r.created_by, r.platform_id);
+      for (const w of OBJECTIVE_WINDOWS) {
+        const series = await promInstant(platform, secrets, r.endpoint_key.replaceAll('$window', w.slice(1) + w[0]));
+        const vals = series.map((s) => s.value).filter((v) => Number.isFinite(v) && v >= 0 && v <= 1);
+        figures[w] = vals.length ? Math.round(Math.min(...vals) * 10000) : null;
+      }
+    } catch (e) {
+      error = (e as Error).message.slice(0, 500);
+    }
+    db().run(
+      `INSERT INTO prom_objective_readings (platform_id, query, figures, error, read_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (platform_id, query) DO UPDATE SET figures = excluded.figures, error = excluded.error, read_at = excluded.read_at`,
+      r.platform_id,
+      r.endpoint_key,
+      error ? null : JSON.stringify(figures),
+      error,
+      new Date(now).toISOString(),
+    );
+    read++;
+  }
+  return read;
 }

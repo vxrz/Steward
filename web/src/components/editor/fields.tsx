@@ -181,7 +181,11 @@ export function FieldInput({ field, value, onChange, connections }: FieldProps) 
             </Text>
           )}
           {expr.enabled ? (
-            <ExprKeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} template={field.key !== 'metrics'} />
+            <ExprKeyValueEditor
+              value={value as Record<string, unknown> | undefined}
+              onChange={onChange}
+              template={!['metrics', 'limits', 'floors'].includes(field.key)}
+            />
           ) : (
             <KeyValueEditor value={value as Record<string, unknown> | undefined} onChange={onChange} valuePlaceholder={t('fields.valueOrExpr', EXPR)} />
           )}

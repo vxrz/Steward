@@ -151,7 +151,8 @@
       "records": "Dokumente",
       "reports": "Berichte für Sie",
       "reviews": "Fällige Überprüfungen von Dokumenten",
-      "duties": "Service-Pflichten"
+      "duties": "Service-Pflichten",
+      "trends": "Trends"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} Ausführung, {{failed}} fehlgeschlagen",
@@ -211,7 +212,13 @@
       "missed": "versäumt",
       "failed": "nur fehlgeschlagene Ausführungen",
       "ended": "ohne Ausführung beendet"
-    }
+    },
+    "trendTitle": "{{dataset}} · {{metric}}{{source}}",
+    "limitReached": "Limit von {{limit}} erreicht",
+    "limitIn_one": "Limit von {{limit}} bei diesem Verlauf in etwa {{count}} Tag erreicht ({{date}})",
+    "limitIn_other": "Limit von {{limit}} bei diesem Verlauf in etwa {{count}} Tagen erreicht ({{date}})",
+    "trendRough": "grobe Schätzung",
+    "trendDetail": "{{change}} in 7 Tagen, jetzt {{value}} (aus {{points}} Messpunkten)"
   },
   "accessUndocumented": {
     "title": "Undokumentierte Zugriffsänderungen: „{{name}}“",
@@ -304,7 +311,11 @@
     "titleEnding": "Supportende bald: {{product}} in {{application}}",
     "titleEol": "Supportende erreicht: {{product}} in {{application}}",
     "bodyEnding": "{{product}} erreicht am {{date}} sein Supportende (in {{days}} Tagen). Komponenten: {{components}}.",
-    "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade."
+    "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade.",
+    "systemTitleEnding": "Supportende bald: {{product}} auf {{system}}",
+    "systemTitleEol": "Supportende erreicht: {{product}} auf {{system}}",
+    "systemBodyEnding": "{{product}} auf dem System {{system}} erreicht am {{date}} sein Supportende (in {{days}} Tagen).",
+    "systemBodyEol": "{{product}} auf dem System {{system}} hat am {{date}} sein Supportende erreicht. Planen Sie das Upgrade."
   },
   "facts": {
     "process": "Prozess",

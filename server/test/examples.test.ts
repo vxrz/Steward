@@ -136,6 +136,32 @@ describe('example library', () => {
     expect(typeof by['MES frontend']['Uptime (%)']).toBe('number');
   });
 
+  it('CheckMk – trend summary finds the level crossed and the series heading for CRIT', async () => {
+    // runs after "runs 78-…" above, against the mock CheckMk (server/src/mock/mockCheckmk.ts): /var on db01 grows 0.6 % a day to 82 %
+    const d = await s.api('GET', '/datasets/checkmk.trends');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r.series, r]));
+    expect(Object.keys(by).sort()).toEqual(['db01 / CPU load', 'db01 / Filesystem /var', 'web01 / Memory']);
+    const v = by['db01 / Filesystem /var'];
+    expect(v).toMatchObject({ crossed: true, _status: 'warning', error: '' });
+    expect(v.latest).toBeCloseTo(82, 0);
+    expect(v.daysToCrit).toBeGreaterThan(8);
+    expect(v.daysToCrit).toBeLessThan(18);
+    expect(v.weekChangePct).toBeGreaterThan(3);
+    expect(by['web01 / Memory']).toMatchObject({ crossed: false, daysToCrit: null, _status: 'good' });
+    expect(d.metrics).toMatchObject({ series: 3, crossed: 1, trending: 1 });
+  });
+
+  it('Kubernetes – namespace health finds the deployment not fully ready, the crash-looping pod and the certificate ending soon', async () => {
+    // runs after "runs 79-…" above, against the mock API server (server/src/mock/mockKubernetes.ts)
+    const d = await s.api('GET', '/datasets/k8s.health');
+    const by = Object.fromEntries(d.rows.map((r: any) => [r._key, r]));
+    expect(by['shop-prod/deployment/worker']).toMatchObject({ Ready: '1/2', 'Pods not well': 'worker-5d4b-y2', _status: 'warning' });
+    expect(by['shop-prod/deployment/web']).toMatchObject({ Ready: '3/3', _status: 'good' });
+    expect(by['shop-prod/certificate/shop-tls']).toMatchObject({ Ready: 'ready', _status: 'warning' });
+    expect(by['shop-prod/certificate/api-tls']._status).toBe('good');
+    expect(d.metrics).toMatchObject({ deployments: 5, notReady: 1, unhealthyPods: 1, certsEnding: 1 });
+  });
+
   it('published sensible datasets', async () => {
     const users = await s.api('GET', '/datasets/ih.users');
     expect(users.rowCount).toBe(15);

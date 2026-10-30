@@ -151,7 +151,8 @@
       "records": "Records",
       "reports": "Reports for you",
       "reviews": "Document reviews due",
-      "duties": "Service duties"
+      "duties": "Service duties",
+      "trends": "Trends"
     },
     "count": "{{section}}: {{count}}",
     "runsTotal_one": "{{count}} run, {{failed}} failed",
@@ -211,7 +212,13 @@
       "missed": "missed",
       "failed": "only failed runs",
       "ended": "ended without a run"
-    }
+    },
+    "trendTitle": "{{dataset}} · {{metric}}{{source}}",
+    "limitReached": "Limit of {{limit}} reached",
+    "limitIn_one": "Limit of {{limit}} reached in about {{count}} day ({{date}}) at this rate",
+    "limitIn_other": "Limit of {{limit}} reached in about {{count}} days ({{date}}) at this rate",
+    "trendRough": "rough estimate",
+    "trendDetail": "{{change}} in 7 days, now {{value}} (based on {{points}} points)"
   },
   "accessUndocumented": {
     "title": "Undocumented access changes: \"{{name}}\"",
@@ -304,7 +311,11 @@
     "titleEnding": "End of life soon: {{product}} in {{application}}",
     "titleEol": "End of life reached: {{product}} in {{application}}",
     "bodyEnding": "{{product}} reaches its end of life on {{date}} (in {{days}} days). Components: {{components}}.",
-    "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade."
+    "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade.",
+    "systemTitleEnding": "End of life soon: {{product}} on {{system}}",
+    "systemTitleEol": "End of life reached: {{product}} on {{system}}",
+    "systemBodyEnding": "{{product}} on the system {{system}} reaches its end of life on {{date}} (in {{days}} days).",
+    "systemBodyEol": "{{product}} on the system {{system}} reached its end of life on {{date}}. Plan the upgrade."
   },
   "facts": {
     "process": "Process",

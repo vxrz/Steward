@@ -68,8 +68,8 @@ export interface NotificationSettings {
   email: { enabled: boolean; host: string; port: number; secure: boolean; user?: string; from: string; hasPassword: boolean };
   /** Microsoft Teams: incoming webhook / Workflows "post to channel" URL */
   teams: { enabled: boolean; hasWebhookUrl: boolean };
-  /** Generic JSON webhook (e.g. ITSM, Slack, automation) */
-  webhook: { enabled: boolean; hasUrl: boolean };
+  /** Generic JSON webhook (e.g. ITSM, Slack, automation); format teams: an Adaptive Card instead (#130) */
+  webhook: { enabled: boolean; hasUrl: boolean; format?: 'json' | 'teams' };
   /** Which channel each event uses */
   routes: Record<NotificationEvent, NotificationChannel[]>;
   /** Base URL used for links in e-mails/Teams (default SM_PUBLIC_URL or the address the admin uses) */
@@ -86,7 +86,7 @@ export type NotificationSettingsInput = Omit<NotificationSettings, 'email' | 'te
   allowedEmailDomains?: string[];
   email: Omit<NotificationSettings['email'], 'hasPassword'> & { password?: string };
   teams: { enabled: boolean; webhookUrl?: string };
-  webhook: { enabled: boolean; url?: string };
+  webhook: { enabled: boolean; url?: string; format?: 'json' | 'teams' };
 };
 
 // ---------- Look of e-mails and Teams messages ----------

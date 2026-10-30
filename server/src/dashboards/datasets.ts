@@ -7,8 +7,13 @@ import {
   type DatasetRow,
   type DatasetSource,
   type DatasetStatus,
+  type MetricLimit,
   type MetricSeries,
   type PlatformPermission,
+  TREND_LIMITS,
+  forecastTo,
+  trendOf,
+  windowMs,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { HttpError, nowIso, parseJson } from '../util.js';
@@ -67,6 +72,7 @@ interface PartDb {
   rows?: string;
   status_counts: string;
   metrics: string;
+  limits?: string | null;
   stale_after_minutes: number | null;
   expected_minutes: number | null;
 }
@@ -193,7 +199,7 @@ function ensureParts(key: string): void {
 }
 
 const PART_META =
-  'dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, status_counts, metrics, stale_after_minutes, expected_minutes';
+  'dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, status_counts, metrics, limits, stale_after_minutes, expected_minutes';
 
 function partsOf(key: string, withRows: boolean): PartDb[] {
   ensureParts(key);
@@ -215,6 +221,7 @@ function toSource(p: PartDb, info: Map<string, PlatformInfo>): DatasetSource {
     dryRun: !!p.dry_run,
     statusCounts: parseJson(p.status_counts, {}),
     metrics: parseJson(p.metrics, {}),
+    limits: parseJson(p.limits ?? '{}', {}),
     staleAfterMinutes: stale,
     expectedMinutes: p.expected_minutes,
     stale: Date.now() - Date.parse(p.updated_at) > stale * 60000,
@@ -248,6 +255,7 @@ function metaOf(d: DatasetRowDb, parts: PartDb[], info: Map<string, PlatformInfo
     statusCounts: counts,
     // one source: its metrics; several: the latest one's (per source in `sources`)
     metrics: latest ? parseJson(latest.metrics, {}) : {},
+    limits: latest ? parseJson(latest.limits ?? '{}', {}) : {},
     staleAfterMinutes: d.stale_after_minutes ?? undefined,
     stale: sources.some((s) => s.stale),
     sources,
@@ -321,6 +329,8 @@ export function publishDataset(input: {
   columns: string[];
   rows: DatasetRow[];
   metrics: Record<string, number>;
+  /** Limits of metrics (#145) */
+  limits?: Record<string, MetricLimit>;
   staleAfterMinutes?: number;
   /** The connection whose platform is the source (#142) */
   sourceSlot?: string;
@@ -346,12 +356,12 @@ export function publishDataset(input: {
   const ts = nowIso();
   db().tx(() => {
     db().run(
-      `INSERT INTO dataset_parts (dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, rows, status_counts, metrics, stale_after_minutes, expected_minutes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO dataset_parts (dataset_key, source, platform_ids, run_id, schedule_id, dry_run, updated_at, row_count, columns, rows, status_counts, metrics, limits, stale_after_minutes, expected_minutes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(dataset_key, source) DO UPDATE SET platform_ids = excluded.platform_ids, run_id = excluded.run_id, schedule_id = excluded.schedule_id,
          dry_run = excluded.dry_run, updated_at = excluded.updated_at, row_count = excluded.row_count, columns = excluded.columns, rows = excluded.rows,
-         status_counts = excluded.status_counts, metrics = excluded.metrics, stale_after_minutes = excluded.stale_after_minutes,
-         expected_minutes = excluded.expected_minutes`,
+         status_counts = excluded.status_counts, metrics = excluded.metrics, limits = excluded.limits,
+         stale_after_minutes = excluded.stale_after_minutes, expected_minutes = excluded.expected_minutes`,
       input.key,
       src.id,
       JSON.stringify(src.platformIds),
@@ -364,6 +374,7 @@ export function publishDataset(input: {
       JSON.stringify(rows),
       JSON.stringify(counts),
       JSON.stringify(input.metrics),
+      JSON.stringify(input.limits ?? {}),
       input.staleAfterMinutes ?? null,
       scheduleMinutes(scheduleId),
     );
@@ -460,8 +471,59 @@ export function metricSeries(key: string, names: string[] | undefined, days: num
       s.points.length <= maxPoints
         ? s.points
         : s.points.filter((_, i, a) => i % Math.ceil(a.length / maxPoints) === Math.ceil(a.length / maxPoints) - 1 || i === a.length - 1);
-    return { name: s.name, source: s.source, sourceName: sources.get(s.source)?.name ?? s.source, points };
+    const src = sources.get(s.source);
+    return { name: s.name, source: s.source, sourceName: src?.name ?? s.source, points, limit: src?.limits[s.name] ?? null };
   });
+}
+
+/**
+ * One metric of a dataset for an expression of a run (`$trend`, `$daysUntil`, #145): `ref` is `dataset/metric`
+ * (e.g. `ih.assets/attributes`). The series of the run's own source (the platform it is bound to), else the dataset's
+ * only one. `mayRead(processId)` decides whether the run may read a dataset another process publishes.
+ */
+export function metricForRun(
+  ref: string,
+  window: string,
+  run: { runId: string; processId: string; mayRead: (datasetProcessId: string) => boolean },
+): MetricSeries | null {
+  const i = ref.indexOf('/');
+  if (i < 1) throw new HttpError(400, `Name the metric as dataset/metric, e.g. ih.assets/attributes (got "${ref}")`, 'METRIC_REF');
+  const key = ref.slice(0, i);
+  const name = ref.slice(i + 1);
+  const ms = windowMs(window);
+  if (!ms) throw new HttpError(400, `Use a window such as 24h, 7d or 30d (got "${window}")`, 'TREND_WINDOW');
+  const d = db().get<{ process_id: string }>('SELECT process_id FROM datasets WHERE key = ?', key);
+  if (!d || (d.process_id !== run.processId && !run.mayRead(d.process_id))) return null;
+  const parts = partsOf(key, false).map((p) => p.source);
+  const own = sourceOfRun(run.runId).id;
+  const source = parts.includes(own) ? own : parts.length === 1 ? parts[0]! : null;
+  if (!source) return null;
+  const [s] = metricTrends(key, [name], window, { sources: [source] });
+  return s ?? null;
+}
+
+/** Series of a chart with the trend (and forecast) of each over `window` (#145). */
+export function withTrends(series: MetricSeries[], key: string, window: string | undefined, view?: View): MetricSeries[] {
+  if (!window) return series;
+  const trends = new Map(metricTrends(key, [...new Set(series.map((s) => s.name))], window, view).map((t) => [`${t.name}\u0000${t.source}`, t]));
+  return series.map((s) => {
+    const t = trends.get(`${s.name}\u0000${s.source}`);
+    return { ...s, trend: t?.trend ?? null, forecast: t?.forecast ?? null };
+  });
+}
+
+/**
+ * Trends of metric series over a window (#145), and when a limit is reached: from all points of the window (not the
+ * thinned ones of a chart), per source.
+ */
+export function metricTrends(key: string, names: string[] | undefined, window: string, view?: View, now = Date.now()): MetricSeries[] {
+  const ms = windowMs(window);
+  if (!ms) throw new HttpError(400, 'Use a window such as 24h, 7d or 30d', 'TREND_WINDOW');
+  return metricSeries(key, names, Math.ceil(ms / 86400000), TREND_LIMITS.maxPoints, view).map((s) => ({
+    ...s,
+    trend: trendOf(s.points, window, now),
+    forecast: s.limit ? forecastTo(s.points, s.limit.value, { window, lower: s.limit.lower, now }) : null,
+  }));
 }
 
 /** Partitions for the stale check (all of them; internal). */
