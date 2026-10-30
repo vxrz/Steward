@@ -8,12 +8,12 @@ Works with Mosquitto, EMQX, HiveMQ, VerneMQ, AWS IoT Core, Azure Event Grid and 
 
 _Platforms → New → MQTT broker (monitor checks)_:
 
-| Setting                                      | Value                                                               |
-| -------------------------------------------- | ------------------------------------------------------------------- |
+| Setting                                      | Value                                                                                   |
+| -------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Variable **url**                             | `mqtts://broker.example.com:8883` (schemes `mqtts`, `wss`, or without TLS `mqtt`, `ws`) |
-| Credentials **username** / **password**      | a broker user that may subscribe to the topics (read-only ACL)      |
-| Credentials **certificate** / **privateKey** | a client certificate (PEM), instead of or with a password           |
-| HTTP settings                                | a private CA (`caPem`)                                              |
+| Credentials **username** / **password**      | a broker user that may subscribe to the topics (read-only ACL)                          |
+| Credentials **certificate** / **privateKey** | a client certificate (PEM), instead of or with a password                               |
+| HTTP settings                                | a private CA (`caPem`)                                                                  |
 
 _Test connection_ connects and disconnects. The broker named in `url` may be reached on exactly its port; other hosts need the outbound allow-list.
 
