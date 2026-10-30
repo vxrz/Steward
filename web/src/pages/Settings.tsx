@@ -42,6 +42,7 @@ import { SystemStatusLink } from '../components/theme/SystemStatusLink';
 import { McpServerCard } from '../components/mcp/McpServerCard';
 import { GitSyncSettingsCard } from '../components/gitsync/GitSyncSettingsCard';
 import { MigrationSettingsCard } from '../components/migration/MigrationSettingsCard';
+import { BackupSettingsCard } from '../components/backup/BackupSettingsCard';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { EnvironmentsCard } from '../components/catalogue/environments';
 import { SignInPolicyCard } from '../components/security/SignInPolicyCard';
@@ -310,6 +311,7 @@ export function SettingsPage({ browserAvailable }: { browserAvailable: boolean }
         {!readOnly && <AdminTokensCard />}
         {!readOnly && <McpServerCard />}
         {!readOnly && <GitSyncSettingsCard />}
+        {!readOnly && <BackupSettingsCard />}
         {!readOnly && <MigrationSettingsCard />}
         <Card withBorder>
           <Title order={5} mb="xs">

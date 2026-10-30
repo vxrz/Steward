@@ -301,13 +301,13 @@ function notifyFailure(run: BackupRun): void {
           locale === 'de'
             ? {
                 title: `${BRAND.name}: ${run.kind === 'backup' ? 'Sicherung fehlgeschlagen' : 'Wiederherstellungstest fehlgeschlagen'}`,
-                body: `${run.kind === 'backup' ? 'Die Sicherung' : 'Der Wiederherstellungstest der Sicherungen'} ist fehlgeschlagen: ${run.message}. Bitte prüfen Sie die Sicherungen unter Administration → Sicherungen.`,
+                body: `${run.kind === 'backup' ? 'Die Sicherung' : 'Der Wiederherstellungstest der Sicherungen'} ist fehlgeschlagen: ${run.message}. Bitte prüfen Sie die Sicherungen unter Einstellungen → Sicherungen.`,
               }
             : {
                 title: `${BRAND.name}: ${run.kind === 'backup' ? 'backup failed' : 'restore test failed'}`,
-                body: `The ${run.kind === 'backup' ? 'backup' : 'restore test of the backups'} failed: ${run.message}. Check the backups under Administration → Backups.`,
+                body: `The ${run.kind === 'backup' ? 'backup' : 'restore test of the backups'} failed: ${run.message}. Check the backups under Settings → Backups.`,
               },
-        link: '/admin/backups',
+        link: '/settings/backups',
         inAppKey: run.id,
         externalKey: `backup:${run.kind}:${run.id}`,
         data: { kind: run.kind, runId: run.id },

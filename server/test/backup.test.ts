@@ -224,7 +224,7 @@ describe('backups to S3', () => {
       notes = (await s.api('GET', '/notifications')).items;
       await new Promise((r) => setTimeout(r, 50));
     }
-    expect(notes.find((n) => n.event === 'backup.failed')).toMatchObject({ title: expect.stringContaining('restore test failed'), link: '/admin/backups' });
+    expect(notes.find((n) => n.event === 'backup.failed')).toMatchObject({ title: expect.stringContaining('restore test failed'), link: '/settings/backups' });
   });
 
   it('removes older backups by the retention rule, only objects Steward named', async () => {

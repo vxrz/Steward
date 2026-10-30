@@ -169,6 +169,8 @@ tar czf steward-data-$(date +%F).tgz -C /data .        # data directory (vault.j
 
 To restore, use `pg_restore -d steward --clean steward-….dump` and unpack the data directory. With SQLite, copying the data directory while the app is stopped is enough.
 
+Steward can also do this itself: encrypted backups of the database and the data folder to an S3 bucket on a schedule, with a retention rule and a weekly restore test – see [BACKUPS.md](BACKUPS.md).
+
 **Moving existing data.** `npm run db:copy` copies everything from one database to another: SQLite to PostgreSQL, or back. Stop the app first:
 
 ```bash
