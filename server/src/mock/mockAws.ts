@@ -185,6 +185,7 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
                   (u) =>
                     `<member><UserName>${escapeXml(u.name)}</UserName><Arn>arn:aws:iam::${DEMO_AWS.account}:user/${escapeXml(u.name)}</Arn><CreateDate>${u.created}</CreateDate>${u.passwordLastUsed ? `<PasswordLastUsed>${u.passwordLastUsed}</PasswordLastUsed>` : ''}</member>`,
                 )
+                // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
                 .join('')}</Users><IsTruncated>${more}</IsTruncated>${more ? `<Marker>${from + 2}</Marker>` : ''}`,
             );
           }
@@ -224,7 +225,8 @@ export async function mockAws(app: FastifyInstance): Promise<void> {
           .code(400)
           .type('text/xml')
           .send(
-            `<ErrorResponse><Error><Code>InvalidAction</Code><Message>${escapeXml(String(p.Action ?? '?'))} for ${sc.service}</Message></Error></ErrorResponse>`,
+            // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
+            `<ErrorResponse><Error><Code>InvalidAction</Code><Message>${escapeXml(String(p.Action ?? '?'))} for ${escapeXml(sc.service)}</Message></Error></ErrorResponse>`,
           );
       });
     },

@@ -96,9 +96,11 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
           const page = keys.slice(Math.max(0, start), Math.max(0, start) + 2);
           const next = keys[Math.max(0, start) + 2];
           return reply.type('application/xml').send(
+            // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
             `<?xml version="1.0" encoding="UTF-8"?><ListBucketResult><Name>${xmlEscape(name)}</Name><Prefix>${xmlEscape(prefix)}</Prefix><KeyCount>${page.length}</KeyCount><IsTruncated>${next ? 'true' : 'false'}</IsTruncated>${next ? `<NextContinuationToken>${xmlEscape(next)}</NextContinuationToken>` : ''}${page
               .map((k) => {
                 const o = b.get(k)!;
+                // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
                 return `<Contents><Key>${xmlEscape(k)}</Key><LastModified>${o.lastModified.toISOString()}</LastModified><ETag>${etagOf(o.body)}</ETag><Size>${o.body.length}</Size></Contents>`;
               })
               .join('')}</ListBucketResult>`,
@@ -107,11 +109,10 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
         if (req.method === 'POST' && 'uploads' in q) {
           const id = crypto.randomBytes(12).toString('base64url');
           uploads.set(id, { bucket: name, key, meta, parts: new Map() });
-          return reply
-            .type('application/xml')
-            .send(
-              `<InitiateMultipartUploadResult><Bucket>${name}</Bucket><Key>${xmlEscape(key)}</Key><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`,
-            );
+          return reply.type('application/xml').send(
+            // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
+            `<InitiateMultipartUploadResult><Bucket>${xmlEscape(name)}</Bucket><Key>${xmlEscape(key)}</Key><UploadId>${id}</UploadId></InitiateMultipartUploadResult>`,
+          );
         }
         if (q.uploadId) {
           const u = uploads.get(q.uploadId);
@@ -131,6 +132,7 @@ export async function mockS3(app: FastifyInstance): Promise<void> {
               return error(reply, 400, 'InvalidPart', 'parts missing or out of order');
             b.set(key, { body: Buffer.concat(numbers.map((n) => u.parts.get(n)!)), meta: u.meta, lastModified: new Date() });
             uploads.delete(q.uploadId);
+            // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
             return reply.type('application/xml').send(`<CompleteMultipartUploadResult><Key>${xmlEscape(key)}</Key></CompleteMultipartUploadResult>`);
           }
         }

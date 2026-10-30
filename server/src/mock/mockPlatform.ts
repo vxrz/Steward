@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
+import { escapeXml } from '../platforms/xml.js';
 import { mockIdentitySpec } from './mockSpec.js';
 import { mockOidc } from './mockOidc.js';
 import { mockCheckmk } from './mockCheckmk.js';
@@ -272,11 +273,10 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
       return reply.code(403).send('<Error><Code>SignatureDoesNotMatch</Code></Error>');
     if (form.Action !== 'AssumeRole') return reply.code(400).send('<Error><Code>InvalidAction</Code></Error>');
     const role = String(form.RoleArn ?? '');
-    return reply
-      .type('text/xml')
-      .send(
-        `<AssumeRoleResponse><AssumeRoleResult><Credentials><AccessKeyId>ASIATEMPDEMO</AccessKeyId><SecretAccessKey>tempSecretDemo</SecretAccessKey><SessionToken>session-${role.split('/').pop()}</SessionToken><Expiration>${new Date(Date.now() + 3600_000).toISOString()}</Expiration></Credentials></AssumeRoleResult></AssumeRoleResponse>`,
-      );
+    return reply.type('text/xml').send(
+      // nosemgrep: javascript.express.security.injection.raw-html-format.raw-html-format -- XML of a dev/demo-only mock, every request value XML-escaped (numbers and fixed demo values aside); not HTML
+      `<AssumeRoleResponse><AssumeRoleResult><Credentials><AccessKeyId>ASIATEMPDEMO</AccessKeyId><SecretAccessKey>tempSecretDemo</SecretAccessKey><SessionToken>session-${escapeXml(role.split('/').pop() ?? '')}</SessionToken><Expiration>${new Date(Date.now() + 3600_000).toISOString()}</Expiration></Credentials></AssumeRoleResult></AssumeRoleResponse>`,
+    );
   });
   // /mock/test/jwt-exchange: RFC 7523 jwt-bearer – answers with an access token naming the JWT's subject (#114)
   app.post('/test/jwt-exchange', async (req, reply) => {

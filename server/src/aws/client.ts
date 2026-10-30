@@ -61,10 +61,13 @@ function awsError(what: string, r: HttpResult): Error {
         .pop() || undefined;
     message = typeof o.message === 'string' ? o.message : typeof o.Message === 'string' ? o.Message : undefined;
   }
-  return Object.assign(new Error(`AWS ${what} failed with HTTP ${r.status}${code ? ` (${code}${message ? `: ${unescape(message)}` : ''})` : ''}`), {
-    status: r.status,
-    awsCode: code,
-  });
+  const err = new Error(`AWS ${what} failed with HTTP ${r.status}${code ? ` (${code}${message ? `: ${unescape(message)}` : ''})` : ''}`) as Error & {
+    status: number;
+    awsCode: string | undefined;
+  };
+  err.status = r.status;
+  err.awsCode = code;
+  return err;
 }
 
 export class AwsClient {
