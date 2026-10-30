@@ -151,6 +151,26 @@ export function appStackRows(): AppStackRow[] {
   );
 }
 
+/** One stack entry of a system (#129), with how many applications (not archived) run on it. */
+export interface SystemStackRow {
+  system_id: string;
+  system: string;
+  owners: string;
+  product: string;
+  version: string;
+  applications: number;
+}
+
+/** The stack entries of all systems – also of systems no application runs on yet. */
+export function systemStackRows(): SystemStackRow[] {
+  return db().all<SystemStackRow>(
+    `SELECT s.id AS system_id, s.name AS system, s.owners, ss.product, ss.version,
+       (SELECT COUNT(*) FROM application_systems l JOIN applications a ON a.id = l.application_id WHERE l.system_id = s.id AND a.archived = 0) AS applications
+     FROM system_stack ss JOIN systems s ON s.id = ss.system_id
+     ORDER BY s.name, ss.product`,
+  );
+}
+
 interface ApiRelease {
   name?: unknown;
   label?: unknown;
@@ -336,7 +356,8 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
   const s = lifecycleSettings();
   if (!s.notify) return 0;
   const rows = appStackRows();
-  const releases = releasesOf([...new Set(rows.map((r) => r.product))]);
+  const sysRows = systemStackRows();
+  const releases = releasesOf([...new Set([...rows.map((r) => r.product), ...sysRows.map((r) => r.product)])]);
   const envs = environmentList();
   // per application, product and cycle: the components and systems concerned ("db01 (prod)"), production first
   const groups = new Map<string, { row: NoticeRow; lc: StackLifecycle; components: string[]; production: boolean }>();
@@ -391,6 +412,63 @@ export async function checkLifecycleNotices(now = Date.now()): Promise<number> {
       actor: 'system',
       summary: `${product} ${lc.state === 'eol' ? 'reached its end of life' : `reaches its end of life on ${lc.eolFrom}`} (application "${row.application}", ${components.join(', ')}) – message to ${recipients.map((u) => u.username).join(', ') || 'nobody'}`,
       details: { product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom, components, production },
+    });
+    sent++;
+  }
+  sent += await systemNotices(sysRows, releases, s.warnDays, now);
+  return sent;
+}
+
+/**
+ * The same messages per system (#129), to the people responsible for it – also for systems no application runs on
+ * yet. A system without responsible people that applications run on is left to the applications' messages; one that
+ * no application uses goes to the administrators. Recorded in eol_notices under the system id.
+ */
+async function systemNotices(rows: SystemStackRow[], releases: ReturnType<typeof releasesOf>, warnDays: number, now: number): Promise<number> {
+  const { notify } = await import('../notifications/service.js');
+  const { usersOfSubjects } = await import('../tickets/reminders.js');
+  const { t } = await import('../i18n/index.js');
+  const { listUsers } = await import('../auth/users.js');
+  const { productLabel } = await import('./components.js');
+  const admins = () => listUsers().filter((u) => u.active && u.roles.includes('admin'));
+  let sent = 0;
+  for (const row of rows) {
+    const lc = lifecycleOf(row.product, row.version, releases, warnDays, now);
+    if (!lc || !lc.cycle || (lc.state !== 'ending' && lc.state !== 'eol')) continue;
+    const owners = usersOfSubjects(parseJson<string[]>(row.owners, []));
+    if (!owners.length && row.applications > 0) continue;
+    const claimed =
+      db().run(
+        'INSERT INTO eol_notices (application_id, product, cycle, kind, sent_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING',
+        row.system_id,
+        row.product,
+        lc.cycle,
+        lc.state,
+        new Date(now).toISOString(),
+      ).changes === 1;
+    if (!claimed) continue;
+    const recipients = owners.length ? owners : admins();
+    const product = `${productLabel(row.product)} ${lc.cycle}`;
+    const params = { product, system: row.system, date: lc.eolFrom ?? '?', days: Math.abs(lc.daysLeft ?? 0) };
+    notify({
+      event: 'stack.eol',
+      text: (l) => ({
+        title: t(l, lc.state === 'eol' ? 'stackEol.systemTitleEol' : 'stackEol.systemTitleEnding', params),
+        body: t(l, lc.state === 'eol' ? 'stackEol.systemBodyEol' : 'stackEol.systemBodyEnding', params),
+      }),
+      link: `/systems/${row.system_id}`,
+      recipients,
+      inAppKey: `stack-eol:${row.system_id}:${row.product}:${lc.cycle}:${lc.state}`,
+      externalKey: `stack-eol:${row.system_id}:${row.product}:${lc.cycle}:${lc.state}`,
+      data: { systemId: row.system_id, product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom },
+    });
+    audit({
+      action: 'system.eol_notice_sent',
+      entityType: 'system',
+      entityId: row.system_id,
+      actor: 'system',
+      summary: `${product} ${lc.state === 'eol' ? 'reached its end of life' : `reaches its end of life on ${lc.eolFrom}`} (system "${row.system}") – message to ${recipients.map((u) => u.username).join(', ') || 'nobody'}`,
+      details: { product: row.product, cycle: lc.cycle, state: lc.state, eolFrom: lc.eolFrom },
     });
     sent++;
   }

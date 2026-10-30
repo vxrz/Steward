@@ -311,7 +311,11 @@
     "titleEnding": "End of life soon: {{product}} in {{application}}",
     "titleEol": "End of life reached: {{product}} in {{application}}",
     "bodyEnding": "{{product}} reaches its end of life on {{date}} (in {{days}} days). Components: {{components}}.",
-    "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade."
+    "bodyEol": "{{product}} reached its end of life on {{date}}. Components: {{components}}. Plan the upgrade.",
+    "systemTitleEnding": "End of life soon: {{product}} on {{system}}",
+    "systemTitleEol": "End of life reached: {{product}} on {{system}}",
+    "systemBodyEnding": "{{product}} on the system {{system}} reaches its end of life on {{date}} (in {{days}} days).",
+    "systemBodyEol": "{{product}} on the system {{system}} reached its end of life on {{date}}. Plan the upgrade."
   },
   "facts": {
     "process": "Process",

@@ -311,7 +311,11 @@
     "titleEnding": "Supportende bald: {{product}} in {{application}}",
     "titleEol": "Supportende erreicht: {{product}} in {{application}}",
     "bodyEnding": "{{product}} erreicht am {{date}} sein Supportende (in {{days}} Tagen). Komponenten: {{components}}.",
-    "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade."
+    "bodyEol": "{{product}} hat am {{date}} sein Supportende erreicht. Komponenten: {{components}}. Planen Sie das Upgrade.",
+    "systemTitleEnding": "Supportende bald: {{product}} auf {{system}}",
+    "systemTitleEol": "Supportende erreicht: {{product}} auf {{system}}",
+    "systemBodyEnding": "{{product}} auf dem System {{system}} erreicht am {{date}} sein Supportende (in {{days}} Tagen).",
+    "systemBodyEol": "{{product}} auf dem System {{system}} hat am {{date}} sein Supportende erreicht. Planen Sie das Upgrade."
   },
   "facts": {
     "process": "Prozess",

@@ -879,6 +879,7 @@
     "base64encode": "Base64-kodieren.",
     "base64decode": "Base64-dekodieren.",
     "encodeUrlComponent": "Wert URL-kodieren.",
+    "systems": "Alle Systeme mit Tech-Stack und Supportende.",
     "trend": "Trend einer Kennzahl eines Datensatzes: change, changePct, perDay, confidence.",
     "daysUntil": "Tage, bis der Trend das Limit erreicht; null, wenn er sich ihm nicht nähert."
   },

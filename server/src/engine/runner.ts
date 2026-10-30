@@ -54,6 +54,7 @@ import { forecastTo, normalizeStatus, type DatasetRow } from '@sm/shared';
 import { emit } from '../events.js';
 import { isInternalError, isUnexpected, reportError } from '../errorReporting.js';
 import { applicationInputValue, applicationsInputValue } from '../catalogue/components.js';
+import { systemsForProcess } from '../catalogue/systems.js';
 import { checkOutcome } from './check-alerts.js';
 
 // ---------------------------------------------------------------------------
@@ -217,6 +218,8 @@ class RunContext {
         const v = this.bindings[slot]?.platform.config.variables?.[name];
         return v === undefined || v === '' ? fallback : v;
       },
+      // every system with its tech stack and end of life (#129), also systems no application runs on
+      systems: () => systemsForProcess(),
       // trends of dataset metrics (#145): $trend('ih.assets/attributes', '7d'), $daysUntil('ih.assets/attributes', 1000)
       trend: (ref: string, window: string = '7d') => {
         const t = this.metric(ref, window)?.trend;

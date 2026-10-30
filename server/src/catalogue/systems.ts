@@ -233,6 +233,37 @@ export function listSystemEntries(): SystemEntry[] {
     .map((r) => toEntryOf(r, stacks.get(r.id) ?? [], links.get(r.id) ?? [], ctx));
 }
 
+/**
+ * Every system with its tech stack and end of life (#129), for $systems() in expressions – also systems no
+ * application runs on. Systems are visible to everyone signed in; their platform is left out.
+ */
+export function systemsForProcess(): {
+  id: string;
+  name: string;
+  kind: string;
+  vendor: string;
+  applications: number;
+  environments: string[];
+  stack: { product: string; label: string; version: string; lifecycle: StackEntry['lifecycle'] }[];
+}[] {
+  const stacks = stacksOf();
+  const links = linksBySystem();
+  return db()
+    .all<SystemRow>('SELECT * FROM systems ORDER BY name')
+    .map((r) => {
+      const l = links.get(r.id) ?? [];
+      return {
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        vendor: r.vendor,
+        applications: new Set(l.map((x) => x.application_id)).size,
+        environments: byEnvironment([...new Set(l.map((x) => x.environment))], (e) => e),
+        stack: (stacks.get(r.id) ?? []).map((s) => ({ product: s.product, label: s.label, version: s.version, lifecycle: s.lifecycle })),
+      };
+    });
+}
+
 export function listSystems(): SystemSummary[] {
   const u = me();
   const stacks = stacksOf();

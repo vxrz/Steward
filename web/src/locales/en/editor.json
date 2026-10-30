@@ -879,6 +879,7 @@
     "base64encode": "Base64 encode.",
     "base64decode": "Base64 decode.",
     "encodeUrlComponent": "URL-encode a value.",
+    "systems": "Every system with its tech stack and end of life.",
     "trend": "Trend of a dataset metric: change, changePct, perDay, confidence.",
     "daysUntil": "Days until the trend reaches the limit; null when not approaching."
   },

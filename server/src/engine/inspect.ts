@@ -1,3 +1,4 @@
+import { systemsForProcess } from '../catalogue/systems.js';
 import { forecastTo, type FlowNode, type NodeInspection, type ProcessDefinition } from '@sm/shared';
 import { db } from '../db.js';
 import { parseJson, preview } from '../util.js';
@@ -186,6 +187,7 @@ export function expressionContext(processId: string, opts: { runId?: string; nod
       const v = platformVars[slot]?.[name];
       return v === undefined || v === '' ? fallback : v;
     },
+    systems: () => systemsForProcess(),
     // as in a run (#145), with the rights of the person asking (datasets of processes they may view)
     trend: (ref: string, window: string = '7d') => {
       const t = metricOf(ref, window)?.trend;

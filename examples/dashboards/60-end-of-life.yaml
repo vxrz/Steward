@@ -1,12 +1,12 @@
 name: End of life
-description: Components of your applications by the end of life of their release cycle – past, ending within the warning period, supported. Fed by "End of life – tech stack overview" (weekly); the dates come from endoflife.date.
+description: Components and systems by the end of life of their release cycle – past, ending within the warning period, supported. Fed by "End of life – tech stack overview" (weekly); the dates come from endoflife.date.
 refreshSeconds: 300
 widgets:
   - id: intro
     type: markdown
     width: 12
     text: |
-      **End of life** of the tech stack of application components – the dates come from endoflife.date (Applications → End of life),
+      **End of life** of the tech stack of application components and systems – the dates come from endoflife.date (Applications → End of life),
       the overview from the process *End of life – tech stack overview*. Opening this page never calls endoflife.date.
   - { id: eol, type: kpi, title: Past end of life, dataset: eol-overview, metric: eol, goodWhen: down, width: 3 }
   - { id: ending, type: kpi, title: Ending soon, dataset: eol-overview, metric: ending, goodWhen: down, width: 3 }

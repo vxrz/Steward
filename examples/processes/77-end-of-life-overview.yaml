@@ -1,8 +1,11 @@
 name: "End of life – tech stack overview"
 description: |
-  Which components of your applications run on a release cycle that reached
-  its end of life, or reaches it soon – one row per application, component
-  and product of the tech stack. Read-only.
+  Which components and systems run on a release cycle that reached its end of
+  life, or reaches it soon – one row per application, component or system and
+  product of the tech stack. Systems count once per application and
+  environment they serve; systems no application runs on yet are listed with
+  the application "–" (input "Also systems no application runs on yet").
+  Read-only.
 
   The end-of-life dates come from endoflife.date: Steward reads them once a
   day for every product in a tech stack (Applications → End of life, a platform
@@ -13,44 +16,57 @@ description: |
   "Failed checks notify: on change" – the check below then reports a new
   end of life once and reminds while it lasts. Publishes `eol-overview`
   (metrics entries, eol, ending, noData) for the "End of life" dashboard.
-  Application owners also get their own message from Steward when a
-  release cycle ends (Applications → End of life → Messages).
+  Application owners and the people responsible for a system also get their
+  own message from Steward when a release cycle ends (Applications → End of
+  life → Messages).
 tags: [catalogue, lifecycle, end-of-life]
 connections: []
 inputs:
   - name: apps
     label: Applications (empty = all)
     type: applications
+  - name: unusedSystems
+    label: Also systems no application runs on yet
+    type: boolean
+    default: true
 steps:
   - id: rows
     type: set
-    name: One row per application, component and product
+    name: One row per application, component or system and product
     values:
       rows: |-
-        {{ [inputs.apps.(
-          $app := name;
-          components.(
-            $comp := name;
-            stack.{
-              "key": $app & " / " & $comp & " / " & product,
+        {{ (
+          $entry := function($app, $holder, $kind, $env, $s) {
+            {
+              "key": $app & " / " & $holder & ($env ? " (" & $env & ")" : "") & " / " & $s.product,
               "application": $app,
-              "component": $comp,
-              "product": label,
-              "version": version,
-              "cycle": lifecycle.cycle,
-              "endOfLife": lifecycle.eolFrom,
-              "daysLeft": lifecycle.daysLeft,
-              "latest": lifecycle.latest,
-              "state": $exists(lifecycle.state) ? lifecycle.state : "noData"
+              "component": $env ? $holder & " (" & $env & ")" : $holder,
+              "kind": $kind,
+              "product": $s.label,
+              "version": $s.version,
+              "cycle": $s.lifecycle.cycle,
+              "endOfLife": $s.lifecycle.eolFrom,
+              "daysLeft": $s.lifecycle.daysLeft,
+              "latest": $s.lifecycle.latest,
+              "state": $exists($s.lifecycle.state) ? $s.lifecycle.state : "noData"
             }
-          )
-        )] }}
+          };
+          $ofApps := inputs.apps.(
+            $app := name;
+            $append(
+              [components.($c := $; stack.$entry($app, $c.name, "component", $c.environment, $))],
+              [systems.($y := $; stack.$entry($app, $y.name, "system", $y.environment, $))]
+            )
+          );
+          $unused := inputs.unusedSystems ? [$systems()[applications = 0].($y := $; stack.$entry("–", $y.name, "system", "", $))] : [];
+          $append([$ofApps], $unused)
+        ) }}
   - id: noEol
     type: check
-    name: No component past its end of life
+    name: No component or system past its end of life
     severity: warning
     condition: "$count(vars.rows[state = 'eol']) = 0"
-    message: "{{ $count(vars.rows[state = 'eol']) = 0 ? 'No component past its end of life' : $join(vars.rows[state = 'eol'].(application & ': ' & product & ' ' & cycle & ' (' & component & ')'), ', ') }}"
+    message: "{{ $count(vars.rows[state = 'eol']) = 0 ? 'Nothing past its end of life' : $join(vars.rows[state = 'eol'].(application & ': ' & product & ' ' & cycle & ' (' & component & ')'), ', ') }}"
   - id: noEnding
     type: check
     name: No end of life within the warning period
@@ -67,7 +83,8 @@ steps:
     key: key
     columns:
       - { label: Application, value: application }
-      - { label: Component, value: component }
+      - { label: Component or system, value: component }
+      - { label: Kind, value: kind }
       - { label: Product, value: product }
       - { label: Version, value: version }
       - { label: Cycle, value: "cycle ? cycle : '–'" }

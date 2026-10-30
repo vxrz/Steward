@@ -404,6 +404,11 @@ export const CUSTOM_FUNCTIONS: { name: string; signature: string; help: string }
   { name: '$uuid', signature: '$uuid()', help: 'Random UUID' },
   { name: '$ts', signature: '$ts(timestamp)', help: 'Parse a timestamp leniently into epoch millis (undefined if invalid)' },
   {
+    name: '$systems',
+    signature: '$systems()',
+    help: 'Every system with { id, name, kind, vendor, applications (count), environments, stack[{ product, label, version, lifecycle }] }',
+  },
+  {
     name: '$trend',
     signature: "$trend('dataset/metric', '7d')",
     help: "Trend of a dataset metric over 24h, 7d, 30d … (of the run's source): { change, changePct, perDay, end, points, confidence }; null with too few points",
