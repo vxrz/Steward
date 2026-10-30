@@ -162,6 +162,18 @@ export async function setupDemo(): Promise<{
     });
     platforms++;
   }
+  if (!existing.has('Prometheus (demo)')) {
+    // Prometheus (#110): PromQL checks and an availability objective from a query
+    createPlatform({
+      name: 'Prometheus (demo)',
+      kind: 'prometheus',
+      environment: 'demo',
+      description: 'Simulated Prometheus HTTP API served by the built-in mock (a few fixed queries). See docs/MONITORS.md.',
+      baseUrl: `${base}/prometheus`,
+      config: { auth: { type: 'none' }, variables: {}, http: { proxy: 'none' }, testPath: '/api/v1/status/buildinfo' },
+    });
+    platforms++;
+  }
   if (!existing.has('endoflife.date (demo)')) {
     // end-of-life dates of the tech stacks (#104): the built-in mock with the real API's shape
     const e = createPlatform({

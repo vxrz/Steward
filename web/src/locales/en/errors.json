@@ -592,7 +592,7 @@
     "OBJECTIVE_NOT_FOUND": "Objective {{id}} not found.",
     "OBJECTIVE_APPLICATION_NOT_IN_SERVICE": "The application is not part of the service. Add it to the service first.",
     "OBJECTIVE_PLATFORM_UNKNOWN": "Platform {{id}} not found (or you may not see it).",
-    "OBJECTIVE_PLATFORM_NOT_GATUS": "Availability objectives need a Gatus platform.",
+    "OBJECTIVE_PLATFORM_NOT_GATUS": "Availability objectives need a Gatus or Prometheus platform.",
     "OBJECTIVE_ENDPOINT_UNKNOWN": "Gatus does not report the endpoint “{{key}}”. Pick one from the list (the metrics mode must have scraped it).",
     "OBJECTIVE_SERVICE_ARCHIVED": "The service is archived. Restore it to define objectives.",
     "OBJECTIVE_LIMIT": "A service has at most {{max}} objectives.",
@@ -654,7 +654,8 @@
     "USER_UNKNOWN": "There is no user “{{name}}”. Choose one from the list – an administrator can add a person who has not signed in yet under Users.",
     "TEAM_UNKNOWN": "There is no team “{{name}}”. Choose one from the list.",
     "METRIC_REF": "Name the metric as dataset/metric, e.g. ih.assets/attributes.",
-    "TREND_WINDOW": "Use a trend window such as 24h, 7d or 30d."
+    "TREND_WINDOW": "Use a trend window such as 24h, 7d or 30d.",
+    "OBJECTIVE_PROMQL_WINDOW": "The PromQL query needs $window for the time window, e.g. avg_over_time(up{job=\"shop\"}[$window])."
   },
   "boundary": {
     "title": "Something went wrong on this page",

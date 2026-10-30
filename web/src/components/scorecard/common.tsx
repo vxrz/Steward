@@ -87,11 +87,17 @@ export function ObjectiveFormModal({
   // an editor who may not see the objective's platform keeps it as it is and changes the targets only
   const hiddenPlatform = !!objective && !objective.platformVisible;
   const sources = useQuery({ queryKey: ['gatus-sources'], queryFn: () => getOptional<GatusMetricsSource[]>('/gatus/sources', []) });
+  // Prometheus platforms (#110): the figures come from a PromQL query with $window
+  const proms = useQuery({
+    queryKey: ['platforms', 'prometheus'],
+    queryFn: async () => (await getOptional<{ id: string; name: string; kind: string }[]>('/platforms', [])).filter((p) => p.kind === 'prometheus'),
+  });
   const [platformId, setPlatformId] = useState<string | null>(objective?.platformId ?? null);
+  const isProm = !!platformId && (proms.data ?? []).some((p) => p.id === platformId);
   const endpoints = useQuery({
     queryKey: ['gatus-endpoints', platformId],
     queryFn: () => get<GatusEndpointState[]>(`/gatus/sources/${encodeURIComponent(platformId!)}/endpoints`),
-    enabled: !!platformId && !hiddenPlatform,
+    enabled: !!platformId && !hiddenPlatform && !isProm,
   });
   const [endpointKey, setEndpointKey] = useState<string | null>(objective?.endpointKey ?? null);
   const [name, setName] = useState(objective?.name ?? '');
@@ -109,6 +115,7 @@ export function ObjectiveFormModal({
     name: !name.trim() && t('common:validation.required'),
     platform: !hiddenPlatform && !platformId && t('common:validation.required'),
     endpoint: !hiddenPlatform && !endpointKey && t('common:validation.required'),
+    query: !hiddenPlatform && isProm && !!endpointKey && !endpointKey.includes('$window') && t('form.promWindowMissing'),
     targets: OBJECTIVE_WINDOWS.every((w) => targets[w] === '') && t('form.targetsRequired'),
   });
   const source = (sources.data ?? []).find((x) => x.platformId === platformId);
@@ -154,7 +161,10 @@ export function ObjectiveFormModal({
               <Select
                 label={t('form.platform')}
                 description={t('form.platformHint')}
-                data={(sources.data ?? []).map((x) => ({ value: x.platformId, label: x.platformName }))}
+                data={[
+                  ...(sources.data ?? []).map((x) => ({ value: x.platformId, label: x.platformName })),
+                  ...(proms.data ?? []).map((p) => ({ value: p.id, label: p.name })),
+                ]}
                 value={platformId}
                 onChange={(x) => {
                   setPlatformId(x);
@@ -169,20 +179,35 @@ export function ObjectiveFormModal({
                   {t('form.uptimesOff')}
                 </Text>
               )}
-              <Select
-                label={t('form.endpoint')}
-                data={(endpoints.data ?? []).map((e) => ({ value: e.key, label: e.group ? `${e.group}/${e.name}` : e.name || e.key }))}
-                value={endpointKey}
-                onChange={(x) => {
-                  setEndpointKey(x);
-                  const e = (endpoints.data ?? []).find((y) => y.key === x);
-                  if (e && !name.trim()) setName(e.name || e.key);
-                }}
-                searchable
-                disabled={!platformId}
-                required
-                error={v.error('endpoint')}
-              />
+              {isProm ? (
+                <Textarea
+                  label={t('form.promQuery')}
+                  description={t('form.promQueryHint')}
+                  value={endpointKey ?? ''}
+                  onChange={(e) => setEndpointKey(e.currentTarget.value || null)}
+                  autosize
+                  minRows={2}
+                  maxLength={500}
+                  classNames={{ input: 'mono' }}
+                  required
+                  error={v.error('endpoint') || v.error('query')}
+                />
+              ) : (
+                <Select
+                  label={t('form.endpoint')}
+                  data={(endpoints.data ?? []).map((e) => ({ value: e.key, label: e.group ? `${e.group}/${e.name}` : e.name || e.key }))}
+                  value={endpointKey}
+                  onChange={(x) => {
+                    setEndpointKey(x);
+                    const e = (endpoints.data ?? []).find((y) => y.key === x);
+                    if (e && !name.trim()) setName(e.name || e.key);
+                  }}
+                  searchable
+                  disabled={!platformId}
+                  required
+                  error={v.error('endpoint')}
+                />
+              )}
             </>
           )}
           <TextInput

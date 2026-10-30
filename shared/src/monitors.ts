@@ -38,7 +38,7 @@ export const isProblem = (s: MonitorStatus | undefined): boolean => s === 'down'
 
 // ---------- definitions ----------
 
-export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'monitor'] as const;
+export const CHECK_TYPES = ['ping', 'tcp', 'http', 'platform', 'freshness', 'heartbeat', 'gatus', 'checkmk', 'prometheus', 'monitor'] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
 export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }> = {
@@ -53,6 +53,7 @@ export const CHECK_TYPE_INFO: Record<CheckType, { label: string; help: string }>
   heartbeat: { label: 'Heartbeat (push)', help: 'Another system (e.g. an IoT gateway) reports to Steward; missing reports turn the check down' },
   gatus: { label: 'Gatus endpoint', help: 'Status of an endpoint monitored by Gatus' },
   checkmk: { label: 'CheckMk host or service', help: 'Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)' },
+  prometheus: { label: 'Prometheus query', help: 'A PromQL query compared with WARN and CRIT levels; with several series the worst one counts' },
   monitor: { label: 'Sub-monitor', help: 'The aggregated status of another monitor (evaluated on its own schedule)' },
 };
 
@@ -210,6 +211,23 @@ export const checkSchema = z.discriminatedUnion('type', [
     service: z.string().trim().max(500).optional(),
     /** unknown when CheckMk has not checked it for this long (optional) */
     maxAgeSeconds: seconds(1, 365 * 86400).optional(),
+  }),
+  z.object({
+    ...checkBase,
+    type: z.literal('prometheus'),
+    platform: platformRef,
+    /** PromQL instant query; several series: the worst one counts (#110) */
+    query: z.string().trim().min(1).max(4000),
+    /** above: a value at or above the level is bad (default); below: at or below (e.g. free space, replicas) */
+    direction: z.enum(['above', 'below']).default('above'),
+    /** degraded from this value on (optional) */
+    warn: z.number().finite().optional(),
+    /** down from this value on */
+    crit: z.number().finite(),
+    /** status when the query returns no series (default unknown: the target may have vanished) */
+    noData: z.enum(['unknown', 'up', 'down']).default('unknown'),
+    /** shown after values, e.g. "%" */
+    unit: z.string().max(20).optional(),
   }),
   z.object({ ...checkBase, type: z.literal('monitor'), monitor: z.string().trim().min(1).max(200) }),
 ]);

@@ -157,6 +157,23 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'prometheus',
+    label: 'Prometheus (PromQL)',
+    description:
+      'A Prometheus-compatible query API: Prometheus, Thanos, Mimir (base URL with its prefix, e.g. …/prometheus) or VictoriaMetrics. Monitors run PromQL queries against WARN and CRIT levels (the worst series counts), and availability objectives can take their figures from a query with [$window]. Only GET /api/v1/query is used. Authentication: none, basic, or a bearer token (e.g. a Grafana Cloud or Mimir token; set auth to bearer). See docs/MONITORS.md.',
+    baseUrl: 'https://prometheus.example.com',
+    config: { auth: { type: 'none' }, variables: {}, http: {}, testPath: '/api/v1/status/buildinfo' },
+    secretFields: [
+      { key: 'username', label: 'Username (basic auth)' },
+      { key: 'password', label: 'Password (basic auth)' },
+      { key: 'token', label: 'Bearer token' },
+    ],
+    docs: [
+      { title: 'Prometheus HTTP API', url: 'https://prometheus.io/docs/prometheus/latest/querying/api/' },
+      { title: 'PromQL basics', url: 'https://prometheus.io/docs/prometheus/latest/querying/basics/' },
+    ],
+  },
+  {
     kind: 'teams',
     label: 'Microsoft Teams channel (Workflows)',
     description:

@@ -592,7 +592,7 @@
     "OBJECTIVE_NOT_FOUND": "Ziel {{id}} nicht gefunden.",
     "OBJECTIVE_APPLICATION_NOT_IN_SERVICE": "Die Anwendung gehört nicht zum Service. Fügen Sie sie zuerst dem Service hinzu.",
     "OBJECTIVE_PLATFORM_UNKNOWN": "Plattform {{id}} nicht gefunden (oder Sie dürfen sie nicht sehen).",
-    "OBJECTIVE_PLATFORM_NOT_GATUS": "Verfügbarkeitsziele brauchen eine Gatus-Plattform.",
+    "OBJECTIVE_PLATFORM_NOT_GATUS": "Verfügbarkeitsziele brauchen eine Gatus- oder Prometheus-Plattform.",
     "OBJECTIVE_ENDPOINT_UNKNOWN": "Gatus meldet den Endpunkt „{{key}}“ nicht. Wählen Sie einen aus der Liste (der Metrik-Modus muss ihn erfasst haben).",
     "OBJECTIVE_SERVICE_ARCHIVED": "Der Service ist archiviert. Stellen Sie ihn wieder her, um Ziele festzulegen.",
     "OBJECTIVE_LIMIT": "Ein Service hat höchstens {{max}} Ziele.",
@@ -654,7 +654,8 @@
     "USER_UNKNOWN": "Es gibt keinen Benutzer „{{name}}“. Wählen Sie einen aus der Liste – eine Administratorin oder ein Administrator kann eine Person, die sich noch nicht angemeldet hat, unter Benutzer anlegen.",
     "TEAM_UNKNOWN": "Es gibt kein Team „{{name}}“. Wählen Sie eines aus der Liste.",
     "METRIC_REF": "Geben Sie die Kennzahl als Datensatz/Kennzahl an, z. B. ih.assets/attributes.",
-    "TREND_WINDOW": "Verwenden Sie einen Trendzeitraum wie 24h, 7d oder 30d."
+    "TREND_WINDOW": "Verwenden Sie einen Trendzeitraum wie 24h, 7d oder 30d.",
+    "OBJECTIVE_PROMQL_WINDOW": "Die PromQL-Abfrage braucht $window für den Zeitraum, z. B. avg_over_time(up{job=\"shop\"}[$window])."
   },
   "boundary": {
     "title": "Auf dieser Seite ist ein Fehler aufgetreten",

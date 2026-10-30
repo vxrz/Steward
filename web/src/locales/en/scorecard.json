@@ -47,9 +47,9 @@
     "add": "Add objective",
     "editOf": "Edit the objective “{{name}}”",
     "saved": "Objective saved",
-    "platform": "Gatus platform",
-    "platformHint": "Gatus platforms with metrics mode that you may see.",
-    "noSources": "No Gatus platform with metrics mode",
+    "platform": "Gatus or Prometheus platform",
+    "platformHint": "Gatus platforms with metrics mode, and Prometheus platforms, that you may see.",
+    "noSources": "No Gatus platform with metrics mode and no Prometheus platform",
     "uptimesOff": "Steward does not read Gatus' uptime figures for this platform yet: the objective shows “no data” until “Also read Gatus' uptime figures” is on in its metrics mode.",
     "endpoint": "Endpoint",
     "name": "Name",
@@ -62,7 +62,10 @@
     "description": "Description",
     "notify": "Send a message when it falls below target",
     "notifyHint": "To the service owners (administrators when it has none), once per breach.",
-    "platformHidden": "You may not see the Gatus platform of this objective. You can change its name and targets; the endpoint stays."
+    "platformHidden": "You may not see the Gatus platform of this objective. You can change its name and targets; the endpoint stays.",
+    "promQuery": "PromQL query",
+    "promQueryHint": "Returns the availability as a fraction (0–1); $window becomes 1h, 24h, 7d and 30d, e.g. avg_over_time(up{job=\"shop\"}[$window]). With several series the lowest counts. Read hourly.",
+    "promWindowMissing": "Use $window for the time window, e.g. [$window]."
   },
   "objectives": {
     "title": "Availability objectives",

@@ -184,7 +184,24 @@
     "cmkService": "Service",
     "cmkServiceHint": "Die Service-Bezeichnung genau wie in CheckMk, z. B. „Filesystem /var“. Leer: der Zustand des Hosts",
     "cmkMaxAge": "Unbekannt, wenn nicht geprüft seit (s)",
-    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn CheckMk ihn so lange nicht geprüft hat"
+    "cmkMaxAgeHint": "Optional: Der Zustand gilt als unbekannt, wenn CheckMk ihn so lange nicht geprüft hat",
+    "promQuery": "PromQL-Abfrage",
+    "promQueryHint": "Eine Instant-Abfrage, z. B. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). Bei mehreren Serien zählt die schlechteste",
+    "promDirection": "Schlecht, wenn der Wert",
+    "promDirections": {
+      "above": "die Schwelle erreicht oder überschreitet",
+      "below": "die Schwelle erreicht oder unterschreitet"
+    },
+    "promWarn": "WARN-Schwelle (beeinträchtigt)",
+    "promCrit": "CRIT-Schwelle (ausgefallen)",
+    "promNoData": "Wenn die Abfrage nichts liefert",
+    "promNoDataHint": "Meist unbekannt: Das Ziel ist vielleicht verschwunden",
+    "promNoDataStates": {
+      "unknown": "unbekannt",
+      "up": "verfügbar",
+      "down": "ausgefallen"
+    },
+    "promUnit": "Einheit (Anzeige)"
   },
   "detail": {
     "template": "Vorlage",
@@ -482,6 +499,10 @@
       "label": "CheckMk-Host oder -Service",
       "help": "Aktueller Zustand eines Hosts oder Services in CheckMk (OK, WARN, CRIT, UNKNOWN)"
     },
+    "prometheus": {
+      "label": "Prometheus-Abfrage",
+      "help": "Eine PromQL-Abfrage, verglichen mit WARN- und CRIT-Schwelle; bei mehreren Serien zählt die schlechteste"
+    },
     "monitor": {
       "label": "Untermonitor",
       "help": "Der Gesamtstatus eines anderen Monitors (nach dessen eigenem Zeitplan ausgewertet)"
@@ -496,6 +517,7 @@
     "heartbeat": "Vom Gateway gemeldete Daten",
     "gatus": "Gatus-Endpunkt",
     "checkmk": "CheckMk-Service",
+    "prometheus": "Prometheus-Abfrage",
     "monitor": "Untermonitor"
   },
   "uptime": {

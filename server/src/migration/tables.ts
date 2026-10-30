@@ -25,6 +25,7 @@ export const NOT_MOVED: Record<string, string> = {
   notification_stale: 'send bookkeeping of the source',
   eol_releases: 'a cache of endoflife.date (filled again on the target)',
   eol_products: 'a cache of endoflife.date (filled again on the target)',
+  prom_objective_readings: 'a cache of Prometheus figures for objectives (read again on the target)',
   eol_notices: 'send bookkeeping of the source (a component past its end of life is reported again on the target)',
   notify_alerts: 'send bookkeeping of the source (a check that still fails is notified again on the target)',
   notify_pause_ends: 'send bookkeeping of the source',

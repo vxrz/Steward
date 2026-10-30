@@ -10,6 +10,7 @@ import { assertAddressSafe, assertNetAllowed, assertOutboundAllowed, guardedLook
 import { outboundContext } from '../platforms/policyContext.js';
 import { BRAND } from '@sm/shared';
 import { freshnessStatus, freshnessWindowSeconds, fmtAge, statusMatcher } from './logic.js';
+import { promInstant, seriesName } from '../platforms/prometheus.js';
 import { checkmkFetch, checkmkServiceKey, gatusFetch, ihFetch, ihKey, SourceError } from './batch.js';
 import { CheckSetupError, platformFor } from './platforms.js';
 import { endpointState, metricsEnabled, sourceRow } from '../gatus/metrics.js';
@@ -554,9 +555,61 @@ async function checkCheckmk(c: CheckOf<'checkmk'>, ctx: ExecContext): Promise<Ra
   };
 }
 
+// ---------- Prometheus ----------
+
+const fmtNum = (v: number) => (Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 100) / 100));
+
+/** A PromQL query against WARN and CRIT levels (#110): every series is judged, the worst one counts. */
+async function checkPrometheus(c: CheckOf<'prometheus'>, ctx: ExecContext): Promise<RawResult> {
+  const t0 = Date.now();
+  const { platform, secrets } = platformFor(ctx.owner, c.platform);
+  let series;
+  try {
+    series = await promInstant(platform, secrets, c.query, ctx.signal);
+  } catch (e) {
+    return { status: 'unknown', message: `Prometheus could not be read: ${(e as Error).message}`.slice(0, 500), durationMs: Date.now() - t0 };
+  }
+  const ms = Date.now() - t0;
+  const unit = c.unit ?? '';
+  if (!series.length) return { status: c.noData ?? 'unknown', message: 'Prometheus: the query returned no series', durationMs: ms, value: { series: 0 } };
+  const bad = (v: number, level: number | undefined) => level !== undefined && (c.direction === 'below' ? v <= level : v >= level);
+  const rank = { up: 0, unknown: 1, degraded: 2, down: 3 } as const;
+  const judged = series.map((s) => {
+    const status: keyof typeof rank = !Number.isFinite(s.value) ? 'unknown' : bad(s.value, c.crit) ? 'down' : bad(s.value, c.warn) ? 'degraded' : 'up';
+    return { s, status };
+  });
+  // the worst series; among equals, the one furthest past the level
+  const worst = judged.reduce((a, b) =>
+    rank[b.status] > rank[a.status] || (rank[b.status] === rank[a.status] && (c.direction === 'below' ? b.s.value < a.s.value : b.s.value > a.s.value)) ? b : a,
+  );
+  const name = seriesName(worst.s, series);
+  const levels = [c.warn !== undefined ? `WARN ${fmtNum(c.warn)}` : '', `CRIT ${fmtNum(c.crit)}`].filter(Boolean).join(', ');
+  const value = Number.isFinite(worst.s.value) ? `${fmtNum(worst.s.value)}${unit}` : 'not a number';
+  const count = series.length === 1 ? '' : ` (worst of ${series.length} series)`;
+  const failing = judged.filter((j) => j.status === 'down' || j.status === 'degraded').length;
+  const message =
+    worst.status === 'up'
+      ? `Prometheus: ${series.length === 1 ? `${name} ${value}` : `all ${series.length} series within the levels, worst ${name} ${value}`} (${levels})`
+      : `Prometheus: ${name} ${value}${count}${failing > 1 ? `, ${failing} series past a level` : ''} (${levels})`;
+  return {
+    status: worst.status,
+    message: message.slice(0, 500),
+    durationMs: ms,
+    value: { series: series.length, worst: Number.isFinite(worst.s.value) ? worst.s.value : null, labels: worst.s.labels },
+  };
+}
+
 // ---------- dispatch ----------
 
-type Active = CheckOf<'ping'> | CheckOf<'tcp'> | CheckOf<'http'> | CheckOf<'platform'> | CheckOf<'freshness'> | CheckOf<'gatus'> | CheckOf<'checkmk'>;
+type Active =
+  | CheckOf<'ping'>
+  | CheckOf<'tcp'>
+  | CheckOf<'http'>
+  | CheckOf<'platform'>
+  | CheckOf<'freshness'>
+  | CheckOf<'gatus'>
+  | CheckOf<'checkmk'>
+  | CheckOf<'prometheus'>;
 
 /** Runs an active check; heartbeat and sub-monitor checks are evaluated by the engine from stored state. */
 export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawResult> {
@@ -576,6 +629,8 @@ export async function runActiveCheck(c: Active, ctx: ExecContext): Promise<RawRe
         return await checkGatus(c, ctx);
       case 'checkmk':
         return await checkCheckmk(c, ctx);
+      case 'prometheus':
+        return await checkPrometheus(c, ctx);
     }
   } catch (e) {
     if (e instanceof CheckSetupError) return { status: 'unknown', message: `Check could not run: ${e.message}` };

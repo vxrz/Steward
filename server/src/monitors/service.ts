@@ -321,7 +321,13 @@ export function listResults(idOrKey: string, checkId: string, limit = 50): Check
 
 // ---------- validation ----------
 
-const PLATFORM_KIND: Partial<Record<string, string>> = { freshness: 'insights-hub', gatus: 'gatus', checkmk: 'checkmk', zabbix: 'zabbix' };
+const PLATFORM_KIND: Partial<Record<string, string>> = {
+  freshness: 'insights-hub',
+  gatus: 'gatus',
+  checkmk: 'checkmk',
+  prometheus: 'prometheus',
+  zabbix: 'zabbix',
+};
 
 /** The platform kind a check or output needs (undefined: any platform). */
 function expectedKind(item: Record<string, unknown>, isOutput: boolean): string | undefined {

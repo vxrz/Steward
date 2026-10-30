@@ -184,7 +184,24 @@
     "cmkService": "Service",
     "cmkServiceHint": "The service description exactly as in CheckMk, e.g. \"Filesystem /var\". Empty: the state of the host",
     "cmkMaxAge": "Unknown when not checked for (s)",
-    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long"
+    "cmkMaxAgeHint": "Optional: the state counts as unknown when CheckMk has not checked it for this long",
+    "promQuery": "PromQL query",
+    "promQueryHint": "An instant query, e.g. 100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/var\"} / node_filesystem_size_bytes{mountpoint=\"/var\"}). With several series the worst one counts",
+    "promDirection": "Bad when the value is",
+    "promDirections": {
+      "above": "at or above the level",
+      "below": "at or below the level"
+    },
+    "promWarn": "WARN level (degraded)",
+    "promCrit": "CRIT level (down)",
+    "promNoData": "When the query returns nothing",
+    "promNoDataHint": "Usually unknown: the target may have disappeared",
+    "promNoDataStates": {
+      "unknown": "unknown",
+      "up": "up",
+      "down": "down"
+    },
+    "promUnit": "Unit (shown)"
   },
   "detail": {
     "template": "template",
@@ -482,6 +499,10 @@
       "label": "CheckMk host or service",
       "help": "Current state of a host or service in CheckMk (OK, WARN, CRIT, UNKNOWN)"
     },
+    "prometheus": {
+      "label": "Prometheus query",
+      "help": "A PromQL query compared with WARN and CRIT levels; with several series the worst one counts"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -496,6 +517,7 @@
     "heartbeat": "Data reported by the gateway",
     "gatus": "Gatus endpoint",
     "checkmk": "CheckMk service",
+    "prometheus": "Prometheus query",
     "monitor": "Sub-monitor"
   },
   "uptime": {
