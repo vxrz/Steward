@@ -6,6 +6,10 @@ The format follows [Keep a Changelog 1.1](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-30
+
+Steward reads the platforms applications are built and run on. **GitHub, GitLab and Forgejo/Gitea** become connectors: repository components show the pipeline of the default branch, the latest release, open security alerts, packages, deploy keys and tokens (offered for the credentials register) and the tech stack read from Dockerfile, package.json, go.mod and similar files; a monitor check follows the pipeline, and access reviews read organisation and repository members. **Kafka** topics of applications – Confluent Cloud or any Kafka cluster, read with a read-only service account – show their settings, consumer lag and schema version; monitors check new messages, lag, stuck consumer groups and the schema; a guarded peek reads a few messages for troubleshooting. **MQTT** brokers get a monitor check for messages within a window, silent devices and connected clients, keeping only times and counts per topic. Two database migrations, both additive: `catalogue-007-component-readouts` and `ops-010-mqtt-topics`.
+
 ### Added
 
 - **Git platforms** (#107): platform types _GitHub_ (also Enterprise Server), _GitLab_ and _Forgejo / Gitea_ with a read-only token, a connection test and a small API description each. Application components of type _Repository_ name their Git platform and repository path; Steward reads the default branch and its pipeline (workflow runs, GitLab pipelines, commit status), the latest release, open Dependabot alerts, packages and container images, deploy keys and GitLab deploy and access tokens – each can be added to the credentials register after review – and the tech stack from Dockerfile, package.json, go.mod, .nvmrc, .tool-versions, global.json, composer.json and pom.xml (source _read from the repository files_), every 6 hours or on _Read now_. Monitor check type `git` (pipeline of a branch, optional alert limits), access reviews with the source _Git_ (organisation, group or repository members with their role, outside collaborators marked), the example _GitHub – repository health_ with the dashboard _Repositories_, and demo hosts ([docs/GIT-PLATFORMS.md](docs/GIT-PLATFORMS.md)). Migration `catalogue-007-component-readouts` (additive).
@@ -482,7 +486,8 @@ The first public version.
 - Monitors adopt the same policies: http/tcp/ping checks and webhook/Zabbix outputs are subject to the outbound policy (DNS-pinned; raw `host:port` checks need an explicit allow-list entry such as an IP/CIDR and are not inferred from platform origins); monitor http checks follow redirects manually and drop custom headers cross-origin; check error messages no longer echo the upstream response body; the guarded expression evaluation bounds condition/heartbeat/freshness expressions (CPU, memory via a `$pad` cap, and regex time); and gateway heartbeat batches share a global evaluation-concurrency cap (`SM_MONITOR_EVAL_CONCURRENCY`).
 - Semgrep findings triaged (all rule sets of the CI job, see [docs/SECURITY-PIPELINE.md](docs/SECURITY-PIPELINE.md#semgrep-triage)): the dev, PostgreSQL-test and install-script helpers start npm without a shell, also on Windows (`scripts/npm-command.mjs`); monitor-gateway key patterns (glob) and the API path editor match without regular expressions built from configured data; translation lookups ignore inherited properties; the CI gate also blocks HIGH/CRITICAL findings; SARIF uploads get the `actions: read` permission they need.
 
-[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/vxrz/steward/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/vxrz/steward/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/vxrz/steward/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/vxrz/steward/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/vxrz/steward/compare/v0.2.3...v0.2.4
