@@ -127,6 +127,12 @@ function scope(req: FastifyRequest): { service: string; region: string } | strin
     : 'The request signature we calculated does not match the signature you provided.';
 }
 
+/** For tests: the IAM groups of a demo user (a right removed in AWS). */
+export function setIamGroups(user: string, groups: string[]): void {
+  const u = USERS.find((x) => x.name === user);
+  if (u) u.groups = groups;
+}
+
 const xml = (reply: FastifyReply, action: string, result: string) =>
   reply
     .type('text/xml')
