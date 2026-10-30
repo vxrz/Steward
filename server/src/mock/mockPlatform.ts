@@ -14,6 +14,7 @@ import { iotTimeseries, mockIotRoutes } from './mockIot.js';
 import { mockZabbix } from './mockZabbix.js';
 import { mockGit } from './mockGit.js';
 import { mockS3 } from './mockS3.js';
+import { mockAws } from './mockAws.js';
 import { mockEndoflife } from './mockEndoflife.js';
 import { mockUsageRoutes } from './mockUsage.js';
 
@@ -214,6 +215,7 @@ export async function mockPlatform(app: FastifyInstance): Promise<void> {
   await mockZabbix(app);
   await mockGit(app);
   await mockS3(app);
+  await mockAws(app);
   await mockEndoflife(app);
 
   app.post('/reset', async () => {

@@ -366,6 +366,27 @@
       "peekEmpty": "Das Topic hat keine Nachrichten",
       "peekLine": "Partition {{partition}}, Offset {{offset}}, {{date}}, Schlüssel {{key}}",
       "truncated": "gekürzt"
+    },
+    "aws": {
+      "platform": "AWS-Konto",
+      "platformHint": "Der Name der Komponente ist der Wert des Anwendungs-Tags (z. B. shop für application=shop): Steward listet die Ressourcen damit, ihre Kosten und die IAM-Benutzer, die ihn tragen.",
+      "noPlatforms": "Noch keine AWS-Plattform – legen Sie eine unter Plattformen an.",
+      "notRead": "Noch nicht gelesen.",
+      "readNow": "Das AWS-Konto von {{name}} jetzt lesen",
+      "done": "AWS-Konto für {{name}} gelesen.",
+      "account": "Konto {{account}}, Tag {{tag}}",
+      "resources_one": "{{count}} Ressource ({{services}})",
+      "resources_other": "{{count}} Ressourcen ({{services}})",
+      "noResources": "keine Ressourcen mit dem Tag",
+      "costs": "Kosten in diesem Monat bisher {{current}} · im letzten Monat {{last}}",
+      "costsError": "Kosten: {{error}}",
+      "key": "IAM {{user}}: Schlüssel {{id}}, {{status}}, {{age}} Tage alt, {{used}}",
+      "active": "aktiv",
+      "inactive": "inaktiv",
+      "used": "zuletzt genutzt {{date}} ({{service}})",
+      "neverUsed": "nie genutzt",
+      "registerKey": "Den Zugriffsschlüssel {{id}} ins Zugangsdatenregister aufnehmen",
+      "keyDescription": "Zugriffsschlüssel des IAM-Benutzers {{user}} im AWS-Konto {{account}}"
     }
   },
   "credentials": {

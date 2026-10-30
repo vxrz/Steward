@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import type { Platform } from '@sm/shared';
 import { platformRequest, type HttpResult } from '../platforms/http.js';
+import { unescapeXml, xmlAll, xmlOne } from '../platforms/xml.js';
 
 /**
  * The few S3 calls backups need (#117), over the platform request layer – so the platform's proxy, outbound policy and
@@ -18,27 +19,6 @@ export interface S3Object {
 /** Objects up to this size go up in one PUT; larger ones as a multipart upload in parts of PART_BYTES. */
 export const SINGLE_PUT_MAX = Number(process.env.SM_BACKUP_SINGLE_PUT_BYTES) || 32 * 1024 * 1024;
 export const PART_BYTES = Math.max(Number(process.env.SM_BACKUP_PART_BYTES) || 16 * 1024 * 1024, 1024);
-
-/** The text between <tag> and </tag>, for each occurrence (indexOf, no regular expressions on remote input). */
-export function xmlAll(xml: string, tag: string): string[] {
-  const open = `<${tag}>`;
-  const close = `</${tag}>`;
-  const out: string[] = [];
-  let from = 0;
-  for (;;) {
-    const a = xml.indexOf(open, from);
-    if (a < 0) break;
-    const b = xml.indexOf(close, a + open.length);
-    if (b < 0) break;
-    out.push(xml.slice(a + open.length, b));
-    from = b + close.length;
-  }
-  return out;
-}
-
-export const xmlOne = (xml: string, tag: string): string | undefined => xmlAll(xml, tag)[0];
-
-const unescapeXml = (s: string) => s.replace(/&(lt|gt|quot|apos|amp);/g, (_m, e: string) => ({ lt: '<', gt: '>', quot: '"', apos: "'", amp: '&' })[e] ?? '');
 
 /** Object keys Steward writes: letters, digits and . _ - / only, so the URL path and the signature need no escaping. */
 export function checkKey(key: string): string {

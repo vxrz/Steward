@@ -922,14 +922,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const p = requirePlatform(id, 'use', 'use this platform');
     const secrets = platforms.getSecrets(id);
     const testPath = p.config.testPath || '/';
-    // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker
-    if (p.kind === 'kafka' || p.kind === 'mqtt') {
+    // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker; AWS (#116) asks STS who it is
+    if (p.kind === 'kafka' || p.kind === 'mqtt' || p.kind === 'aws') {
       const t0 = Date.now();
       try {
         const message =
           p.kind === 'kafka'
             ? await (await import('../kafka/service.js')).testKafka(p, secrets)
-            : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
+            : p.kind === 'aws'
+              ? await (await import('../aws/service.js')).testAws(p, secrets)
+              : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
         audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}` });
         return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
       } catch (e) {

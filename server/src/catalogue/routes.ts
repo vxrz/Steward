@@ -101,6 +101,17 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
     return apps.getApplication(id!);
   });
 
+  // AWS cloud account (#116): resources with the application tag, IAM users and keys now (costs stay once a day)
+  app.post('/applications/:id/components/:componentId/aws', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const { id, componentId } = params(req);
+    const a = apps.getApplication(id!);
+    if (!a.canEdit) throw new HttpError(403, 'Only who may change the application reads its cloud accounts now', 'FORBIDDEN');
+    if (!a.components.some((c) => c.id === componentId)) throw new HttpError(404, 'This component does not belong to the application', 'COMPONENT_NOT_FOUND');
+    const { refreshAwsComponent } = await import('../aws/service.js');
+    await refreshAwsComponent(componentId!, currentUser()!.username, { force: true });
+    return apps.getApplication(id!);
+  });
+
   // ---------- systems and "runs on" (#129) ----------
   app.get('/systems', async () => systems.listSystems());
   app.post('/systems', async (req) => systems.createSystem(systems.systemInput.parse(req.body)));

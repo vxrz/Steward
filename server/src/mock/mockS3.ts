@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { signRequest } from '../platforms/sigv4.js';
+import { escapeXml } from '../platforms/xml.js';
 
 /**
  * A small S3 for the demo and the tests (#117): path-style buckets under /mock/s3/<bucket>, objects in memory.
@@ -34,7 +35,7 @@ export function resetMockS3(): void {
   uploads.clear();
 }
 
-const xmlEscape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const xmlEscape = escapeXml;
 const etagOf = (b: Buffer) => `"${crypto.createHash('md5').update(b).digest('hex')}"`;
 
 function error(reply: FastifyReply, status: number, code: string, message: string) {

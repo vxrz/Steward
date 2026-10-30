@@ -246,6 +246,28 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'aws',
+    label: 'Amazon Web Services (AWS account, read-only)',
+    description:
+      'One AWS account: application components of type "Cloud account" name it, with the value of the application tag as their name (variable tagKey, default application: application=shop). Steward reads the resources with that tag in the regions of the variable regions (Resource Groups Tagging API), the costs per month (Cost Explorer, once a day) and the IAM users with the tag and the age and last use of their access keys (for the credentials register). Sign-in: AWS request signing with an access key or – recommended – a role to assume (role ARN, external ID); the base URL stays the STS endpoint of the region. The read-only policy is in docs/AWS.md.',
+    baseUrl: 'https://sts.eu-central-1.amazonaws.com',
+    config: {
+      auth: { type: 'aws_sigv4', aws: { region: 'eu-central-1', service: 'sts' } },
+      variables: { regions: 'eu-central-1', tagKey: 'application' },
+      http: {},
+    },
+    secretFields: [
+      { key: 'accessKeyId', label: 'Access key ID', help: 'Of an IAM user (or the user that assumes the role) with the read-only policy of docs/AWS.md' },
+      { key: 'secretAccessKey', label: 'Secret access key' },
+      { key: 'sessionToken', label: 'Session token (temporary keys only, optional)' },
+    ],
+    docs: [
+      { title: 'Resource Groups Tagging API', url: 'https://docs.aws.amazon.com/resourcegroupstagging/latest/APIReference/API_GetResources.html' },
+      { title: 'Cost Explorer GetCostAndUsage', url: 'https://docs.aws.amazon.com/aws-cost-management/latest/APIReference/API_GetCostAndUsage.html' },
+      { title: 'IAM ListAccessKeys', url: 'https://docs.aws.amazon.com/IAM/latest/APIReference/API_ListAccessKeys.html' },
+    ],
+  },
+  {
     kind: 'kafka',
     label: 'Kafka cluster (Confluent, read-only)',
     description:

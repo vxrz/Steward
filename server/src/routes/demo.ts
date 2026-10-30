@@ -27,6 +27,7 @@ import { getProcess } from '../processes/service.js';
 import { setupMonitorDemo } from '../monitors/demo.js';
 import { getSettings, updateSettings } from '../settings.js';
 import { setupComplianceDemo } from '../compliance/demo.js';
+import { DEMO_AWS } from '../mock/mockAws.js';
 
 /** Creates demo platforms (pointing to the built-in mock) and imports all templates. */
 export const DEMO_USER_PASSWORD = 'Demo-password-1';
@@ -251,6 +252,23 @@ export async function setupDemo(): Promise<{
     platforms++;
   }
   startMqttSimulator();
+  if (!existing.has('AWS (demo)')) {
+    // AWS (#116): a demo account – resources tagged application=shop / crm in two regions, costs, IAM users
+    createPlatform({
+      name: 'AWS (demo)',
+      kind: 'aws',
+      environment: 'demo',
+      description: 'Simulated AWS account 123456789012 served by the built-in mock (STS, tagging, Cost Explorer, IAM). See docs/AWS.md.',
+      baseUrl: `${base}/aws-api`,
+      config: {
+        auth: { type: 'aws_sigv4', aws: { region: DEMO_AWS.region, service: 'sts' } },
+        variables: { regions: 'eu-central-1, eu-west-1', tagKey: 'application' },
+        http: { proxy: 'none' },
+      },
+      secrets: { accessKeyId: DEMO_AWS.accessKeyId, secretAccessKey: DEMO_AWS.secretAccessKey },
+    });
+    platforms++;
+  }
   if (!existing.has('endoflife.date (demo)')) {
     // end-of-life dates of the tech stacks (#104): the built-in mock with the real API's shape
     const e = createPlatform({

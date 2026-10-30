@@ -271,4 +271,20 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE application_components ADD COLUMN topic_state TEXT;
     `,
   },
+  {
+    // AWS accounts (#116): what was read for a cloud-account component, and per account the shared reads
+    // (resources, IAM users, costs) that all its components use
+    name: 'catalogue-008-aws',
+    sql: `
+      ALTER TABLE application_components ADD COLUMN aws_state TEXT;
+      CREATE TABLE aws_account_cache (
+        platform_id TEXT NOT NULL,
+        part TEXT NOT NULL,
+        read_at TEXT NOT NULL,
+        data TEXT,
+        error TEXT,
+        PRIMARY KEY (platform_id, part)
+      );
+    `,
+  },
 ];

@@ -35,6 +35,8 @@ export interface HttpRequest {
    * downloads such as backups (#117). The result's body is then {bytes, sha256}.
    */
   responseFile?: string;
+  /** AWS SigV4 (#116): sign this request for another service or region than the platform's (one AWS account, many APIs). */
+  aws?: { service: string; region: string };
 }
 
 export interface HttpResult {
@@ -126,6 +128,16 @@ export async function resolveBaseUrl(p: Platform, secrets: Record<string, string
 }
 
 /** Whether a request to pathOrUrl may carry the platform's credentials. Relative paths always may. */
+/** https://<…>.amazonaws.com (or .amazonaws.com.cn, China) – an endpoint of AWS itself. */
+export function isAwsEndpoint(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    return u.protocol === 'https:' && !u.port && /^[a-z0-9.-]+\.amazonaws\.com(\.cn)?$/.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export async function credentialsAllowed(p: Platform, secrets: Record<string, string>, pathOrUrl: string): Promise<boolean> {
   if (!/^https?:\/\//i.test(pathOrUrl)) return true;
   let origin: string;
@@ -140,6 +152,8 @@ export async function credentialsAllowed(p: Platform, secrets: Record<string, st
   } catch {
     /* base URL not resolvable – only explicitly trusted origins count */
   }
+  // An AWS account (#116) calls many AWS endpoints (ce, tagging, iam, sts …): signed requests may go to AWS's own hosts
+  if (p.kind === 'aws' && p.config.auth?.type === 'aws_sigv4' && isAwsEndpoint(origin)) return true;
   for (const o of p.config.http?.trustedOrigins ?? []) {
     try {
       allowed.add(new URL(o).origin);
@@ -525,11 +539,13 @@ async function awsCredentials(p: Platform, secrets: Record<string, string>, sign
 }
 
 /** The signer for requests to the platform's own origins (AWS SigV4); undefined for other auth types. */
-async function signerFor(p: Platform, secrets: Record<string, string>, signal?: AbortSignal): Promise<HttpRequest['sign']> {
+async function signerFor(p: Platform, secrets: Record<string, string>, signal?: AbortSignal, scope?: HttpRequest['aws']): Promise<HttpRequest['sign']> {
   const aws = p.config.auth?.aws;
   if (p.config.auth?.type !== 'aws_sigv4' || !aws) return undefined;
   const credentials = await awsCredentials(p, secrets, signal);
-  return async (req) => signRequest(req, { region: aws.region, service: aws.service, credentials, unsignedPayload: aws.unsignedPayload });
+  const region = scope?.region ?? aws.region;
+  const service = scope?.service ?? aws.service;
+  return async (req) => signRequest(req, { region, service, credentials, unsignedPayload: service === 's3' && aws.unsignedPayload });
 }
 
 /** When the assumed role's credentials were fetched and end (like tokenInfo for logins). */
@@ -712,7 +728,7 @@ async function followRedirects(
       }
       const auth = await obtainAuthHeader(p, secrets, signal);
       if (auth && !headers[auth[0]]) headers[auth[0]] = auth[1];
-      sign = await signerFor(p, secrets, signal);
+      sign = await signerFor(p, secrets, signal, req.aws);
       if (p.config.auth?.type === 'apiKey' && p.config.auth.apiKeyIn === 'query' && hop === 0 && initialQuery) {
         /* the initial url already carries the query api key (buildUrl) */
       }
