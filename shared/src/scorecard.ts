@@ -67,6 +67,11 @@ export interface ObjectiveWindowState {
   /** Gatus' uptime in percent (null: no data) */
   value: number | null;
   status: ObjectiveStatus;
+  /**
+   * Planned maintenance (#108) of the service or application in this window, in minutes. Gatus' figure above is not
+   * changed by it; it is shown next to it. 0 for archived objectives.
+   */
+  plannedMinutes?: number;
 }
 
 export const OBJECTIVE_BREACH_END_REASONS = ['recovered', 'archived'] as const;

@@ -66,6 +66,14 @@ export interface Notice {
    * the messages. Missing: the routes, as before.
    */
   source?: RunSource | null;
+  /** The run the message is about: during a maintenance window with "pause messages" on its platforms it goes to the app only (#108) */
+  runId?: string;
+}
+
+/** Set by the maintenance module (no import cycle): does a maintenance window pause the messages of this run? */
+let maintenancePause: ((runId: string) => boolean) | null = null;
+export function setMaintenancePause(fn: (runId: string) => boolean): void {
+  maintenancePause = fn;
 }
 
 /**
@@ -160,6 +168,8 @@ export function notify(n: Notice): void {
   let channels = policy?.channels ? [...policy.channels] : (settings.routes[n.event] ?? []);
   // paused: nothing goes out, the app keeps the messages when the pause says so
   if (pauseActive(policy?.pause)) channels = policy!.pause!.inApp ? ['inApp'] : [];
+  // planned maintenance on the run's platforms (#108): the app keeps the messages, nothing goes out
+  else if (n.runId && maintenancePause?.(n.runId)) channels = channels.filter((c) => c === 'inApp');
   if (!channels.length) return;
   const fallback = defaultLocale();
   const texts = new Map<Locale, NoticeText>();
@@ -331,6 +341,7 @@ export function onRunFinished(e: DomainEvents['run.finished']): void {
   notify({
     event: 'run.failed',
     source,
+    runId: e.runId,
     text: (l) => ({
       title: t(l, e.dryRun ? 'runFailed.titleDryRun' : 'runFailed.title', { process: e.processName }),
       // The error itself comes from the platform or the engine and stays as it is.
@@ -419,6 +430,7 @@ export function onCheckFailed(e: DomainEvents['check.failed']): void {
     event: 'check.failed',
     personal: true,
     source,
+    runId: e.runId,
     text: (l, u) => ({
       // state first, then where (#144)
       title: t(l, e.dryRun ? 'checkFailed.subjectDryRun' : 'checkFailed.subject', {
@@ -476,6 +488,7 @@ export function onCheckResolved(e: DomainEvents['check.resolved']): void {
     event: 'check.resolved',
     personal: true,
     source,
+    runId: e.runId,
     text: (l, u) => ({
       title: t(l, e.dryRun ? 'checkResolved.subjectDryRun' : 'checkResolved.subject', { check: titleName(e.check), process: titleName(e.processName) }),
       body: '',
@@ -634,6 +647,8 @@ export function startNotificationJobs(): void {
     // end of life of the tech stacks: daily refresh from endoflife.date and messages to application owners (catalogue/lifecycle.ts, idempotent)
     import('../catalogue/lifecycle.js').then((m) => m.runLifecycleJob()).catch((err) => logger.warn({ err }, 'end-of-life job failed'));
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
+    // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
+    import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));
     // paused messages of schedules, triggers and monitor outputs: one "still failing" message when a pause ends (#139)
     import('./pause.js').then((m) => m.checkPauseEnds()).catch((err) => logger.warn({ err }, 'pause end check failed'));
   }, STALE_CHECK_MS);

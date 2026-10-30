@@ -8,6 +8,9 @@ import { get, notifyError, notifyOk, post } from '../../api';
 import { QueryState } from '../common';
 import { confirmDanger } from '../confirm';
 import { fmtDate, fmtRelative } from '../../format';
+
+/** 45 → "45 min", 90 → "1 h 30 min" */
+const fmtMinutes = (m: number) => (m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`);
 import { Sparkline } from '../dashboard/charts';
 import { OBJECTIVE_COLORS, ObjectiveFormModal, ObjectiveStatusBadge, fmtPct } from './common';
 
@@ -151,6 +154,16 @@ function ObjectiveCard({ objective: o, onEdit, onArchive }: { objective: Objecti
               </Badge>
             ))}
           </Group>
+          {o.windows.some((w) => (w.plannedMinutes ?? 0) > 0) && (
+            <Text size="xs" c="dimmed" data-testid="objective-planned">
+              {t('objectives.planned', {
+                list: o.windows
+                  .filter((w) => (w.plannedMinutes ?? 0) > 0)
+                  .map((w) => `${t(`windows.${w.window}`)} ${fmtMinutes(w.plannedMinutes ?? 0)}`)
+                  .join(' · '),
+              })}
+            </Text>
+          )}
           {o.noDataReason && !o.archived && (
             <Text size="xs" c={o.noDataTooLong ? 'red.8' : 'dimmed'}>
               {o.noDataTooLong && o.noDataSince ? `${t('objectives.noDataSince', { date: fmtDate(o.noDataSince) })} ` : ''}

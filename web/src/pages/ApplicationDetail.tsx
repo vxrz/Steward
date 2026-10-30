@@ -21,6 +21,7 @@ import { useRoleLabel } from '../components/catalogue/ServiceApplications';
 import { ComponentsPanel } from '../components/catalogue/ComponentsPanel';
 import { RunsOnPanel } from '../components/catalogue/RunsOnPanel';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 
 export function ApplicationDetailPage() {
   const { t } = useTranslation(['applications', 'common']);
@@ -77,6 +78,7 @@ export function ApplicationDetailPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
+            <MaintenancePanel kind="application" id={a.id} canPlan={a.canEdit && !a.archived} />
             {a.description.trim() ? (
               <MarkdownView text={a.description} />
             ) : (

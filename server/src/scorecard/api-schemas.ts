@@ -53,7 +53,19 @@ export const ObjectiveEntry = z.object({
   endpointName: z.string().nullable(),
   targets: perWindow('Targets'),
   windows: z
-    .array(z.object({ window: z.enum(OBJECTIVE_WINDOWS), target: z.number(), value: pct(), status: z.enum(OBJECTIVE_STATUSES) }))
+    .array(
+      z.object({
+        window: z.enum(OBJECTIVE_WINDOWS),
+        target: z.number(),
+        value: pct(),
+        status: z.enum(OBJECTIVE_STATUSES),
+        plannedMinutes: z
+          .number()
+          .int()
+          .optional()
+          .describe('Planned maintenance in this window, in minutes (shown next to the figure, which it does not change)'),
+      }),
+    )
     .describe("The windows with a target: Gatus' current uptime and the status"),
   status: z.enum(OBJECTIVE_STATUSES).describe('below: a window is below target; noData: a window has no value; met: every target is reached'),
   noDataReason: z.enum(OBJECTIVE_NO_DATA_REASONS).nullable(),

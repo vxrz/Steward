@@ -5,6 +5,8 @@ import {
   CIA_SCALE_MODES,
   COMPONENT_TYPES,
   LIFECYCLE_STATES,
+  MAINTENANCE_FREQS,
+  MAINTENANCE_TARGET_KINDS,
   REVIEW_STATUSES,
   SBOM_FORMATS,
   SERVICE_CONTACT_ROLES,
@@ -323,6 +325,60 @@ export const CiaScaleEntry = z.object({
     ),
 });
 
+const MaintenanceTargetEntry = z.object({
+  kind: z.enum(MAINTENANCE_TARGET_KINDS),
+  id: z.string(),
+  name: z.string().nullable().describe('Null for a platform the token owner may not see, or something deleted'),
+});
+
+export const MaintenanceEntry = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string(),
+  startsAt: ts().describe('Start of the first occurrence'),
+  endsAt: ts().describe('End of the first occurrence'),
+  recurrence: z
+    .object({ freq: z.enum(MAINTENANCE_FREQS), interval: z.number().int(), until: ts().nullable() })
+    .nullable()
+    .describe('Repeats every n weeks or months (monthly on the 29th–31st: the last day of shorter months); null: once'),
+  timeZone: z.string().describe('IANA time zone the repetition keeps its wall-clock time in'),
+  responsible: z.array(z.string()).describe('user:<name>, team:<name>'),
+  targets: z.array(MaintenanceTargetEntry).describe('What it was planned for'),
+  changeRecord: z
+    .object({ id: z.string(), number: z.string(), title: z.string() })
+    .nullable()
+    .describe('The change record it belongs to (null: none or not readable)'),
+  quietMonitors: z.boolean().describe('Affected monitors show maintenance and send no alerts'),
+  pauseMessages: z.boolean().describe('Check and run messages of runs on affected platforms go to the app only'),
+  reminderHours: z.number().int(),
+  cancelledAt: ts().nullable(),
+  cancelledBy: z.string().nullable(),
+  current: z.object({ startsAt: ts(), endsAt: ts(), active: z.boolean() }).nullable().describe('The occurrence going on now, or the next one'),
+  createdAt: ts(),
+  createdBy: z.string(),
+  updatedAt: ts(),
+  updatedBy: z.string(),
+});
+
+export const MaintenanceListEntry = z.object({
+  from: ts(),
+  to: ts(),
+  windows: z.array(MaintenanceEntry),
+  occurrences: z
+    .array(z.object({ windowId: z.string(), title: z.string(), startsAt: ts(), endsAt: ts(), active: z.boolean(), targets: z.array(MaintenanceTargetEntry) }))
+    .describe('Every occurrence in the range, by start'),
+});
+
+export const MaintenanceListQuery = z.object({
+  from: ts().optional().describe('Start of the range (default: a day ago)'),
+  to: ts().optional().describe('End of the range (default: 60 days ahead; at most 400 days after from)'),
+  target: z
+    .string()
+    .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+    .optional()
+    .describe('Only windows that list or reach this item: kind:id, e.g. service:svc_…'),
+});
+
 export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {
   ServiceEntry,
   ServiceEntryDetail,
@@ -332,6 +388,8 @@ export const SERVICE_COMPONENTS: Record<string, ZodTypeAny> = {
   CiaScaleEntry,
   SystemEntry,
   EnvironmentEntry,
+  MaintenanceEntry,
+  MaintenanceListEntry,
 };
 
 export const SystemListQuery = z.object({

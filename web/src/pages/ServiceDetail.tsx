@@ -20,6 +20,7 @@ import { ServiceApplicationsPanel } from '../components/catalogue/ServiceApplica
 import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
 import { ObjectivesPanel } from '../components/scorecard/ObjectivesPanel';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -75,6 +76,7 @@ export function ServiceDetailPage() {
       <Grid gutter="lg">
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
+            <MaintenancePanel kind="service" id={s.id} canPlan={s.canEdit && !s.archived} />
             {s.description.trim() ? (
               <MarkdownView text={s.description} />
             ) : (

@@ -10630,6 +10630,583 @@
         ],
         "additionalProperties": false
       },
+      "MaintenanceEntry": {
+        "title": "MaintenanceEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the first occurrence"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "End of the first occurrence"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "freq": {
+                    "type": "string",
+                    "enum": [
+                      "weekly",
+                      "monthly"
+                    ]
+                  },
+                  "interval": {
+                    "type": "integer"
+                  },
+                  "until": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "ISO 8601 timestamp (UTC)"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "ISO 8601 timestamp (UTC)"
+                  }
+                },
+                "required": [
+                  "freq",
+                  "interval",
+                  "until"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Repeats every n weeks or months (monthly on the 29th–31st: the last day of shorter months); null: once"
+          },
+          "timeZone": {
+            "type": "string",
+            "description": "IANA time zone the repetition keeps its wall-clock time in"
+          },
+          "responsible": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "user:<name>, team:<name>"
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "platform",
+                    "system",
+                    "application",
+                    "service"
+                  ]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Null for a platform the token owner may not see, or something deleted"
+                }
+              },
+              "required": [
+                "kind",
+                "id",
+                "name"
+              ],
+              "additionalProperties": false
+            },
+            "description": "What it was planned for"
+          },
+          "changeRecord": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "number": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "number",
+                  "title"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The change record it belongs to (null: none or not readable)"
+          },
+          "quietMonitors": {
+            "type": "boolean",
+            "description": "Affected monitors show maintenance and send no alerts"
+          },
+          "pauseMessages": {
+            "type": "boolean",
+            "description": "Check and run messages of runs on affected platforms go to the app only"
+          },
+          "reminderHours": {
+            "type": "integer"
+          },
+          "cancelledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "cancelledBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "startsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "endsAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp (UTC)"
+                  },
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "startsAt",
+                  "endsAt",
+                  "active"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The occurrence going on now, or the next one"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "note",
+          "startsAt",
+          "endsAt",
+          "recurrence",
+          "timeZone",
+          "responsible",
+          "targets",
+          "changeRecord",
+          "quietMonitors",
+          "pauseMessages",
+          "reminderHours",
+          "cancelledAt",
+          "cancelledBy",
+          "current",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
+      "MaintenanceListEntry": {
+        "title": "MaintenanceListEntry",
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Start of the first occurrence"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End of the first occurrence"
+                },
+                "recurrence": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "freq": {
+                          "type": "string",
+                          "enum": [
+                            "weekly",
+                            "monthly"
+                          ]
+                        },
+                        "interval": {
+                          "type": "integer"
+                        },
+                        "until": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "ISO 8601 timestamp (UTC)"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "ISO 8601 timestamp (UTC)"
+                        }
+                      },
+                      "required": [
+                        "freq",
+                        "interval",
+                        "until"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Repeats every n weeks or months (monthly on the 29th–31st: the last day of shorter months); null: once"
+                },
+                "timeZone": {
+                  "type": "string",
+                  "description": "IANA time zone the repetition keeps its wall-clock time in"
+                },
+                "responsible": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "user:<name>, team:<name>"
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "platform",
+                          "system",
+                          "application",
+                          "service"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Null for a platform the token owner may not see, or something deleted"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "description": "What it was planned for"
+                },
+                "changeRecord": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "number": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "number",
+                        "title"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The change record it belongs to (null: none or not readable)"
+                },
+                "quietMonitors": {
+                  "type": "boolean",
+                  "description": "Affected monitors show maintenance and send no alerts"
+                },
+                "pauseMessages": {
+                  "type": "boolean",
+                  "description": "Check and run messages of runs on affected platforms go to the app only"
+                },
+                "reminderHours": {
+                  "type": "integer"
+                },
+                "cancelledAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO 8601 timestamp (UTC)"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "cancelledBy": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "current": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "startsAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "endsAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO 8601 timestamp (UTC)"
+                        },
+                        "active": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "startsAt",
+                        "endsAt",
+                        "active"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The occurrence going on now, or the next one"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "createdBy": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "updatedBy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "note",
+                "startsAt",
+                "endsAt",
+                "recurrence",
+                "timeZone",
+                "responsible",
+                "targets",
+                "changeRecord",
+                "quietMonitors",
+                "pauseMessages",
+                "reminderHours",
+                "cancelledAt",
+                "cancelledBy",
+                "current",
+                "createdAt",
+                "createdBy",
+                "updatedAt",
+                "updatedBy"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "windowId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "startsAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "endsAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO 8601 timestamp (UTC)"
+                },
+                "active": {
+                  "type": "boolean"
+                },
+                "targets": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "platform",
+                          "system",
+                          "application",
+                          "service"
+                        ]
+                      },
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": [
+                          "null",
+                          "string"
+                        ],
+                        "description": "Null for a platform the token owner may not see, or something deleted"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id",
+                      "name"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "windowId",
+                "title",
+                "startsAt",
+                "endsAt",
+                "active",
+                "targets"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Every occurrence in the range, by start"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "windows",
+          "occurrences"
+        ],
+        "additionalProperties": false
+      },
       "DutyEntry": {
         "title": "DutyEntry",
         "type": "object",
@@ -11711,6 +12288,10 @@
                     "below",
                     "noData"
                   ]
+                },
+                "plannedMinutes": {
+                  "type": "integer",
+                  "description": "Planned maintenance in this window, in minutes (shown next to the figure, which it does not change)"
                 }
               },
               "required": [
@@ -20171,6 +20752,89 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/maintenance-windows": {
+      "get": {
+        "operationId": "listMaintenanceWindows",
+        "summary": "Planned maintenance windows and their occurrences in a range",
+        "tags": [
+          "Services"
+        ],
+        "description": "Windows (once or repeating) on platforms, systems, applications and services that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms the token owner may not see are listed without a name.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "description": "Start of the range (default: a day ago)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "description": "End of the range (default: 60 days ahead; at most 400 days after from)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^(platform|system|application|service):[\\w-]{1,80}$"
+            },
+            "in": "query",
+            "name": "target",
+            "required": false,
+            "description": "Only windows that list or reach this item: kind:id, e.g. service:svc_…"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceListEntry"
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

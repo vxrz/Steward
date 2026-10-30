@@ -6,7 +6,8 @@ import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import { linkTypeByKey } from '../records/link-types.js';
-import { ApplicationDocumentsQuery, ApplicationListQuery, ServiceListQuery, SystemListQuery } from './api-schemas.js';
+import { ApplicationDocumentsQuery, ApplicationListQuery, MaintenanceListQuery, ServiceListQuery, SystemListQuery } from './api-schemas.js';
+import { listMaintenance } from './maintenance.js';
 import * as systems from './systems.js';
 import { environmentList } from './environments.js';
 import * as svc from './service.js';
@@ -327,6 +328,25 @@ export function serviceApiRoutes(get: Get): void {
     async (req) => {
       const { canEdit: _c, credentials: _cr, ...x } = found(() => systems.getSystem((req.params as { systemId: string }).systemId), 'System');
       return x;
+    },
+  );
+
+  // ---------- maintenance windows (#108) ----------
+  get(
+    '/maintenance-windows',
+    {
+      operationId: 'listMaintenanceWindows',
+      tag: 'Services',
+      summary: 'Planned maintenance windows and their occurrences in a range',
+      description:
+        'Windows (once or repeating) on platforms, systems, applications and services that overlap the range, and every occurrence in it. Cancelled windows are left out. Platforms the token owner may not see are listed without a name.',
+      query: MaintenanceListQuery,
+      response: { $ref: 'MaintenanceListEntry#' },
+    },
+    async (req) => {
+      const q = req.query as z.infer<typeof MaintenanceListQuery>;
+      const l = listMaintenance({ from: q.from, to: q.to, target: q.target });
+      return { from: l.from, to: l.to, windows: l.windows.map(({ canEdit: _c, ...w }) => w), occurrences: l.occurrences };
     },
   );
 

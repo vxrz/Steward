@@ -336,5 +336,23 @@
   },
   "actions": {
     "runbook": "Runbook öffnen"
+  },
+  "maintenance": {
+    "planned": {
+      "title": "Wartung geplant: {{title}}",
+      "body": "{{title}} ist von {{start}} bis {{end}} geplant. Betrifft: {{items}}."
+    },
+    "reminder": {
+      "title": "Wartung bald: {{title}}",
+      "body": "{{title}} beginnt am {{start}} und endet am {{end}}. Betrifft: {{items}}."
+    },
+    "start": {
+      "title": "Wartung begonnen: {{title}}",
+      "body": "{{title}} läuft bis {{end}}. Betrifft: {{items}}. Monitore der betroffenen Plattformen bleiben so lange still."
+    },
+    "end": {
+      "title": "Wartung beendet: {{title}}",
+      "body": "{{title}} endete um {{end}}. Betrifft: {{items}}. Monitore melden wieder."
+    }
   }
 }

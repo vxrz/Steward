@@ -24,6 +24,7 @@ import {
   IconReportAnalytics,
   IconServer,
   IconServer2,
+  IconTool,
   IconSettings,
   IconShieldCheck,
   IconSitemap,
@@ -51,6 +52,7 @@ export type NavKey =
   | 'services'
   | 'applications'
   | 'systems'
+  | 'maintenance'
   | 'duties'
   | 'scorecard'
   | 'credentials'
@@ -108,6 +110,7 @@ export const NAV_GROUPS: { key: NavGroupKey | null; items: NavItemDef[] }[] = [
       { to: '/services', key: 'services', icon: IconStack2 },
       { to: '/applications', key: 'applications', icon: IconApps },
       { to: '/systems', key: 'systems', icon: IconServer2 },
+      { to: '/maintenance', key: 'maintenance', icon: IconTool },
       { to: '/duties', key: 'duties', icon: IconCalendarCheck },
       { to: '/scorecard', key: 'scorecard', icon: IconGauge },
       { to: '/platforms', key: 'platforms', icon: IconServer },

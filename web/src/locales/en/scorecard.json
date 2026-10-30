@@ -72,6 +72,7 @@
     "application": "Application",
     "window": "{{window}}: {{value}} (≥ {{target}})",
     "windowAria": "{{window}}: {{value}}, target {{target}}, {{status}}",
+    "planned": "Planned maintenance: {{list}} (shown next to Gatus’ figures, which it does not change)",
     "breachSince": "Below target since {{date}}",
     "valuesAt": "Gatus' figures read {{when}}",
     "hint": "Values are Gatus' own uptime figures, read once an hour. Steward keeps an hourly sample for 90 days.",

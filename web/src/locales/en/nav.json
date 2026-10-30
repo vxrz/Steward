@@ -19,6 +19,7 @@
     "services": "Services",
     "applications": "Applications",
     "systems": "Systems",
+    "maintenance": "Maintenance",
     "gitUpdates": "Updates from Git",
     "tickets": "Tickets",
     "controls": "Controls",

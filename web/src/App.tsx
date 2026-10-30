@@ -67,6 +67,7 @@ const ServicesPage = page(() => import('./pages/Services'), 'ServicesPage');
 const ServiceDetailPage = page(() => import('./pages/ServiceDetail'), 'ServiceDetailPage');
 const ApplicationsPage = page(() => import('./pages/Applications'), 'ApplicationsPage');
 const SystemsPage = page(() => import('./pages/Systems'), 'SystemsPage');
+const MaintenancePage = page(() => import('./pages/Maintenance'), 'MaintenancePage');
 const SystemDetailPage = page(() => import('./pages/SystemDetail'), 'SystemDetailPage');
 const ApplicationDetailPage = page(() => import('./pages/ApplicationDetail'), 'ApplicationDetailPage');
 const DutiesPage = page(() => import('./pages/Duties'), 'DutiesPage');
@@ -240,6 +241,7 @@ function Shell({ status }: { status: AuthStatus }) {
                 <Route path="/applications/:id" element={<ApplicationDetailPage />} />
                 <Route path="/systems" element={<SystemsPage />} />
                 <Route path="/systems/:id" element={<SystemDetailPage />} />
+                <Route path="/maintenance" element={<MaintenancePage />} />
                 <Route path="/duties" element={<DutiesPage />} />
                 <Route path="/duties/:id" element={<DutyDetailPage />} />
                 <Route path="/scorecard" element={<ScorecardPage />} />

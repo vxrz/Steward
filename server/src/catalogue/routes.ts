@@ -9,6 +9,8 @@ import * as comps from './components.js';
 import * as lifecycle from './lifecycle.js';
 import * as systems from './systems.js';
 import * as envs from './environments.js';
+import * as maint from './maintenance.js';
+import { contentDisposition } from '../records/attachments.js';
 import { ROUTE_LIMITS } from '../rateLimits.js';
 import { LARGE_BODIES } from '../bodyLimits.js';
 import { getService } from './service.js';
@@ -91,6 +93,33 @@ export async function catalogueRoutes(app: FastifyInstance): Promise<void> {
   app.delete('/applications/:id/systems/:systemLinkId', async (req) => {
     systems.unlinkSystem(params(req).id!, params(req).systemLinkId!, apps.canEditApplication);
     return apps.getApplication(params(req).id!);
+  });
+
+  // ---------- maintenance windows (#108) ----------
+  const maintenanceQuery = z.object({
+    from: z.string().datetime({ offset: true }).optional(),
+    to: z.string().datetime({ offset: true }).optional(),
+    target: z
+      .string()
+      .regex(/^(platform|system|application|service):[\w-]{1,80}$/)
+      .optional(),
+    cancelled: z.enum(['true', 'false']).optional(),
+  });
+  app.get('/maintenance-windows', async (req) => {
+    const q = maintenanceQuery.parse(req.query);
+    return maint.listMaintenance({ from: q.from, to: q.to, target: q.target, cancelled: q.cancelled === 'true' });
+  });
+  app.post('/maintenance-windows', async (req) => maint.createMaintenance(maint.maintenanceInput.parse(req.body)));
+  app.get('/maintenance-windows/:id', async (req) => maint.getMaintenance(params(req).id!));
+  app.put('/maintenance-windows/:id', async (req) => maint.updateMaintenance(params(req).id!, maint.maintenanceInput.parse(req.body)));
+  app.post('/maintenance-windows/:id/cancel', async (req) =>
+    maint.cancelMaintenance(params(req).id!, z.object({ reason: z.string().max(500).default('') }).parse(req.body ?? {}).reason),
+  );
+  app.get('/maintenance-windows/:id/ics', async (req, reply) => {
+    const f = maint.maintenanceIcs(params(req).id!);
+    reply.header('content-type', 'text/calendar; charset=utf-8');
+    reply.header('content-disposition', contentDisposition(f.name));
+    return f.body;
   });
 
   // ---------- environments (#129) ----------

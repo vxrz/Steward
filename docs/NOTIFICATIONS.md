@@ -27,6 +27,7 @@ Steward notifies people in the app (the bell in the header) and – depending on
 | Duty period ended without a run | The duty's and the service's owners (else administrators), not who archived or changed the duty                                                               |
 | Duty exception asked for        | The duty's and the service's owners as of the request (else administrators), not the requester                                                                |
 | Objective breached              | The service owners (else administrators), once per breach of an availability objective with _Send a message_ on ([SCORECARD.md](SCORECARD.md))                |
+| Maintenance                     | The responsible people and owners of what a maintenance window reaches ([APPLICATIONS.md](APPLICATIONS.md#maintenance-windows))                               |
 | Daily summary                   | People who turned it on (below) – in-app and e-mail only, never Teams or webhooks                                                                             |
 
 ## Notification policy of automated runs

@@ -465,6 +465,12 @@ const EXPECT: Record<string, Access> = {
   'DELETE /api/applications/:id/systems/:systemLinkId': DESIGN,
   'GET /api/catalogue/environments': ALL,
   'PUT /api/catalogue/environments': ADMIN,
+  'GET /api/maintenance-windows': ALL,
+  'POST /api/maintenance-windows': DESIGN,
+  'GET /api/maintenance-windows/:id': ALL,
+  'PUT /api/maintenance-windows/:id': DESIGN,
+  'POST /api/maintenance-windows/:id/cancel': DESIGN,
+  'GET /api/maintenance-windows/:id/ics': ALL,
   'GET /api/platforms/:id/application': USE,
   'PUT /api/services/:id/applications/:applicationId': DESIGN,
   'DELETE /api/services/:id/applications/:applicationId': DESIGN,
@@ -591,6 +597,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/systems': ALL,
   'GET /api/v1/systems/:systemId': ALL,
   'GET /api/v1/environments': ALL,
+  'GET /api/v1/maintenance-windows': ALL,
   'GET /api/v1/applications/:applicationId/documents': ALL,
   'GET /api/v1/cia-scale': ALL,
   'GET /api/v1/duties': ALL,
@@ -824,6 +831,7 @@ function fill(url: string): string {
         services: 'service',
         applications: 'application',
         systems: 'system',
+        'maintenance-windows': 'catalogueMaintenance',
         duties: 'duty',
         objectives: 'objective',
         scorecard: url.includes('/rules/') ? 'scorecardRule' : 'service',
@@ -913,6 +921,18 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/applications/:id/systems': { systemId: fx.system, environment: 'test' },
   'PUT /api/applications/:id/systems/:systemLinkId': { environment: 'prod' },
   'PUT /api/catalogue/environments': { environments: [{ name: 'prod', production: true }] },
+  'POST /api/maintenance-windows': {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: fx.service }],
+  },
+  'PUT /api/maintenance-windows/:id': {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: fx.service }],
+  },
   'PUT /api/services/:id/applications/:applicationId': { role: 'primary' },
   'PUT /api/services/:id/protection-need': { availability: { level: 'high', reason: 'x' } },
   'PUT /api/catalogue/cia-scale': { mode: 'default' },
@@ -1083,6 +1103,12 @@ beforeAll(async () => {
   await a('PUT', `/services/${svc.id}/applications/${application.id}`, { role: 'primary' });
   const system = await a('POST', '/systems', { name: 'Matrix system', kind: 'server' });
   const systemLink = (await a('POST', `/applications/${application.id}/systems`, { systemId: system.id, environment: 'dev' })).systems[0];
+  const catalogueMaintenance = await a('POST', '/maintenance-windows', {
+    title: 'Matrix maintenance',
+    startsAt: '2030-01-01T02:00:00Z',
+    endsAt: '2030-01-01T04:00:00Z',
+    targets: [{ kind: 'service', id: svc.id }],
+  });
   const gw = await a('POST', '/monitor-gateways', { name: 'Matrix gateway', allowedKeys: ['test.*'] });
   const team = await a('POST', '/teams', { name: 'Matrix team', members: [] });
   const report = await a('POST', `/runs/${run.id}/reports`, {});
@@ -1123,6 +1149,7 @@ beforeAll(async () => {
     component: component.id,
     system: system.id,
     systemLink: systemLink.id,
+    catalogueMaintenance: catalogueMaintenance.id,
     reportSchedule: (await a('POST', '/report-schedules', REPORT_SCHEDULE)).id,
     report: report.id,
     user: users.find((u: { username: string }) => u.username === 'vera').id,

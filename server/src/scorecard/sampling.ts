@@ -8,6 +8,7 @@ import { matches } from '../auth/permissions.js';
 import { forbid, me } from '../records/access.js';
 import { t, type MessageKey } from '../i18n/index.js';
 import { notify, titleName } from '../notifications/service.js';
+import { objectiveInMaintenance } from '../catalogue/maintenance.js';
 import { canEdit, getObjective, judge, objectiveRow, readingCache, rowTargets, serviceRef, type ObjectiveRow, type ReadingCache } from './objectives.js';
 
 /**
@@ -116,8 +117,11 @@ export function recordSample(
     const below = windows.filter((w) => w.status === 'below');
     const breachId = newId('obr_');
     // a flapping objective: no second message within the cooldown (every breach is still recorded)
+    // no message during planned maintenance of the service or application (the breach is still recorded)
+    const inMaintenance = objectiveInMaintenance(o, now);
     const send =
       !!o.notify &&
+      !inMaintenance &&
       !db().get(
         'SELECT 1 FROM objective_breaches WHERE objective_id = ? AND notified_at IS NOT NULL AND notified_at >= ?',
         o.id,
@@ -138,7 +142,7 @@ export function recordSample(
         entityType: 'objective',
         entityId: o.id,
         summary: `Availability objective "${o.name}" of service "${s.name}" below target (${below.map((w) => `${w.window}: ${w.value} % < ${w.target} %`).join(', ')})`,
-        details: { serviceId: s.id, breachId, windows: below, notify: !!o.notify, messageSent: send },
+        details: { serviceId: s.id, breachId, windows: below, notify: !!o.notify, messageSent: send, inMaintenance },
       });
     });
     out.breach = true;

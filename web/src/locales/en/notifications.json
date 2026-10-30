@@ -123,6 +123,12 @@
         "label": "Tech stack end of life",
         "info": "A component of an application you own reaches the end of life of its release cycle soon (or reached it)"
       }
+    },
+    "maintenance": {
+      "announced": {
+        "label": "Maintenance",
+        "info": "Maintenance of something you are responsible for or own was planned, starts soon, started or ended"
+      }
     }
   }
 }

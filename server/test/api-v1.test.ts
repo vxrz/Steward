@@ -478,6 +478,7 @@ async function crawl(token: string): Promise<{ template: string; url: string; re
   await get('/cia-scale', '/cia-scale');
   for (const x of (await listAll('/systems', '/systems')).slice(0, 5)) await get('/systems/{systemId}', `/systems/${x.id}`);
   await get('/environments', '/environments');
+  await get('/maintenance-windows', '/maintenance-windows');
   for (const x of (await listAll('/duties', '/duties?archived=include')).slice(0, 5)) {
     await get('/duties/{dutyId}', `/duties/${x.id}`);
     await listAll('/duties/{dutyId}/periods', `/duties/${x.id}/periods`);

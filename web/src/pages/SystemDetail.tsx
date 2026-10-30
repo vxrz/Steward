@@ -14,6 +14,7 @@ import { EnvironmentBadge } from '../components/catalogue/environments';
 import { SbomImportModal, SbomLine, StackBadges } from '../components/catalogue/ComponentsPanel';
 import { SystemFormModal } from './Systems';
 import { CatalogueCredentials } from '../components/catalogue/CatalogueCredentials';
+import { MaintenancePanel } from '../components/catalogue/maintenance';
 
 /** A system (#129): what it is, its tech stack, the platform it is, and the applications that run on it per environment. */
 export function SystemDetailPage() {
@@ -72,6 +73,7 @@ export function SystemDetailPage() {
         <Grid.Col span={{ base: 12, md: 8 }}>
           <Stack gap="lg">
             {s.note && <Text size="sm">{s.note}</Text>}
+            <MaintenancePanel kind="system" id={s.id} canPlan={s.canEdit} />
             <Stack gap="xs" data-testid="system-stack">
               <Text fw={600}>{t('components.stack')}</Text>
               <StackBadges stack={s.stack} />

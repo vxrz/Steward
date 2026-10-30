@@ -72,6 +72,7 @@
     "application": "Anwendung",
     "window": "{{window}}: {{value}} (≥ {{target}})",
     "windowAria": "{{window}}: {{value}}, Zielwert {{target}}, {{status}}",
+    "planned": "Geplante Wartung: {{list}} (neben den Gatus-Werten, die sie nicht ändert)",
     "breachSince": "Unterschritten seit {{date}}",
     "valuesAt": "Werte von Gatus gelesen {{when}}",
     "hint": "Die Werte sind die eigenen Verfügbarkeitswerte von Gatus, einmal pro Stunde gelesen. Steward speichert 90 Tage lang einen Wert pro Stunde.",

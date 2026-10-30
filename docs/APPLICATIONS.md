@@ -191,6 +191,27 @@ The list is offered on platforms, on "runs on" links and on components; other va
 
 Not part of Steward: IP addresses, ports, firewall rules, hardware details, discovery and topology. The CMDB stays the source; Steward keeps the link and what reviews, duties and end-of-life checks need. A firewall review is a [service duty](DUTIES.md) with a manual process and the concept as a living document.
 
+## Maintenance windows
+
+_Service management → Maintenance_ lists planned work as a list or a month calendar. A window has a title, a start and an end, and lists what it affects: platforms, systems, applications and services. It happens once or repeats **weekly** or **monthly** (every n weeks or months, optionally up to a last start). Repetition keeps the wall-clock time in the instance's time zone across daylight saving changes; a monthly window on the 29th to 31st falls on the last day of shorter months.
+
+What a window reaches:
+
+- **Down** from what it lists: a service's applications, an application's platforms and systems, a system's platform.
+- **Up** from a platform or system: the applications that use it, and the services of affected applications.
+
+While a window lasts:
+
+- **Monitors stay quiet** (default on): monitors that check an affected platform show _maintenance_ and send no alerts. Checks are still recorded, and the time does not count against the monitor's uptime – as with a monitor's own maintenance window.
+- **Pause run messages** (default off): check and run messages of runs bound to an affected platform go to the app only.
+- **Availability objectives** of affected services and applications record a breach but send no message. Their figures stay Gatus' own; each window shows the planned minutes next to them ([SCORECARD.md](SCORECARD.md)).
+
+Announcements (notification event _Maintenance_, see [NOTIFICATIONS.md](NOTIFICATIONS.md)) go to the responsible people and the owners of what the window lists and reaches: when it is planned, a reminder before each occurrence (24 hours by default, 0 for none), when it starts and when it ends. Each is sent once per occurrence.
+
+The details offer the window as a calendar file (_Add to calendar (.ics)_, with its repetition), the next occurrences and how many platforms, monitors, applications and services it reaches. A window can name the change record that approves it. Platform, system, application and service pages show the maintenance going on and the next windows, with _Plan maintenance_ for those who may change the item.
+
+**Who may plan:** designers and administrators, and anyone who may change every listed item (owners of services, applications and systems; the _manage_ right on platforms). The same people change or cancel a window; cancelling removes the coming occurrences and keeps the window for the record. Everyone signed in reads windows; platforms the reader may not see are listed without a name. Every change is in the audit trail (`maintenance.*`). API: `/api/maintenance-windows` (web UI), `GET /api/v1/maintenance-windows` (public, read-only, with the occurrences in a range).
+
 ## Example: a Snowflake project
 
 A data project on Snowflake, described once:

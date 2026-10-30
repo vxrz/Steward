@@ -336,5 +336,23 @@
   },
   "actions": {
     "runbook": "Open runbook"
+  },
+  "maintenance": {
+    "planned": {
+      "title": "Maintenance planned: {{title}}",
+      "body": "{{title}} is planned from {{start}} to {{end}}. Affects: {{items}}."
+    },
+    "reminder": {
+      "title": "Maintenance soon: {{title}}",
+      "body": "{{title}} starts on {{start}} and ends on {{end}}. Affects: {{items}}."
+    },
+    "start": {
+      "title": "Maintenance started: {{title}}",
+      "body": "{{title}} runs until {{end}}. Affects: {{items}}. Monitors of the affected platforms stay quiet meanwhile."
+    },
+    "end": {
+      "title": "Maintenance ended: {{title}}",
+      "body": "{{title}} ended at {{end}}. Affects: {{items}}. Monitors report again."
+    }
   }
 }
