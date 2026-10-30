@@ -21,16 +21,17 @@ The **service catalogue** is a deliberately small list of the services the team 
 
 ## Record types
 
-Steward creates six types on first start (`DOC` is added to existing installations on the first start after the update). Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
+Steward creates seven types on first start (`DOC` and `PIR` are added to existing installations on the first start after the update). Administrators change them under _Records → Record types_: key (number prefix), name, description, workflow, Markdown template and fields.
 
-| Key   | Name                         | Workflow | Fields                                                                                                              |
-| ----- | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------- |
-| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                             |
-| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                        |
-| `DR`  | Decision record              | decision | as ADR                                                                                                              |
-| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                           |
-| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\*   |
-| `DOC` | Service documentation        | document | none; template with _Purpose and scope_, _Responsibilities_, _Content_, _Related documents_; review every 12 months |
+| Key   | Name                         | Workflow | Fields                                                                                                                    |
+| ----- | ---------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `CR`  | Change request               | change   | reason\*, risk\* (low/medium/high), impact, rollback plan\*, planned start, planned end                                   |
+| `ADR` | Architecture decision record | decision | decision date, deciders, consulted, informed                                                                              |
+| `DR`  | Decision record              | decision | as ADR                                                                                                                    |
+| `SDR` | Security decision record     | decision | as ADR; template with _Risk assessment_ and _Review date_                                                                 |
+| `AC`  | Access change                | access   | platform\*, subject\*, change\*, rights before/after, reason\*, request, approver, performed by\*, performed at\*         |
+| `DOC` | Service documentation        | document | none; template with _Purpose and scope_, _Responsibilities_, _Content_, _Related documents_; review every 12 months       |
+| `PIR` | Incident review              | decision | incident start\*, incident end, severity\* (minor/major/critical), impact\*, cause; measures ([below](#incident-reviews)) |
 
 \* required before the record can be submitted.
 
@@ -235,6 +236,20 @@ The tab _Changelog_ lists every edition (edition, kind, date, authors, approver,
 - **Links** to a document show its current edition.
 - **Service page**: the section _Documentation_ (see [Service catalogue](#documentation-of-a-service)); the document page names its services next to the number and owner.
 - **Compliance**: map a document type or a document to a control (e.g. ISO 27001 5.1, 5.37). A document counts as evidence while an edition is valid in the period, even without changes; the evidence shows the edition, its content hash, its approval and the last review. Evidence packs hold the PDF of that edition and its `record.json`.
+
+## Incident reviews
+
+An **incident review** (type `PIR`, a post-incident review) records what happened and when, the impact, the cause, what was learned and the **measures** that keep it from happening again. It follows the decision workflow: draft → proposed → accepted (or rejected) by someone other than the author. Administrators may archive the type if the team does not use it.
+
+**Start** a review in one of three ways:
+
+- From a **ticket reference** that is resolved or closed: _Start incident review_ on the ticket. The review takes the ticket's number and title, its opening and resolution time as the incident window, and links to the ticket's services; the ticket links to the review.
+- From a **monitor**: _⋯ → Start incident review_. The window starts when the monitor went down (editable); the review links to the monitor.
+- On its own, as any record (_Records → New record → Incident review_), for incidents Steward did not monitor.
+
+**Timeline.** _Fill in the timeline_ (while the review is a draft) lists what Steward saw in a time window of up to 14 days around the incident: monitor status changes, failed runs, ticket reference events and – for administrators and auditors – audit entries, each only if the author may see it. The ticked entries are **copied** into the text under _Timeline_ with their time; they are part of the review from then on and do not change when the sources do.
+
+**Measures** have a title, one or more owners (users or teams), a due date and a note. The review's author and owner, designers and administrators add, change and remove them – also after the review was accepted; the owners of a measure may mark it done or reopen it. The owners get a reminder (notification event _Incident review measure_) three days before the due date, on the due date and once a week while it is overdue. The service page shows the open measures of the reviews linked to the service, overdue ones marked. Every change is in the audit trail (`record.measure_*`). API: `GET /api/v1/measures` (filters `state`, `serviceId`, `owner`).
 
 ## Import and export (Markdown)
 

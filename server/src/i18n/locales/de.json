@@ -118,7 +118,8 @@
     "DR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n",
     "SDR": "## Kontext und Problemstellung\n\n\n## Entscheidungstreiber\n\n- \n\n## Betrachtete Optionen\n\n1. \n\n## Entscheidung\n\n\n## Konsequenzen\n\n- Gut: \n- Schlecht: \n\n## Risikobewertung\n\n\n## Überprüfungsdatum\n\n",
     "AC": "## Details\n\n\n## Nachweise\n\n- \n",
-    "DOC": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n"
+    "DOC": "## Zweck und Geltungsbereich\n\n\n## Verantwortlichkeiten\n\n- \n\n## Inhalt\n\n\n## Mitgeltende Dokumente\n\n- \n",
+    "PIR": "## Zusammenfassung\n\n\n## Zeitlicher Ablauf\n\n\n## Was gut lief\n\n- \n\n## Was besser laufen kann\n\n- \n\n## Erkenntnisse\n\n- \n"
   },
   "ticketStatus": {
     "open": "offen",
@@ -354,5 +355,22 @@
       "title": "Wartung beendet: {{title}}",
       "body": "{{title}} endete um {{end}}. Betrifft: {{items}}. Monitore melden wieder."
     }
+  },
+  "measure": {
+    "soon": {
+      "title": "Maßnahme bald fällig: {{measure}}",
+      "body": "Die Maßnahme „{{measure}}“ aus dem Incident-Review {{record}} ist am {{due}} fällig."
+    },
+    "due": {
+      "title": "Maßnahme heute fällig: {{measure}}",
+      "body": "Die Maßnahme „{{measure}}“ aus dem Incident-Review {{record}} ist heute fällig ({{due}})."
+    },
+    "overdue": {
+      "title": "Maßnahme überfällig: {{measure}}",
+      "body": "Die Maßnahme „{{measure}}“ aus dem Incident-Review {{record}} war am {{due}} fällig (vor {{days}} Tagen). Markieren Sie sie im Review als erledigt oder verschieben Sie die Fälligkeit."
+    }
+  },
+  "review": {
+    "timelineHeading": "Zeitlicher Ablauf"
   }
 }

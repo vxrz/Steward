@@ -118,7 +118,8 @@
     "DR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n",
     "SDR": "## Context and problem statement\n\n\n## Decision drivers\n\n- \n\n## Considered options\n\n1. \n\n## Decision\n\n\n## Consequences\n\n- Good: \n- Bad: \n\n## Risk assessment\n\n\n## Review date\n\n",
     "AC": "## Details\n\n\n## Evidence\n\n- \n",
-    "DOC": "## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n"
+    "DOC": "## Purpose and scope\n\n\n## Responsibilities\n\n- \n\n## Content\n\n\n## Related documents\n\n- \n",
+    "PIR": "## Summary\n\n\n## Timeline\n\n\n## What went well\n\n- \n\n## What could be better\n\n- \n\n## Learnings\n\n- \n"
   },
   "ticketStatus": {
     "open": "open",
@@ -354,5 +355,22 @@
       "title": "Maintenance ended: {{title}}",
       "body": "{{title}} ended at {{end}}. Affects: {{items}}. Monitors report again."
     }
+  },
+  "measure": {
+    "soon": {
+      "title": "Measure due soon: {{measure}}",
+      "body": "The measure “{{measure}}” from the incident review {{record}} is due on {{due}}."
+    },
+    "due": {
+      "title": "Measure due today: {{measure}}",
+      "body": "The measure “{{measure}}” from the incident review {{record}} is due today ({{due}})."
+    },
+    "overdue": {
+      "title": "Measure overdue: {{measure}}",
+      "body": "The measure “{{measure}}” from the incident review {{record}} was due on {{due}} ({{days}} days ago). Mark it done in the review, or move its due date."
+    }
+  },
+  "review": {
+    "timelineHeading": "Timeline"
   }
 }

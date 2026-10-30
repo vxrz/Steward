@@ -4843,6 +4843,99 @@
         ],
         "additionalProperties": false
       },
+      "MeasureEntry": {
+        "title": "MeasureEntry",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "recordId": {
+            "type": "string"
+          },
+          "recordNumber": {
+            "type": "string",
+            "description": "The incident review, e.g. PIR-2026-0003"
+          },
+          "recordTitle": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "user:<name>, team:<name>"
+          },
+          "dueDate": {
+            "type": "string",
+            "description": "YYYY-MM-DD"
+          },
+          "note": {
+            "type": "string"
+          },
+          "doneAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "description": "ISO 8601 timestamp (UTC)"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "doneBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "overdue": {
+            "type": "boolean",
+            "description": "Not done and past its due date (in the instance time zone)"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp (UTC)"
+          },
+          "updatedBy": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recordId",
+          "recordNumber",
+          "recordTitle",
+          "title",
+          "owners",
+          "dueDate",
+          "note",
+          "doneAt",
+          "doneBy",
+          "overdue",
+          "createdAt",
+          "createdBy",
+          "updatedAt",
+          "updatedBy"
+        ],
+        "additionalProperties": false
+      },
       "ServiceDocument": {
         "title": "ServiceDocument",
         "type": "object",
@@ -19326,6 +19419,141 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/measures": {
+      "get": {
+        "operationId": "listMeasures",
+        "summary": "List measures of incident reviews",
+        "tags": [
+          "Records"
+        ],
+        "description": "The measures to avoid a repeat that incident reviews (type PIR) name, with their owners and due dates – open ones by default, ordered by due date. Optionally only those of reviews linked to a service, or of one owner.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Page size (1–200, default 50)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "Cursor from the previous page (`nextCursor`)"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "overdue",
+                "done",
+                "all"
+              ],
+              "default": "open"
+            },
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "description": "open (default), overdue, done or all"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "in": "query",
+            "name": "serviceId",
+            "required": false,
+            "description": "Only measures of reviews linked to this service"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 130
+            },
+            "in": "query",
+            "name": "owner",
+            "required": false,
+            "description": "Only measures this subject owns, e.g. team:ops"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of measures",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "A page of measures",
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MeasureEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": [
+                        "null",
+                        "string"
+                      ],
+                      "description": "Opaque cursor for the next page; null on the last page."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "headers": {
+              "RateLimit-Limit": {
+                "$ref": "#/components/headers/RateLimit-Limit"
+              },
+              "RateLimit-Remaining": {
+                "$ref": "#/components/headers/RateLimit-Remaining"
+              },
+              "RateLimit-Reset": {
+                "$ref": "#/components/headers/RateLimit-Reset"
+              },
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"

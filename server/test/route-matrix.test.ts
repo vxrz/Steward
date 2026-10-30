@@ -355,6 +355,15 @@ const EXPECT: Record<string, Access> = {
   'POST /api/records/:id/comments': ACTIVE,
   'GET /api/records/:id/export': ALL,
   'POST /api/records/:id/links': RUN,
+  // incident reviews (#109): measures are kept by the review's author/owner, designers and administrators
+  'GET /api/measures': ALL,
+  'GET /api/records/:id/measures': ALL,
+  'POST /api/records/:id/measures': DESIGN,
+  'PUT /api/records/:id/measures/:measureId': DESIGN,
+  'DELETE /api/records/:id/measures/:measureId': DESIGN,
+  'GET /api/records/:id/timeline': ALL,
+  'POST /api/records/:id/timeline': RUN,
+  'POST /api/incident-reviews': RUN,
   // editing a link (label, type, note): the same people who add and remove links
   'PATCH /api/records/:id/links/:linkId': RUN,
   'DELETE /api/records/:id/links/:linkId': RUN,
@@ -598,6 +607,7 @@ const EXPECT: Record<string, Access> = {
   'GET /api/v1/systems/:systemId': ALL,
   'GET /api/v1/environments': ALL,
   'GET /api/v1/maintenance-windows': ALL,
+  'GET /api/v1/measures': ALL,
   'GET /api/v1/applications/:applicationId/documents': ALL,
   'GET /api/v1/cia-scale': ALL,
   'GET /api/v1/duties': ALL,
@@ -810,6 +820,8 @@ function fill(url: string): string {
     .replace(/:attId/g, 'att_none')
     .replace(/:evidenceId/g, 'tev_none')
     .replace(/:linkId/g, url.startsWith('/api/services') ? fx.serviceLink! : url.startsWith('/api/applications') ? fx.applicationLink! : fx.recordLink!)
+    .replace(/:measureId/g, fx.measure!)
+    .replace(/^\/api\/records\/:id\/(measures|timeline)/, (_m, rest: string) => `/api/records/${fx.review}/${rest}`)
     .replace(/:id/g, () => {
       const prefix = url.split('/')[2]!;
       const map: Record<string, string> = {
@@ -853,6 +865,7 @@ function fill(url: string): string {
 
 /** Query strings some routes need. */
 const QUERY: Record<string, string> = {
+  'GET /api/records/:id/timeline': '?from=2026-01-01T00:00:00Z&to=2026-01-02T00:00:00Z',
   'GET /api/link-targets': '?kind=record&q=',
   'GET /api/backlinks': '', // filled in beforeAll (needs the record id)
   'GET /api/ticket-references/open-counts': '?kind=service',
@@ -896,6 +909,10 @@ const bodies = (): Record<string, unknown> => ({
   'POST /api/records/:id/review': { outcome: 'no_change', comment: 'x' },
   'PUT /api/records/:id/review-settings': { intervalMonths: 6 },
   'POST /api/records/:id/links': { url: 'https://cmdb.example.com/9', label: 'x' },
+  'POST /api/records/:id/measures': { title: 'Matrix measure x', owners: ['user:admin'], dueDate: '2030-01-01' },
+  'PUT /api/records/:id/measures/:measureId': { title: 'Matrix measure' },
+  'POST /api/records/:id/timeline': { from: '2026-01-01T00:00:00Z', to: '2026-01-02T00:00:00Z', keys: ['monitor:0'] },
+  'POST /api/incident-reviews': { source: 'ticket', ticketId: fx.ticket },
   'POST /api/services': { name: 'svc x', owners: [] },
   'PUT /api/services/:id': { name: 'svc x', owners: [] },
   'POST /api/services/:id/archive': { archived: true },
@@ -1094,6 +1111,8 @@ beforeAll(async () => {
   const monD = await a('GET', `/monitors/${mon.id}`);
   const hook = await a('POST', '/triggers', { ...TRIGGER, processId: proc.id });
   const rec = await a('POST', '/records', { type: 'CR', title: 'Matrix record', fields: { reason: 'r', risk: 'low', rollbackPlan: 'p' } });
+  const review = await a('POST', '/records', { type: 'PIR', title: 'Matrix review' });
+  const measure = (await a('POST', `/records/${review.id}/measures`, { title: 'Matrix measure', owners: ['user:admin'], dueDate: '2030-01-01' })).items[0];
   const recLink = await a('POST', `/records/${rec.id}/links`, { url: 'https://cmdb.example.com/1', label: 'CMDB' });
   const svc = await a('POST', '/services', { name: 'Matrix service', owners: [] });
   const svcLink = await a('POST', `/services/${svc.id}/links`, { url: 'https://cmdb.example.com/2', label: 'x' });
@@ -1138,6 +1157,8 @@ beforeAll(async () => {
     schedule: (await a('GET', '/schedules'))[0].id,
     trigger: hook.trigger.id,
     record: rec.id,
+    review: review.id,
+    measure: measure.id,
     recordLink: recLink.id,
     recordType: (await a('GET', '/record-types'))[0].id,
     credential: (await a('POST', '/credentials', CREDENTIAL)).id,

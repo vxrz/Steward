@@ -22,6 +22,7 @@ import {
   type RecordVersion,
   type RecordWorkflow,
   type ReviewStatus,
+  INCIDENT_RECORD_TYPE,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit, authenticRows, importedHistoryFor } from '../audit.js';
@@ -670,7 +671,7 @@ export interface CreateInput {
  * default language). The web UI sends the template in its own language.
  */
 function templateFor(t: TypeRow, u: AuthUser): string {
-  const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE].find((d) => d.key === t.key);
+  const def = [...DEFAULT_RECORD_TYPES, ACCESS_RECORD_TYPE, DOCUMENT_RECORD_TYPE, INCIDENT_RECORD_TYPE].find((d) => d.key === t.key);
   if (!t.builtin || !def || def.template !== t.template) return t.template;
   let locale: string | null | undefined;
   try {

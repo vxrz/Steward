@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Anchor, Button, Grid, Group, Menu, Modal, Paper, Stack, Text, TextInput, Timeline } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { IconCheck, IconChevronDown, IconEdit, IconExternalLink, IconTrash } from '@tabler/icons-react';
+import { IconCheck, IconChevronDown, IconEdit, IconExternalLink, IconReportMedical, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
-import { TICKET_LIMITS, type TicketDetail, type TicketEvent, type TicketStatus } from '@sm/shared';
+import { TICKET_LIMITS, isTicketOpen, type TicketDetail, type TicketEvent, type TicketStatus } from '@sm/shared';
 import { del, get, notifyError, notifyOk, post } from '../api';
 import { DetailState, PageHeader, subjectLabel } from '../components/common';
 import { MarkdownView } from '../components/records/MarkdownView';
@@ -13,6 +13,7 @@ import { TICKET_STATUS_IDS, TicketStatusBadge, useSourceLabel, useTicketSettings
 import { TicketForm } from '../components/tickets/TicketForm';
 import { fmtDate, fmtDay, fmtRelative } from '../format';
 import { confirmDanger } from '../components/confirm';
+import { useCanStartReview, useStartReview } from '../components/records/IncidentReview';
 
 export function TicketDetailPage() {
   const { t } = useTranslation(['tickets', 'records', 'common']);
@@ -24,6 +25,9 @@ export function TicketDetailPage() {
   const settings = useTicketSettings();
   const [editing, setEditing] = useState(false);
   const [statusTo, setStatusTo] = useState<TicketStatus | 'checked' | null>(null);
+  const canStartReview = useCanStartReview();
+  const startReview = useStartReview();
+  const { t: tr } = useTranslation('records');
   const x = q.data;
   if (!x) return <DetailState query={q} back="tickets" />;
   const canEdit = x.permissions.includes('edit');
@@ -98,6 +102,16 @@ export function TicketDetailPage() {
                   {t('common:edit')}
                 </Button>
               </>
+            )}
+            {!isTicketOpen(x.status) && canStartReview && (
+              <Button
+                size="xs"
+                variant="default"
+                leftSection={<IconReportMedical size={14} />}
+                onClick={() => void startReview({ source: 'ticket', ticketId: x.id })}
+              >
+                {tr('review.start')}
+              </Button>
             )}
             {x.permissions.includes('delete') && (
               <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={remove}>

@@ -15,6 +15,7 @@ import {
   IconPlayerPlay,
   IconRefresh,
   IconSend,
+  IconReportMedical,
   IconTool,
   IconTrash,
 } from '@tabler/icons-react';
@@ -38,9 +39,11 @@ import { MONITOR_COLORS, MonitorStatusBadge, causeText, checkTypeLabel, fmtUptim
 import { AcknowledgeModal, CopyBlock, InstantiateModal, MaintenanceModal, SecretsModal, gatewayCurl, heartbeatCurl } from '../components/monitors/dialogs';
 import { confirmDanger, confirmDialog } from '../components/confirm';
 import { appUrl } from '../basePath';
+import { MonitorReviewModal, useCanStartReview } from '../components/records/IncidentReview';
 
 export function MonitorDetailPage() {
   const { t } = useTranslation(['monitors', 'common']);
+  const { t: tr } = useTranslation('records');
   const { id } = useParams();
   const [search, setSearch] = useSearchParams();
   const navigate = useNavigate();
@@ -49,6 +52,8 @@ export function MonitorDetailPage() {
   const q = useQuery({ queryKey: ['monitor', id], queryFn: () => get<MonitorDetail>(`/monitors/${id}`), refetchInterval: 5000 });
   const [busy, setBusy] = useState(false);
   const [maint, setMaint] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const canStartReview = useCanStartReview();
   const [ack, setAck] = useState(false);
   const [instances, setInstances] = useState(false);
   const [secrets, setSecrets] = useState<(Pick<MonitorSaveResult, 'secrets'> & { monitor?: MonitorDetail }) | null>(null);
@@ -163,6 +168,11 @@ export function MonitorDetailPage() {
                 {!m.isTemplate && can('acknowledge') && m.status !== 'up' && !m.acknowledged && (
                   <Menu.Item leftSection={<IconCheck size={14} />} onClick={() => setAck(true)}>
                     {t('detail.acknowledgeProblem')}
+                  </Menu.Item>
+                )}
+                {!m.isTemplate && canStartReview && (
+                  <Menu.Item leftSection={<IconReportMedical size={14} />} onClick={() => setReviewing(true)}>
+                    {tr('review.start')}
                   </Menu.Item>
                 )}
                 <Menu.Item leftSection={<IconDownload size={14} />} component="a" href={apiUrl(`/monitors/${m.id}/export`)}>
@@ -371,6 +381,7 @@ export function MonitorDetailPage() {
         </Tabs.Panel>
       </Tabs>
       {maint && <MaintenanceModal monitor={m} onClose={() => setMaint(false)} onSaved={refresh} />}
+      {reviewing && <MonitorReviewModal monitorId={m.id} since={m.status === 'down' ? m.since : null} onClose={() => setReviewing(false)} />}
       {ack && <AcknowledgeModal monitor={m} onClose={() => setAck(false)} onSaved={refresh} />}
       {instances && (
         <InstantiateModal

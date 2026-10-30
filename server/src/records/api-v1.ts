@@ -5,6 +5,7 @@ import { ProblemError } from '../api/v1/problem.js';
 import { linkNext, pageArray } from '../api/v1/pagination.js';
 import type { Op } from '../api/v1/routes.js';
 import * as svc from './service.js';
+import { listOpenMeasures } from './reviews.js';
 import * as docs from './documents.js';
 import * as A from './api-schemas.js';
 import * as catalogue from '../catalogue/service.js';
@@ -115,6 +116,27 @@ const pageOf = (name: keyof typeof A.RECORD_COMPONENTS & string, description: st
 });
 
 export async function recordApiRoutes(_app: FastifyInstance, get: Get): Promise<void> {
+  get(
+    '/measures',
+    {
+      operationId: 'listMeasures',
+      tag: 'Records',
+      summary: 'List measures of incident reviews',
+      description:
+        'The measures to avoid a repeat that incident reviews (type PIR) name, with their owners and due dates – open ones by default, ordered by due date. Optionally only those of reviews linked to a service, or of one owner.',
+      query: A.MeasureListQuery,
+      paginated: true,
+      response: pageOf('MeasureEntry', 'A page of measures'),
+    },
+    async (req, reply) => {
+      const q = req.query as { state: 'open' | 'overdue' | 'done' | 'all'; serviceId?: string; owner?: string; cursor?: string; limit: number };
+      const list = listOpenMeasures({ state: q.state, serviceId: q.serviceId, owner: q.owner });
+      const page = pageArray(list, (m) => [m.dueDate, m.id], q, q);
+      linkNext(req, reply, page.nextCursor);
+      return page;
+    },
+  );
+
   get(
     '/records',
     {

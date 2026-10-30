@@ -94,7 +94,7 @@ afterAll(async () => {
 describe('record types', () => {
   it('has editable defaults for change requests and decision records', async () => {
     const types = await vera('GET', '/record-types');
-    expect(types.map((t: any) => t.key)).toEqual(['AC', 'ADR', 'CR', 'DOC', 'DR', 'SDR']);
+    expect(types.map((t: any) => t.key)).toEqual(['AC', 'ADR', 'CR', 'DOC', 'DR', 'PIR', 'SDR']);
     const cr = types.find((t: any) => t.key === 'CR');
     expect(cr).toMatchObject({ name: 'Change request', workflow: 'change', builtin: true });
     expect(cr.fields.map((f: any) => f.key)).toEqual(['reason', 'risk', 'impact', 'rollbackPlan', 'plannedStart', 'plannedEnd']);

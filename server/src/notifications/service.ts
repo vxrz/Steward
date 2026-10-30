@@ -649,6 +649,7 @@ export function startNotificationJobs(): void {
     import('./summary.js').then((m) => m.runDailySummaries()).catch((err) => logger.warn({ err }, 'daily summary job failed'));
     // maintenance windows: reminders, start and end messages (catalogue/maintenance.ts, idempotent)
     import('../catalogue/maintenance.js').then((m) => m.runMaintenanceJob()).catch((err) => logger.warn({ err }, 'maintenance job failed'));
+    import('../records/reviews.js').then((m) => m.runMeasureJob()).catch((err) => logger.warn({ err }, 'measure reminders failed'));
     // paused messages of schedules, triggers and monitor outputs: one "still failing" message when a pause ends (#139)
     import('./pause.js').then((m) => m.checkPauseEnds()).catch((err) => logger.warn({ err }, 'pause end check failed'));
   }, STALE_CHECK_MS);

@@ -21,6 +21,7 @@ import { DutiesPanel } from '../components/duties/DutiesPanel';
 import { ScorecardPanel } from '../components/scorecard/ScorecardPanel';
 import { ObjectivesPanel } from '../components/scorecard/ObjectivesPanel';
 import { MaintenancePanel } from '../components/catalogue/maintenance';
+import { OpenMeasuresPanel } from '../components/records/IncidentReview';
 
 export function ServiceDetailPage() {
   const { t } = useTranslation(['services', 'common']);
@@ -88,6 +89,7 @@ export function ServiceDetailPage() {
             <ServiceApplicationsPanel service={s} onSaved={refresh} />
             {!s.archived && <ScorecardPanel serviceId={s.id} />}
             <DutiesPanel serviceId={s.id} canEdit={s.canEdit && !s.archived} applications={s.applications.map((a) => ({ id: a.id, name: a.name }))} />
+            <OpenMeasuresPanel serviceId={s.id} />
             <ObjectivesPanel serviceId={s.id} canEdit={s.canEdit && !s.archived} applications={s.applications.map((a) => ({ id: a.id, name: a.name }))} />
             <ServiceDocumentsPanel service={s} documents={s.documents} />
             <LinksPanel
