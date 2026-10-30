@@ -21,11 +21,14 @@ import {
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
-import { IconEdit, IconExternalLink, IconFileImport, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
+import { IconEdit, IconEye, IconExternalLink, IconFileImport, IconKey, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import {
   COMPONENT_TYPES,
+  GIT_PLATFORM_KINDS,
   type ApplicationComponent,
+  type RepositoryKey,
+  type PeekedMessage,
   type ApplicationDetail,
   type ComponentType,
   type SbomChange,
@@ -39,6 +42,7 @@ import { confirmDanger } from '../confirm';
 import { fmtDate } from '../../format';
 import { LifecycleBadge } from './lifecycle';
 import { EnvironmentBadge, EnvironmentInput, sortByEnvironment, useEnvironmentList } from './environments';
+import { CredentialEditor, type CredentialDraft } from '../credentials/CredentialEditor';
 
 export const formatLabel = (f: string) => (f === 'cyclonedx' ? 'CycloneDX' : 'SPDX');
 
@@ -66,6 +70,24 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
     try {
       onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/cluster`, {}));
       notifications.show({ color: 'green', message: t('components.cluster.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const readRepository = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/repository`, {}));
+      notifications.show({ color: 'green', message: t('components.repository.done', { name: c.name }) });
+    } catch (e) {
+      notifyError(e);
+    }
+  };
+  const [drafting, setDrafting] = useState<CredentialDraft | null>(null);
+  const [peeking, setPeeking] = useState<ApplicationComponent | null>(null);
+  const readTopic = async (c: ApplicationComponent) => {
+    try {
+      onSaved(await post<ApplicationDetail>(`/applications/${app.id}/components/${c.id}/topic`, {}));
+      notifications.show({ color: 'green', message: t('components.topic.done', { name: c.name }) });
     } catch (e) {
       notifyError(e);
     }
@@ -145,6 +167,8 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                     )}
                     {c.sbom && <SbomLine sbom={c.sbom} />}
                     {c.type === 'kubernetes-namespace' && <ClusterLine component={c} />}
+                    {c.type === 'repository' && c.platformId && <RepositoryLine component={c} onRegister={editable ? setDrafting : undefined} />}
+                    {c.type === 'kafka-topic' && c.platformId && <TopicLine component={c} />}
                   </Table.Td>
                   {withEnv && (
                     <Table.Td className="nowrap">
@@ -162,6 +186,19 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
                         </ActionIcon>
                         {c.type === 'kubernetes-namespace' && c.platformId ? (
                           <ActionIcon variant="subtle" aria-label={t('components.cluster.readNow', { name: c.name })} onClick={() => void readCluster(c)}>
+                            <IconRefresh size={16} />
+                          </ActionIcon>
+                        ) : c.type === 'kafka-topic' && c.platformId ? (
+                          <>
+                            <ActionIcon variant="subtle" aria-label={t('components.topic.readNow', { name: c.name })} onClick={() => void readTopic(c)}>
+                              <IconRefresh size={16} />
+                            </ActionIcon>
+                            <ActionIcon variant="subtle" aria-label={t('components.topic.peek', { name: c.name })} onClick={() => setPeeking(c)}>
+                              <IconEye size={16} />
+                            </ActionIcon>
+                          </>
+                        ) : c.type === 'repository' && c.platformId ? (
+                          <ActionIcon variant="subtle" aria-label={t('components.repository.readNow', { name: c.name })} onClick={() => void readRepository(c)}>
                             <IconRefresh size={16} />
                           </ActionIcon>
                         ) : (
@@ -183,6 +220,8 @@ export function ComponentsPanel({ app, onSaved }: { app: ApplicationDetail; onSa
       )}
       {app.stack.length > 0 && <StackRollup app={app} />}
       {editing && <ComponentFormModal app={app} component={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={onSaved} />}
+      {peeking && <PeekModal component={peeking} onClose={() => setPeeking(null)} />}
+      {drafting && <CredentialEditor initial={null} draft={drafting} onClose={() => setDrafting(null)} onSaved={() => setDrafting(null)} />}
       {importing && (
         <SbomImportModal
           title={t('components.sbom.title', { name: importing.name })}
@@ -248,6 +287,189 @@ function ClusterLine({ component: c }: { component: ApplicationComponent }) {
   );
 }
 
+/** What Steward last read from a repository (#107): pipeline, release, alerts, packages, keys, files the stack came from. */
+function RepositoryLine({ component: c, onRegister }: { component: ApplicationComponent; onRegister?: (d: CredentialDraft) => void }) {
+  const { t } = useTranslation('applications');
+  const r = c.repository;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.repository.notRead')}
+      </Text>
+    );
+  const color = r.pipeline.state === 'failed' ? 'red.8' : r.pipeline.state === 'success' ? 'green.8' : 'dimmed';
+  const alerts = r.alerts ? r.alerts.critical + r.alerts.high + r.alerts.medium + r.alerts.low : 0;
+  const draftOf = (k: RepositoryKey): CredentialDraft => ({
+    name: `${c.name}: ${k.title}`,
+    type: k.kind === 'deploy-key' ? 'sshKey' : 'token',
+    belongsTo: { kind: 'component', id: c.id },
+    platformId: c.platformId ?? null,
+    description: t(`components.repository.keyKinds.${k.kind}`),
+    roles: [{ role: k.write ? 'write' : 'read', scope: c.name, grantedAt: k.createdAt, note: k.scopes.join(', ') }],
+    issuedAt: k.createdAt,
+    expiresAt: k.expiresAt,
+  });
+  return (
+    <Stack gap={0} data-testid="repository-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c={color}>
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} · {r.defaultBranch ?? '–'}: {t(`components.repository.pipeline.${r.pipeline.state}`)}
+        {r.pipeline.runs
+          .filter((x) => x.state === 'failed')
+          .slice(0, 3)
+          .map((x) => ` · ${x.name}`)
+          .join('')}
+      </Text>
+      <Text size="xs" c="dimmed">
+        {[
+          r.release
+            ? t('components.repository.release', { tag: r.release.tag, date: r.release.at ? fmtDate(r.release.at) : '–' })
+            : t('components.repository.noRelease'),
+          r.packages?.length ? t('components.repository.packages', { names: r.packages.map((x) => x.name).join(', ') }) : null,
+          r.stackFiles.length ? t('components.repository.files', { files: r.stackFiles.join(', ') }) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {r.alerts && alerts > 0 && (
+        <Text size="xs" c={r.alerts.critical + r.alerts.high > 0 ? 'orange.8' : 'dimmed'}>
+          {r.alerts.url ? (
+            <Anchor size="xs" href={r.alerts.url} target="_blank" rel="noreferrer">
+              {t('components.repository.alerts', r.alerts)}
+            </Anchor>
+          ) : (
+            t('components.repository.alerts', r.alerts)
+          )}
+        </Text>
+      )}
+      {(r.keys ?? []).map((k) => (
+        <Group key={`${k.kind}-${k.id}`} gap={4} wrap="nowrap">
+          <Text size="xs" c={k.write ? 'orange.8' : 'dimmed'}>
+            {t('components.repository.key', {
+              kind: t(`components.repository.keyKinds.${k.kind}`),
+              title: k.title,
+              access: k.write ? t('components.repository.write') : t('components.repository.readOnly'),
+            })}
+            {k.expiresAt ? ` · ${t('components.repository.expires', { date: fmtDate(k.expiresAt) })}` : ''}
+          </Text>
+          {onRegister && (
+            <Tooltip label={t('components.repository.register')}>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                aria-label={t('components.repository.registerKey', { title: k.title })}
+                onClick={() => onRegister(draftOf(k))}
+              >
+                <IconKey size={12} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+        </Group>
+      ))}
+      {r.unmapped.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.cluster.unmapped', { images: r.unmapped.join(', ') })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+/** What Steward last read from a Kafka topic (#112): newest message, partitions, settings, consumer lag, schema. */
+function TopicLine({ component: c }: { component: ApplicationComponent }) {
+  const { t } = useTranslation('applications');
+  const r = c.topic;
+  if (!r)
+    return (
+      <Text size="xs" c="dimmed">
+        {t('components.topic.notRead')}
+      </Text>
+    );
+  const retention = r.configs['retention.ms'];
+  const days = retention && Number(retention) > 0 ? Math.round(Number(retention) / 86_400_000) : null;
+  return (
+    <Stack gap={0} data-testid="topic-readout">
+      {r.error && (
+        <Text size="xs" c="red.8">
+          {t('components.cluster.error', { error: r.error })}
+        </Text>
+      )}
+      <Text size="xs" c="dimmed">
+        {t('components.cluster.read', { date: fmtDate(r.readAt) })} ·{' '}
+        {[
+          r.lastMessageAt ? t('components.topic.newest', { date: fmtDate(r.lastMessageAt) }) : null,
+          t('components.topic.partitions', { count: r.partitions, replicas: r.replicationFactor ?? '–' }),
+          r.configs['cleanup.policy'] ? `cleanup.policy=${r.configs['cleanup.policy']}` : null,
+          days !== null ? t('components.topic.retention', { days }) : retention === '-1' ? t('components.topic.retentionForever') : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </Text>
+      {r.groups.length > 0 && (
+        <Text size="xs" c="dimmed">
+          {t('components.topic.groups', { groups: r.groups.map((g) => `${g.group} ${g.lag}`).join(', ') })}
+        </Text>
+      )}
+      {r.schema && (
+        <Text size="xs" c="dimmed">
+          {t('components.topic.schema', { subject: r.schema.subject, version: r.schema.version, type: r.schema.type })}
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+/** The newest messages of a topic (#112) – only where the platform allows it and for its managers; sensitive fields hidden. */
+function PeekModal({ component: c, onClose }: { component: ApplicationComponent; onClose: () => void }) {
+  const { t } = useTranslation(['applications', 'common']);
+  const [messages, setMessages] = useState<PeekedMessage[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const read = async () => {
+    setBusy(true);
+    try {
+      setMessages((await post<{ messages: PeekedMessage[] }>(`/platforms/${c.platformId}/kafka/peek`, { topic: c.name, count: 5 })).messages);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal opened onClose={onClose} size="xl" title={t('components.topic.peekTitle', { name: c.name })}>
+      <Stack gap="sm">
+        <Alert color="yellow">{t('components.topic.peekNote')}</Alert>
+        {error && <Alert color="red">{error}</Alert>}
+        {messages?.length === 0 && <Text c="dimmed">{t('components.topic.peekEmpty')}</Text>}
+        {messages?.map((m) => (
+          <Box key={`${m.partition}:${m.offset}`}>
+            <Text size="xs" c="dimmed">
+              {t('components.topic.peekLine', { partition: m.partition, offset: m.offset, date: m.timestamp ? fmtDate(m.timestamp) : '–', key: m.key ?? '–' })}
+              {m.truncated ? ` · ${t('components.topic.truncated')}` : ''}
+            </Text>
+            <Box component="pre" className="mono" style={{ whiteSpace: 'pre-wrap', fontSize: 12, margin: 0 }}>
+              {m.value}
+            </Box>
+          </Box>
+        ))}
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            {t('common:close')}
+          </Button>
+          <Button onClick={() => void read()} loading={busy}>
+            {messages ? t('components.topic.peekAgain') : t('components.topic.peekRead')}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 export function SbomLine({ sbom }: { sbom: NonNullable<ApplicationComponent['sbom']> }) {
   const { t } = useTranslation('applications');
   return (
@@ -284,7 +506,9 @@ export function StackBadges({ stack }: { stack: StackEntry[] }) {
               ? `${t('components.stackEditor.fromSbom')}: ${s.sbomRef}`
               : s.source === 'cluster'
                 ? `${t('components.cluster.fromCluster')}: ${s.sbomRef}`
-                : t('components.stackEditor.manual')
+                : s.source === 'repository'
+                  ? `${t('components.repository.fromFiles')}: ${s.sbomRef}`
+                  : t('components.stackEditor.manual')
           }
         />
       ))}
@@ -319,7 +543,7 @@ function StackRollup({ app }: { app: ApplicationDetail }) {
   );
 }
 
-export type StackRow = { product: string | null; version: string; source?: 'manual' | 'sbom' | 'cluster'; was?: string };
+export type StackRow = { product: string | null; version: string; source?: StackEntry['source']; was?: string };
 
 export const stackRowsOf = (stack: StackEntry[]): StackRow[] =>
   stack.map((s) => ({ product: s.product, version: s.version, source: s.source, was: s.version }));
@@ -343,7 +567,7 @@ export function StackFields({ stack, onChange }: { stack: StackRow[]; onChange: 
       </Text>
       {stack.map((r, i) => {
         const p = r.product ? byId.get(r.product) : undefined;
-        const fromSbom = (r.source === 'sbom' || r.source === 'cluster') && r.version === r.was;
+        const fromSbom = (r.source === 'sbom' || r.source === 'cluster' || r.source === 'repository') && r.version === r.was;
         return (
           <Group key={i} gap="xs" wrap="nowrap" align="flex-end">
             <Select
@@ -415,6 +639,17 @@ function ComponentFormModal({
     queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kubernetes'),
     enabled: type === 'kubernetes-namespace',
   });
+  const kafkaPlatforms = useQuery({
+    queryKey: ['platforms', 'kafka'],
+    queryFn: async () => (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => p.kind === 'kafka'),
+    enabled: type === 'kafka-topic',
+  });
+  const gitPlatforms = useQuery({
+    queryKey: ['platforms', 'git'],
+    queryFn: async () =>
+      (await get<{ id: string; name: string; kind: string }[]>('/platforms')).filter((p) => (GIT_PLATFORM_KINDS as readonly string[]).includes(p.kind)),
+    enabled: type === 'repository',
+  });
   const [stack, setStack] = useState<StackRow[]>(stackRowsOf(component?.stack ?? []));
   const [busy, setBusy] = useState(false);
   const v = useFieldErrors({
@@ -430,7 +665,7 @@ function ComponentFormModal({
       url: url.trim(),
       note,
       environment: environment.trim(),
-      ...(type === 'kubernetes-namespace' ? { platformId } : {}),
+      ...(type === 'kubernetes-namespace' || type === 'repository' || type === 'kafka-topic' ? { platformId } : {}),
       stack: stackBody(stack),
     };
     try {
@@ -488,6 +723,28 @@ function ComponentFormModal({
               onChange={setPlatformId}
               clearable
               nothingFoundMessage={t('components.cluster.noPlatforms')}
+            />
+          )}
+          {type === 'kafka-topic' && (
+            <Select
+              label={t('components.topic.platform')}
+              description={t('components.topic.platformHint')}
+              data={(kafkaPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.topic.noPlatforms')}
+            />
+          )}
+          {type === 'repository' && (
+            <Select
+              label={t('components.repository.platform')}
+              description={t('components.repository.platformHint')}
+              data={(gitPlatforms.data ?? []).map((p) => ({ value: p.id, label: p.name }))}
+              value={platformId}
+              onChange={setPlatformId}
+              clearable
+              nothingFoundMessage={t('components.repository.noPlatforms')}
             />
           )}
           <TextInput label={t('components.url')} placeholder="https://" value={url} onChange={(e) => setUrl(e.currentTarget.value)} error={v.error('url')} />

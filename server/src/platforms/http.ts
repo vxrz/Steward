@@ -325,6 +325,9 @@ async function obtainAuthHeader(p: Platform, secrets: Record<string, string>, si
     case 'none':
       return null;
     case 'basic':
+      // a Kafka platform's username/password are its SASL credentials; its HTTP API (the Schema Registry) has its own key (#112)
+      if (p.kind === 'kafka')
+        return ['authorization', 'Basic ' + Buffer.from(`${secrets.registryKey ?? ''}:${secrets.registrySecret ?? ''}`).toString('base64')];
       return ['authorization', 'Basic ' + Buffer.from(`${secrets.username ?? ''}:${secrets.password ?? ''}`).toString('base64')];
     case 'bearer':
       if (!secrets.token) throw new Error('Secret "token" is not set');

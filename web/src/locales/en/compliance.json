@@ -36,7 +36,8 @@
   },
   "sources": {
     "insights-hub": "Insights Hub identity management",
-    "dataset": "Dataset (access snapshot)"
+    "dataset": "Dataset (access snapshot)",
+    "git": "Git platform members (GitHub, GitLab, Forgejo)"
   },
   "rights": {
     "granted": "Granted",
@@ -229,6 +230,8 @@
     "sourceHelp": "Insights Hub: the identity management API of the platform. Dataset: a process that publishes the access snapshot shape (works for any platform).",
     "datasetKey": "Dataset key",
     "datasetKeyHelp": "Rows with subjectId, subjectName and right (one per assignment), e.g. ih.access-snapshot",
+    "scope": "Organisation, group or repository",
+    "scopeHelp": "acme: members of the organisation or group with their role; acme/shop-web (GitLab: group/project): collaborators of the repository, outside collaborators marked",
     "cron": "Schedule (cron)",
     "cronHelp": "Five fields, at most every 15 minutes, e.g. 30 6 * * * (daily at 06:30)",
     "timezone": "Time zone",

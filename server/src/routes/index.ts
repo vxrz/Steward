@@ -921,6 +921,22 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const p = requirePlatform(id, 'use', 'use this platform');
     const secrets = platforms.getSecrets(id);
     const testPath = p.config.testPath || '/';
+    // Kafka (#112) and MQTT (#113) are no HTTP APIs: their test connects to the cluster or broker
+    if (p.kind === 'kafka' || p.kind === 'mqtt') {
+      const t0 = Date.now();
+      try {
+        const message =
+          p.kind === 'kafka'
+            ? await (await import('../kafka/service.js')).testKafka(p, secrets)
+            : await (await import('../mqtt/listener.js')).testMqtt(p, secrets);
+        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}": ${message}` });
+        return { ok: true, status: 200, durationMs: Date.now() - t0, message, body: null, token: null };
+      } catch (e) {
+        const message = redact((e as Error).message, secrets) as string;
+        audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
+        return { ok: false, status: 0, durationMs: Date.now() - t0, message };
+      }
+    }
     try {
       const res = await platformRequest(p, secrets, { method: 'GET', url: testPath });
       const ok = res.status >= 200 && res.status < 400;
@@ -946,6 +962,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       audit({ action: 'platform.tested', entityType: 'platform', entityId: id, summary: `Connection test "${p.name}" failed: ${message.slice(0, 200)}` });
       return { ok: false, status: 0, durationMs: 0, message };
     }
+  });
+
+  // Kafka (#112): the newest messages of a topic, for troubleshooting – off unless the platform allows it, platform managers only, audited
+  app.post('/platforms/:id/kafka/peek', { config: { rateLimit: ROUTE_LIMITS.action } }, async (req) => {
+    const id = params(req).id!;
+    const p = platforms.getPlatform(id);
+    const body = z
+      .object({ topic: z.string().min(1).max(249), count: z.number().int().min(1).max(5).default(5) })
+      .strict()
+      .parse(req.body);
+    const { peekTopic } = await import('../kafka/service.js');
+    return { messages: await peekTopic(id, body.topic, body.count, me().username, p.permissions.includes('manage')) };
   });
 
   // Roles or permissions granted to the platform's technical user only appear in a new token: drop the cached one and log in again.

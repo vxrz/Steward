@@ -263,4 +263,12 @@ export const CATALOGUE_MIGRATIONS: NamedMigration[] = [
       ALTER TABLE application_components ADD COLUMN cluster_state TEXT;
     `,
   },
+  {
+    // #107, #112: repository and Kafka topic components name their platform (platform_id) and keep what Steward last read
+    name: 'catalogue-007-component-readouts',
+    sql: `
+      ALTER TABLE application_components ADD COLUMN repo_state TEXT;
+      ALTER TABLE application_components ADD COLUMN topic_state TEXT;
+    `,
+  },
 ];

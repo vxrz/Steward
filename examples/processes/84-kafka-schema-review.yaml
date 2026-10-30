@@ -1,0 +1,80 @@
+name: "Kafka – schema change review"
+description: |
+  Reviews a schema change before it is registered: reads the current version
+  of the subject from the Schema Registry, lets the registry check whether the
+  proposed schema is compatible with it (by the subject's compatibility
+  level), and asks an approver to decide. The run, with the approval, is the
+  evidence; record the decision as a decision record (Records → New → DR)
+  that links this run. Steward does not register the schema – the team's
+  pipeline does, after approval. Read-only on the registry.
+
+  Start it by hand when a team proposes a change, or from the CI pipeline
+  through a trigger. Monitors with the check type "Kafka topic" and an
+  expected schema version notice a version registered without review.
+tags: [kafka, schema, approval]
+connections:
+  - slot: kafka
+    kind: kafka
+    description: Kafka platform with the Schema Registry as base URL (registryKey / registrySecret)
+inputs:
+  - name: subject
+    label: Subject
+    type: string
+    default: orders-value
+  - name: schema
+    label: Proposed schema (Avro, JSON Schema or Protobuf, as text)
+    type: string
+    default: '{"type":"record","name":"Order","namespace":"com.acme.shop","fields":[{"name":"orderId","type":"string"},{"name":"total","type":"double"},{"name":"currency","type":"string","default":"EUR"}]}'
+  - name: schemaType
+    label: Schema type
+    type: string
+    default: AVRO
+  - name: reason
+    label: Why the change
+    type: string
+    default: Orders carry their currency (shop goes international)
+steps:
+  - id: current
+    type: http
+    name: Current version
+    connection: kafka
+    method: GET
+    path: "/subjects/{{ $encodeUrlComponent(inputs.subject) }}/versions/latest"
+    saveAs: current
+  - id: level
+    type: http
+    name: Compatibility level
+    connection: kafka
+    method: GET
+    path: "/config/{{ $encodeUrlComponent(inputs.subject) }}"
+    onError: continue
+    saveAs: level
+  - id: compatible
+    type: http
+    name: Compatible with the current version?
+    connection: kafka
+    method: POST
+    mutating: false
+    path: "/compatibility/subjects/{{ $encodeUrlComponent(inputs.subject) }}/versions/latest"
+    body:
+      schema: "{{ inputs.schema }}"
+      schemaType: "{{ inputs.schemaType }}"
+    saveAs: compat
+  - id: isCompatible
+    type: check
+    name: The registry accepts the change
+    severity: error
+    condition: "vars.compat.body.is_compatible = true"
+    message: "{{ vars.compat.body.is_compatible ? 'Compatible with version ' & vars.current.body.version & ' (' & ($exists(vars.level.body.compatibilityLevel) ? vars.level.body.compatibilityLevel : 'default level') & ')' : 'Not compatible with version ' & vars.current.body.version & ' – consumers would break' }}"
+  - id: approve
+    type: userTask
+    name: Approve the schema change
+    mode: approve
+    assignees: [role:approver]
+    title: "Schema change {{ inputs.subject }}: version {{ vars.current.body.version }} → {{ vars.current.body.version + 1 }}"
+    instructions: |
+      **Why:** {{ inputs.reason }}
+
+      **Compatibility:** {{ vars.compat.body.is_compatible ? 'compatible' : 'NOT compatible' }} with version {{ vars.current.body.version }}.
+
+      Approve when the producers and consumers of the topic agree. Then record the decision (Records → New → DR) and link this run.

@@ -204,7 +204,33 @@
     "promUnit": "Unit (shown)",
     "k8sNamespace": "Namespace",
     "k8sDeployment": "Deployment",
-    "k8sDeploymentHint": "Empty: every deployment of the namespace"
+    "k8sDeploymentHint": "Empty: every deployment of the namespace",
+    "gitRepository": "Repository",
+    "gitRepositoryHint": "owner/repo (GitLab: group/project)",
+    "gitBranch": "Branch",
+    "gitBranchHint": "Empty: the default branch",
+    "gitFailedAs": "When the pipeline failed",
+    "gitMaxCritical": "Most critical alerts",
+    "gitMaxHigh": "Most critical and high alerts",
+    "gitAlertsHint": "GitHub Dependabot; empty: alerts are not checked",
+    "kafkaTopic": "Topic",
+    "kafkaWithin": "New messages within (minutes)",
+    "kafkaWithinHint": "Empty: new messages are not checked",
+    "quietAs": "When nothing came",
+    "kafkaGroup": "Consumer group",
+    "kafkaGroupHint": "Empty: no group is checked",
+    "kafkaMaxLag": "Most lag (messages)",
+    "kafkaStuck": "Stuck after (minutes without a commit)",
+    "kafkaSchema": "Expected schema version",
+    "kafkaSchemaHint": "Of <topic>-value in the Schema Registry; empty: not checked",
+    "mqttTopic": "Topic or pattern",
+    "mqttTopicHint": "+ one level, # the rest, e.g. plant/+/status",
+    "mqttMode": "What must arrive",
+    "mqttModeAny": "A message on any matching topic",
+    "mqttModeEach": "A message on every topic seen (silent devices)",
+    "mqttWithin": "Within (minutes)",
+    "mqttMinClients": "At least connected clients",
+    "mqttMinClientsHint": "Brokers that publish $SYS/broker/clients/connected"
   },
   "detail": {
     "template": "template",
@@ -510,6 +536,18 @@
       "label": "Kubernetes deployments",
       "help": "Deployments of a namespace are ready (e.g. 3/3) and no pod is crash-looping"
     },
+    "git": {
+      "label": "Repository pipeline",
+      "help": "The pipeline of the default branch on GitHub, GitLab or Forgejo passes; optionally few enough open security alerts"
+    },
+    "kafka": {
+      "label": "Kafka topic",
+      "help": "New messages on a topic within N minutes, the lag of a consumer group, a group that is stuck, the schema version"
+    },
+    "mqtt": {
+      "label": "MQTT topics",
+      "help": "Messages on an MQTT topic within N minutes, devices (topics of a pattern) that went silent, connected clients"
+    },
     "monitor": {
       "label": "Sub-monitor",
       "help": "The aggregated status of another monitor (evaluated on its own schedule)"
@@ -526,6 +564,9 @@
     "checkmk": "CheckMk service",
     "prometheus": "Prometheus query",
     "kubernetes": "Kubernetes deployments",
+    "git": "Repository pipeline",
+    "kafka": "Kafka topic",
+    "mqtt": "MQTT topics",
     "monitor": "Sub-monitor"
   },
   "uptime": {

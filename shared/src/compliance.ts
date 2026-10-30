@@ -107,7 +107,8 @@ export interface AccessChange {
  */
 export const ACCESS_SNAPSHOT_COLUMNS = { subjectId: 'subjectId', subjectName: 'subjectName', subjectType: 'subjectType', right: 'right', rights: 'rights' };
 
-export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset'] as const;
+/** insights-hub: its identity management; dataset: a snapshot a process publishes; git: members of an organisation, group or repository on a Git platform (#107) */
+export const ACCESS_CHECK_SOURCES = ['insights-hub', 'dataset', 'git'] as const;
 export type AccessCheckSource = (typeof ACCESS_CHECK_SOURCES)[number];
 
 export interface AccessSubject {
@@ -128,6 +129,8 @@ export interface AccessCheck {
   source: AccessCheckSource;
   /** Dataset key (source "dataset") */
   datasetKey: string | null;
+  /** Source "git": an organisation or group (acme), or a repository (acme/shop-web; GitLab: group/project) */
+  scope: string | null;
   cron: string;
   timezone: string;
   enabled: boolean;

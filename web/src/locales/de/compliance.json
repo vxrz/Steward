@@ -36,7 +36,8 @@
   },
   "sources": {
     "insights-hub": "Insights-Hub-Identity-Management",
-    "dataset": "Datenquelle (Zugriffs-Snapshot)"
+    "dataset": "Datenquelle (Zugriffs-Snapshot)",
+    "git": "Mitglieder auf der Git-Plattform (GitHub, GitLab, Forgejo)"
   },
   "rights": {
     "granted": "Erteilt",
@@ -229,6 +230,8 @@
     "sourceHelp": "Insights Hub: die Identity-Management-API der Plattform. Datenquelle: ein Prozess, der die Form des Zugriffs-Snapshots veröffentlicht (für jede Plattform).",
     "datasetKey": "Schlüssel der Datenquelle",
     "datasetKeyHelp": "Zeilen mit subjectId, subjectName und right (eine pro Zuweisung), z. B. ih.access-snapshot",
+    "scope": "Organisation, Gruppe oder Repository",
+    "scopeHelp": "acme: Mitglieder der Organisation oder Gruppe mit ihrer Rolle; acme/shop-web (GitLab: Gruppe/Projekt): Mitarbeitende am Repository, externe Mitarbeitende markiert",
     "cron": "Zeitplan (Cron)",
     "cronHelp": "Fünf Felder, höchstens alle 15 Minuten, z. B. 30 6 * * * (täglich um 06:30)",
     "timezone": "Zeitzone",

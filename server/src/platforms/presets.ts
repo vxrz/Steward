@@ -1,5 +1,6 @@
 import type { PlatformPreset } from '@sm/shared';
 import { gatusOpenApiSpec } from './gatusSpec.js';
+import { forgejoSpec, githubSpec, gitlabSpec } from './gitSpecs.js';
 import { readAsset } from '../reports/pdf/assets.js';
 
 /**
@@ -189,6 +190,110 @@ export const PRESETS: PlatformPreset[] = [
     ],
   },
   {
+    kind: 'github',
+    label: 'GitHub (repositories, read-only)',
+    description:
+      'GitHub or GitHub Enterprise Server (base URL https://HOST/api/v3): application components of type "Repository" name it and the repository (owner/repo), and Steward reads the default branch and its workflow runs, the latest release, open Dependabot alerts, container packages, deploy keys and the tech stack from the repository files; monitors check the pipeline; access reviews read organisation members and repository collaborators. Use a fine-grained token with read-only rights (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://api.github.com',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/rate_limit' },
+    secretFields: [
+      {
+        key: 'token',
+        label: 'Access token (read-only)',
+        help: 'Fine-grained personal access token or GitHub App installation token; see docs/GIT-PLATFORMS.md for the rights',
+      },
+    ],
+    docs: [
+      { title: 'GitHub REST API', url: 'https://docs.github.com/en/rest' },
+      {
+        title: 'Fine-grained personal access tokens',
+        url: 'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
+      },
+    ],
+  },
+  {
+    kind: 'gitlab',
+    label: 'GitLab (projects, read-only)',
+    description:
+      'GitLab.com or a self-managed GitLab (base URL https://HOST/api/v4): application components of type "Repository" name it and the project path (group/project), and Steward reads the default branch and its pipeline, the latest release, container repositories and packages, deploy keys, deploy and access tokens and the tech stack from the repository files; monitors check the pipeline; access reviews read project or group members. Use a token with read_api (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://gitlab.com/api/v4',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    secretFields: [
+      { key: 'token', label: 'Access token (read_api)', help: 'Group, project or personal access token with the scope read_api and the role Reporter or more' },
+    ],
+    docs: [
+      { title: 'GitLab REST API', url: 'https://docs.gitlab.com/api/rest/' },
+      { title: 'GitLab access tokens', url: 'https://docs.gitlab.com/security/tokens/' },
+    ],
+  },
+  {
+    kind: 'forgejo',
+    label: 'Forgejo / Gitea (repositories, read-only)',
+    description:
+      'Forgejo, Codeberg or Gitea (base URL https://HOST/api/v1): application components of type "Repository" name it and the repository (owner/repo), and Steward reads the default branch and its commit status (Forgejo/Gitea Actions, Woodpecker), the latest release, packages, deploy keys and the tech stack from the repository files; monitors check the pipeline; access reviews read collaborators or organisation teams. Use a token with read rights (docs/GIT-PLATFORMS.md).',
+    baseUrl: 'https://forgejo.example.com/api/v1',
+    config: { auth: { type: 'bearer' }, variables: {}, http: {}, testPath: '/version' },
+    secretFields: [
+      {
+        key: 'token',
+        label: 'Access token (read)',
+        help: 'Settings → Applications → Generate token, with read access to repository, organization, package and user',
+      },
+    ],
+    docs: [
+      { title: 'Forgejo API', url: 'https://forgejo.org/docs/latest/user/api-usage/' },
+      { title: 'Gitea API', url: 'https://docs.gitea.com/development/api-usage' },
+    ],
+  },
+  {
+    kind: 'kafka',
+    label: 'Kafka cluster (Confluent, read-only)',
+    description:
+      'A Kafka cluster (Confluent Cloud or Platform, Apache Kafka, Redpanda, MSK, Event Hubs): application components of type "Kafka topic" name it, and Steward reads topic settings, partitions, the newest message\'s time, consumer groups and their lag, and the schema version from the Schema Registry; monitors check new messages, lag and stuck consumer groups. Variable bootstrap: the bootstrap servers (host:port, comma-separated); sasl: plain (Confluent API key), scram-sha-256, scram-sha-512, oauthbearer or none; tls: true. Credential username/password: the service account\'s API key and secret. The base URL is the Schema Registry (optional; its own key in registryKey/registrySecret). peek = on lets platform managers read a few recent messages (sensitive fields hidden, audited). See docs/KAFKA.md.',
+    baseUrl: 'https://psrc-xxxxx.europe-west3.gcp.confluent.cloud',
+    config: {
+      // basic: the Schema Registry's key (registryKey / registrySecret) – username/password are the SASL credentials
+      auth: { type: 'basic' },
+      variables: { bootstrap: 'pkc-xxxxx.europe-west3.gcp.confluent.cloud:9092', sasl: 'plain', tls: 'true', peek: 'off' },
+      http: {},
+      testPath: '/subjects',
+    },
+    secretFields: [
+      { key: 'username', label: 'API key (SASL username)', help: 'The Kafka API key of a service account with read-only rights (docs/KAFKA.md)' },
+      { key: 'password', label: 'API secret (SASL password)' },
+      { key: 'registryKey', label: 'Schema Registry API key (optional)' },
+      { key: 'registrySecret', label: 'Schema Registry API secret (optional)' },
+      { key: 'clientId', label: 'OAuth client id (sasl = oauthbearer, optional)' },
+      { key: 'clientSecret', label: 'OAuth client secret (sasl = oauthbearer, optional)' },
+    ],
+    docs: [
+      {
+        title: 'Confluent Cloud API keys',
+        url: 'https://docs.confluent.io/cloud/current/security/authenticate/workload-identities/service-accounts/api-keys/overview.html',
+      },
+      { title: 'Confluent Schema Registry API', url: 'https://docs.confluent.io/platform/current/schema-registry/develop/api.html' },
+      { title: 'Kafka ACLs', url: 'https://kafka.apache.org/documentation/#security_authz' },
+    ],
+  },
+  {
+    kind: 'mqtt',
+    label: 'MQTT broker (monitor checks)',
+    description:
+      'An MQTT broker (Mosquitto, EMQX, HiveMQ, AWS IoT, Azure Event Grid …) for monitor checks of type "MQTT topics": messages on a topic within N minutes, devices that went silent, connected clients. Steward keeps one listening connection per broker a check uses and stores only when each topic last had a message and how many – never the content. Variable url: the broker with the scheme mqtts or wss (TLS; mqtt and ws without), host and port. Credentials username/password, or certificate/privateKey (PEM) for a client certificate; a private CA under the HTTP settings. See docs/MQTT.md.',
+    baseUrl: '',
+    config: { auth: { type: 'none' }, variables: { url: 'mqtts://broker.example.com:8883' }, http: {} },
+    secretFields: [
+      { key: 'username', label: 'Username' },
+      { key: 'password', label: 'Password' },
+      { key: 'certificate', label: 'Client certificate (PEM, optional)' },
+      { key: 'privateKey', label: 'Client private key (PEM, optional)' },
+    ],
+    docs: [
+      { title: 'MQTT 3.1.1 topics and wildcards', url: 'https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html#_Toc398718106' },
+      { title: 'Mosquitto $SYS topics', url: 'https://mosquitto.org/man/mosquitto-8.html' },
+    ],
+  },
+  {
     kind: 'teams',
     label: 'Microsoft Teams channel (Workflows)',
     description:
@@ -262,4 +367,8 @@ export const PRESET_SPECS: Record<string, () => { name: string; content: string 
   gatus: () => [{ name: 'Gatus API', content: JSON.stringify(gatusOpenApiSpec(), null, 2) }],
   // the official description from github.com/endoflife-date/endoflife.date (MIT), bundled in server/assets
   'endoflife-date': () => [{ name: 'endoflife.date API', content: readAsset('endoflife/openapi.yml').toString('utf8') }],
+  // the read-only endpoints Steward uses (#107); the hosts' full specifications can be added to the platform
+  github: () => [{ name: 'GitHub REST API (subset)', content: JSON.stringify(githubSpec(), null, 2) }],
+  gitlab: () => [{ name: 'GitLab REST API (subset)', content: JSON.stringify(gitlabSpec(), null, 2) }],
+  forgejo: () => [{ name: 'Forgejo / Gitea API (subset)', content: JSON.stringify(forgejoSpec(), null, 2) }],
 };

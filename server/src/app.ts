@@ -450,6 +450,12 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   if (config.demo) await app.register(mockPlatform, { prefix: '/mock' });
+  // MQTT listeners (#113) end with the server – before it closes, as their connections may be to the demo broker on
+  // this very server; what they saw is written first
+  app.addHook('preClose', async () => {
+    const { closeMqtt } = await import('./mqtt/listener.js');
+    await closeMqtt();
+  });
 
   await app.register(publicApi, { prefix: '/api' });
   await app.register(mcpRoutes, { prefix: '/api' });

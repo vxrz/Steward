@@ -9,6 +9,10 @@ import { createFromTemplate, listTemplates } from '../processes/service.js';
 import { DEMO_CREDENTIALS } from '../mock/mockPlatform.js';
 import { DEMO_CHECKMK } from '../mock/mockCheckmk.js';
 import { DEMO_KUBERNETES } from '../mock/mockKubernetes.js';
+import { DEMO_GIT_PLATFORMS } from '../mock/mockGitPlatforms.js';
+import { DEMO_KAFKA } from '../mock/mockKafka.js';
+import { DEMO_MQTT, startMqttSimulator } from '../mock/mockMqtt.js';
+import { DEMO_KAFKA_BOOTSTRAP } from '../kafka/client.js';
 import { DEMO_GATUS } from '../mock/mockGatus.js';
 import { MOCK_UTS_PROVIDER } from '../mock/mockUsage.js';
 import { gatusOpenApiSpec } from '../platforms/gatusSpec.js';
@@ -188,6 +192,65 @@ export async function setupDemo(): Promise<{
     });
     platforms++;
   }
+  // Git platforms (#107): the organisation acme with shop-web and shop-api on each host
+  for (const g of [
+    { name: 'GitHub (demo)', kind: 'github', path: '/gitplat/github', test: '/rate_limit' },
+    { name: 'GitLab (demo)', kind: 'gitlab', path: '/gitplat/gitlab/api/v4', test: '/version' },
+    { name: 'Forgejo (demo)', kind: 'forgejo', path: '/gitplat/forgejo/api/v1', test: '/version' },
+  ]) {
+    if (existing.has(g.name)) continue;
+    const p = createPlatform({
+      name: g.name,
+      kind: g.kind,
+      environment: 'demo',
+      description: 'Simulated Git host API (read-only token) served by the built-in mock. See docs/GIT-PLATFORMS.md.',
+      baseUrl: `${base}${g.path}`,
+      config: { auth: { type: 'bearer' }, variables: {}, http: { proxy: 'none' }, testPath: g.test },
+      secrets: { token: DEMO_GIT_PLATFORMS.token },
+    });
+    for (const s of PRESET_SPECS[g.kind]?.() ?? []) addSpec(p.id, s.name, s.content);
+    platforms++;
+  }
+  if (!existing.has('Kafka (demo)')) {
+    // Kafka (#112): a simulated cluster (orders, payments, shop-events) and Schema Registry; peek is on in the demo
+    createPlatform({
+      name: 'Kafka (demo)',
+      kind: 'kafka',
+      environment: 'demo',
+      description: 'Simulated Kafka cluster and Schema Registry served by the built-in mock (reading messages is on for the demo). See docs/KAFKA.md.',
+      baseUrl: `${base}/schema-registry`,
+      config: {
+        auth: { type: 'basic' },
+        variables: { bootstrap: DEMO_KAFKA_BOOTSTRAP, sasl: 'plain', tls: 'true', peek: 'on' },
+        http: { proxy: 'none' },
+        testPath: '/subjects',
+      },
+      secrets: { ...DEMO_KAFKA },
+    });
+    platforms++;
+  }
+  if (!existing.has('MQTT (demo)')) {
+    // MQTT (#113): the built-in broker over WebSocket; presses 1–3 report every 20 s, press 4 went silent an hour ago
+    const p = createPlatform({
+      name: 'MQTT (demo)',
+      kind: 'mqtt',
+      environment: 'demo',
+      description:
+        'Simulated MQTT broker (WebSocket) served by the built-in mock: plant/press-1..4/status and $SYS/broker/clients/connected. See docs/MQTT.md.',
+      baseUrl: '',
+      config: { auth: { type: 'none' }, variables: { url: `${base.replace(/^http/, 'ws')}/mqtt` }, http: { proxy: 'none' } },
+      secrets: { ...DEMO_MQTT },
+    });
+    db().run(
+      'INSERT INTO mqtt_topics (platform_id, topic, last_at, messages) VALUES (?, ?, ?, ?) ON CONFLICT(platform_id, topic) DO NOTHING',
+      p.id,
+      'plant/press-4/status',
+      new Date(Date.now() - 3_600_000).toISOString(),
+      120,
+    );
+    platforms++;
+  }
+  startMqttSimulator();
   if (!existing.has('endoflife.date (demo)')) {
     // end-of-life dates of the tech stacks (#104): the built-in mock with the real API's shape
     const e = createPlatform({

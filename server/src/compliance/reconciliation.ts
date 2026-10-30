@@ -2,6 +2,7 @@ import { Cron } from 'croner';
 import { z } from 'zod';
 import {
   ACCESS_CHECK_SOURCES,
+  isGitPlatformKind,
   type AccessChange,
   type AccessChangeKind,
   type AccessCheck,
@@ -165,7 +166,8 @@ function toCheck(r: CheckRow, u: AuthUser | null): AccessCheck {
     platformName: visiblePlatformName(u, r.platform_id),
     platformKind: p.exists ? p.kind : null,
     source: r.source,
-    datasetKey: r.dataset_key,
+    datasetKey: r.source === 'dataset' ? r.dataset_key : null,
+    scope: r.source === 'git' ? r.dataset_key : null,
     cron: r.cron,
     timezone: r.timezone,
     enabled: !!r.enabled,
@@ -203,6 +205,12 @@ export const checkInput = z
       .string()
       .regex(/^[a-z0-9][a-z0-9._-]{0,63}$/i, 'Dataset key: letters, digits, . _ - (e.g. ih.access-snapshot)')
       .nullish(),
+    /** Source "git": organisation / group, or owner/repo (kept where the dataset key is kept) */
+    scope: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_.-]+(\/[A-Za-z0-9_.-]+){0,10}$/, 'Scope: an organisation or group (acme) or a repository (acme/shop-web)')
+      .nullish(),
     cron: z.string().trim().min(1).max(100).default('0 6 * * *'),
     timezone: z.string().trim().min(1).max(64).default('UTC'),
     enabled: z.boolean().default(true),
@@ -212,8 +220,13 @@ export const checkInput = z
   .strict()
   .superRefine((c, ctx) => {
     if (c.source === 'dataset' && !c.datasetKey) ctx.addIssue({ code: 'custom', path: ['datasetKey'], message: 'A dataset check needs the dataset key' });
+    if (c.source === 'git' && !c.scope) ctx.addIssue({ code: 'custom', path: ['scope'], message: 'A Git check needs the organisation, group or repository' });
   });
 export type CheckInput = z.infer<typeof checkInput>;
+
+/** What the dataset_key column keeps: the dataset key, or the scope of a Git check. */
+const keyOf = (input: CheckInput): string | null =>
+  input.source === 'dataset' ? (input.datasetKey ?? null) : input.source === 'git' ? (input.scope ?? null) : null;
 
 /** A check may run at most every 15 minutes (five cron fields, time zone known). */
 function checkCron(cron: string, tz: string): void {
@@ -269,6 +282,8 @@ function validatePlatform(u: AuthUser, input: CheckInput): void {
   if (!isAdmin(u) && !platformPerms(u, input.platformId).includes('use')) forbid('use this platform for an access check', 'usePlatform');
   if (input.source === 'insights-hub' && p.kind !== 'insights-hub')
     throw new HttpError(400, 'The Insights Hub source needs an Insights Hub platform – use a dataset for other platforms', 'ACCESS_CHECK_SOURCE');
+  if (input.source === 'git' && !isGitPlatformKind(p.kind))
+    throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
 }
 
 export function listChecks(): AccessCheck[] {
@@ -302,7 +317,7 @@ export function createCheck(input: CheckInput): AccessCheck {
       input.description,
       input.platformId,
       input.source,
-      input.source === 'dataset' ? input.datasetKey : null,
+      keyOf(input),
       input.cron,
       input.timezone,
       input.enabled ? 1 : 0,
@@ -317,11 +332,12 @@ export function createCheck(input: CheckInput): AccessCheck {
       action: 'access_check.created',
       entityType: 'access_check',
       entityId: id,
-      summary: `Access reconciliation "${input.name}" created (${input.source}${input.datasetKey ? ` ${input.datasetKey}` : ''}, ${input.cron})`,
+      summary: `Access reconciliation "${input.name}" created (${input.source}${keyOf(input) ? ` ${keyOf(input)}` : ''}, ${input.cron})`,
       details: {
         platformId: input.platformId,
         source: input.source,
         datasetKey: input.datasetKey ?? null,
+        ...(input.source === 'git' ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         notify: input.notify,
@@ -343,11 +359,11 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
   checkIgnoreRights(u, input.ignoreRights, curIgnore);
   checkCron(input.cron, input.timezone);
   const hasSnapshots = !!db().get('SELECT 1 FROM access_snapshots WHERE check_id = ?', id);
-  const datasetKey = input.source === 'dataset' ? (input.datasetKey ?? null) : null;
+  const datasetKey = keyOf(input);
   if (hasSnapshots && (input.platformId !== cur.platform_id || input.source !== cur.source || datasetKey !== cur.dataset_key))
     throw new HttpError(
       409,
-      'The platform, source and dataset of a check with snapshots cannot change (its history would mix sources) – create a new check',
+      'The platform, source and dataset or scope of a check with snapshots cannot change (its history would mix sources) – create a new check',
       'ACCESS_CHECK_LOCKED',
     );
   if (input.source === 'dataset' && datasetKey !== cur.dataset_key && !datasetReadable(ownerUser(cur), datasetKey)) datasetForbidden(datasetKey, cur.owner);
@@ -358,7 +374,7 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
       input.description,
       input.platformId,
       input.source,
-      input.source === 'dataset' ? input.datasetKey : null,
+      keyOf(input),
       input.cron,
       input.timezone,
       input.enabled ? 1 : 0,
@@ -376,6 +392,7 @@ export function updateCheck(id: string, input: CheckInput): AccessCheck {
       details: {
         source: input.source,
         datasetKey: input.datasetKey ?? null,
+        ...(input.source === 'git' ? { scope: input.scope ?? null } : {}),
         cron: input.cron,
         timezone: input.timezone,
         enabled: input.enabled,
@@ -507,6 +524,38 @@ async function collectInsightsHub(c: CheckRow): Promise<{ subjects: AccessSubjec
   return { subjects: normalizeSubjects(raw), sourceRunId: null };
 }
 
+/**
+ * Git platforms (#107): members of an organisation or group with their role, or the collaborators of a repository with
+ * their role (outside collaborators and access through a team marked), read with the platform's token as the owner.
+ */
+async function collectGit(c: CheckRow): Promise<{ subjects: AccessSubject[]; sourceRunId: null }> {
+  const owner = ownerUser(c);
+  const platform = runAs(owner, () => getPlatform(c.platform_id));
+  if (!platform.permissions.includes('use'))
+    throw new HttpError(403, `The owner ${c.owner} may not use the platform "${platform.name}"`, 'ACCESS_CHECK_OWNER', {
+      owner: c.owner,
+      context: 'platform',
+      name: platform.name,
+    });
+  if (!isGitPlatformKind(platform.kind)) throw new HttpError(400, 'The Git source needs a GitHub, GitLab or Forgejo/Gitea platform', 'ACCESS_CHECK_GIT_SOURCE');
+  await assertOutboundAllowed(await buildUrl(platform, getSecrets(c.platform_id), '/', {}), outboundContext());
+  const { gitHost } = await import('../catalogue/repositories.js');
+  let subjects: AccessSubject[];
+  try {
+    subjects = await gitHost(platform, getSecrets(c.platform_id)).access(String(c.dataset_key ?? ''));
+  } catch (e) {
+    throw new HttpError(502, `The Git platform could not be read: ${(e as Error).message}`.slice(0, 500), 'ACCESS_CHECK_GIT_READ', {
+      detail: (e as Error).message.slice(0, 300),
+    });
+  }
+  if (subjects.length > LIMITS.subjects)
+    throw new HttpError(400, `The scope has more than ${LIMITS.subjects} members`, 'SNAPSHOT_TOO_LARGE', { max: LIMITS.subjects });
+  return {
+    subjects: normalizeSubjects(subjects.map((x) => ({ id: clip(x.id), name: clip(x.name), type: x.type, rights: x.rights.map(clip) }))),
+    sourceRunId: null,
+  };
+}
+
 /** A dataset in the access snapshot shape, published by a process (never a dry run). */
 function collectDataset(c: CheckRow): { subjects: AccessSubject[]; sourceRunId: string } {
   const d = db().get<{ rows: string; run_id: string; dry_run: number; process_id: string }>(
@@ -614,7 +663,7 @@ export async function runCheck(id: string, o: { actor: string; trigger: 'schedul
   try {
     let collected: { subjects: AccessSubject[]; sourceRunId: string | null };
     try {
-      collected = c.source === 'insights-hub' ? await collectInsightsHub(c) : collectDataset(c);
+      collected = c.source === 'insights-hub' ? await collectInsightsHub(c) : c.source === 'git' ? await collectGit(c) : collectDataset(c);
     } catch (e) {
       const msg = (e as Error).message.slice(0, 500);
       db().tx(() => {

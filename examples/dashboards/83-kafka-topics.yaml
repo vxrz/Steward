@@ -1,0 +1,20 @@
+name: Kafka topics
+description: The Kafka topics of applications against the standards – partitions, replication, retention, schema, newest message, consumer lag – fed by "Kafka – topic standards" (daily).
+refreshSeconds: 300
+widgets:
+  - id: intro
+    type: markdown
+    width: 12
+    text: |
+      **Kafka topics** – from the process *Kafka – topic standards*, which reads what Steward knows about the topics of applications (components of type "Kafka topic"). Opening this page never calls the cluster.
+      Live checks are monitors with the check type "Kafka topic"; schema changes go through *Kafka – schema change review*.
+  - { id: topics, type: kpi, title: Topics, dataset: kafka.topics, metric: topics, width: 3 }
+  - { id: violations, type: kpi, title: Not to standard, dataset: kafka.topics, metric: violations, goodWhen: down, width: 3 }
+  - { id: lagging, type: kpi, title: Consumers lagging, dataset: kafka.topics, metric: lagging, goodWhen: down, width: 3 }
+  - { id: quiet, type: kpi, title: Quiet topics, dataset: kafka.topics, metric: quiet, goodWhen: down, width: 3 }
+  - { id: status, type: status, title: By state, dataset: kafka.topics, width: 4 }
+  - { id: trend, type: trend, title: Not to standard and lagging, dataset: kafka.topics, metrics: [violations, lagging], days: 30, width: 8 }
+  - { id: problems, type: table, title: Needing attention, dataset: kafka.topics, problemsOnly: true, width: 12 }
+  - { id: all, type: table, title: All topics, dataset: kafka.topics, width: 12 }
+  - { id: checks, type: checks, title: Latest check, process: kafka-topic-standards, width: 6 }
+  - { id: fresh, type: freshness, title: Data freshness, width: 6 }

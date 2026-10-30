@@ -17,6 +17,12 @@ import {
   type StackProduct,
   type StackSource,
   type NamespaceReadout,
+  type RepositoryReadout,
+  type TopicReadout,
+  KAFKA_KIND,
+  KAFKA_TOPIC_RE,
+  isGitPlatformKind,
+  REPOSITORY_PATH_RE,
 } from '@sm/shared';
 import { db } from '../db.js';
 import { audit } from '../audit.js';
@@ -156,7 +162,7 @@ export const componentInput = z
     note: z.string().max(COMPONENT_LIMITS.note).default(''),
     /** The environment (#129); empty: all environments / not specific to one */
     environment: environmentValue.default(''),
-    /** Kubernetes namespace (#111): the cluster, a platform of kind kubernetes (missing: unchanged) */
+    /** Kubernetes namespace (#111): the cluster, a platform of kind kubernetes; repository (#107): its Git platform (missing: unchanged) */
     platformId: z.string().trim().min(1).max(100).nullable().optional(),
     /** The whole stack of the component (missing: unchanged). Entries that keep product and version keep their source; others count as entered by hand. */
     stack: z.array(stackEntryInput).max(COMPONENT_LIMITS.stackPerComponent).optional(),
@@ -191,6 +197,8 @@ interface ComponentRow {
   sbom_imported_by: string | null;
   platform_id?: string | null;
   cluster_state?: string | null;
+  repo_state?: string | null;
+  topic_state?: string | null;
   created_at: string;
   created_by: string;
   updated_at: string;
@@ -254,7 +262,11 @@ function toComponent(r: ComponentRow, stack: StackEntry[]): ApplicationComponent
         : null,
     ...(r.type === 'kubernetes-namespace'
       ? { platformId: r.platform_id ?? null, cluster: parseJson<NamespaceReadout | null>(r.cluster_state ?? null, null) }
-      : {}),
+      : r.type === 'repository'
+        ? { platformId: r.platform_id ?? null, repository: parseJson<RepositoryReadout | null>(r.repo_state ?? null, null) }
+        : r.type === 'kafka-topic'
+          ? { platformId: r.platform_id ?? null, topic: parseJson<TopicReadout | null>(r.topic_state ?? null, null) }
+          : {}),
     createdAt: r.created_at,
     createdBy: r.created_by,
     updatedAt: r.updated_at,
@@ -341,12 +353,29 @@ function editableApp(appId: string, canEdit: (u: AuthUser | null, r: Pick<AppRow
   return a;
 }
 
-/** The cluster of a namespace component: a platform of kind kubernetes the user may use (#111). */
+/**
+ * The platform a component is read from: the cluster of a namespace (a platform of kind kubernetes, #111) or the Git
+ * platform of a repository (github, gitlab, forgejo, #107) – one the user may use. Other types have none.
+ */
 function clusterOf(input: ComponentInput, u: AuthUser, current: string | null): string | null {
-  if (input.type !== 'kubernetes-namespace') return null;
+  if (input.type !== 'kubernetes-namespace' && input.type !== 'repository' && input.type !== 'kafka-topic') return null;
   const id = input.platformId === undefined ? current : input.platformId;
+  if (id && input.type === 'repository' && (!REPOSITORY_PATH_RE.test(input.name) || input.name.split('/').some((x) => x === '.' || x === '..')))
+    throw new HttpError(400, 'The repository path is owner/repository (GitLab: group/project)', 'COMPONENT_REPOSITORY_PATH', { path: input.name });
+  if (id && input.type === 'kafka-topic' && !KAFKA_TOPIC_RE.test(input.name))
+    throw new HttpError(400, 'A Kafka topic name has letters, digits, ".", "_" and "-" (at most 249)', 'KAFKA_TOPIC_NAME', { name: input.name.slice(0, 100) });
   if (!id || id === current) return id ?? null;
   const p = db().get<{ kind: string }>('SELECT kind FROM platforms WHERE id = ?', id);
+  if (input.type === 'kafka-topic') {
+    if (p?.kind !== KAFKA_KIND || ownerProblem(u.username, id))
+      throw new HttpError(400, 'Choose a Kafka platform you may use', 'COMPONENT_TOPIC_PLATFORM', { id });
+    return id;
+  }
+  if (input.type === 'repository') {
+    if (!isGitPlatformKind(p?.kind) || ownerProblem(u.username, id))
+      throw new HttpError(400, 'Choose a GitHub, GitLab or Forgejo/Gitea platform you may use', 'COMPONENT_REPOSITORY_PLATFORM', { id });
+    return id;
+  }
   if (p?.kind !== 'kubernetes' || ownerProblem(u.username, id))
     throw new HttpError(400, 'Choose a Kubernetes platform you may use', 'COMPONENT_CLUSTER', { id });
   return id;
@@ -508,7 +537,7 @@ export function updateComponent(appId: string, componentId: string, input: Compo
   const cluster = clusterOf(input, u, cur.platform_id ?? null);
   const fields = [
     ...(['type', 'name', 'url', 'note', 'environment'] as const).filter((k) => input[k] !== (cur[k] ?? '')),
-    ...(cluster !== (cur.platform_id ?? null) ? (['cluster'] as const) : []),
+    ...(cluster !== (cur.platform_id ?? null) ? ([input.type === 'repository' ? 'platform' : 'cluster'] as const) : []),
   ];
   db().tx(() => {
     const diff = input.stack ? writeStack(componentHolder(componentId), input.stack, u) : { added: [], changed: [], removed: [] };
@@ -896,6 +925,8 @@ export interface ApplicationInputValue {
     /** '' when the component serves all environments */
     environment: string;
     stack: { product: string; label: string; version: string; lifecycle: StackLifecycle | null }[];
+    /** What Steward last read from the component's platform: a Kubernetes namespace, a repository or a Kafka topic; null otherwise */
+    readout: NamespaceReadout | RepositoryReadout | TopicReadout | null;
   }[];
   /** The systems the application runs on (#129), one entry per system and environment */
   systems: {
@@ -988,6 +1019,8 @@ export function applicationInputValue(v: unknown, label: string): ApplicationInp
       note: c.note,
       environment: c.environment,
       stack: c.stack.map(plain),
+      // what Steward last read from the component's platform (Kubernetes namespace, repository, Kafka topic), for checks against standards
+      readout: c.cluster ?? c.repository ?? c.topic ?? null,
     })),
     systems: systems.map((x) => ({
       id: x.systemId,

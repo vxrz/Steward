@@ -1,0 +1,137 @@
+name: "Kafka – topic standards"
+description: |
+  Checks the Kafka topics of applications against your standards: partitions,
+  replication, min.insync.replicas, retention and cleanup policy, a schema in
+  the Schema Registry, the newest message and the consumer lag. It reads what
+  Steward already knows about each topic (application components of type
+  "Kafka topic", read every 6 hours) – no call to the cluster, no message
+  content. Read-only.
+
+  Recommended schedule: daily (`30 7 * * *`), with "message on change" in the
+  schedule's notification policy. Publishes `kafka.topics` (one row per topic;
+  metrics topics, violations, lagging, quiet) for the "Kafka topics" dashboard.
+  Monitors watch the live state with the check type "Kafka topic"; schema
+  changes go through "Kafka – schema change review".
+tags: [kafka, standards, catalogue]
+inputs:
+  - name: apps
+    label: Applications (empty = all)
+    type: applications
+  - name: minPartitions
+    label: At least partitions
+    type: number
+    default: 3
+  - name: minReplication
+    label: At least replicas
+    type: number
+    default: 3
+  - name: minInsync
+    label: At least min.insync.replicas
+    type: number
+    default: 2
+  - name: maxRetentionDays
+    label: Retention at most (days, compacted topics excepted)
+    type: number
+    default: 30
+  - name: requireSchema
+    label: Every topic has a schema
+    type: boolean
+    default: true
+  - name: maxLag
+    label: Consumer lag at most
+    type: number
+    default: 1000
+  - name: quietHours
+    label: Newest message at most this old (hours)
+    type: number
+    default: 24
+steps:
+  - id: rows
+    type: set
+    name: One row per topic
+    values:
+      rows: |-
+        {{ [inputs.apps.(
+          $app := name;
+          components[type = 'kafka-topic' and $exists(readout.readAt)].(
+            $r := readout;
+            $topic := name;
+            $retention := $exists($r.configs.`retention.ms`) ? $number($r.configs.`retention.ms`) : null;
+            $compact := $contains($string($r.configs.`cleanup.policy`), 'compact');
+            $minIsr := $exists($r.configs.`min.insync.replicas`) ? $number($r.configs.`min.insync.replicas`) : null;
+            $ageHours := $r.lastMessageAt ? $round(($millis() - $toMillis($r.lastMessageAt)) / 3600000, 1) : null;
+            $maxLagNow := $count($r.groups) ? $max($r.groups.lag) : 0;
+            $issues := [
+              $r.error ? 'not readable: ' & $r.error : null,
+              $r.partitions < $$.inputs.minPartitions ? $r.partitions & ' partitions (at least ' & $$.inputs.minPartitions & ')' : null,
+              $r.replicationFactor != null and $r.replicationFactor < $$.inputs.minReplication ? $r.replicationFactor & ' replicas (at least ' & $$.inputs.minReplication & ')' : null,
+              $minIsr != null and $minIsr < $$.inputs.minInsync ? 'min.insync.replicas ' & $minIsr & ' (at least ' & $$.inputs.minInsync & ')' : null,
+              $not($compact) and ($retention = -1 or ($retention != null and $retention > $$.inputs.maxRetentionDays * 86400000)) ? 'retention ' & ($retention = -1 ? 'unlimited' : $round($retention / 86400000) & ' days') & ' (at most ' & $$.inputs.maxRetentionDays & ')' : null,
+              $$.inputs.requireSchema and $not($exists($r.schema.version)) ? 'no schema ' & $topic & '-value' : null
+            ][$ != null];
+            {
+              "key": $app & ' / ' & name & (environment ? ' (' & environment & ')' : ''),
+              "application": $app,
+              "topic": name,
+              "environment": environment,
+              "partitions": $r.partitions & ' × ' & ($r.replicationFactor ? $r.replicationFactor : '?'),
+              "retention": $compact ? 'compacted' : ($retention = -1 ? 'unlimited' : ($retention != null ? $round($retention / 86400000) & ' days' : '–')),
+              "schema": $exists($r.schema.version) ? $r.schema.subject & ' v' & $r.schema.version : '–',
+              "newestHours": $ageHours,
+              "maxLag": $maxLagNow,
+              "issues": $join($issues, '; '),
+              "violations": $count($issues),
+              "lagging": $maxLagNow > $$.inputs.maxLag,
+              "quiet": $ageHours != null and $ageHours > $$.inputs.quietHours,
+              "status": $r.error ? 'unknown' : ($count($issues) > 0 ? 'warning' : ($maxLagNow > $$.inputs.maxLag or ($ageHours != null and $ageHours > $$.inputs.quietHours) ? 'warning' : 'good'))
+            }
+          )
+        )] }}
+  - id: evaluate
+    type: set
+    name: Problems
+    values:
+      violating: "{{ [vars.rows[violations > 0]] }}"
+      lagging: "{{ [vars.rows[lagging]] }}"
+      quiet: "{{ [vars.rows[quiet]] }}"
+  - id: publish
+    type: publish
+    name: Publish for the dashboard
+    dataset: kafka.topics
+    title: Kafka topics
+    rows: vars.rows
+    key: key
+    columns:
+      - { label: Application, value: application }
+      - { label: Topic, value: topic }
+      - { label: Environment, value: "environment ? environment : '–'" }
+      - { label: Partitions × replicas, value: partitions }
+      - { label: Retention, value: retention }
+      - { label: Schema, value: schema }
+      - { label: Newest message (hours), value: newestHours }
+      - { label: Most lag, value: maxLag }
+      - { label: Not to standard, value: "issues ? issues : '–'" }
+    status: status
+    statusText: "issues ? issues : (lagging ? 'lag ' & maxLag : (quiet ? 'no message for ' & newestHours & ' hours' : ''))"
+    metrics:
+      topics: "$count(vars.rows)"
+      violations: "$count(vars.violating)"
+      lagging: "$count(vars.lagging)"
+      quiet: "$count(vars.quiet)"
+  - id: standards
+    type: check
+    name: Topics meet the standards
+    severity: warning
+    condition: "$count(vars.violating) = 0"
+    message: "{{ $count(vars.violating) = 0 ? 'All ' & $count(vars.rows) & ' topics meet the standards' : $join(vars.violating.(topic & ': ' & issues), '; ') }}"
+    headline: "{{ $count(vars.violating) }} topics not to standard"
+    value: "$count(vars.violating)"
+    items: "vars.violating.(application & ' / ' & topic & ': ' & issues)"
+  - id: consumers
+    type: check
+    name: Consumers keep up
+    severity: warning
+    condition: "$count(vars.lagging) = 0"
+    message: "{{ $count(vars.lagging) = 0 ? 'No consumer group lags more than ' & inputs.maxLag & ' messages' : $join(vars.lagging.(topic & ' lag ' & maxLag), ', ') }}"
+    value: "$count(vars.lagging)"
+    items: "vars.lagging.(application & ' / ' & topic & ': lag ' & maxLag)"

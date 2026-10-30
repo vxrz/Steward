@@ -166,9 +166,22 @@ const toBase64 = async (f: File): Promise<string> => {
   return btoa(bin);
 };
 
-export function CredentialEditor({ initial, onClose, onSaved }: { initial: Credential | null; onClose: () => void; onSaved: (c: Credential) => void }) {
+/** Fields a new entry starts with, e.g. a deploy key Steward found in a repository (#107) – reviewed before it is saved. */
+export type CredentialDraft = Partial<Pick<Draft, 'name' | 'type' | 'belongsTo' | 'platformId' | 'description' | 'roles' | 'issuedAt' | 'expiresAt' | 'notes'>>;
+
+export function CredentialEditor({
+  initial,
+  draft,
+  onClose,
+  onSaved,
+}: {
+  initial: Credential | null;
+  draft?: CredentialDraft;
+  onClose: () => void;
+  onSaved: (c: Credential) => void;
+}) {
   const { t } = useTranslation(['credentials', 'common']);
-  const [d, setD] = useState<Draft>(() => fromEntry(initial));
+  const [d, setD] = useState<Draft>(() => ({ ...fromEntry(initial), ...(initial ? {} : (draft ?? {})) }));
   const [cert, setCert] = useState<{ contentBase64: string; info: CertificateInfo } | null>(null);
   const [removeCert, setRemoveCert] = useState(false);
   const [busy, setBusy] = useState(false);
